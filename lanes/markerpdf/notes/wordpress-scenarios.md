@@ -148,6 +148,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-outline-import.php` maps Marker's upstream `get_pdf_toc` helper plus PDF document-info metadata into a bookmark import path. It parses a native PDF catalog `/Outlines` tree and trailer `/Info` dictionary, preserves upstream-style `title`, `level`, and zero-based `page` metadata, and emits a Gutenberg list with document-info review attributes before any OCR or layout model runs.
 
+`examples/wordpress-pdf-named-destinations-import.php` maps a native PDF named-destination outline boundary into a WordPress navigation-list import path. It resolves `/Outlines` entries through catalog `/Names` name trees, legacy `/Dests`, direct destination arrays, and `/A /GoTo` actions, then emits Gutenberg list items with page indexes and `data-marker-destination-name` attributes without loading pdftext, pypdfium, Python models, or external PDF tools.
+
 `examples/wordpress-paginated-import.php` maps Marker's upstream Markdown block-merge and full-text assembly path into a paginated Gutenberg import. It preserves PDF page-start markers as separator blocks, then emits merged headings, paragraphs, and lists after applying block type transitions and bbox-based line continuation rules.
 
 `examples/wordpress-reading-order-import.php` maps Marker's upstream layout ordering path into a two-column Gutenberg import. It applies model order positions by maximum bounding-box overlap, uses Marker's vertical-bucket/horizontal tie sorting, keeps page headers before body content and footers after it, then emits the body text as paragraph blocks in reading order.
