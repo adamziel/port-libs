@@ -32,6 +32,25 @@ return [
         $t->same([0.0, 0.0, 300.0, 400.0], $summary['pages'][1]['bbox']);
         $t->same('page', $summary['pages'][1]['bbox_source']);
     },
+    'walks indirect Kids arrays for preview page count order and inherited boxes' => static function (TestRunner $t): void {
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids 30 0 R /Count 99 >>\nendobj\n"
+            . "30 0 obj\n[20 0 R 10 0 R]\nendobj\n"
+            . "10 0 obj\n<< /Type /Pages /Parent 2 0 R /Kids [3 0 R] /Count 77 /MediaBox [0 0 300 400] >>\nendobj\n"
+            . "20 0 obj\n<< /Type /Pages /Parent 2 0 R /Kids 31 0 R /Count 88 /MediaBox [0 0 612 792] >>\nendobj\n"
+            . "31 0 obj\n[8 0 R]\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 10 0 R >>\nendobj\n"
+            . "8 0 obj\n<< /Type /Page /Parent 20 0 R >>\nendobj\n"
+            . "%%EOF\n";
+        $summary = (new MarkerAppPreview())->openPdfSummary($pdf);
+
+        $t->same(2, $summary['page_count']);
+        $t->same([8, 3], array_column($summary['pages'], 'object_id'));
+        $t->same([1, 2], array_column($summary['pages'], 'page_number'));
+        $t->same([[0.0, 0.0, 612.0, 792.0], [0.0, 0.0, 300.0, 400.0]], array_column($summary['pages'], 'bbox'));
+        $t->same(['pages', 'pages'], array_column($summary['pages'], 'bbox_source'));
+    },
     'plans marker app get_page_image pypdfium page index scale annotations and rgb output' => static function (TestRunner $t) use ($pdfWithPagesTree): void {
         $plan = (new MarkerAppPreview())->getPageImagePlan($pdfWithPagesTree(), 2, 144.0);
 

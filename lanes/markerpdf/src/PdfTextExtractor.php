@@ -901,7 +901,7 @@ final class PdfTextExtractor
 
         foreach ($matches as $match) {
             $dict = $match[1];
-            if ($this->isImageXObjectDictionary($dict)) {
+            if ($this->isImageStreamDictionary($dict, $objects)) {
                 continue;
             }
 
@@ -916,9 +916,105 @@ final class PdfTextExtractor
         return $streams;
     }
 
-    private function isImageXObjectDictionary(string $dict): bool
+    /**
+     * @param array<int, string> $objects
+     */
+    private function isImageStreamDictionary(string $dict, array $objects): bool
     {
-        return preg_match('/\/Subtype\s*\/Image\b/', $dict) === 1;
+        if (preg_match('/\/Subtype\s*\/Image\b/', $dict) === 1) {
+            return true;
+        }
+
+        if (!$this->hasPdfNumberishName($dict, 'Width') || !$this->hasPdfNumberishName($dict, 'Height')) {
+            return false;
+        }
+
+        $hasBitsPerComponent = $this->hasPdfNumberishName($dict, 'BitsPerComponent')
+            || $this->hasPdfNumberishName($dict, 'BPC');
+        if (!$hasBitsPerComponent && preg_match('/\/ImageMask\s+true\b/', $dict) !== 1) {
+            return false;
+        }
+
+        return $this->imageColorSpaceFamily($dict, $objects) !== null
+            || preg_match('/\/ImageMask\s+true\b/', $dict) === 1;
+    }
+
+    private function hasPdfNumberishName(string $dict, string $name): bool
+    {
+        $offset = $this->nameValueOffset($dict, $name);
+        if ($offset === null) {
+            return false;
+        }
+
+        return preg_match('/\G(?:[+-]?(?:\d+(?:\.\d*)?|\.\d+)|\d+\s+\d+\s+R\b)/s', $dict, $match, 0, $offset) === 1;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function imageColorSpaceFamily(string $dict, array $objects): ?string
+    {
+        foreach (['ColorSpace', 'CS'] as $name) {
+            $offset = $this->nameValueOffset($dict, $name);
+            if ($offset === null) {
+                continue;
+            }
+
+            $family = $this->colorSpaceFamilyAt($dict, $offset, $objects);
+            if ($family !== null) {
+                return $family;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seenObjects
+     */
+    private function colorSpaceFamilyAt(string $value, int $offset, array $objects, array $seenObjects = []): ?string
+    {
+        $offset = $this->skipPdfWhitespace($value, $offset);
+        if ($offset >= strlen($value)) {
+            return null;
+        }
+
+        if (preg_match('/\G\/([^\s\[\]()<>{}\/%]+)/s', $value, $match, 0, $offset) === 1) {
+            return $this->recognizedImageColorSpace($this->decodePdfName($match[1]));
+        }
+
+        if ($value[$offset] === '[') {
+            $arrayBody = $this->readPdfArrayAt($value, $offset);
+            if ($arrayBody === null) {
+                return null;
+            }
+
+            return $this->colorSpaceFamilyAt($arrayBody, 0, $objects, $seenObjects);
+        }
+
+        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $value, $match, 0, $offset) === 1) {
+            $objectNumber = (int) $match[1];
+            if (isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
+                return null;
+            }
+
+            $seenObjects[$objectNumber] = true;
+            return $this->colorSpaceFamilyAt(trim($objects[$objectNumber]), 0, $objects, $seenObjects);
+        }
+
+        return null;
+    }
+
+    private function recognizedImageColorSpace(string $name): ?string
+    {
+        return match ($name) {
+            'DeviceGray', 'DeviceRGB', 'DeviceCMYK',
+            'G', 'RGB', 'CMYK',
+            'Indexed', 'I',
+            'ICCBased' => $name,
+            default => null,
+        };
     }
 
     /**
@@ -1236,18 +1332,41 @@ final class PdfTextExtractor
             return [$objectNumber];
         }
 
-        if (!preg_match('/\/Kids\s*\[(.*?)\]/s', $body, $match)) {
+        $kids = $this->pageTreeKidObjectNumbers($body, $objects);
+        if ($kids === []) {
             return [];
         }
 
         $pages = [];
-        foreach ($this->objectReferences($match[1]) as $childObjectNumber) {
+        foreach ($kids as $childObjectNumber) {
             foreach ($this->pageObjectNumbersFromTree($childObjectNumber, $objects, $seen) as $pageObjectNumber) {
                 $pages[] = $pageObjectNumber;
             }
         }
 
         return $pages;
+    }
+
+    /**
+     * @return list<int>
+     * @param array<int, string> $objects
+     */
+    private function pageTreeKidObjectNumbers(string $body, array $objects): array
+    {
+        if (preg_match('/\/Kids\s*(?:(\d+)\s+\d+\s+R|\[)/s', $body, $match, PREG_OFFSET_CAPTURE) !== 1) {
+            return [];
+        }
+
+        if (($match[1][0] ?? '') !== '') {
+            $objectNumber = (int) $match[1][0];
+            $arrayBody = isset($objects[$objectNumber]) ? $this->pdfArrayAtStart(trim($objects[$objectNumber])) : null;
+            return $arrayBody === null ? [] : $this->objectReferences($arrayBody);
+        }
+
+        $offset = strpos($body, '[', $match[0][1]);
+        $arrayBody = $offset === false ? null : $this->readPdfArrayAt($body, $offset);
+
+        return $arrayBody === null ? [] : $this->objectReferences($arrayBody);
     }
 
     private function isCatalogObject(string $body): bool
@@ -1294,6 +1413,10 @@ final class PdfTextExtractor
     private function decodeStreamObject(string $objectBody, array $objects): ?string
     {
         if (!preg_match('/<<(.*?)>>\s*stream\r?\n?(.*?)\r?\n?endstream/s', $objectBody, $match)) {
+            return null;
+        }
+
+        if ($this->isImageStreamDictionary($match[1], $objects)) {
             return null;
         }
 

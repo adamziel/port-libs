@@ -153,7 +153,7 @@ final class MarkerAppPreview
         }
 
         $pages = [];
-        foreach ($this->kidReferences($body) as $kidId) {
+        foreach ($this->kidReferences($body, $objects) as $kidId) {
             foreach ($this->collectPages($kidId, $objects, $bbox, $bboxSource, $seen) as $page) {
                 $pages[] = $page;
             }
@@ -203,13 +203,22 @@ final class MarkerAppPreview
 
     /**
      * @return list<int>
+     * @param array<int, array{generation: int, body: string}> $objects
      */
-    private function kidReferences(string $body): array
+    private function kidReferences(string $body, array $objects): array
     {
-        if (!preg_match('/\/Kids\s*\[(.*?)\]/s', $body, $match)) {
+        if (!preg_match('/\/Kids\s*(?:\[(.*?)\]|(\d+)\s+\d+\s+R\b)/s', $body, $match)) {
             return [];
         }
-        if (!preg_match_all('/(\d+)\s+\d+\s+R\b/', $match[1], $refs)) {
+
+        $kidsBody = $match[1] ?? '';
+        if ($kidsBody === '' && isset($match[2])) {
+            $objectId = (int) $match[2];
+            $objectBody = isset($objects[$objectId]) ? trim($objects[$objectId]['body']) : '';
+            $kidsBody = preg_match('/^\[(.*?)\]$/s', $objectBody, $objectMatch) ? $objectMatch[1] : '';
+        }
+
+        if (!preg_match_all('/(\d+)\s+\d+\s+R\b/', $kidsBody, $refs)) {
             return [];
         }
 

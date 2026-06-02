@@ -1130,6 +1130,54 @@ return [
         $t->true(!str_contains($plainText, 'Raster Image Noise'));
         $t->true(!str_contains($plainText, 'Compressed Image Noise'));
     },
+    'skips device Indexed and ICCBased image streams before WordPress text extraction' => static function (TestRunner $t): void {
+        $visibleContent = 'BT /F1 12 Tf 72 720 Td (ColorSpace Import) Tj T* (Device Paragraph) Tj ET';
+        $deviceNoise = 'BT /F1 12 Tf 72 720 Td (Device RGB Noise) Tj ET';
+        $indexedNoise = 'BT /F1 12 Tf 72 704 Td (Indexed Palette Noise) Tj ET';
+        $iccNoise = 'BT /F1 12 Tf 72 688 Td (ICC Profile Noise) Tj ET';
+        $fallbackPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Length " . strlen($visibleContent) . " >>\nstream\n{$visibleContent}\nendstream\nendobj\n"
+            . "2 0 obj\n<< /Width 2 /Height 1 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Length " . strlen($deviceNoise) . " >>\nstream\n{$deviceNoise}\nendstream\nendobj\n"
+            . "3 0 obj\n<< /Width 2 /Height 1 /BitsPerComponent 8 /ColorSpace [/Indexed /DeviceRGB 1 <000000FFFFFF>] /Length " . strlen($indexedNoise) . " >>\nstream\n{$indexedNoise}\nendstream\nendobj\n"
+            . "4 0 obj\n<< /N 3 /Alternate /DeviceRGB /Length 7 >>\nstream\nICCFAKE\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Width 2 /Height 1 /BitsPerComponent 8 /ColorSpace [/ICCBased 4 0 R] /Length " . strlen($iccNoise) . " >>\nstream\n{$iccNoise}\nendstream\nendobj\n"
+            . "%%EOF";
+
+        $pageBefore = 'BT /F1 12 Tf 72 720 Td (Page Device Start) Tj ET';
+        $pageAfter = 'BT /F1 12 Tf 72 688 Td (Page Device End) Tj ET';
+        $pageDeviceNoise = 'BT /F1 12 Tf 72 704 Td (Device CMYK Noise) Tj ET';
+        $pageIndexedNoise = 'BT /F1 12 Tf 72 704 Td (Indirect Indexed Noise) Tj ET';
+        $pageIccNoise = 'BT /F1 12 Tf 72 704 Td (Indirect ICC Noise) Tj ET';
+        $pagePdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 12 0 R >> >> /Contents [4 0 R 5 0 R 7 0 R 8 0 R 10 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageBefore) . " >>\nstream\n{$pageBefore}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Width 1 /Height 1 /BitsPerComponent 8 /ColorSpace /DeviceCMYK /Length " . strlen($pageDeviceNoise) . " >>\nstream\n{$pageDeviceNoise}\nendstream\nendobj\n"
+            . "6 0 obj\n[/Indexed /DeviceGray 1 <00FF>]\nendobj\n"
+            . "7 0 obj\n<< /Length " . strlen($pageAfter) . " >>\nstream\n{$pageAfter}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Width 1 /Height 1 /BitsPerComponent 8 /ColorSpace 6 0 R /Length " . strlen($pageIndexedNoise) . " >>\nstream\n{$pageIndexedNoise}\nendstream\nendobj\n"
+            . "9 0 obj\n[/ICCBased 11 0 R]\nendobj\n"
+            . "10 0 obj\n<< /Width 1 /Height 1 /BitsPerComponent 8 /ColorSpace 9 0 R /Length " . strlen($pageIccNoise) . " >>\nstream\n{$pageIccNoise}\nendstream\nendobj\n"
+            . "11 0 obj\n<< /N 3 /Alternate /DeviceRGB /Length 7 >>\nstream\nICCFAKE\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $fallbackText = $extractor->extractPlainText($fallbackPdf);
+        $pageText = $extractor->extractPlainText($pagePdf);
+
+        $t->same("ColorSpace Import\nDevice Paragraph", $fallbackText);
+        $t->same(['ColorSpace Import', 'Device Paragraph'], $extractor->extractTextRuns($fallbackPdf));
+        $t->same("Page Device Start\nPage Device End", $pageText);
+        $t->same(['Page Device Start', 'Page Device End'], $extractor->extractTextRuns($pagePdf));
+        $t->same("Page Device Start\nPage Device End\n", $extractor->naiveGetText($pagePdf));
+        $t->true(!str_contains($fallbackText, 'Device RGB Noise'));
+        $t->true(!str_contains($fallbackText, 'Indexed Palette Noise'));
+        $t->true(!str_contains($fallbackText, 'ICC Profile Noise'));
+        $t->true(!str_contains($pageText, 'Device CMYK Noise'));
+        $t->true(!str_contains($pageText, 'Indirect Indexed Noise'));
+        $t->true(!str_contains($pageText, 'Indirect ICC Noise'));
+    },
     'skips inline image data in page Contents before WordPress text extraction' => static function (TestRunner $t): void {
         $content = "BT /F1 12 Tf 72 720 Td (Visible Before Image) Tj ET\n"
             . "BI /W 3 /H 1 /CS /DeviceGray /BPC 8 ID \n"
@@ -1182,6 +1230,39 @@ return [
         $t->same(['Inherited One', 'Inherited Two'], $extractor->extractTextRuns($pdf));
         $t->same("Inherited One\nInherited Two", $extractor->extractPlainText($pdf));
         $t->same("Inherited One\nInherited Two\n", $extractor->naiveGetText($pdf));
+    },
+    'walks indirect page tree Kids arrays and ignores stale Count before WordPress text extraction' => static function (TestRunner $t) use ($toUnicodeCMap): void {
+        $pageOne = 'BT /F1 12 Tf 72 720 Td <41> Tj ET';
+        $pageTwo = 'BT /F1 12 Tf 72 720 Td <41> Tj ET';
+        $cmapOne = $toUnicodeCMap([
+            '41' => 'Kids First Branch',
+        ]);
+        $cmapTwo = $toUnicodeCMap([
+            '41' => 'Kids Second Branch',
+        ]);
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids 30 0 R /Count 99 >>\nendobj\n"
+            . "30 0 obj\n[20 0 R 10 0 R]\nendobj\n"
+            . "10 0 obj\n<< /Type /Pages /Parent 2 0 R /Kids [3 0 R] /Count 77 /Resources << /Font << /F1 6 0 R >> >> >>\nendobj\n"
+            . "20 0 obj\n<< /Type /Pages /Parent 2 0 R /Kids 31 0 R /Count 88 /Resources << /Font << /F1 4 0 R >> >> >>\nendobj\n"
+            . "31 0 obj\n[8 0 R]\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 10 0 R /Contents 7 0 R >>\nendobj\n"
+            . "8 0 obj\n<< /Type /Page /Parent 20 0 R /Contents 5 0 R >>\nendobj\n"
+            . "7 0 obj\n<< /Length " . strlen($pageTwo) . " >>\nstream\n{$pageTwo}\nendstream\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /KidsFirst /Encoding /Identity-H /ToUnicode 11 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($pageOne) . " >>\nstream\n{$pageOne}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /KidsSecond /Encoding /Identity-H /ToUnicode 12 0 R >>\nendobj\n"
+            . "11 0 obj\n<< /Length " . strlen($cmapOne) . " >>\nstream\n{$cmapOne}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Length " . strlen($cmapTwo) . " >>\nstream\n{$cmapTwo}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+
+        $t->same(['Kids First Branch', 'Kids Second Branch'], $extractor->extractTextLines($pdf));
+        $t->same(['Kids First Branch', 'Kids Second Branch'], $extractor->extractTextRuns($pdf));
+        $t->same("Kids First Branch\nKids Second Branch", $extractor->extractPlainText($pdf));
+        $t->same("Kids First Branch\nKids Second Branch\n", $extractor->naiveGetText($pdf));
+        $t->same(['1', '2'], $extractor->extractPageLabels($pdf));
+        $t->same(2, $extractor->extractOutlineMetadata($pdf)['pages']);
     },
     'parses object streams through xref stream entries before WordPress text extraction' => static function (TestRunner $t) use ($objectStreamXrefPdf): void {
         $pdf = $objectStreamXrefPdf();
