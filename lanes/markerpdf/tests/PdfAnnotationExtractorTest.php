@@ -92,6 +92,31 @@ $annotationPopupAppearanceActionBoundaryPdf = static function (): string {
         . "%%EOF";
 };
 
+$annotationStandardActionAppearancePopupPdf = static function (): string {
+    $pageStream = "BT /F1 12 Tf 72 744 Td (Page action boundary text) Tj ET";
+    $selectedAppearance = "q BT /F1 10 Tf 92 686 Td (Standard action AP visible) Tj ET Q";
+    $offAppearance = "q BT /F1 10 Tf 92 686 Td (Standard action Off AP hidden) Tj ET Q";
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R /Annots [6 0 R 11 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageStream) . " >>\nstream\n" . $pageStream . "\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Annot /Subtype /Text /Rect [72 660 280 724] /Contents (Standard action review note) /T (Action QA) /AS /On /AP << /N << /On 8 0 R /Off 9 0 R >> >> /Popup 10 0 R /A 7 0 R /AA << /E 13 0 R /D 14 0 R >> >>\nendobj\n"
+        . "7 0 obj\n<< /S /Named /N /Print /Next [15 0 R 16 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Type /XObject /Subtype /Form /BBox [72 660 280 724] /Resources << /Font << /F1 5 0 R >> >> /Length " . strlen($selectedAppearance) . " >>\nstream\n" . $selectedAppearance . "\nendstream\nendobj\n"
+        . "9 0 obj\n<< /Type /XObject /Subtype /Form /BBox [72 660 280 724] /Resources << /Font << /F1 5 0 R >> >> /Length " . strlen($offAppearance) . " >>\nstream\n" . $offAppearance . "\nendstream\nendobj\n"
+        . "10 0 obj\n<< /Type /Annot /Subtype /Popup /Rect [300 650 470 730] /Parent 6 0 R /Open true /Contents (Standard action popup review only) >>\nendobj\n"
+        . "11 0 obj\n<< /Type /Annot /Subtype /Popup /Rect [320 620 480 690] /Parent 6 0 R /Open false /Contents (Duplicate stale popup hidden) >>\nendobj\n"
+        . "12 0 obj\n<< /T (review.widget) >>\nendobj\n"
+        . "13 0 obj\n<< /S /Hide /T [(review.name) 12 0 R] /H false >>\nendobj\n"
+        . "14 0 obj\n<< /S /ResetForm /Fields [(review.name)] /Flags 1 >>\nendobj\n"
+        . "15 0 obj\n<< /S /ImportData /F << /F (review-data.fdf) >> >>\nendobj\n"
+        . "16 0 obj\n<< /S /SubmitForm /F (https://example.com/submit) /Fields [(review.name) 12 0 R] /Flags 6 >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'extracts page annotation border color opacity and popup metadata' => static function (TestRunner $t) use ($annotationPdf): void {
         $pages = (new PdfAnnotationExtractor())->extractPageAnnotations($annotationPdf());
@@ -330,5 +355,58 @@ return [
         $t->true(!str_contains($visibleText, 'Detached stale AP hidden'));
         $t->true(!str_contains($visibleText, 'downReview'));
         $t->true(!str_contains($visibleText, 'staleDetached'));
+    },
+    'reviews standard annotation actions while preserving appearance popup boundaries' => static function (TestRunner $t) use ($annotationStandardActionAppearancePopupPdf): void {
+        $pdf = $annotationStandardActionAppearancePopupPdf();
+        $page = (new PdfAnnotationExtractor())->extractPageAnnotations($pdf)[0];
+
+        $t->same(1, count($page['annotations']), 'reverse-linked Popup rows stay nested under the current parent annotation.');
+
+        $note = $page['annotations'][0];
+        $t->same('Text', $note['subtype']);
+        $t->same(6, $note['annotation_object']);
+        $t->same('Standard action popup review only', $note['popup']['contents']);
+        $t->same(true, $note['popup']['open']);
+        $t->same('On', $note['appearance']['normal']['selected_state']);
+        $t->same(8, $note['appearance']['normal']['selected']['object']);
+        $t->same(['On', 'Off'], $note['appearance']['normal']['states']);
+        $t->same(false, $note['appearance']['renders_appearance']);
+        $t->same(false, $note['executes_actions_on_import']);
+
+        $actions = $note['actions'];
+        $t->same(['Named', 'ImportData', 'SubmitForm'], array_column($actions, 'action_type'));
+        $t->same(['named-action-review', 'import-data-action-review', 'submit-form-action-review'], array_column($actions, 'safety'));
+        $t->same('Print', $actions[0]['named_action']);
+        $t->same('review-data.fdf', $actions[1]['file']);
+        $t->same(false, $actions[1]['imports_form_data']);
+        $t->same('https://example.com/submit', $actions[2]['file']);
+        $t->same(6, $actions[2]['flags']);
+        $t->same(['include_no_value_fields', 'html_format'], $actions[2]['flag_names']);
+        $t->same('include', $actions[2]['fields_mode']);
+        $t->same([12], $actions[2]['field_objects']);
+        $t->same(['review.name', 'review.widget'], $actions[2]['field_names']);
+        $t->same(true, $actions[1]['chained']);
+        $t->same(true, $actions[2]['chained']);
+
+        $additional = $note['additional_actions'];
+        $t->same(['E', 'D'], array_column($additional, 'event'));
+        $t->same(['Hide', 'ResetForm'], array_column($additional, 'action_type'));
+        $t->same(['hide-action-review', 'reset-form-action-review'], array_column($additional, 'safety'));
+        $t->same('show', $additional[0]['operation']);
+        $t->same([12], $additional[0]['field_objects']);
+        $t->same(['review.name', 'review.widget'], $additional[0]['field_names']);
+        $t->same(1, $additional[1]['flags']);
+        $t->same(['exclude_list'], $additional[1]['flag_names']);
+        $t->same('exclude', $additional[1]['fields_mode']);
+        $t->same(['review.name'], $additional[1]['field_names']);
+
+        $visibleText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $t->contains('Page action boundary text', $visibleText);
+        $t->contains('Standard action AP visible', $visibleText);
+        $t->true(!str_contains($visibleText, 'Standard action Off AP hidden'));
+        $t->true(!str_contains($visibleText, 'Standard action popup review only'));
+        $t->true(!str_contains($visibleText, 'Duplicate stale popup hidden'));
+        $t->true(!str_contains($visibleText, 'review-data.fdf'));
+        $t->true(!str_contains($visibleText, 'https://example.com/submit'));
     },
 ];

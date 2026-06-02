@@ -256,11 +256,120 @@ final class PdfActionReviewExtractor
             return $this->reviewAction('JavaScript', 'blocked-javascript', null, null, null, [], [], null, null, null, null);
         }
 
+        if ($type === 'Named') {
+            return $this->namedActionReview($action);
+        }
+
+        if ($type === 'ImportData') {
+            return $this->importDataActionReview($action);
+        }
+
+        if ($type === 'Hide') {
+            return $this->hideActionReview($action);
+        }
+
+        if ($type === 'SubmitForm' || $type === 'ResetForm') {
+            return $this->formActionReview($action, $type);
+        }
+
         if ($type === null) {
             return $this->localDestinationReview($originalValue);
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @return array<string, mixed>
+     */
+    private function namedActionReview(array $action): array
+    {
+        $name = $this->stringOrNameValue($this->resolveValue($action['N'] ?? null));
+
+        return $this->reviewAction('Named', 'named-action-review', null, null, null, [], [], null, null, null, null)
+            + ['named_action' => $name];
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @return array<string, mixed>
+     */
+    private function importDataActionReview(array $action): array
+    {
+        $file = $this->fileSpecValue($action['F'] ?? null);
+
+        return $this->reviewAction('ImportData', 'import-data-action-review', null, null, null, [], [], null, $file, null, null)
+            + [
+                'target' => $file,
+                'target_scheme' => $this->uriScheme($file),
+                'imports_form_data' => false,
+            ];
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @return array<string, mixed>
+     */
+    private function hideActionReview(array $action): array
+    {
+        $selection = $this->actionTargetSelection($action['T'] ?? null);
+        $hide = is_bool($action['H'] ?? null) ? $action['H'] : true;
+
+        $row = $this->reviewAction('Hide', 'hide-action-review', null, null, null, [], [], null, null, null, null);
+        $row['hide'] = $hide;
+        $row['operation'] = $hide ? 'hide' : 'show';
+        $row['field_objects'] = $selection['field_objects'];
+        $row['field_names'] = $selection['field_names'];
+        $row['unresolved_field_objects'] = $selection['unresolved_field_objects'];
+
+        return $row;
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @return array<string, mixed>
+     */
+    private function formActionReview(array $action, string $type): array
+    {
+        $flags = $this->intValue($action['Flags'] ?? null) ?? 0;
+        $selection = $this->actionFieldSelection($action['Fields'] ?? null, $type, $flags);
+        $file = $type === 'SubmitForm' ? $this->fileSpecValue($action['F'] ?? null) : null;
+
+        $row = $this->reviewAction(
+            $type,
+            $type === 'SubmitForm' ? 'submit-form-action-review' : 'reset-form-action-review',
+            null,
+            null,
+            null,
+            [],
+            [],
+            null,
+            $file,
+            null,
+            null
+        ) + [
+            'flags' => $flags,
+            'flag_names' => $this->actionFlagNames($type, $flags),
+            'fields_mode' => $selection['fields_mode'],
+            'field_objects' => $selection['field_objects'],
+            'field_names' => $selection['field_names'],
+            'unresolved_field_objects' => $selection['unresolved_field_objects'],
+        ];
+
+        if ($type === 'SubmitForm') {
+            $row += [
+                'target' => $file,
+                'target_scheme' => $this->uriScheme($file),
+                'submit_format' => $this->hasFlagBit($flags, 3) ? 'html' : 'fdf',
+                'include_no_value_fields' => $this->hasFlagBit($flags, 2),
+                'default_excludes_no_export' => true,
+            ];
+        } else {
+            $row['reset_to_default'] = true;
+        }
+
+        return $row;
     }
 
     /**
@@ -403,6 +512,154 @@ final class PdfActionReviewExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @return array{fields_mode: string, field_objects: list<int>, field_names: list<string>, unresolved_field_objects: list<int>}
+     */
+    private function actionFieldSelection(mixed $value, string $actionType, int $flags): array
+    {
+        if ($value === null) {
+            return [
+                'fields_mode' => $actionType === 'SubmitForm' ? 'all_exportable' : 'all',
+                'field_objects' => [],
+                'field_names' => [],
+                'unresolved_field_objects' => [],
+            ];
+        }
+
+        $selection = $this->actionTargetSelection($value);
+
+        return [
+            'fields_mode' => $this->hasFlagBit($flags, 1) ? 'exclude' : 'include',
+            'field_objects' => $selection['field_objects'],
+            'field_names' => $selection['field_names'],
+            'unresolved_field_objects' => $selection['unresolved_field_objects'],
+        ];
+    }
+
+    /**
+     * @return array{field_objects: list<int>, field_names: list<string>, unresolved_field_objects: list<int>}
+     */
+    private function actionTargetSelection(mixed $value): array
+    {
+        $selection = [
+            'field_objects' => [],
+            'field_names' => [],
+            'unresolved_field_objects' => [],
+        ];
+
+        $this->collectActionTarget($value, $selection);
+
+        $selection['field_objects'] = array_values(array_unique($selection['field_objects']));
+        $selection['field_names'] = array_values(array_unique($selection['field_names']));
+        $selection['unresolved_field_objects'] = array_values(array_unique($selection['unresolved_field_objects']));
+
+        return $selection;
+    }
+
+    /**
+     * @param array{field_objects: list<int>, field_names: list<string>, unresolved_field_objects: list<int>} $selection
+     */
+    private function collectActionTarget(mixed $value, array &$selection, int $depth = 0): void
+    {
+        if ($value === null || $depth > 20) {
+            return;
+        }
+
+        $objectNumber = $this->referenceObjectNumber($value);
+        if ($objectNumber !== null) {
+            $resolved = $this->resolveValue($value);
+            $array = $this->arrayItems($resolved);
+            if ($array !== null) {
+                foreach ($array as $item) {
+                    $this->collectActionTarget($item, $selection, $depth + 1);
+                }
+
+                return;
+            }
+
+            $selection['field_objects'][] = $objectNumber;
+            $dict = $this->dictionaryItems($resolved);
+            if ($dict !== null) {
+                $name = $this->stringOrNameValue($this->resolveValue($dict['T'] ?? null));
+                if ($name !== null && $name !== '') {
+                    $selection['field_names'][] = $name;
+                } else {
+                    $selection['unresolved_field_objects'][] = $objectNumber;
+                }
+
+                return;
+            }
+
+            $name = $this->stringOrNameValue($resolved);
+            if ($name !== null && $name !== '') {
+                $selection['field_names'][] = $name;
+            } else {
+                $selection['unresolved_field_objects'][] = $objectNumber;
+            }
+
+            return;
+        }
+
+        $resolved = $this->resolveValue($value);
+        $array = $this->arrayItems($resolved);
+        if ($array !== null) {
+            foreach ($array as $item) {
+                $this->collectActionTarget($item, $selection, $depth + 1);
+            }
+
+            return;
+        }
+
+        $dict = $this->dictionaryItems($resolved);
+        if ($dict !== null) {
+            $this->collectActionTarget($dict['T'] ?? null, $selection, $depth + 1);
+
+            return;
+        }
+
+        $name = $this->stringOrNameValue($resolved);
+        if ($name !== null && $name !== '') {
+            $selection['field_names'][] = $name;
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function actionFlagNames(string $actionType, int $flags): array
+    {
+        $names = [];
+        if ($this->hasFlagBit($flags, 1)) {
+            $names[] = 'exclude_list';
+        }
+
+        if ($actionType === 'SubmitForm') {
+            if ($this->hasFlagBit($flags, 2)) {
+                $names[] = 'include_no_value_fields';
+            }
+            if ($this->hasFlagBit($flags, 3)) {
+                $names[] = 'html_format';
+            }
+        }
+
+        return $names;
+    }
+
+    private function hasFlagBit(int $flags, int $oneBasedBit): bool
+    {
+        return ($flags & (1 << ($oneBasedBit - 1))) !== 0;
+    }
+
+    private function intValue(mixed $value): ?int
+    {
+        $resolved = $this->resolveValue($value);
+        if (is_int($resolved)) {
+            return $resolved;
+        }
+
+        return is_float($resolved) ? (int) $resolved : null;
     }
 
     /**
@@ -1067,6 +1324,15 @@ final class PdfActionReviewExtractor
         }
 
         return str_starts_with($trimmed, '#') || str_starts_with($trimmed, '/') || str_starts_with($trimmed, './') || str_starts_with($trimmed, '../');
+    }
+
+    private function uriScheme(?string $uri): ?string
+    {
+        if ($uri === null || preg_match('/^([a-z][a-z0-9+.-]*):/i', trim($uri), $match) !== 1) {
+            return null;
+        }
+
+        return strtolower($match[1]);
     }
 
     private function decodeLiteralString(string $token): string
