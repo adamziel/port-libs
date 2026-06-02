@@ -155,6 +155,94 @@ return [
         $t->same('opaque_rgb_preview', $plan['alpha_output_mode']);
         $t->same(['icc_profile_color_space', 'soft_mask_none'], $plan['notes']);
     },
+    'plans image Decode arrays before RGB preview sample mapping' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Decode [1 0 0 1 0 1] >>'
+        );
+
+        $t->same([
+            'ranges' => [
+                ['min' => 1.0, 'max' => 0.0],
+                ['min' => 0.0, 'max' => 1.0],
+                ['min' => 0.0, 'max' => 1.0],
+            ],
+            'component_count' => 3,
+            'expected_components' => 3,
+            'valid_for_components' => true,
+            'identity' => false,
+            'inverted_components' => [0],
+            'source' => 'explicit',
+        ], $plan['image_decode']);
+        $t->same(true, $plan['image_decode_applied_before_rgb']);
+        $t->same(false, $plan['image_decode_component_mismatch']);
+
+        $decoded = $renderer->imageSampleDecodeValues([0, 128, 255], $plan['image_decode'], $plan['bits_per_component']);
+        $t->same(1.0, $decoded[0]);
+        $t->true(abs($decoded[1] - (128 / 255)) < 0.000001);
+        $t->same(1.0, $decoded[2]);
+        $t->same([
+            'image_decode_applied_before_rgb_conversion',
+            'image_decode_inverts_components_before_rgb',
+        ], $plan['notes']);
+
+        $mismatch = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceCMYK /BitsPerComponent 8 /Decode [0 1 0 1] >>'
+        );
+
+        $t->same(2, $mismatch['image_decode']['component_count']);
+        $t->same(4, $mismatch['image_decode']['expected_components']);
+        $t->same(false, $mismatch['image_decode']['valid_for_components']);
+        $t->same(false, $mismatch['image_decode_applied_before_rgb']);
+        $t->same(true, $mismatch['image_decode_component_mismatch']);
+        $t->contains('image_decode_component_mismatch', implode(',', $mismatch['notes']));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->imageSampleDecodeValues([0, 1, 2, 3], $mismatch['image_decode']));
+    },
+    'plans ImageMask stencil Decode opacity before RGB preview compositing' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 2 /Height 1 /ImageMask true /Decode [1 0] >>'
+        );
+
+        $t->same([
+            'present' => true,
+            'width' => 2,
+            'height' => 1,
+            'bits_per_component' => 1,
+            'decode' => [
+                'ranges' => [
+                    ['min' => 1.0, 'max' => 0.0],
+                ],
+                'component_count' => 1,
+                'expected_components' => 1,
+                'valid_for_components' => true,
+                'identity' => false,
+                'inverted_components' => [0],
+                'source' => 'explicit',
+            ],
+            'opacity_for_zero' => 1.0,
+            'opacity_for_one' => 0.0,
+            'inverted' => true,
+        ], $plan['image_mask']);
+        $t->same(true, $plan['image_mask_applied_before_rgb']);
+        $t->same('image_mask_composited_to_rgb_preview', $plan['alpha_output_mode']);
+        $t->same(1.0, $renderer->imageMaskSampleOpacity(0, $plan['image_mask']));
+        $t->same(0.0, $renderer->imageMaskSampleOpacity(1, $plan['image_mask']));
+        $t->same([
+            'image_decode_applied_before_rgb_conversion',
+            'image_decode_inverts_components_before_rgb',
+            'image_mask_stencil_applied_before_rgb_conversion',
+            'image_mask_decode_inverts_stencil',
+        ], $plan['notes']);
+
+        $default = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 1 /Height 1 /ImageMask true >>'
+        );
+
+        $t->same('default', $default['image_mask']['decode']['source']);
+        $t->same(0.0, $renderer->imageMaskSampleOpacity(0, $default['image_mask']));
+        $t->same(1.0, $renderer->imageMaskSampleOpacity(1, $default['image_mask']));
+    },
     'plans DCTDecode CMYK Adobe transform before WordPress RGB image preview' => static function (TestRunner $t) use ($dctJpeg): void {
         $renderer = new PdfImageRenderer();
         $plan = $renderer->dctDecodeImageColorPlan(

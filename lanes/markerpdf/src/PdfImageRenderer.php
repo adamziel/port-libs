@@ -173,6 +173,67 @@ final class PdfImageRenderer
     }
 
     /**
+     * Maps decoded image samples through a PDF image /Decode array before the
+     * sample is interpreted in its color space.
+     *
+     * @param list<int|float> $sample
+     * @param array{ranges?: list<array{min: float, max: float}>, valid_for_components?: bool} $decodePlan
+     * @return list<float>
+     */
+    public function imageSampleDecodeValues(array $sample, array $decodePlan, int $bitsPerComponent = 8): array
+    {
+        if (($decodePlan['valid_for_components'] ?? false) !== true || !isset($decodePlan['ranges']) || !is_array($decodePlan['ranges'])) {
+            throw new InvalidArgumentException('Image Decode array does not match the image component count.');
+        }
+        if ($bitsPerComponent <= 0) {
+            throw new InvalidArgumentException('BitsPerComponent must be greater than zero.');
+        }
+
+        $values = array_values($sample);
+        $ranges = array_values($decodePlan['ranges']);
+        if (count($values) !== count($ranges)) {
+            throw new InvalidArgumentException('Image sample component count does not match Decode ranges.');
+        }
+
+        $maxSample = (2 ** min($bitsPerComponent, 30)) - 1;
+        $decoded = [];
+        foreach ($values as $index => $value) {
+            if (!is_int($value) && !is_float($value)) {
+                throw new InvalidArgumentException('Image sample values must be numeric.');
+            }
+
+            $range = $ranges[$index];
+            $min = (float) ($range['min'] ?? 0.0);
+            $max = (float) ($range['max'] ?? 1.0);
+            $ratio = max(0.0, min(1.0, (float) $value / $maxSample));
+            $decoded[] = $min + (($max - $min) * $ratio);
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * Maps a one-bit /ImageMask sample through the stencil Decode array into
+     * the opacity that a future RGB preview compositor should apply.
+     *
+     * @param array{present?: bool, decode?: array{ranges?: list<array{min: float, max: float}>, valid_for_components?: bool}, bits_per_component?: int|null} $imageMaskPlan
+     */
+    public function imageMaskSampleOpacity(int|float $sample, array $imageMaskPlan): float
+    {
+        if (($imageMaskPlan['present'] ?? false) !== true || !isset($imageMaskPlan['decode']) || !is_array($imageMaskPlan['decode'])) {
+            throw new InvalidArgumentException('ImageMask plan must describe a present stencil mask.');
+        }
+
+        $decoded = $this->imageSampleDecodeValues(
+            [$sample],
+            $imageMaskPlan['decode'],
+            max(1, (int) ($imageMaskPlan['bits_per_component'] ?? 1))
+        );
+
+        return max(0.0, min(1.0, $decoded[0]));
+    }
+
+    /**
      * Native metadata boundary for PDF image ColorSpace and soft-mask handling.
      *
      * Upstream rasterizes through pypdfium/PIL and always returns an RGB image.
@@ -188,6 +249,11 @@ final class PdfImageRenderer
      *     uses_icc_profile: bool,
      *     icc_profile: array{components: int|null, alternate_color_space: string|null, range: list<float>, length: int|null}|null,
      *     soft_mask: array{present: bool, subtype: string|null, width: int|null, height: int|null, color_space: string|null, components: int|null, bits_per_component: int|null, matte: list<float>|null, interpolate: bool|null}|null,
+     *     image_decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null,
+     *     image_decode_applied_before_rgb: bool,
+     *     image_decode_component_mismatch: bool,
+     *     image_mask: array{present: bool, width: int|null, height: int|null, bits_per_component: int, decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}, opacity_for_zero: float, opacity_for_one: float, inverted: bool}|null,
+     *     image_mask_applied_before_rgb: bool,
      *     soft_mask_applied_before_rgb: bool,
      *     matte_unblending_required: bool,
      *     output_color_mode: string,
@@ -198,13 +264,37 @@ final class PdfImageRenderer
     public function imageColorSpaceSoftMaskPlan(string $imageDictionary, array $objects = []): array
     {
         $colorSpace = $this->imageColorSpaceDetails($imageDictionary, $objects);
+        $imageMask = $this->imageMaskDetails($imageDictionary, $objects);
+        $imageMaskPresent = $imageMask !== null && $imageMask['present'] === true;
+        $bitsPerComponent = $imageMaskPresent ? ($this->imageBitsPerComponent($imageDictionary) ?? 1) : ($this->imageBitsPerComponent($imageDictionary) ?? 8);
+        $expectedDecodeComponents = $imageMaskPresent ? 1 : $colorSpace['components'];
+        $imageDecode = $this->imageDecodeDetails($imageDictionary, $objects, $expectedDecodeComponents, $imageMaskPresent);
+        if ($imageMaskPresent && $imageDecode !== null) {
+            $imageMask = $this->imageMaskDetails($imageDictionary, $objects, $imageDecode);
+        }
         $softMask = $this->imageSoftMaskDetails($imageDictionary, $objects);
         $softMaskPresent = $softMask !== null && $softMask['present'] === true;
         $matteUnblendingRequired = $softMaskPresent && $softMask['matte'] !== null;
+        $imageDecodeValid = $imageDecode !== null && $imageDecode['valid_for_components'];
+        $imageDecodeMismatch = $imageDecode !== null && !$imageDecode['valid_for_components'];
         $notes = [];
 
         if ($colorSpace['uses_icc_profile']) {
             $notes[] = 'icc_profile_color_space';
+        }
+        if ($imageDecodeValid) {
+            $notes[] = 'image_decode_applied_before_rgb_conversion';
+            if ($imageDecode['inverted_components'] !== []) {
+                $notes[] = 'image_decode_inverts_components_before_rgb';
+            }
+        } elseif ($imageDecodeMismatch) {
+            $notes[] = 'image_decode_component_mismatch';
+        }
+        if ($imageMaskPresent) {
+            $notes[] = 'image_mask_stencil_applied_before_rgb_conversion';
+            if (($imageMask['inverted'] ?? false) === true) {
+                $notes[] = 'image_mask_decode_inverts_stencil';
+            }
         }
         if ($softMaskPresent) {
             $notes[] = 'soft_mask_applied_before_rgb_conversion';
@@ -216,16 +306,23 @@ final class PdfImageRenderer
         }
 
         return [
-            'source_color_space' => $colorSpace['source_color_space'],
-            'components' => $colorSpace['components'],
-            'bits_per_component' => $this->imageBitsPerComponent($imageDictionary) ?? 8,
+            'source_color_space' => $imageMaskPresent ? 'ImageMask' : $colorSpace['source_color_space'],
+            'components' => $imageMaskPresent ? 1 : $colorSpace['components'],
+            'bits_per_component' => $bitsPerComponent,
             'uses_icc_profile' => $colorSpace['uses_icc_profile'],
             'icc_profile' => $colorSpace['icc_profile'],
+            'image_decode' => $imageDecode,
+            'image_decode_applied_before_rgb' => $imageDecodeValid,
+            'image_decode_component_mismatch' => $imageDecodeMismatch,
+            'image_mask' => $imageMask,
+            'image_mask_applied_before_rgb' => $imageMaskPresent,
             'soft_mask' => $softMask,
             'soft_mask_applied_before_rgb' => $softMaskPresent,
             'matte_unblending_required' => $matteUnblendingRequired,
             'output_color_mode' => 'RGB',
-            'alpha_output_mode' => $softMaskPresent ? 'soft_mask_composited_to_rgb_preview' : 'opaque_rgb_preview',
+            'alpha_output_mode' => $softMaskPresent
+                ? 'soft_mask_composited_to_rgb_preview'
+                : ($imageMaskPresent ? 'image_mask_composited_to_rgb_preview' : 'opaque_rgb_preview'),
             'notes' => $notes,
         ];
     }
@@ -274,6 +371,105 @@ final class PdfImageRenderer
         }
 
         return max(1, (int) $match[1]);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null
+     */
+    private function imageDecodeDetails(string $dictionary, array $objects, ?int $expectedComponents, bool $defaultIfMissing = false): ?array
+    {
+        $value = $this->extractPdfNameValue($dictionary, 'Decode');
+        if ($value === null) {
+            if (!$defaultIfMissing) {
+                return null;
+            }
+
+            return $this->buildImageDecodeDetails([0.0, 1.0], $expectedComponents, 'default');
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects));
+        if (!str_starts_with($resolved, '[')) {
+            return $this->buildImageDecodeDetails([], $expectedComponents, 'invalid');
+        }
+
+        return $this->buildImageDecodeDetails($this->numericArrayValue($resolved), $expectedComponents, 'explicit');
+    }
+
+    /**
+     * @param list<float> $values
+     * @return array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}
+     */
+    private function buildImageDecodeDetails(array $values, ?int $expectedComponents, string $source): array
+    {
+        $ranges = [];
+        $inverted = [];
+        $pairCount = intdiv(count($values), 2);
+        for ($index = 0; $index < $pairCount; $index++) {
+            $min = (float) $values[$index * 2];
+            $max = (float) $values[($index * 2) + 1];
+            $ranges[] = ['min' => $min, 'max' => $max];
+            if ($min > $max) {
+                $inverted[] = $index;
+            }
+        }
+
+        $validPairs = count($values) > 0 && count($values) % 2 === 0;
+        $validComponents = $expectedComponents === null || $pairCount === $expectedComponents;
+        $identity = $ranges !== [];
+        foreach ($ranges as $range) {
+            if (abs($range['min']) > 0.000001 || abs($range['max'] - 1.0) > 0.000001) {
+                $identity = false;
+                break;
+            }
+        }
+
+        return [
+            'ranges' => $ranges,
+            'component_count' => $pairCount,
+            'expected_components' => $expectedComponents,
+            'valid_for_components' => $validPairs && $validComponents,
+            'identity' => $identity,
+            'inverted_components' => $inverted,
+            'source' => $source,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null $decodePlan
+     * @return array{present: bool, width: int|null, height: int|null, bits_per_component: int, decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}, opacity_for_zero: float, opacity_for_one: float, inverted: bool}|null
+     */
+    private function imageMaskDetails(string $dictionary, array $objects, ?array $decodePlan = null): ?array
+    {
+        $imageMask = $this->booleanNameValue($dictionary, 'ImageMask');
+        if ($imageMask !== true) {
+            return null;
+        }
+
+        $bitsPerComponent = $this->imageBitsPerComponent($dictionary) ?? 1;
+        $decode = $decodePlan ?? $this->imageDecodeDetails($dictionary, $objects, 1, true);
+        if ($decode === null) {
+            $decode = $this->buildImageDecodeDetails([0.0, 1.0], 1, 'default');
+        }
+
+        $opacityForZero = 0.0;
+        $opacityForOne = 1.0;
+        if ($decode['valid_for_components']) {
+            $opacityForZero = $this->imageSampleDecodeValues([0], $decode, $bitsPerComponent)[0];
+            $opacityForOne = $this->imageSampleDecodeValues([(2 ** min($bitsPerComponent, 30)) - 1], $decode, $bitsPerComponent)[0];
+        }
+
+        return [
+            'present' => true,
+            'width' => $this->integerNameValue($dictionary, 'Width'),
+            'height' => $this->integerNameValue($dictionary, 'Height'),
+            'bits_per_component' => $bitsPerComponent,
+            'decode' => $decode,
+            'opacity_for_zero' => max(0.0, min(1.0, $opacityForZero)),
+            'opacity_for_one' => max(0.0, min(1.0, $opacityForOne)),
+            'inverted' => $decode['valid_for_components'] && $decode['inverted_components'] !== [],
+        ];
     }
 
     private function dctDecodeParmsColorTransform(string $dictionary): ?int

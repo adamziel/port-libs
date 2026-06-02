@@ -348,6 +348,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-filter-name-array-indirect-import.php` maps a PDF stream `/Filter` array whose individual filter names are indirect objects into a WordPress import path. It resolves `2 0 R` to `/ASCIIHexDecode`, resolves `3 0 R` to `/FlateDecode`, ignores a `null` filter-array entry, and emits `Name Array Indirect Filter` plus `Block Ready Import` as Gutenberg paragraphs without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
+`examples/wordpress-pdf-image-decode-stencil-preview.php` maps base image `/Decode` arrays and `/ImageMask` stencil decode arrays into a WordPress media-review path. It records decoded RGB component values, inverted stencil opacity, and RGB preview intent without loading Python, pypdfium, PIL, Poppler, Ghostscript, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
