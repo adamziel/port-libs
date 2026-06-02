@@ -99,6 +99,7 @@ final class OutputWriter
         if ($includeRuntimePreviewHtml) {
             $previewHtml = (new MarkdownImageEmbedder())->markdownInsertImages($markdownText, $imageBytesByFilename);
         }
+        $imageDataUriCount = is_string($previewHtml) ? substr_count($previewHtml, 'data:image/png;base64,') : 0;
 
         return [
             'source' => 'marker_output_runtime_preview_artifact_boundary',
@@ -130,8 +131,16 @@ final class OutputWriter
                 'html' => $previewHtml,
                 'html_sha256' => is_string($previewHtml) ? hash('sha256', $previewHtml) : null,
                 'html_size' => is_string($previewHtml) ? strlen($previewHtml) : 0,
-                'image_data_uri_count' => is_string($previewHtml) ? substr_count($previewHtml, 'data:image/png;base64,') : 0,
+                'image_data_uri_count' => $imageDataUriCount,
             ],
+            'markdown_image_bundle' => $this->markdownImageBundle(
+                $imageArtifacts,
+                $markdownImageTargets,
+                $embeddedTargets,
+                $unembeddedTargets,
+                $imageDataUriCount,
+                $includeRuntimePreviewHtml
+            ),
             'executes_streamlit' => false,
             'executes_pdfium' => false,
             'executes_python_or_models' => false,
@@ -277,6 +286,98 @@ final class OutputWriter
     }
 
     /**
+     * @param list<array<string, mixed>> $imageArtifacts
+     * @param list<string> $markdownImageTargets
+     * @param list<string> $embeddedTargets
+     * @param list<string> $unembeddedTargets
+     * @return array<string, mixed>
+     */
+    private function markdownImageBundle(
+        array $imageArtifacts,
+        array $markdownImageTargets,
+        array $embeddedTargets,
+        array $unembeddedTargets,
+        int $imageDataUriCount,
+        bool $includeRuntimePreviewHtml
+    ): array {
+        $targetCounts = $this->valueCounts($markdownImageTargets);
+        $embeddedCounts = $this->valueCounts($embeddedTargets);
+        $missingCounts = $this->valueCounts($unembeddedTargets);
+
+        $artifactRows = [];
+        $referencedRows = [];
+        $unreferencedFilenames = [];
+        foreach ($imageArtifacts as $artifact) {
+            $filename = (string) $artifact['filename'];
+            $markdownReferenceCount = $targetCounts[$filename] ?? 0;
+            $runtimePreviewEmbeddedCount = $embeddedCounts[$filename] ?? 0;
+            $row = [
+                'source_filename' => (string) $artifact['source_filename'],
+                'filename' => $filename,
+                'path' => (string) $artifact['path'],
+                'mime_type' => (string) $artifact['mime_type'],
+                'size' => (int) $artifact['size'],
+                'sha256' => (string) $artifact['sha256'],
+                'persisted_to_output_folder' => (bool) $artifact['persisted_to_output_folder'],
+                'source_filename_rewritten' => (bool) $artifact['source_filename_rewritten'],
+                'referenced_in_markdown' => $markdownReferenceCount > 0,
+                'markdown_reference_count' => $markdownReferenceCount,
+                'runtime_preview_embedded_count' => $runtimePreviewEmbeddedCount,
+                'runtime_preview_embeddable' => (bool) $artifact['runtime_preview_embeddable'],
+            ];
+
+            $artifactRows[] = $row;
+            if ($markdownReferenceCount > 0) {
+                $referencedRows[] = $row;
+            } else {
+                $unreferencedFilenames[] = $filename;
+            }
+        }
+
+        return [
+            'source' => 'marker_output_artifact_preview_markdown_image_bundle',
+            'upstream_boundary' => 'marker.output.save_markdown + marker.images.save.images_to_dict + marker_app.markdown_insert_images',
+            'image_artifact_count' => count($imageArtifacts),
+            'markdown_reference_count' => count($markdownImageTargets),
+            'embedded_reference_count' => count($embeddedTargets),
+            'missing_reference_count' => count($unembeddedTargets),
+            'unreferenced_artifact_count' => count($unreferencedFilenames),
+            'markdown_preview_complete' => $unembeddedTargets === [],
+            'preview_html_requested' => $includeRuntimePreviewHtml,
+            'preview_data_uri_count' => $imageDataUriCount,
+            'preview_data_uri_count_matches_embedded_references' => $includeRuntimePreviewHtml
+                ? $imageDataUriCount === count($embeddedTargets)
+                : null,
+            'target_reference_counts' => $targetCounts,
+            'embedded_reference_counts' => $embeddedCounts,
+            'missing_reference_counts' => $missingCounts,
+            'image_artifacts' => $artifactRows,
+            'referenced_image_artifacts' => $referencedRows,
+            'unreferenced_image_artifacts' => $unreferencedFilenames,
+            'missing_markdown_image_targets' => $unembeddedTargets,
+            'executes_streamlit' => false,
+            'executes_pdfium' => false,
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @param list<string> $values
+     * @return array<string, int>
+     */
+    private function valueCounts(array $values): array
+    {
+        $counts = [];
+        foreach ($values as $value) {
+            $value = (string) $value;
+            $counts[$value] = ($counts[$value] ?? 0) + 1;
+        }
+
+        return $counts;
+    }
+
+    /**
      * Upstream images are named by marker.images.save::get_image_filename as
      * "{page}_image_{index}.png". Sanitize supplied native map keys back into
      * that same single-file artifact boundary before joining paths.
@@ -340,9 +441,18 @@ final class OutputWriter
         }
 
         $markdown = (string) preg_replace_callback(
-            '/!\[(?P<alt>[^\]]*)\]\((?P<target>[^)\r\n]+)\)/',
+            '/!\[(?P<alt>[^\]]*)\]\((?P<body>[^)\r\n]+)\)/',
             static function (array $match) use ($imageNameMap): string {
-                $target = trim((string) $match['target']);
+                $body = trim((string) $match['body']);
+                $target = $body;
+                $suffix = '';
+                if (
+                    !isset($imageNameMap[$target])
+                    && preg_match('/^(?P<target>[^\)"\s]+)(?P<suffix>\s+.*)$/', $body, $parts) === 1
+                ) {
+                    $target = (string) $parts['target'];
+                    $suffix = (string) $parts['suffix'];
+                }
                 if (!isset($imageNameMap[$target])) {
                     return $match[0];
                 }
@@ -352,7 +462,7 @@ final class OutputWriter
                     $alt = $imageNameMap[$alt];
                 }
 
-                return '![' . $alt . '](' . $imageNameMap[$target] . ')';
+                return '![' . $alt . '](' . $imageNameMap[$target] . $suffix . ')';
             },
             $markdown
         );
