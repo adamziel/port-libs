@@ -324,6 +324,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-icc-softmask-image-review.php` maps ICCBased image color-space and soft-mask metadata into a WordPress media-review path. It exposes profile component count, `/Alternate`, `/Range`, direct/indirect `/SMask`, `/Matte`, matte-unblend, and RGB preview intent without loading Python, pypdfium, PIL, Poppler, Ghostscript, or external PDF tools.
 
+`examples/wordpress-pdf-encryption-permission-metadata-import.php` maps Standard PDF encryption permission metadata into a review-only WordPress import path. It reports crypt-filter settings, permission allow/deny labels, print quality, and hashed `/Perms`, blocks encrypted text extraction, and suppresses raw owner/user keys without attempting password validation or decryption.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
