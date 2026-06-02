@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 14:08:54 UTC",
-    "sourceCommit": "d85d709e5a6e30eac4b0fad08d554e7b7805b165",
-    "sourceCommitShort": "d85d709e5a6e",
+    "generated": "2026-06-02 14:17:24 UTC",
+    "sourceCommit": "c08d4dfb1af339648d7742407d6e23af0a704b46",
+    "sourceCommitShort": "c08d4dfb1af3",
     "sourceBranch": "main",
-    "dashboardCommit": "d85d709e5a6e30eac4b0fad08d554e7b7805b165",
-    "dashboardCommitShort": "d85d709e5a6e",
+    "dashboardCommit": "c08d4dfb1af339648d7742407d6e23af0a704b46",
+    "dashboardCommitShort": "c08d4dfb1af3",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "364",
-            "coverage": "364 / 78 (466.7%)",
-            "mapPercent": "466.7%",
+            "mapped": "365",
+            "coverage": "365 / 78 (467.9%)",
+            "mapPercent": "467.9%",
             "unmapped": "0",
-            "php": "516 pass / 0 fail",
+            "php": "517 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit d85d709e; full m...",
-            "currentWork": "Merged-cell table grid geometry is integrated and full-lane green; continue markerPDF...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit c08d4dfb; full m...",
+            "currentWork": "Indirect CIDFont /DW2 and /W2 vertical metrics resolve before WordPress paragraph gro...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded font, xref/object s...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "d85d709"
+            "commit": "c08d4df"
         },
         {
             "lane": "readability",
