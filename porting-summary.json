@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 15:04:23 UTC",
-    "sourceCommit": "957920a097f5e4f82efd578d8ffdfec4dc99df18",
-    "sourceCommitShort": "957920a097f5",
+    "generated": "2026-06-02 15:10:00 UTC",
+    "sourceCommit": "d5f8cfabc1a9d92cfa697bbd13ea7457359e5eec",
+    "sourceCommitShort": "d5f8cfabc1a9",
     "sourceBranch": "main",
-    "dashboardCommit": "957920a097f5e4f82efd578d8ffdfec4dc99df18",
-    "dashboardCommitShort": "957920a097f5",
+    "dashboardCommit": "d5f8cfabc1a9d92cfa697bbd13ea7457359e5eec",
+    "dashboardCommitShort": "d5f8cfabc1a9",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "372",
-            "coverage": "372 / 78 (476.9%)",
-            "mapPercent": "476.9%",
+            "mapped": "373",
+            "coverage": "373 / 78 (478.2%)",
+            "mapPercent": "478.2%",
             "unmapped": "0",
-            "php": "525 pass / 0 fail",
+            "php": "526 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit 957920a0; full m...",
-            "currentWork": "PdfAcroFormExtractor now exposes terminal field hierarchy metadata with object/name p...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit d5f8cfab; full m...",
+            "currentWork": "PdfMetadataExtractor now exposes OutputIntent-scoped /AF FileSpec rows as review-only...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded font, xref/object s...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "957920a"
+            "commit": "d5f8cfa"
         },
         {
             "lane": "readability",
