@@ -22,6 +22,7 @@ final class PdfAnnotationExtractor
     public function extractPageAnnotations(string $pdfBytes): array
     {
         $objects = $this->pdfObjects($pdfBytes);
+        $actionReviewer = new PdfActionReviewExtractor($pdfBytes);
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
         $pages = [];
 
@@ -44,7 +45,7 @@ final class PdfAnnotationExtractor
                     continue;
                 }
 
-                $annotations[] = $this->annotationReviewRow($record, $objects, $reversePopups);
+                $annotations[] = $this->annotationReviewRow($record, $objects, $reversePopups, $actionReviewer);
             }
 
             if ($annotations !== []) {
@@ -65,11 +66,17 @@ final class PdfAnnotationExtractor
      * @param array<int, array{body: string, object: int|null}> $reversePopups
      * @return array<string, mixed>
      */
-    private function annotationReviewRow(array $record, array $objects, array $reversePopups): array
+    private function annotationReviewRow(
+        array $record,
+        array $objects,
+        array $reversePopups,
+        PdfActionReviewExtractor $actionReviewer
+    ): array
     {
         $body = $record['body'];
         $subtype = $this->subtypeFromAnnotation($body);
         $rect = $this->rectFromAnnotation($body);
+        $actionReview = $actionReviewer->reviewAnnotationActions($body);
 
         $row = [
             'subtype' => $subtype,
@@ -84,6 +91,9 @@ final class PdfAnnotationExtractor
             'opacity' => $this->opacityFromAnnotation($body, $objects),
             'border' => $this->borderFromAnnotation($body, $objects),
             'popup' => $this->popupFromAnnotation($body, $objects, $record['object'], $reversePopups),
+            'actions' => $actionReview['actions'],
+            'additional_actions' => $actionReview['additional_actions'],
+            'executes_actions_on_import' => $actionReview['executes_actions_on_import'],
         ];
 
         $appearance = $this->appearanceFromAnnotation($body, $objects);

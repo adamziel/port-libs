@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\PdfAnnotationExtractor;
+use PortLibs\MarkerPDF\PdfTextExtractor;
 
 $annotationPdf = static function (): string {
     return "%PDF-1.7\n"
@@ -58,6 +59,36 @@ $annotationAppearanceEdgePdf = static function (): string {
         . "11 0 obj\n<< /Type /XObject /Subtype /Form /BBox [250 660 360 724] /Matrix [1 0 0 1 0 0] /Length " . strlen($soundAppearance) . " >>\nstream\n" . $soundAppearance . "\nendstream\nendobj\n"
         . "12 0 obj\n<< /Type /XObject /Subtype /Form /BBox [60 660 230 724] /Length " . strlen($offAppearance) . " >>\nstream\n" . $offAppearance . "\nendstream\nendobj\n"
         . "13 0 obj\n<< /Type /XObject /Subtype /Form /BBox [60 660 230 724] /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$annotationPopupAppearanceActionBoundaryPdf = static function (): string {
+    $pageStream = "BT /F1 12 Tf 72 744 Td (Page visible text) Tj ET";
+    $targetStream = "BT /F1 12 Tf 72 744 Td (Destination target text) Tj ET";
+    $selectedAppearance = "q BT /F1 10 Tf 90 684 Td (Current popup AP visible) Tj ET Q";
+    $offAppearance = "q BT /F1 10 Tf 90 684 Td (Stale Off AP hidden) Tj ET Q";
+    $freeTextAppearance = "q BT /F1 10 Tf 84 628 Td (FreeText AP visible) Tj ET Q";
+    $staleAppearance = "q BT /F1 10 Tf 84 560 Td (Detached stale AP hidden) Tj ET Q";
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /Dests 18 0 R >> >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 15 0 R /Annots [6 0 R 9 0 R 12 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 16 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Annot /Subtype /Text /Rect [72 664 260 720] /Contents (Reviewer note) /T (Import QA) /AS /Review /C [1 0.8 0] /AP << /N << /Review 7 0 R /Off 8 0 R >> >> /Popup 9 0 R /A 10 0 R /AA << /E << /S /URI /URI (https://example.com/hover-review) >> /D << /S /JavaScript /JS (downReview\\(\\)) >> >> >>\nendobj\n"
+        . "7 0 obj\n<< /Type /XObject /Subtype /Form /BBox [72 664 260 720] /Matrix [1 0 0 1 0 0] /Resources << /Font << /F1 5 0 R >> >> /Length " . strlen($selectedAppearance) . " >>\nstream\n" . $selectedAppearance . "\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Type /XObject /Subtype /Form /BBox [72 664 260 720] /Resources << /Font << /F1 5 0 R >> >> /Length " . strlen($offAppearance) . " >>\nstream\n" . $offAppearance . "\nendstream\nendobj\n"
+        . "9 0 obj\n<< /Type /Annot /Subtype /Popup /Rect [270 650 450 730] /Parent 6 0 R /Open true /Contents (Popup text review only) >>\nendobj\n"
+        . "10 0 obj\n<< /S /URI /URI (https://example.com/review) /Next << /S /GoTo /D (annotation-target) >> >>\nendobj\n"
+        . "11 0 obj\n[4 0 R /XYZ 42 700 0]\nendobj\n"
+        . "12 0 obj\n<< /Type /Annot /Subtype /FreeText /Rect [72 608 280 650] /Contents (FreeText local jump) /AP << /N 13 0 R >> /Dest [4 0 R /FitH 720] /AA << /Fo << /S /Launch /F (unsafe-helper.exe) >> >> /Popup << /Type /Annot /Subtype /Popup /Rect [300 600 470 660] /Open false /Contents (Direct popup review only) >> >>\nendobj\n"
+        . "13 0 obj\n<< /Type /XObject /Subtype /Form /BBox [72 608 280 650] /Resources << /Font << /F1 5 0 R >> >> /Length " . strlen($freeTextAppearance) . " >>\nstream\n" . $freeTextAppearance . "\nendstream\nendobj\n"
+        . "14 0 obj\n<< /Type /Annot /Subtype /Text /Rect [72 540 260 590] /Contents (Detached stale annotation) /AS /On /AP << /N << /On 17 0 R >> >> /A << /S /JavaScript /JS (staleDetached\\(\\)) >> >>\nendobj\n"
+        . "15 0 obj\n<< /Length " . strlen($pageStream) . " >>\nstream\n" . $pageStream . "\nendstream\nendobj\n"
+        . "16 0 obj\n<< /Length " . strlen($targetStream) . " >>\nstream\n" . $targetStream . "\nendstream\nendobj\n"
+        . "17 0 obj\n<< /Type /XObject /Subtype /Form /BBox [72 540 260 590] /Resources << /Font << /F1 5 0 R >> >> /Length " . strlen($staleAppearance) . " >>\nstream\n" . $staleAppearance . "\nendstream\nendobj\n"
+        . "18 0 obj\n<< /Names [(annotation-target) 11 0 R] >>\nendobj\n"
         . "%%EOF";
 };
 
@@ -252,5 +283,52 @@ return [
         $t->same(11, $sound['appearance']['normal']['object']);
         $t->same([250.0, 660.0, 360.0, 724.0], $sound['appearance']['normal']['bbox']);
         $t->same('Audio popup review', $sound['popup']['contents']);
+    },
+    'keeps popup appearance and actions at the current annotation review boundary' => static function (TestRunner $t) use ($annotationPopupAppearanceActionBoundaryPdf): void {
+        $pdf = $annotationPopupAppearanceActionBoundaryPdf();
+        $page = (new PdfAnnotationExtractor())->extractPageAnnotations($pdf)[0];
+
+        $t->same(0, $page['pnum']);
+        $t->same(2, count($page['annotations']), 'the current page parent annotations are reviewed while the Popup child is nested and detached annotations stay excluded.');
+
+        $note = $page['annotations'][0];
+        $t->same('Text', $note['subtype']);
+        $t->same(6, $note['annotation_object']);
+        $t->same('Popup text review only', $note['popup']['contents']);
+        $t->same(true, $note['popup']['open']);
+        $t->same('Review', $note['appearance']['normal']['selected_state']);
+        $t->same(['Review', 'Off'], $note['appearance']['normal']['states']);
+        $t->same(7, $note['appearance']['normal']['selected']['object']);
+        $t->same(8, $note['appearance']['normal']['appearances']['Off']['object']);
+        $t->same(false, $note['appearance']['renders_appearance']);
+        $t->same(false, $note['executes_actions_on_import']);
+        $t->same(['review-uri', 'local-destination'], array_column($note['actions'], 'safety'));
+        $t->same('annotation-target', $note['actions'][1]['destination']);
+        $t->same(1, $note['actions'][1]['destination_page']);
+        $t->same('XYZ', $note['actions'][1]['view_mode']);
+        $t->same(['left' => 42.0, 'top' => 700.0, 'zoom' => null], $note['actions'][1]['view_parameters']);
+        $t->same(true, $note['actions'][1]['chained']);
+        $t->same(['E', 'D'], array_column($note['additional_actions'], 'event'));
+        $t->same(['review-uri', 'blocked-javascript'], array_column($note['additional_actions'], 'safety'));
+
+        $freeText = $page['annotations'][1];
+        $t->same('FreeText', $freeText['subtype']);
+        $t->same('Direct popup review only', $freeText['popup']['contents']);
+        $t->same(13, $freeText['appearance']['normal']['object']);
+        $t->same(['local-destination'], array_column($freeText['actions'], 'safety'));
+        $t->same('FitH', $freeText['actions'][0]['view_mode']);
+        $t->same(['blocked-launch'], array_column($freeText['additional_actions'], 'safety'));
+        $t->same(false, $freeText['executes_actions_on_import']);
+
+        $visibleText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $t->contains('Page visible text', $visibleText);
+        $t->contains('Current popup AP visible', $visibleText);
+        $t->contains('FreeText AP visible', $visibleText);
+        $t->true(!str_contains($visibleText, 'Popup text review only'));
+        $t->true(!str_contains($visibleText, 'Direct popup review only'));
+        $t->true(!str_contains($visibleText, 'Stale Off AP hidden'));
+        $t->true(!str_contains($visibleText, 'Detached stale AP hidden'));
+        $t->true(!str_contains($visibleText, 'downReview'));
+        $t->true(!str_contains($visibleText, 'staleDetached'));
     },
 ];

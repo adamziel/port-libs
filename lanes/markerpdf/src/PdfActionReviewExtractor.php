@@ -539,7 +539,7 @@ final class PdfActionReviewExtractor
     {
         $values = [];
         foreach ($this->rawObjects($pdfBytes) as $objectNumber => $body) {
-            $tokens = $this->tokens(trim($body));
+            $tokens = $this->tokens($this->firstObjectValue(trim($body)));
             if ($tokens === []) {
                 continue;
             }
@@ -566,6 +566,55 @@ final class PdfActionReviewExtractor
         }
 
         return $objects;
+    }
+
+    private function firstObjectValue(string $body): string
+    {
+        if (!str_starts_with($body, '<<')) {
+            return $body;
+        }
+
+        $endOffset = $this->dictionaryEndOffset($body, 0);
+        return $endOffset === null ? $body : substr($body, 0, $endOffset);
+    }
+
+    private function dictionaryEndOffset(string $value, int $offset): ?int
+    {
+        $depth = 0;
+        for ($index = $offset, $length = strlen($value); $index < $length - 1; $index++) {
+            $char = $value[$index];
+            if ($char === '(') {
+                $this->readLiteralToken($value, $index);
+                $index--;
+                continue;
+            }
+
+            if ($char === '<' && substr($value, $index, 2) !== '<<') {
+                $this->readHexToken($value, $index);
+                $index--;
+                continue;
+            }
+
+            $pair = substr($value, $index, 2);
+            if ($pair === '<<') {
+                $depth++;
+                $index++;
+                continue;
+            }
+
+            if ($pair !== '>>') {
+                continue;
+            }
+
+            $depth--;
+            if ($depth === 0) {
+                return $index + 2;
+            }
+
+            $index++;
+        }
+
+        return null;
     }
 
     /**
