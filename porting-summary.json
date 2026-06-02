@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 20:11:02 UTC",
-    "sourceCommit": "2e4c13c35c7458a7dd16d1f7d5ce1b66ac279889",
-    "sourceCommitShort": "2e4c13c35c74",
+    "generated": "2026-06-02 20:16:45 UTC",
+    "sourceCommit": "d96edd04f496f4a2ac977d552e6729aa7da7554a",
+    "sourceCommitShort": "d96edd04f496",
     "sourceBranch": "unknown",
-    "dashboardCommit": "2e4c13c35c7458a7dd16d1f7d5ce1b66ac279889",
-    "dashboardCommitShort": "2e4c13c35c74",
+    "dashboardCommit": "d96edd04f496f4a2ac977d552e6729aa7da7554a",
+    "dashboardCommitShort": "d96edd04f496",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "546",
-            "coverage": "546 / 78 (700.0%)",
-            "mapPercent": "700.0%",
+            "mapped": "549",
+            "coverage": "549 / 78 (703.8%)",
+            "mapPercent": "703.8%",
             "unmapped": "0",
-            "php": "768 pass / 0 fail",
+            "php": "773 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: accepted parser43/image48/meta...",
-            "currentWork": "MarkerPDF now covers parser filter-array dictionary fail-closed behavior, DeviceN JPX...",
-            "nextTarget": "Score the newest active markerPDF worker outputs as they comp...",
+            "audit": "2026-06-02 UTC supervisor integration: accepted page45/table44/securi...",
+            "currentWork": "MarkerPDF now preserves page widget annotation ParentTree metadata, rowspanned table...",
+            "nextTarget": "Score newest markerPDF worker outputs as they complete; rebas...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "2e4c13c"
+            "commit": "d96edd0"
         },
         {
             "lane": "readability",
