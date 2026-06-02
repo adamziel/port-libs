@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 22:18:02 UTC",
-    "sourceCommit": "631a1276d6d77e2ab6201c98a27ed75cff57a9b2",
-    "sourceCommitShort": "631a1276d6d7",
+    "generated": "2026-06-02 22:20:59 UTC",
+    "sourceCommit": "e4ddf2ade91b0b561804b487d8d28c17eb76ca1f",
+    "sourceCommitShort": "e4ddf2ade91b",
     "sourceBranch": "unknown",
-    "dashboardCommit": "631a1276d6d77e2ab6201c98a27ed75cff57a9b2",
-    "dashboardCommitShort": "631a1276d6d7",
+    "dashboardCommit": "e4ddf2ade91b0b561804b487d8d28c17eb76ca1f",
+    "dashboardCommitShort": "e4ddf2ade91b",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "637",
-            "coverage": "637 / 78 (816.7%)",
-            "mapPercent": "816.7%",
+            "mapped": "638",
+            "coverage": "638 / 78 (817.9%)",
+            "mapPercent": "817.9%",
             "unmapped": "0",
-            "php": "905 pass / 0 fail",
+            "php": "907 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor table/font/xref integration: accepted table...",
-            "currentWork": "MarkerPDF now maps OCR span-grid table benchmark bundles, Type3/CMap CID source-space...",
+            "audit": "2026-06-02 UTC supervisor output integration: accepted output71 marke...",
+            "currentWork": "MarkerPDF now maps saved markdown/image artifact bundles with optional-title runtime...",
             "nextTarget": "Keep 10-11 visible markerPDF lanes active; next score newly r...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "631a127"
+            "commit": "e4ddf2a"
         },
         {
             "lane": "readability",
