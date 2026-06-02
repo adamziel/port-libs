@@ -604,6 +604,7 @@ final class PdfTextExtractor
                 'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $filterDecodeParms),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $filterDecodeParms),
                 'DCTDecode', 'DCT' => null,
+                'CCITTFaxDecode', 'CCF' => null,
                 default => $stream,
             };
 

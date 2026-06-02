@@ -339,6 +339,43 @@ return [
         $t->true(!str_contains($fallbackText, 'Raster JPEG Noise'));
         $t->true(!str_contains($pageText, 'Raster JPEG Noise'));
     },
+    'skips CCITTFaxDecode image-only filters before WordPress text parsing' => static function (TestRunner $t): void {
+        $visibleBefore = 'BT /F1 12 Tf 72 720 Td (CCITT Boundary) Tj ET';
+        $visibleAfter = 'BT /F1 12 Tf 72 688 Td (Native Import) Tj ET';
+        $faxNoise = 'BT /F1 12 Tf 72 704 Td (Scanned Fax Noise) Tj ET';
+        $ccfNoise = 'BT /F1 12 Tf 72 672 Td (CCF Alias Noise) Tj ET';
+
+        $pagePdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 5 0 R 6 0 R 7 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($visibleBefore) . " >>\nstream\n{$visibleBefore}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns 1728 /Rows 1 /BlackIs1 true >> /Length " . strlen($faxNoise) . " >>\nstream\n{$faxNoise}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Filter /CCF /DecodeParms << /K 0 /Columns 8 /Rows 1 /EncodedByteAlign true >> /Length " . strlen($ccfNoise) . " >>\nstream\n{$ccfNoise}\nendstream\nendobj\n"
+            . "%%EOF";
+
+        $fallbackVisible = 'BT /F1 12 Tf 72 720 Td (Fallback Visible Text) Tj ET';
+        $fallbackNoise = 'BT /F1 12 Tf 72 704 Td (Fallback Fax Noise) Tj ET';
+        $fallbackPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Length " . strlen($fallbackVisible) . " >>\nstream\n{$fallbackVisible}\nendstream\nendobj\n"
+            . "2 0 obj\n<< /K 0 /Columns 8 /Rows 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Filter /CCF /DecodeParms 2 0 R /Length " . strlen($fallbackNoise) . " >>\nstream\n{$fallbackNoise}\nendstream\nendobj\n"
+            . "%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $pageText = $extractor->extractPlainText($pagePdf);
+        $fallbackText = $extractor->extractPlainText($fallbackPdf);
+
+        $t->same("CCITT Boundary\nNative Import", $pageText);
+        $t->same(['CCITT Boundary', 'Native Import'], $extractor->extractTextRuns($pagePdf));
+        $t->same("CCITT Boundary\nNative Import\n", $extractor->naiveGetText($pagePdf));
+        $t->true(!str_contains($pageText, 'Scanned Fax Noise'));
+        $t->true(!str_contains($pageText, 'CCF Alias Noise'));
+        $t->same('Fallback Visible Text', $fallbackText);
+        $t->same(['Fallback Visible Text'], $extractor->extractTextRuns($fallbackPdf));
+        $t->true(!str_contains($fallbackText, 'Fallback Fax Noise'));
+    },
     'resolves indirect stream filters and benign DecodeParms for WordPress extraction' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Indirect Filter Import) Tj T* (DecodeParms Predictor One) Tj ET';
         $compressed = gzcompress($content);
