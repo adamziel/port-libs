@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 21:25:02 UTC",
-    "sourceCommit": "d005514c0f21b0222879054e7e3af72b0667e2d1",
-    "sourceCommitShort": "d005514c0f21",
+    "generated": "2026-06-02 21:27:22 UTC",
+    "sourceCommit": "decf11777c467141ff19ba271b46d9e8d2c52252",
+    "sourceCommitShort": "decf11777c46",
     "sourceBranch": "unknown",
-    "dashboardCommit": "d005514c0f21b0222879054e7e3af72b0667e2d1",
-    "dashboardCommitShort": "d005514c0f21",
+    "dashboardCommit": "decf11777c467141ff19ba271b46d9e8d2c52252",
+    "dashboardCommitShort": "decf11777c46",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "595",
-            "coverage": "595 / 78 (762.8%)",
-            "mapPercent": "762.8%",
+            "mapped": "596",
+            "coverage": "596 / 78 (764.1%)",
+            "mapPercent": "764.1%",
             "unmapped": "0",
-            "php": "848 pass / 0 fail",
+            "php": "849 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor follow-up integration: accepted ocr56/outpu...",
-            "currentWork": "MarkerPDF now adds OCR language/confidence review triage, sanitized image artifact me...",
+            "audit": "2026-06-02 UTC supervisor layout integration: accepted layout56 marke...",
+            "currentWork": "MarkerPDF now maps rotated PDF page-space block bboxes before reading-order matching,...",
             "nextTarget": "Score newest attachment/annotation/metadata/xref/form/parser/...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "d005514"
+            "commit": "decf117"
         },
         {
             "lane": "readability",
