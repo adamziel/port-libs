@@ -144,6 +144,7 @@ final class PdfMetadataExtractor
      *     metadata_date?: string,
      *     metadata_date_utc?: string,
      *     language?: string,
+     *     mark_info?: array<string, mixed>,
      *     page_layout?: string,
      *     page_mode?: string,
      *     viewer_preferences?: array<string, mixed>,
@@ -563,6 +564,11 @@ final class PdfMetadataExtractor
             $metadata['language'] = $language;
         }
 
+        $markInfo = $this->catalogMarkInfoMetadata($catalog, $objects);
+        if ($markInfo !== []) {
+            $metadata['mark_info'] = $markInfo;
+        }
+
         foreach ([
             'PageLayout' => 'page_layout',
             'PageMode' => 'page_mode',
@@ -628,6 +634,44 @@ final class PdfMetadataExtractor
         }
 
         return $metadata;
+    }
+
+    /**
+     * Catalog /MarkInfo declares tagged-PDF review flags. Keep them as
+     * document metadata so WordPress import can surface accessibility state
+     * without treating the dictionary as visible text.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function catalogMarkInfoMetadata(string $catalog, array $objects): array
+    {
+        $markInfo = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'MarkInfo'), $objects);
+        if ($markInfo === null) {
+            return [];
+        }
+
+        $metadata = [
+            'source' => 'catalog_mark_info',
+            'review_only' => true,
+            'visible_text_source' => false,
+        ];
+        if ($markInfo['object'] !== null) {
+            $metadata['object_number'] = $markInfo['object'];
+        }
+
+        foreach ([
+            'Marked' => 'marked',
+            'UserProperties' => 'user_properties',
+            'Suspects' => 'suspects',
+        ] as $pdfName => $key) {
+            $value = $this->dictionaryBooleanValue($markInfo['body'], $pdfName, $objects);
+            if ($value !== null) {
+                $metadata[$key] = $value;
+            }
+        }
+
+        return count($metadata) > ($markInfo['object'] === null ? 3 : 4) ? $metadata : [];
     }
 
     /**
@@ -3903,7 +3947,7 @@ final class PdfMetadataExtractor
             $result['keywords'] = array_values($keywords);
         }
 
-        foreach (['language', 'page_layout', 'page_mode', 'viewer_preferences', 'collection', 'associated_files', 'embedded_files', 'document_name_trees', 'structure_tree', 'document_destinations', 'document_security_store'] as $field) {
+        foreach (['language', 'mark_info', 'page_layout', 'page_mode', 'viewer_preferences', 'collection', 'associated_files', 'embedded_files', 'document_name_trees', 'structure_tree', 'document_destinations', 'document_security_store'] as $field) {
             if (array_key_exists($field, $catalog)) {
                 $result[$field] = $catalog[$field];
             }

@@ -11020,7 +11020,7 @@ final class PdfTextExtractor
                         continue;
                     }
 
-                    if ($this->previousFreeEntryShadowsCurrentObjectStreamBase($objectNumber, $entry, $entries, $definitions, $previousOffset, $offset)) {
+                    if ($this->previousEntryShadowsCurrentObjectStreamBase($objectNumber, $entry, $entries, $definitions, $previousOffset, $offset)) {
                         continue;
                     }
 
@@ -11049,7 +11049,7 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                if ($this->previousFreeEntryShadowsCurrentObjectStreamBase($objectNumber, $entry, $entries, $definitions, $previousOffset, $offset)) {
+                if ($this->previousEntryShadowsCurrentObjectStreamBase($objectNumber, $entry, $entries, $definitions, $previousOffset, $offset)) {
                     continue;
                 }
 
@@ -11253,15 +11253,16 @@ final class PdfTextExtractor
     }
 
     /**
-     * A previous free row for an object-stream carrier should not suppress a
-     * current direct /ObjStm body when the latest xref section has type-2
-     * members that name that carrier.
+     * A previous row for an object-stream carrier should not suppress a current
+     * direct /ObjStm body when the latest xref section has type-2 members that
+     * name that carrier. This covers free rows and older direct carrier
+     * generations; same-storage replay remains valid.
      *
      * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $entry
      * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $currentEntries
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      */
-    private function previousFreeEntryShadowsCurrentObjectStreamBase(
+    private function previousEntryShadowsCurrentObjectStreamBase(
         int $objectNumber,
         array $entry,
         array $currentEntries,
@@ -11269,7 +11270,8 @@ final class PdfTextExtractor
         int $previousOffset,
         int $currentOffset
     ): bool {
-        if (($entry['type'] ?? null) !== 0) {
+        $entryType = $entry['type'] ?? null;
+        if ($entryType !== 0 && $entryType !== 1) {
             return false;
         }
 
@@ -11285,13 +11287,48 @@ final class PdfTextExtractor
             return false;
         }
 
-        $currentObjectStreamBase = $this->latestDirectObjectStreamDefinition($definitions[$objectNumber] ?? []);
+        $currentObjectStreamBase = $this->latestDirectObjectStreamDefinitionBetweenOffsets(
+            $definitions[$objectNumber] ?? [],
+            $previousOffset,
+            $currentOffset
+        );
         if ($currentObjectStreamBase === null) {
             return false;
         }
 
-        return $currentObjectStreamBase['offset'] > $previousOffset
-            && $currentObjectStreamBase['offset'] < $currentOffset;
+        if ($entryType === 1) {
+            return !$this->xrefEntriesSelectSameStorage(
+                [
+                    'type' => 1,
+                    'generation' => $currentObjectStreamBase['generation'],
+                    'offset' => $currentObjectStreamBase['offset'],
+                    'offsetIsExplicit' => true,
+                ],
+                $entry
+            );
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function latestDirectObjectStreamDefinitionBetweenOffsets(array $definitions, int $afterOffset, int $beforeOffset): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if (
+                $definition['offset'] > $afterOffset
+                && $definition['offset'] < $beforeOffset
+                && preg_match('/\/Type\s*\/ObjStm\b/', $definition['body']) === 1
+            ) {
+                $candidates[] = $definition;
+            }
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
     }
 
     /**

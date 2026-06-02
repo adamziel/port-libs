@@ -1277,6 +1277,10 @@ final class PdfOutlineExtractor
             return true;
         }
 
+        if (($action['action_type'] ?? null) === 'Thread' && ($action['safety'] ?? null) === 'article-thread-review') {
+            return true;
+        }
+
         return (
             ($action['action_type'] ?? null) === 'GoTo'
             && ($action['safety'] ?? null) === 'local-destination'

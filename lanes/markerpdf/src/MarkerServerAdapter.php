@@ -153,6 +153,99 @@ final class MarkerServerAdapter
     }
 
     /**
+     * Native non-executing boundary for marker_server.py::convert_pdf_upload.
+     *
+     * Upstream accepts pagination/image flags on the upload form, saves the
+     * temporary PDF, mutates params.filepath, then routes directly to local or
+     * remote conversion. The local upload path bypasses the direct /marker
+     * endpoint's local pagination/image assertion; the remote path forwards all
+     * form fields into the Datalab multipart request.
+     *
+     * @return array{
+     *     endpoint: string,
+     *     method: string,
+     *     file_field: array{name: string, media_type: string, required: bool, invalid_content_type_status_code: int, invalid_content_type_detail: string, rejects_non_pdf_before_guard: bool},
+     *     form_params: array<string, array{default: bool|int|string|null, value: bool|int|string|null}>,
+     *     upload_directory: string,
+     *     upload_directory_absolute: string,
+     *     selected_route: string,
+     *     local_route: array{calls: string, uses_uploaded_filepath: bool, applies_direct_marker_option_guard: bool, forwards_convert_single_pdf_options: array{max_pages: int|null, langs: string|null, ocr_all_pages: bool}, paginate_forwarded_to_convert_single_pdf: bool, extract_images_forwarded_to_convert_single_pdf: bool},
+     *     remote_route: array{calls: string, forwards_multipart_fields: list<string>, multipart_field_values: array{max_pages: int|null, langs: string|null, force_ocr: bool, paginate: bool, extract_images: bool}, polls_request_check_url: bool},
+     *     error_boundary: array{body_errors_return_success_false: bool, invalid_content_type_raises_http_error_before_body_guard: bool, missing_request_check_url_becomes_upload_error_payload: bool},
+     *     cleanup: array{removes_upload_after_success: bool, removes_upload_after_body_error: bool},
+     *     executes_fastapi: false,
+     *     executes_uvicorn: false,
+     *     executes_live_http: false,
+     *     executes_python_or_models: false
+     * }
+     */
+    public function uploadRoutePlan(array $params = [], string $uploadDirectory = self::DEFAULT_UPLOAD_DIRECTORY, bool $local = true): array
+    {
+        $normalized = $this->normalizeParams($params);
+        $uploadDirectory = $this->serverString($uploadDirectory, 'upload_directory');
+
+        return [
+            'endpoint' => '/marker/upload',
+            'method' => 'POST',
+            'file_field' => [
+                'name' => 'file',
+                'media_type' => 'application/pdf',
+                'required' => true,
+                'invalid_content_type_status_code' => 400,
+                'invalid_content_type_detail' => 'Only PDF files are allowed.',
+                'rejects_non_pdf_before_guard' => true,
+            ],
+            'form_params' => [
+                'max_pages' => ['default' => null, 'value' => $normalized['max_pages']],
+                'langs' => ['default' => null, 'value' => $normalized['langs']],
+                'force_ocr' => ['default' => false, 'value' => $normalized['force_ocr']],
+                'paginate' => ['default' => false, 'value' => $normalized['paginate']],
+                'extract_images' => ['default' => true, 'value' => $normalized['extract_images']],
+            ],
+            'upload_directory' => $uploadDirectory,
+            'upload_directory_absolute' => $this->absoluteServerPath($uploadDirectory),
+            'selected_route' => $local ? 'local' : 'remote',
+            'local_route' => [
+                'calls' => 'convert_pdf_local',
+                'uses_uploaded_filepath' => true,
+                'applies_direct_marker_option_guard' => false,
+                'forwards_convert_single_pdf_options' => [
+                    'max_pages' => $normalized['max_pages'],
+                    'langs' => $normalized['langs'],
+                    'ocr_all_pages' => $normalized['force_ocr'],
+                ],
+                'paginate_forwarded_to_convert_single_pdf' => false,
+                'extract_images_forwarded_to_convert_single_pdf' => false,
+            ],
+            'remote_route' => [
+                'calls' => 'convert_pdf_remote',
+                'forwards_multipart_fields' => ['file', 'max_pages', 'langs', 'force_ocr', 'paginate', 'extract_images'],
+                'multipart_field_values' => [
+                    'max_pages' => $normalized['max_pages'],
+                    'langs' => $normalized['langs'],
+                    'force_ocr' => $normalized['force_ocr'],
+                    'paginate' => $normalized['paginate'],
+                    'extract_images' => $normalized['extract_images'],
+                ],
+                'polls_request_check_url' => true,
+            ],
+            'error_boundary' => [
+                'body_errors_return_success_false' => true,
+                'invalid_content_type_raises_http_error_before_body_guard' => true,
+                'missing_request_check_url_becomes_upload_error_payload' => true,
+            ],
+            'cleanup' => [
+                'removes_upload_after_success' => true,
+                'removes_upload_after_body_error' => true,
+            ],
+            'executes_fastapi' => false,
+            'executes_uvicorn' => false,
+            'executes_live_http' => false,
+            'executes_python_or_models' => false,
+        ];
+    }
+
+    /**
      * Native boundary for marker_server.py::convert_pdf.
      *
      * @param callable(string, array{max_pages: int|null, langs: string|null, ocr_all_pages: bool}): mixed $localConverter

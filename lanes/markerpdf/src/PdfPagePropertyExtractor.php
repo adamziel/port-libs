@@ -72,6 +72,10 @@ final class PdfPagePropertyExtractor
             $userProperties = $userPropertiesByPage[$pageObjectNumber] ?? [];
             $articleBeads = $articleBeadsByObject[$pageObjectNumber] ?? [];
             $structureMarkedContent = $structureMarkedContentByObject[$pageObjectNumber] ?? [];
+            $structureMarkedContent = $this->structureMarkedContentWithPageAssociatedFiles(
+                $structureMarkedContent,
+                $associatedFiles
+            );
             $articleBeads = $this->articleBeadsWithStructureContext($articleBeads, $structureMarkedContent);
             $textMarkupAnnotations = $textMarkupAnnotationsByObject[$pageObjectNumber] ?? [];
             $annotationStructureRows = $this->annotationStructureRowsWithPageContext(
@@ -218,6 +222,69 @@ final class PdfPagePropertyExtractor
         }
 
         return array_values($titles);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $structureMarkedContent
+     * @param list<array<string, mixed>> $associatedFiles
+     * @return list<array<string, mixed>>
+     */
+    private function structureMarkedContentWithPageAssociatedFiles(array $structureMarkedContent, array $associatedFiles): array
+    {
+        if ($structureMarkedContent === [] || $associatedFiles === []) {
+            return $structureMarkedContent;
+        }
+
+        return array_map(
+            function (array $row) use ($associatedFiles): array {
+                $mergedFiles = $this->uniqueAssociatedFileReviews(array_merge(
+                    is_array($row['page_associated_files'] ?? null) ? $row['page_associated_files'] : [],
+                    $associatedFiles
+                ));
+                if ($mergedFiles === []) {
+                    return $row;
+                }
+
+                $row['page_associated_file_count'] = count($mergedFiles);
+                $row['page_associated_files'] = $mergedFiles;
+                $row['page_associated_file_review_only'] = true;
+
+                return $row;
+            },
+            $structureMarkedContent
+        );
+    }
+
+    /**
+     * @param list<array<string, mixed>> $files
+     * @return list<array<string, mixed>>
+     */
+    private function uniqueAssociatedFileReviews(array $files): array
+    {
+        $unique = [];
+        $seen = [];
+        foreach ($files as $file) {
+            if (!is_array($file)) {
+                continue;
+            }
+
+            $fileSpecObject = $file['file_spec_object'] ?? null;
+            $filename = $file['filename'] ?? null;
+            $hash = $file['content_sha256'] ?? null;
+            $key = (is_int($fileSpecObject) ? (string) $fileSpecObject : '')
+                . '|'
+                . (is_string($filename) ? $filename : '')
+                . '|'
+                . (is_string($hash) ? $hash : '');
+            if ($key === '||' || isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $unique[] = $file;
+        }
+
+        return $unique;
     }
 
     /**
