@@ -10202,7 +10202,8 @@ final class PdfTextExtractor
         float $characterSpacing,
         float $wordSpacing,
         float $horizontalScale,
-        ?array $glyphWidths = null
+        ?array $glyphWidths = null,
+        ?int $sourceSpaceCount = null
     ): ?float {
         if ($currentTextEndX === null || $decoded === '') {
             return $currentTextEndX;
@@ -10213,7 +10214,8 @@ final class PdfTextExtractor
         $baseAdvance = $glyphWidths !== null && $glyphWidths !== []
             ? (array_sum($glyphWidths) / 1000.0) * $fontSize
             : $characters * $fontSize * self::SIMPLE_TEXT_ADVANCE_RATIO;
-        $spacingAdvance = (max(0, $characters - 1) * $characterSpacing) + (substr_count($decoded, ' ') * $wordSpacing);
+        $spaceCount = $sourceSpaceCount ?? substr_count($decoded, ' ');
+        $spacingAdvance = (max(0, $characters - 1) * $characterSpacing) + ($spaceCount * $wordSpacing);
         $scale = $horizontalScale / 100.0;
 
         return $currentTextEndX + (($baseAdvance + $spacingAdvance) * $scale);
@@ -10241,7 +10243,8 @@ final class PdfTextExtractor
                 $characterSpacing,
                 $wordSpacing,
                 $horizontalScale,
-                $this->glyphWidthsForTextOperand($operand, $toUnicodeMap)
+                $this->glyphWidthsForTextOperand($operand, $toUnicodeMap),
+                $this->sourceSpaceCountForTextOperand($operand, $toUnicodeMap)
             );
         }
 
@@ -10255,7 +10258,8 @@ final class PdfTextExtractor
                     $characterSpacing,
                     $wordSpacing,
                     $horizontalScale,
-                    $this->glyphWidthsForTextOperand((string) $element['value'], $toUnicodeMap)
+                    $this->glyphWidthsForTextOperand((string) $element['value'], $toUnicodeMap),
+                    $this->sourceSpaceCountForTextOperand((string) $element['value'], $toUnicodeMap)
                 );
                 continue;
             }
@@ -10272,7 +10276,8 @@ final class PdfTextExtractor
         ?float $fontSize,
         float $characterSpacing,
         float $wordSpacing,
-        ?array $glyphDisplacements = null
+        ?array $glyphDisplacements = null,
+        ?int $sourceSpaceCount = null
     ): ?float {
         if ($currentTextEndY === null || $decoded === '') {
             return $currentTextEndY;
@@ -10283,7 +10288,8 @@ final class PdfTextExtractor
         $baseAdvance = $glyphDisplacements !== null && $glyphDisplacements !== []
             ? (array_sum($glyphDisplacements) / 1000.0) * $fontSize
             : -$characters * $fontSize;
-        $spacingAdvance = (max(0, $characters - 1) * $characterSpacing) + (substr_count($decoded, ' ') * $wordSpacing);
+        $spaceCount = $sourceSpaceCount ?? substr_count($decoded, ' ');
+        $spacingAdvance = (max(0, $characters - 1) * $characterSpacing) + ($spaceCount * $wordSpacing);
         $direction = $baseAdvance < 0 ? -1.0 : 1.0;
 
         return $currentTextEndY + $baseAdvance + ($spacingAdvance * $direction);
@@ -10309,7 +10315,8 @@ final class PdfTextExtractor
                 $fontSize,
                 $characterSpacing,
                 $wordSpacing,
-                $this->glyphVerticalDisplacementsForTextOperand($operand, $toUnicodeMap)
+                $this->glyphVerticalDisplacementsForTextOperand($operand, $toUnicodeMap),
+                $this->sourceSpaceCountForTextOperand($operand, $toUnicodeMap)
             );
         }
 
@@ -10322,7 +10329,8 @@ final class PdfTextExtractor
                     $fontSize,
                     $characterSpacing,
                     $wordSpacing,
-                    $this->glyphVerticalDisplacementsForTextOperand((string) $element['value'], $toUnicodeMap)
+                    $this->glyphVerticalDisplacementsForTextOperand((string) $element['value'], $toUnicodeMap),
+                    $this->sourceSpaceCountForTextOperand((string) $element['value'], $toUnicodeMap)
                 );
                 continue;
             }
@@ -10379,6 +10387,32 @@ final class PdfTextExtractor
         }
 
         return $widths;
+    }
+
+    private function sourceSpaceCountForTextOperand(string $operand, ?array $toUnicodeMap): ?int
+    {
+        if ($toUnicodeMap === null || !$this->hasSourceBoundaryDataForGlyphAdvance($toUnicodeMap)) {
+            return null;
+        }
+
+        $hex = $this->textOperandSourceHex($operand);
+        if ($hex === '') {
+            return null;
+        }
+
+        $sourceKeys = $this->textOperandSourceKeysForFontWidths($hex, $toUnicodeMap);
+        if ($sourceKeys === []) {
+            return null;
+        }
+
+        $spaces = 0;
+        foreach ($sourceKeys as $key) {
+            if (hexdec($key) === 0x20) {
+                $spaces++;
+            }
+        }
+
+        return $spaces;
     }
 
     private function hasSourceBoundaryDataForGlyphAdvance(array $toUnicodeMap): bool

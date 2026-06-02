@@ -2443,6 +2443,28 @@ return [
         $t->true(!str_contains($plainText, 'Profile s'));
         $t->true(!str_contains($plainText, 'Import er'));
     },
+    'uses source glyph spaces for quote operator word spacing on bidi ToUnicode text' => static function (TestRunner $t) use ($toUnicodeCMap): void {
+        $content = 'BT /Fsur 12 Tf 16 TL 1 0 0 1 72 720 Tm (Lead) Tj 18 0 <01> " 1 0 0 1 90 704 Tm <02> Tj ET';
+        $cmap = $toUnicodeCMap([
+            '01' => "\u{2067}A B\u{2069}",
+            '02' => 'C',
+        ]);
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fsur 2 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /CustomBidiSpacing /ToUnicode 3 0 R >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $expected = "\u{2067}A B\u{2069} C";
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Lead', $expected], $extractor->extractTextLines($pdf));
+        $t->same("Lead\n{$expected}", $plainText);
+        $t->same("Lead\n{$expected}\n", $extractor->naiveGetText($pdf));
+        $t->same(['Lead', "\u{2067}A B\u{2069}", 'C'], $extractor->extractTextRuns($pdf));
+        $t->true(str_contains($plainText, "\u{2067}") && str_contains($plainText, "\u{2069}"));
+        $t->true(!str_contains($plainText, "\u{2069}C"));
+    },
     'keeps q Q scoped text state from leaking into later positioned WordPress text' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = 'BT /F1 12 Tf 1 0 0 1 72 720 Tm q 20 Tc (Data) Tj Q 1 0 0 1 180 720 Tm (Import) Tj 1 0 0 1 235 720 Tm (Tool) Tj ET';
         $extractor = new PdfTextExtractor();
