@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 20:30:40 UTC",
-    "sourceCommit": "2cc329862f18193df66dc35657634b327e4fe881",
-    "sourceCommitShort": "2cc329862f18",
+    "generated": "2026-06-02 20:33:32 UTC",
+    "sourceCommit": "611b2c9429c7dd24f92f900f2be81c329a2cebb0",
+    "sourceCommitShort": "611b2c9429c7",
     "sourceBranch": "unknown",
-    "dashboardCommit": "2cc329862f18193df66dc35657634b327e4fe881",
-    "dashboardCommitShort": "2cc329862f18",
+    "dashboardCommit": "611b2c9429c7dd24f92f900f2be81c329a2cebb0",
+    "dashboardCommitShort": "611b2c9429c7",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -93,11 +93,11 @@
             "unmapped": "0",
             "php": "787 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: accepted meta46/font47/runtime...",
+            "audit": "2026-06-02 UTC supervisor integration correction: accepted meta46/fon...",
             "currentWork": "MarkerPDF now preserves current trailer/name-tree metadata, indirect CIDFont vertical...",
             "nextTarget": "Score newest markerPDF worker outputs as they complete; rebas...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "2cc3298"
+            "commit": "611b2c9"
         },
         {
             "lane": "readability",
