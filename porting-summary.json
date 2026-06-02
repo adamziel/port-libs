@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 12:45:06 UTC",
-    "sourceCommit": "0d98b7e5126d47814d3903e4ea0c296a59334e68",
-    "sourceCommitShort": "0d98b7e5126d",
+    "generated": "2026-06-02 12:50:15 UTC",
+    "sourceCommit": "78977ba0d10a2a7ee6b4a9e500b840c0ad8bdd84",
+    "sourceCommitShort": "78977ba0d10a",
     "sourceBranch": "main",
-    "dashboardCommit": "0d98b7e5126d47814d3903e4ea0c296a59334e68",
-    "dashboardCommitShort": "0d98b7e5126d",
+    "dashboardCommit": "78977ba0d10a2a7ee6b4a9e500b840c0ad8bdd84",
+    "dashboardCommitShort": "78977ba0d10a",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "349",
-            "coverage": "349 / 78 (447.4%)",
-            "mapPercent": "447.4%",
+            "mapped": "350",
+            "coverage": "350 / 78 (448.7%)",
+            "mapPercent": "448.7%",
             "unmapped": "0",
-            "php": "501 pass / 0 fail",
+            "php": "502 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Page-tree /Contents non-inheritance and inherited /Resources are integrated and full-...",
+            "currentWork": "Malformed DecodeParms fail-closed stream filtering is integrated and full-lane green;...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "0d98b7e"
+            "commit": "78977ba"
         },
         {
             "lane": "readability",
