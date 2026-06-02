@@ -25,7 +25,8 @@ final class PdfPagePropertyExtractor
             return [];
         }
 
-        $markInfoUserProperties = $this->markInfoUserProperties($catalog, $objects);
+        $markInfo = $this->markInfoMetadata($catalog, $objects);
+        $markInfoUserProperties = ($markInfo['user_properties'] ?? false) === true;
         $userPropertiesByPage = $markInfoUserProperties
             ? $this->structureUserPropertiesByPageObject($catalog, $objects)
             : [];
@@ -38,8 +39,9 @@ final class PdfPagePropertyExtractor
             }
 
             $pieceInfo = $this->pieceInfoMetadata($this->dictionaryRawValue($pageBody, 'PieceInfo'), $objects);
+            $associatedFiles = $this->pageAssociatedFilesMetadata($this->dictionaryRawValue($pageBody, 'AF'), $objects);
             $userProperties = $userPropertiesByPage[$pageObjectNumber] ?? [];
-            if ($pieceInfo === [] && $userProperties === []) {
+            if ($pieceInfo === [] && $associatedFiles === [] && $userProperties === []) {
                 continue;
             }
 
@@ -48,8 +50,16 @@ final class PdfPagePropertyExtractor
                 'page_object' => $pageObjectNumber,
             ];
 
+            if ($markInfo !== []) {
+                $page['mark_info'] = $markInfo;
+            }
+
             if ($pieceInfo !== []) {
                 $page['piece_info'] = $pieceInfo;
+            }
+
+            if ($associatedFiles !== []) {
+                $page['page_associated_files'] = $associatedFiles;
             }
 
             if ($userProperties !== []) {
@@ -65,15 +75,28 @@ final class PdfPagePropertyExtractor
 
     /**
      * @param array<int, string> $objects
+     * @return array<string, mixed>
      */
-    private function markInfoUserProperties(string $catalog, array $objects): bool
+    private function markInfoMetadata(string $catalog, array $objects): array
     {
         $markInfo = $this->resolveDictionaryFromValue($this->dictionaryRawValue($catalog, 'MarkInfo'), $objects);
         if ($markInfo === null) {
-            return false;
+            return [];
         }
 
-        return $this->reviewValueFromRaw($this->dictionaryRawValue($markInfo['body'], 'UserProperties'), $objects) === true;
+        $metadata = ['source' => 'catalog_mark_info'];
+        foreach ([
+            'marked' => 'Marked',
+            'user_properties' => 'UserProperties',
+            'suspects' => 'Suspects',
+        ] as $metadataKey => $pdfKey) {
+            $value = $this->reviewValueFromRaw($this->dictionaryRawValue($markInfo['body'], $pdfKey), $objects);
+            if (is_bool($value)) {
+                $metadata[$metadataKey] = $value;
+            }
+        }
+
+        return count($metadata) > 1 ? $metadata : [];
     }
 
     /**
@@ -324,6 +347,261 @@ final class PdfPagePropertyExtractor
     }
 
     /**
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function pageAssociatedFilesMetadata(?string $arrayValue, array $objects): array
+    {
+        if ($arrayValue === null) {
+            return [];
+        }
+
+        $files = [];
+        foreach ($this->arrayItemsFromValue($arrayValue, $objects) as $index => $fileSpecValue) {
+            $file = $this->fileSpecReviewMetadata($fileSpecValue, null, $objects);
+            if ($file === null) {
+                continue;
+            }
+
+            $file = [
+                'source' => 'page_associated_files',
+                'associated_file' => true,
+                'associated_file_index' => $index,
+            ] + $file;
+            $files[] = $file;
+        }
+
+        return $files;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function fileSpecReviewMetadata(string $value, ?string $name, array $objects): ?array
+    {
+        $fileSpec = $this->resolveDictionaryFromValue($value, $objects);
+        if ($fileSpec === null) {
+            return null;
+        }
+
+        $body = $fileSpec['body'];
+        $unicodeFilename = $this->dictionaryStringValue($body, 'UF', $objects);
+        $filename = $unicodeFilename
+            ?? $this->firstDictionaryString($body, ['F', 'DOS', 'Unix', 'Mac'], $objects)
+            ?? $name
+            ?? 'associated-file';
+        $attachmentName = ($name !== null && $name !== '') ? $name : $filename;
+
+        $file = [
+            'name' => $attachmentName,
+            'filename' => $filename,
+            'file_spec_object' => $fileSpec['object'],
+        ];
+
+        if ($unicodeFilename !== null && $unicodeFilename !== '') {
+            $file['unicode_filename'] = $unicodeFilename;
+        }
+
+        foreach ([
+            'description' => $this->dictionaryStringValue($body, 'Desc', $objects),
+            'relationship' => $this->dictionaryNameValue($body, 'AFRelationship', $objects),
+        ] as $key => $metadataValue) {
+            if (is_string($metadataValue) && $metadataValue !== '') {
+                $file[$key] = $metadataValue;
+            }
+        }
+
+        $ef = $this->resolveDictionaryFromValue($this->dictionaryRawValue($body, 'EF'), $objects);
+        if ($ef === null) {
+            return $file;
+        }
+
+        foreach ($this->embeddedFileKeys($unicodeFilename !== null) as $efKey) {
+            $streamValue = $this->dictionaryRawValue($ef['body'], $efKey);
+            if ($streamValue === null) {
+                continue;
+            }
+
+            $stream = $this->embeddedFileStreamMetadata($streamValue, $objects);
+            if ($stream === null) {
+                continue;
+            }
+
+            $file['ef_key'] = $efKey;
+            $file['embedded_file_object'] = $stream['object'];
+            $file['size'] = strlen($stream['content']);
+            $file['content_sha256'] = hash('sha256', $stream['content']);
+
+            $mimeType = $this->dictionaryNameValue($stream['dictionary'], 'Subtype', $objects);
+            if ($mimeType !== null && $mimeType !== '') {
+                $file['mime_type'] = $mimeType;
+            }
+
+            if ($stream['filters'] !== []) {
+                $file['filters'] = $stream['filters'];
+            }
+
+            foreach ($this->embeddedFileParams($stream['dictionary'], $objects) as $key => $metadataValue) {
+                $file[$key] = $metadataValue;
+            }
+
+            break;
+        }
+
+        return $file;
+    }
+
+    /**
+     * Prefer the Unicode file stream when the FileSpec advertises /UF.
+     *
+     * @return list<string>
+     */
+    private function embeddedFileKeys(bool $hasUnicodeFilename): array
+    {
+        return $hasUnicodeFilename
+            ? ['UF', 'F', 'DOS', 'Unix', 'Mac']
+            : ['F', 'UF', 'DOS', 'Unix', 'Mac'];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{object: int|null, dictionary: string, content: string, filters: list<string>}|null
+     */
+    private function embeddedFileStreamMetadata(string $value, array $objects): ?array
+    {
+        $objectNumber = $this->objectNumberFromReference($value);
+        $body = $objectNumber !== null ? ($objects[$objectNumber] ?? null) : trim($value);
+        if ($body === null || $body === '') {
+            return null;
+        }
+
+        $stream = $this->decodeStreamObject($body, $objects);
+        if ($stream === null) {
+            return null;
+        }
+
+        return [
+            'object' => $objectNumber,
+            'dictionary' => $stream['dictionary'],
+            'content' => $stream['content'],
+            'filters' => $stream['filters'],
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{dictionary: string, content: string, filters: list<string>}|null
+     */
+    private function decodeStreamObject(string $objectBody, array $objects): ?array
+    {
+        if (!preg_match('/<<(.*?)>>\s*stream\r?\n?(.*?)\r?\n?endstream/s', $objectBody, $match)) {
+            return null;
+        }
+
+        $dictionary = $match[1];
+        $stream = $match[2];
+        $filters = $this->streamFilters($dictionary, $objects);
+        foreach ($filters as $filter) {
+            $decoded = match ($filter) {
+                'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
+                'FlateDecode', 'Fl' => $this->decodeFlateStream($stream),
+                default => $stream,
+            };
+            if ($decoded === null) {
+                return null;
+            }
+            $stream = $decoded;
+        }
+
+        return [
+            'dictionary' => $dictionary,
+            'content' => $stream,
+            'filters' => $filters,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function streamFilters(string $dictionary, array $objects): array
+    {
+        $value = $this->dictionaryRawValue($dictionary, 'Filter');
+        if ($value === null) {
+            return [];
+        }
+
+        $resolved = $this->resolveRawValue($value, $objects) ?? $value;
+        preg_match_all('/\/([^\s\[\]()<>{}\/%]+)/', $resolved, $matches);
+
+        return array_map(fn (string $name): string => $this->decodePdfName($name), $matches[1] ?? []);
+    }
+
+    private function decodeAsciiHexStream(string $stream): ?string
+    {
+        $body = strstr($stream, '>', true);
+        if ($body === false) {
+            $body = $stream;
+        }
+
+        $hex = preg_replace('/\s+/', '', $body);
+        if ($hex === null || preg_match('/^[\da-fA-F]*$/', $hex) !== 1) {
+            return null;
+        }
+
+        if (strlen($hex) % 2 === 1) {
+            $hex .= '0';
+        }
+
+        $decoded = hex2bin($hex);
+        return $decoded === false ? null : $decoded;
+    }
+
+    private function decodeFlateStream(string $stream): ?string
+    {
+        $inflated = @gzuncompress($stream);
+        if ($inflated === false) {
+            $inflated = @gzinflate($stream);
+        }
+        if ($inflated === false) {
+            $inflated = @gzdecode($stream);
+        }
+
+        return $inflated === false ? null : $inflated;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function embeddedFileParams(string $streamDictionary, array $objects): array
+    {
+        $params = $this->resolveDictionaryFromValue($this->dictionaryRawValue($streamDictionary, 'Params'), $objects);
+        if ($params === null) {
+            return [];
+        }
+
+        $metadata = [];
+        $size = $this->dictionaryIntegerValue($params['body'], 'Size');
+        if ($size !== null) {
+            $metadata['declared_size'] = $size;
+        }
+
+        $createdAt = $this->dictionaryStringValue($params['body'], 'CreationDate', $objects);
+        if ($createdAt !== null && $createdAt !== '') {
+            $metadata['created_at'] = $createdAt;
+        }
+
+        $modifiedAt = $this->dictionaryStringValue($params['body'], 'ModDate', $objects);
+        if ($modifiedAt !== null && $modifiedAt !== '') {
+            $metadata['modified_at'] = $modifiedAt;
+        }
+
+        return $metadata;
+    }
+
+    /**
      * @return array<int, string>
      */
     private function pdfObjects(string $pdfBytes): array
@@ -562,6 +840,22 @@ final class PdfPagePropertyExtractor
     }
 
     /**
+     * @param list<string> $keys
+     * @param array<int, string> $objects
+     */
+    private function firstDictionaryString(string $dictionary, array $keys, array $objects): ?string
+    {
+        foreach ($keys as $key) {
+            $value = $this->dictionaryStringValue($dictionary, $key, $objects);
+            if ($value !== null && $value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @param array<int, string> $objects
      */
     private function dictionaryNameValue(string $dictionary, string $key, array $objects): ?string
@@ -577,6 +871,16 @@ final class PdfPagePropertyExtractor
         }
 
         return $this->stringValueFromRaw($resolved, $objects);
+    }
+
+    private function dictionaryIntegerValue(string $dictionary, string $key): ?int
+    {
+        $value = $this->dictionaryRawValue($dictionary, $key);
+        if ($value === null || preg_match('/^-?\d+$/', trim($value)) !== 1) {
+            return null;
+        }
+
+        return (int) trim($value);
     }
 
     private function objectReferenceValueAfterName(string $dictionary, string $key): ?int

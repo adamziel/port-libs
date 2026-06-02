@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\PdfPagePropertyExtractor;
+use PortLibs\MarkerPDF\PdfTextExtractor;
 
 $pagePropertyPdf = static function (): string {
     return "%PDF-1.7\n"
@@ -77,5 +78,72 @@ return [
 
         $t->same([], (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdf));
         $t->same([], (new PdfPagePropertyExtractor())->extractPageReviewMetadata('%PDF-1.4 no catalog'));
+    },
+    'extracts MarkInfo flags and page associated Filespec review boundaries' => static function (TestRunner $t): void {
+        $sourcePayload = '<wp-export><post id="20"/></wp-export>';
+        $previewPayload = 'BT /F1 12 Tf 72 720 Td (Page AF Payload Leak) Tj ET';
+        $pageText = 'BT /F1 12 Tf 72 720 Td (Page Associated Review) Tj ET';
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true /UserProperties false /Suspects true >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 5 0 R /PieceInfo << /WPImport << /LastModified (D:20260602085800Z) /Private << /BatchId (batch-20) /NeedsReview true >> >> >> /AF [10 0 R << /Type /Filespec /UF (preview.pdf) /Desc (Rendered preview) /AFRelationship /Alternative /EF << /UF 15 0 R >> >> 99 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (source.xml) /Desc (Original WordPress export) /AFRelationship /Source /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourcePayload) . " >> /Length " . strlen($sourcePayload) . " >>\nstream\n{$sourcePayload}\nendstream\nendobj\n"
+            . "15 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fpdf /Length " . strlen($previewPayload) . " >>\nstream\n{$previewPayload}\nendstream\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $pages = (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+
+        $t->same(1, count($pages));
+        $page = $pages[0];
+        $t->same(0, $page['pnum']);
+        $t->same(3, $page['page_object']);
+        $t->same([
+            'source' => 'catalog_mark_info',
+            'marked' => true,
+            'user_properties' => false,
+            'suspects' => true,
+        ], $page['mark_info']);
+        $t->same('D:20260602085800Z', $page['piece_info']['WPImport']['last_modified']);
+        $t->same('batch-20', $page['piece_info']['WPImport']['private']['BatchId']);
+        $t->same(true, $page['piece_info']['WPImport']['private']['NeedsReview']);
+
+        $associated = $page['page_associated_files'];
+        $t->same(2, count($associated));
+
+        $source = $associated[0];
+        $t->same('page_associated_files', $source['source']);
+        $t->same(true, $source['associated_file']);
+        $t->same(0, $source['associated_file_index']);
+        $t->same('source.xml', $source['name']);
+        $t->same('source.xml', $source['filename']);
+        $t->same('Original WordPress export', $source['description']);
+        $t->same('Source', $source['relationship']);
+        $t->same('text/xml', $source['mime_type']);
+        $t->same(10, $source['file_spec_object']);
+        $t->same(11, $source['embedded_file_object']);
+        $t->same(strlen($sourcePayload), $source['declared_size']);
+        $t->same(strlen($sourcePayload), $source['size']);
+        $t->same(hash('sha256', $sourcePayload), $source['content_sha256']);
+        $t->same(false, array_key_exists('content', $source));
+
+        $preview = $associated[1];
+        $t->same(1, $preview['associated_file_index']);
+        $t->same('preview.pdf', $preview['name']);
+        $t->same('preview.pdf', $preview['filename']);
+        $t->same('Rendered preview', $preview['description']);
+        $t->same('Alternative', $preview['relationship']);
+        $t->same('application/pdf', $preview['mime_type']);
+        $t->same(null, $preview['file_spec_object']);
+        $t->same(15, $preview['embedded_file_object']);
+        $t->same(strlen($previewPayload), $preview['size']);
+        $t->same(hash('sha256', $previewPayload), $preview['content_sha256']);
+
+        $t->contains('Page Associated Review', $plainText);
+        $t->same(false, str_contains($plainText, 'wp-export'));
+        $t->same(false, str_contains($plainText, 'Page AF Payload Leak'));
     },
 ];
