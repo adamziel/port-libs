@@ -200,7 +200,10 @@ final class PdfTextExtractor
      *     compressed_generation_zero_boundary_count: int,
      *     strict_dependency_rejection_count: int,
      *     direct_xref_stream_owner_cycle_count: int,
+     *     suppressed_hybrid_type2_entry_count: int,
+     *     hybrid_table_free_owner_count: int,
      *     entries: list<array<string, mixed>>,
+     *     suppressed_hybrid_entries: list<array<string, mixed>>,
      *     executes_python_or_models: false,
      *     executes_external_pdf_tools: false
      * }
@@ -219,7 +222,10 @@ final class PdfTextExtractor
             'compressed_generation_zero_boundary_count' => 0,
             'strict_dependency_rejection_count' => 0,
             'direct_xref_stream_owner_cycle_count' => 0,
+            'suppressed_hybrid_type2_entry_count' => 0,
+            'hybrid_table_free_owner_count' => 0,
             'entries' => [],
+            'suppressed_hybrid_entries' => [],
             'executes_python_or_models' => false,
             'executes_external_pdf_tools' => false,
         ];
@@ -237,6 +243,18 @@ final class PdfTextExtractor
         $xrefEntries = $this->xrefEntries($pdfBytes, $preliminaryObjects, $definitions);
         if ($xrefEntries === []) {
             return $review;
+        }
+
+        $review['suppressed_hybrid_entries'] = $this->xrefHybridSuppressedObjectStreamEntries(
+            $pdfBytes,
+            $preliminaryObjects,
+            $definitions
+        );
+        $review['suppressed_hybrid_type2_entry_count'] = count($review['suppressed_hybrid_entries']);
+        foreach ($review['suppressed_hybrid_entries'] as $suppressedEntry) {
+            if (($suppressedEntry['owner_policy'] ?? null) === 'hybrid_table_free_entry_preserved') {
+                $review['hybrid_table_free_owner_count']++;
+            }
         }
 
         $objects = $this->liveDirectObjects($definitions, $xrefEntries);
@@ -507,7 +525,7 @@ final class PdfTextExtractor
                 $review['unresolved_operand_count'] += $unresolvedOperandCount;
 
                 $filters = $this->streamFilters($dict, $objects);
-                $decodedEntries = $this->xrefStreamEntriesFromDefinition($definition, $objects);
+                $decodedEntries = $this->xrefStreamEntriesFromDefinition($definition, $objects, $definitions);
                 $review['entries'][] = [
                     'object_number' => $objectNumber,
                     'generation' => $definition['generation'],
@@ -534,6 +552,129 @@ final class PdfTextExtractor
                     'review_only' => true,
                 ];
             }
+        }
+
+        return $review;
+    }
+
+    /**
+     * Review object-stream dictionary operands before WordPress import.
+     *
+     * PDF 1.5 object streams use `/N` and `/First` to split the decoded
+     * member table and can use the usual stream `/Length`, `/Filter`, and
+     * `/DecodeParms` operands. Expose whether those operands are current
+     * xref-selected generations instead of silently trusting stale scanned
+     * same-number helper objects.
+     *
+     * @return array{
+     *     source: string,
+     *     review_only: true,
+     *     encrypted: bool,
+     *     object_stream_count: int,
+     *     indirect_operand_count: int,
+     *     xref_selected_operand_count: int,
+     *     unresolved_operand_count: int,
+     *     entries: list<array<string, mixed>>,
+     *     executes_python_or_models: false,
+     *     executes_external_pdf_tools: false
+     * }
+     */
+    public function extractObjectStreamStreamDictionaryGenerationReview(string $pdfBytes): array
+    {
+        $review = [
+            'source' => 'pdf_object_stream_stream_dictionary_generation_review',
+            'review_only' => true,
+            'encrypted' => $this->hasEncryptedTrailer($pdfBytes),
+            'object_stream_count' => 0,
+            'indirect_operand_count' => 0,
+            'xref_selected_operand_count' => 0,
+            'unresolved_operand_count' => 0,
+            'entries' => [],
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+
+        if ($review['encrypted']) {
+            return $review;
+        }
+
+        $definitions = $this->directObjectDefinitions($pdfBytes);
+        if ($definitions === []) {
+            return $review;
+        }
+
+        $previousOwners = $this->currentObjectReferenceOwners;
+        $preliminaryObjects = $this->latestDirectObjects($definitions);
+        $xrefEntries = $this->xrefEntries($pdfBytes, $preliminaryObjects, $definitions);
+        $objects = $this->liveDirectObjects($definitions, $xrefEntries);
+        $objects = $this->withReferencedDirectGenerationObjects($objects, $definitions, $xrefEntries);
+        $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
+        $objects = $this->withObjectStreamObjects($objects, $xrefEntries);
+        $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
+
+        try {
+            foreach ($this->liveDirectObjectDefinitionsInFileOrder($definitions, $xrefEntries) as $definition) {
+                $body = $objects[$definition['objectNumber']] ?? null;
+                if ($body !== $definition['body'] || preg_match('/\/Type\s*\/ObjStm\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $dict = $this->dictionaryObjectBody($body);
+                if ($dict === null) {
+                    continue;
+                }
+
+                $operandGroups = [];
+                foreach (['N', 'First', 'Length', 'Filter', 'DecodeParms'] as $name) {
+                    $operandGroups[$name] = $this->xrefStreamOperandReviews(
+                        $dict,
+                        $name,
+                        $objects,
+                        $xrefEntries,
+                        $definitions
+                    );
+                }
+
+                $operands = [];
+                foreach ($operandGroups as $group) {
+                    foreach ($group as $operand) {
+                        $operands[] = $operand;
+                    }
+                }
+
+                $indirectOperandCount = $this->xrefStreamIndirectOperandCount($operands);
+                $selectedOperandCount = $this->xrefStreamSelectedOperandCount($operands);
+                $unresolvedOperandCount = $this->xrefStreamUnresolvedOperandCount($operands);
+                $memberTable = $this->decodedObjectStreamMemberTable($body, $objects);
+                $filters = $this->streamFilters($dict, $objects);
+                $decodeParms = $this->streamDecodeParms($dict, $objects);
+
+                $review['object_stream_count']++;
+                $review['indirect_operand_count'] += $indirectOperandCount;
+                $review['xref_selected_operand_count'] += $selectedOperandCount;
+                $review['unresolved_operand_count'] += $unresolvedOperandCount;
+                $review['entries'][] = [
+                    'object_number' => $definition['objectNumber'],
+                    'generation' => $definition['generation'],
+                    'offset' => $definition['offset'],
+                    'operand_groups' => $operandGroups,
+                    'indirect_operand_count' => $indirectOperandCount,
+                    'xref_selected_operand_count' => $selectedOperandCount,
+                    'unresolved_operand_count' => $unresolvedOperandCount,
+                    'declared_member_count' => $this->pdfIntegerValueAfterNameResolvingObjects($dict, 'N', $objects),
+                    'first_object_offset' => $this->pdfIntegerValueAfterNameResolvingObjects($dict, 'First', $objects),
+                    'declared_length' => $this->streamLength($dict, $objects),
+                    'filters' => $filters ?? [],
+                    'filter_resolution_failed' => $filters === null,
+                    'decodeparms_resolution_failed' => $decodeParms === null,
+                    'decoded_member_count' => $memberTable === null ? 0 : count($memberTable['members']),
+                    'decoded_with_current_operands' => $memberTable !== null && $unresolvedOperandCount === 0,
+                    'owner_policy' => $this->xrefStreamOperandOwnerPolicy($selectedOperandCount, $unresolvedOperandCount, $operands),
+                    'review_only' => true,
+                ];
+            }
+        } finally {
+            $this->currentObjectReferenceOwners = $previousOwners;
         }
 
         return $review;
@@ -1919,6 +2060,10 @@ final class PdfTextExtractor
         $operands = [];
         $currentFontResource = null;
         $currentFontSize = null;
+        $currentTransformationMatrix = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+        $clipRectangle = null;
+        $currentPathRectangle = null;
+        $clipStateStack = [];
 
         foreach ($this->contentTokens($stream) as $token) {
             if ($token === 'BDC') {
@@ -1934,7 +2079,7 @@ final class PdfTextExtractor
                 $segmentIndex = null;
                 if ($mcid !== null) {
                     $segments[$mcid] ??= [];
-                    $segmentTokens = $this->markedContentSegmentPrefix($currentFontResource, $currentFontSize);
+                    $segmentTokens = $this->markedContentSegmentPrefix($currentFontResource, $currentFontSize, $clipRectangle);
                     foreach ($operands as $operand) {
                         $segmentTokens[] = $operand;
                     }
@@ -1943,7 +2088,11 @@ final class PdfTextExtractor
                     $segmentIndex = count($segments[$mcid]) - 1;
                 }
 
-                $activeSegments[] = ['mcid' => $mcid, 'segmentIndex' => $segmentIndex];
+                $activeSegments[] = [
+                    'mcid' => $mcid,
+                    'segmentIndex' => $segmentIndex,
+                    'clipWrapped' => $mcid !== null && $clipRectangle !== null,
+                ];
                 $operands = [];
                 continue;
             }
@@ -1957,7 +2106,11 @@ final class PdfTextExtractor
                     $segments[$activeSegment['mcid']][$activeSegment['segmentIndex']][] = $token;
                 }
 
-                $activeSegments[] = ['mcid' => null, 'segmentIndex' => null];
+                $activeSegments[] = [
+                    'mcid' => null,
+                    'segmentIndex' => null,
+                    'clipWrapped' => false,
+                ];
                 $operands = [];
                 continue;
             }
@@ -1966,6 +2119,9 @@ final class PdfTextExtractor
                 $activeSegment = $this->activeMarkedContentSegment($activeSegments);
                 if ($activeSegment !== null) {
                     $segments[$activeSegment['mcid']][$activeSegment['segmentIndex']][] = $token;
+                    if ($activeSegment['clipWrapped']) {
+                        $segments[$activeSegment['mcid']][$activeSegment['segmentIndex']][] = 'Q';
+                    }
                 }
 
                 array_pop($activeSegments);
@@ -1982,6 +2138,38 @@ final class PdfTextExtractor
                 $currentFontResource = $this->fontResourceOperand($operands) ?? $currentFontResource;
                 $fontSize = $this->fontSizeOperand($operands);
                 $currentFontSize = $fontSize === null ? $currentFontSize : $this->formatPdfNumber($fontSize);
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'q') {
+                $clipStateStack[] = [
+                    'clipRectangle' => $clipRectangle,
+                    'currentPathRectangle' => $currentPathRectangle,
+                    'currentTransformationMatrix' => $currentTransformationMatrix,
+                ];
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Q') {
+                $clipState = array_pop($clipStateStack);
+                if (is_array($clipState)) {
+                    $clipRectangle = $clipState['clipRectangle'];
+                    $currentPathRectangle = $clipState['currentPathRectangle'];
+                    $currentTransformationMatrix = $clipState['currentTransformationMatrix'];
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($this->applyClipPathStateOperator(
+                $token,
+                $operands,
+                $clipRectangle,
+                $currentPathRectangle,
+                $currentTransformationMatrix
+            )) {
                 $operands = [];
                 continue;
             }
@@ -2035,8 +2223,8 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param list<array{mcid: int|null, segmentIndex: int|null}> $activeSegments
-     * @return array{mcid: int, segmentIndex: int}|null
+     * @param list<array{mcid: int|null, segmentIndex: int|null, clipWrapped: bool}> $activeSegments
+     * @return array{mcid: int, segmentIndex: int, clipWrapped: bool}|null
      */
     private function activeMarkedContentSegment(array $activeSegments): ?array
     {
@@ -2046,6 +2234,7 @@ final class PdfTextExtractor
                 return [
                     'mcid' => $segment['mcid'],
                     'segmentIndex' => $segment['segmentIndex'],
+                    'clipWrapped' => $segment['clipWrapped'],
                 ];
             }
         }
@@ -2056,13 +2245,34 @@ final class PdfTextExtractor
     /**
      * @return list<string>
      */
-    private function markedContentSegmentPrefix(?string $fontResource, ?string $fontSize): array
+    private function markedContentSegmentPrefix(?string $fontResource, ?string $fontSize, ?array $clipRectangle = null): array
     {
-        if ($fontResource === null) {
-            return [];
+        $prefix = [];
+        if ($clipRectangle !== null) {
+            $prefix[] = 'q';
+            if ($this->pdfRectangleHasArea($clipRectangle)) {
+                $prefix[] = $this->formatPdfNumber($clipRectangle[0]);
+                $prefix[] = $this->formatPdfNumber($clipRectangle[1]);
+                $prefix[] = $this->formatPdfNumber($clipRectangle[2] - $clipRectangle[0]);
+                $prefix[] = $this->formatPdfNumber($clipRectangle[3] - $clipRectangle[1]);
+                $prefix[] = 're';
+                $prefix[] = 'W';
+                $prefix[] = 'n';
+            } else {
+                $prefix[] = '3';
+                $prefix[] = 'Tr';
+            }
         }
 
-        return ['/' . $fontResource, $fontSize ?? '12', 'Tf'];
+        if ($fontResource === null) {
+            return $prefix;
+        }
+
+        $prefix[] = '/' . $fontResource;
+        $prefix[] = $fontSize ?? '12';
+        $prefix[] = 'Tf';
+
+        return $prefix;
     }
 
     /**
@@ -3681,12 +3891,12 @@ final class PdfTextExtractor
      */
     private function pdfArrayFromValue(string $value, array $objects): ?string
     {
-        $value = trim($value);
-        if (str_starts_with($value, '[')) {
-            return $this->pdfArrayAtStart($value);
+        $offset = $this->skipPdfWhitespace($value, 0);
+        if (($value[$offset] ?? '') === '[') {
+            return $this->readPdfArrayAt($value, $offset);
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) !== 1) {
+        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $value, $match, 0, $offset) !== 1) {
             return null;
         }
 
@@ -3699,12 +3909,12 @@ final class PdfTextExtractor
      */
     private function pdfDictionaryFromValue(string $value, array $objects): ?string
     {
-        $value = trim($value);
-        if (str_starts_with($value, '<<')) {
-            return $this->readPdfDictionaryAt($value, 0);
+        $offset = $this->skipPdfWhitespace($value, 0);
+        if (substr($value, $offset, 2) === '<<') {
+            return $this->readPdfDictionaryAt($value, $offset);
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) !== 1) {
+        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $value, $match, 0, $offset) !== 1) {
             return null;
         }
 
@@ -3955,6 +4165,7 @@ final class PdfTextExtractor
 
     private function pdfValueAtOffset(string $body, int $offset): ?string
     {
+        $offset = $this->skipPdfWhitespace($body, $offset);
         if ($offset >= strlen($body)) {
             return null;
         }
@@ -4679,16 +4890,59 @@ final class PdfTextExtractor
      */
     private function objectReferencePairs(string $value): array
     {
-        if (!preg_match_all('/(\d+)\s+(\d+)\s+R\b/', $value, $matches, PREG_SET_ORDER)) {
-            return [];
-        }
-
         $references = [];
-        foreach ($matches as $match) {
-            $references[] = [
-                'objectNumber' => (int) $match[1],
-                'generation' => (int) $match[2],
-            ];
+        $index = 0;
+        $length = strlen($value);
+
+        while ($index < $length) {
+            $char = $value[$index];
+
+            if (ctype_space($char)) {
+                $index++;
+                continue;
+            }
+
+            if ($char === '%') {
+                $this->skipPdfComment($value, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $skipped = $this->skipPdfLiteralStringAt($value, $index);
+                $index = $skipped === null ? $index + 1 : $skipped + 1;
+                continue;
+            }
+
+            if ($char === '<') {
+                if (($value[$index + 1] ?? '') === '<') {
+                    $index += 2;
+                    continue;
+                }
+
+                $this->readHexToken($value, $index);
+                continue;
+            }
+
+            if ($char === '>' && ($value[$index + 1] ?? '') === '>') {
+                $index += 2;
+                continue;
+            }
+
+            if ($char === '/') {
+                $this->readNameToken($value, $index);
+                continue;
+            }
+
+            if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $index) === 1) {
+                $references[] = [
+                    'objectNumber' => (int) $match[1],
+                    'generation' => (int) $match[2],
+                ];
+                $index += strlen($match[0]);
+                continue;
+            }
+
+            $index++;
         }
 
         return $references;
@@ -7257,6 +7511,11 @@ final class PdfTextExtractor
         $index = $offset;
         $length = strlen($value);
         while ($index < $length - 1) {
+            if ($value[$index] === '%') {
+                $this->skipPdfComment($value, $index);
+                continue;
+            }
+
             if ($value[$index] === '(') {
                 $this->readLiteralToken($value, $index);
                 continue;
@@ -7427,6 +7686,16 @@ final class PdfTextExtractor
             && $x <= $rectangle[2] + 0.000001
             && $y >= $rectangle[1] - 0.000001
             && $y <= $rectangle[3] + 0.000001;
+    }
+
+    /**
+     * @param list<float> $rectangle
+     */
+    private function pdfRectangleHasArea(array $rectangle): bool
+    {
+        return count($rectangle) >= 4
+            && $rectangle[2] > $rectangle[0] + 0.000001
+            && $rectangle[3] > $rectangle[1] + 0.000001;
     }
 
     /**
@@ -8008,8 +8277,18 @@ final class PdfTextExtractor
     private function skipPdfWhitespace(string $value, int $offset): int
     {
         $length = strlen($value);
-        while ($offset < $length && ctype_space($value[$offset])) {
-            $offset++;
+        while ($offset < $length) {
+            if (ctype_space($value[$offset])) {
+                $offset++;
+                continue;
+            }
+
+            if ($value[$offset] === '%') {
+                $this->skipPdfComment($value, $offset);
+                continue;
+            }
+
+            break;
         }
 
         return $offset;
@@ -8020,6 +8299,7 @@ final class PdfTextExtractor
      */
     private function pdfStringTokenAt(string $body, int $offset, array $objects): ?string
     {
+        $offset = $this->skipPdfWhitespace($body, $offset);
         if ($offset >= strlen($body)) {
             return null;
         }
@@ -8129,6 +8409,11 @@ final class PdfTextExtractor
         $bodyStart = $offset + 1;
         for ($index = $offset, $length = strlen($value); $index < $length; $index++) {
             $char = $value[$index];
+            if ($char === '%') {
+                $this->skipPdfComment($value, $index);
+                continue;
+            }
+
             if ($char === '(') {
                 $skipped = $this->skipPdfLiteralStringAt($value, $index);
                 if ($skipped === null) {
@@ -8144,6 +8429,15 @@ final class PdfTextExtractor
                     return null;
                 }
                 $index = $dictionaryEnd;
+                continue;
+            }
+
+            if ($char === '<') {
+                $hexEnd = strpos($value, '>', $index + 1);
+                if ($hexEnd === false) {
+                    return null;
+                }
+                $index = $hexEnd;
                 continue;
             }
 
@@ -8201,6 +8495,11 @@ final class PdfTextExtractor
 
         $depth = 0;
         for ($index = $offset, $length = strlen($value); $index < $length - 1; $index++) {
+            if ($value[$index] === '%') {
+                $this->skipPdfComment($value, $index);
+                continue;
+            }
+
             if ($value[$index] === '(') {
                 $skipped = $this->skipPdfLiteralStringAt($value, $index);
                 if ($skipped === null) {
@@ -8233,11 +8532,8 @@ final class PdfTextExtractor
 
     private function firstObjectReference(string $value): ?int
     {
-        if (preg_match('/(\d+)\s+\d+\s+R\b/s', $value, $match) !== 1) {
-            return null;
-        }
-
-        return (int) $match[1];
+        $references = $this->objectReferencePairs($value);
+        return $references[0]['objectNumber'] ?? null;
     }
 
     /**
@@ -8874,9 +9170,21 @@ final class PdfTextExtractor
         ksort($objects, SORT_NUMERIC);
         $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
 
-        $rootObjectNumber = $this->trailerRootObjectNumberFromStartxrefChain($pdfBytes, $definitions);
-        if ($rootObjectNumber !== null && isset($objects[$rootObjectNumber])) {
-            $objects = $this->promoteObjectToFront($objects, $rootObjectNumber);
+        $rootReference = $this->trailerRootReferenceFromStartxrefChain($pdfBytes, $definitions);
+        if ($rootReference !== null && $rootReference['generation'] > 0) {
+            $objects = $this->withDirectGenerationObjectReference(
+                $objects,
+                $definitions,
+                $rootReference['objectNumber'],
+                $rootReference['generation']
+            );
+            $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
+            $objects = $this->withReferencedDirectGenerationObjects($objects, $definitions, $xrefEntries);
+            $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
+        }
+
+        if ($rootReference !== null && isset($objects[$rootReference['objectNumber']])) {
+            $objects = $this->promoteObjectToFront($objects, $rootReference['objectNumber']);
         }
 
         return $objects;
@@ -9900,6 +10208,32 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, string>
+     */
+    private function withDirectGenerationObjectReference(
+        array $objects,
+        array $definitions,
+        int $objectNumber,
+        int $generation
+    ): array {
+        if ($objectNumber <= 0 || $generation < 0) {
+            return $objects;
+        }
+
+        $definition = $this->directObjectDefinitionForGeneration($definitions[$objectNumber] ?? [], $generation);
+        if ($definition === null) {
+            return $objects;
+        }
+
+        $objects[$objectNumber] = $definition['body'];
+        ksort($objects, SORT_NUMERIC);
+
+        return $objects;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
      * @return array<int, array{generation: int, body: string}>
      */
@@ -10126,6 +10460,117 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return list<array<string, mixed>>
+     */
+    private function xrefHybridSuppressedObjectStreamEntries(string $pdfBytes, array $objects, array $definitions): array
+    {
+        $offset = $this->latestStartxrefOffset($pdfBytes, $definitions);
+        if ($offset === null) {
+            return [];
+        }
+
+        return $this->xrefHybridSuppressedObjectStreamEntriesFromOffsetChain($pdfBytes, $offset, $objects, $definitions);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, bool> $seenOffsets
+     * @return list<array<string, mixed>>
+     */
+    private function xrefHybridSuppressedObjectStreamEntriesFromOffsetChain(
+        string $pdfBytes,
+        int $offset,
+        array $objects,
+        array $definitions,
+        array $seenOffsets = []
+    ): array {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return [];
+        }
+        $seenOffsets[$offset] = true;
+
+        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
+        if ($tableSection !== null) {
+            $entries = [];
+            $trailer = $tableSection['trailer'];
+            $hybridStreamOffset = $this->pdfIntegerValueAfterName($trailer, 'XRefStm');
+            if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
+                foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions) as $objectNumber => $entry) {
+                    if (($entry['type'] ?? null) !== 2 || !isset($entry['objectStream'], $tableSection['entries'][$objectNumber])) {
+                        continue;
+                    }
+
+                    $tableEntry = $tableSection['entries'][$objectNumber];
+                    $tableEntryType = (int) ($tableEntry['type'] ?? -1);
+                    $entries[] = [
+                        'object_number' => $objectNumber,
+                        'object_stream' => (int) $entry['objectStream'],
+                        'xref_member_index' => (int) ($entry['index'] ?? 0),
+                        'index_is_explicit' => ($entry['indexIsExplicit'] ?? true) === true,
+                        'current_xref_offset' => $offset,
+                        'hybrid_xref_stream_offset' => $hybridStreamOffset,
+                        'table_entry_type' => $tableEntryType,
+                        'table_generation' => $tableEntry['generation'] ?? null,
+                        'table_offset_field' => $tableEntry['offset'] ?? null,
+                        'table_offset_is_explicit' => ($tableEntry['offsetIsExplicit'] ?? true) === true,
+                        'suppressed_by_table_entry' => true,
+                        'owner_policy' => $this->xrefHybridSuppressedObjectStreamOwnerPolicy($tableEntryType),
+                        'review_only' => true,
+                    ];
+                }
+            }
+
+            $previousOffset = $this->pdfIntegerValueAfterName($trailer, 'Prev');
+            if ($previousOffset !== null && $previousOffset >= 0) {
+                $entries = array_merge(
+                    $entries,
+                    $this->xrefHybridSuppressedObjectStreamEntriesFromOffsetChain(
+                        $pdfBytes,
+                        $previousOffset,
+                        $objects,
+                        $definitions,
+                        $seenOffsets
+                    )
+                );
+            }
+
+            return $entries;
+        }
+
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
+        if ($streamSection === null) {
+            return [];
+        }
+
+        $previousOffset = $this->pdfIntegerValueAfterName($streamSection['body'], 'Prev');
+        return $previousOffset === null || $previousOffset < 0
+            ? []
+            : $this->xrefHybridSuppressedObjectStreamEntriesFromOffsetChain(
+                $pdfBytes,
+                $previousOffset,
+                $objects,
+                $definitions,
+                $seenOffsets
+            );
+    }
+
+    private function xrefHybridSuppressedObjectStreamOwnerPolicy(int $tableEntryType): string
+    {
+        if ($tableEntryType === 0) {
+            return 'hybrid_table_free_entry_preserved';
+        }
+
+        if ($tableEntryType === 1) {
+            return 'hybrid_table_direct_entry_preserved';
+        }
+
+        return 'hybrid_table_entry_preserved';
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
     private function xrefEntriesFromStartxrefChain(string $pdfBytes, array $objects, array $definitions): array
@@ -10140,27 +10585,29 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{objectNumber: int, generation: int}|null
      */
-    private function trailerRootObjectNumberFromStartxrefChain(string $pdfBytes, array $definitions): ?int
+    private function trailerRootReferenceFromStartxrefChain(string $pdfBytes, array $definitions): ?array
     {
         $offset = $this->latestStartxrefOffset($pdfBytes, $definitions);
         if ($offset === null) {
             return null;
         }
 
-        return $this->trailerRootObjectNumberFromOffsetChain($pdfBytes, $offset, $definitions);
+        return $this->trailerRootReferenceFromOffsetChain($pdfBytes, $offset, $definitions);
     }
 
     /**
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @param array<int, bool> $seenOffsets
+     * @return array{objectNumber: int, generation: int}|null
      */
-    private function trailerRootObjectNumberFromOffsetChain(
+    private function trailerRootReferenceFromOffsetChain(
         string $pdfBytes,
         int $offset,
         array $definitions,
         array $seenOffsets = []
-    ): ?int {
+    ): ?array {
         if ($offset < 0 || isset($seenOffsets[$offset])) {
             return null;
         }
@@ -10168,7 +10615,7 @@ final class PdfTextExtractor
 
         $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
         if ($tableSection !== null) {
-            $root = $this->objectReferenceValueAfterName($tableSection['trailer'], 'Root');
+            $root = $this->objectReferenceAfterName($tableSection['trailer'], 'Root');
             if ($root !== null) {
                 return $root;
             }
@@ -10177,7 +10624,7 @@ final class PdfTextExtractor
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
                 $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions);
                 if ($streamSection !== null) {
-                    $root = $this->objectReferenceValueAfterName($streamSection['body'], 'Root');
+                    $root = $this->objectReferenceAfterName($streamSection['body'], 'Root');
                     if ($root !== null) {
                         return $root;
                     }
@@ -10187,7 +10634,7 @@ final class PdfTextExtractor
             $previousOffset = $this->pdfIntegerValueAfterName($tableSection['trailer'], 'Prev');
             return $previousOffset === null
                 ? null
-                : $this->trailerRootObjectNumberFromOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
+                : $this->trailerRootReferenceFromOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
         }
 
         $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
@@ -10195,7 +10642,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $root = $this->objectReferenceValueAfterName($streamSection['body'], 'Root');
+        $root = $this->objectReferenceAfterName($streamSection['body'], 'Root');
         if ($root !== null) {
             return $root;
         }
@@ -10203,7 +10650,7 @@ final class PdfTextExtractor
         $previousOffset = $this->pdfIntegerValueAfterName($streamSection['body'], 'Prev');
         return $previousOffset === null
             ? null
-            : $this->trailerRootObjectNumberFromOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
+            : $this->trailerRootReferenceFromOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
     }
 
     /**
@@ -10284,7 +10731,7 @@ final class PdfTextExtractor
             return [];
         }
 
-        $entries = $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects);
+        $entries = $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions);
         $previousOffset = $this->pdfIntegerValueAfterName($streamSection['body'], 'Prev');
         if ($previousOffset !== null && $previousOffset >= 0) {
             $previousEntries = $this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
@@ -10428,7 +10875,7 @@ final class PdfTextExtractor
         return [
             'source' => 'xref_stream',
             'offset' => $offset,
-            'entries' => $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects),
+            'entries' => $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions),
             'previousOffset' => $this->pdfIntegerValueAfterName($streamSection['body'], 'Prev'),
         ];
     }
@@ -11116,7 +11563,7 @@ final class PdfTextExtractor
     {
         $entries = [];
         foreach ($this->xrefStreamDefinitionsInFileOrder($definitions) as $definition) {
-            foreach ($this->xrefStreamEntriesFromDefinition($definition, $objects) as $objectNumber => $entry) {
+            foreach ($this->xrefStreamEntriesFromDefinition($definition, $objects, $definitions) as $objectNumber => $entry) {
                 $entries[$objectNumber] = $entry;
             }
         }
@@ -11132,7 +11579,7 @@ final class PdfTextExtractor
     private function xrefStreamEntriesAtOffset(int $offset, array $objects, array $definitions): array
     {
         $section = $this->xrefStreamSectionAtOffset($offset, $definitions);
-        return $section === null ? [] : $this->xrefStreamEntriesFromDefinition($section['definition'], $objects);
+        return $section === null ? [] : $this->xrefStreamEntriesFromDefinition($section['definition'], $objects, $definitions);
     }
 
     /**
@@ -11172,9 +11619,10 @@ final class PdfTextExtractor
     /**
      * @param array{generation: int, offset: int, body: string} $definition
      * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>>|null $definitions
      * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
-    private function xrefStreamEntriesFromDefinition(array $definition, array $objects): array
+    private function xrefStreamEntriesFromDefinition(array $definition, array $objects, ?array $definitions = null): array
     {
         $entries = [];
         $body = $definition['body'];
@@ -11211,6 +11659,13 @@ final class PdfTextExtractor
                 $fieldTwo = $this->xrefFieldValue($decoded, $fieldOffset, $widths[1]);
                 $fieldThree = $this->xrefFieldValue($decoded, $fieldOffset, $widths[2]);
                 $objectNumber = $startObject + $index;
+                if ($type === 1 && $widths[1] > 0 && $definitions !== null) {
+                    $offsetOwner = $this->directObjectDefinitionAtOffset($definitions, $fieldTwo);
+                    if ($offsetOwner !== null) {
+                        $objectNumber = $offsetOwner['objectNumber'];
+                    }
+                }
+
                 if (isset($entries[$objectNumber])) {
                     $offset += $entryWidth;
                     continue;
@@ -11244,6 +11699,28 @@ final class PdfTextExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{objectNumber: int, generation: int, offset: int, body: string}|null
+     */
+    private function directObjectDefinitionAtOffset(array $definitions, int $offset): ?array
+    {
+        foreach ($definitions as $objectNumber => $entries) {
+            foreach ($entries as $definition) {
+                if ($definition['offset'] === $offset) {
+                    return [
+                        'objectNumber' => $objectNumber,
+                        'generation' => $definition['generation'],
+                        'offset' => $definition['offset'],
+                        'body' => $definition['body'],
+                    ];
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

@@ -16,6 +16,7 @@ final class PdfLinkAnnotationExtractor
         $objects = $this->pdfObjects($pdfBytes);
         $actionReviewer = new PdfActionReviewExtractor($pdfBytes);
         $structureReviewsByAnnotationObject = $this->annotationStructureReviewsByObject($pdfBytes);
+        $context = $this->linkReviewContext($pdfBytes);
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
         $pages = [];
 
@@ -28,7 +29,8 @@ final class PdfLinkAnnotationExtractor
                 $objects[$pageObjectNumber],
                 $objects,
                 $actionReviewer,
-                $structureReviewsByAnnotationObject
+                $structureReviewsByAnnotationObject,
+                $context
             );
             if ($links === []) {
                 continue;
@@ -125,6 +127,19 @@ final class PdfLinkAnnotationExtractor
                         if (array_key_exists('view_parameters', $link)) {
                             $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_view_parameters'] = $link['view_parameters'];
                         }
+                        foreach ([
+                            'destination_page_label' => 'link_destination_page_label',
+                            'target_display_duration' => 'link_target_display_duration',
+                            'target_page_transition' => 'link_target_page_transition',
+                            'target_page_actions' => 'link_target_page_actions',
+                            'target_outline_titles' => 'link_target_outline_titles',
+                            'target_outline_levels' => 'link_target_outline_levels',
+                            'document_metadata_dates' => 'link_document_metadata_dates',
+                        ] as $sourceKey => $spanKey) {
+                            if (array_key_exists($sourceKey, $link)) {
+                                $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex][$spanKey] = $link[$sourceKey];
+                            }
+                        }
                     }
                 }
             }
@@ -159,13 +174,15 @@ final class PdfLinkAnnotationExtractor
     /**
      * @param array<int, string> $objects
      * @param array<int, array<string, mixed>> $structureReviewsByAnnotationObject
+     * @param array<string, mixed> $context
      * @return list<array<string, mixed>>
      */
     private function linksFromPageObject(
         string $pageBody,
         array $objects,
         PdfActionReviewExtractor $actionReviewer,
-        array $structureReviewsByAnnotationObject
+        array $structureReviewsByAnnotationObject,
+        array $context
     ): array {
         $annotationBodies = $this->annotationBodiesForPage($pageBody, $objects);
         $links = [];
@@ -176,7 +193,8 @@ final class PdfLinkAnnotationExtractor
                 $objects,
                 $actionReviewer,
                 $annotation['object'],
-                $structureReviewsByAnnotationObject
+                $structureReviewsByAnnotationObject,
+                $context
             );
             if ($link !== null) {
                 $links[] = $link;
@@ -297,6 +315,7 @@ final class PdfLinkAnnotationExtractor
     /**
      * @param array<int, string> $objects
      * @param array<int, array<string, mixed>> $structureReviewsByAnnotationObject
+     * @param array<string, mixed> $context
      * @return array<string, mixed>|null
      */
     private function linkFromAnnotationBody(
@@ -304,7 +323,8 @@ final class PdfLinkAnnotationExtractor
         array $objects,
         PdfActionReviewExtractor $actionReviewer,
         ?int $annotationObject,
-        array $structureReviewsByAnnotationObject
+        array $structureReviewsByAnnotationObject,
+        array $context
     ): ?array
     {
         $subtype = $this->annotationSubtype($annotationBody);
@@ -322,6 +342,8 @@ final class PdfLinkAnnotationExtractor
         }
 
         $review = $actionReviewer->reviewAnnotationActions($annotationBody);
+        $review['actions'] = $this->withLinkTargetContextRows($review['actions'], $context);
+        $review['additional_actions'] = $this->withLinkTargetContextRows($review['additional_actions'], $context);
         $primary = $this->primaryLinkAction($review['actions']);
         if ($primary === null) {
             return null;
@@ -342,6 +364,169 @@ final class PdfLinkAnnotationExtractor
         }
 
         return $link;
+    }
+
+    /**
+     * @return array{
+     *     page_labels: list<string>,
+     *     page_presentations_by_page: array<int, array<string, mixed>>,
+     *     outline_rows: list<array<string, mixed>>,
+     *     document_metadata_dates: array<string, string>
+     * }
+     */
+    private function linkReviewContext(string $pdfBytes): array
+    {
+        $navigation = (new PdfOutlineExtractor())->getNavigationReviewMetadata($pdfBytes, false);
+        $pagePresentationsByPage = [];
+        foreach (($navigation['page_presentations'] ?? []) as $pagePresentation) {
+            if (!is_array($pagePresentation)) {
+                continue;
+            }
+
+            $pageIndex = $pagePresentation['pnum'] ?? null;
+            if (is_int($pageIndex)) {
+                $pagePresentationsByPage[$pageIndex] = $pagePresentation;
+            }
+        }
+
+        return [
+            'page_labels' => (new PdfTextExtractor())->extractPageLabels($pdfBytes),
+            'page_presentations_by_page' => $pagePresentationsByPage,
+            'outline_rows' => is_array($navigation['outline'] ?? null) ? $navigation['outline'] : [],
+            'document_metadata_dates' => $this->documentMetadataDates($pdfBytes),
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function documentMetadataDates(string $pdfBytes): array
+    {
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdfBytes);
+        $dates = [];
+
+        foreach ([
+            'created_at',
+            'created_at_utc',
+            'modified_at',
+            'modified_at_utc',
+            'metadata_date',
+            'metadata_date_utc',
+        ] as $field) {
+            if (is_string($metadata[$field] ?? null) && $metadata[$field] !== '') {
+                $dates[$field] = $metadata[$field];
+            }
+        }
+
+        return $dates;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @param array<string, mixed> $context
+     * @return list<array<string, mixed>>
+     */
+    private function withLinkTargetContextRows(array $rows, array $context): array
+    {
+        foreach ($rows as $index => $row) {
+            $rows[$index] = $this->withLinkTargetContext($row, $context);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    private function withLinkTargetContext(array $row, array $context): array
+    {
+        if (($row['safety'] ?? null) !== 'local-destination') {
+            return $row;
+        }
+
+        $pageIndex = $row['destination_page'] ?? $row['page'] ?? null;
+        if (!is_int($pageIndex)) {
+            return $row;
+        }
+
+        $pageLabels = $context['page_labels'] ?? [];
+        if (is_array($pageLabels)) {
+            $row['destination_page_label'] = $pageLabels[$pageIndex] ?? (string) ($pageIndex + 1);
+        }
+
+        $pagePresentationsByPage = $context['page_presentations_by_page'] ?? [];
+        if (is_array($pagePresentationsByPage) && isset($pagePresentationsByPage[$pageIndex]) && is_array($pagePresentationsByPage[$pageIndex])) {
+            $pagePresentation = $pagePresentationsByPage[$pageIndex];
+            $row['target_display_duration'] = $pagePresentation['display_duration'] ?? null;
+            $row['target_page_transition'] = $pagePresentation['transition'] ?? null;
+            $row['target_page_actions'] = is_array($pagePresentation['actions'] ?? null)
+                ? $pagePresentation['actions']
+                : [];
+        }
+
+        $outlineSummary = $this->matchingOutlineTargetSummary($row, $context['outline_rows'] ?? []);
+        if ($outlineSummary !== []) {
+            $row += $outlineSummary;
+        }
+
+        $documentDates = $context['document_metadata_dates'] ?? [];
+        if (is_array($documentDates) && $documentDates !== []) {
+            $row['document_metadata_dates'] = $documentDates;
+        }
+
+        return $row;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param mixed $outlineRows
+     * @return array<string, mixed>
+     */
+    private function matchingOutlineTargetSummary(array $row, mixed $outlineRows): array
+    {
+        if (!is_array($outlineRows)) {
+            return [];
+        }
+
+        $destination = is_string($row['destination'] ?? null) ? $row['destination'] : null;
+        $pageIndex = $row['destination_page'] ?? $row['page'] ?? null;
+        if ($destination === null || !is_int($pageIndex)) {
+            return [];
+        }
+
+        $titles = [];
+        $levels = [];
+        foreach ($outlineRows as $outline) {
+            if (!is_array($outline)) {
+                continue;
+            }
+            if (($outline['page'] ?? null) !== $pageIndex || ($outline['destination'] ?? null) !== $destination) {
+                continue;
+            }
+
+            $title = $outline['title'] ?? null;
+            if (is_string($title) && $title !== '' && !in_array($title, $titles, true)) {
+                $titles[] = $title;
+            }
+
+            $level = $outline['level'] ?? null;
+            if (is_int($level) && !in_array($level, $levels, true)) {
+                $levels[] = $level;
+            }
+        }
+
+        if ($titles === []) {
+            return [];
+        }
+
+        $summary = ['target_outline_titles' => $titles];
+        if ($levels !== []) {
+            $summary['target_outline_levels'] = $levels;
+        }
+
+        return $summary;
     }
 
     /**

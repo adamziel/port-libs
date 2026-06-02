@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\MarkerPDF\MarkdownPostProcessor;
 use PortLibs\MarkerPDF\PdfLinkAnnotationExtractor;
+use PortLibs\MarkerPDF\PdfTextExtractor;
 
 $linkPdf = static function (): string {
     $pageOneContent = 'BT /F1 12 Tf 72 720 Td (Plugin docs) Tj ET';
@@ -153,6 +154,64 @@ $widgetLinkPages = static function (): array {
     ]];
 };
 
+$xmpOutlineLinkPdf = static function (): string {
+    $xmp = '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
+        . '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about=""'
+        . ' xmlns:dc="http://purl.org/dc/elements/1.1/"'
+        . ' xmlns:xmp="http://ns.adobe.com/xap/1.0/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Link XMP Review Title</rdf:li></rdf:Alt></dc:title>'
+        . '<xmp:CreateDate>2026-06-02T20:27:13-04:00</xmp:CreateDate>'
+        . '<xmp:ModifyDate>2026-06-02T21:28:14+02:00</xmp:ModifyDate>'
+        . '<xmp:MetadataDate>2026-06-02T22:29:15Z</xmp:MetadataDate>'
+        . '</rdf:Description>'
+        . '</rdf:RDF>'
+        . '</x:xmpmeta>'
+        . '<?xpacket end="w"?>';
+    $compressedXmp = gzcompress($xmp);
+    if (!is_string($compressedXmp)) {
+        throw new RuntimeException('Unable to compress XMP outline-link fixture.');
+    }
+
+    $pageOneContent = 'BT /F1 12 Tf 72 720 Td (Jump to chapter) Tj ET';
+    $pageTwoContent = 'BT /F1 12 Tf 72 720 Td (Chapter target body) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R /Names << /Dests 9 0 R >> /PageLabels 10 0 R /Metadata 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [7 0 R] /Contents 11 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Dur 6 /Trans 12 0 R /AA << /O 13 0 R >> /Contents 14 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Outlines /First 6 0 R /Count 1 >>\nendobj\n"
+        . "6 0 obj\n<< /Title (Chapter One Outline) /Parent 5 0 R /Dest /chapter-one >>\nendobj\n"
+        . "7 0 obj\n<< /Type /Annot /Subtype /Link /Rect [72 700 180 718] /Dest /chapter-one /AA << /E 15 0 R >> >>\nendobj\n"
+        . "9 0 obj\n<< /Names [(chapter-one) [4 0 R /FitH 700]] >>\nendobj\n"
+        . "10 0 obj\n<< /Nums [0 << /S /D /P (Cover ) /St 1 >> 1 << /S /D /P (Chapter ) /St 4 >>] >>\nendobj\n"
+        . "11 0 obj\n<< /Length " . strlen($pageOneContent) . " >>\nstream\n{$pageOneContent}\nendstream\nendobj\n"
+        . "12 0 obj\n<< /S /Wipe /D .75 /Dm /H /M /O /Di 180 >>\nendobj\n"
+        . "13 0 obj\n<< /S /URI /URI (https://example.com/chapter-open-review) >>\nendobj\n"
+        . "14 0 obj\n<< /Length " . strlen($pageTwoContent) . " >>\nstream\n{$pageTwoContent}\nendstream\nendobj\n"
+        . "15 0 obj\n<< /S /JavaScript /JS (hoverImportReview\\(\\)) >>\nendobj\n"
+        . "20 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($compressedXmp) . " >>\nstream\n{$compressedXmp}\nendstream\nendobj\n"
+        . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+};
+
+$xmpOutlineLinkPages = static function (): array {
+    return [[
+        'pnum' => 0,
+        'blocks' => [[
+            'type' => 'Text',
+            'bbox' => [72.0, 700.0, 180.0, 718.0],
+            'lines' => [[
+                'bbox' => [72.0, 700.0, 180.0, 718.0],
+                'spans' => [
+                    ['text' => 'Jump to chapter', 'bbox' => [72.0, 700.0, 180.0, 718.0], 'font' => 'Helvetica'],
+                ],
+            ]],
+        ]],
+    ]];
+};
+
 return [
     'extracts page link URI annotations at the native PDF page boundary' => static function (TestRunner $t) use ($linkPdf): void {
         $links = (new PdfLinkAnnotationExtractor())->extractPageLinks($linkPdf());
@@ -291,5 +350,48 @@ return [
         $processor = new MarkdownPostProcessor();
         $blocks = $processor->mergeBlocks($processor->mergeSpans($pages));
         $t->same('[Download docs](https://example.com/widget-docs) Section jump Hidden widget', $blocks[0]['text']);
+    },
+    'propagates XMP date and outline target context onto local link annotations' => static function (TestRunner $t) use ($xmpOutlineLinkPdf, $xmpOutlineLinkPages): void {
+        $pdf = $xmpOutlineLinkPdf();
+        $extractor = new PdfLinkAnnotationExtractor();
+        $links = $extractor->extractPageLinks($pdf);
+
+        $t->same(1, count($links));
+        $t->same(1, count($links[0]['links']));
+
+        $link = $links[0]['links'][0];
+        $t->same('local-destination', $link['safety']);
+        $t->same('chapter-one', $link['destination']);
+        $t->same(1, $link['destination_page']);
+        $t->same('Chapter 4', $link['destination_page_label']);
+        $t->same(['Chapter One Outline'], $link['target_outline_titles']);
+        $t->same([1], $link['target_outline_levels']);
+        $t->same('Wipe', $link['target_page_transition']['style']);
+        $t->same(0.75, $link['target_page_transition']['duration']);
+        $t->same(6.0, $link['target_display_duration']);
+        $t->same(['page_open'], array_column($link['target_page_actions'], 'event_label'));
+        $t->same(['review-uri'], array_column($link['target_page_actions'], 'safety'));
+        $t->same('2026-06-02T20:27:13-04:00', $link['document_metadata_dates']['created_at']);
+        $t->same('2026-06-03T00:27:13Z', $link['document_metadata_dates']['created_at_utc']);
+        $t->same('2026-06-02T21:28:14+02:00', $link['document_metadata_dates']['modified_at']);
+        $t->same('2026-06-02T19:28:14Z', $link['document_metadata_dates']['modified_at_utc']);
+        $t->same('2026-06-02T22:29:15Z', $link['document_metadata_dates']['metadata_date_utc']);
+        $t->same($link['document_metadata_dates'], $link['actions'][0]['document_metadata_dates']);
+
+        $pages = $extractor->applyLinksToPages($xmpOutlineLinkPages(), $pdf);
+        $span = $pages[0]['blocks'][0]['lines'][0]['spans'][0];
+        $t->same('chapter-one', $span['link_destination']);
+        $t->same('Chapter 4', $span['link_destination_page_label']);
+        $t->same(['Chapter One Outline'], $span['link_target_outline_titles']);
+        $t->same('Wipe', $span['link_target_page_transition']['style']);
+        $t->same('2026-06-03T00:27:13Z', $span['link_document_metadata_dates']['created_at_utc']);
+        $t->true(!isset($span['link_uri']));
+
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $t->contains('Jump to chapter', $plainText);
+        $t->contains('Chapter target body', $plainText);
+        $t->true(!str_contains($plainText, 'Link XMP Review Title'));
+        $t->true(!str_contains($plainText, 'chapter-open-review'));
+        $t->true(!str_contains($plainText, 'hoverImportReview'));
     },
 ];
