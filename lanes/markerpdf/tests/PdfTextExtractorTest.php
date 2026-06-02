@@ -2067,6 +2067,38 @@ return [
         $t->true(!str_contains($plainText, 'Wide Block'));
         $t->true(!str_contains($plainText, "\0"));
     },
+    'resolves indirect Type0 Encoding names before CIDSet widths and descriptor flags' => static function (TestRunner $t): void {
+        $content = 'BT /Fcid 12 Tf 1 0 0 1 72 720 Tm <0057006900640065> Tj 1 0 0 1 118 720 Tm <0042006C006F0063006B> Tj ET';
+        $cidSetBytes = array_fill(0, 15, 0);
+        foreach ([0x42, 0x57, 0x63, 0x64, 0x65, 0x69, 0x6b, 0x6c, 0x6f] as $cid) {
+            $cidSetBytes[intdiv($cid, 8)] |= 1 << (7 - ($cid % 8));
+        }
+        $cidSet = implode('', array_map('chr', $cidSetBytes));
+        $compressedCidSet = gzcompress($cidSet);
+        $t->true(is_string($compressedCidSet), 'CIDSet stream fixture should compress.');
+        $italicFlags = (1 << 1) | (1 << 5) | (1 << 6);
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /IndirectIdentitySubset /Encoding 3 0 R /DescendantFonts [4 0 R] >>\nendobj\n"
+            . "3 0 obj\n/Identity-H\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /IndirectIdentitySubset /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor 6 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /FontDescriptor /FontName /IndirectIdentityItalic /Flags {$italicFlags} /CIDSet 7 0 R >>\nendobj\n"
+            . "7 0 obj\n<< /Filter /FlateDecode /Length " . strlen($compressedCidSet) . " >>\nstream\n{$compressedCidSet}\nendstream\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $firstSpan = $pages[0]['blocks'][0]['lines'][0]['spans'][0] ?? [];
+
+        $t->same(['WideBlock'], $extractor->extractTextLines($pdf));
+        $t->same(['Wide', 'Block'], $extractor->extractTextRuns($pdf));
+        $t->same('WideBlock', $plainText);
+        $t->true(!str_contains($plainText, 'Wide Block'));
+        $t->true(!str_contains($plainText, "\0"));
+        $t->same('IndirectIdentityItalic_serif_non_symbolic_italic', $firstSpan['font'] ?? null);
+        $t->same($italicFlags, $firstSpan['font_flags'] ?? null);
+    },
     'extracts current annotation normal appearance streams before WordPress text extraction' => static function (TestRunner $t) use ($toUnicodeCMap): void {
         $pageCMap = $toUnicodeCMap(['41' => 'Page Body']);
         $appearanceCMap = $toUnicodeCMap(['41' => 'Current Appearance']);

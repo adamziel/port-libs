@@ -4883,7 +4883,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $encodingFallback = $this->fontEncodingMap($body);
+            $encodingFallback = $this->fontEncodingMap($body, $objects);
             $cidEncodingMap = $this->fontCidEncodingMap($body, $objects, $namedCMapBodies);
             $widthMetrics = $this->fontWidthMetrics($body, $objects);
             $descriptorInfo = $this->fontDescriptorInfo($body, $objects);
@@ -5097,10 +5097,26 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param array<int, string> $objects
      * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}|null
      */
-    private function fontEncodingMap(string $fontBody): ?array
+    private function fontEncodingMap(string $fontBody, array $objects = []): ?array
     {
+        $encodingObjectNumber = $this->objectReferenceValueAfterName($fontBody, 'Encoding');
+        if ($encodingObjectNumber !== null && isset($objects[$encodingObjectNumber])) {
+            $encodingObject = trim($objects[$encodingObjectNumber]);
+            if (preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $encodingObject, $match) === 1) {
+                return $this->namedEncodingMap($this->decodePdfName($match[1]));
+            }
+
+            if (str_starts_with($encodingObject, '<<')) {
+                $objectEncoding = $this->fontEncodingMap($encodingObject, $objects);
+                if ($objectEncoding !== null) {
+                    return $objectEncoding;
+                }
+            }
+        }
+
         $baseEncoding = null;
         if (preg_match('/\/BaseEncoding\s+\/([^\s\[\]()<>{}\/%]+)/', $fontBody, $match) === 1) {
             $baseEncoding = $this->namedEncodingMap($this->decodePdfName($match[1]));
