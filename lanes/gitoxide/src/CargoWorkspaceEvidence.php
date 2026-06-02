@@ -17,6 +17,7 @@ final class CargoWorkspaceEvidence
      *     testTargets: int,
      *     missingDeclaredTargets: list<array{package: string, target: string, kind: string, path: string, blocksWorkspaceNoRun: bool}>,
      *     targetHydrationClosure: array<string, mixed>,
+     *     targetMaterializationPlan: array<string, mixed>,
      *     cargoCommands: array<string, array<string, mixed>>
      * }
      */
@@ -30,6 +31,7 @@ final class CargoWorkspaceEvidence
             'testTargets' => 101,
             'missingDeclaredTargets' => self::missingDeclaredTargets(),
             'targetHydrationClosure' => self::targetHydrationClosure(),
+            'targetMaterializationPlan' => CargoTargetMaterializer::plan(),
             'cargoCommands' => [
                 'metadataOffline' => [
                     'command' => 'timeout 60 cargo metadata --locked --offline --format-version 1 --no-deps',
