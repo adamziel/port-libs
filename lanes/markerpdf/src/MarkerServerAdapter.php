@@ -15,6 +15,7 @@ final class MarkerServerAdapter
     public const DEFAULT_HOST = '127.0.0.1';
     public const DEFAULT_PORT = 8000;
     public const DEFAULT_UPLOAD_DIRECTORY = './uploads';
+    public const UPSTREAM_PAGE_SEPARATOR = "------------------------------------------------\n\n";
 
     /**
      * Native non-executing boundary for marker_server.py import-time upload setup
@@ -356,12 +357,12 @@ final class MarkerServerAdapter
             ];
         }
 
-        return [
+        return $this->decorateServerOutputPagination([
             'markdown' => $conversion['text'],
             'images' => $this->base64Images($conversion['images']),
             'metadata' => $conversion['metadata'],
             'success' => true,
-        ];
+        ], $params);
     }
 
     /**
@@ -427,7 +428,7 @@ final class MarkerServerAdapter
             }
         }
 
-        return $data;
+        return $this->decorateServerOutputPagination($data, $params);
     }
 
     /**
@@ -466,6 +467,91 @@ final class MarkerServerAdapter
             'completion_status' => 'complete',
             'returns_last_poll_response_after_exhaustion' => true,
             'invents_timeout_error' => false,
+            'executes_live_http' => false,
+            'executes_python_or_models' => false,
+        ];
+    }
+
+    /**
+     * Native review boundary for marker.postprocessors.markdown::get_full_text
+     * page markers as returned through marker_server.py conversion responses.
+     *
+     * @return array{
+     *     paginate_requested: bool,
+     *     upstream_page_separator: string,
+     *     marker_prefix: string,
+     *     has_upstream_markers: bool,
+     *     markdown_starts_with_page_marker: bool,
+     *     page_count: int,
+     *     first_page: int|null,
+     *     last_page: int|null,
+     *     page_sequence: list<int>,
+     *     monotonic_page_sequence: bool,
+     *     page_markers: list<array{page: int, offset: int, marker: string}>,
+     *     page_segments: list<array{page: int, text: string, raw_text_sha256: string, byte_length: int}>,
+     *     strips_markers_from_page_segments: bool,
+     *     review_only: true,
+     *     executes_fastapi: false,
+     *     executes_uvicorn: false,
+     *     executes_live_http: false,
+     *     executes_python_or_models: false
+     * }
+     */
+    public function serverOutputPaginationPlan(
+        string $markdown,
+        bool $paginateRequested,
+        string $pageSeparator = self::UPSTREAM_PAGE_SEPARATOR
+    ): array {
+        if ($pageSeparator === '') {
+            throw new InvalidArgumentException('Marker server page separator must not be empty.');
+        }
+
+        $pattern = '/\n\n\{([0-9]+)\}' . preg_quote($pageSeparator, '/') . '/';
+        preg_match_all($pattern, $markdown, $matches, PREG_OFFSET_CAPTURE);
+
+        $markers = [];
+        $segments = [];
+        $sequence = [];
+        $markerCount = count($matches[0]);
+        for ($index = 0; $index < $markerCount; $index++) {
+            $markerText = $matches[0][$index][0];
+            $markerOffset = $matches[0][$index][1];
+            $page = (int) $matches[1][$index][0];
+            $sequence[] = $page;
+            $markers[] = [
+                'page' => $page,
+                'offset' => $markerOffset,
+                'marker' => $markerText,
+            ];
+
+            $segmentStart = $markerOffset + strlen($markerText);
+            $segmentEnd = $index + 1 < $markerCount ? $matches[0][$index + 1][1] : strlen($markdown);
+            $rawText = substr($markdown, $segmentStart, max(0, $segmentEnd - $segmentStart));
+            $segments[] = [
+                'page' => $page,
+                'text' => ltrim($rawText, "\r\n"),
+                'raw_text_sha256' => hash('sha256', $rawText),
+                'byte_length' => strlen($rawText),
+            ];
+        }
+
+        return [
+            'paginate_requested' => $paginateRequested,
+            'upstream_page_separator' => $pageSeparator,
+            'marker_prefix' => "\n\n{PAGE_NUMBER}",
+            'has_upstream_markers' => $markers !== [],
+            'markdown_starts_with_page_marker' => $markers !== [] && $markers[0]['offset'] === 0,
+            'page_count' => count($markers),
+            'first_page' => $sequence[0] ?? null,
+            'last_page' => $sequence !== [] ? $sequence[count($sequence) - 1] : null,
+            'page_sequence' => $sequence,
+            'monotonic_page_sequence' => $this->isStrictlyIncreasing($sequence),
+            'page_markers' => $markers,
+            'page_segments' => $segments,
+            'strips_markers_from_page_segments' => $this->pageSegmentsExcludeMarkers($segments),
+            'review_only' => true,
+            'executes_fastapi' => false,
+            'executes_uvicorn' => false,
             'executes_live_http' => false,
             'executes_python_or_models' => false,
         ];
@@ -673,5 +759,142 @@ final class MarkerServerAdapter
         }
 
         throw new InvalidArgumentException('Image payload must be PNG bytes or expose save().');
+    }
+
+    /**
+     * @param array<string, mixed> $response
+     * @param array<string, mixed> $params
+     * @return array<string, mixed>
+     */
+    private function decorateServerOutputPagination(array $response, array $params): array
+    {
+        $markdown = $this->serverResponseMarkdown($response);
+        if ($markdown === null) {
+            return $response;
+        }
+
+        $pagination = $this->serverOutputPaginationPlan(
+            $markdown,
+            (bool) ($params['paginate'] ?? false)
+        );
+        if (!$pagination['has_upstream_markers']) {
+            return $response;
+        }
+
+        $summary = $this->serverOutputPaginationSummary($pagination);
+        if (!array_key_exists('metadata', $response)) {
+            $response['metadata'] = [];
+        }
+
+        if (is_array($response['metadata'])) {
+            $response['metadata']['server_output_pagination'] = $summary;
+        } else {
+            $response['server_output_pagination'] = $summary;
+        }
+
+        return $response;
+    }
+
+    /**
+     * @param array<string, mixed> $response
+     */
+    private function serverResponseMarkdown(array $response): ?string
+    {
+        foreach (['markdown', 'full_text', 'text'] as $key) {
+            if (isset($response[$key]) && is_string($response[$key])) {
+                return $response[$key];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{
+     *     paginate_requested: bool,
+     *     upstream_page_separator: string,
+     *     has_upstream_markers: bool,
+     *     markdown_starts_with_page_marker: bool,
+     *     page_count: int,
+     *     first_page: int|null,
+     *     last_page: int|null,
+     *     page_sequence: list<int>,
+     *     monotonic_page_sequence: bool,
+     *     page_markers: list<array{page: int, offset: int, marker: string}>,
+     *     page_segments: list<array{page: int, text: string, raw_text_sha256: string, byte_length: int}>,
+     *     strips_markers_from_page_segments: bool,
+     *     review_only: true,
+     *     executes_fastapi: false,
+     *     executes_uvicorn: false,
+     *     executes_live_http: false,
+     *     executes_python_or_models: false
+     * } $pagination
+     * @return array<string, mixed>
+     */
+    private function serverOutputPaginationSummary(array $pagination): array
+    {
+        return [
+            'paginate_requested' => $pagination['paginate_requested'],
+            'upstream_page_separator' => $pagination['upstream_page_separator'],
+            'has_upstream_markers' => $pagination['has_upstream_markers'],
+            'markdown_starts_with_page_marker' => $pagination['markdown_starts_with_page_marker'],
+            'page_count' => $pagination['page_count'],
+            'first_page' => $pagination['first_page'],
+            'last_page' => $pagination['last_page'],
+            'page_sequence' => $pagination['page_sequence'],
+            'monotonic_page_sequence' => $pagination['monotonic_page_sequence'],
+            'page_markers' => array_map(
+                static fn (array $marker): array => [
+                    'page' => $marker['page'],
+                    'offset' => $marker['offset'],
+                ],
+                $pagination['page_markers']
+            ),
+            'page_segments' => array_map(
+                static fn (array $segment): array => [
+                    'page' => $segment['page'],
+                    'text_sha256' => hash('sha256', $segment['text']),
+                    'raw_text_sha256' => $segment['raw_text_sha256'],
+                    'byte_length' => $segment['byte_length'],
+                ],
+                $pagination['page_segments']
+            ),
+            'strips_markers_from_page_segments' => $pagination['strips_markers_from_page_segments'],
+            'review_only' => true,
+            'executes_fastapi' => false,
+            'executes_uvicorn' => false,
+            'executes_live_http' => false,
+            'executes_python_or_models' => false,
+        ];
+    }
+
+    /**
+     * @param list<int> $sequence
+     */
+    private function isStrictlyIncreasing(array $sequence): bool
+    {
+        $previous = null;
+        foreach ($sequence as $page) {
+            if ($previous !== null && $page <= $previous) {
+                return false;
+            }
+            $previous = $page;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array{page: int, text: string, raw_text_sha256: string, byte_length: int}> $segments
+     */
+    private function pageSegmentsExcludeMarkers(array $segments): bool
+    {
+        foreach ($segments as $segment) {
+            if (preg_match('/\n\n\{[0-9]+\}' . preg_quote(self::UPSTREAM_PAGE_SEPARATOR, '/') . '/', $segment['text']) === 1) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

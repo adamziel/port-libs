@@ -1299,6 +1299,13 @@ final class PdfOutlineExtractor
         $context = [];
         if (is_int($details['page'] ?? null)) {
             $context['destination_action_target_page'] = $details['page'];
+            $context['destination_action_target_page_number'] = $details['page'] + 1;
+        }
+        if (is_int($details['page_number'] ?? null)) {
+            $context['destination_action_target_page_number'] = $details['page_number'];
+        }
+        if (is_int($details['page_object'] ?? null)) {
+            $context['destination_action_target_page_object'] = $details['page_object'];
         }
         if (is_string($details['page_label'] ?? null)) {
             $context['destination_action_target_page_label'] = $details['page_label'];
@@ -1332,6 +1339,9 @@ final class PdfOutlineExtractor
         }
         if (is_array($details['target_tagged_content'] ?? null)) {
             $context['destination_action_target_tagged_content'] = $details['target_tagged_content'];
+            foreach ($this->targetTaggedContentSummary($details['target_tagged_content']) as $key => $value) {
+                $context['destination_action_target_' . $key] = $value;
+            }
         }
         if (is_array($details['target_structure_roles'] ?? null)) {
             $context['destination_action_target_structure_roles'] = $details['target_structure_roles'];
@@ -1351,6 +1361,65 @@ final class PdfOutlineExtractor
         }
 
         return $context;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, list<int|string>>
+     */
+    private function targetTaggedContentSummary(array $rows): array
+    {
+        $mcids = [];
+        $rawRoles = [];
+        $roles = [];
+        $texts = [];
+        $structObjects = [];
+
+        foreach ($rows as $row) {
+            $mcid = $row['mcid'] ?? null;
+            if (is_int($mcid) && !in_array($mcid, $mcids, true)) {
+                $mcids[] = $mcid;
+            }
+
+            $rawRole = $row['raw_role'] ?? null;
+            if (is_string($rawRole) && $rawRole !== '' && !in_array($rawRole, $rawRoles, true)) {
+                $rawRoles[] = $rawRole;
+            }
+
+            $role = $row['role'] ?? null;
+            if (is_string($role) && $role !== '' && !in_array($role, $roles, true)) {
+                $roles[] = $role;
+            }
+
+            $text = $row['text'] ?? null;
+            if (is_string($text) && $text !== '') {
+                $texts[] = $text;
+            }
+
+            $structObject = $row['struct_object'] ?? null;
+            if (is_int($structObject) && !in_array($structObject, $structObjects, true)) {
+                $structObjects[] = $structObject;
+            }
+        }
+
+        $summary = [];
+        if ($mcids !== []) {
+            $summary['structure_mcids'] = $mcids;
+        }
+        if ($rawRoles !== []) {
+            $summary['structure_raw_roles'] = $rawRoles;
+        }
+        if ($roles !== []) {
+            $summary['structure_roles'] = $roles;
+        }
+        if ($texts !== []) {
+            $summary['structure_text'] = $texts;
+        }
+        if ($structObjects !== []) {
+            $summary['structure_objects'] = $structObjects;
+        }
+
+        return $summary;
     }
 
     /**

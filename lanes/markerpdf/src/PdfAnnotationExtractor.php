@@ -86,6 +86,7 @@ final class PdfAnnotationExtractor
     {
         $objects = $this->pdfObjects($pdfBytes);
         $actionReviewer = new PdfActionReviewExtractor($pdfBytes);
+        $actionTargetContext = $this->annotationActionTargetContext($pdfBytes);
         $structureParentReviewByKey = $this->annotationStructureParentReviewByKey($pdfBytes, $objects);
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
         $pages = [];
@@ -116,7 +117,8 @@ final class PdfAnnotationExtractor
                     $reversePopups,
                     $actionReviewer,
                     $threadReview['rows_by_object'],
-                    $structureParentReviewByKey
+                    $structureParentReviewByKey,
+                    $actionTargetContext
                 );
             }
 
@@ -152,13 +154,22 @@ final class PdfAnnotationExtractor
         array $reversePopups,
         PdfActionReviewExtractor $actionReviewer,
         array $threadRowsByObject = [],
-        array $structureParentReviewByKey = []
+        array $structureParentReviewByKey = [],
+        array $actionTargetContext = []
     ): array
     {
         $body = $record['body'];
         $subtype = $this->subtypeFromAnnotation($body);
         $rect = $this->rectFromAnnotation($body);
         $actionReview = $actionReviewer->reviewAnnotationActions($body);
+        $actionReview['actions'] = $this->actionsWithAnnotationTargetPageContext(
+            $actionReview['actions'],
+            $actionTargetContext
+        );
+        $actionReview['additional_actions'] = $this->actionsWithAnnotationTargetPageContext(
+            $actionReview['additional_actions'],
+            $actionTargetContext
+        );
         $structParent = $this->intValueAfterName($body, 'StructParent', $objects);
         $inheritedStructParent = $subtype === 'Widget' && $structParent === null
             ? $this->widgetStructParentFromFieldChain($body, $objects, $record['object'], $structureParentReviewByKey)
@@ -251,6 +262,73 @@ final class PdfAnnotationExtractor
         }
 
         return $row;
+    }
+
+    /**
+     * @return array{
+     *     page_labels: list<string>,
+     *     page_presentations_by_page: array<int, array<string, mixed>>
+     * }
+     */
+    private function annotationActionTargetContext(string $pdfBytes): array
+    {
+        $navigation = (new PdfOutlineExtractor())->getNavigationReviewMetadata($pdfBytes, false);
+        $pagePresentationsByPage = [];
+        foreach (($navigation['page_presentations'] ?? []) as $pagePresentation) {
+            if (!is_array($pagePresentation)) {
+                continue;
+            }
+
+            $pageIndex = $pagePresentation['pnum'] ?? null;
+            if (is_int($pageIndex)) {
+                $pagePresentationsByPage[$pageIndex] = $pagePresentation;
+            }
+        }
+
+        return [
+            'page_labels' => (new PdfTextExtractor())->extractPageLabels($pdfBytes),
+            'page_presentations_by_page' => $pagePresentationsByPage,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @param array<string, mixed> $context
+     * @return list<array<string, mixed>>
+     */
+    private function actionsWithAnnotationTargetPageContext(array $actions, array $context): array
+    {
+        foreach ($actions as $index => $action) {
+            if (($action['safety'] ?? null) !== 'local-destination') {
+                continue;
+            }
+
+            $pageIndex = $action['destination_page'] ?? $action['page'] ?? null;
+            if (!is_int($pageIndex)) {
+                continue;
+            }
+
+            $pageLabels = $context['page_labels'] ?? [];
+            if (is_array($pageLabels)) {
+                $actions[$index]['destination_page_label'] = $pageLabels[$pageIndex] ?? (string) ($pageIndex + 1);
+            }
+
+            $pagePresentationsByPage = $context['page_presentations_by_page'] ?? [];
+            if (
+                is_array($pagePresentationsByPage)
+                && isset($pagePresentationsByPage[$pageIndex])
+                && is_array($pagePresentationsByPage[$pageIndex])
+            ) {
+                $pagePresentation = $pagePresentationsByPage[$pageIndex];
+                $actions[$index]['target_display_duration'] = $pagePresentation['display_duration'] ?? null;
+                $actions[$index]['target_page_transition'] = $pagePresentation['transition'] ?? null;
+                $actions[$index]['target_page_actions'] = is_array($pagePresentation['actions'] ?? null)
+                    ? $pagePresentation['actions']
+                    : [];
+            }
+        }
+
+        return $actions;
     }
 
     /**

@@ -6320,8 +6320,7 @@ final class PdfTextExtractor
     {
         $encodingFallback = $this->fontEncodingMap($body, $objects);
         $cidEncodingMap = $this->fontCidEncodingMap($body, $objects, $namedCMapBodies);
-        $type3CMapWordSpacing = $this->isType3FontBody($body)
-            && $cidEncodingMap !== null
+        $cMapWordSpacing = $cidEncodingMap !== null
             && $cidEncodingMap['cidMap'] !== [];
         $widthMetrics = $this->fontWidthMetrics($body, $objects);
         $descriptorInfo = $this->fontDescriptorInfo($body, $objects);
@@ -6373,7 +6372,7 @@ final class PdfTextExtractor
         }
 
         $cmap = $this->withFontCidEncodingMap($cmap, $cidEncodingMap);
-        if ($type3CMapWordSpacing) {
+        if ($cMapWordSpacing) {
             $cmap['wordSpacingUsesCidMap'] = true;
         }
         $cmap = $this->withFontWidthMetrics($cmap, $widthMetrics, $this->fontWritingMode($body, $cmap, $cidEncodingMap, $objects));
@@ -10705,12 +10704,13 @@ final class PdfTextExtractor
             return false;
         }
 
-        $entry = $this->streamDictionaryAndPayload($definition['body'], $objects);
+        $streamObjects = $this->objectsWithDirectStreamDictionaryOperandOwners($objects, $definition['body'], $definitions);
+        $entry = $this->streamDictionaryAndPayload($definition['body'], $streamObjects);
         if ($entry === null) {
             return true;
         }
 
-        $filters = $this->streamFilters($entry['dict'], $objects);
+        $filters = $this->streamFilters($entry['dict'], $streamObjects);
         if ($filters === null) {
             return true;
         }
@@ -10719,7 +10719,7 @@ final class PdfTextExtractor
             return false;
         }
 
-        return $this->decodeStream($entry['dict'], $entry['stream'], $objects) === null;
+        return $this->decodeStream($entry['dict'], $entry['stream'], $streamObjects) === null;
     }
 
     /**
@@ -11175,6 +11175,16 @@ final class PdfTextExtractor
                 $previousEntries = $this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
                 foreach ($previousEntries as $objectNumber => $entry) {
                     if (isset($entries[$objectNumber])) {
+                        if ($this->currentCarrierEntryCanRecoverPreviousObjectStreamStorage(
+                            $objectNumber,
+                            $entries[$objectNumber],
+                            $entry,
+                            $previousEntries,
+                            $definitions
+                        )) {
+                            $entries[$objectNumber] = $entry;
+                        }
+
                         continue;
                     }
 
@@ -11182,7 +11192,7 @@ final class PdfTextExtractor
                         continue;
                     }
 
-                    if ($this->previousCompressedEntryUsesUpdatedObjectStream($entry, $entries, $previousEntries)) {
+                    if ($this->previousCompressedEntryUsesUpdatedObjectStream($entry, $entries, $previousEntries, $definitions)) {
                         continue;
                     }
 
@@ -11204,6 +11214,16 @@ final class PdfTextExtractor
             $previousEntries = $this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
             foreach ($previousEntries as $objectNumber => $entry) {
                 if (isset($entries[$objectNumber])) {
+                    if ($this->currentCarrierEntryCanRecoverPreviousObjectStreamStorage(
+                        $objectNumber,
+                        $entries[$objectNumber],
+                        $entry,
+                        $previousEntries,
+                        $definitions
+                    )) {
+                        $entries[$objectNumber] = $entry;
+                    }
+
                     continue;
                 }
 
@@ -11211,7 +11231,7 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                if ($this->previousCompressedEntryUsesUpdatedObjectStream($entry, $entries, $previousEntries)) {
+                if ($this->previousCompressedEntryUsesUpdatedObjectStream($entry, $entries, $previousEntries, $definitions)) {
                     continue;
                 }
 
@@ -11261,10 +11281,26 @@ final class PdfTextExtractor
                 $objectStreamNumber = (int) $entry['objectStream'];
                 $previousCarrierEntry = $previousEntries[$objectStreamNumber] ?? null;
                 $currentCarrierEntry = $section['entries'][$objectStreamNumber] ?? null;
+                $currentCarrierRecovered = $currentCarrierEntry !== null
+                    && $previousCarrierEntry !== null
+                    && $this->currentCarrierEntryCanRecoverPreviousObjectStreamStorage(
+                        $objectStreamNumber,
+                        $currentCarrierEntry,
+                        $previousCarrierEntry,
+                        $previousEntries,
+                        $definitions
+                    );
                 $sameCarrierStorage = $previousCarrierEntry !== null
                     && $currentCarrierEntry !== null
-                    && $this->xrefEntriesSelectSameStorage($currentCarrierEntry, $previousCarrierEntry);
-                $ownerPolicy = $this->xrefPrevObjectStreamGenerationOwnerPolicy($previousCarrierEntry, $currentCarrierEntry);
+                    && (
+                        $this->xrefEntriesSelectSameStorage($currentCarrierEntry, $previousCarrierEntry)
+                        || $currentCarrierRecovered
+                    );
+                $ownerPolicy = $this->xrefPrevObjectStreamGenerationOwnerPolicy(
+                    $previousCarrierEntry,
+                    $currentCarrierEntry,
+                    $currentCarrierRecovered
+                );
                 $skipped = str_starts_with($ownerPolicy, 'skipped_');
 
                 $reviewEntries[] = [
@@ -11284,6 +11320,7 @@ final class PdfTextExtractor
                     'current_carrier_generation' => $currentCarrierEntry['generation'] ?? null,
                     'current_carrier_offset' => $currentCarrierEntry['offset'] ?? null,
                     'same_carrier_storage' => $sameCarrierStorage,
+                    'current_carrier_invalid_generation_recovered' => $currentCarrierRecovered,
                     'skipped' => $skipped,
                     'owner_policy' => $ownerPolicy,
                     'review_only' => true,
@@ -11355,7 +11392,11 @@ final class PdfTextExtractor
      * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}|null $previousCarrierEntry
      * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}|null $currentCarrierEntry
      */
-    private function xrefPrevObjectStreamGenerationOwnerPolicy(?array $previousCarrierEntry, ?array $currentCarrierEntry): string
+    private function xrefPrevObjectStreamGenerationOwnerPolicy(
+        ?array $previousCarrierEntry,
+        ?array $currentCarrierEntry,
+        bool $currentCarrierRecovered = false
+    ): string
     {
         if ($previousCarrierEntry === null) {
             return 'skipped_prev_carrier_absent';
@@ -11367,6 +11408,10 @@ final class PdfTextExtractor
 
         if ($currentCarrierEntry === null) {
             return 'preserved_prev_carrier_storage';
+        }
+
+        if ($currentCarrierRecovered) {
+            return 'preserved_previous_carrier_after_invalid_current_generation';
         }
 
         if ($this->xrefEntriesSelectSameStorage($currentCarrierEntry, $previousCarrierEntry)) {
@@ -11386,8 +11431,14 @@ final class PdfTextExtractor
      * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $entry
      * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $currentEntries
      * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $previousEntries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      */
-    private function previousCompressedEntryUsesUpdatedObjectStream(array $entry, array $currentEntries, array $previousEntries): bool
+    private function previousCompressedEntryUsesUpdatedObjectStream(
+        array $entry,
+        array $currentEntries,
+        array $previousEntries,
+        array $definitions
+    ): bool
     {
         if (($entry['type'] ?? null) !== 2 || !isset($entry['objectStream'])) {
             return false;
@@ -11407,7 +11458,80 @@ final class PdfTextExtractor
             return false;
         }
 
+        if ($this->currentCarrierEntryCanRecoverPreviousObjectStreamStorage(
+            (int) $objectStreamNumber,
+            $currentEntries[$objectStreamNumber],
+            $previousObjectStreamEntry,
+            $previousEntries,
+            $definitions
+        )) {
+            return false;
+        }
+
         return !$this->xrefEntriesSelectSameStorage($currentEntries[$objectStreamNumber], $previousObjectStreamEntry);
+    }
+
+    /**
+     * If a current xref-stream row for an object-stream carrier has generation
+     * noise or an invalid offset that selects no direct object, it should not
+     * suppress a previous hybrid-selected carrier required by inherited type-2
+     * member rows. A valid current carrier replacement still wins.
+     *
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $currentEntry
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $previousEntry
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $previousEntries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     */
+    private function currentCarrierEntryCanRecoverPreviousObjectStreamStorage(
+        int $objectNumber,
+        array $currentEntry,
+        array $previousEntry,
+        array $previousEntries,
+        array $definitions
+    ): bool {
+        if (($currentEntry['type'] ?? null) !== 1 || ($previousEntry['type'] ?? null) !== 1) {
+            return false;
+        }
+
+        if (!$this->xrefEntriesContainType2CarrierReference($previousEntries, $objectNumber)) {
+            return false;
+        }
+
+        $currentDefinition = $this->xrefEntrySelectedDirectDefinition($objectNumber, $currentEntry, $definitions);
+        if ($currentDefinition !== null) {
+            return false;
+        }
+
+        $previousDefinition = $this->xrefEntrySelectedDirectDefinition($objectNumber, $previousEntry, $definitions);
+        return $previousDefinition !== null && preg_match('/\/Type\s*\/ObjStm\b/s', $previousDefinition['body']) === 1;
+    }
+
+    /**
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
+     */
+    private function xrefEntriesContainType2CarrierReference(array $entries, int $objectStreamNumber): bool
+    {
+        foreach ($entries as $entry) {
+            if (($entry['type'] ?? null) === 2 && ($entry['objectStream'] ?? null) === $objectStreamNumber) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $entry
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function xrefEntrySelectedDirectDefinition(int $objectNumber, array $entry, array $definitions): ?array
+    {
+        if (($entry['type'] ?? null) !== 1) {
+            return null;
+        }
+
+        return $this->liveDirectObjectDefinition($definitions[$objectNumber] ?? [], $entry);
     }
 
     /**
@@ -12329,7 +12453,10 @@ final class PdfTextExtractor
             return $entries;
         }
 
-        $decoded = $this->decodeStreamObject($body, $objects);
+        $streamObjects = $definitions === null
+            ? $objects
+            : $this->objectsWithDirectStreamDictionaryOperandOwners($objects, $body, $definitions);
+        $decoded = $this->decodeStreamObject($body, $streamObjects);
         if ($decoded === null) {
             return $entries;
         }
@@ -12388,6 +12515,77 @@ final class PdfTextExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * Xref-stream rows are needed before the final xref owner map exists.
+     * Resolve the stream dictionary operands by exact object generation so
+     * later stale same-number helpers cannot break current-base recovery.
+     *
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, string>
+     */
+    private function objectsWithDirectStreamDictionaryOperandOwners(
+        array $objects,
+        string $objectBody,
+        array $definitions
+    ): array {
+        $dict = $this->dictionaryObjectBody($objectBody);
+        if ($dict === null) {
+            return $objects;
+        }
+
+        $pending = [];
+        foreach (['Length', 'Filter', 'DecodeParms'] as $name) {
+            $offset = $this->topLevelNameValueOffset($dict, $name);
+            if ($offset === null) {
+                continue;
+            }
+
+            $value = $this->pdfValueAtOffset($dict, $offset);
+            if ($value === null) {
+                continue;
+            }
+
+            foreach ($this->pdfObjectReferencePairs($value) as $reference) {
+                $pending[] = $reference;
+            }
+        }
+
+        $resolved = $objects;
+        $seen = [];
+        while ($pending !== [] && count($seen) < 32) {
+            $reference = array_shift($pending);
+            if (!is_array($reference)) {
+                continue;
+            }
+
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
+            $key = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || $generation < 0 || isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            $definition = $this->directObjectDefinitionForGeneration($definitions[$objectNumber] ?? [], $generation);
+            if ($definition === null) {
+                continue;
+            }
+
+            $body = trim($definition['body']);
+            if (!$this->directObjectStreamFilterHelperBodyIsSafe($body)) {
+                continue;
+            }
+
+            $resolved[$objectNumber] = $body;
+            foreach ($this->pdfObjectReferencePairs($body) as $nestedReference) {
+                $pending[] = $nestedReference;
+            }
+        }
+
+        return $resolved;
     }
 
     /**
