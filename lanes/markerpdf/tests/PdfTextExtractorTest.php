@@ -645,6 +645,57 @@ return [
         $t->true(!str_contains($plainText, 'Wide Block'));
         $t->true(!str_contains($plainText, "\0"));
     },
+    'extracts current annotation normal appearance streams before WordPress text extraction' => static function (TestRunner $t) use ($toUnicodeCMap): void {
+        $pageCMap = $toUnicodeCMap(['41' => 'Page Body']);
+        $appearanceCMap = $toUnicodeCMap(['41' => 'Current Appearance']);
+        $directAppearanceCMap = $toUnicodeCMap(['42' => 'Direct Normal Appearance']);
+        $offCMap = $toUnicodeCMap(['41' => 'Off Appearance Noise']);
+        $rolloverCMap = $toUnicodeCMap(['41' => 'Rollover Appearance Noise']);
+        $unreferencedCMap = $toUnicodeCMap(['41' => 'Unreferenced Appearance Noise']);
+        $pageContent = 'BT /F1 12 Tf 72 720 Td <41> Tj ET';
+        $currentAppearance = 'BT /F1 12 Tf 0 0 Td <41> Tj ET';
+        $directAppearance = 'BT /F1 12 Tf 0 0 Td <42> Tj ET';
+        $offAppearance = 'BT /F1 12 Tf 0 0 Td <41> Tj ET';
+        $rolloverAppearance = 'BT /F1 12 Tf 0 0 Td <41> Tj ET';
+        $unreferencedAppearance = 'BT /F1 12 Tf 0 0 Td <41> Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Annots [5 0 R 6 0 R 7 0 R] /Contents 8 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /PageSubset /Encoding /Identity-H /ToUnicode 9 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Type /Annot /Subtype /Widget /Rect [72 680 220 704] /AS /Yes /AP << /N << /Off 10 0 R /Yes 11 0 R >> /R 12 0 R >> >>\nendobj\n"
+            . "6 0 obj\n<< /Type /Annot /Subtype /FreeText /Rect [72 648 260 672] /AP << /N 13 0 R >> >>\nendobj\n"
+            . "7 0 obj\n<< /Type /Annot /Subtype /Text /Rect [72 616 180 640] /Contents (review note only) >>\nendobj\n"
+            . "8 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($pageCMap) . " >>\nstream\n{$pageCMap}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 14 0 R >> >> /Length " . strlen($offAppearance) . " >>\nstream\n{$offAppearance}\nendstream\nendobj\n"
+            . "11 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 15 0 R >> >> /Length " . strlen($currentAppearance) . " >>\nstream\n{$currentAppearance}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 16 0 R >> >> /Length " . strlen($rolloverAppearance) . " >>\nstream\n{$rolloverAppearance}\nendstream\nendobj\n"
+            . "13 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 17 0 R >> >> /Length " . strlen($directAppearance) . " >>\nstream\n{$directAppearance}\nendstream\nendobj\n"
+            . "14 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /OffSubset /Encoding /Identity-H /ToUnicode 18 0 R >>\nendobj\n"
+            . "15 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /AppearanceSubset /Encoding /Identity-H /ToUnicode 19 0 R >>\nendobj\n"
+            . "16 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /RolloverSubset /Encoding /Identity-H /ToUnicode 20 0 R >>\nendobj\n"
+            . "17 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /DirectAppearanceSubset /Encoding /Identity-H /ToUnicode 21 0 R >>\nendobj\n"
+            . "18 0 obj\n<< /Length " . strlen($offCMap) . " >>\nstream\n{$offCMap}\nendstream\nendobj\n"
+            . "19 0 obj\n<< /Length " . strlen($appearanceCMap) . " >>\nstream\n{$appearanceCMap}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Length " . strlen($rolloverCMap) . " >>\nstream\n{$rolloverCMap}\nendstream\nendobj\n"
+            . "21 0 obj\n<< /Length " . strlen($directAppearanceCMap) . " >>\nstream\n{$directAppearanceCMap}\nendstream\nendobj\n"
+            . "22 0 obj\n<< /Type /Annot /Subtype /Widget /Rect [72 584 220 608] /AP << /N 23 0 R >> >>\nendobj\n"
+            . "23 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 24 0 R >> >> /Length " . strlen($unreferencedAppearance) . " >>\nstream\n{$unreferencedAppearance}\nendstream\nendobj\n"
+            . "24 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /UnreferencedSubset /Encoding /Identity-H /ToUnicode 25 0 R >>\nendobj\n"
+            . "25 0 obj\n<< /Length " . strlen($unreferencedCMap) . " >>\nstream\n{$unreferencedCMap}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Page Body', 'Current Appearance', 'Direct Normal Appearance'], $extractor->extractTextLines($pdf));
+        $t->same(['Page Body', 'Current Appearance', 'Direct Normal Appearance'], $extractor->extractTextRuns($pdf));
+        $t->same("Page Body\nCurrent Appearance\nDirect Normal Appearance", $plainText);
+        $t->same("Page Body\nCurrent Appearance\nDirect Normal Appearance\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Off Appearance Noise'));
+        $t->true(!str_contains($plainText, 'Rollover Appearance Noise'));
+        $t->true(!str_contains($plainText, 'Unreferenced Appearance Noise'));
+        $t->true(!str_contains($plainText, 'review note only'));
+    },
     'falls back to font Encoding when malformed ToUnicode CMap filters are ignored' => static function (TestRunner $t): void {
         $badCMap = 'not valid flate cmap bytes';
         $identityContent = 'BT /Fcid 12 Tf 72 720 Td <0057005000200049006D0070006F00720074> Tj ET';

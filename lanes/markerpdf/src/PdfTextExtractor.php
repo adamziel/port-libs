@@ -345,18 +345,37 @@ final class PdfTextExtractor
                 }
             }
 
-            if ($streams === []) {
-                continue;
+            $pageFontToUnicodeMaps = $this->pageFontToUnicodeMaps($pageObjectNumber, $objects, $fontObjectMaps);
+            $expanded = [
+                'stream' => implode("\n", $streams),
+                'fontToUnicodeMaps' => $pageFontToUnicodeMaps,
+            ];
+
+            if ($streams !== []) {
+                $expanded = $this->expandFormXObjectInvocations(
+                    $expanded['stream'],
+                    $objects[$pageObjectNumber],
+                    $objects,
+                    $fontObjectMaps,
+                    $expanded['fontToUnicodeMaps']
+                );
             }
 
-            $pageFontToUnicodeMaps = $this->pageFontToUnicodeMaps($pageObjectNumber, $objects, $fontObjectMaps);
-            $expanded = $this->expandFormXObjectInvocations(
-                implode("\n", $streams),
+            foreach ($this->annotationAppearanceStreamsWithFontMaps(
                 $objects[$pageObjectNumber],
                 $objects,
                 $fontObjectMaps,
-                $pageFontToUnicodeMaps
-            );
+                $expanded['fontToUnicodeMaps']
+            ) as $appearance) {
+                $expanded['stream'] = trim($expanded['stream']) === ''
+                    ? $appearance['stream']
+                    : $expanded['stream'] . "\n" . $appearance['stream'];
+                $expanded['fontToUnicodeMaps'] = $appearance['fontToUnicodeMaps'];
+            }
+
+            if (trim($expanded['stream']) === '') {
+                continue;
+            }
 
             $pages[] = [
                 'stream' => $expanded['stream'],
@@ -579,6 +598,281 @@ final class PdfTextExtractor
     private function formFontResourceAlias(int $formObjectNumber, string $resourceName): string
     {
         return 'Fm' . $formObjectNumber . '_' . bin2hex($resourceName);
+    }
+
+    private function appearanceFontResourceAlias(int $appearanceObjectNumber, string $resourceName): string
+    {
+        return 'Ap' . $appearanceObjectNumber . '_' . bin2hex($resourceName);
+    }
+
+    /**
+     * @return list<array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>}>
+     * @param array<int, string> $objects
+     * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
+     * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
+     */
+    private function annotationAppearanceStreamsWithFontMaps(
+        string $pageBody,
+        array $objects,
+        array $fontObjectMaps,
+        array $fontToUnicodeMaps
+    ): array {
+        $appearances = [];
+        $currentFontToUnicodeMaps = $fontToUnicodeMaps;
+
+        foreach ($this->annotationBodiesForPage($pageBody, $objects) as $annotation) {
+            $appearanceObjectNumber = $this->normalAppearanceObjectNumber($annotation['body'], $objects);
+            if ($appearanceObjectNumber === null) {
+                continue;
+            }
+
+            $appearance = $this->decodedAppearanceStreamWithFontMaps(
+                $appearanceObjectNumber,
+                $objects,
+                $fontObjectMaps,
+                $currentFontToUnicodeMaps
+            );
+            if ($appearance === null) {
+                continue;
+            }
+
+            $appearances[] = $appearance;
+            $currentFontToUnicodeMaps = $appearance['fontToUnicodeMaps'];
+        }
+
+        return $appearances;
+    }
+
+    /**
+     * @return list<array{body: string, object: int|null}>
+     * @param array<int, string> $objects
+     */
+    private function annotationBodiesForPage(string $pageBody, array $objects): array
+    {
+        $annots = $this->pdfValueAfterName($pageBody, 'Annots');
+        if ($annots === null) {
+            return [];
+        }
+
+        return $this->annotationBodiesFromValue($annots, $objects);
+    }
+
+    /**
+     * @return list<array{body: string, object: int|null}>
+     * @param array<int, string> $objects
+     */
+    private function annotationBodiesFromValue(string $value, array $objects): array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return [];
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            if (!isset($objects[$objectNumber])) {
+                return [];
+            }
+
+            $objectBody = trim($objects[$objectNumber]);
+            if (str_starts_with($objectBody, '[')) {
+                return $this->annotationBodiesFromArray($this->pdfArrayAtStart($objectBody), $objects);
+            }
+
+            $dictionary = $this->dictionaryObjectBody($objectBody);
+            return $dictionary === null ? [] : [['body' => $dictionary, 'object' => $objectNumber]];
+        }
+
+        if (str_starts_with($value, '[')) {
+            return $this->annotationBodiesFromArray($this->pdfArrayAtStart($value), $objects);
+        }
+
+        if (str_starts_with($value, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($value, 0);
+            return $dictionary === null ? [] : [['body' => $dictionary, 'object' => null]];
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<array{body: string, object: int|null}>
+     * @param array<int, string> $objects
+     */
+    private function annotationBodiesFromArray(?string $arrayBody, array $objects): array
+    {
+        if ($arrayBody === null) {
+            return [];
+        }
+
+        $annotations = [];
+        foreach ($this->objectReferences($arrayBody) as $objectNumber) {
+            if (!isset($objects[$objectNumber])) {
+                continue;
+            }
+
+            $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+            if ($dictionary !== null) {
+                $annotations[] = ['body' => $dictionary, 'object' => $objectNumber];
+            }
+        }
+
+        foreach ($this->directDictionaries($arrayBody) as $dictionary) {
+            $annotations[] = ['body' => $dictionary, 'object' => null];
+        }
+
+        return $annotations;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function directDictionaries(string $value): array
+    {
+        $dictionaries = [];
+        $offset = 0;
+        while (($start = strpos($value, '<<', $offset)) !== false) {
+            $dictionary = $this->readPdfDictionaryAt($value, $start);
+            $end = $this->pdfDictionaryEndOffset($value, $start);
+            if ($dictionary === null || $end === null) {
+                break;
+            }
+
+            $dictionaries[] = $dictionary;
+            $offset = $end + 1;
+        }
+
+        return $dictionaries;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function normalAppearanceObjectNumber(string $annotationBody, array $objects): ?int
+    {
+        $appearanceDictionary = $this->appearanceDictionaryBody($annotationBody, $objects);
+        if ($appearanceDictionary === null) {
+            return null;
+        }
+
+        $normalAppearance = $this->pdfValueAfterName($appearanceDictionary, 'N');
+        if ($normalAppearance === null) {
+            return null;
+        }
+
+        $appearanceState = $this->pdfNameValueAfterName($annotationBody, 'AS');
+        $normalAppearance = trim($normalAppearance);
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $normalAppearance, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            if (!isset($objects[$objectNumber])) {
+                return null;
+            }
+
+            if ($this->isStreamObject($objects[$objectNumber])) {
+                return $objectNumber;
+            }
+
+            $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+            return $dictionary === null ? null : $this->appearanceObjectNumberFromStateDictionary($dictionary, $appearanceState);
+        }
+
+        if (str_starts_with($normalAppearance, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($normalAppearance, 0);
+            return $dictionary === null ? null : $this->appearanceObjectNumberFromStateDictionary($dictionary, $appearanceState);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function appearanceDictionaryBody(string $annotationBody, array $objects): ?string
+    {
+        $appearance = $this->pdfValueAfterName($annotationBody, 'AP');
+        if ($appearance === null) {
+            return null;
+        }
+
+        $appearance = trim($appearance);
+        if (str_starts_with($appearance, '<<')) {
+            return $this->readPdfDictionaryAt($appearance, 0);
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $appearance, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
+        }
+
+        return null;
+    }
+
+    private function appearanceObjectNumberFromStateDictionary(string $dictionary, ?string $appearanceState): ?int
+    {
+        if ($appearanceState !== null) {
+            return $this->objectReferenceValueAfterName($dictionary, $appearanceState);
+        }
+
+        $fallback = null;
+        if (!preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+\d+\s+R\b/', $dictionary, $matches, PREG_SET_ORDER)) {
+            return null;
+        }
+
+        foreach ($matches as $match) {
+            $state = $this->decodePdfName($match[1]);
+            $objectNumber = (int) $match[2];
+            if ($fallback === null) {
+                $fallback = $objectNumber;
+            }
+            if ($state !== 'Off') {
+                return $objectNumber;
+            }
+        }
+
+        return $fallback;
+    }
+
+    /**
+     * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>}|null
+     * @param array<int, string> $objects
+     * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
+     * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
+     */
+    private function decodedAppearanceStreamWithFontMaps(
+        int $appearanceObjectNumber,
+        array $objects,
+        array $fontObjectMaps,
+        array $fontToUnicodeMaps
+    ): ?array {
+        if (!isset($objects[$appearanceObjectNumber]) || preg_match('/\/Subtype\s*\/Form\b/', $objects[$appearanceObjectNumber]) !== 1) {
+            return null;
+        }
+
+        $decoded = $this->decodeStreamObject($objects[$appearanceObjectNumber], $objects);
+        if ($decoded === null) {
+            return null;
+        }
+
+        $expandedFontToUnicodeMaps = $fontToUnicodeMaps;
+        $fontAliases = [];
+        foreach ($this->fontResourceMapsForResourceOwnerBody($objects[$appearanceObjectNumber], $objects, $fontObjectMaps) as $name => $map) {
+            $alias = $this->appearanceFontResourceAlias($appearanceObjectNumber, $name);
+            $fontAliases[$name] = $alias;
+            $expandedFontToUnicodeMaps[$alias] = $map;
+        }
+
+        return $this->expandFormXObjectInvocations(
+            $this->rewriteFontResourceOperands($decoded, $fontAliases),
+            $objects[$appearanceObjectNumber],
+            $objects,
+            $fontObjectMaps,
+            $expandedFontToUnicodeMaps
+        );
+    }
+
+    private function isStreamObject(string $objectBody): bool
+    {
+        return preg_match('/\bstream\r?\n?/s', $objectBody) === 1;
     }
 
     /**
@@ -1991,6 +2285,69 @@ final class PdfTextExtractor
         }
 
         return (int) $match[1];
+    }
+
+    private function pdfNameValueAfterName(string $body, string $name): ?string
+    {
+        $offset = $this->nameValueOffset($body, $name);
+        if ($offset === null || ($body[$offset] ?? '') !== '/') {
+            return null;
+        }
+
+        $end = $offset + 1;
+        while ($end < strlen($body) && !str_contains(" \t\r\n\f[]()<>{}/%", $body[$end])) {
+            $end++;
+        }
+
+        return $this->decodePdfName(substr($body, $offset + 1, $end - $offset - 1));
+    }
+
+    private function pdfValueAfterName(string $body, string $name): ?string
+    {
+        $offset = $this->nameValueOffset($body, $name);
+        if ($offset === null || $offset >= strlen($body)) {
+            return null;
+        }
+
+        if ($body[$offset] === '[') {
+            $array = $this->readPdfArrayAt($body, $offset);
+            return $array === null ? null : '[' . $array . ']';
+        }
+
+        if (substr($body, $offset, 2) === '<<') {
+            $end = $this->pdfDictionaryEndOffset($body, $offset);
+            return $end === null ? null : substr($body, $offset, $end - $offset + 1);
+        }
+
+        if ($body[$offset] === '(') {
+            $end = $this->skipPdfLiteralStringAt($body, $offset);
+            return $end === null ? null : substr($body, $offset, $end - $offset + 1);
+        }
+
+        if ($body[$offset] === '<') {
+            $end = strpos($body, '>', $offset + 1);
+            return $end === false ? null : substr($body, $offset, $end - $offset + 1);
+        }
+
+        if (preg_match('/\G\d+\s+\d+\s+R\b/s', $body, $match, 0, $offset) === 1) {
+            return $match[0];
+        }
+
+        if ($body[$offset] === '/') {
+            $end = $offset + 1;
+            while ($end < strlen($body) && !str_contains(" \t\r\n\f[]()<>{}/%", $body[$end])) {
+                $end++;
+            }
+
+            return substr($body, $offset, $end - $offset);
+        }
+
+        $end = $offset;
+        while ($end < strlen($body) && !ctype_space($body[$end]) && !str_contains('[]()<>{}/%', $body[$end])) {
+            $end++;
+        }
+
+        return $end === $offset ? null : substr($body, $offset, $end - $offset);
     }
 
     private function nameValueOffset(string $body, string $name): ?int
