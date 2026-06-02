@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 23:39:27 UTC",
-    "sourceCommit": "fbbbb072cde28e735a75978a5000fa4f37b58c60",
-    "sourceCommitShort": "fbbbb072cde2",
+    "generated": "2026-06-02 23:52:31 UTC",
+    "sourceCommit": "9065f516d8dad710d9d63f6d7eab8435f0e4e0ec",
+    "sourceCommitShort": "9065f516d8da",
     "sourceBranch": "unknown",
-    "dashboardCommit": "fbbbb072cde28e735a75978a5000fa4f37b58c60",
-    "dashboardCommitShort": "fbbbb072cde2",
+    "dashboardCommit": "9065f516d8dad710d9d63f6d7eab8435f0e4e0ec",
+    "dashboardCommitShort": "9065f516d8da",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -91,13 +91,13 @@
             "coverage": "681 / 78 (873.1%)",
             "mapPercent": "873.1%",
             "unmapped": "0",
-            "php": "974 pass / 0 fail",
-            "phase": "native no-GPU markerPDF scope; rebased worker handoffs accepted; boun...",
-            "audit": "2026-06-02 UTC supervisor rebased and accepted the remaining ready ma...",
+            "php": "976 pass / 0 fail",
+            "phase": "native no-GPU markerPDF scope; inline-image and pdftext layout-order...",
+            "audit": "2026-06-02 UTC supervisor accepted stacked markerPDF inline-image tok...",
             "currentWork": "MarkerPDF is supervised as a native PHP searchable-PDF parser/converter plus supplied...",
-            "nextTarget": "Supervisor-only session with bounded worker swarm: launch rou...",
+            "nextTarget": "Supervisor-only session with bounded worker swarm: keep the r...",
             "remainingGate": "No GPU/model execution will be run for markerPDF under current user d...",
-            "commit": "fbbbb07"
+            "commit": "9065f51"
         },
         {
             "lane": "readability",
