@@ -326,6 +326,19 @@ final class PdfImageRenderer
         $bitsPerComponent = $imageMaskPresent ? ($this->imageBitsPerComponent($imageDictionary) ?? 1) : ($this->imageBitsPerComponent($imageDictionary) ?? 8);
         $expectedDecodeComponents = $imageMaskPresent ? 1 : $colorSpace['components'];
         $imageDecode = $this->imageDecodeDetails($imageDictionary, $objects, $expectedDecodeComponents, $imageMaskPresent);
+        if (
+            $imageDecode === null
+            && !$imageMaskPresent
+            && $colorSpace['uses_indexed_color_space']
+            && is_array($colorSpace['indexed_color_space'])
+            && is_int($colorSpace['indexed_color_space']['high_value'])
+        ) {
+            $imageDecode = $this->buildImageDecodeDetails(
+                [0.0, (float) $colorSpace['indexed_color_space']['high_value']],
+                1,
+                'default-indexed'
+            );
+        }
         if ($imageMaskPresent && $imageDecode !== null) {
             $imageMask = $this->imageMaskDetails($imageDictionary, $objects, $imageDecode);
         }
@@ -481,6 +494,66 @@ final class PdfImageRenderer
         }
 
         return $components;
+    }
+
+    /**
+     * Applies an Indexed image sample's Decode array, clips the resulting
+     * palette index to the declared high value, expands the lookup table, and
+     * optionally maps the matching soft-mask sample into alpha preview space.
+     *
+     * @param array{
+     *     bits_per_component?: int,
+     *     indexed_color_space?: array{base_components?: int|null, high_value?: int|null, lookup_length_matches?: bool, lookup_bytes?: list<int>},
+     *     image_decode?: array{ranges: list<array{min: float, max: float}>, valid_for_components?: bool}|null,
+     *     soft_mask?: array{present?: bool, decode?: array{ranges?: list<array{min: float, max: float}>, valid_for_components?: bool}, bits_per_component?: int|null}|null,
+     *     output_color_mode?: string
+     * } $imagePlan
+     * @return array{raw_sample: float, decoded_index: float, palette_index: int, clamped_to_hival: bool, base_components: list<float>, soft_mask_alpha: float|null, output_color_mode: string}
+     */
+    public function indexedSamplePreview(int|float $sample, array $imagePlan, int|float|null $softMaskSample = null): array
+    {
+        $indexedPlan = $imagePlan['indexed_color_space'] ?? null;
+        if (!is_array($indexedPlan)) {
+            throw new InvalidArgumentException('Indexed image preview requires an Indexed color-space plan.');
+        }
+
+        $highValue = $indexedPlan['high_value'] ?? null;
+        if (!is_int($highValue) || $highValue < 0) {
+            throw new InvalidArgumentException('Indexed image preview requires a non-negative high value.');
+        }
+
+        $decodedIndex = (float) $sample;
+        $decode = $imagePlan['image_decode'] ?? null;
+        if (is_array($decode) && ($decode['valid_for_components'] ?? false) === true) {
+            $decoded = $this->imageSampleDecodeValues(
+                [$sample],
+                $decode,
+                max(1, (int) ($imagePlan['bits_per_component'] ?? 8))
+            );
+            $decodedIndex = $decoded[0];
+        }
+
+        $roundedIndex = (int) round($decodedIndex);
+        $paletteIndex = max(0, min($highValue, $roundedIndex));
+        $softMaskAlpha = null;
+        if ($softMaskSample !== null) {
+            $softMask = $imagePlan['soft_mask'] ?? null;
+            if (!is_array($softMask)) {
+                throw new InvalidArgumentException('Indexed soft-mask preview requires a soft-mask plan.');
+            }
+
+            $softMaskAlpha = $this->softMaskSampleOpacity($softMaskSample, $softMask);
+        }
+
+        return [
+            'raw_sample' => (float) $sample,
+            'decoded_index' => $decodedIndex,
+            'palette_index' => $paletteIndex,
+            'clamped_to_hival' => $paletteIndex !== $roundedIndex,
+            'base_components' => $this->indexedSampleToBaseComponents($paletteIndex, $indexedPlan),
+            'soft_mask_alpha' => $softMaskAlpha,
+            'output_color_mode' => (string) ($imagePlan['output_color_mode'] ?? 'RGB'),
+        ];
     }
 
     /**

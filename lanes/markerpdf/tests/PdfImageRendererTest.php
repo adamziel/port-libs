@@ -449,6 +449,67 @@ return [
         $t->contains('indexed_lookup_length_mismatch', implode(',', $mismatch['notes']));
         $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->indexedSampleToBaseComponents(3, $mismatch['indexed_color_space']));
     },
+    'applies Indexed default Decode and soft-mask alpha before RGB palette preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $objects = [
+            41 => '<0000002040F0F08010>',
+            42 => "<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Decode [1 0] /Length 2 >>\nstream\nMS\nendstream",
+        ];
+
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 2 /Height 1 /ColorSpace [/Indexed /DeviceRGB 2 41 0 R] /BitsPerComponent 2 /SMask 42 0 R >>',
+            $objects
+        );
+
+        $t->same([
+            'ranges' => [
+                ['min' => 0.0, 'max' => 2.0],
+            ],
+            'component_count' => 1,
+            'expected_components' => 1,
+            'valid_for_components' => true,
+            'identity' => false,
+            'inverted_components' => [],
+            'source' => 'default-indexed',
+        ], $plan['image_decode']);
+        $t->same(true, $plan['image_decode_applied_before_rgb']);
+        $t->contains('indexed_color_space_palette_before_rgb_conversion', implode(',', $plan['notes']));
+        $t->contains('soft_mask_decode_inverts_alpha', implode(',', $plan['notes']));
+
+        $first = $renderer->indexedSamplePreview(0, $plan, 255);
+        $last = $renderer->indexedSamplePreview(3, $plan, 0);
+
+        $t->same(0.0, $first['decoded_index']);
+        $t->same(0, $first['palette_index']);
+        $t->same(false, $first['clamped_to_hival']);
+        $t->same([0.0, 0.0, 0.0], $first['base_components']);
+        $t->same(0.0, $first['soft_mask_alpha']);
+
+        $t->same(2.0, $last['decoded_index']);
+        $t->same(2, $last['palette_index']);
+        $t->same(false, $last['clamped_to_hival']);
+        $t->same([240 / 255, 128 / 255, 16 / 255], $last['base_components']);
+        $t->same(1.0, $last['soft_mask_alpha']);
+        $t->same('RGB', $last['output_color_mode']);
+
+        $clamped = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace [/Indexed /DeviceRGB 2 <000000FFFFFF010203>] /BitsPerComponent 2 /Decode [-1 5] >>'
+        );
+
+        $clampedLow = $renderer->indexedSamplePreview(0, $clamped);
+        $clampedHigh = $renderer->indexedSamplePreview(3, $clamped);
+
+        $t->same(-1.0, $clampedLow['decoded_index']);
+        $t->same(0, $clampedLow['palette_index']);
+        $t->same(true, $clampedLow['clamped_to_hival']);
+        $t->same([0.0, 0.0, 0.0], $clampedLow['base_components']);
+        $t->same(5.0, $clampedHigh['decoded_index']);
+        $t->same(2, $clampedHigh['palette_index']);
+        $t->same(true, $clampedHigh['clamped_to_hival']);
+        $t->same([1 / 255, 2 / 255, 3 / 255], $clampedHigh['base_components']);
+        $t->same(null, $clampedHigh['soft_mask_alpha']);
+        $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->indexedSamplePreview(1, ['source_color_space' => 'DeviceRGB']));
+    },
     'plans Separation and DeviceN alternate color spaces with CCITT preview filters before RGB preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $objects = [
