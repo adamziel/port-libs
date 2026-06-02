@@ -6998,13 +6998,18 @@ final class PdfTextExtractor
 
         $generation = $xrefEntry['generation'] ?? null;
         $offset = $xrefEntry['offset'] ?? null;
+        if ($offset !== null) {
+            foreach ($definitions as $definition) {
+                if ($definition['offset'] === $offset) {
+                    return $definition;
+                }
+            }
+        }
+
         $candidates = [];
         foreach ($definitions as $definition) {
             if ($generation !== null && $definition['generation'] !== $generation) {
                 continue;
-            }
-            if ($offset !== null && $definition['offset'] === $offset) {
-                return $definition;
             }
             $candidates[] = $definition;
         }

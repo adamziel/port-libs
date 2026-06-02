@@ -314,6 +314,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-xref-stream-index-width-import.php` maps PDF 1.5 xref stream `/Index` ranges and zero-width `/W` defaults into a WordPress import path. It extracts only the current page text, excludes stale rebuilt page content, and avoids NUL-byte leakage without external PDF tooling.
 
+`examples/wordpress-pdf-xref-prev-stream-generation-repair-import.php` maps xref-stream `/Prev` generation repair into a WordPress paragraph import path. It trusts exact xref byte offsets before stale previous-stream generation rows, preserving shared previous font resources while extracting only the current generation page text and excluding stale previous-generation paragraphs without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
 `examples/wordpress-pdf-linearized-hint-table-import.php` maps linearized PDF `/H` hint-table byte ranges into a damaged-upload fallback import path. It keeps hint-table stream bytes out of native object maps and raw stream fallback extraction, emitting only the real fallback Gutenberg paragraphs without Python, pdftext, pypdfium, Poppler, Ghostscript, models, or external PDF tools.
 
 `examples/wordpress-pdf-cmap-usecmap-cycle-codespace-guard-import.php` maps cyclic ToUnicode `usecmap` inheritance and declared codespace counts into a WordPress text extraction path. It emits `Import Blocks! OK` while proving mutual CMap references do not loop and extra codespace rows do not corrupt source-width fallback.
