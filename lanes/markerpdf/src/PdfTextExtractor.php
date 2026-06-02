@@ -4545,6 +4545,19 @@ final class PdfTextExtractor
         return (int) $match[1];
     }
 
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pdfIntegerValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?int
+    {
+        $offset = $this->nameValueOffset($body, $name);
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->streamLengthValueAt($body, $offset, $objects);
+    }
+
     private function objectReferenceValueAfterName(string $body, string $name): ?int
     {
         $offset = $this->nameValueOffset($body, $name);
@@ -5587,15 +5600,13 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if (
-                preg_match('/\/N\s+(\d+)/', $body, $countMatch) !== 1
-                || preg_match('/\/First\s+(\d+)/', $body, $firstMatch) !== 1
-            ) {
+            $count = $this->pdfIntegerValueAfterNameResolvingObjects($body, 'N', $objects);
+            $first = $this->pdfIntegerValueAfterNameResolvingObjects($body, 'First', $objects);
+            if ($count === null || $first === null) {
                 continue;
             }
 
-            $count = max(0, (int) $countMatch[1]);
-            $first = (int) $firstMatch[1];
+            $count = max(0, $count);
             if ($count === 0 || $first < 0 || $first >= strlen($decoded)) {
                 continue;
             }
