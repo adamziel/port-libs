@@ -354,6 +354,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-type0-encoding-cmap-boundary-import.php` maps Type0 font `/Encoding` CMap code-space and CID mapping boundaries into a WordPress paragraph import path when `/ToUnicode` is absent. It preserves mixed one-byte and two-byte source codes for descendant CIDFont width grouping, emitting `WideBlock` and `Thin Text` without NUL bytes, false spaces, Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
+`examples/wordpress-pdf-parser-stream-filter-object-boundary.php` maps the fallback PDF stream parser boundary into a WordPress import path. It decodes only current xref-selected direct stream objects and ignores fake nested stream tokens inside a current stream payload, emitting `Current filtered object boundary` and `Current base fallback` while excluding stale filtered bytes and inline-image fake stream text without Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

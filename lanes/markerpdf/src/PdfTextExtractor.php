@@ -3182,38 +3182,41 @@ final class PdfTextExtractor
     private function allDecodedStreams(string $pdfBytes, array $objects): array
     {
         $streams = [];
-        if (!preg_match_all('/<<(.*?)>>\s*stream(?:\r\n|\r|\n)?/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
+        $definitions = $this->directObjectDefinitions($pdfBytes);
+        if ($definitions === []) {
             return $streams;
         }
 
-        $definitions = $this->directObjectDefinitions($pdfBytes);
+        $xrefEntries = $this->xrefEntries($pdfBytes, $this->latestDirectObjects($definitions), $definitions);
         $linearizedHintRanges = $this->linearizedHintTableRanges($pdfBytes);
+        $linearizedHintObjectNumbers = array_fill_keys(
+            $this->linearizedHintTableObjectNumbers($pdfBytes, $definitions, $linearizedHintRanges),
+            true
+        );
         $embeddedFilePayloadObjectNumbers = $this->embeddedFilePayloadObjectNumbers($objects);
         $pieceInfoPrivateObjectNumbers = $this->pieceInfoPrivateStreamObjectNumbers($objects);
-        foreach ($matches as $match) {
-            $dict = $match[1][0];
-            $dictOffset = $match[1][1] - 2;
-            $streamStart = $match[0][1] + strlen($match[0][0]);
-            $streamObjectNumber = $this->directObjectNumberAtOffset($pdfBytes, $streamStart, $definitions);
+        foreach ($this->liveDirectObjectDefinitionsInFileOrder($definitions, $xrefEntries) as $definition) {
+            $streamObjectNumber = $definition['objectNumber'];
             if (
-                $this->offsetInPdfByteRanges($dictOffset, $linearizedHintRanges)
-                || $this->offsetInPdfByteRanges($streamStart, $linearizedHintRanges)
-                || ($streamObjectNumber !== null && isset($embeddedFilePayloadObjectNumbers[$streamObjectNumber]))
-                || ($streamObjectNumber !== null && isset($pieceInfoPrivateObjectNumbers[$streamObjectNumber]))
+                isset($linearizedHintObjectNumbers[$streamObjectNumber])
+                || !isset($objects[$streamObjectNumber])
+                || $objects[$streamObjectNumber] !== $definition['body']
+                || isset($embeddedFilePayloadObjectNumbers[$streamObjectNumber])
+                || isset($pieceInfoPrivateObjectNumbers[$streamObjectNumber])
             ) {
                 continue;
             }
 
-            if ($this->isImageStreamDictionary($dict, $objects) || $this->isEmbeddedFileStreamDictionary($dict)) {
+            $entry = $this->streamDictionaryAndPayload($definition['body'], $objects);
+            if ($entry === null) {
                 continue;
             }
 
-            $stream = $this->streamPayloadAt($pdfBytes, $streamStart, $dict, $objects);
-            if ($stream === null) {
+            if ($this->isImageStreamDictionary($entry['dict'], $objects) || $this->isEmbeddedFileStreamDictionary($entry['dict'])) {
                 continue;
             }
 
-            $decoded = $this->decodeStream($dict, $stream, $objects);
+            $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $objects);
             if ($decoded === null) {
                 continue;
             }
@@ -3998,12 +4001,25 @@ final class PdfTextExtractor
      */
     private function streamDictionaryAndPayload(string $value, array $objects): ?array
     {
-        if (preg_match('/<<(.*?)>>\s*stream(?:\r\n|\r|\n)?/s', $value, $match, PREG_OFFSET_CAPTURE) !== 1) {
+        $dictionaryOffset = $this->skipPdfWhitespace($value, 0);
+        $dictionaryEndOffset = $dictionaryOffset;
+        $dict = $this->readPdfDictionaryTokenAt($value, $dictionaryEndOffset);
+        if ($dict === null) {
             return null;
         }
 
-        $dict = $match[1][0];
-        $streamStart = $match[0][1] + strlen($match[0][0]);
+        $streamKeywordOffset = $this->skipPdfWhitespace($value, $dictionaryEndOffset);
+        if (!$this->pdfKeywordAt($value, $streamKeywordOffset, 'stream')) {
+            return null;
+        }
+
+        $streamStart = $streamKeywordOffset + strlen('stream');
+        if (substr($value, $streamStart, 2) === "\r\n") {
+            $streamStart += 2;
+        } elseif (($value[$streamStart] ?? '') === "\n" || ($value[$streamStart] ?? '') === "\r") {
+            $streamStart++;
+        }
+
         $stream = $this->streamPayloadAt($value, $streamStart, $dict, $objects);
         if ($stream === null) {
             return null;
@@ -7478,6 +7494,38 @@ final class PdfTextExtractor
         }
 
         return $objects;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
+     * @return list<array{objectNumber: int, generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>
+     */
+    private function liveDirectObjectDefinitionsInFileOrder(array $definitions, array $xrefEntries): array
+    {
+        $liveDefinitions = [];
+        foreach ($definitions as $objectNumber => $entries) {
+            $definition = $this->liveDirectObjectDefinition($entries, $xrefEntries[$objectNumber] ?? null);
+            if ($definition === null) {
+                continue;
+            }
+
+            $liveDefinitions[] = [
+                'objectNumber' => $objectNumber,
+                'generation' => $definition['generation'],
+                'offset' => $definition['offset'],
+                'bodyStart' => $definition['bodyStart'],
+                'bodyEnd' => $definition['bodyEnd'],
+                'body' => $definition['body'],
+            ];
+        }
+
+        usort(
+            $liveDefinitions,
+            static fn (array $left, array $right): int => $left['offset'] <=> $right['offset']
+        );
+
+        return $liveDefinitions;
     }
 
     /**
