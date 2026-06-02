@@ -328,6 +328,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-encryption-permission-metadata-import.php` maps Standard PDF encryption permission metadata into a review-only WordPress import path. It reports crypt-filter settings, permission allow/deny labels, print quality, and hashed `/Perms`, blocks encrypted text extraction, and suppresses raw owner/user keys without attempting password validation or decryption.
 
+`examples/wordpress-pdf-embedded-files-import.php` now also maps embedded-file `/Params /CheckSum` into attachment review metadata. It exposes declared checksum, computed MD5, and match state so WordPress import workflows can flag stale embedded payloads without dropping the file or executing external PDF tooling.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

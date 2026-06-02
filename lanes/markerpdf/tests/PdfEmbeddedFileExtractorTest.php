@@ -14,7 +14,7 @@ $embeddedFilesPdf = static function (): array {
 
     $notes = 'Reviewer notes for attached import.';
     $asciiHexNotes = strtoupper(bin2hex($notes)) . '>';
-    $checksum = '00112233445566778899AABBCCDDEEFF';
+    $checksum = strtoupper(hash('md5', $manifest));
     $unicodeFilenameBytes = iconv('UTF-8', 'UTF-16BE', 'wp-import-manifest.json');
     if (!is_string($unicodeFilenameBytes)) {
         throw new RuntimeException('Unable to encode UTF-16BE filename fixture.');
@@ -60,6 +60,9 @@ return [
         $t->same(strlen($manifest), $manifestFile['declared_size']);
         $t->same(strlen($manifest), $manifestFile['size']);
         $t->same($checksum, $manifestFile['checksum']);
+        $t->same('md5', $manifestFile['checksum_algorithm']);
+        $t->same($checksum, $manifestFile['computed_checksum']);
+        $t->same(true, $manifestFile['checksum_matches']);
         $t->same('D:20260602033725Z', $manifestFile['created_at']);
         $t->same('D:20260602033800Z', $manifestFile['modified_at']);
         $t->same($manifest, $manifestFile['content']);
@@ -76,6 +79,62 @@ return [
         $t->same(['ASCIIHexDecode'], $notesFile['filters']);
         $t->same(strlen($notes), $notesFile['declared_size']);
         $t->same($notes, $notesFile['content']);
+    },
+    'normalizes embedded-file Params checksums and reports current content match state' => static function (TestRunner $t): void {
+        $literalChecksum = static function (string $bytes): string {
+            $escaped = '';
+            foreach (unpack('C*', $bytes) ?: [] as $byte) {
+                $escaped .= sprintf('\\%03o', $byte);
+            }
+
+            return '(' . $escaped . ')';
+        };
+
+        $verifiedPayload = 'Verified WordPress attachment bytes';
+        $stalePayload = 'Edited payload after checksum';
+        $legacyPayload = 'Legacy producer literal checksum';
+        $staleChecksum = str_repeat('00', 16);
+        $verifiedChecksum = hash('md5', $verifiedPayload);
+        $legacyChecksum = hash('md5', $legacyPayload);
+
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
+            . "6 0 obj\n<< /Names [(verified.txt) 10 0 R (stale.txt) 20 0 R (legacy.txt) 30 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (verified.txt) /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fplain /Params << /Size " . strlen($verifiedPayload) . " /CheckSum " . $literalChecksum(hash('md5', $verifiedPayload, true)) . " /ModDate (D:20260602054400Z) >> /Length " . strlen($verifiedPayload) . " >>\nstream\n{$verifiedPayload}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Type /Filespec /F (stale.txt) /EF << /F 21 0 R >> >>\nendobj\n"
+            . "21 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fplain /Params << /Size " . strlen($stalePayload) . " /CheckSum <{$staleChecksum}> >> /Length " . strlen($stalePayload) . " >>\nstream\n{$stalePayload}\nendstream\nendobj\n"
+            . "30 0 obj\n<< /Type /Filespec /F (legacy.txt) /EF << /F 31 0 R >> >>\nendobj\n"
+            . "31 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fplain /Params << /Size " . strlen($legacyPayload) . " /CheckSum ({$legacyChecksum}) >> /Length " . strlen($legacyPayload) . " >>\nstream\n{$legacyPayload}\nendstream\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+
+        $t->same(3, count($files));
+
+        $verified = $files[0];
+        $t->same('verified.txt', $verified['filename']);
+        $t->same($verifiedPayload, $verified['content']);
+        $t->same($verifiedChecksum, $verified['checksum']);
+        $t->same('md5', $verified['checksum_algorithm']);
+        $t->same($verifiedChecksum, $verified['computed_checksum']);
+        $t->same(true, $verified['checksum_matches']);
+        $t->same('D:20260602054400Z', $verified['modified_at']);
+
+        $stale = $files[1];
+        $t->same('stale.txt', $stale['filename']);
+        $t->same($stalePayload, $stale['content']);
+        $t->same($staleChecksum, $stale['checksum']);
+        $t->same(hash('md5', $stalePayload), $stale['computed_checksum']);
+        $t->same(false, $stale['checksum_matches']);
+
+        $legacy = $files[2];
+        $t->same('legacy.txt', $legacy['filename']);
+        $t->same($legacyPayload, $legacy['content']);
+        $t->same($legacyChecksum, $legacy['checksum']);
+        $t->same($legacyChecksum, $legacy['computed_checksum']);
+        $t->same(true, $legacy['checksum_matches']);
     },
     'skips unresolved name-tree file specs and dedupes repeated attachment entries' => static function (TestRunner $t): void {
         $payload = 'Only attached once';

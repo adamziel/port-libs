@@ -18,7 +18,7 @@ if (!is_string($filenameBytes)) {
     throw new RuntimeException('Unable to encode UTF-16BE filename fixture.');
 }
 $filenameHex = strtoupper(bin2hex("\xFE\xFF" . $filenameBytes));
-$checksum = '00112233445566778899AABBCCDDEEFF';
+$checksum = strtoupper(hash('md5', $manifest));
 $pageContent = 'BT /F1 12 Tf 72 720 Td (Visible Attachment Review) Tj ET';
 
 $pdf = "%PDF-1.7\n"
@@ -50,6 +50,8 @@ echo '<!-- markerpdf-pdf-embedded-files-smoke ' . htmlspecialchars(json_encode([
     'relationship' => $attachment['relationship'] ?? null,
     'declared_size_matches' => ($attachment['declared_size'] ?? null) === strlen($manifest),
     'checksum' => $attachment['checksum'] ?? null,
+    'computed_checksum' => $attachment['computed_checksum'] ?? null,
+    'checksum_matches' => $attachment['checksum_matches'] ?? null,
     'content_sha256' => $attachment['content_sha256'] ?? null,
     'excluded_attachment_payload_text' => !str_contains($plainText, 'WP Import'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
@@ -74,4 +76,6 @@ echo '<!-- markerpdf:embedded-file ' . htmlspecialchars(json_encode([
     'declared_size' => $attachment['declared_size'] ?? null,
     'modified_at' => $attachment['modified_at'] ?? null,
     'checksum' => $attachment['checksum'] ?? null,
+    'computed_checksum' => $attachment['computed_checksum'] ?? null,
+    'checksum_matches' => $attachment['checksum_matches'] ?? null,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";

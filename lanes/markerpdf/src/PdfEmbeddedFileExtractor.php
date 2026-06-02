@@ -192,7 +192,7 @@ final class PdfEmbeddedFileExtractor
                 $file['filters'] = $stream['filters'];
             }
 
-            foreach ($this->embeddedFileParams($stream['dictionary'], $objects) as $key => $metadataValue) {
+            foreach ($this->embeddedFileParams($stream['dictionary'], $objects, $stream['content']) as $key => $metadataValue) {
                 $file[$key] = $metadataValue;
             }
 
@@ -261,7 +261,7 @@ final class PdfEmbeddedFileExtractor
      * @param array<int, string> $objects
      * @return array<string, mixed>
      */
-    private function embeddedFileParams(string $streamDictionary, array $objects): array
+    private function embeddedFileParams(string $streamDictionary, array $objects, string $content): array
     {
         $params = $this->resolveDictionaryFromValue($this->dictionaryRawValue($streamDictionary, 'Params'), $objects);
         if ($params === null) {
@@ -277,6 +277,9 @@ final class PdfEmbeddedFileExtractor
         $checksum = $this->dictionaryChecksumValue($params['body'], 'CheckSum', $objects);
         if ($checksum !== null && $checksum !== '') {
             $metadata['checksum'] = $checksum;
+            $metadata['checksum_algorithm'] = 'md5';
+            $metadata['computed_checksum'] = hash('md5', $content);
+            $metadata['checksum_matches'] = hash_equals($metadata['computed_checksum'], $checksum);
         }
 
         $createdAt = $this->dictionaryStringValue($params['body'], 'CreationDate', $objects);
@@ -814,14 +817,16 @@ final class PdfEmbeddedFileExtractor
             return null;
         }
 
-        $resolved = $this->resolveRawValue($value, $objects) ?? $value;
-        $resolved = trim($resolved);
-        if (str_starts_with($resolved, '<') && !str_starts_with($resolved, '<<')) {
-            $hex = preg_replace('/\s+/', '', substr($resolved, 1, -1));
-            return $hex === null ? null : strtolower($hex);
+        $bytes = $this->byteStringValueFromRaw($value, $objects);
+        if ($bytes === null) {
+            return null;
         }
 
-        return $this->stringValueFromRaw($resolved, $objects);
+        if (strlen($bytes) === 32 && preg_match('/^[\da-fA-F]{32}$/', $bytes) === 1) {
+            return strtolower($bytes);
+        }
+
+        return bin2hex($bytes);
     }
 
     private function dictionaryRawValue(string $dictionary, string $key): ?string
@@ -875,6 +880,45 @@ final class PdfEmbeddedFileExtractor
         }
 
         return preg_match('/^[^\s\[\]()<>{}\/%]+$/', $resolved) === 1 ? $resolved : null;
+    }
+
+    /**
+     * PDF byte strings such as embedded-file /CheckSum must remain binary-safe.
+     *
+     * @param array<int, string> $objects
+     */
+    private function byteStringValueFromRaw(string $value, array $objects): ?string
+    {
+        $resolved = $this->resolveRawValue($value, $objects) ?? $value;
+        $resolved = trim($resolved);
+        if ($resolved === '') {
+            return null;
+        }
+
+        if (str_starts_with($resolved, '(')) {
+            $literal = $this->readLiteralStringAt($resolved, 0);
+            return $literal === null ? null : $this->decodeLiteralEscapes($literal['body']);
+        }
+
+        if (str_starts_with($resolved, '<') && !str_starts_with($resolved, '<<')) {
+            $end = strpos($resolved, '>');
+            if ($end === false) {
+                return null;
+            }
+
+            $hex = preg_replace('/\s+/', '', substr($resolved, 1, $end - 1));
+            if ($hex === null || $hex === '' || preg_match('/^[\da-fA-F]+$/', $hex) !== 1) {
+                return null;
+            }
+            if (strlen($hex) % 2 === 1) {
+                $hex .= '0';
+            }
+
+            $bytes = hex2bin($hex);
+            return $bytes === false ? null : $bytes;
+        }
+
+        return null;
     }
 
     /**
