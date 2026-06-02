@@ -134,11 +134,130 @@ final class PdfTextExtractor
             }
 
             if ($streams !== []) {
-                $pages[] = implode("\n", $streams);
+                $pages[] = $this->expandFormXObjectInvocations(
+                    implode("\n", $streams),
+                    $objects[$pageObjectNumber],
+                    $objects
+                );
             }
         }
 
         return $pages;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seenFormObjectNumbers
+     */
+    private function expandFormXObjectInvocations(
+        string $content,
+        string $resourceOwnerBody,
+        array $objects,
+        array $seenFormObjectNumbers = []
+    ): string {
+        if (!str_contains($content, 'Do')) {
+            return $content;
+        }
+
+        $xObjectMap = $this->xObjectResourceObjectNumbers($resourceOwnerBody);
+        if ($xObjectMap === []) {
+            return $content;
+        }
+
+        $expanded = [];
+        $operands = [];
+        foreach ($this->contentTokens($content) as $token) {
+            if ($token === 'Do') {
+                $xObjectName = $this->xObjectNameOperand($operands);
+                if ($xObjectName !== null && isset($xObjectMap[$xObjectName])) {
+                    $objectNumber = $xObjectMap[$xObjectName];
+                    if (!isset($seenFormObjectNumbers[$objectNumber])) {
+                        $form = $this->decodedFormXObject($objects, $objectNumber);
+                        if ($form !== null) {
+                            $nextSeen = $seenFormObjectNumbers;
+                            $nextSeen[$objectNumber] = true;
+                            $expanded[] = $this->expandFormXObjectInvocations(
+                                $form['stream'],
+                                $form['body'],
+                                $objects,
+                                $nextSeen
+                            );
+                        }
+                    }
+                    $operands = [];
+                    continue;
+                }
+
+                $expanded[] = $token;
+                $operands = [];
+                continue;
+            }
+
+            $expanded[] = $token;
+            if ($this->isOperator($token)) {
+                $operands = [];
+                continue;
+            }
+
+            $operands[] = $token;
+        }
+
+        return implode(' ', array_values(array_filter($expanded, static fn (string $segment): bool => trim($segment) !== '')));
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function xObjectResourceObjectNumbers(string $resourceOwnerBody): array
+    {
+        if (!preg_match('/\/XObject\s*<<(.*?)>>/s', $resourceOwnerBody, $match)) {
+            return [];
+        }
+
+        if (!preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+\d+\s+R\b/', $match[1], $matches, PREG_SET_ORDER)) {
+            return [];
+        }
+
+        $objects = [];
+        foreach ($matches as $resource) {
+            $objects[$this->decodePdfName($resource[1])] = (int) $resource[2];
+        }
+
+        return $objects;
+    }
+
+    /**
+     * @return array{body: string, stream: string}|null
+     * @param array<int, string> $objects
+     */
+    private function decodedFormXObject(array $objects, int $objectNumber): ?array
+    {
+        if (!isset($objects[$objectNumber]) || preg_match('/\/Subtype\s*\/Form\b/', $objects[$objectNumber]) !== 1) {
+            return null;
+        }
+
+        $decoded = $this->decodeStreamObject($objects[$objectNumber], $objects);
+        if ($decoded === null) {
+            return null;
+        }
+
+        return [
+            'body' => $objects[$objectNumber],
+            'stream' => $decoded,
+        ];
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function xObjectNameOperand(array $operands): ?string
+    {
+        $operand = end($operands);
+        if (!is_string($operand) || !str_starts_with($operand, '/')) {
+            return null;
+        }
+
+        return $this->decodePdfName(substr($operand, 1));
     }
 
     /**

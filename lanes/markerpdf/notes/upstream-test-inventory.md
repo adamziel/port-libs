@@ -11,6 +11,13 @@ The manifest denominator now keeps `benchmarkDenominator.total` numeric at `78`;
 - Focused evidence after supervisor rebase: `php -l lanes/markerpdf/src/PdfTextExtractor.php`, `php -l lanes/markerpdf/tests/PdfTextExtractorTest.php`, `php -l lanes/markerpdf/examples/wordpress-pdf-identity-cmap-import.php`, `php lanes/markerpdf/examples/wordpress-pdf-identity-cmap-import.php`, `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php` passed with 1 test file, 74 assertions, and 0 failures, `php tools/run-tests.php lanes/markerpdf/tests` passed with 47 test files, 1026 assertions, and 0 failures, and `git diff --check -- lanes/markerpdf` passed.
 - Acceptance blocker remains full upstream runner parity and the inactive `pdf-text-dictionary-core`, `layout-ocr-result-core`, and `table-geometry-core` gates. Dependency closure: no new support component is needed; this reuses the existing bounded native `PdfTextExtractor` content-stream parser and CMap code-space fallback path.
 
+## Reduced Handoff 2026-06-02 00:10 UTC
+
+- Scope adds only `PdfTextExtractor.php`, `PdfTextExtractorTest.php`, `wordpress-pdf-xobject-form-import.php`, and lane-owned manifest/status/notes refreshes on top of the accepted PDF page, structure, and Identity-H/V handoffs.
+- Form XObject invocation slice: `PdfTextExtractor` now expands page resource `/XObject` entries only when the page content stream invokes a `/Subtype /Form` object with the `Do` operator, preserving execution order and keeping unreferenced form streams excluded before native WordPress paragraph extraction.
+- Focused evidence after supervisor rebase: `php -l lanes/markerpdf/src/PdfTextExtractor.php`, `php -l lanes/markerpdf/tests/PdfTextExtractorTest.php`, `php -l lanes/markerpdf/examples/wordpress-pdf-xobject-form-import.php`, `php lanes/markerpdf/examples/wordpress-pdf-xobject-form-import.php`, `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php` passed with 1 test file, 79 assertions, and 0 failures, `php tools/run-tests.php lanes/markerpdf/tests` passed with 47 test files, 1031 assertions, and 0 failures, and `git diff --check -- lanes/markerpdf` passed.
+- Acceptance blocker remains full upstream runner parity and the inactive `pdf-text-dictionary-core`, `layout-ocr-result-core`, and `table-geometry-core` gates. Dependency closure: no new support component is needed; this reuses the existing native PDF object parser, stream decoder, and content-token parser.
+
 ## Reduced Handoff 2026-05-25 23:43 UTC
 
 - Scope adds only `PdfTextExtractor.php`, `PdfTextExtractorTest.php`, `wordpress-pdf-winansi-import.php`, and lane-owned manifest/status/notes refreshes on top of the accepted PDF font/CMap handoffs.
