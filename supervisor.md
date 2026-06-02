@@ -22,9 +22,8 @@
 - No wrappers as final port deliverables.
 
 ## Worker-Creation Stop + Recovery 2026-06-02T23:35Z
-- User stopped worker creation after markerPDF/Pandoc refiller churn. Do not
-  spawn or refill markerPDF/Pandoc workers until the user explicitly
-  re-enables worker creation.
+- Historical recovery note: user stopped worker creation after
+  markerPDF/Pandoc refiller churn.
 - Live recovery state: `main` should have only the primary shell and
   supervisor panes; markerPDF/Pandoc refiller scripts are intentionally
   non-executable so `run-isolated-lane-worker.sh` exit traps cannot refill
@@ -36,6 +35,20 @@
 - Pandoc dependency workers did not produce ready handoffs before the stop.
   Treat Pandoc dependency work as pending until worker creation is explicitly
   re-enabled.
+
+## Bounded Swarm Restart 2026-06-02T23:50Z
+- New user direction supersedes the integrate-only stop: the project must use a
+  swarm of workers, and this session is the supervisor only.
+- Restart the swarm with bounded manual refill passes, not an uncontrolled
+  creation loop. Keep markerPDF/Pandoc refiller scripts non-executable so
+  worker exit traps cannot recursively spawn replacements; the supervisor may
+  invoke `bash scripts/refill-markerpdf-workers.sh` and
+  `bash scripts/refill-pandoc-workers.sh` deliberately after reviewing state.
+- Initial swarm target: about 8 markerPDF native workers plus 3 Pandoc
+  dependency workers, using `gpt-5.5`, xhigh reasoning, priority tier.
+- Supervisor responsibilities: monitor liveness/resources, score ready
+  handoffs, integrate only clean verified slices, update dashboard/status, and
+  launch another bounded pass only after review.
 
 ## MarkerPDF Native Scope + Pandoc Dependency Regroup 2026-06-02T23:17Z
 - User direction: no GPU models will run. markerPDF is now supervised as a
@@ -49,8 +62,9 @@
   scope: scanned-PDF OCR, Surya layout/reading-order/OCR/table-cell models,
   Texify equation recognition, Torch/model batching, page-pixel visual table
   recognition, and exact upstream model benchmark parity.
-- Previous steady-state worker split of about 8 markerPDF native workers plus
-  3 Pandoc dependency workers is superseded by the worker-creation stop above.
+- Current bounded swarm split is about 8 markerPDF native workers plus 3
+  Pandoc dependency workers, launched manually by the supervisor after state
+  review.
 - Pandoc dependency workers should focus first on bounded rows already in
   `dependency-backlog.json`: `shared-zip-package-core`,
   `xml-html5-dom-core`/OPC relationships needed by DOCX/EPUB/ODT,

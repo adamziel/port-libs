@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 23:33:29 UTC",
-    "sourceCommit": "4e53d3b224681ecedd92fcc68944ca75938396ce",
-    "sourceCommitShort": "4e53d3b22468",
+    "generated": "2026-06-02 23:39:27 UTC",
+    "sourceCommit": "fbbbb072cde28e735a75978a5000fa4f37b58c60",
+    "sourceCommitShort": "fbbbb072cde2",
     "sourceBranch": "unknown",
-    "dashboardCommit": "4e53d3b224681ecedd92fcc68944ca75938396ce",
-    "dashboardCommitShort": "4e53d3b22468",
+    "dashboardCommit": "fbbbb072cde28e735a75978a5000fa4f37b58c60",
+    "dashboardCommitShort": "fbbbb072cde2",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "679",
-            "coverage": "679 / 78 (870.5%)",
-            "mapPercent": "870.5%",
+            "mapped": "681",
+            "coverage": "681 / 78 (873.1%)",
+            "mapPercent": "873.1%",
             "unmapped": "0",
-            "php": "971 pass / 0 fail",
-            "phase": "native no-GPU markerPDF scope; recovery integration accepted; worker...",
-            "audit": "2026-06-02 UTC recovery integration after worker-creation stop: auto-...",
+            "php": "974 pass / 0 fail",
+            "phase": "native no-GPU markerPDF scope; rebased worker handoffs accepted; boun...",
+            "audit": "2026-06-02 UTC supervisor rebased and accepted the remaining ready ma...",
             "currentWork": "MarkerPDF is supervised as a native PHP searchable-PDF parser/converter plus supplied...",
-            "nextTarget": "Keep markerPDF/Pandoc worker creation stopped. Integrate-only...",
+            "nextTarget": "Supervisor-only session with bounded worker swarm: launch rou...",
             "remainingGate": "No GPU/model execution will be run for markerPDF under current user d...",
-            "commit": "4e53d3b"
+            "commit": "fbbbb07"
         },
         {
             "lane": "readability",
