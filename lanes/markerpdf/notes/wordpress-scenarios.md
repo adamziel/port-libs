@@ -144,7 +144,7 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdftext-page-range-import.php` maps Marker's upstream `get_text_blocks` page-range boundary into a partial WordPress import path. It selects only the requested pages from supplied pdftext dictionaries, preserves page metadata and TOC review comments, and emits Gutenberg paragraph blocks without loading pdftext, pypdfium, or Surya.
 
-`examples/wordpress-pdftext-dictionary-core-import.php` maps a stricter `marker/pdf/extract_text.py` dictionary-output boundary into the WordPress import path. It validates supplied pdftext page dictionaries, preserves font metadata, `char_start_idx`, `char_end_idx`, `chars`, rotation, and selected-range `pdftext_options`, then emits a Gutenberg paragraph without loading Python pdftext, pypdfium, or model workers.
+`examples/wordpress-pdftext-dictionary-core-import.php` maps a stricter `marker/pdf/extract_text.py` dictionary-output boundary into the WordPress import path. It validates supplied pdftext page dictionaries, preserves font metadata, `char_start_idx`, `char_end_idx`, rotation, and selected-range `pdftext_options`, strips raw per-character `chars` plus non-core block/line keys from the document `keep_chars=false` handoff, then emits a Gutenberg paragraph without loading Python pdftext, pypdfium, or model workers.
 
 `examples/wordpress-text-length-preflight.php` maps Marker's upstream `get_length_of_text` boundary into a WordPress import queue preflight. It records the native naive text, trimmed text length, min-length threshold, and whether the PDF should enter the heavier conversion queue.
 

@@ -12,15 +12,20 @@ $page = [
     'bbox' => [0.0, 0.0, 612.0, 792.0],
     'rotation' => 0,
     'blocks' => [[
+        'pdfium_block_type' => 'text',
         'lines' => [
             [
                 'bbox' => [72.0, 96.0, 420.0, 110.0],
+                'baseline' => [72.0, 103.0, 420.0, 103.0],
                 'spans' => [[
                     'text' => "Shared-hosting dictionary\r\n",
                     'bbox' => [72.0, 96.0, 250.0, 110.0],
                     'font' => ['name' => null, 'flags' => (1 << 5), 'weight' => 400, 'size' => 11.0],
                     'char_start_idx' => 0,
                     'char_end_idx' => 26,
+                    'chars' => [
+                        ['c' => 'S', 'bbox' => [72.0, 96.0, 78.0, 110.0]],
+                    ],
                 ]],
             ],
             [
@@ -49,6 +54,8 @@ $document = (new PdfTextDocumentExtractor())->getTextBlocks(
 $processor = new MarkdownPostProcessor();
 $blocks = $processor->mergeBlocks($processor->mergeSpans($document['pages']));
 $firstSpan = $document['pages'][0]['blocks'][0]['lines'][0]['spans'][0];
+$firstCharBlock = $document['pages'][0]['char_blocks'][0];
+$firstCharSpan = $firstCharBlock['lines'][0]['spans'][0];
 
 echo '<!-- markerpdf:pdftext-dictionary-core ' . htmlspecialchars(json_encode([
     'support_component' => 'pdf-text-dictionary-core',
@@ -57,6 +64,10 @@ echo '<!-- markerpdf:pdftext-dictionary-core ' . htmlspecialchars(json_encode([
     'font' => $firstSpan['font'],
     'char_start_idx' => $firstSpan['char_start_idx'],
     'char_end_idx' => $firstSpan['char_end_idx'],
+    'raw_chars_present' => array_key_exists('chars', $firstSpan),
+    'char_blocks_raw_chars_present' => array_key_exists('chars', $firstCharSpan),
+    'char_blocks_core_keys' => array_keys($firstCharBlock),
+    'line_core_keys' => array_keys($firstCharBlock['lines'][0]),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n\n";
 
 foreach ($blocks as $block) {

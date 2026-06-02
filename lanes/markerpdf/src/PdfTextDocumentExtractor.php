@@ -65,6 +65,7 @@ final class PdfTextDocumentExtractor
             if (!is_array($page)) {
                 throw new InvalidArgumentException('Supplied pdftext page entries must be arrays.');
             }
+            $page = $this->sanitizeDictionaryOutputPage($page);
             $pages[] = $this->converter->pdftextFormatToPage($page, $relativeIndex);
         }
 
@@ -142,5 +143,92 @@ final class PdfTextDocumentExtractor
         $document['metadata']['supplied_boundaries'] = ['pdftext-dictionary', 'layout-order'];
 
         return $document;
+    }
+
+    /**
+     * Upstream markerPDF calls pdftext.dictionary_output with keep_chars=false.
+     * That path keeps page-level metadata, strips block/line keys down to bbox
+     * and child collections, and removes per-character payloads from spans
+     * before marker stores char_blocks.
+     *
+     * @param array<string, mixed> $page
+     * @return array<string, mixed>
+     */
+    private function sanitizeDictionaryOutputPage(array $page): array
+    {
+        if (!isset($page['blocks']) || !is_array($page['blocks']) || !array_is_list($page['blocks'])) {
+            return $page;
+        }
+
+        $blocks = [];
+        foreach ($page['blocks'] as $block) {
+            if (!is_array($block)) {
+                $blocks[] = $block;
+                continue;
+            }
+
+            $sanitizedBlock = [];
+            if (array_key_exists('bbox', $block)) {
+                $sanitizedBlock['bbox'] = $block['bbox'];
+            }
+            if (array_key_exists('lines', $block)) {
+                $sanitizedBlock['lines'] = $this->sanitizeDictionaryOutputLines($block['lines']);
+            }
+            $blocks[] = $sanitizedBlock;
+        }
+
+        $page['blocks'] = $blocks;
+        return $page;
+    }
+
+    /**
+     * @param mixed $lines
+     * @return mixed
+     */
+    private function sanitizeDictionaryOutputLines(mixed $lines): mixed
+    {
+        if (!is_array($lines) || !array_is_list($lines)) {
+            return $lines;
+        }
+
+        $sanitizedLines = [];
+        foreach ($lines as $line) {
+            if (!is_array($line)) {
+                $sanitizedLines[] = $line;
+                continue;
+            }
+
+            $sanitizedLine = [];
+            if (array_key_exists('bbox', $line)) {
+                $sanitizedLine['bbox'] = $line['bbox'];
+            }
+            if (array_key_exists('spans', $line)) {
+                $sanitizedLine['spans'] = $this->sanitizeDictionaryOutputSpans($line['spans']);
+            }
+            $sanitizedLines[] = $sanitizedLine;
+        }
+
+        return $sanitizedLines;
+    }
+
+    /**
+     * @param mixed $spans
+     * @return mixed
+     */
+    private function sanitizeDictionaryOutputSpans(mixed $spans): mixed
+    {
+        if (!is_array($spans) || !array_is_list($spans)) {
+            return $spans;
+        }
+
+        $sanitizedSpans = [];
+        foreach ($spans as $span) {
+            if (is_array($span)) {
+                unset($span['chars']);
+            }
+            $sanitizedSpans[] = $span;
+        }
+
+        return $sanitizedSpans;
     }
 }

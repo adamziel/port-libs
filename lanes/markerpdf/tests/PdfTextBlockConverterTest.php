@@ -134,6 +134,17 @@ return [
         $t->same([['c' => 'D', 'bbox' => [20.0, 30.0, 26.0, 44.0]]], $span['chars']);
         $t->same($page['char_blocks'][0]['lines'][0]['spans'][0]['chars'], $span['chars']);
     },
+    'requires pdftext span text strings at the core dictionary boundary' => static function (TestRunner $t) use ($pdftextPage): void {
+        $converter = new PdfTextBlockConverter();
+
+        $missingText = $pdftextPage();
+        unset($missingText['blocks'][0]['lines'][0]['spans'][0]['text']);
+        $t->throws(InvalidArgumentException::class, static fn () => $converter->pdftextFormatToPage($missingText, 0));
+
+        $numericText = $pdftextPage();
+        $numericText['blocks'][0]['lines'][0]['spans'][0]['text'] = 1234;
+        $t->throws(InvalidArgumentException::class, static fn () => $converter->pdftextFormatToPage($numericText, 0));
+    },
     'rejects malformed pdftext dictionaries at the core boundary' => static function (TestRunner $t): void {
         $converter = new PdfTextBlockConverter();
 

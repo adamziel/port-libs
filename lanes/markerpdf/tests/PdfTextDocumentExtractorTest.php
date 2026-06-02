@@ -109,6 +109,29 @@ return [
         ], $result['metadata']['pdftext_options']);
         $t->same(4, $result['pages'][0]['pnum']);
     },
+    'sanitizes pdftext keep chars false dictionary payloads before WordPress import' => static function (TestRunner $t) use ($pdftextPage): void {
+        $page = $pdftextPage(2, 'Dictionary payload boundary');
+        $page['blocks'][0]['pdfium_block_type'] = 'text';
+        $page['blocks'][0]['lines'][0]['baseline'] = [72.0, 100.0, 440.0, 100.0];
+        $page['blocks'][0]['lines'][0]['spans'][0]['char_start_idx'] = 18;
+        $page['blocks'][0]['lines'][0]['spans'][0]['char_end_idx'] = 45;
+        $page['blocks'][0]['lines'][0]['spans'][0]['chars'] = [
+            ['c' => 'D', 'bbox' => [72.0, 96.0, 78.0, 110.0]],
+        ];
+
+        $result = (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1);
+        $span = $result['pages'][0]['blocks'][0]['lines'][0]['spans'][0];
+        $charBlock = $result['pages'][0]['char_blocks'][0];
+        $charSpan = $charBlock['lines'][0]['spans'][0];
+
+        $t->same('Dictionary payload boundary', $span['text']);
+        $t->same(18, $span['char_start_idx']);
+        $t->same(45, $span['char_end_idx']);
+        $t->true(!array_key_exists('chars', $span), 'Document get_text_blocks path should reflect pdftext keep_chars=false.');
+        $t->true(!array_key_exists('chars', $charSpan), 'Stored char_blocks should not retain raw char payloads for keep_chars=false.');
+        $t->true(!array_key_exists('pdfium_block_type', $charBlock), 'pdftext dictionary_output strips non-core block keys.');
+        $t->true(!array_key_exists('baseline', $charBlock['lines'][0]), 'pdftext dictionary_output strips non-core line keys.');
+    },
     'rejects out of range page slices before WordPress import' => static function (TestRunner $t) use ($pdftextPage): void {
         $extractor = new PdfTextDocumentExtractor();
 

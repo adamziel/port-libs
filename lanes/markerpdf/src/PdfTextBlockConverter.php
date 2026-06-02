@@ -24,7 +24,7 @@ final class PdfTextBlockConverter
             foreach ($block['lines'] as $lineIndex => $line) {
                 $spans = [];
                 foreach ($line['spans'] as $spanIndex => $span) {
-                    $text = (string) ($span['text'] ?? '');
+                    $text = $span['text'];
                     while ($text !== '' && in_array(substr($text, -1), ["\n", "\r"], true)) {
                         $text = substr($text, 0, -1);
                     }
@@ -169,6 +169,9 @@ final class PdfTextBlockConverter
                 foreach ($line['spans'] as $spanIndex => $span) {
                     if (!is_array($span)) {
                         throw new InvalidArgumentException("pdftext span {$blockIndex}.{$lineIndex}.{$spanIndex} must be a dictionary.");
+                    }
+                    if (!array_key_exists('text', $span) || !is_string($span['text'])) {
+                        throw new InvalidArgumentException("pdftext span {$blockIndex}.{$lineIndex}.{$spanIndex} text must be a string.");
                     }
                     $this->bbox($span['bbox'] ?? null, "blocks[{$blockIndex}].lines[{$lineIndex}].spans[{$spanIndex}].bbox");
                     if (!array_key_exists('font', $span) || !is_array($span['font'])) {

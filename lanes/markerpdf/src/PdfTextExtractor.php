@@ -13107,7 +13107,11 @@ final class PdfTextExtractor
         $entries = [];
         $body = $definition['body'];
         $dictionary = $this->dictionaryObjectBody($body) ?? $body;
-        $widthArray = $this->pdfArrayValueAfterName($dictionary, 'W');
+
+        $streamObjects = $definitions === null
+            ? $objects
+            : $this->objectsWithDirectStreamDictionaryOperandOwners($objects, $body, $definitions, $definition['offset']);
+        $widthArray = $this->pdfArrayValueAfterNameResolvingObjects($dictionary, 'W', $streamObjects);
         if ($widthArray === null) {
             return $entries;
         }
@@ -13122,9 +13126,6 @@ final class PdfTextExtractor
             return $entries;
         }
 
-        $streamObjects = $definitions === null
-            ? $objects
-            : $this->objectsWithDirectStreamDictionaryOperandOwners($objects, $body, $definitions, $definition['offset']);
         $decoded = $this->decodeStreamObject($body, $streamObjects);
         if ($decoded === null) {
             return $entries;
@@ -13132,7 +13133,7 @@ final class PdfTextExtractor
 
         $decodedEntryCount = strlen($decoded) % $entryWidth === 0 ? intdiv(strlen($decoded), $entryWidth) : null;
         $offset = 0;
-        foreach ($this->xrefIndexRanges($dictionary, $decodedEntryCount) as $range) {
+        foreach ($this->xrefIndexRanges($dictionary, $decodedEntryCount, $streamObjects) as $range) {
             [$startObject, $count] = $range;
             for ($index = 0; $index < $count; $index++) {
                 if ($offset + $entryWidth > strlen($decoded)) {
@@ -13209,7 +13210,7 @@ final class PdfTextExtractor
         }
 
         $pending = [];
-        foreach (['Length', 'Filter', 'DecodeParms'] as $name) {
+        foreach (['Length', 'Filter', 'DecodeParms', 'W', 'Index', 'Size'] as $name) {
             $offset = $this->topLevelNameValueOffset($dict, $name);
             if ($offset === null) {
                 continue;
@@ -13391,9 +13392,9 @@ final class PdfTextExtractor
     /**
      * @return list<array{0: int, 1: int}>
      */
-    private function xrefIndexRanges(string $xrefBody, ?int $decodedEntryCount = null): array
+    private function xrefIndexRanges(string $xrefBody, ?int $decodedEntryCount = null, array $objects = []): array
     {
-        $indexArray = $this->pdfArrayValueAfterName($xrefBody, 'Index');
+        $indexArray = $this->pdfArrayValueAfterNameResolvingObjects($xrefBody, 'Index', $objects);
         if ($indexArray !== null) {
             $values = $this->integersFromPdfArray($indexArray);
             $ranges = [];
@@ -13404,7 +13405,7 @@ final class PdfTextExtractor
             return $ranges;
         }
 
-        $sizeValue = $this->pdfIntegerValueAfterName($xrefBody, 'Size');
+        $sizeValue = $this->pdfIntegerValueAfterNameResolvingObjects($xrefBody, 'Size', $objects);
         if ($sizeValue !== null) {
             $size = max(0, $sizeValue);
             if ($decodedEntryCount !== null && $decodedEntryCount > $size) {
