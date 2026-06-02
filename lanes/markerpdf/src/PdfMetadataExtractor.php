@@ -9,6 +9,17 @@ use DOMElement;
 
 final class PdfMetadataExtractor
 {
+    private const STANDARD_PERMISSION_FLAGS = [
+        ['mask' => 4, 'name' => 'print', 'minimum_revision' => 2],
+        ['mask' => 8, 'name' => 'modify_contents', 'minimum_revision' => 2],
+        ['mask' => 16, 'name' => 'copy_or_extract', 'minimum_revision' => 2],
+        ['mask' => 32, 'name' => 'add_or_modify_annotations', 'minimum_revision' => 2],
+        ['mask' => 256, 'name' => 'fill_form_fields', 'minimum_revision' => 3],
+        ['mask' => 512, 'name' => 'extract_for_accessibility', 'minimum_revision' => 3],
+        ['mask' => 1024, 'name' => 'assemble_document', 'minimum_revision' => 3],
+        ['mask' => 2048, 'name' => 'high_quality_print', 'minimum_revision' => 3],
+    ];
+
     private const NS_DC = 'http://purl.org/dc/elements/1.1/';
     private const NS_PDF = 'http://ns.adobe.com/pdf/1.3/';
     private const NS_RDF = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
@@ -26,6 +37,7 @@ final class PdfMetadataExtractor
      *     info: array<string, string>,
      *     catalog?: array<string, mixed>,
      *     output_intents: list<array<string, mixed>>,
+     *     encryption?: array<string, mixed>,
      *     trailer_ids?: array<string, mixed>,
      *     document_fingerprint?: string,
      *     document_fingerprint_source?: string,
@@ -53,8 +65,9 @@ final class PdfMetadataExtractor
         $info = $this->extractInfoMetadata($pdfBytes, $objects);
         $outputIntents = $this->extractOutputIntentMetadata($pdfBytes, $objects);
         $trailerIds = $this->extractTrailerIdMetadata($pdfBytes);
+        $encryption = $this->extractEncryptionMetadata($pdfBytes, $objects);
 
-        return $this->mergedMetadata($xmp, $info, $outputIntents, $catalog, $trailerIds);
+        return $this->mergedMetadata($xmp, $info, $outputIntents, $catalog, $trailerIds, $encryption);
     }
 
     /**
@@ -344,14 +357,362 @@ final class PdfMetadataExtractor
     }
 
     /**
+     * Expose Standard security-handler review metadata without attempting
+     * password validation or decrypting document content.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function extractEncryptionMetadata(string $pdfBytes, array $objects): array
+    {
+        $entry = $this->encryptionDictionaryEntry($pdfBytes, $objects);
+        if ($entry === null) {
+            return [];
+        }
+
+        $dictionary = $entry['body'];
+        $version = $this->dictionaryIntegerValue($dictionary, 'V');
+        $revision = $this->dictionaryIntegerValue($dictionary, 'R');
+        $keyLength = $this->dictionaryIntegerValue($dictionary, 'Length');
+        $encryptMetadata = $this->dictionaryBooleanValue($dictionary, 'EncryptMetadata');
+
+        $metadata = [
+            'is_encrypted' => true,
+            'source' => $entry['source'],
+            'review_only' => true,
+            'requires_password_for_content_extraction' => true,
+        ];
+
+        if ($entry['object'] !== null) {
+            $metadata['object_number'] = $entry['object'];
+        }
+
+        $filter = $this->dictionaryStringValue($dictionary, 'Filter');
+        if ($filter !== null) {
+            $metadata['filter'] = $filter;
+        }
+
+        $subfilter = $this->dictionaryStringValue($dictionary, 'SubFilter');
+        if ($subfilter !== null) {
+            $metadata['subfilter'] = $subfilter;
+        }
+
+        if ($version !== null) {
+            $metadata['version'] = $version;
+            $metadata['algorithm'] = $this->encryptionAlgorithmLabel($version);
+        }
+
+        if ($revision !== null) {
+            $metadata['revision'] = $revision;
+            $metadata['revision_label'] = $this->standardRevisionLabel($revision);
+        }
+
+        if ($keyLength !== null || $version === 1) {
+            $metadata['key_length_bits'] = $keyLength ?? 40;
+        }
+
+        $metadata['encrypt_metadata'] = $encryptMetadata ?? true;
+        $metadata['encrypt_metadata_explicit'] = $encryptMetadata !== null;
+
+        foreach ([
+            'StmF' => 'stream_filter',
+            'StrF' => 'string_filter',
+            'EFF' => 'embedded_file_filter',
+        ] as $pdfName => $key) {
+            $value = $this->dictionaryStringValue($dictionary, $pdfName);
+            if ($value !== null) {
+                $metadata[$key] = $value;
+            }
+        }
+
+        $cryptFilters = $this->cryptFilterMetadata($dictionary, $objects);
+        if ($cryptFilters !== []) {
+            $metadata['crypt_filters'] = $cryptFilters;
+        }
+
+        $permissionValue = $this->dictionaryIntegerValue($dictionary, 'P');
+        if ($permissionValue !== null) {
+            $metadata['standard_permissions'] = $this->standardPermissionMetadata($permissionValue, $revision);
+        }
+
+        $perms = $this->encryptedPermissionValidationMetadata($dictionary, $objects);
+        if ($perms !== null) {
+            $metadata['perms'] = $perms;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{body: string, object: int|null, source: string}|null
+     */
+    private function encryptionDictionaryEntry(string $pdfBytes, array $objects): ?array
+    {
+        $trailer = $this->trailerDictionaryBody($pdfBytes);
+        if ($trailer !== null) {
+            $value = $this->dictionaryRawValue($trailer, 'Encrypt');
+            $entry = $value === null ? null : $this->resolvedEncryptionDictionary($value, $objects, 'trailer_encrypt');
+            if ($entry !== null) {
+                return $entry;
+            }
+        }
+
+        foreach ($objects as $objectNumber => $body) {
+            if (preg_match('/\/Type\s*\/XRef\b/s', $body) !== 1) {
+                continue;
+            }
+
+            $value = $this->dictionaryRawValue($body, 'Encrypt');
+            $entry = $value === null ? null : $this->resolvedEncryptionDictionary($value, $objects, 'xref_stream_encrypt');
+            if ($entry !== null) {
+                return $entry;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{body: string, object: int|null, source: string}|null
+     */
+    private function resolvedEncryptionDictionary(string $value, array $objects, string $source): ?array
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '' || $trimmed === 'null') {
+            return null;
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $trimmed, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            if (!isset($objects[$objectNumber])) {
+                return null;
+            }
+
+            $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+            return $dictionary === null ? null : [
+                'body' => $dictionary,
+                'object' => $objectNumber,
+                'source' => $source,
+            ];
+        }
+
+        if (str_starts_with($trimmed, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($trimmed, 0);
+            return $dictionary === null ? null : [
+                'body' => $dictionary,
+                'object' => null,
+                'source' => $source,
+            ];
+        }
+
+        $dictionary = $this->dictionaryObjectBody($trimmed);
+        return $dictionary === null ? null : [
+            'body' => $dictionary,
+            'object' => null,
+            'source' => $source,
+        ];
+    }
+
+    private function encryptionAlgorithmLabel(int $version): string
+    {
+        return match ($version) {
+            0 => 'none',
+            1 => 'rc4_40_bit',
+            2 => 'rc4_variable_length',
+            3 => 'unpublished_security_handler',
+            4 => 'security_handler_crypt_filters',
+            5 => 'aes_256',
+            default => 'unknown',
+        };
+    }
+
+    private function standardRevisionLabel(int $revision): string
+    {
+        return match ($revision) {
+            2 => 'standard_handler_revision_2',
+            3 => 'standard_handler_revision_3',
+            4 => 'standard_handler_revision_4',
+            5 => 'standard_handler_revision_5',
+            6 => 'standard_handler_revision_6',
+            default => 'standard_handler_revision_unknown',
+        };
+    }
+
+    /**
+     * @return array{signed: int, unsigned: int, hex: string, allowed: list<string>, denied: list<string>, print_quality: string}
+     */
+    private function standardPermissionMetadata(int $signed, ?int $revision): array
+    {
+        $unsigned = $signed < 0 ? $signed + 4294967296 : $signed;
+        $effectiveRevision = $revision ?? 6;
+        $allowed = [];
+        $denied = [];
+
+        foreach (self::STANDARD_PERMISSION_FLAGS as $flag) {
+            if ($effectiveRevision < $flag['minimum_revision']) {
+                continue;
+            }
+
+            if (($unsigned & $flag['mask']) !== 0) {
+                $allowed[] = $flag['name'];
+                continue;
+            }
+
+            $denied[] = $flag['name'];
+        }
+
+        $canPrint = in_array('print', $allowed, true);
+        $highQuality = in_array('high_quality_print', $allowed, true);
+
+        return [
+            'signed' => $signed,
+            'unsigned' => $unsigned,
+            'hex' => strtoupper(sprintf('%08X', $unsigned)),
+            'allowed' => $allowed,
+            'denied' => $denied,
+            'print_quality' => !$canPrint ? 'disallowed' : ($effectiveRevision >= 3 && !$highQuality ? 'low_resolution' : 'high_resolution'),
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, array<string, mixed>>
+     */
+    private function cryptFilterMetadata(string $dictionary, array $objects): array
+    {
+        $value = $this->dictionaryRawValue($dictionary, 'CF');
+        if ($value === null) {
+            return [];
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        $body = str_starts_with($resolved, '<<')
+            ? $this->readPdfDictionaryAt($resolved, 0)
+            : $this->dictionaryObjectBody($resolved);
+        if ($body === null) {
+            return [];
+        }
+
+        $filters = [];
+        for ($offset = 0, $length = strlen($body); $offset < $length;) {
+            while ($offset < $length && ctype_space($body[$offset])) {
+                $offset++;
+            }
+
+            if ($offset >= $length || $body[$offset] !== '/') {
+                $offset++;
+                continue;
+            }
+
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', substr($body, $offset), $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $name = $this->decodePdfName($match[1]);
+            $offset += strlen($match[0]);
+            while ($offset < $length && ctype_space($body[$offset])) {
+                $offset++;
+            }
+
+            if (substr($body, $offset, 2) !== '<<') {
+                continue;
+            }
+
+            $filterBody = $this->readPdfDictionaryAt($body, $offset);
+            if ($filterBody === null) {
+                $offset += 2;
+                continue;
+            }
+
+            $metadata = [];
+            $method = $this->dictionaryStringValue($filterBody, 'CFM');
+            if ($method !== null) {
+                $metadata['method'] = $method;
+            }
+
+            $authEvent = $this->dictionaryStringValue($filterBody, 'AuthEvent');
+            if ($authEvent !== null) {
+                $metadata['auth_event'] = $authEvent;
+            }
+
+            $lengthBytes = $this->dictionaryIntegerValue($filterBody, 'Length');
+            if ($lengthBytes !== null) {
+                $metadata['key_length_bytes'] = $lengthBytes;
+            }
+
+            if ($metadata !== []) {
+                $filters[$name] = $metadata;
+            }
+
+            $offset += strlen($filterBody) + 4;
+        }
+
+        return $filters;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{bytes: int, sha256: string}|null
+     */
+    private function encryptedPermissionValidationMetadata(string $dictionary, array $objects): ?array
+    {
+        $value = $this->dictionaryRawValue($dictionary, 'Perms');
+        if ($value === null) {
+            return null;
+        }
+
+        $bytes = $this->pdfStringBytesFromValue($value, $objects);
+        if ($bytes === null) {
+            return null;
+        }
+
+        return [
+            'bytes' => strlen($bytes),
+            'sha256' => hash('sha256', $bytes),
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pdfStringBytesFromValue(string $value, array $objects): ?string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $trimmed, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            return isset($objects[$objectNumber]) ? $this->pdfStringBytesFromValue($objects[$objectNumber], $objects) : null;
+        }
+
+        if ($trimmed[0] === '(') {
+            $literal = $this->literalStringBytesAt($trimmed, 0);
+            return $literal['bytes'] ?? null;
+        }
+
+        if ($trimmed[0] === '<' && substr($trimmed, 0, 2) !== '<<') {
+            $hex = $this->hexStringBytesAt($trimmed, 0);
+            return $hex['bytes'] ?? null;
+        }
+
+        return null;
+    }
+
+    /**
      * @param array<string, mixed> $xmp
      * @param array<string, string> $info
      * @param list<array<string, mixed>> $outputIntents
      * @param array<string, mixed> $catalog
      * @param array<string, mixed> $trailerIds
+     * @param array<string, mixed> $encryption
      * @return array<string, mixed>
      */
-    private function mergedMetadata(array $xmp, array $info, array $outputIntents, array $catalog, array $trailerIds): array
+    private function mergedMetadata(array $xmp, array $info, array $outputIntents, array $catalog, array $trailerIds, array $encryption): array
     {
         $result = [
             'source' => [],
@@ -381,6 +742,10 @@ final class PdfMetadataExtractor
                 $result['document_fingerprint'] = $fingerprint;
                 $result['document_fingerprint_source'] = 'trailer_id_permanent';
             }
+        }
+        if ($encryption !== []) {
+            $result['source'][] = 'encryption';
+            $result['encryption'] = $encryption;
         }
 
         foreach (['title', 'description', 'creator_tool', 'producer', 'created_at', 'modified_at', 'metadata_date'] as $field) {

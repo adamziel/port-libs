@@ -263,4 +263,64 @@ return [
         ], $metadata['viewer_preferences']);
         $t->same('Direct Viewer Preferences', (new PdfTextExtractor())->extractPlainText($pdf));
     },
+    'extracts Standard encryption permission metadata without decrypting content' => static function (TestRunner $t): void {
+        $encryptedContent = 'BT /F1 12 Tf 72 720 Td (Encrypted cleartext leak) Tj ET';
+        $permsBytes = "perm-check-16-by";
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($encryptedContent) . " >>\nstream\n{$encryptedContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Filter /Standard /V 4 /R 4 /Length 128 /O <DEADBEEF> /U <CAFEFEED> /P -62956 /EncryptMetadata false"
+            . " /CF << /StdCF << /CFM /AESV2 /AuthEvent /DocOpen /Length 16 >> /EmbeddedFiles << /CFM /V2 /AuthEvent /EFOpen /Length 5 >> >>"
+            . " /StmF /StdCF /StrF /StdCF /EFF /EmbeddedFiles /Perms <" . strtoupper(bin2hex($permsBytes)) . "> >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $encryption = $metadata['encryption'];
+
+        $t->same(['encryption'], $metadata['source']);
+        $t->same('', (new PdfTextExtractor())->extractPlainText($pdf));
+        $t->true($encryption['is_encrypted']);
+        $t->same('trailer_encrypt', $encryption['source']);
+        $t->same(5, $encryption['object_number']);
+        $t->same('Standard', $encryption['filter']);
+        $t->same(4, $encryption['version']);
+        $t->same(4, $encryption['revision']);
+        $t->same(128, $encryption['key_length_bits']);
+        $t->same('security_handler_crypt_filters', $encryption['algorithm']);
+        $t->same('standard_handler_revision_4', $encryption['revision_label']);
+        $t->same(false, $encryption['encrypt_metadata']);
+        $t->same('StdCF', $encryption['stream_filter']);
+        $t->same('StdCF', $encryption['string_filter']);
+        $t->same('EmbeddedFiles', $encryption['embedded_file_filter']);
+        $t->same('AESV2', $encryption['crypt_filters']['StdCF']['method']);
+        $t->same('DocOpen', $encryption['crypt_filters']['StdCF']['auth_event']);
+        $t->same(16, $encryption['crypt_filters']['StdCF']['key_length_bytes']);
+        $t->same('V2', $encryption['crypt_filters']['EmbeddedFiles']['method']);
+        $t->same('EFOpen', $encryption['crypt_filters']['EmbeddedFiles']['auth_event']);
+        $t->same(5, $encryption['crypt_filters']['EmbeddedFiles']['key_length_bytes']);
+        $t->same(-62956, $encryption['standard_permissions']['signed']);
+        $t->same(4294904340, $encryption['standard_permissions']['unsigned']);
+        $t->same('FFFF0A14', $encryption['standard_permissions']['hex']);
+        $t->same([
+            'print',
+            'copy_or_extract',
+            'extract_for_accessibility',
+            'high_quality_print',
+        ], $encryption['standard_permissions']['allowed']);
+        $t->same([
+            'modify_contents',
+            'add_or_modify_annotations',
+            'fill_form_fields',
+            'assemble_document',
+        ], $encryption['standard_permissions']['denied']);
+        $t->same('high_resolution', $encryption['standard_permissions']['print_quality']);
+        $t->same(strlen($permsBytes), $encryption['perms']['bytes']);
+        $t->same(hash('sha256', $permsBytes), $encryption['perms']['sha256']);
+        $t->true($encryption['requires_password_for_content_extraction']);
+        $t->true($encryption['review_only']);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'DEADBEEF') && !str_contains($encoded, 'CAFEFEED'));
+    },
 ];
