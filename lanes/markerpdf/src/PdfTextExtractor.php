@@ -5564,7 +5564,7 @@ final class PdfTextExtractor
             }
 
             if (str_starts_with(trim($next), '[')) {
-                foreach ($this->integersFromPdfArray(substr(trim($next), 1, -1)) as $offset => $width) {
+                foreach ($this->numbersFromPdfArray(substr(trim($next), 1, -1)) as $offset => $width) {
                     $cid = $firstCid + $offset;
                     if ($cid >= 0 && $cid <= 0xffff) {
                         $widths[$cid] = (float) $width;
@@ -5575,8 +5575,9 @@ final class PdfTextExtractor
             }
 
             $lastCid = $this->integerToken($next);
-            $width = $this->integerToken($tokens[$index + 1] ?? '');
+            $width = $this->numericOperand($tokens[$index + 1] ?? '');
             if ($lastCid === null || $width === null) {
+                $index++;
                 continue;
             }
 
