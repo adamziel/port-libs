@@ -4619,11 +4619,59 @@ final class PdfTextExtractor
      */
     private function objectReferences(string $value): array
     {
-        if (!preg_match_all('/(\d+)\s+\d+\s+R\b/', $value, $matches)) {
-            return [];
+        $objectNumbers = [];
+        $index = 0;
+        $length = strlen($value);
+
+        while ($index < $length) {
+            $char = $value[$index];
+
+            if (ctype_space($char)) {
+                $index++;
+                continue;
+            }
+
+            if ($char === '%') {
+                $this->skipPdfComment($value, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $skipped = $this->skipPdfLiteralStringAt($value, $index);
+                $index = $skipped === null ? $index + 1 : $skipped + 1;
+                continue;
+            }
+
+            if ($char === '<') {
+                if (($value[$index + 1] ?? '') === '<') {
+                    $index += 2;
+                    continue;
+                }
+
+                $this->readHexToken($value, $index);
+                continue;
+            }
+
+            if ($char === '>' && ($value[$index + 1] ?? '') === '>') {
+                $index += 2;
+                continue;
+            }
+
+            if ($char === '/') {
+                $this->readNameToken($value, $index);
+                continue;
+            }
+
+            if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $value, $match, 0, $index) === 1) {
+                $objectNumbers[] = (int) $match[1];
+                $index += strlen($match[0]);
+                continue;
+            }
+
+            $index++;
         }
 
-        return array_map('intval', $matches[1]);
+        return $objectNumbers;
     }
 
     /**
