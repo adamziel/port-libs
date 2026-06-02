@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 11:01:56 UTC",
-    "sourceCommit": "853f382c5029d3119a82656d32132596afa3c508",
-    "sourceCommitShort": "853f382c5029",
+    "generated": "2026-06-02 11:06:32 UTC",
+    "sourceCommit": "b832f331ff1dff3df15dc27d930c86fc73590232",
+    "sourceCommitShort": "b832f331ff1d",
     "sourceBranch": "unknown",
-    "dashboardCommit": "853f382c5029d3119a82656d32132596afa3c508",
-    "dashboardCommitShort": "853f382c5029",
+    "dashboardCommit": "b832f331ff1dff3df15dc27d930c86fc73590232",
+    "dashboardCommitShort": "b832f331ff1d",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "327",
-            "coverage": "327 / 78 (419.2%)",
-            "mapPercent": "419.2%",
+            "mapped": "328",
+            "coverage": "328 / 78 (420.5%)",
+            "mapPercent": "420.5%",
             "unmapped": "0",
-            "php": "477 pass / 0 fail",
+            "php": "478 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Text-markup QuadPoints now scale through page-local UserUnit before supplied marker/p...",
+            "currentWork": "AcroForm widget appearances are now review metadata while field values and actions re...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "853f382"
+            "commit": "b832f33"
         },
         {
             "lane": "readability",
