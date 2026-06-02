@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 10:37:49 UTC",
-    "sourceCommit": "a857b4339a5aa380eaadb947e374231ab3ddb10a",
-    "sourceCommitShort": "a857b4339a5a",
+    "generated": "2026-06-02 10:41:04 UTC",
+    "sourceCommit": "0f2fcd4a69b2c29f34d5d6da2a969bd0be141a83",
+    "sourceCommitShort": "0f2fcd4a69b2",
     "sourceBranch": "unknown",
-    "dashboardCommit": "a857b4339a5aa380eaadb947e374231ab3ddb10a",
-    "dashboardCommitShort": "a857b4339a5a",
+    "dashboardCommit": "0f2fcd4a69b2c29f34d5d6da2a969bd0be141a83",
+    "dashboardCommitShort": "0f2fcd4a69b2",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "321",
-            "coverage": "321 / 78 (411.5%)",
-            "mapPercent": "411.5%",
+            "mapped": "322",
+            "coverage": "322 / 78 (412.8%)",
+            "mapPercent": "412.8%",
             "unmapped": "0",
-            "php": "470 pass / 0 fail",
+            "php": "472 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Current xref-stream encrypted metadata boundaries are accepted on markerPDF with full...",
+            "currentWork": "Composite outline destination, OpenAction, page-label, and transition navigation revi...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "a857b43"
+            "commit": "0f2fcd4"
         },
         {
             "lane": "readability",
