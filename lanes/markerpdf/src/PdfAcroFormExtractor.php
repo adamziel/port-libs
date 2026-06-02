@@ -1011,7 +1011,11 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            $fields[$index]['signature_widget_review'] = $this->signatureWidgetReview($fields[$index]);
+            $review = $this->signatureWidgetReview($fields[$index]);
+            $fields[$index]['signature_widget_review'] = $review;
+            if (is_array($review['action_bundle'] ?? null)) {
+                $fields[$index]['signature_widget_action_bundle'] = $review['action_bundle'];
+            }
         }
 
         return $fields;
@@ -1561,6 +1565,7 @@ final class PdfAcroFormExtractor
         }
 
         $actionReview = $this->signatureWidgetActionReview($field, $widgets, $fieldActions, $widgetActionRows);
+        $actionBundle = $this->signatureWidgetActionBundleReview($field, $widgets, $fieldActions, $widgetActionRows, $actionReview);
 
         return [
             'source' => 'acroform_xfa_signature_widget_review_boundary',
@@ -1640,6 +1645,7 @@ final class PdfAcroFormExtractor
             'field_locked_by_signed_signature' => (bool) ($lockState['effective_locked'] ?? false),
             'locked_by_signatures' => $lockState['locked_by_signatures'] ?? [],
             'action_review' => $actionReview,
+            'action_bundle' => $actionBundle,
             'field_action_count' => $actionReview['field_action_count'],
             'widget_action_count' => $actionReview['widget_action_count'],
             'action_count' => $actionReview['action_count'],
@@ -1657,6 +1663,278 @@ final class PdfAcroFormExtractor
             'executes_xfa_javascript' => false,
             'imports_xfa_payload' => false,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $widgets
+     * @param list<array<string, mixed>> $fieldActions
+     * @param list<array<string, mixed>> $widgetActions
+     * @return array<string, mixed>
+     */
+    private function signatureWidgetActionBundleReview(
+        array $field,
+        array $widgets,
+        array $fieldActions,
+        array $widgetActions,
+        array $actionReview
+    ): array {
+        $actions = array_merge($fieldActions, $widgetActions);
+        $fieldObject = is_int($field['object'] ?? null) ? $field['object'] : null;
+        $fieldHierarchy = is_array($field['field_hierarchy'] ?? null) ? $field['field_hierarchy'] : [];
+        $valueState = is_array($field['value_state'] ?? null) ? $field['value_state'] : [];
+        $signatureState = is_array($field['signature_state'] ?? null) ? $field['signature_state'] : [];
+        $xfaBoundary = is_array($field['xfa_boundary'] ?? null) ? $field['xfa_boundary'] : [];
+        $seedLockReview = is_array($field['signature_seed_lock_action_review'] ?? null)
+            ? $field['signature_seed_lock_action_review']
+            : [];
+        $defaultAppearance = is_array($field['default_appearance'] ?? null) ? $field['default_appearance'] : null;
+        $widgetRows = $this->signatureWidgetBundleRows($widgets, $fieldObject);
+        $pageWidgetRows = array_values(array_filter(
+            $widgetRows,
+            static fn (array $row): bool => ($row['referenced_from_page_annots'] ?? false) === true
+        ));
+        $mixedRows = array_values(array_filter(
+            $widgetRows,
+            static fn (array $row): bool => ($row['mixed_field_widget_dictionary'] ?? false) === true
+        ));
+        $duplicateKeys = $this->duplicateMixedFieldWidgetActionKeys($fieldActions, $widgetActions);
+
+        return [
+            'source' => 'acroform_signature_xfa_widget_action_bundle_currentbase',
+            'field_name' => $field['name'] ?? null,
+            'field_object' => $fieldObject,
+            'field_type' => $field['field_type'] ?? null,
+            'signed' => (bool) ($signatureState['signed'] ?? false),
+            'signature_object' => $signatureState['signature_object'] ?? null,
+            'signature_byte_range_segment_count' => (int) ($signatureState['byte_range_segment_count'] ?? 0),
+            'xfa_referenced' => (bool) ($xfaBoundary['referenced_by_xfa'] ?? false),
+            'xfa_dynamic_value_present' => (bool) ($xfaBoundary['dynamic_value_present'] ?? false),
+            'xfa_packet_names' => $xfaBoundary['packet_names'] ?? [],
+            'xfa_packet_objects' => $xfaBoundary['packet_objects'] ?? [],
+            'xfa_matched_field_names' => $xfaBoundary['matched_field_names'] ?? [],
+            'xfa_matched_data_paths' => $xfaBoundary['matched_data_paths'] ?? [],
+            'current_value_source_object' => $valueState['current_source_object'] ?? null,
+            'current_value_inherited' => (bool) ($valueState['hierarchy_boundary']['current_value_inherited'] ?? false),
+            'field_hierarchy_depth' => (int) ($fieldHierarchy['depth'] ?? 0),
+            'inherited_field_attributes' => $fieldHierarchy['inherited_attributes'] ?? [],
+            'local_field_attributes' => $fieldHierarchy['local_attributes'] ?? [],
+            'field_default_appearance_source' => $defaultAppearance['source'] ?? null,
+            'field_default_appearance_source_object' => $defaultAppearance['source_object'] ?? null,
+            'field_default_font_resource' => $defaultAppearance['font_resource'] ?? null,
+            'field_default_font_resource_resolved' => (bool) ($defaultAppearance['font_resource_resolved'] ?? false),
+            'field_default_font_resource_object' => $defaultAppearance['font_resource_object'] ?? null,
+            'field_default_resource_source' => $defaultAppearance['default_resource_source'] ?? null,
+            'field_default_resource_source_object' => $defaultAppearance['default_resource_source_object'] ?? null,
+            'widget_count' => count($widgets),
+            'page_referenced_widget_count' => count($pageWidgetRows),
+            'mixed_field_widget_count' => count($mixedRows),
+            'widget_order_objects' => $this->integerValuesFromRows($widgetRows, 'widget_object'),
+            'page_annotation_order_objects' => $this->integerValuesFromRows($pageWidgetRows, 'widget_object'),
+            'mixed_field_widget_objects' => $this->integerValuesFromRows($mixedRows, 'widget_object'),
+            'visible_widget_objects' => $this->integerValuesFromRows(array_filter(
+                $widgetRows,
+                static fn (array $row): bool => ($row['visible'] ?? false) === true
+            ), 'widget_object'),
+            'hidden_widget_objects' => $this->integerValuesFromRows(array_filter(
+                $widgetRows,
+                static fn (array $row): bool => ($row['hidden'] ?? false) === true
+            ), 'widget_object'),
+            'printable_widget_objects' => $this->integerValuesFromRows(array_filter(
+                $widgetRows,
+                static fn (array $row): bool => ($row['printable'] ?? false) === true
+            ), 'widget_object'),
+            'widgets' => $widgetRows,
+            'action_count' => $actionReview['action_count'] ?? $this->uniqueActionReviewCount($actions),
+            'action_review_row_count' => count($actions),
+            'field_action_count' => count($fieldActions),
+            'widget_action_count' => count($widgetActions),
+            'chained_action_count' => $this->actionCountWithFlag($actions, 'chained'),
+            'duplicate_mixed_field_widget_action_count' => count($duplicateKeys),
+            'duplicate_mixed_field_widget_action_keys' => $duplicateKeys,
+            'action_types' => $actionReview['action_types'] ?? $this->uniqueScalarValues(array_map(
+                static fn (array $action): mixed => $action['action_type'] ?? null,
+                $actions
+            )),
+            'action_triggers' => $actionReview['action_triggers'] ?? $this->uniqueScalarValues(array_map(
+                static fn (array $action): mixed => $action['trigger'] ?? null,
+                $actions
+            )),
+            'action_sources' => $actionReview['action_sources'] ?? $this->uniqueScalarValues(array_map(
+                static fn (array $action): mixed => $action['source'] ?? null,
+                $actions
+            )),
+            'action_objects' => $this->integerValuesFromRows($actions, 'action_object'),
+            'field_action_objects' => $this->integerValuesFromRows($fieldActions, 'action_object'),
+            'widget_action_objects' => $this->integerValuesFromRows($widgetActions, 'action_object'),
+            'action_rows' => $this->signatureWidgetBundleActionRows($actions),
+            'submit_targets' => $this->actionTargets($actions, ['SubmitForm']),
+            'unsafe_uri_targets' => $this->unsafeUriTargets($actions),
+            'form_action_field_names' => $this->actionFieldNames($actions, ['SubmitForm', 'ResetForm']),
+            'hide_field_names' => $this->actionFieldNames($actions, ['Hide']),
+            'locked_action_field_names' => $seedLockReview['locked_action_field_names'] ?? [],
+            'locked_submit_field_names' => $seedLockReview['locked_submit_field_names'] ?? [],
+            'locked_reset_field_names' => $seedLockReview['locked_reset_field_names'] ?? [],
+            'locked_hide_field_names' => $seedLockReview['locked_hide_field_names'] ?? [],
+            'review_only' => true,
+            'field_values_authoritative' => true,
+            'page_annotation_order_authoritative' => true,
+            'appearance_value_used_for_import' => false,
+            'appearance_payload_text_exposed' => false,
+            'xfa_value_used_for_signature' => false,
+            'xfa_payload_text_exposed' => false,
+            'imports_xfa_payload' => false,
+            'executes_action' => false,
+            'executes_javascript' => false,
+            'submits_form_data' => false,
+            'resets_form_values' => false,
+            'changes_widget_visibility' => false,
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
+            'executes_signature_validation' => false,
+            'executes_signing' => false,
+            'executes_xfa_javascript' => false,
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $widgets
+     * @return list<array<string, mixed>>
+     */
+    private function signatureWidgetBundleRows(array $widgets, ?int $fieldObject): array
+    {
+        $rows = [];
+        foreach ($widgets as $widget) {
+            $appearance = is_array($widget['normal_appearance'] ?? null) ? $widget['normal_appearance'] : null;
+            $selected = is_array($appearance['selected_appearance'] ?? null) ? $appearance['selected_appearance'] : null;
+            $defaultAppearance = is_array($widget['default_appearance'] ?? null) ? $widget['default_appearance'] : null;
+            $actions = $this->arrayRows($widget['actions'] ?? []);
+            $widgetObject = is_int($widget['object'] ?? null) ? $widget['object'] : null;
+
+            $rows[] = [
+                'source' => 'acroform_signature_widget_bundle_widget_currentbase',
+                'widget_object' => $widgetObject,
+                'page_index' => $widget['page_index'] ?? null,
+                'page_object' => $widget['page_object'] ?? null,
+                'page_annotation_index' => $widget['page_annotation_index'] ?? null,
+                'referenced_from_page_annots' => (bool) ($widget['referenced_from_page_annots'] ?? false),
+                'mixed_field_widget_dictionary' => $fieldObject !== null && $widgetObject === $fieldObject,
+                'rect' => $widget['rect'] ?? null,
+                'visible' => (bool) ($widget['visible'] ?? false),
+                'hidden' => (bool) ($widget['hidden'] ?? false),
+                'printable' => (bool) ($widget['printable'] ?? false),
+                'annotation_visibility' => $widget['annotation_visibility'] ?? null,
+                'annotation_flag_names' => $widget['annotation_flag_names'] ?? [],
+                'appearance_state' => $widget['appearance_state'] ?? null,
+                'appearance_states' => $widget['appearance_states'] ?? [],
+                'selected_appearance_state' => is_array($appearance) ? ($appearance['selected_state'] ?? null) : null,
+                'selected_appearance_object' => is_array($selected) ? ($selected['object'] ?? null) : null,
+                'state_matches_appearance' => is_array($appearance) ? ($appearance['state_matches_appearance'] ?? null) : null,
+                'stale_appearance_state' => is_array($appearance) ? (bool) ($appearance['stale_appearance_state'] ?? false) : false,
+                'default_appearance_source' => $defaultAppearance['source'] ?? null,
+                'default_appearance_source_object' => $defaultAppearance['source_object'] ?? null,
+                'default_font_resource' => $defaultAppearance['font_resource'] ?? null,
+                'default_font_resource_resolved' => (bool) ($defaultAppearance['font_resource_resolved'] ?? false),
+                'default_font_resource_object' => $defaultAppearance['font_resource_object'] ?? null,
+                'default_resource_source' => $defaultAppearance['default_resource_source'] ?? null,
+                'default_resource_source_object' => $defaultAppearance['default_resource_source_object'] ?? null,
+                'action_count' => count($actions),
+                'action_objects' => $this->integerValuesFromRows($actions, 'action_object'),
+                'action_types' => $this->uniqueScalarValues(array_map(
+                    static fn (array $action): mixed => $action['action_type'] ?? null,
+                    $actions
+                )),
+                'action_triggers' => $this->uniqueScalarValues(array_map(
+                    static fn (array $action): mixed => $action['trigger'] ?? null,
+                    $actions
+                )),
+                'review_only' => true,
+                'appearance_value_used_for_import' => false,
+                'appearance_payload_text_exposed' => false,
+                'executes_action' => false,
+                'executes_javascript' => false,
+                'executes_appearance_streams' => false,
+                'renders_appearances' => false,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @return list<array<string, mixed>>
+     */
+    private function signatureWidgetBundleActionRows(array $actions): array
+    {
+        $rows = [];
+        foreach ($actions as $action) {
+            $rows[] = [
+                'source' => $action['source'] ?? null,
+                'source_object' => $action['source_object'] ?? null,
+                'trigger' => $action['trigger'] ?? null,
+                'trigger_label' => $action['trigger_label'] ?? null,
+                'action_type' => $action['action_type'] ?? null,
+                'action_object' => $action['action_object'] ?? null,
+                'safety' => $this->actionSafetyLabel($action),
+                'target' => $action['target'] ?? ($action['uri'] ?? ($action['file'] ?? null)),
+                'target_scheme' => $action['target_scheme'] ?? null,
+                'field_names' => is_array($action['field_names'] ?? null) ? $action['field_names'] : [],
+                'chained' => (bool) ($action['chained'] ?? false),
+                'executes_action' => false,
+                'executes_javascript' => false,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fieldActions
+     * @param list<array<string, mixed>> $widgetActions
+     * @return list<string>
+     */
+    private function duplicateMixedFieldWidgetActionKeys(array $fieldActions, array $widgetActions): array
+    {
+        $fieldKeys = [];
+        foreach ($fieldActions as $action) {
+            $fieldKeys[$this->fieldWidgetActionBundleKey($action)] = true;
+        }
+
+        $duplicates = [];
+        foreach ($widgetActions as $action) {
+            $key = $this->fieldWidgetActionBundleKey($action);
+            if (isset($fieldKeys[$key]) && !in_array($key, $duplicates, true)) {
+                $duplicates[] = $key;
+            }
+        }
+
+        return $duplicates;
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     */
+    private function fieldWidgetActionBundleKey(array $action): string
+    {
+        $actionObject = $action['action_object'] ?? null;
+        $actionIdentity = is_int($actionObject)
+            ? 'object:' . $actionObject
+            : 'inline:' . hash('sha256', serialize([
+                $action['action_type'] ?? null,
+                $action['target'] ?? null,
+                $action['uri'] ?? null,
+                $action['file'] ?? null,
+                $action['field_names'] ?? [],
+            ]));
+
+        return implode('|', [
+            (string) ($action['source_object'] ?? ''),
+            (string) ($action['trigger'] ?? ''),
+            (string) ($action['action_type'] ?? ''),
+            $actionIdentity,
+        ]);
     }
 
     /**
@@ -4962,6 +5240,46 @@ final class PdfAcroFormExtractor
 
             $refs[] = $widgetObject;
         }
+
+        return $this->orderedWidgetReferencesByPageAnnotations($refs, $pageWidgets);
+    }
+
+    /**
+     * @param list<int> $refs
+     * @param array<int, array{page_index: int, page_object: int, annotation_index: int}> $pageWidgets
+     * @return list<int>
+     */
+    private function orderedWidgetReferencesByPageAnnotations(array $refs, array $pageWidgets): array
+    {
+        $originalPositions = [];
+        foreach ($refs as $position => $ref) {
+            if (!isset($originalPositions[$ref])) {
+                $originalPositions[$ref] = $position;
+            }
+        }
+
+        usort(
+            $refs,
+            static function (int $left, int $right) use ($pageWidgets, $originalPositions): int {
+                $leftPage = $pageWidgets[$left] ?? null;
+                $rightPage = $pageWidgets[$right] ?? null;
+                if ($leftPage !== null && $rightPage !== null) {
+                    $pageCompare = $leftPage['page_index'] <=> $rightPage['page_index'];
+                    if ($pageCompare !== 0) {
+                        return $pageCompare;
+                    }
+
+                    $annotationCompare = $leftPage['annotation_index'] <=> $rightPage['annotation_index'];
+                    if ($annotationCompare !== 0) {
+                        return $annotationCompare;
+                    }
+                } elseif ($leftPage !== null || $rightPage !== null) {
+                    return $leftPage !== null ? -1 : 1;
+                }
+
+                return ($originalPositions[$left] ?? 0) <=> ($originalPositions[$right] ?? 0);
+            }
+        );
 
         return $refs;
     }

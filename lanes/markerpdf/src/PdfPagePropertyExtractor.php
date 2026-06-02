@@ -839,6 +839,10 @@ final class PdfPagePropertyExtractor
                     continue;
                 }
 
+                $actions = $this->compactReviewRows($annotation['actions'] ?? []);
+                $additionalActions = $this->compactReviewRows($annotation['additional_actions'] ?? []);
+                $replyThread = $this->compactReviewRowFromValue($annotation['reply_thread'] ?? null);
+
                 $row = [
                     'source' => 'page_annotation_struct_parent_review',
                     'pnum' => $pnum,
@@ -856,8 +860,13 @@ final class PdfPagePropertyExtractor
                     'modified_at' => $annotation['modified_at'] ?? null,
                     'struct_parent' => $annotation['struct_parent'] ?? null,
                     'structure_parent' => $structureParent,
-                    'action_count' => count(is_array($annotation['actions'] ?? null) ? $annotation['actions'] : []),
-                    'additional_action_count' => count(is_array($annotation['additional_actions'] ?? null) ? $annotation['additional_actions'] : []),
+                    'actions' => $actions,
+                    'additional_actions' => $additionalActions,
+                    'action_count' => count($actions),
+                    'additional_action_count' => count($additionalActions),
+                    'annotation_actions_review_only' => $actions !== [] || $additionalActions !== [],
+                    'target_page_action_context_review_only' => $this->actionsHaveTargetPageContext($actions, $additionalActions),
+                    'reply_thread' => $replyThread,
                     'executes_actions_on_import' => $annotation['executes_actions_on_import'] ?? false,
                     'review_only' => true,
                     'visible_text_source' => false,
@@ -869,6 +878,51 @@ final class PdfPagePropertyExtractor
         }
 
         return $rowsByPage;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function compactReviewRows(mixed $rows): array
+    {
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            $compacted = $this->compactReviewRowFromValue($row);
+            if ($compacted !== []) {
+                $out[] = $compacted;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function compactReviewRowFromValue(mixed $row): array
+    {
+        return is_array($row) ? $this->compactReviewRow($row) : [];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @param list<array<string, mixed>> $additionalActions
+     */
+    private function actionsHaveTargetPageContext(array $actions, array $additionalActions): bool
+    {
+        foreach (array_merge($actions, $additionalActions) as $action) {
+            foreach (['target_display_duration', 'target_page_transition', 'target_page_actions'] as $key) {
+                if (array_key_exists($key, $action)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
