@@ -61,6 +61,8 @@ final class PdfAcroFormExtractor
         10 => 'locked_contents',
     ];
 
+    private const MAX_ACTION_CHAIN_DEPTH = 8;
+
     /**
      * Native boundary for PDF AcroForm field dictionaries.
      *
@@ -2640,10 +2642,47 @@ final class PdfAcroFormExtractor
         string $trigger,
         string $source,
         int $sourceObject,
-        array $seenActionObjects = []
+        array $seenActionObjects = [],
+        int $depth = 0,
+        bool $chained = false
     ): array {
         $action = $this->resolvedDictionaryFromValue($value, $objects);
         if ($action === null) {
+            return [];
+        }
+
+        return $this->actionMetadataFromResolvedDictionary(
+            $action,
+            $objects,
+            $fieldNamesByObject,
+            $trigger,
+            $source,
+            $sourceObject,
+            $seenActionObjects,
+            $depth,
+            $chained
+        );
+    }
+
+    /**
+     * @param array{body: string, object: int|null} $action
+     * @param array<int, string> $objects
+     * @param array<int, string> $fieldNamesByObject
+     * @param array<int, true> $seenActionObjects
+     * @return list<array<string, mixed>>
+     */
+    private function actionMetadataFromResolvedDictionary(
+        array $action,
+        array $objects,
+        array $fieldNamesByObject,
+        string $trigger,
+        string $source,
+        int $sourceObject,
+        array $seenActionObjects,
+        int $depth,
+        bool $chained
+    ): array {
+        if ($depth > self::MAX_ACTION_CHAIN_DEPTH) {
             return [];
         }
 
@@ -2666,11 +2705,14 @@ final class PdfAcroFormExtractor
             $actionObject
         );
         if ($metadata !== null) {
+            if ($chained) {
+                $metadata['chained'] = true;
+            }
             $actions[] = $metadata;
         }
 
         $next = $this->valueAfterName($action['body'], 'Next');
-        if ($next === null) {
+        if ($next === null || $depth >= self::MAX_ACTION_CHAIN_DEPTH) {
             return $actions;
         }
 
@@ -2682,26 +2724,25 @@ final class PdfAcroFormExtractor
             }
 
             foreach ($this->dictionaryValuesFromArrayBody($arrayBody, $objects) as $nextDictionary) {
-                $nextMetadata = $this->actionMetadataFromBody(
-                    $nextDictionary['body'],
+                foreach ($this->actionMetadataFromResolvedDictionary(
+                    $nextDictionary,
                     $objects,
                     $fieldNamesByObject,
                     $trigger,
                     $source,
                     $sourceObject,
-                    $nextDictionary['object']
-                );
-                if ($nextMetadata !== null) {
-                    $nextMetadata['chained'] = true;
-                    $actions[] = $nextMetadata;
+                    $seenActionObjects,
+                    $depth + 1,
+                    true
+                ) as $nextAction) {
+                    $actions[] = $nextAction;
                 }
             }
 
             return $actions;
         }
 
-        foreach ($this->actionMetadataFromValue($nextValue, $objects, $fieldNamesByObject, $trigger, $source, $sourceObject, $seenActionObjects) as $nextAction) {
-            $nextAction['chained'] = true;
+        foreach ($this->actionMetadataFromValue($nextValue, $objects, $fieldNamesByObject, $trigger, $source, $sourceObject, $seenActionObjects, $depth + 1, true) as $nextAction) {
             $actions[] = $nextAction;
         }
 

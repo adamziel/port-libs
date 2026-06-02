@@ -384,6 +384,27 @@ $fieldActionReviewBoundaryPdf = static function (): string {
         . "%%EOF";
 };
 
+$actionNextArrayBoundaryPdf = static function (): string {
+    $appearance = 'BT /FApp 9 Tf 0 0 Td (Ready appearance review only) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R] >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (article.url) /V (https://example.test/final) /DV (https://example.test/draft) /Kids [8 0 R] /AA << /V 20 0 R >> >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 340 664] /P 3 0 R /F 4 /AS /Ready /AP << /N << /Ready 30 0 R /Off 31 0 R >> >> /A 24 0 R >>\nendobj\n"
+        . "20 0 obj\n<< /S /URI /URI (https://example.test/review) /Next [21 0 R 22 0 R] >>\nendobj\n"
+        . "21 0 obj\n<< /S /Launch /F (cmd.exe) /Next 23 0 R >>\nendobj\n"
+        . "22 0 obj\n<< /S /JavaScript /JS (app.alert\\('cycled nested action blocked'\\)) /Next 20 0 R >>\nendobj\n"
+        . "23 0 obj\n<< /S /Hide /T [8 0 R] /H false >>\nendobj\n"
+        . "24 0 obj\n<< /S /Named /N /Print /Next << /S /GoTo /D [3 0 R /Fit] >> >>\nendobj\n"
+        . "30 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 24] /Resources << /Font << /FApp 40 0 R >> >> /Length " . strlen($appearance) . " >>\nstream\n{$appearance}\nendstream\nendobj\n"
+        . "31 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "40 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'extracts inherited field flags and field default appearance strings' => static function (TestRunner $t) use ($acroFormPdf, $fieldsByName): void {
         $form = (new PdfAcroFormExtractor())->extractForm($acroFormPdf());
@@ -1151,5 +1172,56 @@ return [
         $t->same(false, $widgetAction['imports_form_data']);
         $t->same(false, $widgetAction['executes_action']);
         $t->same(false, $widgetAction['executes_javascript']);
+    },
+    'walks nested AcroForm action Next arrays without executing actions or replacing field values' => static function (TestRunner $t) use ($actionNextArrayBoundaryPdf, $fieldsByName): void {
+        $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($actionNextArrayBoundaryPdf()));
+        $field = $fields['article.url'];
+        $widget = $field['widgets'][0];
+        $fieldActions = $field['actions'];
+        $widgetActions = $widget['actions'];
+
+        $t->same('https://example.test/final', $field['value']);
+        $t->same('https://example.test/final', $field['value_state']['current']);
+        $t->same('https://example.test/draft', $field['value_state']['default']);
+        $t->true($field['value_state']['changed_from_default']);
+        $t->same('Ready', $widget['appearance_state']);
+        $t->same(['Ready', 'Off'], $widget['appearance_states']);
+        $t->same(30, $widget['normal_appearance']['selected_appearance']['object']);
+        $t->same(false, $widget['normal_appearance']['selected_appearance']['imports_visible_text']);
+
+        $t->same(['URI', 'Launch', 'Hide', 'JavaScript'], array_column($fieldActions, 'action_type'));
+        $t->same(['V', 'V', 'V', 'V'], array_column($fieldActions, 'trigger'));
+        $t->same(['validate', 'validate', 'validate', 'validate'], array_column($fieldActions, 'trigger_label'));
+        $t->same([false, false, false, false], array_column($fieldActions, 'executes_action'));
+        $t->same([false, false, false, false], array_map(
+            static fn (array $action): bool => (bool) ($action['executes_javascript'] ?? false),
+            $fieldActions
+        ));
+        $t->same([false, true, true, true], array_map(
+            static fn (array $action): bool => (bool) ($action['chained'] ?? false),
+            $fieldActions
+        ));
+
+        $t->same('review-uri', $fieldActions[0]['safety']);
+        $t->true($fieldActions[0]['safe_uri']);
+        $t->same('https://example.test/review', $fieldActions[0]['target']);
+        $t->same('cmd.exe', $fieldActions[1]['target']);
+        $t->same('show', $fieldActions[2]['operation']);
+        $t->same(false, $fieldActions[2]['hide']);
+        $t->same([8], $fieldActions[2]['field_objects']);
+        $t->same(['article.url'], $fieldActions[2]['field_names']);
+        $t->same("app.alert('cycled nested action blocked')", $fieldActions[3]['script_preview']);
+        $t->same(22, $fieldActions[3]['action_object']);
+
+        $t->same(['Named', 'GoTo'], array_column($widgetActions, 'action_type'));
+        $t->same(['activation', 'activation'], array_column($widgetActions, 'trigger'));
+        $t->same([false, true], array_map(
+            static fn (array $action): bool => (bool) ($action['chained'] ?? false),
+            $widgetActions
+        ));
+        $t->same('Print', $widgetActions[0]['named_action']);
+        $t->same([['object' => 3], 'Fit'], $widgetActions[1]['destination']);
+        $t->same(false, $widgetActions[1]['executes_action']);
+        $t->same(false, $widgetActions[1]['executes_javascript']);
     },
 ];
