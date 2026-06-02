@@ -106,6 +106,7 @@ final class PdfAcroFormExtractor
                 $formDefaults,
                 [],
                 [],
+                [],
                 $pageIndexes,
                 $pageWidgets,
                 $fieldNamesByObject
@@ -1160,6 +1161,7 @@ final class PdfAcroFormExtractor
      * @param array<int, string> $objects
      * @param array<string, array{value: string, source: string, source_object: int|null}> $inherited
      * @param list<string> $nameParts
+     * @param list<array{object: int, partial_name: string|null, full_name: string, mapping_name: string|null}> $hierarchyPath
      * @param array<int, true> $seen
      * @param array<int, int> $pageIndexes
      * @param array<int, array{page_index: int, page_object: int, annotation_index: int}> $pageWidgets
@@ -1170,6 +1172,7 @@ final class PdfAcroFormExtractor
         array $objects,
         array $inherited,
         array $nameParts,
+        array $hierarchyPath,
         array $seen,
         array $pageIndexes,
         array $pageWidgets,
@@ -1188,6 +1191,14 @@ final class PdfAcroFormExtractor
         if ($partialName !== null && $partialName !== '') {
             $currentNameParts[] = $partialName;
         }
+        $currentFullName = $currentNameParts === [] ? '#' . $objectNumber : implode('.', $currentNameParts);
+        $currentHierarchyPath = $hierarchyPath;
+        $currentHierarchyPath[] = [
+            'object' => $objectNumber,
+            'partial_name' => $partialName,
+            'full_name' => $currentFullName,
+            'mapping_name' => $mappingName,
+        ];
 
         $kidRefs = $this->kidReferences($body);
         $childFieldRefs = [];
@@ -1214,6 +1225,7 @@ final class PdfAcroFormExtractor
                     $objects,
                     $effective,
                     $currentNameParts,
+                    $currentHierarchyPath,
                     $seen,
                     $pageIndexes,
                     $pageWidgets,
@@ -1239,12 +1251,15 @@ final class PdfAcroFormExtractor
         $defaultAppearance = $this->defaultAppearanceFromEffective($effective, $objects);
         $password = $fieldType === 'Tx' && $this->hasFlagBit($flags, 14);
 
-        $name = $currentNameParts === [] ? '#' . $objectNumber : implode('.', $currentNameParts);
+        $name = $currentFullName;
         $value = $password ? null : $this->valueFromEffective($effective, 'V', $objects);
         $defaultValue = $password ? null : $this->valueFromEffective($effective, 'DV', $objects);
         $options = $fieldType === 'Ch' ? $this->optionsFromEffective($effective, $objects) : [];
         $widgets = $this->widgetsForField($widgetRefs, $objects, $defaultAppearance, $effective, $pageIndexes, $pageWidgets, $fieldNamesByObject);
         $widgets = $this->widgetsWithCurrentValueState($widgets, $fieldType, $flags, $value);
+        $fieldHierarchy = $this->fieldHierarchyBoundary($currentHierarchyPath, $effective, $inherited, $objectNumber, $password);
+        $valueState = $this->fieldValueState($fieldType, $flags, $effective, $password, $value, $defaultValue, $options, $widgets);
+        $valueState['hierarchy_boundary'] = $this->fieldHierarchyValueState($fieldHierarchy);
 
         $field = [
             'object' => $objectNumber,
@@ -1258,7 +1273,8 @@ final class PdfAcroFormExtractor
             'value' => $value,
             'value_redacted' => $password,
             'default_value' => $defaultValue,
-            'value_state' => $this->fieldValueState($fieldType, $flags, $effective, $password, $value, $defaultValue, $options, $widgets),
+            'value_state' => $valueState,
+            'field_hierarchy' => $fieldHierarchy,
             'default_appearance' => $defaultAppearance,
             'actions' => $this->actionsFromDictionary($body, $objects, $fieldNamesByObject, 'field', $objectNumber),
             'widgets' => $widgets,
@@ -1277,6 +1293,112 @@ final class PdfAcroFormExtractor
         }
 
         return [$field];
+    }
+
+    /**
+     * @param list<array{object: int, partial_name: string|null, full_name: string, mapping_name: string|null}> $path
+     * @param array<string, array{value: string, source: string, source_object: int|null}> $effective
+     * @param array<string, array{value: string, source: string, source_object: int|null}> $inherited
+     * @return array<string, mixed>
+     */
+    private function fieldHierarchyBoundary(array $path, array $effective, array $inherited, int $terminalObject, bool $password): array
+    {
+        $attributeSources = [];
+        $inheritedAttributes = [];
+        $localAttributes = [];
+        $localValueAttributes = [];
+        foreach (['FT', 'Ff', 'V', 'DV', 'DA', 'DR', 'Q', 'Opt', 'I'] as $name) {
+            if (!isset($effective[$name])) {
+                continue;
+            }
+
+            $sourceObject = $effective[$name]['source_object'];
+            $attributeSources[$name] = [
+                'source' => $effective[$name]['source'],
+                'source_object' => $sourceObject,
+                'inherited' => $sourceObject !== $terminalObject,
+            ];
+            if ($sourceObject === $terminalObject) {
+                $localAttributes[] = $name;
+                if (in_array($name, ['V', 'DV'], true)) {
+                    $localValueAttributes[] = $name;
+                }
+                continue;
+            }
+
+            $inheritedAttributes[] = $name;
+        }
+
+        $currentValueSourceObject = $effective['V']['source_object'] ?? null;
+        $defaultValueSourceObject = $effective['DV']['source_object'] ?? null;
+        $hasParentCurrentValue = isset($effective['V']) && $currentValueSourceObject !== null && $currentValueSourceObject !== $terminalObject;
+        $hasParentDefaultValue = isset($effective['DV']) && $defaultValueSourceObject !== null && $defaultValueSourceObject !== $terminalObject;
+        $terminalHasCurrentValue = isset($effective['V']) && $currentValueSourceObject === $terminalObject;
+        $terminalHasDefaultValue = isset($effective['DV']) && $defaultValueSourceObject === $terminalObject;
+
+        return [
+            'source' => 'acroform_field_hierarchy_value_boundary',
+            'terminal_object' => $terminalObject,
+            'terminal_name' => $path[count($path) - 1]['full_name'] ?? '#' . $terminalObject,
+            'depth' => max(0, count($path) - 1),
+            'path' => $path,
+            'ancestor_objects' => array_values(array_map(
+                static fn (array $entry): int => $entry['object'],
+                array_slice($path, 0, -1)
+            )),
+            'attribute_sources' => $attributeSources,
+            'inherited_attributes' => $inheritedAttributes,
+            'local_attributes' => $localAttributes,
+            'local_value_attributes' => $localValueAttributes,
+            'field_type_source_object' => $effective['FT']['source_object'] ?? null,
+            'flags_source_object' => $effective['Ff']['source_object'] ?? null,
+            'current_value_source_object' => $currentValueSourceObject,
+            'default_value_source_object' => $defaultValueSourceObject,
+            'current_value_inherited' => $hasParentCurrentValue,
+            'default_value_inherited' => $hasParentDefaultValue,
+            'terminal_has_current_value' => $terminalHasCurrentValue,
+            'terminal_has_default_value' => $terminalHasDefaultValue,
+            'terminal_overrides_parent_value' => $terminalHasCurrentValue && isset($inherited['V']),
+            'terminal_overrides_parent_default' => $terminalHasDefaultValue && isset($inherited['DV']),
+            'value_redacted' => $password,
+            'value_used_for_import' => $password ? false : isset($effective['V']),
+            'executes_form_actions' => false,
+            'executes_javascript' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $fieldHierarchy
+     * @return array<string, mixed>
+     */
+    private function fieldHierarchyValueState(array $fieldHierarchy): array
+    {
+        $currentSource = null;
+        if (($fieldHierarchy['terminal_has_current_value'] ?? false) === true) {
+            $currentSource = ($fieldHierarchy['terminal_overrides_parent_value'] ?? false) === true
+                ? 'field_terminal_override'
+                : 'field_terminal';
+        } elseif (($fieldHierarchy['current_value_inherited'] ?? false) === true) {
+            $currentSource = 'field_hierarchy_inherited';
+        } elseif (($fieldHierarchy['value_redacted'] ?? false) === true) {
+            $currentSource = 'redacted';
+        }
+
+        return [
+            'source' => 'acroform_field_hierarchy_value_boundary',
+            'current_value_source' => $currentSource,
+            'current_value_source_object' => $fieldHierarchy['current_value_source_object'] ?? null,
+            'default_value_source_object' => $fieldHierarchy['default_value_source_object'] ?? null,
+            'current_value_inherited' => (bool) ($fieldHierarchy['current_value_inherited'] ?? false),
+            'default_value_inherited' => (bool) ($fieldHierarchy['default_value_inherited'] ?? false),
+            'terminal_overrides_parent_value' => (bool) ($fieldHierarchy['terminal_overrides_parent_value'] ?? false),
+            'terminal_overrides_parent_default' => (bool) ($fieldHierarchy['terminal_overrides_parent_default'] ?? false),
+            'path_depth' => (int) ($fieldHierarchy['depth'] ?? 0),
+            'value_redacted' => (bool) ($fieldHierarchy['value_redacted'] ?? false),
+            'value_used_for_import' => (bool) ($fieldHierarchy['value_used_for_import'] ?? false),
+            'executes_form_actions' => false,
+            'executes_javascript' => false,
+        ];
     }
 
     /**

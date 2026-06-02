@@ -322,6 +322,23 @@ $currentValueStatePdf = static function (): string {
         . "%%EOF";
 };
 
+$fieldHierarchyValueBoundaryPdf = static function (): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [9 0 R 12 0 R 15 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R] >>\nendobj\n"
+        . "6 0 obj\n<< /T (registration) /TM (Registration packet) /FT /Tx /Ff 1 /V (Inherited contact value) /DV (Draft contact value) /Kids [7 0 R 10 0 R 13 0 R] >>\nendobj\n"
+        . "7 0 obj\n<< /T (contact) /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /T (email) /Kids [9 0 R] >>\nendobj\n"
+        . "9 0 obj\n<< /Subtype /Widget /Parent 8 0 R /Rect [72 640 320 664] /P 3 0 R /F 4 >>\nendobj\n"
+        . "10 0 obj\n<< /T (title) /V (Child override title) /DV (Child draft title) /Kids [12 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 600 320 624] /P 3 0 R /F 4 >>\nendobj\n"
+        . "13 0 obj\n<< /T (secret) /Ff 8192 /Kids [15 0 R] >>\nendobj\n"
+        . "15 0 obj\n<< /Subtype /Widget /Parent 13 0 R /Rect [72 560 320 584] /P 3 0 R /F 4 >>\nendobj\n"
+        . "%%EOF";
+};
+
 $widgetDefaultStatePdf = static function (): string {
     return "%PDF-1.7\n"
         . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
@@ -979,6 +996,61 @@ return [
         $t->true($consent['widgets'][0]['checked']);
         $t->same('Yes', $consent['widgets'][0]['export_value']);
         $t->same(null, $consent['widgets'][0]['state_matches_field_value']);
+    },
+    'resolves AcroForm field hierarchy value boundaries before WordPress import review' => static function (TestRunner $t) use ($fieldHierarchyValueBoundaryPdf, $fieldsByName): void {
+        $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($fieldHierarchyValueBoundaryPdf()));
+
+        $t->same(3, count($fields));
+
+        $email = $fields['registration.contact.email'];
+        $emailHierarchy = $email['field_hierarchy'];
+        $t->same('Inherited contact value', $email['value']);
+        $t->same('Draft contact value', $email['default_value']);
+        $t->same('registration.contact.email', $email['mapping_name']);
+        $t->same('acroform_field_hierarchy_value_boundary', $emailHierarchy['source']);
+        $t->same([6, 7, 8], array_column($emailHierarchy['path'], 'object'));
+        $t->same(['registration', 'contact', 'email'], array_column($emailHierarchy['path'], 'partial_name'));
+        $t->same(['registration', 'registration.contact', 'registration.contact.email'], array_column($emailHierarchy['path'], 'full_name'));
+        $t->same('Registration packet', $emailHierarchy['path'][0]['mapping_name']);
+        $t->same([6, 7], $emailHierarchy['ancestor_objects']);
+        $t->same(['FT', 'Ff', 'V', 'DV'], $emailHierarchy['inherited_attributes']);
+        $t->same([], $emailHierarchy['local_value_attributes']);
+        $t->true($emailHierarchy['current_value_inherited']);
+        $t->true($emailHierarchy['default_value_inherited']);
+        $t->same(6, $emailHierarchy['current_value_source_object']);
+        $t->same(6, $emailHierarchy['default_value_source_object']);
+        $t->same(false, $emailHierarchy['terminal_overrides_parent_value']);
+        $t->same(false, $emailHierarchy['value_redacted']);
+        $t->same(false, $emailHierarchy['executes_form_actions']);
+        $t->same(false, $emailHierarchy['executes_javascript']);
+        $t->same('field_hierarchy_inherited', $email['value_state']['hierarchy_boundary']['current_value_source']);
+
+        $title = $fields['registration.title'];
+        $titleHierarchy = $title['field_hierarchy'];
+        $t->same('Child override title', $title['value']);
+        $t->same('Child draft title', $title['default_value']);
+        $t->same([6, 10], array_column($titleHierarchy['path'], 'object'));
+        $t->same(['FT', 'Ff'], $titleHierarchy['inherited_attributes']);
+        $t->same(['V', 'DV'], $titleHierarchy['local_value_attributes']);
+        $t->same(false, $titleHierarchy['current_value_inherited']);
+        $t->same(true, $titleHierarchy['terminal_overrides_parent_value']);
+        $t->same(10, $titleHierarchy['current_value_source_object']);
+        $t->same('field_terminal_override', $title['value_state']['hierarchy_boundary']['current_value_source']);
+        $t->true($title['value_state']['changed_from_default']);
+
+        $secret = $fields['registration.secret'];
+        $secretHierarchy = $secret['field_hierarchy'];
+        $t->same(null, $secret['value']);
+        $t->same(null, $secret['default_value']);
+        $t->true($secret['value_redacted']);
+        $t->same(['password'], $secret['flag_names']);
+        $t->same([6, 13], array_column($secretHierarchy['path'], 'object'));
+        $t->same(['FT', 'V', 'DV'], $secretHierarchy['inherited_attributes']);
+        $t->same(['Ff'], $secretHierarchy['local_attributes']);
+        $t->true($secretHierarchy['current_value_inherited']);
+        $t->true($secretHierarchy['value_redacted']);
+        $t->same('[redacted]', $secret['value_state']['display_value']);
+        $t->same('field_hierarchy_inherited', $secret['value_state']['hierarchy_boundary']['current_value_source']);
     },
     'uses widget appearance state as button current value before default comparison' => static function (TestRunner $t) use ($widgetDefaultStatePdf, $fieldsByName): void {
         $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($widgetDefaultStatePdf()));
