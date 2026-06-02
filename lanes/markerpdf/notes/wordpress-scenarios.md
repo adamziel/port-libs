@@ -234,8 +234,12 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-cmap-codespace-fallback-import.php` maps a native ToUnicode CMap extraction edge into a WordPress import path. It honors `begincodespacerange` source widths before unmapped CID fallback and emits a Gutenberg paragraph without loading pdftext, pypdfium, Python models, or external PDF tools.
 
+`examples/wordpress-pdf-resource-inheritance-import.php` maps inherited page-tree `/Resources` into a WordPress import path. It proves sibling pages can reuse `/F1` while inheriting different parent CMaps, and emits page-specific Gutenberg paragraphs without loading pdftext, pypdfium, Python models, or external PDF tools.
+
+`examples/wordpress-pdf-object-stream-xref-import.php` maps a native PDF 1.5 object lookup edge into a WordPress import path. It expands compressed `/ObjStm` member dictionaries through an xref stream, ignores a stale unlisted compressed page, preserves an Identity-H font resource from a decoded page object, and emits only the live Gutenberg paragraphs without loading pdftext, pypdfium, Python models, or external PDF tools.
+
 `examples/wordpress-structure-boundary-import.php` maps Marker's supplied-document stage priority into a WordPress import path. It demonstrates a Table layout region containing nested Formula and Picture regions, then emits one Gutenberg table plus surrounding document blocks while suppressing duplicate supplied equation and image output without loading Python, pdftext, pypdfium, Surya, tabled, Texify, Torch, or external PDF tools.
 
 ## Next Task
 
-Choose the next bounded markerPDF text extraction gap, or activate/reuse the existing `pdf-text-dictionary-core` gate only if broader searchable PDF dictionary output becomes the accepted next rich behavior. Keep OCR/model, table geometry, image extraction, outlines/metadata, object stream/xref, benchmark/archive, and runtime preflight work out of the accepted ToUnicode codespacerange fallback slice.
+Choose the next bounded markerPDF text extraction gap, or activate/reuse the existing `pdf-text-dictionary-core` gate only if broader searchable PDF dictionary output becomes the accepted next rich behavior. Keep OCR/model, table geometry, outlines/metadata, benchmark/archive, and runtime preflight work out of these accepted page-resource and object-stream/xref slices.

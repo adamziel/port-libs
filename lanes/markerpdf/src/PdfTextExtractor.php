@@ -15,9 +15,8 @@ final class PdfTextExtractor
     public function extractTextRuns(string $pdfBytes): array
     {
         $runs = [];
-        $fontToUnicodeMaps = $this->fontToUnicodeMaps($pdfBytes);
-        foreach ($this->streams($pdfBytes) as $stream) {
-            foreach ($this->textRunsFromContentStream($stream, $fontToUnicodeMaps) as $run) {
+        foreach ($this->contentStreamsWithFontMaps($pdfBytes) as $entry) {
+            foreach ($this->textRunsFromContentStream($entry['stream'], $entry['fontToUnicodeMaps']) as $run) {
                 if ($run !== '') {
                     $runs[] = $run;
                 }
@@ -68,9 +67,8 @@ final class PdfTextExtractor
     public function extractTextLines(string $pdfBytes): array
     {
         $lines = [];
-        $fontToUnicodeMaps = $this->fontToUnicodeMaps($pdfBytes);
-        foreach ($this->streams($pdfBytes) as $stream) {
-            foreach ($this->textLinesFromContentStream($stream, $fontToUnicodeMaps) as $line) {
+        foreach ($this->contentStreamsWithFontMaps($pdfBytes) as $entry) {
+            foreach ($this->textLinesFromContentStream($entry['stream'], $entry['fontToUnicodeMaps']) as $line) {
                 if ($line !== '') {
                     $lines[] = $line;
                 }
@@ -86,34 +84,45 @@ final class PdfTextExtractor
     private function extractPageTexts(string $pdfBytes): array
     {
         $pages = [];
-        $fontToUnicodeMaps = $this->fontToUnicodeMaps($pdfBytes);
-        foreach ($this->streams($pdfBytes) as $stream) {
-            $pages[] = implode("\n", $this->textLinesFromContentStream($stream, $fontToUnicodeMaps));
+        foreach ($this->contentStreamsWithFontMaps($pdfBytes) as $entry) {
+            $pages[] = implode("\n", $this->textLinesFromContentStream($entry['stream'], $entry['fontToUnicodeMaps']));
         }
 
         return $pages;
     }
 
     /**
-     * @return list<string>
+     * @return list<array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>}>
      */
-    private function streams(string $pdfBytes): array
+    private function contentStreamsWithFontMaps(string $pdfBytes): array
     {
         $objects = $this->pdfObjects($pdfBytes);
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
         if ($pageObjectNumbers !== []) {
-            return $this->pageContentStreams($objects, $pageObjectNumbers);
+            $fontObjectMaps = $this->fontObjectMaps($objects);
+            $pageStreams = $this->pageContentStreamsWithFontMaps($objects, $pageObjectNumbers, $fontObjectMaps);
+            if ($pageStreams !== []) {
+                return $pageStreams;
+            }
         }
 
-        return $this->allDecodedStreams($pdfBytes, $objects);
+        $fontToUnicodeMaps = $this->fontToUnicodeMaps($pdfBytes);
+        return array_map(
+            static fn (string $stream): array => [
+                'stream' => $stream,
+                'fontToUnicodeMaps' => $fontToUnicodeMaps,
+            ],
+            $this->allDecodedStreams($pdfBytes, $objects)
+        );
     }
 
     /**
-     * @return list<string>
+     * @return list<array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>}>
      * @param array<int, string> $objects
      * @param list<int> $pageObjectNumbers
+     * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
      */
-    private function pageContentStreams(array $objects, array $pageObjectNumbers): array
+    private function pageContentStreamsWithFontMaps(array $objects, array $pageObjectNumbers, array $fontObjectMaps): array
     {
         $pages = [];
         foreach ($pageObjectNumbers as $pageObjectNumber) {
@@ -133,13 +142,18 @@ final class PdfTextExtractor
                 }
             }
 
-            if ($streams !== []) {
-                $pages[] = $this->expandFormXObjectInvocations(
+            if ($streams === []) {
+                continue;
+            }
+
+            $pages[] = [
+                'stream' => $this->expandFormXObjectInvocations(
                     implode("\n", $streams),
                     $objects[$pageObjectNumber],
                     $objects
-                );
-            }
+                ),
+                'fontToUnicodeMaps' => $this->pageFontToUnicodeMaps($pageObjectNumber, $objects, $fontObjectMaps),
+            ];
         }
 
         return $pages;
@@ -782,6 +796,41 @@ final class PdfTextExtractor
     private function fontToUnicodeMaps(string $pdfBytes): array
     {
         $objects = $this->pdfObjects($pdfBytes);
+        $fontObjectMaps = $this->fontObjectMaps($objects);
+        if ($fontObjectMaps === []) {
+            return [];
+        }
+
+        $resourceMaps = [];
+        foreach ($objects as $body) {
+            $resourceDictionary = $this->resourceDictionaryBody($body, $objects);
+            if ($resourceDictionary === null) {
+                continue;
+            }
+
+            foreach ($this->fontResourceMapsFromResourceDictionary($resourceDictionary, $objects, $fontObjectMaps) as $name => $map) {
+                $resourceMaps[$name] = $map;
+            }
+        }
+
+        if ($resourceMaps !== []) {
+            return $resourceMaps;
+        }
+
+        if (count($fontObjectMaps) === 1) {
+            $onlyMap = reset($fontObjectMaps);
+            return is_array($onlyMap) ? ['' => $onlyMap] : [];
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>
+     * @param array<int, string> $objects
+     */
+    private function fontObjectMaps(array $objects): array
+    {
         $namedCMapBodies = $this->namedCMapBodies($objects);
         $fontObjectMaps = [];
 
@@ -807,36 +856,156 @@ final class PdfTextExtractor
             }
         }
 
-        if ($fontObjectMaps === []) {
-            return [];
-        }
+        return $fontObjectMaps;
+    }
 
-        $resourceMaps = [];
-        if (preg_match_all('/\/Font\s*<<(.*?)>>/s', $pdfBytes, $fontMatches)) {
-            foreach ($fontMatches[1] as $fontResourceDictionary) {
-                if (!preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+\d+\s+R\b/', $fontResourceDictionary, $resourceMatches, PREG_SET_ORDER)) {
-                    continue;
-                }
+    /**
+     * @return array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>
+     * @param array<int, string> $objects
+     * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
+     */
+    private function pageFontToUnicodeMaps(int $pageObjectNumber, array $objects, array $fontObjectMaps): array
+    {
+        $maps = [];
+        foreach (array_reverse($this->pageObjectLineage($pageObjectNumber, $objects)) as $objectNumber) {
+            $resourceDictionary = $this->resourceDictionaryBody($objects[$objectNumber], $objects);
+            if ($resourceDictionary === null) {
+                continue;
+            }
 
-                foreach ($resourceMatches as $resourceMatch) {
-                    $fontObjectNumber = (int) $resourceMatch[2];
-                    if (isset($fontObjectMaps[$fontObjectNumber])) {
-                        $resourceMaps[$this->decodePdfName($resourceMatch[1])] = $fontObjectMaps[$fontObjectNumber];
-                    }
-                }
+            foreach ($this->fontResourceMapsFromResourceDictionary($resourceDictionary, $objects, $fontObjectMaps) as $name => $map) {
+                $maps[$name] = $map;
             }
         }
 
-        if ($resourceMaps !== []) {
-            return $resourceMaps;
-        }
-
-        if (count($fontObjectMaps) === 1) {
+        if ($maps === [] && count($fontObjectMaps) === 1) {
             $onlyMap = reset($fontObjectMaps);
             return is_array($onlyMap) ? ['' => $onlyMap] : [];
         }
 
-        return [];
+        return $maps;
+    }
+
+    /**
+     * @return list<int>
+     * @param array<int, string> $objects
+     */
+    private function pageObjectLineage(int $pageObjectNumber, array $objects): array
+    {
+        $lineage = [];
+        $seen = [];
+        $objectNumber = $pageObjectNumber;
+
+        while (isset($objects[$objectNumber]) && !isset($seen[$objectNumber])) {
+            $seen[$objectNumber] = true;
+            $lineage[] = $objectNumber;
+            if (!preg_match('/\/Parent\s+(\d+)\s+\d+\s+R\b/s', $objects[$objectNumber], $match)) {
+                break;
+            }
+
+            $objectNumber = (int) $match[1];
+        }
+
+        return $lineage;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function resourceDictionaryBody(string $objectBody, array $objects): ?string
+    {
+        if (!preg_match('/\/Resources\s*(?:(\d+)\s+\d+\s+R|<<)/s', $objectBody, $match, PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+
+        if (($match[1][0] ?? '') !== '') {
+            $objectNumber = (int) $match[1][0];
+            return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
+        }
+
+        $offset = strpos($objectBody, '<<', $match[0][1]);
+        return $offset === false ? null : $this->readPdfDictionaryAt($objectBody, $offset);
+    }
+
+    /**
+     * @return array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>
+     * @param array<int, string> $objects
+     * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
+     */
+    private function fontResourceMapsFromResourceDictionary(string $resourceDictionary, array $objects, array $fontObjectMaps): array
+    {
+        $fontDictionary = $this->fontResourceDictionaryBody($resourceDictionary, $objects);
+        if ($fontDictionary === null) {
+            return [];
+        }
+
+        if (!preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+\d+\s+R\b/', $fontDictionary, $resourceMatches, PREG_SET_ORDER)) {
+            return [];
+        }
+
+        $maps = [];
+        foreach ($resourceMatches as $resourceMatch) {
+            $fontObjectNumber = (int) $resourceMatch[2];
+            if (isset($fontObjectMaps[$fontObjectNumber])) {
+                $maps[$this->decodePdfName($resourceMatch[1])] = $fontObjectMaps[$fontObjectNumber];
+            }
+        }
+
+        return $maps;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function fontResourceDictionaryBody(string $resourceDictionary, array $objects): ?string
+    {
+        if (!preg_match('/\/Font\s*(?:(\d+)\s+\d+\s+R|<<)/s', $resourceDictionary, $match, PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+
+        if (($match[1][0] ?? '') !== '') {
+            $objectNumber = (int) $match[1][0];
+            return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
+        }
+
+        $offset = strpos($resourceDictionary, '<<', $match[0][1]);
+        return $offset === false ? null : $this->readPdfDictionaryAt($resourceDictionary, $offset);
+    }
+
+    private function dictionaryObjectBody(string $objectBody): ?string
+    {
+        $offset = strpos($objectBody, '<<');
+        return $offset === false ? null : $this->readPdfDictionaryAt($objectBody, $offset);
+    }
+
+    private function readPdfDictionaryAt(string $value, int $offset): ?string
+    {
+        if (substr($value, $offset, 2) !== '<<') {
+            return null;
+        }
+
+        $depth = 0;
+        $bodyStart = $offset + 2;
+        for ($index = $offset, $length = strlen($value); $index < $length - 1; $index++) {
+            $pair = substr($value, $index, 2);
+            if ($pair === '<<') {
+                $depth++;
+                $index++;
+                continue;
+            }
+
+            if ($pair !== '>>') {
+                continue;
+            }
+
+            $depth--;
+            if ($depth === 0) {
+                return substr($value, $bodyStart, $index - $bodyStart);
+            }
+            $index++;
+        }
+
+        return null;
     }
 
     /**
@@ -1035,7 +1204,198 @@ final class PdfTextExtractor
             $objects[(int) $match[1]] = $match[2];
         }
 
+        foreach ($this->objectsFromObjectStreams($objects, $this->compressedXrefEntries($objects)) as $objectNumber => $body) {
+            if (!isset($objects[$objectNumber])) {
+                $objects[$objectNumber] = $body;
+            }
+        }
+
         return $objects;
+    }
+
+    /**
+     * @return array<int, string>
+     * @param array<int, string> $objects
+     * @param array<int, array{objectStream: int, index: int}> $compressedXrefEntries
+     */
+    private function objectsFromObjectStreams(array $objects, array $compressedXrefEntries): array
+    {
+        $expanded = [];
+
+        foreach ($objects as $objectStreamNumber => $body) {
+            if (preg_match('/\/Type\s*\/ObjStm\b/', $body) !== 1) {
+                continue;
+            }
+
+            $decoded = $this->decodeStreamObject($body, $objects);
+            if ($decoded === null) {
+                continue;
+            }
+
+            if (
+                preg_match('/\/N\s+(\d+)/', $body, $countMatch) !== 1
+                || preg_match('/\/First\s+(\d+)/', $body, $firstMatch) !== 1
+            ) {
+                continue;
+            }
+
+            $count = max(0, (int) $countMatch[1]);
+            $first = (int) $firstMatch[1];
+            if ($count === 0 || $first < 0 || $first >= strlen($decoded)) {
+                continue;
+            }
+
+            $header = substr($decoded, 0, $first);
+            if (!preg_match_all('/(\d+)\s+(\d+)/', $header, $pairs, PREG_SET_ORDER)) {
+                continue;
+            }
+
+            $pairs = array_slice($pairs, 0, $count);
+            $hasCompressedXrefEntriesForStream = $this->hasCompressedXrefEntriesForObjectStream($compressedXrefEntries, $objectStreamNumber);
+            foreach ($pairs as $index => $pair) {
+                $objectNumber = (int) $pair[1];
+                $offset = (int) $pair[2];
+                if ($hasCompressedXrefEntriesForStream) {
+                    $xrefEntry = $compressedXrefEntries[$objectNumber] ?? null;
+                    if (
+                        $xrefEntry === null
+                        || $xrefEntry['objectStream'] !== $objectStreamNumber
+                        || $xrefEntry['index'] !== $index
+                    ) {
+                        continue;
+                    }
+                }
+
+                $nextOffset = isset($pairs[$index + 1]) ? (int) $pairs[$index + 1][2] : strlen($decoded) - $first;
+                if ($offset < 0 || $nextOffset < $offset) {
+                    continue;
+                }
+
+                $memberBody = trim(substr($decoded, $first + $offset, $nextOffset - $offset));
+                if ($memberBody !== '') {
+                    $expanded[$objectNumber] = $memberBody;
+                }
+            }
+        }
+
+        return $expanded;
+    }
+
+    /**
+     * @param array<int, array{objectStream: int, index: int}> $compressedXrefEntries
+     */
+    private function hasCompressedXrefEntriesForObjectStream(array $compressedXrefEntries, int $objectStreamNumber): bool
+    {
+        foreach ($compressedXrefEntries as $entry) {
+            if ($entry['objectStream'] === $objectStreamNumber) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array<int, array{objectStream: int, index: int}>
+     * @param array<int, string> $objects
+     */
+    private function compressedXrefEntries(array $objects): array
+    {
+        $entries = [];
+        foreach ($objects as $body) {
+            if (preg_match('/\/Type\s*\/XRef\b/', $body) !== 1) {
+                continue;
+            }
+
+            if (preg_match('/\/W\s*\[(.*?)\]/s', $body, $widthMatch) !== 1) {
+                continue;
+            }
+
+            $widths = $this->integersFromPdfArray($widthMatch[1]);
+            if (count($widths) < 3) {
+                continue;
+            }
+            $widths = array_slice($widths, 0, 3);
+            $entryWidth = array_sum($widths);
+            if ($entryWidth <= 0) {
+                continue;
+            }
+
+            $decoded = $this->decodeStreamObject($body, $objects);
+            if ($decoded === null) {
+                continue;
+            }
+
+            $offset = 0;
+            foreach ($this->xrefIndexRanges($body) as $range) {
+                [$startObject, $count] = $range;
+                for ($index = 0; $index < $count; $index++) {
+                    if ($offset + $entryWidth > strlen($decoded)) {
+                        break 2;
+                    }
+
+                    $fieldOffset = $offset;
+                    $type = $widths[0] === 0 ? 1 : $this->xrefFieldValue($decoded, $fieldOffset, $widths[0]);
+                    $fieldTwo = $this->xrefFieldValue($decoded, $fieldOffset, $widths[1]);
+                    $fieldThree = $this->xrefFieldValue($decoded, $fieldOffset, $widths[2]);
+                    if ($type === 2 && $fieldTwo > 0) {
+                        $entries[$startObject + $index] = [
+                            'objectStream' => $fieldTwo,
+                            'index' => $fieldThree,
+                        ];
+                    }
+
+                    $offset += $entryWidth;
+                }
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return list<array{0: int, 1: int}>
+     */
+    private function xrefIndexRanges(string $xrefBody): array
+    {
+        if (preg_match('/\/Index\s*\[(.*?)\]/s', $xrefBody, $match) === 1) {
+            $values = $this->integersFromPdfArray($match[1]);
+            $ranges = [];
+            for ($index = 0, $count = count($values); $index + 1 < $count; $index += 2) {
+                $ranges[] = [max(0, $values[$index]), max(0, $values[$index + 1])];
+            }
+
+            return $ranges;
+        }
+
+        if (preg_match('/\/Size\s+(\d+)/', $xrefBody, $match) === 1) {
+            return [[0, max(0, (int) $match[1])]];
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function integersFromPdfArray(string $arrayBody): array
+    {
+        if (!preg_match_all('/-?\d+/', $arrayBody, $matches)) {
+            return [];
+        }
+
+        return array_map('intval', $matches[0]);
+    }
+
+    private function xrefFieldValue(string $bytes, int &$offset, int $width): int
+    {
+        $value = 0;
+        for ($index = 0; $index < $width; $index++) {
+            $value = ($value << 8) + ord($bytes[$offset + $index]);
+        }
+        $offset += $width;
+
+        return $value;
     }
 
     /**

@@ -123,6 +123,73 @@ $tiffPredictorEncode = static function (string $bytes, int $columns): string {
     return $encoded;
 };
 
+$toUnicodeCMap = static function (array $entries): string {
+    $body = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "1 begincodespacerange\n"
+        . "<00> <FF>\n"
+        . "endcodespacerange\n"
+        . count($entries) . " beginbfchar\n";
+
+    foreach ($entries as $sourceHex => $text) {
+        $encoded = iconv('UTF-8', 'UTF-16BE//IGNORE', (string) $text);
+        if ($encoded === false) {
+            throw new RuntimeException('Unable to encode CMap fixture text.');
+        }
+
+        $body .= '<' . strtoupper((string) $sourceHex) . '> <' . strtoupper(bin2hex($encoded)) . ">\n";
+    }
+
+    return $body
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+};
+
+$objectStreamXrefPdf = static function (): string {
+    $content = 'BT /Fcid 12 Tf 72 720 Td <004F0062006A006500630074002000730074007200650061006D00200070006100670065> Tj T* /Fplain 12 Tf (Plain Direct Font) Tj ET';
+    $phantom = 'BT /Fplain 12 Tf 72 720 Td (Phantom stale object stream text) Tj ET';
+    $members = [
+        1 => '<< /Type /Catalog /Pages 10 0 R >>',
+        10 => '<< /Type /Page /Contents 9 0 R >>',
+        11 => '<< /Type /Catalog /Pages 2 0 R >>',
+        2 => '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+        3 => '<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R /Fplain 8 0 R >> >> /Contents 5 0 R >>',
+        4 => '<< /Type /Font /Subtype /Type0 /BaseFont /ObjectStreamIdentity /Encoding /Identity-H >>',
+    ];
+
+    $objectData = '';
+    $headerPairs = [];
+    $memberIndexes = [];
+    $memberIndex = 0;
+    foreach ($members as $objectNumber => $body) {
+        $headerPairs[] = $objectNumber . ' ' . strlen($objectData);
+        $memberIndexes[$objectNumber] = $memberIndex;
+        $objectData .= $body . "\n";
+        $memberIndex++;
+    }
+
+    $objectStreamPlain = implode(' ', $headerPairs) . "\n" . $objectData;
+    $compressedObjectStream = gzcompress($objectStreamPlain);
+
+    $xrefRows = '';
+    foreach ([11, 2, 3, 4] as $objectNumber) {
+        $xrefRows .= chr(2) . chr(6) . chr($memberIndexes[$objectNumber]);
+    }
+    $compressedXref = gzcompress($xrefRows);
+
+    return "%PDF-1.5\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /ObjStm /N " . count($members) . " /First " . (strlen(implode(' ', $headerPairs)) + 1) . " /Filter /FlateDecode /Length " . strlen($compressedObjectStream) . " >>\nstream\n{$compressedObjectStream}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "9 0 obj\n<< /Length " . strlen($phantom) . " >>\nstream\n{$phantom}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /XRef /Size 12 /Root 11 0 R /Index [11 1 2 3] /W [1 1 1] /Filter /FlateDecode /Length " . strlen($compressedXref) . " >>\nstream\n{$compressedXref}\nendstream\nendobj\n"
+        . "startxref\n0\n%%EOF";
+};
+
 return [
     'extracts literal and array text operators from content streams' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = "BT /F1 12 Tf 72 720 Td (Hello \\(WP\\)) Tj [(Data) 120 ( Liberation)] TJ ET";
@@ -593,6 +660,48 @@ return [
         $t->same("Page Before Form\nReusable Form Block\nImported Once\nPage After Form", $extractor->extractPlainText($pdf));
         $t->same("Page Before Form\nReusable Form Block\nImported Once\nPage After Form\n", $extractor->naiveGetText($pdf));
         $t->true(!str_contains($extractor->extractPlainText($pdf), 'Dormant Form Text'));
+    },
+    'inherits page tree font resources per page before WordPress text extraction' => static function (TestRunner $t) use ($toUnicodeCMap): void {
+        $pageOne = 'BT /F1 12 Tf 72 720 Td <4142> Tj ET';
+        $pageTwo = 'BT /F1 12 Tf 72 720 Td <4142> Tj ET';
+        $cmapOne = $toUnicodeCMap([
+            '41' => 'Inherited',
+            '42' => ' One',
+        ]);
+        $cmapTwo = $toUnicodeCMap([
+            '41' => 'Inherited',
+            '42' => ' Two',
+        ]);
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [10 0 R 20 0 R] /Count 2 >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Pages /Parent 2 0 R /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 4 0 R >> >> >>\nendobj\n"
+            . "20 0 obj\n<< /Type /Pages /Parent 2 0 R /Kids [8 0 R] /Count 1 /Resources << /Font << /F1 6 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 10 0 R /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /InheritedOne /Encoding /Identity-H /ToUnicode 11 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($pageOne) . " >>\nstream\n{$pageOne}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /InheritedTwo /Encoding /Identity-H /ToUnicode 12 0 R >>\nendobj\n"
+            . "8 0 obj\n<< /Type /Page /Parent 20 0 R /Contents 9 0 R >>\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($pageTwo) . " >>\nstream\n{$pageTwo}\nendstream\nendobj\n"
+            . "11 0 obj\n<< /Length " . strlen($cmapOne) . " >>\nstream\n{$cmapOne}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Length " . strlen($cmapTwo) . " >>\nstream\n{$cmapTwo}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+
+        $t->same(['Inherited One', 'Inherited Two'], $extractor->extractTextLines($pdf));
+        $t->same(['Inherited One', 'Inherited Two'], $extractor->extractTextRuns($pdf));
+        $t->same("Inherited One\nInherited Two", $extractor->extractPlainText($pdf));
+        $t->same("Inherited One\nInherited Two\n", $extractor->naiveGetText($pdf));
+    },
+    'parses object streams through xref stream entries before WordPress text extraction' => static function (TestRunner $t) use ($objectStreamXrefPdf): void {
+        $pdf = $objectStreamXrefPdf();
+        $extractor = new PdfTextExtractor();
+
+        $t->same(['Object stream page', 'Plain Direct Font'], $extractor->extractTextLines($pdf));
+        $t->same(['Object stream page', 'Plain Direct Font'], $extractor->extractTextRuns($pdf));
+        $t->same("Object stream page\nPlain Direct Font", $extractor->extractPlainText($pdf));
+        $t->same("Object stream page\nPlain Direct Font\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($extractor->extractPlainText($pdf), 'Phantom stale object stream text'));
+        $t->true(!str_contains($extractor->extractPlainText($pdf), "\0"));
     },
     'replays upstream naive_get_text page suffix and get_length_of_text trim boundary' => static function (TestRunner $t) use ($pdfWithStreams): void {
         $pdf = $pdfWithStreams([
