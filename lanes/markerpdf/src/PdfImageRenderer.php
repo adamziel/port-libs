@@ -1099,6 +1099,105 @@ final class PdfImageRenderer
     }
 
     /**
+     * Maps supplied decoded JPEG2000 `/ImageMask true` samples through the PDF
+     * stencil Decode array without claiming native JPX raster decoding.
+     *
+     * PDFium handles JPX raster decoding upstream before Marker converts crops
+     * to RGB. This helper keeps the same handoff boundary: the JPX stream stays
+     * preview-only here, while already-decoded one-bit JPEG2000 mask samples can
+     * be reviewed for opacity before a future RGB compositor runs.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    public function jpeg2000ImageMaskPreviewRows(string $imageObject, string $decodedMaskSamples, array $objects = [], int $maxPixels = 16): array
+    {
+        if ($maxPixels < 1) {
+            throw new InvalidArgumentException('JPEG2000 ImageMask preview requires at least one preview pixel.');
+        }
+
+        $dictionary = $this->streamDictionaryFromValue($imageObject) ?? trim($imageObject);
+        $plan = $this->imageColorSpaceSoftMaskPlan($dictionary, $objects);
+        if (!in_array('JPXDecode', $plan['image_filters'], true)) {
+            throw new InvalidArgumentException('JPEG2000 ImageMask preview requires a JPXDecode image stream.');
+        }
+
+        $imageMask = $plan['image_mask'] ?? null;
+        if (!is_array($imageMask) || ($imageMask['present'] ?? false) !== true) {
+            throw new InvalidArgumentException('JPEG2000 ImageMask preview requires /ImageMask true.');
+        }
+
+        $width = $imageMask['width'] ?? null;
+        $height = $imageMask['height'] ?? null;
+        $bitsPerComponent = max(1, (int) ($imageMask['bits_per_component'] ?? 1));
+        if (!is_int($width) || !is_int($height) || $width < 1 || $height < 1) {
+            throw new InvalidArgumentException('JPEG2000 ImageMask preview requires positive Width and Height.');
+        }
+        if ($bitsPerComponent !== 1) {
+            throw new InvalidArgumentException('JPEG2000 ImageMask preview requires one-bit ImageMask samples.');
+        }
+        if (($imageMask['decode']['valid_for_components'] ?? false) !== true) {
+            throw new InvalidArgumentException('JPEG2000 ImageMask Decode array must contain one valid component range.');
+        }
+
+        $expectedPixelCount = $width * $height;
+        $imageStream = $this->decodedImageStreamPreviewBoundary($dictionary, $imageObject, $objects);
+        $imageStreamMeta = $this->streamBoundaryPublicMetadata($imageStream);
+        $samples = $this->packedImagePixelSamples($decodedMaskSamples, 1, 1, $expectedPixelCount);
+
+        $limit = min($maxPixels, count($samples['pixels']));
+        $pixels = [];
+        for ($index = 0; $index < $limit; $index++) {
+            $rawSample = $samples['pixels'][$index][0];
+            $pixels[] = [
+                'pixel_index' => $index,
+                'x' => $index % $width,
+                'y' => intdiv($index, $width),
+                'raw_sample' => $rawSample,
+                'opacity' => $this->imageMaskSampleOpacity($rawSample, $imageMask),
+            ];
+        }
+
+        $streamNotes = [
+            'jpeg2000_image_stream_review_only_before_rgb_conversion',
+            'jpeg2000_image_mask_supplied_samples_decoded_before_rgb_conversion',
+        ];
+        if (!$samples['complete']) {
+            $streamNotes[] = 'jpeg2000_image_mask_sample_data_incomplete';
+        }
+
+        return [
+            'source_color_space' => 'ImageMask',
+            'width' => $width,
+            'height' => $height,
+            'components_per_pixel' => 1,
+            'bits_per_component' => 1,
+            'expected_pixel_count' => $expectedPixelCount,
+            'preview_pixel_count' => count($pixels),
+            'review_only_image_stream' => true,
+            'native_jpeg2000_decode' => false,
+            'uses_supplied_jpeg2000_mask_samples' => true,
+            'complete_mask_sample_data' => $samples['complete'],
+            'image_stream' => $imageStreamMeta,
+            'image_filter_boundary' => $plan['image_filter_boundary'],
+            'image_mask' => $imageMask,
+            'jpx_soft_mask_in_data' => $plan['jpx_soft_mask_in_data'],
+            'pixels' => $pixels,
+            'stream_notes' => $streamNotes,
+            'notes' => array_values(array_unique(array_merge(
+                $plan['notes'] ?? [],
+                [
+                    'jpeg2000_image_mask_decode_applied_before_rgb_conversion',
+                    'jpeg2000_image_mask_supplied_samples_previewed_without_raster_decode',
+                ],
+                $streamNotes
+            ))),
+            'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
+            'alpha_output_mode' => (string) ($plan['alpha_output_mode'] ?? 'image_mask_composited_to_rgb_preview'),
+        ];
+    }
+
+    /**
      * Expands an Indexed color-space sample index into normalized base color
      * components. This mirrors the PDF parser side of the RGB preview boundary
      * without rasterizing pixels.

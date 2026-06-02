@@ -745,6 +745,99 @@ return [
             unlink($path);
         }
     },
+    'binds table span grid review to surrounding section and caption blocks' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-table-span-grid-section-caption-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% table span grid section caption supplied pipeline\n%%EOF");
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'Import metrics', 'bbox' => [72.0, 48.0, 290.0, 68.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'Stale section caption table text should be replaced.', 'bbox' => [72.0, 176.0, 510.0, 196.0]],
+                ['text' => 'Table 4: Review metrics from tabled grid.', 'bbox' => [72.0, 272.0, 430.0, 290.0]],
+                ['text' => 'Reviewer note after caption.', 'bbox' => [72.0, 326.0, 440.0, 344.0]],
+            ]);
+            $layout = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Section-header', 'bbox' => [72.0, 48.0, 290.0, 68.0]],
+                    ['label' => 'Table', 'bbox' => [72.0, 150.0, 430.0, 260.0]],
+                    ['label' => 'Caption', 'bbox' => [72.0, 272.0, 430.0, 290.0]],
+                    ['label' => 'Text', 'bbox' => [72.0, 326.0, 440.0, 344.0]],
+                ],
+            ];
+            $recognizedTable = [
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 300.0, 25.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 35.0, 300.0, 60.0]],
+                    ['row_id' => 2, 'bbox' => [0.0, 85.0, 300.0, 110.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 95.0, 120.0]],
+                    ['col_id' => 1, 'bbox' => [105.0, 0.0, 195.0, 120.0]],
+                    ['col_id' => 2, 'bbox' => [205.0, 0.0, 300.0, 120.0]],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [$layout],
+                    'recognized_tables' => [$recognizedTable],
+                    'table_detector_cells' => [[
+                        ['bbox' => [5.0, 5.0, 295.0, 20.0], 'text' => null],
+                        ['bbox' => [5.0, 36.0, 92.0, 109.0], 'text' => null],
+                        ['bbox' => [110.0, 39.0, 190.0, 56.0], 'text' => null],
+                        ['bbox' => [210.0, 39.0, 290.0, 56.0], 'text' => null],
+                        ['bbox' => [110.0, 89.0, 190.0, 106.0], 'text' => null],
+                        ['bbox' => [210.0, 89.0, 290.0, 106.0], 'text' => null],
+                    ]],
+                    'table_ocr_text_lines' => [[
+                        'lines' => [
+                            ['text' => 'Inventory summary'],
+                            ['text' => 'Media group'],
+                            ['text' => 'Image count'],
+                            ['text' => '12'],
+                            ['text' => 'Review state'],
+                            ['text' => 'Needs review'],
+                        ],
+                    ]],
+                    'table_rendered_image_sizes' => [['width' => 612, 'height' => 792]],
+                    'ocr_all_pages' => true,
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $context = $result['metadata']['table_section_caption_review'][0] ?? [];
+            $grid = $context['spanning_grid'] ?? [];
+
+            $t->contains('## Import Metrics', $result['text']);
+            $t->contains('| Inventory summary', $result['text']);
+            $t->contains('Table 4: Review metrics from tabled grid.', $result['text']);
+            $t->contains('Reviewer note after caption.', $result['text']);
+            $t->true(!str_contains($result['text'], 'Stale section caption table text should be replaced.'));
+            $t->same(['layout', 'table-cell-routing', 'table-recognition', 'table-formatting'], $result['metadata']['supplied_boundaries']);
+            $t->same(true, $context['inserted']);
+            $t->same(true, $context['has_section']);
+            $t->same(true, $context['has_caption']);
+            $t->same('Section-header', $context['section']['type']);
+            $t->same('Import metrics', $context['section']['text']);
+            $t->same('table_span_grid', $context['section']['review_target']);
+            $t->same('Caption', $context['caption']['type']);
+            $t->same('Table 4: Review metrics from tabled grid.', $context['caption']['text']);
+            $t->same('after', $context['caption']['position']);
+            $t->same('table_span_grid', $context['caption']['review_target']);
+            $t->same([0, 1, 2], $grid['rows']);
+            $t->same([0, 1, 2], $grid['cols']);
+            $t->same(6, $grid['render_cell_count']);
+            $t->same(['h-r0-c0', 'h-r1-c0'], $grid['header_ids']);
+            $t->same(true, $grid['has_rowspan']);
+            $t->same(true, $grid['has_colspan']);
+            $t->same('table_span_grid', $grid['review_target']);
+        } finally {
+            unlink($path);
+        }
+    },
     'keeps multiline OCR table headers together in WordPress grid review' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-ocr-multiline-header-grid-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% OCR multiline header grid supplied pipeline\n%%EOF");

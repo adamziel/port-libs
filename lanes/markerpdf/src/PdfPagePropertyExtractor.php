@@ -71,6 +71,7 @@ final class PdfPagePropertyExtractor
             $userProperties = $userPropertiesByPage[$pageObjectNumber] ?? [];
             $articleBeads = $articleBeadsByObject[$pageObjectNumber] ?? [];
             $structureMarkedContent = $structureMarkedContentByObject[$pageObjectNumber] ?? [];
+            $articleBeads = $this->articleBeadsWithStructureContext($articleBeads, $structureMarkedContent);
             $textMarkupAnnotations = $textMarkupAnnotationsByObject[$pageObjectNumber] ?? [];
             if (
                 $pieceInfo === []
@@ -205,6 +206,92 @@ final class PdfPagePropertyExtractor
         }
 
         return array_values($titles);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $articleBeads
+     * @param list<array<string, mixed>> $structureMarkedContent
+     * @return list<array<string, mixed>>
+     */
+    private function articleBeadsWithStructureContext(array $articleBeads, array $structureMarkedContent): array
+    {
+        if ($articleBeads === [] || $structureMarkedContent === []) {
+            return $articleBeads;
+        }
+
+        $structureRows = [];
+        $mcids = [];
+        $roles = [];
+        $associatedFiles = [];
+        $associatedFileKeys = [];
+        foreach ($structureMarkedContent as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $structureRows[] = $this->compactReviewRow($row);
+
+            $mcid = $row['mcid'] ?? null;
+            if (is_int($mcid)) {
+                $mcids[$mcid] = $mcid;
+            }
+
+            $role = $row['role'] ?? null;
+            if (is_string($role) && $role !== '') {
+                $roles[$role] = $role;
+            }
+
+            $files = $row['associated_files'] ?? [];
+            if (!is_array($files)) {
+                continue;
+            }
+
+            foreach ($files as $file) {
+                if (!is_array($file)) {
+                    continue;
+                }
+
+                $fileSpecObject = $file['file_spec_object'] ?? null;
+                $filename = $file['filename'] ?? null;
+                $hash = $file['content_sha256'] ?? null;
+                $key = (is_int($fileSpecObject) ? (string) $fileSpecObject : '')
+                    . '|'
+                    . (is_string($filename) ? $filename : '')
+                    . '|'
+                    . (is_string($hash) ? $hash : '');
+                if ($key === '||' || isset($associatedFileKeys[$key])) {
+                    continue;
+                }
+
+                $associatedFileKeys[$key] = true;
+                $associatedFiles[] = $file;
+            }
+        }
+
+        if ($structureRows === []) {
+            return $articleBeads;
+        }
+
+        $mcids = array_values($mcids);
+        sort($mcids);
+        $roles = array_values($roles);
+
+        return array_map(
+            static function (array $bead) use ($structureRows, $mcids, $roles, $associatedFiles): array {
+                $bead['target_structure_marked_content'] = $structureRows;
+                $bead['target_structure_mcids'] = $mcids;
+                if ($roles !== []) {
+                    $bead['target_structure_roles'] = $roles;
+                }
+                if ($associatedFiles !== []) {
+                    $bead['target_structure_associated_file_count'] = count($associatedFiles);
+                    $bead['target_structure_associated_files'] = $associatedFiles;
+                }
+
+                return $bead;
+            },
+            $articleBeads
+        );
     }
 
     /**

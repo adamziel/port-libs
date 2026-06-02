@@ -4737,9 +4737,13 @@ final class PdfAcroFormExtractor
     {
         $actionType = $action['action_type'] ?? null;
         if ($actionType === 'SubmitForm') {
-            $action['field_value_review'] = $this->submitFormFieldValueReview($action, $fieldRows);
+            $review = $this->submitFormFieldValueReview($action, $fieldRows);
+            $action['field_value_review'] = $review;
+            $action['action_resource_review'] = $this->submitResetActionResourceReview($action, $review);
         } elseif ($actionType === 'ResetForm') {
-            $action['field_value_review'] = $this->resetFormFieldValueReview($action, $fieldRows);
+            $review = $this->resetFormFieldValueReview($action, $fieldRows);
+            $action['field_value_review'] = $review;
+            $action['action_resource_review'] = $this->submitResetActionResourceReview($action, $review);
         }
 
         return $action;
@@ -4860,6 +4864,156 @@ final class PdfAcroFormExtractor
             'executes_javascript' => false,
             'payload_text_exposed' => false,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function submitResetActionResourceReview(array $action, array $fieldValueReview): array
+    {
+        $rows = $this->arrayRows($fieldValueReview['field_rows'] ?? []);
+        $resourceRows = array_values(array_filter(
+            $rows,
+            static fn (array $row): bool => is_array($row['appearance_resource_review'] ?? null)
+        ));
+        $resourceValues = $this->submitResetActionResourceValues($resourceRows);
+        $actionType = is_string($action['action_type'] ?? null)
+            ? $action['action_type']
+            : (string) ($fieldValueReview['action_type'] ?? 'unknown');
+        $submittedFieldNames = $this->stringListValue($fieldValueReview['submitted_field_names'] ?? []);
+        $resetFieldNames = $this->stringListValue($fieldValueReview['reset_field_names'] ?? []);
+        $fileSpec = is_array($action['file_spec'] ?? null) ? $action['file_spec'] : null;
+
+        return [
+            'source' => 'acroform_field_action_submit_reset_resource_currentbase_review_boundary',
+            'action_type' => $actionType,
+            'trigger' => $action['trigger'] ?? null,
+            'trigger_label' => $action['trigger_label'] ?? null,
+            'action_source' => $action['source'] ?? null,
+            'source_object' => $action['source_object'] ?? null,
+            'action_object' => $action['action_object'] ?? null,
+            'fields_mode' => $action['fields_mode'] ?? ($fieldValueReview['fields_mode'] ?? null),
+            'selected_field_count' => count($rows),
+            'selected_field_names' => $this->fieldNamesFromRows($rows),
+            'field_resource_count' => count($resourceRows),
+            'field_resource_names' => $this->fieldNamesFromRows($resourceRows),
+            'included_field_names' => $actionType === 'ResetForm' ? $resetFieldNames : $submittedFieldNames,
+            'submitted_field_names' => $submittedFieldNames,
+            'reset_field_names' => $resetFieldNames,
+            'no_export_excluded_field_names' => $this->stringListValue($fieldValueReview['no_export_excluded_field_names'] ?? []),
+            'no_value_excluded_field_names' => $this->stringListValue($fieldValueReview['no_value_excluded_field_names'] ?? []),
+            'push_button_excluded_field_names' => $this->stringListValue($fieldValueReview['push_button_excluded_field_names'] ?? []),
+            'default_value_field_names' => $this->stringListValue($fieldValueReview['default_value_field_names'] ?? []),
+            'cleared_field_names' => $this->stringListValue($fieldValueReview['cleared_field_names'] ?? []),
+            'choice_field_names' => $this->stringListValue($fieldValueReview['choice_field_names'] ?? []),
+            'rich_text_field_names' => $this->stringListValue($fieldValueReview['rich_text_field_names'] ?? []),
+            'field_font_resources' => $resourceValues['field_font_resources'],
+            'field_font_resource_base_fonts' => $resourceValues['field_font_resource_base_fonts'],
+            'field_font_descriptor_objects' => $resourceValues['field_font_descriptor_objects'],
+            'widget_font_resources' => $resourceValues['widget_font_resources'],
+            'widget_font_resource_base_fonts' => $resourceValues['widget_font_resource_base_fonts'],
+            'target' => $action['target'] ?? null,
+            'target_scheme' => $action['target_scheme'] ?? null,
+            'has_target_file_spec' => $fileSpec !== null,
+            'target_file_spec_object' => $fileSpec['file_spec_object'] ?? null,
+            'target_file_spec_file_system' => $fileSpec['file_system'] ?? null,
+            'target_file_spec_relationship' => $fileSpec['relationship'] ?? null,
+            'target_embedded_file_count' => $fileSpec === null ? 0 : (int) ($fileSpec['embedded_file_count'] ?? 0),
+            'target_embedded_file_objects' => $this->integerListValue($fileSpec['embedded_file_objects'] ?? []),
+            'target_related_file_count' => $fileSpec === null ? 0 : (int) ($fileSpec['related_file_count'] ?? 0),
+            'review_only' => true,
+            'uses_default_resources_for_submit' => false,
+            'uses_default_resources_for_reset' => false,
+            'uses_default_resources_for_import' => false,
+            'field_value_payload_exposed' => false,
+            'file_spec_payload_text_exposed' => false,
+            'submits_pdf_on_import' => false,
+            'resets_form_values_on_import' => false,
+            'embeds_form_on_import' => false,
+            'imports_form_data' => false,
+            'renders_appearances' => false,
+            'executes_appearance_streams' => false,
+            'executes_action' => false,
+            'executes_javascript' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $resourceRows
+     * @return array{field_font_resources: list<string>, field_font_resource_base_fonts: list<string>, field_font_descriptor_objects: list<int>, widget_font_resources: list<string>, widget_font_resource_base_fonts: list<string>}
+     */
+    private function submitResetActionResourceValues(array $resourceRows): array
+    {
+        $fieldFontResources = [];
+        $fieldFontBaseFonts = [];
+        $fieldFontDescriptorObjects = [];
+        $widgetFontResources = [];
+        $widgetFontBaseFonts = [];
+
+        foreach ($resourceRows as $row) {
+            $review = is_array($row['appearance_resource_review'] ?? null) ? $row['appearance_resource_review'] : null;
+            if ($review === null) {
+                continue;
+            }
+
+            if (is_string($review['font_resource'] ?? null)) {
+                $fieldFontResources[] = $review['font_resource'];
+            }
+            if (is_string($review['font_resource_base_font'] ?? null)) {
+                $fieldFontBaseFonts[] = $review['font_resource_base_font'];
+            }
+            if (is_int($review['font_descriptor_object'] ?? null)) {
+                $fieldFontDescriptorObjects[] = $review['font_descriptor_object'];
+            }
+
+            foreach ($this->arrayRows($review['widget_appearances'] ?? []) as $widgetAppearance) {
+                if (is_string($widgetAppearance['font_resource'] ?? null)) {
+                    $widgetFontResources[] = $widgetAppearance['font_resource'];
+                }
+                if (is_string($widgetAppearance['font_resource_base_font'] ?? null)) {
+                    $widgetFontBaseFonts[] = $widgetAppearance['font_resource_base_font'];
+                }
+            }
+        }
+
+        return [
+            'field_font_resources' => $this->uniqueStrings($fieldFontResources),
+            'field_font_resource_base_fonts' => $this->uniqueStrings($fieldFontBaseFonts),
+            'field_font_descriptor_objects' => array_values(array_unique($fieldFontDescriptorObjects)),
+            'widget_font_resources' => $this->uniqueStrings($widgetFontResources),
+            'widget_font_resource_base_fonts' => $this->uniqueStrings($widgetFontBaseFonts),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stringListValue(mixed $values): array
+    {
+        if (!is_array($values)) {
+            return [];
+        }
+
+        return $this->uniqueStrings(array_values(array_filter($values, static fn (mixed $value): bool => is_string($value))));
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function integerListValue(mixed $values): array
+    {
+        if (!is_array($values)) {
+            return [];
+        }
+
+        $integers = [];
+        foreach ($values as $value) {
+            if (is_int($value) && !in_array($value, $integers, true)) {
+                $integers[] = $value;
+            }
+        }
+
+        return $integers;
     }
 
     /**

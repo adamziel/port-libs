@@ -47,6 +47,7 @@ final class PdfSecurityPreflight
         $signatureByteRangeCount = $this->signatureByteRangeCount($signatures);
         $validSignatureByteRangeCount = $this->validSignatureByteRangeCount($signatures);
         $encryptedSignatureByteRangeReview = $this->encryptedSignatureByteRangeReview($encrypted, $permissionPreflight, $signatures);
+        $fieldMdpByteRangeReview = $this->fieldMdpByteRangeReview($signatures, $form['fields'] ?? [], $objectSpans);
         $reviewReasons = $this->reviewReasons(
             $encrypted,
             $signedSignatureCount,
@@ -92,6 +93,10 @@ final class PdfSecurityPreflight
             'signature_reference_transform_count' => $referenceTransformCount,
             'signature_reference_transform_methods' => $this->referenceTransformMethods($signatures),
             'locked_field_names' => $lockedFieldNames,
+            'field_mdp_byte_range_review_count' => (int) $fieldMdpByteRangeReview['target_field_count'],
+            'field_mdp_byte_range_conflict_count' => (int) $fieldMdpByteRangeReview['target_not_covered_count'],
+            'field_mdp_byte_range_statuses' => $fieldMdpByteRangeReview['target_statuses'],
+            'field_mdp_byte_range_review' => $fieldMdpByteRangeReview,
             'encrypted_signature_byte_range_review_count' => $encrypted ? (int) $encryptedSignatureByteRangeReview['byte_range_count'] : 0,
             'encrypted_signature_byte_range_review' => $encryptedSignatureByteRangeReview,
             'document_security_store_count' => $hasDocumentSecurityStore ? 1 : 0,
@@ -989,6 +994,261 @@ final class PdfSecurityPreflight
             'executes_signature_validation' => false,
             'executes_action' => false,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $signatures
+     * @param list<array<string, mixed>> $fields
+     * @param array<int, array{offset: int, end: int, length: int, generation: int}> $objectSpans
+     * @return array<string, mixed>
+     */
+    private function fieldMdpByteRangeReview(array $signatures, array $fields, array $objectSpans): array
+    {
+        $fieldsByName = $this->fieldsByName($fields);
+        $rows = [];
+        foreach ($signatures as $signature) {
+            $byteRange = is_array($signature['byte_range'] ?? null) ? $signature['byte_range'] : [];
+            foreach ($signature['reference_transforms'] ?? [] as $transform) {
+                if (!is_array($transform) || ($transform['transform_method'] ?? null) !== 'FieldMDP') {
+                    continue;
+                }
+
+                $targetNames = $this->fieldMdpTargetFieldNames($transform, $fields);
+                foreach ($targetNames as $fieldName) {
+                    $field = $fieldsByName[$fieldName] ?? null;
+                    $fieldObject = is_array($field) && is_int($field['object'] ?? null) ? $field['object'] : null;
+                    $fieldCoverage = $this->fieldMdpObjectByteRangeCoverage($fieldObject, $objectSpans, $byteRange, 'field_object');
+                    $widgetCoverages = [];
+                    if (is_array($field)) {
+                        foreach ($this->fieldMdpWidgetObjects($field) as $widgetObject) {
+                            $widgetCoverages[] = $this->fieldMdpObjectByteRangeCoverage($widgetObject, $objectSpans, $byteRange, 'widget_object');
+                        }
+                    }
+                    $targetStatus = $this->fieldMdpTargetByteRangeStatus($fieldCoverage, $widgetCoverages);
+
+                    $rows[] = [
+                        'source' => 'field_mdp_byte_range_target_review',
+                        'field_name' => $fieldName,
+                        'field_object' => $fieldObject,
+                        'field_resolved' => is_array($field),
+                        'field_type' => is_array($field) && is_string($field['field_type'] ?? null) ? $field['field_type'] : null,
+                        'signature_field_name' => is_string($signature['field_name'] ?? null) ? $signature['field_name'] : null,
+                        'signature_object' => is_int($signature['signature_object'] ?? null) ? $signature['signature_object'] : null,
+                        'transform_params_object' => is_int($transform['transform_params_object'] ?? null) ? $transform['transform_params_object'] : null,
+                        'transform_data_object' => is_int($transform['data_object'] ?? null) ? $transform['data_object'] : null,
+                        'field_mdp_action' => is_string($transform['action'] ?? null) ? $transform['action'] : null,
+                        'field_mdp_action_label' => is_string($transform['action_label'] ?? null) ? $transform['action_label'] : null,
+                        'field_mdp_action_valid' => ($transform['action_valid'] ?? false) === true,
+                        'declared_field_names' => $this->stringList($transform['field_names'] ?? []),
+                        'byte_range_present' => ($byteRange['present'] ?? false) === true,
+                        'byte_range_status' => is_string($byteRange['status'] ?? null) ? $byteRange['status'] : null,
+                        'byte_range_revision_status' => is_string($byteRange['revision_status'] ?? null) ? $byteRange['revision_status'] : null,
+                        'signed_revision_valid' => ($byteRange['signed_revision_valid'] ?? false) === true,
+                        'signed_revision_end' => is_int($byteRange['signed_revision_end'] ?? null) ? $byteRange['signed_revision_end'] : null,
+                        'current_revision_tail_bytes' => is_int($byteRange['current_revision_tail_bytes'] ?? null) ? $byteRange['current_revision_tail_bytes'] : null,
+                        'field_object_span' => $fieldCoverage['object_span'],
+                        'field_object_coverage_status' => $fieldCoverage['coverage_status'],
+                        'field_object_covered_by_signed_revision' => ($fieldCoverage['covered_by_signed_revision'] ?? false) === true,
+                        'widget_object_count' => count($widgetCoverages),
+                        'widget_object_coverage_statuses' => $this->uniqueStringColumn($widgetCoverages, 'coverage_status'),
+                        'widget_object_coverage' => $widgetCoverages,
+                        'target_status' => $targetStatus,
+                        'target_covered_by_signed_revision' => $targetStatus === 'field_mdp_target_covered_by_signed_revision',
+                        'target_outside_signed_revision' => $targetStatus === 'field_mdp_target_outside_signed_revision',
+                        'target_inside_signature_contents_gap' => $targetStatus === 'field_mdp_target_inside_signature_contents_gap',
+                        'review_only' => true,
+                        'field_permission_enforced' => false,
+                        'cryptographic_signature_validated' => false,
+                        'executes_signature_validation' => false,
+                        'executes_rights_enforcement' => false,
+                    ];
+                }
+            }
+        }
+
+        $coveredCount = count(array_filter(
+            $rows,
+            static fn (array $row): bool => ($row['target_status'] ?? null) === 'field_mdp_target_covered_by_signed_revision'
+        ));
+
+        return [
+            'source' => 'field_mdp_byte_range_review',
+            'present' => $rows !== [],
+            'signature_count' => count($signatures),
+            'field_mdp_transform_count' => $this->fieldMdpTransformCount($signatures),
+            'target_field_count' => count($rows),
+            'target_covered_count' => $coveredCount,
+            'target_not_covered_count' => count($rows) - $coveredCount,
+            'target_outside_signed_revision_count' => count(array_filter(
+                $rows,
+                static fn (array $row): bool => ($row['target_outside_signed_revision'] ?? false) === true
+            )),
+            'target_inside_signature_contents_gap_count' => count(array_filter(
+                $rows,
+                static fn (array $row): bool => ($row['target_inside_signature_contents_gap'] ?? false) === true
+            )),
+            'target_unresolved_count' => count(array_filter(
+                $rows,
+                static fn (array $row): bool => ($row['field_resolved'] ?? false) !== true
+            )),
+            'target_field_names' => $this->uniqueStringColumn($rows, 'field_name'),
+            'target_statuses' => $this->uniqueStringColumn($rows, 'target_status'),
+            'field_mdp_action_labels' => $this->uniqueStringColumn($rows, 'field_mdp_action_label'),
+            'review_only' => true,
+            'field_permissions_enforced' => false,
+            'executes_signature_validation' => false,
+            'executes_rights_enforcement' => false,
+            'rows' => $rows,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fields
+     * @return array<string, array<string, mixed>>
+     */
+    private function fieldsByName(array $fields): array
+    {
+        $byName = [];
+        foreach ($fields as $field) {
+            if (!is_array($field) || !is_string($field['name'] ?? null) || isset($byName[$field['name']])) {
+                continue;
+            }
+
+            $byName[$field['name']] = $field;
+        }
+
+        return $byName;
+    }
+
+    /**
+     * @param array<string, mixed> $transform
+     * @param list<array<string, mixed>> $fields
+     * @return list<string>
+     */
+    private function fieldMdpTargetFieldNames(array $transform, array $fields): array
+    {
+        $declared = $this->stringList($transform['field_names'] ?? []);
+        $action = is_string($transform['action'] ?? null) ? $transform['action'] : null;
+        $allFieldNames = [];
+        foreach ($fields as $field) {
+            if (is_array($field) && is_string($field['name'] ?? null) && !in_array($field['name'], $allFieldNames, true)) {
+                $allFieldNames[] = $field['name'];
+            }
+        }
+
+        if ($action === 'All') {
+            return $allFieldNames;
+        }
+        if ($action === 'Exclude') {
+            return array_values(array_filter(
+                $allFieldNames,
+                static fn (string $fieldName): bool => !in_array($fieldName, $declared, true)
+            ));
+        }
+
+        return $declared;
+    }
+
+    /**
+     * @param array<string, mixed> $field
+     * @return list<int>
+     */
+    private function fieldMdpWidgetObjects(array $field): array
+    {
+        $objects = [];
+        foreach ($field['widgets'] ?? [] as $widget) {
+            if (is_array($widget) && is_int($widget['object'] ?? null) && !in_array($widget['object'], $objects, true)) {
+                $objects[] = $widget['object'];
+            }
+        }
+
+        return $objects;
+    }
+
+    /**
+     * @param array<int, array{offset: int, end: int, length: int, generation: int}> $objectSpans
+     * @param array<string, mixed> $byteRange
+     * @return array<string, mixed>
+     */
+    private function fieldMdpObjectByteRangeCoverage(?int $objectNumber, array $objectSpans, array $byteRange, string $objectKind): array
+    {
+        $base = [
+            'object_kind' => $objectKind,
+            'object_number' => $objectNumber,
+            'object_span' => null,
+            'coverage_status' => $objectKind . '_unresolved',
+            'covered_by_signed_revision' => false,
+            'outside_signed_revision' => false,
+            'inside_signature_contents_gap' => false,
+        ];
+        if ($objectNumber === null) {
+            return $base;
+        }
+
+        $span = $objectSpans[$objectNumber] ?? null;
+        if ($span === null) {
+            $base['coverage_status'] = $objectKind . '_span_unresolved';
+            return $base;
+        }
+
+        $coverage = $this->signatureByteRangeSpanCoverage($span, $byteRange);
+
+        return array_merge($base, [
+            'object_span' => $span,
+            'coverage_status' => $coverage['status'],
+            'covered_by_signed_revision' => ($coverage['covered'] ?? false) === true,
+            'outside_signed_revision' => ($coverage['status'] ?? null) === 'outside_signed_revision',
+            'inside_signature_contents_gap' => ($coverage['status'] ?? null) === 'inside_unsigned_gap',
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $fieldCoverage
+     * @param list<array<string, mixed>> $widgetCoverages
+     */
+    private function fieldMdpTargetByteRangeStatus(array $fieldCoverage, array $widgetCoverages): string
+    {
+        $coverages = array_merge([$fieldCoverage], $widgetCoverages);
+        foreach ($coverages as $coverage) {
+            if (($coverage['outside_signed_revision'] ?? false) === true) {
+                return 'field_mdp_target_outside_signed_revision';
+            }
+        }
+        foreach ($coverages as $coverage) {
+            if (($coverage['inside_signature_contents_gap'] ?? false) === true) {
+                return 'field_mdp_target_inside_signature_contents_gap';
+            }
+        }
+        foreach ($coverages as $coverage) {
+            $status = is_string($coverage['coverage_status'] ?? null) ? $coverage['coverage_status'] : '';
+            if (str_contains($status, '_unresolved')) {
+                return 'field_mdp_target_unresolved';
+            }
+        }
+        foreach ($coverages as $coverage) {
+            if (($coverage['covered_by_signed_revision'] ?? false) !== true) {
+                return 'field_mdp_target_not_fully_covered_by_signed_revision';
+            }
+        }
+
+        return 'field_mdp_target_covered_by_signed_revision';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $signatures
+     */
+    private function fieldMdpTransformCount(array $signatures): int
+    {
+        $count = 0;
+        foreach ($signatures as $signature) {
+            foreach ($signature['reference_transforms'] ?? [] as $transform) {
+                if (is_array($transform) && ($transform['transform_method'] ?? null) === 'FieldMDP') {
+                    $count++;
+                }
+            }
+        }
+
+        return $count;
     }
 
     /**

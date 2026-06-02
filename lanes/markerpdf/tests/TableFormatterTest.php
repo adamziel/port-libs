@@ -184,6 +184,39 @@ return [
         $t->same('Table', $blocks[1]['lines'][0]['spans'][0]['font']);
         $t->same($markdown, $blocks[1]['lines'][0]['spans'][0]['text']);
     },
+    'preserves section and caption context for span-grid table review metadata' => static function (TestRunner $t) use ($tablePage, $markdown): void {
+        $page = $tablePage();
+        array_unshift($page['blocks'], [
+            'type' => 'Section-header',
+            'heading_level' => 2,
+            'bbox' => [60.0, 26.0, 280.0, 48.0],
+            'lines' => [
+                ['text' => 'imported tables', 'bbox' => [60.0, 30.0, 250.0, 44.0]],
+            ],
+        ]);
+
+        $formatted = (new TableFormatter())->formatTables([$page], [$markdown]);
+        $blocks = $formatted['pages'][0]['blocks'];
+        $reviews = $formatted['table_context_reviews'];
+
+        $t->same(['Section-header', 'Text', 'Table', 'Caption'], array_column($blocks, 'type'));
+        $t->same(1, count($reviews));
+        $t->same(0, $reviews[0]['table_index']);
+        $t->same(true, $reviews[0]['inserted']);
+        $t->same('table_span_grid', $reviews[0]['review_target']);
+        $t->same([2], $reviews[0]['matched_table_block_indexes']);
+        $t->same('section', $reviews[0]['section']['role']);
+        $t->same('Section-header', $reviews[0]['section']['type']);
+        $t->same('imported tables', $reviews[0]['section']['text']);
+        $t->same(2, $reviews[0]['section']['heading_level']);
+        $t->same('caption', $reviews[0]['caption']['role']);
+        $t->same('Caption', $reviews[0]['caption']['type']);
+        $t->same('Table 1: Import status.', $reviews[0]['caption']['text']);
+        $t->same('after', $reviews[0]['caption']['position']);
+        $t->same(16.0, $reviews[0]['caption']['vertical_gap']);
+        $t->same(true, $reviews[0]['has_section']);
+        $t->same(true, $reviews[0]['has_caption']);
+    },
     'formats merged adjacent table layout boxes as one recognized table' => static function (TestRunner $t) use ($tableBoxPages, $markdown): void {
         $page = $tableBoxPages()[0];
         $page['blocks'] = [

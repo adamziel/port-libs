@@ -158,6 +158,9 @@ final class BenchmarkRunner
             'profile_memory' => $runtime['profile_memory'],
             'model_load_snapshot' => $runtime['profile_memory'] ? 'model_load.pickle' : null,
             'conversion_snapshots' => [],
+            'memory_snapshot_failures' => [],
+            'memory_snapshot_failure_count' => 0,
+            'continues_after_memory_snapshot_failure' => true,
             'executes_external_tools' => false,
             'callback_sandbox' => [
                 'enabled' => $runtime['callback_sandbox'],
@@ -167,6 +170,19 @@ final class BenchmarkRunner
                 'runner_writes_markdown_after_callback' => $markdownOutputFolder !== null,
             ],
         ];
+        if ($runtime['profile_memory']) {
+            $this->appendMemorySnapshotFailure(
+                $runtimeReport,
+                'model_load.pickle',
+                $runtime['memory_snapshot_errors'],
+                [
+                    'phase' => 'model_load',
+                    'method' => null,
+                    'document' => null,
+                    'benchmark_index' => null,
+                ]
+            );
+        }
 
         foreach ($benchmarkFiles as $documentIndex => $pdfFilename) {
             $pdfPath = $inputFolder . DIRECTORY_SEPARATOR . $pdfFilename;
@@ -264,6 +280,17 @@ final class BenchmarkRunner
                         'document' => $pdfFilename,
                         'snapshot' => $context['memory_snapshot'],
                     ];
+                    $this->appendMemorySnapshotFailure(
+                        $runtimeReport,
+                        $context['memory_snapshot'],
+                        $runtime['memory_snapshot_errors'],
+                        [
+                            'phase' => 'converter',
+                            'method' => $method,
+                            'document' => $pdfFilename,
+                            'benchmark_index' => $documentIndex,
+                        ]
+                    );
                 }
 
                 if ($markdownOutputFolder !== null) {
@@ -335,6 +362,28 @@ final class BenchmarkRunner
             'executes_cuda_memory_history' => false,
             'review_only' => true,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $runtimeReport
+     * @param array<string, Throwable|string> $memorySnapshotErrors
+     * @param array{phase: string, method: string|null, document: string|null, benchmark_index: int|null} $context
+     */
+    private function appendMemorySnapshotFailure(
+        array &$runtimeReport,
+        string $snapshotFile,
+        array $memorySnapshotErrors,
+        array $context
+    ): void {
+        if (!array_key_exists($snapshotFile, $memorySnapshotErrors)) {
+            return;
+        }
+
+        $runtimeReport['memory_snapshot_failures'][] = $context + $this->memorySnapshotFailureReport(
+            $snapshotFile,
+            $memorySnapshotErrors[$snapshotFile]
+        );
+        $runtimeReport['memory_snapshot_failure_count'] = count($runtimeReport['memory_snapshot_failures']);
     }
 
     /**
@@ -500,7 +549,8 @@ final class BenchmarkRunner
      *     marker_batch_multiplier: int,
      *     nougat_batch_size: int,
      *     profile_memory: bool,
-     *     callback_sandbox: bool
+     *     callback_sandbox: bool,
+     *     memory_snapshot_errors: array<string, Throwable|string>
      * }
      */
     private function normalizeRuntimeOptions(array $runtimeOptions): array
@@ -511,14 +561,49 @@ final class BenchmarkRunner
         } elseif ($this->boolOption($runtimeOptions['nougat'] ?? $runtimeOptions['include_nougat'] ?? false)) {
             $methods = ['marker', 'nougat'];
         }
+        $profileMemory = $this->boolOption($runtimeOptions['profile_memory'] ?? $runtimeOptions['profileMemory'] ?? false);
+        $memorySnapshotErrors = $this->memorySnapshotErrors(
+            $runtimeOptions['memory_snapshot_errors'] ?? $runtimeOptions['memorySnapshotErrors'] ?? []
+        );
+        if ($memorySnapshotErrors !== [] && !$profileMemory) {
+            throw new InvalidArgumentException('Benchmark memory snapshot errors require profile_memory.');
+        }
 
         return [
             'methods' => $methods,
             'marker_batch_multiplier' => $this->positiveIntOption($runtimeOptions['marker_batch_multiplier'] ?? $runtimeOptions['markerBatchMultiplier'] ?? 1, 'marker_batch_multiplier'),
             'nougat_batch_size' => $this->positiveIntOption($runtimeOptions['nougat_batch_size'] ?? $runtimeOptions['nougatBatchSize'] ?? 1, 'nougat_batch_size'),
-            'profile_memory' => $this->boolOption($runtimeOptions['profile_memory'] ?? $runtimeOptions['profileMemory'] ?? false),
+            'profile_memory' => $profileMemory,
             'callback_sandbox' => $this->boolOption($runtimeOptions['sandbox_callbacks'] ?? $runtimeOptions['sandboxCallbacks'] ?? true),
+            'memory_snapshot_errors' => $memorySnapshotErrors,
         ];
+    }
+
+    /**
+     * @return array<string, Throwable|string>
+     */
+    private function memorySnapshotErrors(mixed $value): array
+    {
+        if ($value === null || $value === []) {
+            return [];
+        }
+        if (!is_array($value)) {
+            throw new InvalidArgumentException('Benchmark memory snapshot errors must be keyed by snapshot filename.');
+        }
+
+        $errors = [];
+        foreach ($value as $snapshot => $error) {
+            if (!is_string($snapshot) || trim($snapshot) === '') {
+                throw new InvalidArgumentException('Benchmark memory snapshot error keys must be non-empty snapshot filenames.');
+            }
+            if (!$error instanceof Throwable && !is_string($error)) {
+                throw new InvalidArgumentException('Benchmark memory snapshot errors must be strings or Throwable instances.');
+            }
+
+            $errors[trim($snapshot)] = $error;
+        }
+
+        return $errors;
     }
 
     /**

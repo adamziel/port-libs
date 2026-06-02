@@ -5953,12 +5953,17 @@ final class PdfTextExtractor
         $cidEncodingMap = $this->fontCidEncodingMap($body, $objects, $namedCMapBodies);
         $widthMetrics = $this->fontWidthMetrics($body, $objects);
         $descriptorInfo = $this->fontDescriptorInfo($body, $objects);
+        $type3CharProcMap = $this->type3CharProcUnicodeMap($body, $objects, $cidEncodingMap);
         $cmap = null;
         if (preg_match('/\/ToUnicode\s+(\d+)\s+\d+\s+R\b/', $body, $match)) {
             $cmapObjectNumber = (int) $match[1];
             if (isset($objects[$cmapObjectNumber])) {
                 $cmap = $this->toUnicodeMapFromObject($objects[$cmapObjectNumber], $objects, $namedCMapBodies);
             }
+        }
+
+        if (($cmap === null || ($cmap['map'] === [] && $cmap['codeSpaceRanges'] === [])) && $type3CharProcMap !== null) {
+            $cmap = $type3CharProcMap;
         }
 
         if (($cmap === null || ($cmap['map'] === [] && $cmap['codeSpaceRanges'] === [])) && $encodingFallback !== null) {
@@ -6505,6 +6510,88 @@ final class PdfTextExtractor
         }
 
         return $widths;
+    }
+
+    /**
+     * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}|null
+     * @param array<int, string> $objects
+     * @param array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, writingMode?: int}|null $cidEncodingMap
+     */
+    private function type3CharProcUnicodeMap(string $fontBody, array $objects, ?array $cidEncodingMap): ?array
+    {
+        if (!$this->isType3FontBody($fontBody) || preg_match('/\/ToUnicode\b/s', $fontBody) === 1) {
+            return null;
+        }
+
+        $unicodeByGlyphName = $this->type3StandardCharProcUnicodeByName($fontBody, $objects);
+        if ($unicodeByGlyphName === null) {
+            return null;
+        }
+
+        $map = [];
+        foreach ($this->encodingDifferencesGlyphNames($fontBody, $objects) as $code => $glyphName) {
+            if (!isset($unicodeByGlyphName[$glyphName])) {
+                continue;
+            }
+
+            $map[str_pad(strtolower(dechex($code)), 2, '0', STR_PAD_LEFT)] = $unicodeByGlyphName[$glyphName];
+        }
+
+        $codeSpaceRanges = [
+            ['start' => 0, 'end' => 255, 'width' => 2],
+        ];
+        if ($cidEncodingMap !== null && $cidEncodingMap['codeSpaceRanges'] !== []) {
+            $codeSpaceRanges = $cidEncodingMap['codeSpaceRanges'];
+        }
+
+        if ($cidEncodingMap !== null && $cidEncodingMap['cidMap'] !== []) {
+            $unicodeByCodepoint = [];
+            foreach ($unicodeByGlyphName as $unicode) {
+                $codepoint = $this->singleUnicodeCodepoint($unicode);
+                if ($codepoint !== null) {
+                    $unicodeByCodepoint[$codepoint] = $unicode;
+                }
+            }
+
+            foreach ($cidEncodingMap['cidMap'] as $sourceKey => $cid) {
+                if (isset($unicodeByCodepoint[$cid])) {
+                    $map[$this->normalizeHexKey((string) $sourceKey)] = $unicodeByCodepoint[$cid];
+                }
+            }
+        }
+
+        if ($map === []) {
+            return null;
+        }
+
+        return [
+            'map' => $map,
+            'codeSpaceRanges' => $codeSpaceRanges,
+        ];
+    }
+
+    /**
+     * @return array<string, string>|null
+     * @param array<int, string> $objects
+     */
+    private function type3StandardCharProcUnicodeByName(string $fontBody, array $objects): ?array
+    {
+        $charProcObjectNumbers = $this->charProcObjectNumbers($fontBody, $objects);
+        if ($charProcObjectNumbers === []) {
+            return null;
+        }
+
+        $unicodeByName = [];
+        foreach (array_keys($charProcObjectNumbers) as $glyphName) {
+            $unicode = $this->glyphNameToUnicode($glyphName);
+            if ($unicode === '') {
+                return null;
+            }
+
+            $unicodeByName[$glyphName] = $unicode;
+        }
+
+        return $unicodeByName;
     }
 
     /**
@@ -8592,6 +8679,17 @@ final class PdfTextExtractor
     {
         $decoded = iconv('UTF-32BE', 'UTF-8//IGNORE', pack('N', $codepoint));
         return $decoded === false ? '' : $decoded;
+    }
+
+    private function singleUnicodeCodepoint(string $text): ?int
+    {
+        $encoded = iconv('UTF-8', 'UTF-32BE//IGNORE', $text);
+        if ($encoded === false || strlen($encoded) !== 4) {
+            return null;
+        }
+
+        $unpacked = unpack('Ncodepoint', $encoded);
+        return is_array($unpacked) ? (int) $unpacked['codepoint'] : null;
     }
 
     private function glyphNameToUnicode(string $glyphName): string

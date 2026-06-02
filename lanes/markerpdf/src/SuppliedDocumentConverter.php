@@ -234,6 +234,10 @@ final class SuppliedDocumentConverter
             $pages = $formattedTables['pages'];
             $metadata['block_stats']['table'] = $formattedTables['table_count'];
             $metadata['inserted_tables'] = $formattedTables['inserted_tables'];
+            $metadata['table_section_caption_review'] = $this->tableSectionCaptionReviewForTables(
+                $formattedTables['table_context_reviews'] ?? [],
+                $metadata['table_spanning_grid_review'] ?? []
+            );
             $metadata['supplied_boundaries'][] = 'table-formatting';
         }
 
@@ -383,6 +387,81 @@ final class SuppliedDocumentConverter
         }
 
         return $hasConflict ? $conflicts : [];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $contextReviews
+     * @param list<array<string, mixed>> $spanningGridReviews
+     * @return list<array<string, mixed>>
+     */
+    private function tableSectionCaptionReviewForTables(array $contextReviews, array $spanningGridReviews): array
+    {
+        $reviews = [];
+        foreach ($contextReviews as $contextReview) {
+            if (!is_array($contextReview)) {
+                continue;
+            }
+
+            $tableIndex = isset($contextReview['table_index']) && (is_int($contextReview['table_index']) || is_float($contextReview['table_index']))
+                ? (int) $contextReview['table_index']
+                : count($reviews);
+            $gridReview = isset($spanningGridReviews[$tableIndex]) && is_array($spanningGridReviews[$tableIndex])
+                ? $spanningGridReviews[$tableIndex]
+                : [];
+
+            $contextReview['spanning_grid'] = $this->spanningGridSummary($gridReview, $tableIndex);
+            if (($contextReview['has_caption'] ?? false) === true && isset($contextReview['caption']) && is_array($contextReview['caption'])) {
+                $contextReview['caption']['review_target'] = 'table_span_grid';
+            }
+            if (($contextReview['has_section'] ?? false) === true && isset($contextReview['section']) && is_array($contextReview['section'])) {
+                $contextReview['section']['review_target'] = 'table_span_grid';
+            }
+
+            $reviews[] = $contextReview;
+        }
+
+        return $reviews;
+    }
+
+    /**
+     * @param array<string, mixed> $gridReview
+     * @return array<string, mixed>
+     */
+    private function spanningGridSummary(array $gridReview, int $tableIndex): array
+    {
+        $renderCells = isset($gridReview['render_cells']) && is_array($gridReview['render_cells']) ? $gridReview['render_cells'] : [];
+        $headerCells = isset($gridReview['header_cells']) && is_array($gridReview['header_cells']) ? $gridReview['header_cells'] : [];
+        $dataCells = isset($gridReview['data_cells']) && is_array($gridReview['data_cells']) ? $gridReview['data_cells'] : [];
+
+        $hasRowspan = false;
+        $hasColspan = false;
+        foreach ($renderCells as $renderCell) {
+            if (!is_array($renderCell)) {
+                continue;
+            }
+            if ((int) ($renderCell['rowspan'] ?? 1) > 1) {
+                $hasRowspan = true;
+            }
+            if ((int) ($renderCell['colspan'] ?? 1) > 1) {
+                $hasColspan = true;
+            }
+        }
+
+        return [
+            'table_index' => $tableIndex,
+            'rows' => isset($gridReview['rows']) && is_array($gridReview['rows']) ? array_values($gridReview['rows']) : [],
+            'cols' => isset($gridReview['cols']) && is_array($gridReview['cols']) ? array_values($gridReview['cols']) : [],
+            'render_cell_count' => count($renderCells),
+            'header_cell_count' => count($headerCells),
+            'data_cell_count' => count($dataCells),
+            'header_ids' => array_values(array_filter(
+                array_map(static fn (mixed $cell): ?string => is_array($cell) && isset($cell['header_id']) ? (string) $cell['header_id'] : null, $headerCells),
+                static fn (?string $headerId): bool => $headerId !== null
+            )),
+            'has_rowspan' => $hasRowspan,
+            'has_colspan' => $hasColspan,
+            'review_target' => 'table_span_grid',
+        ];
     }
 
     /**

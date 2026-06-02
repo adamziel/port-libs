@@ -325,6 +325,73 @@ return [
         $t->same(false, $report['executes_cuda_memory_history']);
         $t->same(true, $report['review_only']);
     },
+    'carries upstream memory snapshot dump errors in successful benchmark runtime reports' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $prepareCiFolders): void {
+        $pdfFolder = $makeTempDir();
+        $referenceFolder = $makeTempDir();
+        $markdownFolder = $makeTempDir();
+        try {
+            $pairsByDocument = $prepareCiFolders($pdfFolder, $referenceFolder);
+
+            $result = (new BenchmarkRunner())->run(
+                $pdfFolder,
+                $referenceFolder,
+                [
+                    'marker' => static fn (string $pdfPath, string $document): string => $pairsByDocument[$document]['markerExcerpt'],
+                ],
+                static fn (): int => 2,
+                $markdownFolder,
+                array_map(static fn (array $pair): int => $pair['chunkLength'], $pairsByDocument),
+                null,
+                [
+                    'profile_memory' => true,
+                    'memory_snapshot_errors' => [
+                        'model_load.pickle' => 'CUDA model snapshot unavailable',
+                        'marker_memory_1.pickle' => new RuntimeException('CUDA conversion snapshot unavailable'),
+                    ],
+                ]
+            );
+
+            $runtime = $result['runtime'];
+            $t->same('model_load.pickle', $runtime['model_load_snapshot']);
+            $t->same(2, count($runtime['conversion_snapshots']));
+            $t->same(2, $runtime['memory_snapshot_failure_count']);
+            $t->same(true, $runtime['continues_after_memory_snapshot_failure']);
+            $t->same(2, count($runtime['memory_snapshot_failures']));
+
+            $modelLoadFailure = $runtime['memory_snapshot_failures'][0];
+            $t->same('model_load', $modelLoadFailure['phase']);
+            $t->same(null, $modelLoadFailure['method']);
+            $t->same(null, $modelLoadFailure['document']);
+            $t->same(null, $modelLoadFailure['benchmark_index']);
+            $t->same('model_load.pickle', $modelLoadFailure['snapshot']);
+            $t->contains('Failed to capture memory snapshot CUDA model snapshot unavailable', $modelLoadFailure['log_line']);
+            $t->same(true, $modelLoadFailure['continues_after_failure']);
+            $t->same(true, $modelLoadFailure['recording_disabled_after_error']);
+            $t->same(false, $modelLoadFailure['executes_cuda_memory_history']);
+            $t->same(true, $modelLoadFailure['review_only']);
+
+            $conversionFailure = $runtime['memory_snapshot_failures'][1];
+            $t->same('converter', $conversionFailure['phase']);
+            $t->same('marker', $conversionFailure['method']);
+            $t->same('switch_trans.pdf', $conversionFailure['document']);
+            $t->same(1, $conversionFailure['benchmark_index']);
+            $t->same('marker_memory_1.pickle', $conversionFailure['snapshot']);
+            $t->same('CUDA conversion snapshot unavailable', $conversionFailure['error']);
+            $t->same(true, $conversionFailure['continues_after_failure']);
+            $t->same(false, $conversionFailure['executes_cuda_memory_history']);
+
+            $t->same(['multicolcnn.pdf', 'switch_trans.pdf'], $result['benchmark_files']);
+            $t->same(2, count($result['runs']));
+            $t->true($result['report']['marker']['avg_score'] > 0.0);
+            $t->same(['marker_multicolcnn.md', 'marker_switch_trans.md'], array_map('basename', $result['written_markdown']));
+            $t->true(is_file($markdownFolder . DIRECTORY_SEPARATOR . 'marker_switch_trans.md'));
+            $t->same(false, $runtime['executes_external_tools']);
+        } finally {
+            $removeTree($pdfFolder);
+            $removeTree($referenceFolder);
+            $removeTree($markdownFolder);
+        }
+    },
     'records benchmark method and page-counter failures as review-only runtime telemetry' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $prepareCiFolders): void {
         $pdfFolder = $makeTempDir();
         $referenceFolder = $makeTempDir();
@@ -446,6 +513,15 @@ return [
                     $referenceFolder,
                     ['marker' => static fn (): string => 'ok'],
                     runtimeOptions: ['marker_batch_multiplier' => 0]
+                )
+            );
+            $t->throws(
+                InvalidArgumentException::class,
+                static fn (): array => $runner->run(
+                    $pdfFolder,
+                    $referenceFolder,
+                    ['marker' => static fn (): string => 'ok'],
+                    runtimeOptions: ['memory_snapshot_errors' => ['model_load.pickle' => 'requires profile memory']]
                 )
             );
         } finally {
