@@ -7426,14 +7426,44 @@ final class PdfTextExtractor
             unset($objects[$objectNumber]);
         }
 
-        foreach ($this->objectsFromObjectStreams($objects, $xrefEntries) as $objectNumber => $body) {
-            $objects[$objectNumber] = $body;
-        }
+        $objects = $this->withObjectStreamObjects($objects, $xrefEntries);
         ksort($objects, SORT_NUMERIC);
 
         $rootObjectNumber = $this->trailerRootObjectNumberFromStartxrefChain($pdfBytes, $definitions);
         if ($rootObjectNumber !== null && isset($objects[$rootObjectNumber])) {
             $objects = $this->promoteObjectToFront($objects, $rootObjectNumber);
+        }
+
+        return $objects;
+    }
+
+    /**
+     * Object-stream dictionaries may use indirect /Filter, /DecodeParms, /N,
+     * and /First operands. A selected object stream can therefore depend on
+     * ordinary compressed helper objects recovered from another object stream.
+     *
+     * @param array<int, string> $objects
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
+     * @return array<int, string>
+     */
+    private function withObjectStreamObjects(array $objects, array $xrefEntries): array
+    {
+        for ($pass = 0; $pass < 8; $pass++) {
+            $added = false;
+            foreach ($this->objectsFromObjectStreams($objects, $xrefEntries) as $objectNumber => $body) {
+                if (isset($objects[$objectNumber])) {
+                    continue;
+                }
+
+                $objects[$objectNumber] = $body;
+                $added = true;
+            }
+
+            if (!$added) {
+                break;
+            }
+
+            ksort($objects, SORT_NUMERIC);
         }
 
         return $objects;
