@@ -575,6 +575,248 @@ final class PdfTextExtractor
     }
 
     /**
+     * Review ToUnicode and Encoding CMap stream operands before WordPress import.
+     *
+     * Upstream reaches CMap streams through pdftext/PDFium font decoding. The
+     * native fallback exposes whether CMap stream `/Filter`, `/Length`, and
+     * `/DecodeParms` operands are backed by current xref-selected objects
+     * without including the decoded mapping payload in review metadata.
+     *
+     * @return array{
+     *     source: string,
+     *     review_only: true,
+     *     encrypted: bool,
+     *     cmap_stream_count: int,
+     *     to_unicode_cmap_stream_count: int,
+     *     encoding_cmap_stream_count: int,
+     *     indirect_filter_count: int,
+     *     indirect_length_count: int,
+     *     xref_selected_operand_count: int,
+     *     unresolved_operand_count: int,
+     *     decoded_cmap_count: int,
+     *     entries: list<array<string, mixed>>,
+     *     executes_python_or_models: false,
+     *     executes_external_pdf_tools: false
+     * }
+     */
+    public function extractCMapStreamFilterLengthOwnerReview(string $pdfBytes): array
+    {
+        $review = [
+            'source' => 'pdf_cmap_stream_filter_length_owner_review',
+            'review_only' => true,
+            'encrypted' => $this->hasEncryptedTrailer($pdfBytes),
+            'cmap_stream_count' => 0,
+            'to_unicode_cmap_stream_count' => 0,
+            'encoding_cmap_stream_count' => 0,
+            'indirect_filter_count' => 0,
+            'indirect_length_count' => 0,
+            'xref_selected_operand_count' => 0,
+            'unresolved_operand_count' => 0,
+            'decoded_cmap_count' => 0,
+            'entries' => [],
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+
+        if ($review['encrypted']) {
+            return $review;
+        }
+
+        $definitions = $this->directObjectDefinitions($pdfBytes);
+        if ($definitions === []) {
+            return $review;
+        }
+
+        $preliminaryObjects = $this->latestDirectObjects($definitions);
+        if ($this->startxrefXrefStreamFilterDecodeFailed($pdfBytes, $preliminaryObjects, $definitions)) {
+            return $review;
+        }
+
+        $xrefEntries = $this->xrefEntries($pdfBytes, $preliminaryObjects, $definitions);
+        $objects = $this->pdfObjects($pdfBytes);
+        if ($objects === []) {
+            return $review;
+        }
+
+        $referenceUsages = $this->cMapStreamReferenceUsages($objects);
+        foreach ($objects as $objectNumber => $body) {
+            $stream = $this->streamDictionaryAndPayload($body, $objects);
+            if ($stream === null) {
+                continue;
+            }
+
+            $dict = $stream['dict'];
+            $usages = $referenceUsages[$objectNumber] ?? [];
+            if ($usages === [] && !$this->cMapStreamDictionaryLooksLikeCMap($dict, $objects)) {
+                continue;
+            }
+
+            $operandGroups = [];
+            foreach (['Filter', 'DecodeParms', 'Length'] as $name) {
+                $operandGroups[$name] = $this->xrefStreamOperandReviews(
+                    $dict,
+                    $name,
+                    $objects,
+                    $xrefEntries,
+                    $definitions
+                );
+            }
+
+            $operands = [];
+            foreach ($operandGroups as $group) {
+                foreach ($group as $operand) {
+                    $operands[] = $operand;
+                }
+            }
+
+            $filterIndirectCount = $this->xrefStreamIndirectOperandCount($operandGroups['Filter']);
+            $lengthIndirectCount = $this->xrefStreamIndirectOperandCount($operandGroups['Length']);
+            $selectedOperandCount = $this->xrefStreamSelectedOperandCount($operands);
+            $unresolvedOperandCount = $this->xrefStreamUnresolvedOperandCount($operands);
+            $decoded = $this->decodedCMapBody($body, $objects);
+            $filters = $this->streamFilters($dict, $objects);
+            $owner = $this->currentObjectReferenceOwners[$objectNumber] ?? null;
+            $generation = $owner['generation']
+                ?? ($xrefEntries[$objectNumber]['generation'] ?? null);
+
+            $hasToUnicodeUsage = $this->cMapReferenceUsagesContain($usages, 'to_unicode');
+            $hasEncodingUsage = $this->cMapReferenceUsagesContain($usages, 'encoding_cmap');
+            $review['cmap_stream_count']++;
+            if ($hasToUnicodeUsage) {
+                $review['to_unicode_cmap_stream_count']++;
+            }
+            if ($hasEncodingUsage) {
+                $review['encoding_cmap_stream_count']++;
+            }
+            $review['indirect_filter_count'] += $filterIndirectCount;
+            $review['indirect_length_count'] += $lengthIndirectCount;
+            $review['xref_selected_operand_count'] += $selectedOperandCount;
+            $review['unresolved_operand_count'] += $unresolvedOperandCount;
+            if ($decoded !== null) {
+                $review['decoded_cmap_count']++;
+            }
+
+            $review['entries'][] = [
+                'object_number' => $objectNumber,
+                'generation' => is_int($generation) ? $generation : null,
+                'reference_usages' => $usages,
+                'cmap_name' => $decoded === null
+                    ? $this->pdfNameValueAfterNameResolvingObjects($dict, 'CMapName', $objects)
+                    : $this->cMapName($decoded),
+                'declared_length' => $this->streamLength($dict, $objects),
+                'filters' => $filters ?? [],
+                'filter_resolution_failed' => $filters === null,
+                'decoded_cmap_length' => $decoded === null ? null : strlen($decoded),
+                'decoded_cmap_sha256' => $decoded === null ? null : hash('sha256', $decoded),
+                'operand_groups' => $operandGroups,
+                'filter_operands' => $operandGroups['Filter'],
+                'decodeparms_operands' => $operandGroups['DecodeParms'],
+                'length_operand' => $operandGroups['Length'][0] ?? [
+                    'name' => 'Length',
+                    'kind' => 'absent',
+                    'resolved' => false,
+                    'xref_selected' => false,
+                    'owner_policy' => 'missing_operand',
+                ],
+                'indirect_filter_count' => $filterIndirectCount,
+                'indirect_length_count' => $lengthIndirectCount,
+                'xref_selected_operand_count' => $selectedOperandCount,
+                'unresolved_operand_count' => $unresolvedOperandCount,
+                'decoded_with_current_operands' => $decoded !== null && $unresolvedOperandCount === 0,
+                'owner_policy' => $this->xrefStreamOperandOwnerPolicy(
+                    $selectedOperandCount,
+                    $unresolvedOperandCount,
+                    $operands
+                ),
+                'review_only' => true,
+            ];
+        }
+
+        return $review;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<int, list<array{usage: string, font_object: int, generation: int, reference: string}>>
+     */
+    private function cMapStreamReferenceUsages(array $objects): array
+    {
+        $usages = [];
+        foreach ($objects as $fontObjectNumber => $body) {
+            if (!$this->bodyMayContainFontDictionary($body)) {
+                continue;
+            }
+
+            foreach ([
+                'ToUnicode' => 'to_unicode',
+                'Encoding' => 'encoding_cmap',
+            ] as $name => $usage) {
+                if ($name === 'Encoding' && preg_match('/\/Subtype\s*\/(?:Type0|Type3)\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                if (preg_match_all('/\/' . $name . '\s+(\d+)\s+(\d+)\s+R\b/s', $body, $matches, PREG_SET_ORDER) !== false) {
+                    foreach ($matches as $match) {
+                        $objectNumber = (int) $match[1];
+                        $generation = (int) $match[2];
+                        if ($objectNumber <= 0) {
+                            continue;
+                        }
+
+                        $key = $usage . ':' . $fontObjectNumber . ':' . $generation;
+                        $usages[$objectNumber][$key] = [
+                            'usage' => $usage,
+                            'font_object' => $fontObjectNumber,
+                            'generation' => $generation,
+                            'reference' => $objectNumber . ' ' . $generation . ' R',
+                        ];
+                    }
+                }
+            }
+        }
+
+        foreach ($usages as $objectNumber => $entries) {
+            $entries = array_values($entries);
+            usort($entries, static fn (array $left, array $right): int => strcmp(
+                $left['usage'] . ':' . $left['font_object'] . ':' . $left['generation'],
+                $right['usage'] . ':' . $right['font_object'] . ':' . $right['generation']
+            ));
+            $usages[$objectNumber] = $entries;
+        }
+        ksort($usages, SORT_NUMERIC);
+
+        return $usages;
+    }
+
+    /**
+     * @param list<array{usage: string, font_object: int, generation: int, reference: string}> $usages
+     */
+    private function cMapReferenceUsagesContain(array $usages, string $usage): bool
+    {
+        foreach ($usages as $entry) {
+            if (($entry['usage'] ?? null) === $usage) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function cMapStreamDictionaryLooksLikeCMap(string $dict, array $objects): bool
+    {
+        if ($this->pdfNameValueAfterNameResolvingObjects($dict, 'Type', $objects) === 'CMap') {
+            return true;
+        }
+
+        return $this->topLevelNameValueOffset($dict, 'CMapName') !== null
+            || $this->topLevelNameValueOffset($dict, 'UseCMap') !== null
+            || $this->topLevelNameValueOffset($dict, 'WMode') !== null;
+    }
+
+    /**
      * Review object-stream dictionary operands before WordPress import.
      *
      * PDF 1.5 object streams use `/N` and `/First` to split the decoded

@@ -394,6 +394,151 @@ final class BenchmarkRunner
     }
 
     /**
+     * Review-only bridge for successful marker_server.py upload conversion
+     * payloads that WordPress benchmark gates need to archive without copying
+     * uploaded PDF bytes or image payloads into JSON.
+     *
+     * @param array<string, mixed> $serverResponse
+     * @param array<string, mixed> $context
+     * @return array{path: string, filename: string, format: string, success_report_written: bool, review_only: true, schema: string, status: string, markdown_sha256: string, size: int, sha256: string}
+     */
+    public function writeServerBenchmarkUploadArtifactJson(
+        string $artifactFile,
+        array $serverResponse,
+        array $context = []
+    ): array {
+        $artifactFile = trim($artifactFile);
+        if ($artifactFile === '') {
+            throw new InvalidArgumentException('Server benchmark upload artifact JSON file must not be empty.');
+        }
+
+        $serverResponse = $this->serverBenchmarkUploadResponse($serverResponse);
+        $context = $this->serverBenchmarkUploadContext($context);
+        $successReportWritten = $context['success_report_written'] ?? false;
+        $artifact = [
+            'path' => $artifactFile,
+            'filename' => basename($artifactFile),
+            'format' => 'json',
+            'success_report_written' => $successReportWritten,
+            'review_only' => true,
+        ];
+        $payload = [
+            'schema' => 'markerpdf.server_benchmark_upload.v1',
+            'source' => 'sddai/markerPDF marker_server.py + benchmarks/overall.py + marker/output.py',
+            'status' => 'success',
+            'success' => true,
+            'message_line' => $this->serverBenchmarkUploadMessageLine($context),
+            'server_response' => $serverResponse,
+            'context' => $context,
+            'artifact' => $artifact,
+            'default_server_upload_removes_temp_file' => true,
+            'default_benchmark_writes_markdown_on_success' => true,
+            'default_benchmark_writes_report_on_success' => $successReportWritten,
+            'excludes_uploaded_pdf_bytes' => true,
+            'executes_fastapi' => false,
+            'executes_uvicorn' => false,
+            'executes_live_http' => false,
+            'executes_external_tools' => false,
+            'executes_python_or_models' => false,
+            'review_only' => true,
+        ];
+
+        try {
+            $json = json_encode(
+                $payload,
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR
+            );
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException(
+                'Unable to encode markerPDF server benchmark upload artifact as JSON.',
+                previous: $exception
+            );
+        }
+
+        if (@file_put_contents($artifactFile, $json) === false) {
+            throw new RuntimeException('Unable to write markerPDF server benchmark upload artifact: ' . $artifactFile);
+        }
+
+        return $artifact + [
+            'schema' => 'markerpdf.server_benchmark_upload.v1',
+            'status' => 'success',
+            'markdown_sha256' => $serverResponse['markdown_sha256'],
+            'size' => $this->artifactSize($artifactFile),
+            'sha256' => $this->artifactSha256($artifactFile),
+        ];
+    }
+
+    /**
+     * @return array{path: string, filename: string, schema: string, status: string, payload: array<string, mixed>, size: int, sha256: string, roundtrip_preserves_server_success: bool, roundtrip_preserves_markdown_hash: bool, review_only: true, executes_fastapi: false, executes_uvicorn: false, executes_live_http: false, executes_external_tools: false, executes_python_or_models: false}
+     */
+    public function readServerBenchmarkUploadArtifactJson(string $artifactFile): array
+    {
+        $artifactFile = trim($artifactFile);
+        if ($artifactFile === '') {
+            throw new InvalidArgumentException('Server benchmark upload artifact JSON file must not be empty.');
+        }
+
+        $contents = @file_get_contents($artifactFile);
+        if (!is_string($contents)) {
+            throw new InvalidArgumentException('Server benchmark upload artifact JSON file is not readable: ' . $artifactFile);
+        }
+
+        try {
+            $payload = json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException(
+                'Server benchmark upload artifact JSON file must contain valid JSON.',
+                previous: $exception
+            );
+        }
+        if (!is_array($payload)) {
+            throw new InvalidArgumentException('Server benchmark upload artifact JSON must decode to an object.');
+        }
+
+        $schema = $payload['schema'] ?? null;
+        if ($schema !== 'markerpdf.server_benchmark_upload.v1') {
+            throw new InvalidArgumentException('Server benchmark upload artifact JSON has an unexpected schema.');
+        }
+        if (($payload['success'] ?? null) !== true || ($payload['status'] ?? null) !== 'success') {
+            throw new InvalidArgumentException('Server benchmark upload artifact JSON must be a success payload.');
+        }
+        if (($payload['review_only'] ?? null) !== true) {
+            throw new InvalidArgumentException('Server benchmark upload artifact JSON must be review-only.');
+        }
+
+        $serverResponse = $payload['server_response'] ?? null;
+        if (!is_array($serverResponse) || ($serverResponse['success'] ?? null) !== true) {
+            throw new InvalidArgumentException('Server benchmark upload artifact JSON did not preserve server success.');
+        }
+        $markdown = $serverResponse['markdown'] ?? null;
+        $markdownHash = $serverResponse['markdown_sha256'] ?? null;
+        if (!is_string($markdown) || !is_string($markdownHash) || hash('sha256', $markdown) !== $markdownHash) {
+            throw new InvalidArgumentException('Server benchmark upload artifact JSON did not preserve the markdown hash.');
+        }
+        if (($serverResponse['images_are_summarized'] ?? null) !== true) {
+            throw new InvalidArgumentException('Server benchmark upload artifact JSON must summarize image payloads.');
+        }
+
+        return [
+            'path' => $artifactFile,
+            'filename' => basename($artifactFile),
+            'schema' => $schema,
+            'status' => 'success',
+            'payload' => $payload,
+            'size' => $this->artifactSize($artifactFile),
+            'sha256' => $this->artifactSha256($artifactFile),
+            'roundtrip_preserves_server_success' => true,
+            'roundtrip_preserves_markdown_hash' => true,
+            'review_only' => true,
+            'executes_fastapi' => false,
+            'executes_uvicorn' => false,
+            'executes_live_http' => false,
+            'executes_external_tools' => false,
+            'executes_python_or_models' => false,
+        ];
+    }
+
+    /**
      * Native supplied-converter boundary for benchmarks/overall.py::main.
      *
      * @param array<string, callable(string, string, string, array<string, mixed>): mixed> $methodConverters
@@ -1006,13 +1151,139 @@ final class BenchmarkRunner
         return $normalized;
     }
 
+    /**
+     * @param array<string, mixed> $serverResponse
+     * @return array<string, mixed>
+     */
+    private function serverBenchmarkUploadResponse(array $serverResponse): array
+    {
+        if (($serverResponse['success'] ?? null) !== true) {
+            throw new InvalidArgumentException('Server benchmark upload artifact requires a successful marker server response.');
+        }
+
+        $markdown = $serverResponse['markdown']
+            ?? $serverResponse['full_text']
+            ?? $serverResponse['text']
+            ?? null;
+        if (!is_string($markdown)) {
+            throw new InvalidArgumentException('Server benchmark upload artifact requires server markdown text.');
+        }
+
+        $metadata = $serverResponse['metadata'] ?? [];
+        if (!is_array($metadata)) {
+            throw new InvalidArgumentException('Server benchmark upload artifact metadata must be an object.');
+        }
+
+        $images = $serverResponse['images'] ?? [];
+        if (!is_array($images)) {
+            throw new InvalidArgumentException('Server benchmark upload artifact images must be an object.');
+        }
+
+        $metadataKeys = array_values(array_filter(array_keys($metadata), 'is_string'));
+        sort($metadataKeys, SORT_STRING);
+
+        return [
+            'success' => true,
+            'markdown' => $markdown,
+            'markdown_sha256' => hash('sha256', $markdown),
+            'markdown_byte_length' => strlen($markdown),
+            'metadata' => $metadata,
+            'metadata_keys' => $metadataKeys,
+            'image_count' => count($images),
+            'images' => $this->serverBenchmarkImageSummaries($images),
+            'images_are_summarized' => true,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $images
+     * @return list<array<string, mixed>>
+     */
+    private function serverBenchmarkImageSummaries(array $images): array
+    {
+        $summaries = [];
+        foreach ($images as $filename => $imagePayload) {
+            if (!is_string($filename) || $filename === '') {
+                throw new InvalidArgumentException('Server benchmark upload artifact image filenames must be non-empty strings.');
+            }
+            if (!is_string($imagePayload)) {
+                throw new InvalidArgumentException('Server benchmark upload artifact images must be base64 strings.');
+            }
+
+            $decoded = base64_decode($imagePayload, true);
+            $summaries[] = [
+                'filename' => $filename,
+                'base64_length' => strlen($imagePayload),
+                'base64_sha256' => hash('sha256', $imagePayload),
+                'decoded_size' => is_string($decoded) ? strlen($decoded) : null,
+                'decoded_sha256' => is_string($decoded) ? hash('sha256', $decoded) : null,
+                'base64_valid' => is_string($decoded),
+            ];
+        }
+
+        usort(
+            $summaries,
+            static fn (array $left, array $right): int => strcmp((string) $left['filename'], (string) $right['filename'])
+        );
+
+        return $summaries;
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    private function serverBenchmarkUploadContext(array $context): array
+    {
+        $normalized = [
+            'phase' => $this->optionalContextString($context['phase'] ?? 'server_upload_success', 'phase') ?? 'server_upload_success',
+            'method' => $this->optionalContextString($context['method'] ?? null, 'method'),
+            'document' => $this->optionalContextString($context['document'] ?? null, 'document'),
+            'benchmark_index' => $this->optionalContextInt($context['benchmark_index'] ?? null, 'benchmark_index'),
+            'markdown_output_folder' => $this->optionalContextString($context['markdown_output_folder'] ?? null, 'markdown_output_folder'),
+            'markdown_output' => $this->optionalContextString($context['markdown_output'] ?? null, 'markdown_output'),
+            'report_output' => $this->optionalContextString($context['report_output'] ?? null, 'report_output'),
+            'uploaded_filename' => $this->optionalContextString($context['uploaded_filename'] ?? null, 'uploaded_filename'),
+            'server_route' => $this->optionalContextString($context['server_route'] ?? null, 'server_route'),
+            'upload_removed' => array_key_exists('upload_removed', $context) ? (bool) $context['upload_removed'] : null,
+            'request_count' => $this->optionalContextInt($context['request_count'] ?? null, 'request_count'),
+            'pages' => $this->optionalContextInt($context['pages'] ?? null, 'pages'),
+            'score' => $this->optionalContextFloat($context['score'] ?? null, 'score'),
+            'time' => $this->optionalContextFloat($context['time'] ?? null, 'time'),
+            'success_report_written' => array_key_exists('success_report_written', $context) ? (bool) $context['success_report_written'] : false,
+        ];
+
+        foreach ($context as $key => $value) {
+            if (is_string($key) && !array_key_exists($key, $normalized)) {
+                $normalized[$key] = $value;
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     */
+    private function serverBenchmarkUploadMessageLine(array $context): string
+    {
+        $method = isset($context['method']) && is_string($context['method']) && $context['method'] !== ''
+            ? $context['method']
+            : 'marker';
+        $document = isset($context['document']) && is_string($context['document']) && $context['document'] !== ''
+            ? $context['document']
+            : 'uploaded PDF';
+
+        return "Marker server benchmark upload completed for {$method}/{$document}";
+    }
+
     private function optionalContextString(mixed $value, string $name): ?string
     {
         if ($value === null) {
             return null;
         }
         if (!is_scalar($value)) {
-            throw new InvalidArgumentException("Server benchmark error context {$name} must be scalar when provided.");
+            throw new InvalidArgumentException("Server benchmark context {$name} must be scalar when provided.");
         }
 
         return (string) $value;
@@ -1030,7 +1301,22 @@ final class BenchmarkRunner
             return (int) $value;
         }
 
-        throw new InvalidArgumentException("Server benchmark error context {$name} must be an integer when provided.");
+        throw new InvalidArgumentException("Server benchmark context {$name} must be an integer when provided.");
+    }
+
+    private function optionalContextFloat(mixed $value, string $name): ?float
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (is_int($value) || is_float($value)) {
+            return (float) $value;
+        }
+        if (is_string($value) && is_numeric($value)) {
+            return (float) $value;
+        }
+
+        throw new InvalidArgumentException("Server benchmark context {$name} must be numeric when provided.");
     }
 
     private function artifactSize(string $path): int

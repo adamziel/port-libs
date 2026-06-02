@@ -341,10 +341,320 @@ final class TableFormatter
             $review['page_review'] = $pageReview;
         }
 
+        $sectionOrder = $this->tableSectionOrderReview(
+            $page,
+            $blocks,
+            $region,
+            $pageIndex,
+            $pageTableIndex,
+            $recognizedTableIndex,
+            $inserted,
+            $matchedTableBlockIndexes,
+            $insertPoint,
+            $section,
+            $caption,
+            $pageReview !== []
+        );
+        if ($sectionOrder !== []) {
+            $review['section_order'] = $sectionOrder;
+        }
+
         $review['has_section'] = isset($review['section']);
         $review['has_caption'] = isset($review['caption']);
 
         return $review;
+    }
+
+    /**
+     * The upstream table formatter runs after layout reading-order sorting, then
+     * removes only matched Table blocks. Preserve that sorted section/table/
+     * caption relationship for WordPress review UIs before Markdown loses it.
+     *
+     * @param list<array<string, mixed>> $blocks
+     * @param array{bbox: list<float>, page_bbox: list<float>} $region
+     * @param list<int> $matchedTableBlockIndexes
+     * @param array<string, mixed>|null $section
+     * @param array<string, mixed>|null $caption
+     * @return array<string, mixed>
+     */
+    private function tableSectionOrderReview(
+        array $page,
+        array $blocks,
+        array $region,
+        int $pageIndex,
+        int $pageTableIndex,
+        int $recognizedTableIndex,
+        bool $inserted,
+        array $matchedTableBlockIndexes,
+        ?int $insertPoint,
+        ?array $section,
+        ?array $caption,
+        bool $pageReviewAttached
+    ): array {
+        if (!$inserted || $insertPoint === null) {
+            return [];
+        }
+
+        $finalOrder = $this->finalBlockIndexesAfterTableReplacement($blocks, $matchedTableBlockIndexes, $insertPoint);
+        $tableFinalIndex = $finalOrder['table_final_index'];
+        $sectionOriginalIndex = $this->contextOriginalBlockIndex($section);
+        $captionOriginalIndex = $this->contextOriginalBlockIndex($caption);
+        $sectionFinalIndex = $sectionOriginalIndex === null ? null : ($finalOrder['original_to_final'][$sectionOriginalIndex] ?? null);
+        $captionFinalIndex = $captionOriginalIndex === null ? null : ($finalOrder['original_to_final'][$captionOriginalIndex] ?? null);
+
+        $blockOrder = [];
+        if ($section !== null) {
+            $blockOrder[] = $this->sectionOrderBlockEntry('section', $section, $sectionFinalIndex, $page);
+        }
+        $blockOrder[] = $this->sectionOrderTableEntry($region, $tableFinalIndex, $page, $recognizedTableIndex);
+        if ($caption !== null) {
+            $blockOrder[] = $this->sectionOrderBlockEntry('caption', $caption, $captionFinalIndex, $page);
+        }
+
+        usort(
+            $blockOrder,
+            static fn (array $left, array $right): int => ((int) ($left['final_index'] ?? PHP_INT_MAX) <=> (int) ($right['final_index'] ?? PHP_INT_MAX))
+                ?: ((string) ($left['role'] ?? '') <=> (string) ($right['role'] ?? ''))
+        );
+
+        $finalRoles = [];
+        foreach ($blockOrder as $entry) {
+            $role = (string) ($entry['role'] ?? '');
+            if ($role !== '') {
+                $finalRoles[] = $role;
+            }
+        }
+
+        $review = [
+            'review_target' => 'layout_table_ocr_page_review_section_order',
+            'source' => 'layout_ordered_blocks_before_table_replacement',
+            'upstream_stage' => 'sort_blocks_in_reading_order_then_format_tables',
+            'page_index' => $pageIndex,
+            'page_number' => (int) ($page['pnum'] ?? $pageIndex),
+            'page_table_index' => $pageTableIndex,
+            'table_index' => $recognizedTableIndex,
+            'insert_point' => $insertPoint,
+            'table_final_index' => $tableFinalIndex,
+            'matched_table_block_indexes' => array_values(array_map('intval', $matchedTableBlockIndexes)),
+            'removed_table_block_count' => count($matchedTableBlockIndexes),
+            'block_order' => $blockOrder,
+            'final_role_order' => $finalRoles,
+            'section_before_table' => $sectionFinalIndex !== null && $sectionFinalIndex < $tableFinalIndex,
+            'caption_after_table' => $captionFinalIndex !== null && $captionFinalIndex > $tableFinalIndex,
+            'page_review_attached' => $pageReviewAttached,
+            'visible_text_source' => false,
+        ];
+
+        if ($sectionFinalIndex !== null) {
+            $review['section_final_index'] = $sectionFinalIndex;
+        }
+        if ($captionFinalIndex !== null) {
+            $review['caption_final_index'] = $captionFinalIndex;
+        }
+
+        return $this->compactReviewRow($review);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $blocks
+     * @param list<int> $matchedTableBlockIndexes
+     * @return array{table_final_index: int, original_to_final: array<int, int>}
+     */
+    private function finalBlockIndexesAfterTableReplacement(array $blocks, array $matchedTableBlockIndexes, int $insertPoint): array
+    {
+        $removed = [];
+        foreach ($matchedTableBlockIndexes as $blockIndex) {
+            $removed[(int) $blockIndex] = true;
+        }
+
+        $originalToFinal = [];
+        $finalIndex = 0;
+        $tableFinalIndex = null;
+        foreach ($blocks as $blockIndex => $_block) {
+            if ($tableFinalIndex === null && $finalIndex === $insertPoint) {
+                $tableFinalIndex = $finalIndex;
+                $finalIndex++;
+            }
+
+            if (isset($removed[$blockIndex])) {
+                continue;
+            }
+
+            $originalToFinal[$blockIndex] = $finalIndex;
+            $finalIndex++;
+        }
+
+        if ($tableFinalIndex === null) {
+            $tableFinalIndex = $finalIndex;
+        }
+
+        return [
+            'table_final_index' => $tableFinalIndex,
+            'original_to_final' => $originalToFinal,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $context
+     */
+    private function contextOriginalBlockIndex(?array $context): ?int
+    {
+        if ($context === null) {
+            return null;
+        }
+
+        $value = $context['block_index'] ?? null;
+        if (is_int($value) || is_float($value) || (is_string($value) && preg_match('/^-?\d+$/', $value) === 1)) {
+            return (int) $value;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    private function sectionOrderBlockEntry(string $role, array $context, ?int $finalIndex, array $page): array
+    {
+        $entry = [
+            'role' => $role,
+            'block_index' => (int) ($context['block_index'] ?? -1),
+            'final_index' => $finalIndex,
+            'type' => (string) ($context['type'] ?? ''),
+            'text' => (string) ($context['text'] ?? ''),
+        ];
+
+        if (isset($context['bbox']) && is_array($context['bbox'])) {
+            $entry['bbox'] = $context['bbox'];
+            $entry += $this->layoutOrderMatchFields($page, $context['bbox']);
+        }
+        if (isset($context['position']) && is_scalar($context['position'])) {
+            $entry['position'] = (string) $context['position'];
+        }
+        if (isset($context['heading_level']) && (is_int($context['heading_level']) || is_float($context['heading_level']))) {
+            $entry['heading_level'] = (int) $context['heading_level'];
+        }
+
+        return $this->compactReviewRow($entry);
+    }
+
+    /**
+     * @param array{bbox: list<float>, page_bbox: list<float>} $region
+     * @return array<string, mixed>
+     */
+    private function sectionOrderTableEntry(array $region, int $finalIndex, array $page, int $recognizedTableIndex): array
+    {
+        $entry = [
+            'role' => 'table',
+            'table_index' => $recognizedTableIndex,
+            'final_index' => $finalIndex,
+            'type' => 'Table',
+            'bbox' => $region['bbox'],
+            'page_bbox' => $region['page_bbox'],
+        ];
+
+        $entry += $this->layoutOrderMatchFields($page, $region['page_bbox']);
+
+        return $this->compactReviewRow($entry);
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @return array<string, mixed>
+     */
+    private function layoutOrderMatchFields(array $page, array $bbox): array
+    {
+        $match = $this->layoutOrderMatch($page, $bbox);
+        if ($match === null) {
+            return [];
+        }
+
+        return [
+            'order_position' => $match['position'],
+            'order_intersection_pct' => $match['intersection_pct'],
+            'order_bbox' => $match['bbox'],
+        ];
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @return array{position: int, intersection_pct: float, bbox: list<float>}|null
+     */
+    private function layoutOrderMatch(array $page, array $bbox): ?array
+    {
+        $orderBoxes = $this->orderBoxes($page);
+        if ($orderBoxes === []) {
+            return null;
+        }
+
+        $best = null;
+        foreach ($orderBoxes as $orderBox) {
+            $orderBbox = $this->rescaledOrderBboxForReview($page, $orderBox['bbox']);
+            $intersection = round($this->layout->intersectionPct($bbox, $orderBbox), 4);
+            if ($best === null || $intersection > $best['intersection_pct']) {
+                $best = [
+                    'position' => $orderBox['position'],
+                    'intersection_pct' => $intersection,
+                    'bbox' => $orderBbox,
+                ];
+            }
+        }
+
+        return $best;
+    }
+
+    /**
+     * @return list<array{position: int, bbox: list<float>}>
+     */
+    private function orderBoxes(array $page): array
+    {
+        $order = $page['order'] ?? [];
+        $boxes = is_array($order) && isset($order['bboxes']) && is_array($order['bboxes'])
+            ? $order['bboxes']
+            : ($page['order_bboxes'] ?? []);
+
+        if (!is_array($boxes)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($boxes as $box) {
+            if (!is_array($box)) {
+                continue;
+            }
+            $bbox = $this->bbox($box['bbox'] ?? null);
+            if ($bbox === null) {
+                continue;
+            }
+
+            $position = $box['position'] ?? null;
+            if (!is_int($position) && !is_float($position) && !(is_string($position) && preg_match('/^-?\d+$/', $position) === 1)) {
+                continue;
+            }
+
+            $out[] = [
+                'position' => (int) $position,
+                'bbox' => $bbox,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @return list<float>
+     */
+    private function rescaledOrderBboxForReview(array $page, array $bbox): array
+    {
+        $order = $page['order'] ?? [];
+        $orderImageBbox = is_array($order) ? $this->bbox($order['image_bbox'] ?? null) : null;
+        $pageBbox = $this->bbox($page['bbox'] ?? null);
+
+        return $orderImageBbox !== null && $pageBbox !== null
+            ? $this->layout->rescaleBbox($orderImageBbox, $pageBbox, $bbox)
+            : $bbox;
     }
 
     /**

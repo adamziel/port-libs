@@ -170,6 +170,9 @@ final class PdfMetadataExtractor
         }
 
         $catalog = $this->extractCatalogReviewMetadata($pdfBytes, $objects);
+        if ($encryption !== []) {
+            $catalog = $this->redactEncryptedCatalogAssociatedFileMetadata($catalog, $encryption);
+        }
         $xmp = $this->shouldReadXmpMetadata($metadataSourcePolicy)
             ? $this->extractXmpMetadata($pdfBytes, $objects)
             : [];
@@ -205,6 +208,7 @@ final class PdfMetadataExtractor
         $hasXmp = $catalog !== null && $this->dictionaryTopLevelRawValue($catalog, 'Metadata') !== null;
         $hasInfo = $trailer !== null && $this->dictionaryRawValue($trailer, 'Info') !== null;
         $hasOutputIntents = $catalog !== null && $this->dictionaryTopLevelRawValue($catalog, 'OutputIntents') !== null;
+        $hasAssociatedFiles = $catalog !== null && $this->catalogHasAssociatedFileMetadata($catalog, $objects);
 
         $suppressed = [];
         $preserved = [];
@@ -229,7 +233,7 @@ final class PdfMetadataExtractor
             $outputIntentPolicy = 'suppressed_encrypted_stream_or_strings';
         }
 
-        return [
+        $policy = [
             'encrypted_document' => true,
             'decryption_performed' => false,
             'encrypt_metadata' => !$encryptMetadata ? false : true,
@@ -241,6 +245,267 @@ final class PdfMetadataExtractor
             'preserved_sources' => $preserved,
             'raw_encrypted_metadata_parsed' => false,
         ];
+
+        if ($hasAssociatedFiles) {
+            $suppressed[] = 'associated_files';
+            $policy['associated_files_policy'] = 'suppressed_encrypted_associated_file_metadata';
+            $policy['associated_files_review'] = $this->encryptedAssociatedFileReviewPolicy($encryption);
+            $policy['suppressed_sources'] = $suppressed;
+        }
+
+        return $policy;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function catalogHasAssociatedFileMetadata(string $catalog, array $objects): bool
+    {
+        if (
+            $this->dictionaryTopLevelRawValue($catalog, 'AF') !== null
+            || $this->dictionaryTopLevelRawValue($catalog, 'Collection') !== null
+        ) {
+            return true;
+        }
+
+        $names = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Names'), $objects);
+        if ($names === null) {
+            return false;
+        }
+
+        return $this->dictionaryTopLevelRawValue($names['body'], 'EmbeddedFiles') !== null;
+    }
+
+    /**
+     * @param array<string, mixed> $catalog
+     * @param array<string, mixed> $encryption
+     * @return array<string, mixed>
+     */
+    private function redactEncryptedCatalogAssociatedFileMetadata(array $catalog, array $encryption): array
+    {
+        $policy = $this->encryptedAssociatedFileReviewPolicy($encryption);
+        $changed = false;
+
+        foreach (['associated_files', 'embedded_files'] as $field) {
+            if (!isset($catalog[$field]) || !is_array($catalog[$field])) {
+                continue;
+            }
+
+            $catalog[$field] = $this->redactEncryptedAssociatedFileRows($catalog[$field], $policy);
+            $changed = true;
+        }
+
+        if (isset($catalog['collection']) && is_array($catalog['collection'])) {
+            $collection = $catalog['collection'];
+            if (isset($collection['associated_files']) && is_array($collection['associated_files'])) {
+                $collection['associated_files'] = $this->redactEncryptedAssociatedFileRows($collection['associated_files'], $policy);
+                $catalog['collection'] = $collection;
+                $changed = true;
+            }
+        }
+
+        if ($changed) {
+            $catalog['encrypted_associated_files_policy'] = $policy;
+        }
+
+        return $catalog;
+    }
+
+    /**
+     * @param list<array<string, mixed>>|array<int, mixed> $files
+     * @param array<string, mixed> $policy
+     * @return list<array<string, mixed>>
+     */
+    private function redactEncryptedAssociatedFileRows(array $files, array $policy): array
+    {
+        $redacted = [];
+        foreach ($files as $file) {
+            if (!is_array($file)) {
+                continue;
+            }
+
+            $redacted[] = $this->redactEncryptedAssociatedFileRow($file, $policy);
+        }
+
+        return $redacted;
+    }
+
+    /**
+     * @param array<string, mixed> $file
+     * @param array<string, mixed> $policy
+     * @return array<string, mixed>
+     */
+    private function redactEncryptedAssociatedFileRow(array $file, array $policy): array
+    {
+        $stringsEncrypted = ($policy['file_spec_strings_policy'] ?? null) === 'suppressed_encrypted_strings';
+        $payloadEncrypted = ($policy['embedded_file_stream_policy'] ?? null) === 'suppressed_encrypted_embedded_file_streams';
+
+        if ($stringsEncrypted) {
+            foreach (['name', 'filename', 'unicode_filename', 'platform_filename', 'description', 'language'] as $key) {
+                unset($file[$key]);
+            }
+        }
+
+        foreach ([
+            'metadata_review',
+            'output_intents_review',
+            'piece_info',
+            'collection_item',
+            'collection_field_values',
+            'portfolio_item',
+            'portfolio_field_values',
+        ] as $key) {
+            unset($file[$key]);
+        }
+
+        if ($payloadEncrypted) {
+            foreach ([
+                'size',
+                'content_sha256',
+                'mime_type',
+                'filters',
+                'checksum',
+                'checksum_algorithm',
+                'computed_checksum',
+                'checksum_matches',
+                'created_at',
+                'modified_at',
+            ] as $key) {
+                unset($file[$key]);
+            }
+        }
+
+        if (isset($file['related_files']) && is_array($file['related_files'])) {
+            $file['related_files'] = $this->redactEncryptedRelatedFileRows($file['related_files'], $policy);
+        }
+
+        $file['encryption_policy'] = $policy;
+        $provenance = $file['provenance_review'] ?? [];
+        $file['provenance_review'] = $this->redactEncryptedAssociatedFileProvenance(
+            is_array($provenance) ? $provenance : [],
+            $file,
+            $policy
+        );
+
+        return $file;
+    }
+
+    /**
+     * @param list<array<string, mixed>>|array<int, mixed> $relatedFiles
+     * @param array<string, mixed> $policy
+     * @return list<array<string, mixed>>
+     */
+    private function redactEncryptedRelatedFileRows(array $relatedFiles, array $policy): array
+    {
+        $rows = [];
+        foreach ($relatedFiles as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            foreach ([
+                'size',
+                'content_sha256',
+                'mime_type',
+                'filters',
+                'checksum',
+                'checksum_algorithm',
+                'computed_checksum',
+                'checksum_matches',
+                'created_at',
+                'modified_at',
+            ] as $key) {
+                unset($row[$key]);
+            }
+            $row['encryption_policy'] = $policy;
+            $rows[] = $row;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string, mixed> $provenance
+     * @param array<string, mixed> $file
+     * @param array<string, mixed> $policy
+     * @return array<string, mixed>
+     */
+    private function redactEncryptedAssociatedFileProvenance(array $provenance, array $file, array $policy): array
+    {
+        $metadata = [
+            'source' => $provenance['source'] ?? 'associated_file_provenance',
+            'review_only' => true,
+            'payload_included' => false,
+            'encryption_policy' => $policy,
+        ];
+
+        $sources = [];
+        $relationship = $file['relationship'] ?? $provenance['relationship'] ?? null;
+        if (is_string($relationship) && $relationship !== '') {
+            $metadata['relationship'] = $relationship;
+            $metadata['relationship_role'] = self::ASSOCIATED_FILE_RELATIONSHIP_ROLES[$relationship] ?? 'unrecognized';
+            $metadata['relationship_status'] = array_key_exists($relationship, self::ASSOCIATED_FILE_RELATIONSHIP_ROLES)
+                ? 'standard_pdf_associated_file_relationship'
+                : 'unrecognized_pdf_associated_file_relationship';
+            $sources[] = 'filespec_afrelationship';
+        } elseif (is_string($provenance['relationship_status'] ?? null)) {
+            $metadata['relationship_status'] = $provenance['relationship_status'];
+        } else {
+            $metadata['relationship_status'] = 'encrypted_or_missing_pdf_associated_file_relationship';
+        }
+
+        $sources[] = 'encrypted_file_spec_boundary';
+        $metadata['sources'] = $this->uniqueStrings($sources);
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, mixed> $encryption
+     * @return array<string, mixed>
+     */
+    private function encryptedAssociatedFileReviewPolicy(array $encryption): array
+    {
+        $stringFilter = is_string($encryption['string_filter'] ?? null) ? $encryption['string_filter'] : null;
+        $streamFilter = is_string($encryption['stream_filter'] ?? null) ? $encryption['stream_filter'] : null;
+        $embeddedFileFilter = is_string($encryption['embedded_file_filter'] ?? null) ? $encryption['embedded_file_filter'] : null;
+        $stringsEncrypted = $stringFilter !== 'Identity';
+        $embeddedStreamsEncrypted = $embeddedFileFilter !== 'Identity';
+
+        $policy = [
+            'source' => 'encrypted_associated_file_review',
+            'encrypted_document' => true,
+            'decryption_performed' => false,
+            'file_spec_strings_policy' => $stringsEncrypted
+                ? 'suppressed_encrypted_strings'
+                : 'preserved_identity_crypt_filter',
+            'embedded_file_stream_policy' => $embeddedStreamsEncrypted
+                ? 'suppressed_encrypted_embedded_file_streams'
+                : 'preserved_identity_crypt_filter',
+            'metadata_stream_policy' => 'suppressed_encrypted_associated_metadata_streams',
+            'output_intents_policy' => 'suppressed_encrypted_associated_output_intents',
+            'payload_hash_available' => !$embeddedStreamsEncrypted,
+            'xmp_summary_available' => false,
+            'attachment_output_intents_available' => false,
+            'payload_content_included' => false,
+            'raw_encrypted_bytes_exposed' => false,
+            'executes_decryption' => false,
+        ];
+
+        if ($stringFilter !== null) {
+            $policy['string_filter'] = $stringFilter;
+        }
+        if ($streamFilter !== null) {
+            $policy['stream_filter'] = $streamFilter;
+        }
+        if ($embeddedFileFilter !== null) {
+            $policy['embedded_file_filter'] = $embeddedFileFilter;
+        }
+        if (is_string($encryption['filter'] ?? null)) {
+            $policy['security_handler'] = $encryption['filter'];
+        }
+
+        return $policy;
     }
 
     /**
