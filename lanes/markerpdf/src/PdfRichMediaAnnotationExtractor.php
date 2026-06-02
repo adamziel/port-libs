@@ -455,7 +455,7 @@ final class PdfRichMediaAnnotationExtractor
             }
         }
 
-        if ($actionType === 'Launch' || $actionType === 'GoToR') {
+        if ($actionType === 'Launch' || $actionType === 'GoToR' || $actionType === 'GoToE') {
             $fileSpec = $this->dictionaryFromTopLevelValue($actionBody, 'F', $objects);
             if ($fileSpec !== null) {
                 $bodies[] = $fileSpec['body'];
@@ -468,6 +468,13 @@ final class PdfRichMediaAnnotationExtractor
                 if ($winFileSpec !== null) {
                     $bodies[] = $winFileSpec['body'];
                 }
+            }
+        }
+
+        if ($actionType === 'GoToE') {
+            $target = $this->dictionaryFromTopLevelValue($actionBody, 'T', $objects);
+            if ($target !== null) {
+                $bodies[] = $target['body'];
             }
         }
 
@@ -617,6 +624,28 @@ final class PdfRichMediaAnnotationExtractor
             }
         }
 
+        if ($actionType === 'GoToE') {
+            $attachment = $this->fileSpecDetailsFromTopLevel($actionBody, 'F', $objects);
+            if ($attachment !== null) {
+                $row['file'] = $attachment['filename'];
+                $row['attachment'] = $attachment;
+            }
+
+            foreach ($this->actionDestinationDetailsFromValue($this->topLevelValueAfterName($actionBody, 'D'), $objects) as $key => $value) {
+                $row[$key] = $value;
+            }
+
+            $target = $this->embeddedTargetDetailsFromAction($actionBody, $objects);
+            if ($target !== null) {
+                $row['target'] = $target;
+            }
+
+            $newWindow = $this->topLevelBoolValueAfterName($actionBody, 'NewWindow', $objects);
+            if ($newWindow !== null) {
+                $row['new_window'] = $newWindow;
+            }
+        }
+
         if ($actionType === 'Movie') {
             $targetAnnotation = $this->objectReferenceValueAfterName($actionBody, 'Annotation')
                 ?? $this->objectReferenceValueAfterName($actionBody, 'AN');
@@ -738,6 +767,7 @@ final class PdfRichMediaAnnotationExtractor
             'RichMediaExecute' => 'rich-media-execute-review',
             'Movie' => 'movie-action-review',
             'Sound' => 'sound-action-review',
+            'GoToE' => 'embedded-document-review',
             'GoToR' => 'remote-document-review',
             'GoTo' => 'local-destination',
             default => 'unsupported-action-review',
@@ -1079,6 +1109,198 @@ final class PdfRichMediaAnnotationExtractor
 
     /**
      * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function fileSpecDetailsFromTopLevel(string $body, string $name, array $objects): ?array
+    {
+        $value = $this->topLevelValueAfterName($body, $name);
+        return $value === null ? null : $this->fileSpecDetailsFromValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function fileSpecDetailsFromValue(string $value, array $objects): ?array
+    {
+        $fileSpec = $this->resolvedDictionaryFromValue($value, $objects);
+        if ($fileSpec === null) {
+            $filename = $this->pdfStringFromValue($value, $objects);
+            return ($filename === null || $filename === '')
+                ? null
+                : ['filename' => $filename, 'has_embedded_file' => false];
+        }
+
+        $body = $fileSpec['body'];
+        $unicodeFilename = $this->topLevelStringValueAfterName($body, 'UF', $objects);
+        $filename = $unicodeFilename;
+        foreach (['F', 'DOS', 'Unix', 'Mac'] as $key) {
+            $filename ??= $this->topLevelStringValueAfterName($body, $key, $objects);
+        }
+
+        if ($filename === null || $filename === '') {
+            return null;
+        }
+
+        $details = [
+            'filename' => $filename,
+            'file_spec_object' => $fileSpec['object'],
+            'has_embedded_file' => false,
+        ];
+
+        if ($unicodeFilename !== null && $unicodeFilename !== '') {
+            $details['unicode_filename'] = $unicodeFilename;
+        }
+
+        foreach ([
+            'description' => $this->topLevelStringValueAfterName($body, 'Desc', $objects),
+            'relationship' => $this->topLevelNameValueAfterName($body, 'AFRelationship'),
+        ] as $key => $metadataValue) {
+            if (is_string($metadataValue) && $metadataValue !== '') {
+                $details[$key] = $metadataValue;
+            }
+        }
+
+        $ef = $this->dictionaryFromTopLevelValue($body, 'EF', $objects);
+        if ($ef === null) {
+            return $details;
+        }
+
+        $details['has_embedded_file'] = true;
+        $embeddedObjects = [];
+        $embeddedKeys = [];
+        $mimeTypes = [];
+        foreach ($this->topLevelDictionaryEntries($ef['body']) as $entry) {
+            if (!in_array($entry['name'], ['F', 'UF', 'DOS', 'Unix', 'Mac'], true)) {
+                continue;
+            }
+
+            $objectNumber = $this->objectReferenceFromValue($entry['value']);
+            if ($objectNumber !== null) {
+                $embeddedObjects[] = $objectNumber;
+            }
+            $embeddedKeys[] = $entry['name'];
+
+            $stream = $this->resolvedDictionaryFromValue($entry['value'], $objects);
+            if ($stream !== null) {
+                $mimeType = $this->topLevelNameValueAfterName($stream['body'], 'Subtype');
+                if ($mimeType !== null && $mimeType !== '') {
+                    $mimeTypes[] = $mimeType;
+                }
+            }
+        }
+
+        if ($embeddedObjects !== []) {
+            $details['embedded_file_objects'] = array_values(array_unique($embeddedObjects));
+        }
+        if ($embeddedKeys !== []) {
+            $details['embedded_file_keys'] = array_values(array_unique($embeddedKeys));
+        }
+        if ($mimeTypes !== []) {
+            $details['mime_types'] = $this->dedupeStrings($mimeTypes);
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function actionDestinationDetailsFromValue(?string $value, array $objects): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        $dictionary = $this->resolvedDictionaryFromValue($value, $objects);
+        if ($dictionary !== null) {
+            return $this->actionDestinationDetailsFromValue($this->topLevelValueAfterName($dictionary['body'], 'D'), $objects);
+        }
+
+        $destination = $this->pdfStringFromValue($value, $objects) ?? $this->nameFromPdfValue($value, $objects);
+        if ($destination !== null && $destination !== '') {
+            return ['destination' => $destination];
+        }
+
+        $arrayValues = $this->arrayValuesFromPdfValue($value, $objects);
+        if ($arrayValues === null || $arrayValues === []) {
+            return [];
+        }
+
+        $details = [];
+        $page = $this->numberFromPdfValue($arrayValues[0], $objects);
+        if ($page !== null && $page >= 0) {
+            $details['destination_page'] = (int) $page;
+        } else {
+            $destination = $this->pdfStringFromValue($arrayValues[0], $objects) ?? $this->nameFromPdfValue($arrayValues[0], $objects);
+            if ($destination !== null && $destination !== '') {
+                $details['destination'] = $destination;
+            }
+        }
+
+        $viewMode = isset($arrayValues[1]) ? $this->nameFromPdfValue($arrayValues[1], $objects) : null;
+        if ($viewMode !== null && $viewMode !== '') {
+            $details['view_mode'] = $viewMode;
+        }
+
+        $viewPosition = [];
+        for ($index = 2, $count = count($arrayValues); $index < $count; $index++) {
+            $viewPosition[] = $this->numberFromPdfValue($arrayValues[$index], $objects);
+        }
+        if ($viewPosition !== []) {
+            $details['view_position'] = $viewPosition;
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function embeddedTargetDetailsFromAction(string $actionBody, array $objects): ?array
+    {
+        $target = $this->dictionaryFromTopLevelValue($actionBody, 'T', $objects);
+        if ($target === null) {
+            return null;
+        }
+
+        $details = [];
+        if ($target['object'] !== null) {
+            $details['target_object'] = $target['object'];
+        }
+
+        $relation = $this->topLevelNameValueAfterName($target['body'], 'R');
+        if ($relation !== null && $relation !== '') {
+            $details['relation'] = $relation;
+            $details['relation_label'] = match ($relation) {
+                'P' => 'parent',
+                'C' => 'child',
+                default => $relation,
+            };
+        }
+
+        $name = $this->topLevelStringOrNameValueAfterName($target['body'], 'N', $objects);
+        if ($name !== null && $name !== '') {
+            $details['name'] = $name;
+        }
+
+        $page = $this->topLevelNumberValueAfterName($target['body'], 'P', $objects);
+        if ($page !== null && $page >= 0) {
+            $details['page'] = (int) $page;
+        }
+
+        $annotation = $this->objectReferenceValueAfterName($target['body'], 'A');
+        if ($annotation !== null) {
+            $details['annotation_object'] = $annotation;
+        }
+
+        return $details === [] ? null : $details;
+    }
+
+    /**
+     * @param array<int, string> $objects
      * @return list<string>
      */
     private function stringArrayValueAfterName(string $body, string $name, array $objects): array
@@ -1347,11 +1569,12 @@ final class PdfRichMediaAnnotationExtractor
     private function objectReferenceValueAfterName(string $body, string $name): ?int
     {
         $value = $this->topLevelValueAfterName($body, $name) ?? $this->valueAfterName($body, $name);
-        if ($value === null || preg_match('/^(\d+)\s+\d+\s+R\b/', trim($value), $match) !== 1) {
-            return null;
-        }
+        return $value === null ? null : $this->objectReferenceFromValue($value);
+    }
 
-        return (int) $match[1];
+    private function objectReferenceFromValue(string $value): ?int
+    {
+        return preg_match('/^(\d+)\s+\d+\s+R\b/', trim($value), $match) === 1 ? (int) $match[1] : null;
     }
 
     /**

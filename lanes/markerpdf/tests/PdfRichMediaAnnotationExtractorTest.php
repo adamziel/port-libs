@@ -96,6 +96,33 @@ $currentAnnotationActionBoundaryPdf = static function (): string {
         . "%%EOF";
 };
 
+$richMediaAttachmentActionBoundaryPdf = static function (): string {
+    $pageContent = 'BT /F1 12 Tf 72 720 Td (Article Body) Tj ET';
+    $attachmentPayload = 'BT /F1 12 Tf 72 720 Td (Attachment Payload Leak) Tj ET';
+    $attachmentChecksum = strtoupper(hash('md5', $attachmentPayload));
+    $staleAttachmentPayload = 'BT /F1 12 Tf 72 720 Td (Stale Attachment Payload Leak) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 60 0 R >> >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 40 0 R >> >> /Annots [5 0 R] /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Annot /Subtype /RichMedia /Rect [72 520 320 700] /T (Attachment player) /Contents (Embedded document action requires review) /RichMediaContent 30 0 R /A 12 0 R /AA << /PV 13 0 R >> >>\nendobj\n"
+        . "12 0 obj\n<< /S /GoToE /F 20 0 R /D [0 /FitH 612] /NewWindow true /T << /R /C /N (review-pack.pdf) /P 0 >> /Next 14 0 R >>\nendobj\n"
+        . "13 0 obj\n<< /S /GoToE /D (chapter-one) /T 25 0 R >>\nendobj\n"
+        . "14 0 obj\n<< /S /JavaScript /JS (app.alert\\('attachment action blocked'\\)) >>\nendobj\n"
+        . "20 0 obj\n<< /Type /Filespec /F (review-pack.pdf) /UF <FEFF007200650076006900650077002D007000610063006B002E007000640066> /Desc (Embedded review packet) /AFRelationship /Data /EF << /F 21 0 R >> >>\nendobj\n"
+        . "21 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fpdf /Params << /Size " . strlen($attachmentPayload) . " /CheckSum <{$attachmentChecksum}> >> /Length " . strlen($attachmentPayload) . " >>\nstream\n{$attachmentPayload}\nendstream\nendobj\n"
+        . "25 0 obj\n<< /R /C /N (chapter-notes.pdf) /P 2 >>\nendobj\n"
+        . "30 0 obj\n<< /RichMediaContent << /Assets << /Names [(current-training.mp4) 31 0 R] >> >> >>\nendobj\n"
+        . "31 0 obj\n<< /Type /Filespec /F (current-training.mp4) >>\nendobj\n"
+        . "50 0 obj\n<< /Type /Filespec /F (stale-attachment.pdf) /EF << /F 51 0 R >> >>\nendobj\n"
+        . "51 0 obj\n<< /Type /EmbeddedFile /Length " . strlen($staleAttachmentPayload) . " >>\nstream\n{$staleAttachmentPayload}\nendstream\nendobj\n"
+        . "60 0 obj\n<< /Names [(stale-attachment.pdf) 50 0 R] >>\nendobj\n"
+        . "40 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 $movieSoundRenditionPopupPdf = static function (): string {
     $pageContent = 'BT /F1 12 Tf 72 720 Td (Article Body) Tj ET';
     $movieAppearance = 'BT /F1 12 Tf 0 0 Td (Movie Popup Payload Noise) Tj ET';
@@ -302,6 +329,58 @@ return [
         $plainText = (new PdfTextExtractor())->extractPlainText($currentAnnotationActionBoundaryPdf());
         $t->same(['Article Body'], (new PdfTextExtractor())->extractTextLines($currentAnnotationActionBoundaryPdf()));
         $t->true(!str_contains($plainText, 'Detached target must not become a page annotation'));
+    },
+    'reviews rich media embedded attachment actions without executing or promoting attachment payloads' => static function (TestRunner $t) use ($richMediaAttachmentActionBoundaryPdf): void {
+        $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($richMediaAttachmentActionBoundaryPdf());
+
+        $t->same(1, count($pages));
+        $t->same(1, count($pages[0]['annotations']));
+
+        $annotation = $pages[0]['annotations'][0];
+        $t->same('RichMedia', $annotation['subtype']);
+        $t->same(5, $annotation['annotation_object']);
+        $t->same('Attachment player', $annotation['title']);
+        $t->same(['GoToE', 'JavaScript'], $annotation['action_types']);
+        $t->same(['current-training.mp4', 'review-pack.pdf'], $annotation['file_names']);
+        $t->true(!in_array('stale-attachment.pdf', $annotation['file_names'], true));
+        $t->same(3, count($annotation['actions']));
+
+        $embedded = $annotation['actions'][0];
+        $t->same('GoToE', $embedded['action_type']);
+        $t->same('embedded-document-review', $embedded['safety']);
+        $t->same('review-pack.pdf', $embedded['file']);
+        $t->same(20, $embedded['attachment']['file_spec_object']);
+        $t->same('review-pack.pdf', $embedded['attachment']['unicode_filename']);
+        $t->same('Embedded review packet', $embedded['attachment']['description']);
+        $t->same('Data', $embedded['attachment']['relationship']);
+        $t->same(true, $embedded['attachment']['has_embedded_file']);
+        $t->same([21], $embedded['attachment']['embedded_file_objects']);
+        $t->same('application/pdf', $embedded['attachment']['mime_types'][0]);
+        $t->same(0, $embedded['destination_page']);
+        $t->same('FitH', $embedded['view_mode']);
+        $t->same([612.0], $embedded['view_position']);
+        $t->same(true, $embedded['new_window']);
+        $t->same(['relation' => 'C', 'relation_label' => 'child', 'name' => 'review-pack.pdf', 'page' => 0], $embedded['target']);
+        $t->same(false, $embedded['executes_on_import']);
+        $t->same(false, $embedded['executes_media']);
+
+        $script = $annotation['actions'][1];
+        $t->same('JavaScript', $script['action_type']);
+        $t->same('blocked-javascript', $script['safety']);
+        $t->same(true, $script['chained']);
+
+        $targetOnly = $annotation['actions'][2];
+        $t->same('PV', $targetOnly['event']);
+        $t->same('GoToE', $targetOnly['action_type']);
+        $t->same('chapter-one', $targetOnly['destination']);
+        $t->same(['target_object' => 25, 'relation' => 'C', 'relation_label' => 'child', 'name' => 'chapter-notes.pdf', 'page' => 2], $targetOnly['target']);
+        $t->same(null, $targetOnly['file'] ?? null);
+
+        $plainText = (new PdfTextExtractor())->extractPlainText($richMediaAttachmentActionBoundaryPdf());
+        $t->same(['Article Body'], (new PdfTextExtractor())->extractTextLines($richMediaAttachmentActionBoundaryPdf()));
+        $t->true(!str_contains($plainText, 'Attachment Payload Leak'));
+        $t->true(!str_contains($plainText, 'Stale Attachment Payload Leak'));
+        $t->true(!str_contains($plainText, 'attachment action blocked'));
     },
     'keeps rich media and screen appearances out of native text extraction' => static function (TestRunner $t) use ($richMediaAnnotationPdf): void {
         $extractor = new PdfTextExtractor();
