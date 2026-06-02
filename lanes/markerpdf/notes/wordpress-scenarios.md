@@ -292,6 +292,12 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-embedded-files-import.php` maps catalog `/Names /EmbeddedFiles` attachment metadata into a WordPress import path. It emits a core file block and review metadata for the embedded file while proving embedded-file payload streams do not leak into visible paragraph extraction.
 
+`examples/wordpress-pdf-richmedia-annotation-review.php` maps `/Screen` and `/RichMedia` annotations into WordPress review metadata. It records rendition/media files and actions as non-executing review rows while keeping media appearance streams out of imported paragraph text.
+
+`examples/wordpress-pdf-highlight-review-import.php` maps text-markup annotation `/QuadPoints` into an editorial review path. It applies review metadata to overlapping supplied pdftext spans and emits `<mark>` markup for Gutenberg paragraph review without executing external PDF tooling.
+
+`examples/wordpress-pdf-acroform-submit-reset-actions.php` maps AcroForm `/SubmitForm` and `/ResetForm` actions into a review-only WordPress form path. It reports submit targets, reset modes, and field lists without submitting data, resetting state, or executing PDF actions.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
