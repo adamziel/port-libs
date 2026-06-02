@@ -41,7 +41,7 @@ final class PdfAcroFormExtractor
     /**
      * Native boundary for PDF AcroForm field dictionaries.
      *
-     * @return array{need_appearances: bool, permissions: array<string, mixed>, fields: list<array<string, mixed>>}
+     * @return array{need_appearances: bool, permissions: array<string, mixed>, xfa_overrides_page_content: bool, xfa_packets: list<array<string, mixed>>, fields: list<array<string, mixed>>}
      */
     public function extractForm(string $pdfBytes): array
     {
@@ -53,6 +53,8 @@ final class PdfAcroFormExtractor
             return [
                 'need_appearances' => false,
                 'permissions' => $permissions,
+                'xfa_overrides_page_content' => false,
+                'xfa_packets' => [],
                 'fields' => [],
             ];
         }
@@ -61,6 +63,7 @@ final class PdfAcroFormExtractor
         $pageIndexes = array_flip($pageObjectNumbers);
         $pageWidgets = $this->pageWidgetMap($objects, $pageObjectNumbers);
         $formDefaults = $this->acroFormDefaults($acroForm);
+        $xfaPackets = $this->xfaPacketsFromAcroForm($acroForm, $objects);
         $fields = [];
         $fieldRefs = $this->fieldReferencesFromAcroForm($acroForm);
 
@@ -83,6 +86,8 @@ final class PdfAcroFormExtractor
         return [
             'need_appearances' => $this->boolValueAfterName($acroForm, 'NeedAppearances') === true,
             'permissions' => $permissions,
+            'xfa_overrides_page_content' => $xfaPackets !== [],
+            'xfa_packets' => $xfaPackets,
             'fields' => $fields,
         ];
     }
@@ -93,6 +98,334 @@ final class PdfAcroFormExtractor
     public function extractFields(string $pdfBytes): array
     {
         return $this->extractForm($pdfBytes)['fields'];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     * @param array<int, string> $objects
+     */
+    private function xfaPacketsFromAcroForm(string $acroForm, array $objects): array
+    {
+        $xfa = $this->valueAfterName($acroForm, 'XFA');
+        if ($xfa === null) {
+            return [];
+        }
+
+        $xfa = trim($xfa);
+        if ($xfa === '') {
+            return [];
+        }
+
+        if (str_starts_with($xfa, '[')) {
+            $body = $this->arrayBodyFromValue($xfa);
+            if ($body === null) {
+                return [];
+            }
+
+            $tokens = $this->xfaArrayTokens($body);
+            $packets = [];
+            for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+                $token = $tokens[$index];
+                $packetName = $token['type'] === 'string' ? $token['value'] : null;
+                if ($packetName === null) {
+                    $packet = $this->xfaPacketFromToken($token, $objects, null, count($packets), 'acroform_xfa_array');
+                    if ($packet !== null) {
+                        $packets[] = $packet;
+                    }
+                    continue;
+                }
+
+                $valueToken = $tokens[$index + 1] ?? null;
+                if ($valueToken === null) {
+                    break;
+                }
+
+                $packet = $this->xfaPacketFromToken($valueToken, $objects, $packetName, count($packets), 'acroform_xfa_array');
+                if ($packet !== null) {
+                    $packets[] = $packet;
+                }
+                $index++;
+            }
+
+            return $packets;
+        }
+
+        $token = $this->xfaTokenFromValue($xfa);
+        $packet = $token === null ? null : $this->xfaPacketFromToken($token, $objects, null, 0, 'acroform_xfa_value');
+
+        return $packet === null ? [] : [$packet];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function xfaArrayTokens(string $body): array
+    {
+        $tokens = [];
+        $offset = 0;
+        $length = strlen($body);
+        while ($offset < $length) {
+            $token = $this->readXfaTokenAt($body, $offset);
+            if ($token === null) {
+                $offset++;
+                continue;
+            }
+
+            $offset = $token['end'];
+            unset($token['end']);
+            $tokens[] = $token;
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @return array{type: string, value?: string, object?: int, end: int}|null
+     */
+    private function readXfaTokenAt(string $body, int $offset): ?array
+    {
+        $this->skipWhitespace($body, $offset);
+        if ($offset >= strlen($body)) {
+            return null;
+        }
+
+        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $body, $match, 0, $offset) === 1) {
+            return [
+                'type' => 'reference',
+                'object' => (int) $match[1],
+                'end' => $offset + strlen($match[0]),
+            ];
+        }
+
+        if ($body[$offset] === '(') {
+            $end = $this->skipLiteralString($body, $offset);
+            return [
+                'type' => 'string',
+                'value' => $this->decodePdfStringBytes($this->decodeLiteralString(substr($body, $offset + 1, $end - $offset - 2))),
+                'end' => $end,
+            ];
+        }
+
+        if ($body[$offset] === '<' && substr($body, $offset, 2) !== '<<') {
+            $end = $this->skipHexString($body, $offset);
+            $hex = preg_replace('/\s+/', '', substr($body, $offset + 1, $end - $offset - 2)) ?? '';
+            if (strlen($hex) % 2 === 1) {
+                $hex .= '0';
+            }
+
+            $bytes = $hex === '' ? '' : hex2bin($hex);
+            if ($bytes === false) {
+                return null;
+            }
+
+            return [
+                'type' => 'string',
+                'value' => $this->decodePdfStringBytes($bytes),
+                'end' => $end,
+            ];
+        }
+
+        if ($body[$offset] === '/') {
+            $end = $this->skipPdfName($body, $offset);
+            return [
+                'type' => 'string',
+                'value' => $this->decodePdfName(substr($body, $offset, $end - $offset)),
+                'end' => $end,
+            ];
+        }
+
+        if (substr($body, $offset, 2) === '<<') {
+            $endOffset = null;
+            $dictionary = $this->readPdfDictionaryAt($body, $offset, $endOffset);
+            if ($dictionary === null || $endOffset === null) {
+                return null;
+            }
+
+            return [
+                'type' => 'dictionary',
+                'value' => $dictionary,
+                'end' => $endOffset,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function xfaPacketFromToken(array $token, array $objects, ?string $packetName, int $index, string $source): ?array
+    {
+        $payload = $this->xfaPayloadFromToken($token, $objects);
+        if ($payload === null) {
+            return null;
+        }
+
+        $xml = trim($payload['xml']);
+        if ($xml === '') {
+            return null;
+        }
+
+        $root = $this->xmlRootName($xml);
+        $name = $packetName !== null && $packetName !== '' ? $packetName : ($root ?? 'xfa');
+
+        return [
+            'index' => $index,
+            'name' => $name,
+            'object' => $payload['object'],
+            'source' => $source,
+            'filters' => $payload['filters'],
+            'xml_root' => $root,
+            'length_bytes' => strlen($xml),
+            'xml_sha256' => hash('sha256', $xml),
+            'field_names' => $this->xfaFieldNames($xml),
+            'data_node_names' => $this->xfaDataNodeNames($xml),
+            'has_template' => $name === 'template' || $this->xmlLocalName($root) === 'template' || stripos($xml, '<template') !== false,
+            'has_datasets' => $name === 'datasets' || $this->xmlLocalName($root) === 'datasets' || stripos($xml, 'datasets') !== false,
+            'text_preview' => $this->xmlTextPreview($xml),
+        ];
+    }
+
+    /**
+     * @return array{xml: string, object: int|null, filters: list<string>}|null
+     * @param array<int, string> $objects
+     */
+    private function xfaPayloadFromToken(array $token, array $objects): ?array
+    {
+        if (($token['type'] ?? null) === 'string') {
+            return [
+                'xml' => (string) ($token['value'] ?? ''),
+                'object' => null,
+                'filters' => [],
+            ];
+        }
+
+        if (($token['type'] ?? null) === 'dictionary') {
+            return [
+                'xml' => (string) ($token['value'] ?? ''),
+                'object' => null,
+                'filters' => [],
+            ];
+        }
+
+        if (($token['type'] ?? null) !== 'reference') {
+            return null;
+        }
+
+        $objectNumber = (int) ($token['object'] ?? 0);
+        if ($objectNumber <= 0 || !isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        $stream = $this->decodeStreamObject($objects[$objectNumber], $objects);
+        if ($stream !== null) {
+            return [
+                'xml' => $stream,
+                'object' => $objectNumber,
+                'filters' => $this->streamObjectFilters($objects[$objectNumber], $objects),
+            ];
+        }
+
+        $value = $this->pdfValueToString(trim($objects[$objectNumber]), $objects);
+
+        return [
+            'xml' => $value ?? trim($objects[$objectNumber]),
+            'object' => $objectNumber,
+            'filters' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function xfaTokenFromValue(string $value): ?array
+    {
+        $token = $this->readXfaTokenAt($value, 0);
+        if ($token === null) {
+            return null;
+        }
+
+        unset($token['end']);
+        return $token;
+    }
+
+    private function xmlRootName(string $xml): ?string
+    {
+        return preg_match('/<\s*([A-Za-z_][A-Za-z0-9_.:-]*)\b/s', $xml, $match) === 1
+            ? $match[1]
+            : null;
+    }
+
+    private function xmlLocalName(?string $name): ?string
+    {
+        if ($name === null || $name === '') {
+            return null;
+        }
+
+        $parts = explode(':', $name);
+        return end($parts) ?: $name;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function xfaFieldNames(string $xml): array
+    {
+        if (preg_match_all('/<(?:[A-Za-z_][A-Za-z0-9_.-]*:)?field\b[^>]*\bname\s*=\s*(["\'])(.*?)\1/si', $xml, $matches) === false) {
+            return [];
+        }
+
+        $names = [];
+        foreach ($matches[2] as $name) {
+            $decoded = $this->decodeXmlText($name);
+            if ($decoded !== '' && !in_array($decoded, $names, true)) {
+                $names[] = $decoded;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function xfaDataNodeNames(string $xml): array
+    {
+        if (preg_match('/<(?:[A-Za-z_][A-Za-z0-9_.-]*:)?data\b[^>]*>(.*?)<\/(?:[A-Za-z_][A-Za-z0-9_.-]*:)?data>/si', $xml, $match) !== 1) {
+            return [];
+        }
+
+        if (preg_match_all('/<\s*([A-Za-z_][A-Za-z0-9_.:-]*)\b(?![^>]*\/>)/s', $match[1], $tagMatches) === false) {
+            return [];
+        }
+
+        $names = [];
+        foreach ($tagMatches[1] as $tagName) {
+            $localName = $this->xmlLocalName($tagName);
+            if ($localName === null || in_array($localName, ['data'], true) || in_array($localName, $names, true)) {
+                continue;
+            }
+
+            $names[] = $localName;
+        }
+
+        return $names;
+    }
+
+    private function xmlTextPreview(string $xml): string
+    {
+        $withoutDeclarations = preg_replace('/<\?(?:.|\R)*?\?>|<!\[CDATA\[|]]>/s', ' ', $xml) ?? $xml;
+        $text = strip_tags($withoutDeclarations);
+        $text = $this->decodeXmlText($text);
+        $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]+/', ' ', $text) ?? $text;
+        $text = preg_replace('/\s+/', ' ', trim($text)) ?? trim($text);
+
+        return strlen($text) > 180 ? substr($text, 0, 177) . '...' : $text;
+    }
+
+    private function decodeXmlText(string $text): string
+    {
+        return html_entity_decode($text, ENT_QUOTES | ENT_XML1, 'UTF-8');
     }
 
     /**
@@ -1292,6 +1625,123 @@ final class PdfAcroFormExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodeStreamObject(string $objectBody, array $objects): ?string
+    {
+        if (!preg_match('/<<(.*?)>>\s*stream\r?\n?(.*?)\r?\n?endstream/s', $objectBody, $match)) {
+            return null;
+        }
+
+        return $this->decodeStream($match[1], $match[2], $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodeStream(string $dict, string $stream, array $objects): ?string
+    {
+        foreach ($this->streamFilters($dict, $objects) as $filter) {
+            $decoded = match ($filter) {
+                'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
+                'FlateDecode', 'Fl' => $this->decodeFlateStream($stream),
+                default => $stream,
+            };
+            if ($decoded === null) {
+                return null;
+            }
+            $stream = $decoded;
+        }
+
+        return $stream;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function streamObjectFilters(string $objectBody, array $objects): array
+    {
+        if (!preg_match('/<<(.*?)>>\s*stream/s', $objectBody, $match)) {
+            return [];
+        }
+
+        return $this->streamFilters($match[1], $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function streamFilters(string $dict, array $objects): array
+    {
+        $filter = $this->valueAfterName($dict, 'Filter');
+        if ($filter === null) {
+            return [];
+        }
+
+        return $this->filterNamesFromValue($filter, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function filterNamesFromValue(string $value, array $objects): array
+    {
+        preg_match_all('/\/([^\s\[\]()<>{}\/%]+)|(\d+)\s+\d+\s+R\b/', $value, $matches, PREG_SET_ORDER);
+        $filters = [];
+        foreach ($matches as $match) {
+            if (($match[1] ?? '') !== '') {
+                $filters[] = $this->decodePdfName($match[1]);
+                continue;
+            }
+
+            $objectNumber = isset($match[2]) ? (int) $match[2] : 0;
+            if ($objectNumber > 0 && isset($objects[$objectNumber])) {
+                foreach ($this->filterNamesFromValue($objects[$objectNumber], $objects) as $filter) {
+                    $filters[] = $filter;
+                }
+            }
+        }
+
+        return $filters;
+    }
+
+    private function decodeAsciiHexStream(string $stream): ?string
+    {
+        $body = strstr($stream, '>', true);
+        if ($body === false) {
+            $body = $stream;
+        }
+
+        $hex = preg_replace('/\s+/', '', $body);
+        if ($hex === null || preg_match('/^[\da-fA-F]*$/', $hex) !== 1) {
+            return null;
+        }
+
+        if (strlen($hex) % 2 === 1) {
+            $hex .= '0';
+        }
+
+        $decoded = hex2bin($hex);
+        return $decoded === false ? null : $decoded;
+    }
+
+    private function decodeFlateStream(string $stream): ?string
+    {
+        $inflated = @gzuncompress($stream);
+        if ($inflated === false) {
+            $inflated = @gzinflate($stream);
+        }
+        if ($inflated === false) {
+            $inflated = @gzdecode($stream);
+        }
+
+        return $inflated === false ? null : $inflated;
     }
 
     private function skipWhitespace(string $body, int &$offset): void

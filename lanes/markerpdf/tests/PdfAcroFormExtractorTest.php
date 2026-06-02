@@ -48,6 +48,44 @@ $signatureDocMdpPdf = static function (string $transformParams): string {
         . "%%EOF";
 };
 
+$xfaPacketPdf = static function (): array {
+    $templateXml = <<<'XML'
+<template xmlns="http://www.xfa.org/schema/xfa-template/3.3/">
+  <subform name="registration">
+    <field name="registration.email"><caption><value><text>Email</text></value></caption></field>
+    <field name="registration.secret"><caption><value><text>Secret</text></value></caption></field>
+  </subform>
+</template>
+XML;
+    $datasetsXml = <<<'XML'
+<xfa:datasets xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/">
+  <xfa:data>
+    <registration><email>editor@example.com</email><secret>do not render</secret></registration>
+  </xfa:data>
+</xfa:datasets>
+XML;
+    $configXml = '<config><present>pdf</present></config>';
+    $templateStream = gzcompress($templateXml);
+    assert(is_string($templateStream));
+    $configHex = strtoupper(bin2hex($configXml));
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R] /XFA [(template) 30 0 R (datasets) 31 0 R (config) <{$configHex}>] >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (fallback.email) /V (fallback@example.com) >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($templateStream) . " /Filter /FlateDecode >>\nstream\n"
+        . $templateStream
+        . "\nendstream\nendobj\n"
+        . "31 0 obj\n<< /Length " . strlen($datasetsXml) . " >>\nstream\n"
+        . $datasetsXml
+        . "\nendstream\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, hash('sha256', $templateXml), hash('sha256', $datasetsXml), hash('sha256', $configXml)];
+};
+
 return [
     'extracts inherited field flags and field default appearance strings' => static function (TestRunner $t) use ($acroFormPdf, $fieldsByName): void {
         $form = (new PdfAcroFormExtractor())->extractForm($acroFormPdf());
@@ -184,5 +222,51 @@ return [
         $t->true($docMdp['permission_valid']);
         $t->same('form_fill_templates_signatures', $docMdp['permission_label']);
         $t->same(['fill_forms', 'instantiate_page_templates', 'sign'], $docMdp['allowed_changes']);
+    },
+    'extracts XFA packet array metadata without merging dynamic XML into AcroForm fields' => static function (TestRunner $t) use ($xfaPacketPdf, $fieldsByName): void {
+        [$pdf, $templateHash, $datasetsHash, $configHash] = $xfaPacketPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $packets = $form['xfa_packets'];
+
+        $t->true($form['xfa_overrides_page_content']);
+        $t->same(1, count($fields));
+        $t->same('fallback@example.com', $fields['fallback.email']['value']);
+        $t->same(3, count($packets));
+
+        $template = $packets[0];
+        $t->same(0, $template['index']);
+        $t->same('template', $template['name']);
+        $t->same(30, $template['object']);
+        $t->same('acroform_xfa_array', $template['source']);
+        $t->same(['FlateDecode'], $template['filters']);
+        $t->same('template', $template['xml_root']);
+        $t->same($templateHash, $template['xml_sha256']);
+        $t->same(['registration.email', 'registration.secret'], $template['field_names']);
+        $t->same([], $template['data_node_names']);
+        $t->true($template['has_template']);
+        $t->same(false, $template['has_datasets']);
+        $t->true(str_contains($template['text_preview'], 'Email'));
+
+        $datasets = $packets[1];
+        $t->same('datasets', $datasets['name']);
+        $t->same(31, $datasets['object']);
+        $t->same([], $datasets['filters']);
+        $t->same('xfa:datasets', $datasets['xml_root']);
+        $t->same($datasetsHash, $datasets['xml_sha256']);
+        $t->same([], $datasets['field_names']);
+        $t->same(['registration', 'email', 'secret'], $datasets['data_node_names']);
+        $t->same(false, $datasets['has_template']);
+        $t->true($datasets['has_datasets']);
+        $t->true(str_contains($datasets['text_preview'], 'editor@example.com'));
+
+        $config = $packets[2];
+        $t->same('config', $config['name']);
+        $t->same(null, $config['object']);
+        $t->same('config', $config['xml_root']);
+        $t->same($configHash, $config['xml_sha256']);
+        $t->same([], $config['field_names']);
+        $t->same([], $config['data_node_names']);
+        $t->same('pdf', $config['text_preview']);
     },
 ];
