@@ -146,6 +146,68 @@ $pdfWithXrefStreamTrailerMetadata = static function (): array {
     return [$pdf, $currentPermanent, $currentChanging, $stalePermanent];
 };
 
+$pdfWithXrefStreamEncryptedMetadata = static function (): array {
+    $xmp = '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
+        . '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about=""'
+        . ' xmlns:dc="http://purl.org/dc/elements/1.1/"'
+        . ' xmlns:xmp="http://ns.adobe.com/xap/1.0/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Current XRef Encrypted XMP Title</rdf:li></rdf:Alt></dc:title>'
+        . '<dc:description><rdf:Alt><rdf:li xml:lang="x-default">Current encrypted xref stream metadata review</rdf:li></rdf:Alt></dc:description>'
+        . '<xmp:CreateDate>2024-06-02T08:30:00-04:00</xmp:CreateDate>'
+        . '<xmp:MetadataDate>2024-06-02T12:45:00Z</xmp:MetadataDate>'
+        . '</rdf:Description>'
+        . '</rdf:RDF>'
+        . '</x:xmpmeta>'
+        . '<?xpacket end="w"?>';
+    $compressedXmp = gzcompress($xmp);
+    $compressedProfile = gzcompress('Current encrypted OutputIntent profile bytes');
+    if (!is_string($compressedXmp) || !is_string($compressedProfile)) {
+        throw new RuntimeException('Unable to compress xref-stream encrypted metadata fixture.');
+    }
+
+    $content = 'BT /F1 12 Tf 72 720 Td (Encrypted xref stream visible leak) Tj ET';
+    $pdf = "%PDF-1.7\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): void {
+        $offsets[$objectNumber] = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+    };
+
+    $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Metadata 5 0 R /OutputIntents [9 0 R] >>');
+    $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>');
+    $addObject(4, 0, "<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream");
+    $addObject(5, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($compressedXmp) . " >>\nstream\n{$compressedXmp}\nendstream");
+    $addObject(6, 0, '<< /Title (Current Encrypted Info Title) /Author (Current Encrypted Author) /Producer (Current Encrypted Producer) /CreationDate (D:20240602112233Z) >>');
+    $addObject(7, 0, '<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length ' . strlen($compressedProfile) . " >>\nstream\n{$compressedProfile}\nendstream");
+    $addObject(8, 0, '<< /Title (Stale Trailer Info Title) /Author (Stale Trailer Author) >>');
+    $addObject(9, 0, '<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Encrypted XRef sRGB) /Info (Encrypted XRef PDF/A) /DestOutputProfile 7 0 R >>');
+    $addObject(10, 0, '<< /Filter /Standard /V 4 /R 4 /Length 128 /O <DEADBEEF> /U <CAFEFEED> /P -64 /EncryptMetadata false >>');
+
+    $currentPermanent = 'XRef Encrypted Permanent';
+    $currentChanging = 'XRef Encrypted Changing';
+    $pdf .= "trailer\n<< /Root 1 0 R /Info 8 0 R /ID [(Stale\\040Permanent) <" . strtoupper(bin2hex('Stale Changing')) . ">] >>\n";
+
+    $xrefOffset = strlen($pdf);
+    $rows = '';
+    for ($objectNumber = 0; $objectNumber < 12; $objectNumber++) {
+        $rows .= pack('N', $objectNumber === 11 ? $xrefOffset : ($offsets[$objectNumber] ?? 0));
+    }
+    $compressedXref = gzcompress($rows);
+    if (!is_string($compressedXref)) {
+        throw new RuntimeException('Unable to compress xref-stream encrypted metadata xref rows.');
+    }
+
+    $pdf .= "11 0 obj\n"
+        . '<< /Type /XRef /Size 12 /Root 1 0 R /Info 6 0 R /Encrypt 10 0 R /ID [(XRef\040Encrypted\040Permanent) <' . strtoupper(bin2hex($currentChanging)) . '>] /W [0 4 0] /Filter /FlateDecode /Length ' . strlen($compressedXref) . " >>\n"
+        . "stream\n{$compressedXref}\nendstream\nendobj\n"
+        . "startxref\n{$xrefOffset}\n%%EOF";
+
+    return [$pdf, $currentPermanent, $currentChanging];
+};
+
 return [
     'extracts catalog XMP metadata before WordPress import review' => static function (TestRunner $t) use ($xmpPacket, $pdfWithMetadata): void {
         $info = '<< /Title (Legacy Title) /Author (Legacy Author) /Keywords (legacy,hidden) /Creator (Legacy Tool) /Producer (Legacy Producer) >>';
@@ -343,6 +405,40 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, $stalePermanent));
         $t->same('Current xref metadata body', $plainText);
         $t->true(!str_contains($plainText, 'Current XRef XMP Title'));
+    },
+    'uses current xref stream trailer encryption before XMP dates and OutputIntent review' => static function (TestRunner $t) use ($pdfWithXrefStreamEncryptedMetadata): void {
+        [$pdf, $permanentId, $changingId] = $pdfWithXrefStreamEncryptedMetadata();
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $policy = $metadata['encryption']['metadata_source_policy'] ?? [];
+
+        $t->same(['encryption', 'xmp', 'trailer_id'], $metadata['source']);
+        $t->same('xref_stream_trailer_encrypt', $metadata['encryption']['source']);
+        $t->same(false, $metadata['encryption']['encrypt_metadata']);
+        $t->same('preserved_unencrypted_by_encrypt_metadata_false', $policy['xmp_stream_policy'] ?? null);
+        $t->same('suppressed_encrypted_document_strings', $policy['info_dictionary_policy'] ?? null);
+        $t->same('suppressed_encrypted_stream_or_strings', $policy['output_intents_policy'] ?? null);
+        $t->same(['info', 'output_intents'], $policy['suppressed_sources'] ?? []);
+        $t->same(['xmp'], $policy['preserved_sources'] ?? []);
+        $t->same('Current XRef Encrypted XMP Title', $metadata['title']);
+        $t->same('Current encrypted xref stream metadata review', $metadata['description']);
+        $t->same('2024-06-02T08:30:00-04:00', $metadata['created_at']);
+        $t->same('2024-06-02T12:30:00Z', $metadata['created_at_utc']);
+        $t->same('2024-06-02T12:45:00Z', $metadata['metadata_date']);
+        $t->same('2024-06-02T12:45:00Z', $metadata['metadata_date_utc']);
+        $t->same([], $metadata['info']);
+        $t->same([], $metadata['output_intents']);
+        $t->true(!isset($metadata['pdfa']));
+        $t->same(bin2hex($permanentId), $metadata['trailer_ids']['permanent']['hex']);
+        $t->same(hash('sha256', $permanentId), $metadata['document_fingerprint']);
+        $t->same(bin2hex($changingId), $metadata['trailer_ids']['changing']['hex']);
+        $t->same('', $plainText);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Current Encrypted Info Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Encrypted XRef sRGB'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Encrypted xref stream visible leak'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'DEADBEEF') && !str_contains($encoded, 'CAFEFEED'));
     },
     'ignores malformed XMP streams while preserving Info metadata fallback' => static function (TestRunner $t) use ($pdfWithMetadata): void {
         $pdf = $pdfWithMetadata(
