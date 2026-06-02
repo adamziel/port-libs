@@ -4096,17 +4096,17 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $descriptorName = $this->pdfNameValueAfterName($descriptor, 'FontName');
+            $descriptorName = $this->pdfNameValueAfterNameResolvingObjects($descriptor, 'FontName', $objects);
             if ($descriptorName !== null && $descriptorName !== '') {
                 $name = $descriptorName;
             }
 
-            $descriptorFlags = $this->pdfIntegerValueAfterName($descriptor, 'Flags');
+            $descriptorFlags = $this->pdfIntegerValueAfterNameResolvingObjects($descriptor, 'Flags', $objects);
             if ($descriptorFlags !== null) {
                 $flags = $descriptorFlags;
             }
 
-            $descriptorWeight = $this->pdfNumberValueAfterName($descriptor, 'FontWeight');
+            $descriptorWeight = $this->pdfNumberValueAfterNameResolvingObjects($descriptor, 'FontWeight', $objects);
             if ($descriptorWeight !== null) {
                 $weight = $descriptorWeight;
             }
@@ -4856,6 +4856,43 @@ final class PdfTextExtractor
         return (float) $match[1];
     }
 
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pdfNumberValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?float
+    {
+        $offset = $this->nameValueOffset($body, $name);
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->pdfNumberValueAt($body, $offset, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     */
+    private function pdfNumberValueAt(string $value, int $offset, array $objects, array $seen = []): ?float
+    {
+        $offset = $this->skipPdfWhitespace($value, $offset);
+        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $value, $match, 0, $offset) === 1) {
+            $objectNumber = (int) $match[1];
+            if ($objectNumber <= 0 || isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+                return null;
+            }
+
+            $seen[$objectNumber] = true;
+            return $this->pdfNumberValueAt(trim($objects[$objectNumber]), 0, $objects, $seen);
+        }
+
+        if (preg_match('/\G([+-]?(?:\d+(?:\.\d*)?|\.\d+))/s', $value, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        return (float) $match[1];
+    }
+
     private function pdfIntegerValueAfterName(string $body, string $name): ?int
     {
         $offset = $this->nameValueOffset($body, $name);
@@ -4896,16 +4933,53 @@ final class PdfTextExtractor
     private function pdfNameValueAfterName(string $body, string $name): ?string
     {
         $offset = $this->nameValueOffset($body, $name);
-        if ($offset === null || ($body[$offset] ?? '') !== '/') {
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->pdfNameValueAt($body, $offset, []);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pdfNameValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?string
+    {
+        $offset = $this->nameValueOffset($body, $name);
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->pdfNameValueAt($body, $offset, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     */
+    private function pdfNameValueAt(string $value, int $offset, array $objects, array $seen = []): ?string
+    {
+        $offset = $this->skipPdfWhitespace($value, $offset);
+        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $value, $match, 0, $offset) === 1) {
+            $objectNumber = (int) $match[1];
+            if ($objectNumber <= 0 || isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+                return null;
+            }
+
+            $seen[$objectNumber] = true;
+            return $this->pdfNameValueAt(trim($objects[$objectNumber]), 0, $objects, $seen);
+        }
+
+        if (($value[$offset] ?? '') !== '/') {
             return null;
         }
 
         $end = $offset + 1;
-        while ($end < strlen($body) && !str_contains(" \t\r\n\f[]()<>{}/%", $body[$end])) {
+        while ($end < strlen($value) && !str_contains(" \t\r\n\f[]()<>{}/%", $value[$end])) {
             $end++;
         }
 
-        return $this->decodePdfName(substr($body, $offset + 1, $end - $offset - 1));
+        return $this->decodePdfName(substr($value, $offset + 1, $end - $offset - 1));
     }
 
     private function pdfValueAfterName(string $body, string $name): ?string
