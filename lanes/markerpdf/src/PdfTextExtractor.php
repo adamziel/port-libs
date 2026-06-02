@@ -197,6 +197,7 @@ final class PdfTextExtractor
      *     recovered_zero_width_member_count: int,
      *     ambiguous_zero_width_member_count: int,
      *     strict_dependency_rejection_count: int,
+     *     direct_xref_stream_owner_cycle_count: int,
      *     entries: list<array<string, mixed>>,
      *     executes_python_or_models: false,
      *     executes_external_pdf_tools: false
@@ -213,6 +214,7 @@ final class PdfTextExtractor
             'recovered_zero_width_member_count' => 0,
             'ambiguous_zero_width_member_count' => 0,
             'strict_dependency_rejection_count' => 0,
+            'direct_xref_stream_owner_cycle_count' => 0,
             'entries' => [],
             'executes_python_or_models' => false,
             'executes_external_pdf_tools' => false,
@@ -263,6 +265,13 @@ final class PdfTextExtractor
             }
             $matchingHeaderObjectNumberCount = count($membersByObjectNumber);
             $memberByObjectNumber = $matchingHeaderObjectNumberCount === 1 ? $membersByObjectNumber[0] : null;
+            $directXrefStreamOwner = $this->latestDirectXrefStreamDefinition($definitions[$objectNumber] ?? []);
+            $ownerCycleRejected = $directXrefStreamOwner !== null
+                && isset($objects[$objectNumber])
+                && $objects[$objectNumber] === $directXrefStreamOwner['body'];
+            if ($ownerCycleRejected) {
+                $review['direct_xref_stream_owner_cycle_count']++;
+            }
 
             $strictMemberMatch = $memberAtDefaultIndex !== null
                 && $memberAtDefaultIndex['objectNumber'] === $objectNumber;
@@ -297,6 +306,11 @@ final class PdfTextExtractor
                 'recovered_by_object_number' => $recoveredByObjectNumber,
                 'ambiguous_zero_width_member' => $ambiguousZeroWidthMember,
                 'strict_dependency_would_reject' => !$strictMemberMatch,
+                'direct_xref_stream_owner' => $directXrefStreamOwner !== null,
+                'owner_cycle_rejected' => $ownerCycleRejected,
+                'owner_policy' => $ownerCycleRejected
+                    ? 'direct_xref_stream_owner_preserved'
+                    : 'compressed_object_stream_member',
                 'selection_policy' => $this->objectStreamIndexSelectionPolicy(
                     $indexIsExplicit,
                     $strictMemberMatch,
@@ -9414,6 +9428,11 @@ final class PdfTextExtractor
                 return $objectStreamDefinition;
             }
 
+            $xrefStreamDefinition = $this->latestDirectXrefStreamDefinition($definitions);
+            if ($xrefStreamDefinition !== null) {
+                return $xrefStreamDefinition;
+            }
+
             return null;
         }
 
@@ -9459,6 +9478,26 @@ final class PdfTextExtractor
         $candidates = [];
         foreach ($definitions as $definition) {
             if (preg_match('/\/Type\s*\/ObjStm\b/', $definition['body']) === 1) {
+                $candidates[] = $definition;
+            }
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
+    }
+
+    /**
+     * Xref streams are selected as direct file-level stream objects by
+     * startxref. A malformed decoded type-2 row for that same object number
+     * must not replace the direct xref owner with a compressed member cycle.
+     *
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function latestDirectXrefStreamDefinition(array $definitions): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if (preg_match('/\/Type\s*\/XRef\b/', $definition['body']) === 1) {
                 $candidates[] = $definition;
             }
         }
@@ -10764,11 +10803,17 @@ final class PdfTextExtractor
         if (preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+usecmap\b/s', $cmap, $useCMapMatches)) {
             foreach ($useCMapMatches[1] as $rawName) {
                 $name = $this->decodePdfName($rawName);
-                if (in_array($name, $seenCMaps, true) || !isset($namedCMapBodies[$name])) {
+                if (in_array($name, $seenCMaps, true)) {
                     continue;
                 }
 
-                $base = $this->parseCidCMap($namedCMapBodies[$name], $namedCMapBodies, [...$seenCMaps, $name]);
+                $base = isset($namedCMapBodies[$name])
+                    ? $this->parseCidCMap($namedCMapBodies[$name], $namedCMapBodies, [...$seenCMaps, $name])
+                    : $this->predefinedCidCMap($name);
+                if ($base === null) {
+                    continue;
+                }
+
                 $cidMap = $base['cidMap'] + $cidMap;
                 if (isset($base['writingMode'])) {
                     $writingMode = (int) $base['writingMode'] === 1 ? 1 : 0;
@@ -10809,6 +10854,24 @@ final class PdfTextExtractor
         }
 
         return $result;
+    }
+
+    /**
+     * @return array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, writingMode: int}|null
+     */
+    private function predefinedCidCMap(string $name): ?array
+    {
+        if ($name !== 'Identity-H' && $name !== 'Identity-V') {
+            return null;
+        }
+
+        return [
+            'cidMap' => [],
+            'codeSpaceRanges' => [
+                ['start' => 0, 'end' => 0xffff, 'width' => 4],
+            ],
+            'writingMode' => $name === 'Identity-V' ? 1 : 0,
+        ];
     }
 
     private function stripPdfLineComments(string $source): string

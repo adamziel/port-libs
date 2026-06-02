@@ -21,7 +21,13 @@ final class PdfSecurityPreflight
         $encryption = is_array($metadata['encryption'] ?? null) ? $metadata['encryption'] : null;
         $signatures = $this->signatureReviews($form['fields'] ?? [], $pdfBytes, $documentSecurityStore);
         $documentSecurityStoreSignatureReview = $this->documentSecurityStoreSignatureReview($documentSecurityStore, $signatures);
-        $documentActionReview = $this->documentActionSecurityReview($pdfBytes, $signatures, $form);
+        $documentActionReview = $this->documentActionSecurityReview(
+            $pdfBytes,
+            $signatures,
+            $form,
+            $documentSecurityStore,
+            $documentSecurityStoreSignatureReview
+        );
         $encrypted = $encryption !== null;
         $hasDocumentSecurityStore = ($documentSecurityStore['present'] ?? false) === true;
         $signedSignatureCount = count(array_filter(
@@ -501,8 +507,13 @@ final class PdfSecurityPreflight
      * @param list<array<string, mixed>> $signatures
      * @return array<string, mixed>
      */
-    private function documentActionSecurityReview(string $pdfBytes, array $signatures, array $form): array
-    {
+    private function documentActionSecurityReview(
+        string $pdfBytes,
+        array $signatures,
+        array $form,
+        array $documentSecurityStore,
+        array $documentSecurityStoreSignatureReview
+    ): array {
         $actions = [];
         $outline = new PdfOutlineExtractor();
         foreach ($outline->getOpenActionReviewActions($pdfBytes) as $action) {
@@ -557,8 +568,19 @@ final class PdfSecurityPreflight
             $signatures,
             $this->pdfObjectByteSpans($pdfBytes)
         );
+        $dssCertificateReview = $this->documentSecurityStoreCertificateReview(
+            $documentSecurityStore,
+            $documentSecurityStoreSignatureReview
+        );
+        $signaturePermissionTransformReview = $this->signaturePermissionTransformReview($signatures);
+        $actions = $this->annotateDocumentActionPermissionContext(
+            $actions,
+            $dssCertificateReview,
+            $signaturePermissionTransformReview
+        );
         $postSignatureActionObjects = $this->postSignatureActionObjects($actions);
         $postSignatureActionCount = $this->postSignatureActionCount($actions);
+        $unsafeActionCount = count(array_filter($actions, fn (array $action): bool => $this->isUnsafeDocumentAction($action)));
 
         return [
             'source' => 'pdf_document_action_security_review',
@@ -591,7 +613,7 @@ final class PdfSecurityPreflight
                 static fn (array $action): bool => ($action['action_type'] ?? null) === 'URI'
                     && ($action['safety'] ?? null) === 'blocked-unsafe-uri'
             )),
-            'unsafe_action_count' => count(array_filter($actions, fn (array $action): bool => $this->isUnsafeDocumentAction($action))),
+            'unsafe_action_count' => $unsafeActionCount,
             'action_byte_range_review_count' => count(array_filter(
                 $actions,
                 static fn (array $action): bool => is_array($action['signature_byte_range_reviews'] ?? null)
@@ -613,6 +635,45 @@ final class PdfSecurityPreflight
             )),
             'certifying_permission_labels' => $this->certifyingPermissionLabels($signatures),
             'signature_reference_transform_methods' => $this->referenceTransformMethods($signatures),
+            'dss_certificate_count' => (int) $dssCertificateReview['certificate_count'],
+            'dss_certificate_hashes' => $dssCertificateReview['certificate_hashes'],
+            'dss_vri_signature_match_count' => (int) $dssCertificateReview['matched_signature_count'],
+            'dss_certificate_review' => $dssCertificateReview,
+            'signature_permission_transform_count' => (int) $signaturePermissionTransformReview['transform_count'],
+            'field_mdp_transform_count' => (int) $signaturePermissionTransformReview['field_mdp_transform_count'],
+            'field_mdp_action_labels' => $signaturePermissionTransformReview['field_mdp_action_labels'],
+            'field_mdp_field_names' => $signaturePermissionTransformReview['field_mdp_field_names'],
+            'field_mdp_included_fields' => $signaturePermissionTransformReview['field_mdp_included_fields'],
+            'field_mdp_excluded_fields' => $signaturePermissionTransformReview['field_mdp_excluded_fields'],
+            'usage_rights_transform_count' => (int) $signaturePermissionTransformReview['usage_rights_transform_count'],
+            'usage_right_categories' => $signaturePermissionTransformReview['usage_right_categories'],
+            'usage_right_count' => (int) $signaturePermissionTransformReview['usage_right_count'],
+            'signature_permission_transform_review' => $signaturePermissionTransformReview,
+            'dss_certificate_action_permission_review' => [
+                'source' => 'dss_certificate_action_permission_review',
+                'present' => $actions !== []
+                    && (
+                        (int) $dssCertificateReview['certificate_count'] > 0
+                        || (int) $signaturePermissionTransformReview['transform_count'] > 0
+                    ),
+                'action_count' => count($actions),
+                'unsafe_action_count' => $unsafeActionCount,
+                'dss_present' => ($documentSecurityStore['present'] ?? false) === true,
+                'dss_certificate_count' => (int) $dssCertificateReview['certificate_count'],
+                'dss_certificate_hashes' => $dssCertificateReview['certificate_hashes'],
+                'dss_vri_signature_match_count' => (int) $dssCertificateReview['matched_signature_count'],
+                'signature_permission_transform_count' => (int) $signaturePermissionTransformReview['transform_count'],
+                'signature_permission_transform_methods' => $signaturePermissionTransformReview['methods'],
+                'field_mdp_action_labels' => $signaturePermissionTransformReview['field_mdp_action_labels'],
+                'field_mdp_field_names' => $signaturePermissionTransformReview['field_mdp_field_names'],
+                'usage_right_categories' => $signaturePermissionTransformReview['usage_right_categories'],
+                'review_only' => true,
+                'executes_pdf_actions' => false,
+                'executes_signature_validation' => false,
+                'executes_revocation_check' => false,
+                'executes_trust_chain_validation' => false,
+                'executes_rights_enforcement' => false,
+            ],
             'acroform_action_field_names' => $this->uniqueNestedStringColumn($actions, 'action_field_names'),
             'signed_locked_field_permission_labels' => $this->uniqueNestedStringColumn($actions, 'permission_labels'),
             'signed_locked_by_signatures' => $this->uniqueNestedStringColumn($actions, 'locked_by_signatures'),
@@ -622,6 +683,256 @@ final class PdfSecurityPreflight
             'executes_javascript' => false,
             'executes_external_pdf_tools' => false,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $documentSecurityStore
+     * @param array<string, mixed> $documentSecurityStoreSignatureReview
+     * @return array<string, mixed>
+     */
+    private function documentSecurityStoreCertificateReview(
+        array $documentSecurityStore,
+        array $documentSecurityStoreSignatureReview
+    ): array {
+        $globalCertificates = array_values(array_filter(
+            $documentSecurityStore['global_certificates'] ?? [],
+            static fn (mixed $row): bool => is_array($row)
+        ));
+        $certificateRows = [];
+        $this->collectDssCertificateRows($certificateRows, $globalCertificates, 'global_dss_certs', null);
+
+        $vriCertificateCount = 0;
+        foreach ($documentSecurityStore['vri'] ?? [] as $vri) {
+            if (!is_array($vri)) {
+                continue;
+            }
+
+            $vriKey = is_string($vri['key'] ?? null) ? $vri['key'] : null;
+            $vriCertificates = array_values(array_filter(
+                $vri['certificates'] ?? [],
+                static fn (mixed $row): bool => is_array($row)
+            ));
+            $vriCertificateCount += count($vriCertificates);
+            $this->collectDssCertificateRows($certificateRows, $vriCertificates, 'vri_dss_certs', $vriKey);
+        }
+
+        $certificateRows = $this->uniqueStreamReviewRows($certificateRows);
+
+        return [
+            'source' => 'document_security_store_certificate_review',
+            'present' => ($documentSecurityStore['present'] ?? false) === true,
+            'certificate_count' => count($certificateRows),
+            'global_certificate_count' => count($globalCertificates),
+            'vri_certificate_count' => $vriCertificateCount,
+            'certificate_objects' => $this->streamObjectNumbers($certificateRows),
+            'certificate_hashes' => $this->streamHashes($certificateRows),
+            'unresolved_cert_refs' => $this->integerList($documentSecurityStore['unresolved_cert_refs'] ?? []),
+            'vri_count' => (int) ($documentSecurityStore['vri_count'] ?? 0),
+            'matched_signature_count' => (int) ($documentSecurityStoreSignatureReview['signature_vri_match_count'] ?? 0),
+            'matched_signature_objects' => $this->integerList($documentSecurityStoreSignatureReview['matched_signature_objects'] ?? []),
+            'matched_field_names' => $this->stringList($documentSecurityStoreSignatureReview['matched_field_names'] ?? []),
+            'certificate_rows' => $certificateRows,
+            'review_only' => true,
+            'raw_certificate_bytes_exposed' => false,
+            'raw_validation_bytes_exposed' => false,
+            'executes_signature_validation' => false,
+            'executes_revocation_check' => false,
+            'executes_trust_chain_validation' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @param list<array<string, mixed>> $streams
+     */
+    private function collectDssCertificateRows(array &$rows, array $streams, string $scope, ?string $vriKey): void
+    {
+        foreach ($streams as $stream) {
+            $rows[] = $stream + [
+                'dss_scope' => $scope,
+                'vri_key' => $vriKey,
+                'raw_bytes_exposed' => false,
+            ];
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<array<string, mixed>>
+     */
+    private function uniqueStreamReviewRows(array $rows): array
+    {
+        $seen = [];
+        $unique = [];
+        foreach ($rows as $row) {
+            $key = null;
+            if (is_int($row['object_number'] ?? null)) {
+                $key = 'obj:' . $row['object_number'];
+            } elseif (is_string($row['sha256'] ?? null)) {
+                $key = 'sha256:' . $row['sha256'];
+            }
+
+            if ($key !== null && isset($seen[$key])) {
+                continue;
+            }
+            if ($key !== null) {
+                $seen[$key] = true;
+            }
+            $unique[] = $row;
+        }
+
+        return $unique;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $streams
+     * @return list<int>
+     */
+    private function streamObjectNumbers(array $streams): array
+    {
+        $objects = [];
+        foreach ($streams as $stream) {
+            if (is_int($stream['object_number'] ?? null) && !in_array($stream['object_number'], $objects, true)) {
+                $objects[] = $stream['object_number'];
+            }
+        }
+
+        return $objects;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $signatures
+     * @return array<string, mixed>
+     */
+    private function signaturePermissionTransformReview(array $signatures): array
+    {
+        $methods = [];
+        $fieldMdpActionLabels = [];
+        $fieldMdpFieldNames = [];
+        $fieldMdpIncludedFields = [];
+        $fieldMdpExcludedFields = [];
+        $usageRightCategories = [];
+        $usageRights = [
+            'document' => [],
+            'form' => [],
+            'signature' => [],
+            'annotations' => [],
+            'embedded_files' => [],
+        ];
+        $transformCount = 0;
+        $fieldMdpCount = 0;
+        $usageRightsCount = 0;
+        $usageRightCount = 0;
+        $locksAllFields = false;
+
+        foreach ($signatures as $signature) {
+            foreach ($signature['reference_transforms'] ?? [] as $transform) {
+                if (!is_array($transform)) {
+                    continue;
+                }
+
+                $method = is_string($transform['transform_method'] ?? null) ? $transform['transform_method'] : null;
+                if ($method === null) {
+                    continue;
+                }
+
+                $transformCount++;
+                $this->appendUniqueString($methods, $method);
+                if ($method === 'FieldMDP') {
+                    $fieldMdpCount++;
+                    if (is_string($transform['action_label'] ?? null)) {
+                        $this->appendUniqueString($fieldMdpActionLabels, $transform['action_label']);
+                    }
+                    foreach ($this->stringList($transform['field_names'] ?? []) as $fieldName) {
+                        $this->appendUniqueString($fieldMdpFieldNames, $fieldName);
+                    }
+                    foreach ($this->stringList($transform['included_fields'] ?? []) as $fieldName) {
+                        $this->appendUniqueString($fieldMdpIncludedFields, $fieldName);
+                    }
+                    foreach ($this->stringList($transform['excluded_fields'] ?? []) as $fieldName) {
+                        $this->appendUniqueString($fieldMdpExcludedFields, $fieldName);
+                    }
+                    $locksAllFields = $locksAllFields || (($transform['locks_all_fields'] ?? false) === true);
+                    continue;
+                }
+
+                if ($method !== 'UR' && $method !== 'UR3') {
+                    continue;
+                }
+
+                $usageRightsCount++;
+                $rights = is_array($transform['rights'] ?? null) ? $transform['rights'] : [];
+                foreach ($usageRights as $category => $_) {
+                    foreach ($this->stringList($rights[$category] ?? []) as $right) {
+                        $this->appendUniqueString($usageRights[$category], $right);
+                        $usageRightCount++;
+                    }
+                    if ($usageRights[$category] !== []) {
+                        $this->appendUniqueString($usageRightCategories, $category);
+                    }
+                }
+            }
+        }
+
+        return [
+            'source' => 'signature_permission_transform_review',
+            'present' => $transformCount > 0,
+            'transform_count' => $transformCount,
+            'methods' => $methods,
+            'field_mdp_transform_count' => $fieldMdpCount,
+            'field_mdp_action_labels' => $fieldMdpActionLabels,
+            'field_mdp_field_names' => $fieldMdpFieldNames,
+            'field_mdp_included_fields' => $fieldMdpIncludedFields,
+            'field_mdp_excluded_fields' => $fieldMdpExcludedFields,
+            'field_mdp_locks_all_fields' => $locksAllFields,
+            'usage_rights_transform_count' => $usageRightsCount,
+            'usage_right_categories' => $usageRightCategories,
+            'usage_rights' => $usageRights,
+            'usage_right_count' => $usageRightCount,
+            'review_only' => true,
+            'executes_rights_enforcement' => false,
+            'executes_signature_validation' => false,
+            'executes_action' => false,
+        ];
+    }
+
+    /**
+     * @param list<string> $values
+     */
+    private function appendUniqueString(array &$values, string $value): void
+    {
+        if (!in_array($value, $values, true)) {
+            $values[] = $value;
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @return list<array<string, mixed>>
+     */
+    private function annotateDocumentActionPermissionContext(
+        array $actions,
+        array $dssCertificateReview,
+        array $signaturePermissionTransformReview
+    ): array {
+        foreach ($actions as $index => $action) {
+            $actions[$index]['dss_certificate_count'] = (int) $dssCertificateReview['certificate_count'];
+            $actions[$index]['dss_certificate_hashes'] = $dssCertificateReview['certificate_hashes'];
+            $actions[$index]['dss_vri_signature_match_count'] = (int) $dssCertificateReview['matched_signature_count'];
+            $actions[$index]['signature_permission_transform_methods'] = $signaturePermissionTransformReview['methods'];
+            $actions[$index]['field_mdp_action_labels'] = $signaturePermissionTransformReview['field_mdp_action_labels'];
+            $actions[$index]['field_mdp_field_names'] = $signaturePermissionTransformReview['field_mdp_field_names'];
+            $actions[$index]['field_mdp_included_fields'] = $signaturePermissionTransformReview['field_mdp_included_fields'];
+            $actions[$index]['field_mdp_excluded_fields'] = $signaturePermissionTransformReview['field_mdp_excluded_fields'];
+            $actions[$index]['usage_right_categories'] = $signaturePermissionTransformReview['usage_right_categories'];
+            $actions[$index]['usage_right_count'] = (int) $signaturePermissionTransformReview['usage_right_count'];
+            $actions[$index]['signature_permission_review_only'] = true;
+            $actions[$index]['dss_validation_review_only'] = ((int) $dssCertificateReview['certificate_count']) > 0;
+            $actions[$index]['executes_rights_enforcement'] = false;
+            $actions[$index]['executes_trust_chain_validation'] = false;
+        }
+
+        return $actions;
     }
 
     /**

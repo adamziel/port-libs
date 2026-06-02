@@ -793,6 +793,66 @@ return [
         $t->same('covered', $gridByPosition['0:1']['state']);
         $t->same('Needs review', $gridByPosition['2:2']['text']);
     },
+    'builds merged OCR header reference grid for WordPress table headers' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $rows = [
+            ['row_id' => 0, 'bbox' => [0.0, 0.0, 300.0, 28.0]],
+            ['row_id' => 1, 'bbox' => [0.0, 32.0, 300.0, 60.0]],
+            ['row_id' => 2, 'bbox' => [0.0, 70.0, 300.0, 100.0]],
+            ['row_id' => 3, 'bbox' => [0.0, 110.0, 300.0, 140.0]],
+        ];
+        $cols = [
+            ['col_id' => 0, 'bbox' => [0.0, 0.0, 90.0, 140.0]],
+            ['col_id' => 1, 'bbox' => [100.0, 0.0, 190.0, 140.0]],
+            ['col_id' => 2, 'bbox' => [200.0, 0.0, 300.0, 140.0]],
+        ];
+        $assigned = [
+            ['bbox' => [5.0, 5.0, 185.0, 56.0], 'text' => 'Inventory', 'row_ids' => [0, 1], 'col_ids' => [0, 1]],
+            ['bbox' => [110.0, 8.0, 180.0, 20.0], 'text' => 'axis', 'row_ids' => [0], 'col_ids' => [1]],
+            ['bbox' => [205.0, 5.0, 295.0, 24.0], 'text' => 'Status', 'row_ids' => [0], 'col_ids' => [2]],
+            ['bbox' => [5.0, 74.0, 85.0, 136.0], 'text' => 'Media group', 'row_ids' => [2, 3], 'col_ids' => [0]],
+            ['bbox' => [110.0, 74.0, 180.0, 94.0], 'text' => 'Images', 'row_ids' => [2], 'col_ids' => [1]],
+            ['bbox' => [205.0, 74.0, 295.0, 94.0], 'text' => '12', 'row_ids' => [2], 'col_ids' => [2]],
+            ['bbox' => [110.0, 114.0, 180.0, 134.0], 'text' => 'State', 'row_ids' => [3], 'col_ids' => [1]],
+            ['bbox' => [205.0, 114.0, 295.0, 134.0], 'text' => 'Needs review', 'row_ids' => [3], 'col_ids' => [2]],
+        ];
+
+        $review = $recognizer->spanningGridReview($assigned, $rows, $cols);
+        $gridByPosition = [];
+        foreach ($review['grid_cells'] as $gridCell) {
+            $gridByPosition[$gridCell['row_id'] . ':' . $gridCell['col_id']] = $gridCell;
+        }
+
+        $t->same(['h-r0-c0', 'h-r0-c2', 'h-r2-c0'], array_column($review['header_cells'], 'header_id'));
+        $t->same('h-r0-c0', $review['render_cells'][0]['header_id']);
+        $t->same('h-r0-c2', $review['render_cells'][1]['header_id']);
+        $t->same('h-r2-c0', $review['render_cells'][2]['header_id']);
+        $t->same(['Images', '12', 'State', 'Needs review'], array_column($review['data_cells'], 'text'));
+        $t->same(['h-r0-c0', 'h-r2-c0'], $gridByPosition['2:1']['headers']);
+        $t->same(['h-r0-c0'], $gridByPosition['2:1']['column_header_ids']);
+        $t->same(['h-r2-c0'], $gridByPosition['2:1']['row_header_ids']);
+        $t->same(['Inventory axis', 'Media group'], $gridByPosition['2:1']['header_texts']);
+        $t->same('Inventory axis / Media group', $gridByPosition['2:1']['header_text']);
+        $t->same(['h-r0-c2', 'h-r2-c0'], $gridByPosition['2:2']['headers']);
+        $t->same(['Status', 'Media group'], $gridByPosition['2:2']['header_texts']);
+        $t->same(['h-r0-c0', 'h-r2-c0'], $gridByPosition['3:1']['headers']);
+        $t->same(['h-r0-c2', 'h-r2-c0'], $gridByPosition['3:2']['headers']);
+        $t->same(
+            [
+                'render_cell_index' => 3,
+                'text' => 'Images',
+                'row_ids' => [2],
+                'col_ids' => [1],
+                'anchor' => ['row_id' => 2, 'col_id' => 1],
+                'headers' => ['h-r0-c0', 'h-r2-c0'],
+                'column_header_ids' => ['h-r0-c0'],
+                'row_header_ids' => ['h-r2-c0'],
+                'header_texts' => ['Inventory axis', 'Media group'],
+                'header_text' => 'Inventory axis / Media group',
+            ],
+            $review['data_cells'][0]
+        );
+    },
     'preserves detector grid order when OCR bboxes straddle cell borders' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $recognized = $recognizer->recognizeTables(

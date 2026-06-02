@@ -304,7 +304,7 @@ final class TableRecognizer
      * @param list<array<string, mixed>> $cells Assigned cells from assignRowsColumns().
      * @param list<array<string, mixed>> $rows Optional model row bands in table-image coordinates.
      * @param list<array<string, mixed>> $cols Optional model column bands in table-image coordinates.
-     * @return array{rows: list<int>, cols: list<int>, rotated: bool, orientation: string, row_axis: string, col_axis: string, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>}
+     * @return array{rows: list<int>, cols: list<int>, rotated: bool, orientation: string, row_axis: string, col_axis: string, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>, header_cells: list<array<string, mixed>>, data_cells: list<array<string, mixed>>}
      */
     public function spanningGridReview(array $cells, array $rows = [], array $cols = []): array
     {
@@ -410,6 +410,8 @@ final class TableRecognizer
             $renderCells[] = $entry;
         }
 
+        $headerReferences = $this->applyHeaderReferences($renderCells);
+        $renderCells = $headerReferences['render_cells'];
         $gridCells = [];
         foreach ($rowIds as $rowId) {
             foreach ($colIds as $colId) {
@@ -437,6 +439,11 @@ final class TableRecognizer
                         'rowspan' => $renderCell['rowspan'],
                         'colspan' => $renderCell['colspan'],
                     ];
+                    foreach (['header_id', 'headers', 'column_header_ids', 'row_header_ids', 'header_texts', 'header_text'] as $field) {
+                        if (array_key_exists($field, $renderCell)) {
+                            $cell[$field] = $renderCell[$field];
+                        }
+                    }
                 } elseif (isset($covered[$key])) {
                     $cell += [
                         'state' => 'covered',
@@ -458,6 +465,8 @@ final class TableRecognizer
             'col_axis' => $axisMetadata['col_axis'],
             'render_cells' => $renderCells,
             'grid_cells' => $gridCells,
+            'header_cells' => $headerReferences['header_cells'],
+            'data_cells' => $headerReferences['data_cells'],
         ];
     }
 
@@ -2037,7 +2046,7 @@ final class TableRecognizer
     }
 
     /**
-     * @return array{rows: list<int>, cols: list<int>, rotated: bool, orientation: string, row_axis: string, col_axis: string, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>}
+     * @return array{rows: list<int>, cols: list<int>, rotated: bool, orientation: string, row_axis: string, col_axis: string, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>, header_cells: list<array<string, mixed>>, data_cells: list<array<string, mixed>>}
      */
     private function emptySpanningGridReview(bool $rotated = false): array
     {
@@ -2052,6 +2061,8 @@ final class TableRecognizer
             'col_axis' => $axisMetadata['col_axis'],
             'render_cells' => [],
             'grid_cells' => [],
+            'header_cells' => [],
+            'data_cells' => [],
         ];
     }
 
@@ -2077,6 +2088,179 @@ final class TableRecognizer
         }
 
         return null;
+    }
+
+    /**
+     * Build stable header ids and body-cell header references for WordPress table output.
+     *
+     * Tabled preserves merged header occupancy in row_ids/col_ids, but its
+     * Markdown/HTML paths consume only anchor coordinates. This review metadata
+     * lets downstream importers emit id/headers attributes without reparsing
+     * Markdown or re-inferring spans.
+     *
+     * @param list<array<string, mixed>> $renderCells
+     * @return array{render_cells: list<array<string, mixed>>, header_cells: list<array<string, mixed>>, data_cells: list<array<string, mixed>>}
+     */
+    private function applyHeaderReferences(array $renderCells): array
+    {
+        $headerCells = [];
+        foreach ($renderCells as $index => &$renderCell) {
+            if (($renderCell['header'] ?? false) !== true) {
+                continue;
+            }
+
+            $headerId = $this->headerIdForAnchor($renderCell['anchor'] ?? []);
+            $renderCell['header_id'] = $headerId;
+            $headerCells[] = [
+                'header_id' => $headerId,
+                'render_cell_index' => $index,
+                'text' => (string) ($renderCell['text'] ?? ''),
+                'row_ids' => array_values($renderCell['row_ids'] ?? []),
+                'col_ids' => array_values($renderCell['col_ids'] ?? []),
+                'anchor' => $renderCell['anchor'] ?? null,
+                'scope' => $renderCell['scope'] ?? null,
+                'header_role' => $renderCell['header_role'] ?? null,
+                'header_axis' => $renderCell['header_axis'] ?? null,
+                'header_axes' => array_values($renderCell['header_axes'] ?? []),
+                'rowspan' => (int) ($renderCell['rowspan'] ?? 1),
+                'colspan' => (int) ($renderCell['colspan'] ?? 1),
+            ];
+        }
+        unset($renderCell);
+
+        $dataCells = [];
+        foreach ($renderCells as $index => &$renderCell) {
+            if (($renderCell['header'] ?? false) === true) {
+                continue;
+            }
+
+            $references = $this->headerReferencesForDataCell($renderCell, $headerCells);
+            $renderCell['headers'] = $references['headers'];
+            $renderCell['column_header_ids'] = $references['column_header_ids'];
+            $renderCell['row_header_ids'] = $references['row_header_ids'];
+            $renderCell['header_texts'] = $references['header_texts'];
+            $renderCell['header_text'] = $references['header_text'];
+
+            $dataCells[] = [
+                'render_cell_index' => $index,
+                'text' => (string) ($renderCell['text'] ?? ''),
+                'row_ids' => array_values($renderCell['row_ids'] ?? []),
+                'col_ids' => array_values($renderCell['col_ids'] ?? []),
+                'anchor' => $renderCell['anchor'] ?? null,
+                'headers' => $references['headers'],
+                'column_header_ids' => $references['column_header_ids'],
+                'row_header_ids' => $references['row_header_ids'],
+                'header_texts' => $references['header_texts'],
+                'header_text' => $references['header_text'],
+            ];
+        }
+        unset($renderCell);
+
+        return [
+            'render_cells' => $renderCells,
+            'header_cells' => $headerCells,
+            'data_cells' => $dataCells,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $anchor
+     */
+    private function headerIdForAnchor(array $anchor): string
+    {
+        return 'h-r' . (int) ($anchor['row_id'] ?? 0) . '-c' . (int) ($anchor['col_id'] ?? 0);
+    }
+
+    /**
+     * @param array<string, mixed> $dataCell
+     * @param list<array<string, mixed>> $headerCells
+     * @return array{headers: list<string>, column_header_ids: list<string>, row_header_ids: list<string>, header_texts: list<string>, header_text: string}
+     */
+    private function headerReferencesForDataCell(array $dataCell, array $headerCells): array
+    {
+        $rowIds = $this->integerList($dataCell['row_ids'] ?? []);
+        $colIds = $this->integerList($dataCell['col_ids'] ?? []);
+        if ($rowIds === [] || $colIds === []) {
+            return [
+                'headers' => [],
+                'column_header_ids' => [],
+                'row_header_ids' => [],
+                'header_texts' => [],
+                'header_text' => '',
+            ];
+        }
+
+        $dataMinRow = min($rowIds);
+        $dataMinCol = min($colIds);
+        $columnHeaderIds = [];
+        $rowHeaderIds = [];
+        $headerTextsById = [];
+
+        foreach ($headerCells as $headerCell) {
+            $headerId = (string) ($headerCell['header_id'] ?? '');
+            if ($headerId === '') {
+                continue;
+            }
+
+            $headerRowIds = $this->integerList($headerCell['row_ids'] ?? []);
+            $headerColIds = $this->integerList($headerCell['col_ids'] ?? []);
+            $headerAxes = array_values(array_map('strval', $headerCell['header_axes'] ?? []));
+            if ($headerRowIds === [] || $headerColIds === []) {
+                continue;
+            }
+
+            $headerTextsById[$headerId] = (string) ($headerCell['text'] ?? '');
+            if (
+                in_array('column', $headerAxes, true)
+                && min($headerRowIds) < $dataMinRow
+                && array_intersect($headerColIds, $colIds) !== []
+            ) {
+                $columnHeaderIds[] = $headerId;
+            }
+            if (
+                in_array('row', $headerAxes, true)
+                && min($headerColIds) < $dataMinCol
+                && array_intersect($headerRowIds, $rowIds) !== []
+            ) {
+                $rowHeaderIds[] = $headerId;
+            }
+        }
+
+        $headers = $this->uniqueStrings(array_merge($columnHeaderIds, $rowHeaderIds));
+        $headerTexts = [];
+        foreach ($headers as $headerId) {
+            $text = trim($headerTextsById[$headerId] ?? '');
+            if ($text !== '') {
+                $headerTexts[] = $text;
+            }
+        }
+
+        return [
+            'headers' => $headers,
+            'column_header_ids' => $this->uniqueStrings($columnHeaderIds),
+            'row_header_ids' => $this->uniqueStrings($rowHeaderIds),
+            'header_texts' => $headerTexts,
+            'header_text' => implode(' / ', $headerTexts),
+        ];
+    }
+
+    /**
+     * @param list<string> $values
+     * @return list<string>
+     */
+    private function uniqueStrings(array $values): array
+    {
+        $seen = [];
+        $out = [];
+        foreach ($values as $value) {
+            if (isset($seen[$value])) {
+                continue;
+            }
+            $seen[$value] = true;
+            $out[] = $value;
+        }
+
+        return $out;
     }
 
     /**

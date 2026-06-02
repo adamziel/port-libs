@@ -294,4 +294,201 @@ return [
             $removeTree($root);
         }
     },
+    'rejects remote initial responses without request_check_url before polling' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $root = $makeTempDir();
+        try {
+            $pdfPath = $root . DIRECTORY_SEPARATOR . 'remote-missing-check-url.pdf';
+            file_put_contents($pdfPath, '%PDF-remote');
+            $requests = [];
+            $client = static function (string $method, string $url, array $request) use (&$requests): array {
+                $requests[] = ['method' => $method, 'url' => $url, 'request' => $request];
+
+                return ['success' => false, 'error' => 'upstream did not return a polling URL'];
+            };
+
+            $adapter = new MarkerServerAdapter();
+            $t->throws(
+                InvalidArgumentException::class,
+                static fn () => $adapter->convertPdfRemote(
+                    [
+                        'filepath' => $pdfPath,
+                        'max_pages' => null,
+                        'langs' => null,
+                        'force_ocr' => false,
+                        'paginate' => false,
+                        'extract_images' => true,
+                    ],
+                    $client,
+                    'secret-key',
+                    'https://api.example/marker',
+                    maxPolls: 2
+                )
+            );
+
+            $t->same(['POST'], array_column($requests, 'method'));
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'rejects invalid remote JSON before polling request_check_url' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $root = $makeTempDir();
+        try {
+            $pdfPath = $root . DIRECTORY_SEPARATOR . 'remote-invalid-json.pdf';
+            file_put_contents($pdfPath, '%PDF-remote');
+            $requests = [];
+            $client = static function (string $method, string $url, array $request) use (&$requests): string {
+                $requests[] = ['method' => $method, 'url' => $url, 'request' => $request];
+
+                return 'not a decoded JSON object';
+            };
+
+            $adapter = new MarkerServerAdapter();
+            $t->throws(
+                InvalidArgumentException::class,
+                static fn () => $adapter->convertPdfRemote(
+                    [
+                        'filepath' => $pdfPath,
+                        'max_pages' => null,
+                        'langs' => null,
+                        'force_ocr' => false,
+                        'paginate' => false,
+                        'extract_images' => true,
+                    ],
+                    $client,
+                    'secret-key',
+                    'https://api.example/marker',
+                    maxPolls: 2
+                )
+            );
+
+            $t->same(['POST'], array_column($requests, 'method'));
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'preserves upstream remote polling exhaustion without inventing timeout errors' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $root = $makeTempDir();
+        try {
+            $pdfPath = $root . DIRECTORY_SEPARATOR . 'remote-processing.pdf';
+            file_put_contents($pdfPath, '%PDF-remote');
+            $requests = [];
+            $client = static function (string $method, string $url, array $request) use (&$requests): array {
+                $requests[] = ['method' => $method, 'url' => $url, 'request' => $request];
+                if ($method === 'POST') {
+                    return ['request_check_url' => 'https://api.example/check/processing'];
+                }
+
+                return [
+                    'status' => 'processing',
+                    'attempt' => ((int) ($request['poll_index'] ?? -1)) + 1,
+                    'success' => false,
+                    'error' => 'still running',
+                ];
+            };
+
+            $adapter = new MarkerServerAdapter();
+            $response = $adapter->convertPdfRemote(
+                [
+                    'filepath' => $pdfPath,
+                    'max_pages' => null,
+                    'langs' => null,
+                    'force_ocr' => false,
+                    'paginate' => false,
+                    'extract_images' => true,
+                ],
+                $client,
+                'secret-key',
+                'https://api.example/marker',
+                maxPolls: 2
+            );
+
+            $t->same(['status' => 'processing', 'attempt' => 2, 'success' => false, 'error' => 'still running'], $response);
+            $t->same(['POST', 'GET', 'GET'], array_column($requests, 'method'));
+            $t->same(1, $requests[2]['request']['poll_index']);
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'rejects non-positive remote poll limits before posting to the remote API' => static function (TestRunner $t): void {
+        $requests = 0;
+        $client = static function () use (&$requests): array {
+            $requests++;
+
+            return ['request_check_url' => 'https://api.example/check/unused'];
+        };
+
+        $adapter = new MarkerServerAdapter();
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $adapter->convertPdfRemote(
+                [
+                    'filepath' => '/tmp/does-not-need-to-exist.pdf',
+                    'max_pages' => null,
+                    'langs' => null,
+                    'force_ocr' => false,
+                    'paginate' => false,
+                    'extract_images' => true,
+                ],
+                $client,
+                'secret-key',
+                'https://api.example/marker',
+                maxPolls: 0
+            )
+        );
+        $t->same(0, $requests);
+    },
+    'rejects remote poll responses without the upstream status key' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $root = $makeTempDir();
+        try {
+            $pdfPath = $root . DIRECTORY_SEPARATOR . 'remote-missing-status.pdf';
+            file_put_contents($pdfPath, '%PDF-remote');
+            $requests = [];
+            $client = static function (string $method, string $url, array $request) use (&$requests): array {
+                $requests[] = ['method' => $method, 'url' => $url, 'request' => $request];
+                if ($method === 'POST') {
+                    return ['request_check_url' => 'https://api.example/check/missing-status'];
+                }
+
+                return ['success' => false, 'error' => 'worker failed without status'];
+            };
+
+            $adapter = new MarkerServerAdapter();
+            $t->throws(
+                InvalidArgumentException::class,
+                static fn () => $adapter->convertPdfRemote(
+                    [
+                        'filepath' => $pdfPath,
+                        'max_pages' => null,
+                        'langs' => null,
+                        'force_ocr' => false,
+                        'paginate' => false,
+                        'extract_images' => true,
+                    ],
+                    $client,
+                    'secret-key',
+                    'https://api.example/marker',
+                    maxPolls: 2
+                )
+            );
+
+            $t->same(['POST', 'GET'], array_column($requests, 'method'));
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'describes marker server remote polling plan without live HTTP' => static function (TestRunner $t): void {
+        $plan = (new MarkerServerAdapter())->remotePollingPlan();
+
+        $t->same('POST', $plan['initial_request_method']);
+        $t->same('GET', $plan['poll_request_method']);
+        $t->same(300, $plan['max_polls']);
+        $t->same(2, $plan['poll_interval_seconds']);
+        $t->same('request_check_url', $plan['request_check_url_key']);
+        $t->same('status', $plan['poll_status_key']);
+        $t->same('complete', $plan['completion_status']);
+        $t->same(true, $plan['returns_last_poll_response_after_exhaustion']);
+        $t->same(false, $plan['invents_timeout_error']);
+        $t->same(false, $plan['executes_live_http']);
+        $t->same(false, $plan['executes_python_or_models']);
+    },
 ];

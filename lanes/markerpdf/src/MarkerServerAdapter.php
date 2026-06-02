@@ -166,6 +166,9 @@ final class MarkerServerAdapter
         if ($remoteClient === null) {
             throw new InvalidArgumentException('Remote marker API conversion requires a remote client callback.');
         }
+        if ($maxPolls < 1) {
+            throw new InvalidArgumentException('Remote marker API max poll count must be at least one.');
+        }
 
         $fileBytes = @file_get_contents($params['filepath']);
         if (!is_string($fileBytes)) {
@@ -173,7 +176,7 @@ final class MarkerServerAdapter
         }
 
         $headers = ['X-API-Key' => (string) $apiKey];
-        $data = $remoteClient('POST', $datalabUrl, [
+        $data = $this->remoteJsonPayload($remoteClient('POST', $datalabUrl, [
             'headers' => $headers,
             'files' => [
                 'file' => [
@@ -187,7 +190,7 @@ final class MarkerServerAdapter
                 'paginate' => $params['paginate'],
                 'extract_images' => $params['extract_images'],
             ],
-        ]);
+        ]), 'initial');
 
         if (!isset($data['request_check_url']) || !is_string($data['request_check_url'])) {
             throw new InvalidArgumentException('Remote marker API response is missing request_check_url.');
@@ -195,17 +198,62 @@ final class MarkerServerAdapter
         $checkUrl = $data['request_check_url'];
 
         for ($pollIndex = 0; $pollIndex < $maxPolls; $pollIndex++) {
-            $data = $remoteClient('GET', $checkUrl, [
+            $data = $this->remoteJsonPayload($remoteClient('GET', $checkUrl, [
                 'headers' => $headers,
                 'poll_index' => $pollIndex,
-            ]);
+            ]), 'poll');
 
-            if (($data['status'] ?? null) === 'complete') {
+            if (!array_key_exists('status', $data)) {
+                throw new InvalidArgumentException('Remote marker API poll response is missing status.');
+            }
+
+            if ($data['status'] === 'complete') {
                 break;
             }
         }
 
         return $data;
+    }
+
+    /**
+     * Native non-executing boundary for marker_server.py::convert_pdf_remote.
+     *
+     * @return array{
+     *     initial_request_method: string,
+     *     poll_request_method: string,
+     *     max_polls: int,
+     *     poll_interval_seconds: int,
+     *     request_check_url_key: string,
+     *     poll_status_key: string,
+     *     completion_status: string,
+     *     returns_last_poll_response_after_exhaustion: bool,
+     *     invents_timeout_error: bool,
+     *     executes_live_http: false,
+     *     executes_python_or_models: false
+     * }
+     */
+    public function remotePollingPlan(int $maxPolls = 300, int $pollIntervalSeconds = 2): array
+    {
+        if ($maxPolls < 1) {
+            throw new InvalidArgumentException('Remote marker API max poll count must be at least one.');
+        }
+        if ($pollIntervalSeconds < 0) {
+            throw new InvalidArgumentException('Remote marker API poll interval must not be negative.');
+        }
+
+        return [
+            'initial_request_method' => 'POST',
+            'poll_request_method' => 'GET',
+            'max_polls' => $maxPolls,
+            'poll_interval_seconds' => $pollIntervalSeconds,
+            'request_check_url_key' => 'request_check_url',
+            'poll_status_key' => 'status',
+            'completion_status' => 'complete',
+            'returns_last_poll_response_after_exhaustion' => true,
+            'invents_timeout_error' => false,
+            'executes_live_http' => false,
+            'executes_python_or_models' => false,
+        ];
     }
 
     private function optionalInt(mixed $value, string $name): ?int
@@ -236,6 +284,18 @@ final class MarkerServerAdapter
         }
 
         return (bool) $value;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function remoteJsonPayload(mixed $payload, string $phase): array
+    {
+        if (!is_array($payload)) {
+            throw new InvalidArgumentException("Remote marker API {$phase} response JSON must decode to an object.");
+        }
+
+        return $payload;
     }
 
     /**

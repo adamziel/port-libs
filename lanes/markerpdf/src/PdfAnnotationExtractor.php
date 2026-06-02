@@ -86,6 +86,7 @@ final class PdfAnnotationExtractor
     {
         $objects = $this->pdfObjects($pdfBytes);
         $actionReviewer = new PdfActionReviewExtractor($pdfBytes);
+        $structureParentReviewByKey = $this->annotationStructureParentReviewByKey($pdfBytes, $objects);
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
         $pages = [];
 
@@ -114,7 +115,8 @@ final class PdfAnnotationExtractor
                     $objects,
                     $reversePopups,
                     $actionReviewer,
-                    $threadReview['rows_by_object']
+                    $threadReview['rows_by_object'],
+                    $structureParentReviewByKey
                 );
             }
 
@@ -149,13 +151,15 @@ final class PdfAnnotationExtractor
         array $objects,
         array $reversePopups,
         PdfActionReviewExtractor $actionReviewer,
-        array $threadRowsByObject = []
+        array $threadRowsByObject = [],
+        array $structureParentReviewByKey = []
     ): array
     {
         $body = $record['body'];
         $subtype = $this->subtypeFromAnnotation($body);
         $rect = $this->rectFromAnnotation($body);
         $actionReview = $actionReviewer->reviewAnnotationActions($body);
+        $structParent = $this->intValueAfterName($body, 'StructParent', $objects);
 
         $row = [
             'subtype' => $subtype,
@@ -174,6 +178,20 @@ final class PdfAnnotationExtractor
             'additional_actions' => $actionReview['additional_actions'],
             'executes_actions_on_import' => $actionReview['executes_actions_on_import'],
         ];
+
+        if ($structParent !== null) {
+            $row['struct_parent'] = $structParent;
+            $row['structure_parent'] = $this->structureParentReviewForAnnotation(
+                $structureParentReviewByKey[$structParent] ?? [
+                    'source' => 'annotation_struct_parent_parent_tree',
+                    'key' => $structParent,
+                    'entry_count' => 0,
+                    'review_only' => true,
+                    'visible_text_source' => false,
+                ],
+                $record['object']
+            );
+        }
 
         $appearance = $this->appearanceFromAnnotation($body, $objects);
         if ($appearance !== null) {
@@ -206,6 +224,396 @@ final class PdfAnnotationExtractor
         }
 
         return $row;
+    }
+
+    /**
+     * Annotation dictionaries use singular `/StructParent`, whose key points
+     * into the structure ParentTree. The ParentTree value is a StructElem
+     * object whose `/K` commonly contains an OBJR object-reference dictionary
+     * back to the annotation.
+     *
+     * @param array<int, string> $objects
+     * @return array<int, array<string, mixed>>
+     */
+    private function annotationStructureParentReviewByKey(string $pdfBytes, array $objects): array
+    {
+        $catalog = $this->catalogObjectBody($objects);
+        if ($catalog === null) {
+            return [];
+        }
+
+        $structTreeRootValue = $this->dictionaryRawValue($catalog, 'StructTreeRoot');
+        if ($structTreeRootValue === null) {
+            return [];
+        }
+
+        $structTreeRoot = $this->resolvedDictionaryFromValue($structTreeRootValue, $objects);
+        if ($structTreeRoot === null) {
+            return [];
+        }
+
+        $parentTree = $this->resolvedDictionaryFromValue(
+            $this->dictionaryRawValue($structTreeRoot['body'], 'ParentTree') ?? '',
+            $objects
+        );
+        if ($parentTree === null) {
+            return [];
+        }
+
+        $valuesByKey = [];
+        $this->collectStructureParentTreeValues($parentTree['body'], $objects, $valuesByKey);
+        if ($valuesByKey === []) {
+            return [];
+        }
+
+        $roleMap = $this->structureRoleMap($structTreeRoot['body'], $objects);
+        $elementsByObject = $this->structureElementsByObject($pdfBytes);
+        $reviewByKey = [];
+        foreach ($valuesByKey as $key => $value) {
+            $review = $this->annotationStructureParentReviewFromValue(
+                $key,
+                $value,
+                $objects,
+                $roleMap,
+                $elementsByObject
+            );
+            if ($review !== null) {
+                $reviewByKey[$key] = $review;
+            }
+        }
+
+        return $reviewByKey;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, string> $valuesByKey
+     * @param array<int, true> $seenObjects
+     */
+    private function collectStructureParentTreeValues(
+        string $dictionary,
+        array $objects,
+        array &$valuesByKey,
+        array $seenObjects = [],
+        int $depth = 0
+    ): void {
+        if ($depth > 20) {
+            return;
+        }
+
+        $nums = $this->dictionaryRawValue($dictionary, 'Nums');
+        if ($nums !== null) {
+            $numsBody = $this->arrayBodyFromPdfValue($nums, $objects);
+            if ($numsBody !== null) {
+                $items = $this->arrayItemsFromBody($numsBody);
+                for ($index = 0, $count = count($items); $index + 1 < $count; $index += 2) {
+                    $key = trim($items[$index]);
+                    if (preg_match('/^[+-]?\d+$/', $key) !== 1) {
+                        continue;
+                    }
+
+                    $valuesByKey[(int) $key] = $items[$index + 1];
+                }
+            }
+        }
+
+        $kids = $this->dictionaryRawValue($dictionary, 'Kids');
+        if ($kids === null) {
+            return;
+        }
+
+        $kidsBody = $this->arrayBodyFromPdfValue($kids, $objects);
+        if ($kidsBody === null) {
+            return;
+        }
+
+        foreach ($this->objectReferences($kidsBody) as $kidObjectNumber) {
+            if (isset($seenObjects[$kidObjectNumber]) || !isset($objects[$kidObjectNumber])) {
+                continue;
+            }
+
+            $kidDictionary = $this->dictionaryObjectBody($objects[$kidObjectNumber]);
+            if ($kidDictionary === null) {
+                continue;
+            }
+
+            $nextSeen = $seenObjects;
+            $nextSeen[$kidObjectNumber] = true;
+            $this->collectStructureParentTreeValues($kidDictionary, $objects, $valuesByKey, $nextSeen, $depth + 1);
+        }
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, string> $roleMap
+     * @param array<int, array<string, mixed>> $elementsByObject
+     * @return array<string, mixed>|null
+     */
+    private function annotationStructureParentReviewFromValue(
+        int $key,
+        string $value,
+        array $objects,
+        array $roleMap,
+        array $elementsByObject
+    ): ?array {
+        $parent = $this->resolvedDictionaryFromValue($value, $objects);
+        if ($parent === null) {
+            return null;
+        }
+
+        $body = $parent['body'];
+        $rawRole = $this->pdfNameValueAfterName($body, 'S');
+        $type = $this->pdfNameValueAfterName($body, 'Type');
+        if ($type !== 'StructElem' && $rawRole === null) {
+            return null;
+        }
+
+        $row = [
+            'source' => 'annotation_struct_parent_parent_tree',
+            'key' => $key,
+            'entry_count' => 1,
+            'review_only' => true,
+            'visible_text_source' => false,
+        ];
+
+        $structObject = $parent['object'];
+        if ($structObject !== null) {
+            $row['struct_object'] = $structObject;
+            $metadata = $elementsByObject[$structObject] ?? [];
+            $this->copyStructureElementMetadata($row, $metadata);
+        }
+
+        if ($rawRole !== null && !array_key_exists('raw_role', $row)) {
+            $row['raw_role'] = $rawRole;
+            $row['role'] = $roleMap[$rawRole] ?? $rawRole;
+            $row['role_mapped'] = $row['role'] !== $rawRole;
+        }
+
+        foreach ([
+            'title' => 'T',
+            'alternate_text' => 'Alt',
+            'actual_text' => 'ActualText',
+            'expansion_text' => 'E',
+            'id' => 'ID',
+        ] as $targetKey => $pdfKey) {
+            if (array_key_exists($targetKey, $row)) {
+                continue;
+            }
+
+            $value = $this->pdfStringValueAfterName($body, $pdfKey, $objects);
+            if ($value !== null && $value !== '') {
+                $row[$targetKey] = $value;
+            }
+        }
+
+        $pageObject = $this->objectReferenceValueAfterName($body, 'Pg');
+        if ($pageObject !== null && !array_key_exists('page_object', $row)) {
+            $row['page_object'] = $pageObject;
+        }
+
+        $annotationObjects = $this->structureAnnotationObjectsFromKidValue(
+            $this->dictionaryRawValue($body, 'K'),
+            $objects
+        );
+        if ($annotationObjects !== []) {
+            $row['annotation_objects'] = $annotationObjects;
+            $row['object_reference_count'] = count($annotationObjects);
+        }
+
+        return $row;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param array<string, mixed> $metadata
+     */
+    private function copyStructureElementMetadata(array &$row, array $metadata): void
+    {
+        foreach ([
+            'object' => 'struct_object',
+            'raw_role' => 'raw_role',
+            'role' => 'role',
+            'role_mapped' => 'role_mapped',
+            'page_object' => 'page_object',
+            'page' => 'page',
+            'page_number' => 'page_number',
+            'title' => 'title',
+            'language' => 'language',
+            'language_inherited' => 'language_inherited',
+            'alternate_text' => 'alternate_text',
+            'actual_text' => 'actual_text',
+            'expansion_text' => 'expansion_text',
+            'id' => 'id',
+            'classes' => 'classes',
+            'revision' => 'revision',
+            'namespace' => 'namespace',
+            'associated_file_count' => 'associated_file_count',
+            'associated_files' => 'associated_files',
+        ] as $sourceKey => $targetKey) {
+            if (array_key_exists($sourceKey, $metadata)) {
+                $row[$targetKey] = $metadata[$sourceKey];
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $review
+     * @return array<string, mixed>
+     */
+    private function structureParentReviewForAnnotation(array $review, ?int $annotationObject): array
+    {
+        $review['current_page_annotation'] = true;
+        $review['review_only'] = true;
+        $review['visible_text_source'] = false;
+
+        if ($annotationObject !== null) {
+            $review['annotation_object'] = $annotationObject;
+            $annotationObjects = $review['annotation_objects'] ?? [];
+            if (is_array($annotationObjects) && $annotationObjects !== []) {
+                $review['current_annotation_object_ref_matched'] = in_array($annotationObject, $annotationObjects, true);
+            }
+        }
+
+        return $review;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function structureElementsByObject(string $pdfBytes): array
+    {
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdfBytes);
+        $elements = $metadata['structure_tree']['elements'] ?? [];
+        if (!is_array($elements)) {
+            return [];
+        }
+
+        $byObject = [];
+        foreach ($elements as $element) {
+            if (!is_array($element)) {
+                continue;
+            }
+
+            $object = $element['object'] ?? null;
+            if (is_int($object)) {
+                $byObject[$object] = $element;
+            }
+        }
+
+        return $byObject;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, string>
+     */
+    private function structureRoleMap(string $structTreeRoot, array $objects): array
+    {
+        $roleMap = $this->resolvedDictionaryFromValue(
+            $this->dictionaryRawValue($structTreeRoot, 'RoleMap') ?? '',
+            $objects
+        );
+        if ($roleMap === null) {
+            return [];
+        }
+
+        $roles = [];
+        foreach ($this->dictionaryEntries($roleMap['body']) as $entry) {
+            $role = $this->pdfValueToString($entry['value'], $objects);
+            if ($role === null || $role === '') {
+                continue;
+            }
+
+            $roles[$entry['name']] = $role;
+        }
+
+        return $roles;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<int>
+     */
+    private function structureAnnotationObjectsFromKidValue(
+        ?string $value,
+        array $objects,
+        array $seenObjects = [],
+        int $depth = 0
+    ): array {
+        if ($value === null || $depth > 12) {
+            return [];
+        }
+
+        $value = trim($value);
+        if ($value === '') {
+            return [];
+        }
+
+        $objectNumber = $this->objectNumberFromReference($value);
+        if ($objectNumber !== null) {
+            if (isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
+                return [];
+            }
+
+            $dictionary = $this->resolvedDictionaryFromValue($value, $objects);
+            if ($dictionary === null) {
+                return [];
+            }
+
+            $nextSeen = $seenObjects;
+            $nextSeen[$objectNumber] = true;
+            return $this->structureAnnotationObjectsFromDictionary($dictionary['body'], $objects, $nextSeen, $depth + 1);
+        }
+
+        if (str_starts_with($value, '[')) {
+            $body = $this->arrayBodyFromPdfValue($value, $objects);
+            if ($body === null) {
+                return [];
+            }
+
+            $objectsByNumber = [];
+            foreach ($this->arrayItemsFromBody($body) as $item) {
+                foreach ($this->structureAnnotationObjectsFromKidValue($item, $objects, $seenObjects, $depth + 1) as $annotationObject) {
+                    $objectsByNumber[$annotationObject] = $annotationObject;
+                }
+            }
+
+            return array_values($objectsByNumber);
+        }
+
+        if (str_starts_with($value, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($value, 0);
+            return $dictionary === null
+                ? []
+                : $this->structureAnnotationObjectsFromDictionary($dictionary, $objects, $seenObjects, $depth + 1);
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<int>
+     */
+    private function structureAnnotationObjectsFromDictionary(
+        string $dictionary,
+        array $objects,
+        array $seenObjects,
+        int $depth
+    ): array {
+        $type = $this->pdfNameValueAfterName($dictionary, 'Type');
+        $objectValue = $this->dictionaryRawValue($dictionary, 'Obj');
+        if ($type === 'OBJR' || $objectValue !== null) {
+            $objectNumber = $objectValue === null ? null : $this->objectNumberFromReference($objectValue);
+            return $objectNumber === null ? [] : [$objectNumber];
+        }
+
+        return $this->structureAnnotationObjectsFromKidValue(
+            $this->dictionaryRawValue($dictionary, 'K'),
+            $objects,
+            $seenObjects,
+            $depth + 1
+        );
     }
 
     /**
@@ -1991,6 +2399,25 @@ final class PdfAnnotationExtractor
     }
 
     /**
+     * @param array<int, string> $objects
+     */
+    private function catalogObjectBody(array $objects): ?string
+    {
+        foreach ($objects as $body) {
+            if (preg_match('/\/Type\s*\/Catalog\b/s', $body) !== 1) {
+                continue;
+            }
+
+            $dictionary = $this->dictionaryObjectBody($body);
+            if ($dictionary !== null) {
+                return $dictionary;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return list<int>
      * @param array<int, string> $objects
      * @param array<int, true> $seen
@@ -2028,6 +2455,35 @@ final class PdfAnnotationExtractor
     }
 
     /**
+     * @return list<string>
+     */
+    private function arrayItemsFromBody(string $body): array
+    {
+        $items = [];
+        $offset = 0;
+        $length = strlen($body);
+
+        while ($offset < $length) {
+            $this->skipWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $endOffset = null;
+            $value = $this->valueStartingAtOffsetWithEnd($body, $offset, $endOffset);
+            if ($value === null || $endOffset === null || $endOffset <= $offset) {
+                $offset++;
+                continue;
+            }
+
+            $items[] = $value;
+            $offset = $endOffset;
+        }
+
+        return $items;
+    }
+
+    /**
      * @return list<int>
      */
     private function objectReferences(string $value): array
@@ -2037,6 +2493,11 @@ final class PdfAnnotationExtractor
         }
 
         return array_map('intval', $matches[1]);
+    }
+
+    private function objectNumberFromReference(string $value): ?int
+    {
+        return preg_match('/^(\d+)\s+\d+\s+R\b/s', trim($value), $match) === 1 ? (int) $match[1] : null;
     }
 
     private function dictionaryObjectBody(string $objectBody): ?string

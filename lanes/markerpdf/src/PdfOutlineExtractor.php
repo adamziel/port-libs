@@ -1930,6 +1930,10 @@ final class PdfOutlineExtractor
             );
         }
 
+        if ($type === 'GoToE') {
+            return $this->embeddedGoToActionReview($action, $objects);
+        }
+
         if ($type === 'URI') {
             $uri = $this->stringOrNameValue($this->resolveValue($action['URI'] ?? null, $objects));
             if ($uri === null || trim($uri) === '') {
@@ -2031,6 +2035,51 @@ final class PdfOutlineExtractor
             'is_safe_uri' => $isSafeUri,
             'executes_on_import' => false,
         ];
+    }
+
+    /**
+     * PDF GoToE actions target embedded documents. Their destination page
+     * numbers belong to the embedded document, so they must not populate the
+     * current-document `page` field used for outline/page transition joins.
+     *
+     * @param array<string, mixed> $action
+     * @param array<int, mixed> $objects
+     * @return array<string, mixed>
+     */
+    private function embeddedGoToActionReview(array $action, array $objects): array
+    {
+        $attachment = $this->fileSpecReviewValue($action['F'] ?? null, $objects);
+        $destination = $this->embeddedDestinationDetails($action['D'] ?? null, $objects);
+        $newWindow = is_bool($action['NewWindow'] ?? null) ? $action['NewWindow'] : null;
+
+        $row = $this->reviewAction(
+            'GoToE',
+            'embedded-document-review',
+            null,
+            $destination['destination'] ?? null,
+            null,
+            $attachment['filename'] ?? $this->fileSpecValue($action['F'] ?? null, $objects),
+            null,
+            $newWindow,
+            null
+        );
+
+        if ($attachment !== null) {
+            $row['attachment'] = $attachment;
+        }
+
+        foreach (['destination_page', 'view_mode', 'view_position', 'view_parameters'] as $key) {
+            if (array_key_exists($key, $destination)) {
+                $row[$key] = $destination[$key];
+            }
+        }
+
+        $target = $this->embeddedTargetDetails($action['T'] ?? null, $objects);
+        if ($target !== null) {
+            $row['target'] = $target;
+        }
+
+        return $row;
     }
 
     /**
@@ -2196,6 +2245,230 @@ final class PdfOutlineExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @return array<string, mixed>|null
+     */
+    private function fileSpecReviewValue(mixed $value, array $objects): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $fileSpecObject = $this->referenceObjectNumber($value);
+        $resolved = $this->resolveValue($value, $objects);
+        $file = $this->stringOrNameValue($resolved);
+        if ($file !== null && $file !== '') {
+            return [
+                'filename' => $file,
+                'has_embedded_file' => false,
+            ];
+        }
+
+        $dict = $this->dictionaryItems($resolved);
+        if ($dict === null) {
+            return null;
+        }
+
+        $unicodeFilename = $this->stringOrNameValue($this->resolveValue($dict['UF'] ?? null, $objects));
+        $filename = $unicodeFilename;
+        foreach (['F', 'DOS', 'Unix', 'Mac'] as $key) {
+            if ($filename !== null && $filename !== '') {
+                break;
+            }
+
+            $filename = $this->stringOrNameValue($this->resolveValue($dict[$key] ?? null, $objects));
+        }
+
+        if ($filename === null || $filename === '') {
+            return null;
+        }
+
+        $details = [
+            'filename' => $filename,
+            'has_embedded_file' => false,
+        ];
+        if ($fileSpecObject !== null) {
+            $details['file_spec_object'] = $fileSpecObject;
+        }
+        if ($unicodeFilename !== null && $unicodeFilename !== '') {
+            $details['unicode_filename'] = $unicodeFilename;
+        }
+
+        $description = $this->stringOrNameValue($this->resolveValue($dict['Desc'] ?? null, $objects));
+        if ($description !== null && $description !== '') {
+            $details['description'] = $description;
+        }
+
+        $relationship = $this->nameValue($this->resolveValue($dict['AFRelationship'] ?? null, $objects));
+        if ($relationship !== null && $relationship !== '') {
+            $details['relationship'] = $relationship;
+        }
+
+        $embeddedFiles = $this->resolveDictionary($dict['EF'] ?? null, $objects);
+        if ($embeddedFiles === null) {
+            return $details;
+        }
+
+        $details['has_embedded_file'] = true;
+        $embeddedObjects = [];
+        $embeddedKeys = [];
+        $mimeTypes = [];
+        foreach (['F', 'UF', 'DOS', 'Unix', 'Mac'] as $key) {
+            if (!array_key_exists($key, $embeddedFiles)) {
+                continue;
+            }
+
+            $embeddedKeys[] = $key;
+            $embeddedObject = $this->referenceObjectNumber($embeddedFiles[$key]);
+            if ($embeddedObject !== null) {
+                $embeddedObjects[] = $embeddedObject;
+            }
+
+            $streamDictionary = $this->resolveDictionary($embeddedFiles[$key], $objects);
+            if ($streamDictionary === null) {
+                continue;
+            }
+
+            $mimeType = $this->nameValue($this->resolveValue($streamDictionary['Subtype'] ?? null, $objects));
+            if ($mimeType !== null && $mimeType !== '') {
+                $mimeTypes[$mimeType] = $mimeType;
+            }
+        }
+
+        if ($embeddedObjects !== []) {
+            $details['embedded_file_objects'] = array_values(array_unique($embeddedObjects));
+        }
+        if ($embeddedKeys !== []) {
+            $details['embedded_file_keys'] = array_values(array_unique($embeddedKeys));
+        }
+        if ($mimeTypes !== []) {
+            $details['mime_types'] = array_values($mimeTypes);
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @return array<string, mixed>
+     */
+    private function embeddedDestinationDetails(mixed $value, array $objects): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        $resolved = $this->resolveValue($value, $objects);
+        $dict = $this->dictionaryItems($resolved);
+        if ($dict !== null && array_key_exists('D', $dict)) {
+            return $this->embeddedDestinationDetails($dict['D'], $objects);
+        }
+
+        $name = $this->stringOrNameValue($resolved);
+        if ($name !== null && $name !== '') {
+            return ['destination' => $name];
+        }
+
+        $array = $this->arrayItems($resolved);
+        if ($array === null || $array === []) {
+            return [];
+        }
+
+        $details = [];
+        $first = $this->resolveValue($array[0], $objects);
+        if (is_int($first) || is_float($first)) {
+            if ($first >= 0) {
+                $details['destination_page'] = (int) $first;
+            }
+        } else {
+            $destination = $this->stringOrNameValue($first);
+            if ($destination !== null && $destination !== '') {
+                $details['destination'] = $destination;
+            }
+        }
+
+        $viewMode = $this->nameValue($this->resolveValue($array[1] ?? null, $objects));
+        if ($viewMode !== null && $viewMode !== '') {
+            $details['view_mode'] = $viewMode;
+        }
+
+        $viewPosition = [];
+        for ($index = 2, $count = count($array); $index < $count; $index++) {
+            $viewPosition[] = $this->numericOrNullValue($this->resolveValue($array[$index], $objects));
+        }
+        $viewPosition = $this->normalizedViewPosition($viewMode, $viewPosition);
+        if ($viewMode === 'XYZ' && array_key_exists(2, $viewPosition) && $viewPosition[2] === 0.0) {
+            $viewPosition[2] = null;
+        }
+        if ($viewPosition !== []) {
+            $details['view_position'] = $viewPosition;
+            $details['view_parameters'] = $this->viewParameters($viewMode, $viewPosition);
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @return array<string, mixed>|null
+     */
+    private function embeddedTargetDetails(mixed $value, array $objects, int $depth = 0): ?array
+    {
+        if ($value === null || $depth > 8) {
+            return null;
+        }
+
+        $targetObject = $this->referenceObjectNumber($value);
+        $target = $this->resolveDictionary($value, $objects);
+        if ($target === null) {
+            return null;
+        }
+
+        $details = [];
+        if ($targetObject !== null) {
+            $details['target_object'] = $targetObject;
+        }
+
+        $relation = $this->nameValue($this->resolveValue($target['R'] ?? null, $objects));
+        if ($relation !== null && $relation !== '') {
+            $details['relation'] = $relation;
+            $details['relation_label'] = $this->embeddedTargetRelationshipLabel($relation);
+        }
+
+        $name = $this->stringOrNameValue($this->resolveValue($target['N'] ?? null, $objects));
+        if ($name !== null && $name !== '') {
+            $details['name'] = $name;
+        }
+
+        $page = $this->resolveValue($target['P'] ?? null, $objects);
+        if ((is_int($page) || is_float($page)) && $page >= 0) {
+            $details['page'] = (int) $page;
+        }
+
+        $annotationObject = $this->referenceObjectNumber($target['A'] ?? null);
+        if ($annotationObject !== null) {
+            $details['annotation_object'] = $annotationObject;
+        }
+
+        $nestedTarget = $this->embeddedTargetDetails($target['T'] ?? null, $objects, $depth + 1);
+        if ($nestedTarget !== null) {
+            $details['nested_target'] = $nestedTarget;
+        }
+
+        return $details === [] ? null : $details;
+    }
+
+    private function embeddedTargetRelationshipLabel(string $relation): string
+    {
+        return match ($relation) {
+            'C' => 'child',
+            'P' => 'parent',
+            'R' => 'root',
+            default => $relation,
+        };
     }
 
     /**
