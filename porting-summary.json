@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 14:32:31 UTC",
-    "sourceCommit": "20c5c40b1fc026624304214604f36153d4ede169",
-    "sourceCommitShort": "20c5c40b1fc0",
+    "generated": "2026-06-02 14:38:23 UTC",
+    "sourceCommit": "e12b7bd41ad3b7a153db54e92a49715ef022a13e",
+    "sourceCommitShort": "e12b7bd41ad3",
     "sourceBranch": "main",
-    "dashboardCommit": "20c5c40b1fc026624304214604f36153d4ede169",
-    "dashboardCommitShort": "20c5c40b1fc0",
+    "dashboardCommit": "e12b7bd41ad3b7a153db54e92a49715ef022a13e",
+    "dashboardCommitShort": "e12b7bd41ad3",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "367",
-            "coverage": "367 / 78 (470.5%)",
-            "mapPercent": "470.5%",
+            "mapped": "368",
+            "coverage": "368 / 78 (471.8%)",
+            "mapPercent": "471.8%",
             "unmapped": "0",
-            "php": "519 pass / 0 fail",
+            "php": "520 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit 20c5c40; full ma...",
-            "currentWork": "AcroForm /XFA signature-like packet data is linked to matching AcroForm fields as rev...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit e12b7bd; full ma...",
+            "currentWork": "DCTDecode CMYK/YCCK image /Decode arrays now resolve direct or indirect ranges and ap...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded font, xref/object s...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "20c5c40"
+            "commit": "e12b7bd"
         },
         {
             "lane": "readability",
