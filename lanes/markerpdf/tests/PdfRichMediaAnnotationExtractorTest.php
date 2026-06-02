@@ -204,6 +204,32 @@ $screenActionTargetBoundaryPdf = static function (): string {
         . "%%EOF";
 };
 
+$screenRenditionActionCurrentBasePdf = static function (): string {
+    $pageContent = 'BT /F1 12 Tf 72 720 Td (Article Body) Tj ET';
+    $screenAppearance = 'BT /F1 12 Tf 0 0 Td (Current Rendition Appearance Noise) Tj ET';
+    $mediaBytes = "MP4 bytes with (Current Rendition Payload Leak) Tj ET";
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 40 0 R >> >> /Annots [5 0 R] /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Annot /Subtype /Screen /Rect [72 500 360 650] /T (Current-base rendition screen) /Contents (Rendition actions stay review-only) /A 10 0 R /AA << /PO 12 0 R /PV 13 0 R /PI 14 0 R >> /AP << /N 6 0 R >> >>\nendobj\n"
+        . "6 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 40 0 R >> >> /Length " . strlen($screenAppearance) . " >>\nstream\n{$screenAppearance}\nendstream\nendobj\n"
+        . "10 0 obj\n<< /S /Rendition /OP 4 /AN 5 0 R /R 20 0 R /JS (player.playOrResume\\(\\)) >>\nendobj\n"
+        . "12 0 obj\n<< /S /Rendition /OP 2 /AN 5 0 R /JS (player.pause\\(\\)) >>\nendobj\n"
+        . "13 0 obj\n<< /S /Rendition /OP 3 /AN 5 0 R /JS 16 0 R >>\nendobj\n"
+        . "14 0 obj\n<< /S /Rendition /OP 1 /AN 5 0 R >>\nendobj\n"
+        . "16 0 obj\n(player.resume\\(\\))\nendobj\n"
+        . "20 0 obj\n<< /S /MR /N (Current-base training rendition) /C 21 0 R >>\nendobj\n"
+        . "21 0 obj\n<< /S /MCD /N (Current-base clip) /D 22 0 R /CT (video/mp4) >>\nendobj\n"
+        . "22 0 obj\n<< /Type /Filespec /F (current-base-rendition.mp4) /EF << /F 23 0 R >> >>\nendobj\n"
+        . "23 0 obj\n<< /Type /EmbeddedFile /Subtype /video#2Fmp4 /Length " . strlen($mediaBytes) . " >>\nstream\n{$mediaBytes}\nendstream\nendobj\n"
+        . "60 0 obj\n<< /Type /Filespec /F (stale-rendition.mp4) >>\nendobj\n"
+        . "40 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'extracts screen and rich media annotations as review-only metadata' => static function (TestRunner $t) use ($richMediaAnnotationPdf): void {
         $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($richMediaAnnotationPdf());
@@ -663,5 +689,79 @@ return [
         $t->true(!str_contains($plainText, 'Detached Movie Appearance Noise'));
         $t->true(!str_contains($plainText, 'Detached screen target must not become current media'));
         $t->true(!str_contains($plainText, 'screen action stays review only'));
+    },
+    'reviews current-base screen rendition action operations and JavaScript without executing media' => static function (TestRunner $t) use ($screenRenditionActionCurrentBasePdf): void {
+        $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($screenRenditionActionCurrentBasePdf());
+
+        $t->same(1, count($pages));
+        $t->same(0, $pages[0]['pnum']);
+        $t->same(3, $pages[0]['page_object']);
+        $t->same(1, count($pages[0]['annotations']));
+
+        $screen = $pages[0]['annotations'][0];
+        $t->same('Screen', $screen['subtype']);
+        $t->same(5, $screen['annotation_object']);
+        $t->same('Current-base rendition screen', $screen['title']);
+        $t->same(['Rendition'], $screen['action_types']);
+        $t->same(['current-base-rendition.mp4'], $screen['file_names']);
+        $t->true(!in_array('stale-rendition.mp4', $screen['file_names'], true));
+        $t->same(false, $screen['executes_media']);
+        $t->same(false, $screen['executes_javascript']);
+
+        $t->same(4, count($screen['actions']));
+
+        $playOrResume = $screen['actions'][0];
+        $t->same('Rendition', $playOrResume['action_type']);
+        $t->same('A', $playOrResume['event']);
+        $t->same(4, $playOrResume['operation']);
+        $t->same('play_or_resume', $playOrResume['operation_label']);
+        $t->same('specified-rendition', $playOrResume['rendition_scope']);
+        $t->same(5, $playOrResume['target_annotation_object']);
+        $t->same(true, $playOrResume['target_annotation_is_page_annotation']);
+        $t->same(20, $playOrResume['rendition']['dictionary_object']);
+        $t->same('Current-base training rendition', $playOrResume['rendition']['name']);
+        $t->same('video/mp4', $playOrResume['rendition']['media_clip']['content_type']);
+        $t->same('current-base-rendition.mp4', $playOrResume['rendition']['media_clip']['file']);
+        $t->same('player.playOrResume()', $playOrResume['script_preview']);
+        $t->same(hash('sha256', 'player.playOrResume()'), $playOrResume['script_sha256']);
+        $t->same(strlen('player.playOrResume()'), $playOrResume['script_bytes']);
+        $t->same(false, $playOrResume['script_truncated']);
+        $t->same(false, $playOrResume['executes_on_import']);
+        $t->same(false, $playOrResume['executes_media']);
+        $t->same(false, $playOrResume['executes_javascript']);
+
+        $pause = $screen['actions'][1];
+        $t->same('PO', $pause['event']);
+        $t->same('annotation_page_open', $pause['event_label']);
+        $t->same(2, $pause['operation']);
+        $t->same('pause', $pause['operation_label']);
+        $t->same('current-associated-rendition', $pause['rendition_scope']);
+        $t->same(true, $pause['uses_current_rendition']);
+        $t->same(null, $pause['rendition'] ?? null);
+        $t->same('player.pause()', $pause['script_preview']);
+        $t->same(false, $pause['executes_javascript']);
+
+        $resume = $screen['actions'][2];
+        $t->same('PV', $resume['event']);
+        $t->same(3, $resume['operation']);
+        $t->same('resume', $resume['operation_label']);
+        $t->same('current-associated-rendition', $resume['rendition_scope']);
+        $t->same(true, $resume['uses_current_rendition']);
+        $t->same('player.resume()', $resume['script_preview']);
+        $t->same(hash('sha256', 'player.resume()'), $resume['script_sha256']);
+
+        $stop = $screen['actions'][3];
+        $t->same('PI', $stop['event']);
+        $t->same(1, $stop['operation']);
+        $t->same('stop', $stop['operation_label']);
+        $t->same('current-associated-rendition', $stop['rendition_scope']);
+        $t->same(true, $stop['uses_current_rendition']);
+        $t->same(null, $stop['script_preview'] ?? null);
+
+        $plainText = (new PdfTextExtractor())->extractPlainText($screenRenditionActionCurrentBasePdf());
+        $t->same(['Article Body'], (new PdfTextExtractor())->extractTextLines($screenRenditionActionCurrentBasePdf()));
+        $t->true(!str_contains($plainText, 'Current Rendition Appearance Noise'));
+        $t->true(!str_contains($plainText, 'Current Rendition Payload Leak'));
+        $t->true(!str_contains($plainText, 'player.playOrResume'));
     },
 ];

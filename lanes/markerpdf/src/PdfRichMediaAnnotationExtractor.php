@@ -786,14 +786,28 @@ final class PdfRichMediaAnnotationExtractor
                 $row['target_annotation_is_page_annotation'] = isset($pageAnnotationObjects[$targetAnnotation]);
             }
 
-            $rendition = $this->dictionaryFromTopLevelValue($actionBody, 'R', $objects);
+            $renditionValue = $this->topLevelValueAfterName($actionBody, 'R');
+            $rendition = $renditionValue === null ? null : $this->resolvedDictionaryFromValue($renditionValue, $objects);
             if ($rendition !== null) {
+                $row['rendition_scope'] = 'specified-rendition';
                 $row['rendition'] = $this->renditionDetailsFromRecord($rendition, $objects);
                 $bodies = $this->dedupeStrings(array_merge(
                     [$rendition['body']],
                     $this->referencedDictionaryBodies($rendition['body'], $objects, 2)
                 ));
                 $row['file_names'] = $this->fileNamesFromBodies($bodies);
+            } elseif (isset($row['operation']) && in_array($row['operation'], [1, 2, 3], true)) {
+                $row['rendition_scope'] = 'current-associated-rendition';
+                $row['uses_current_rendition'] = true;
+            }
+
+            $script = $this->topLevelStringValueAfterName($actionBody, 'JS', $objects);
+            if ($script !== null) {
+                $preview = $this->actionScriptPreview($script, 160);
+                $row['script_preview'] = $preview['preview'];
+                $row['script_truncated'] = $preview['truncated'];
+                $row['script_sha256'] = hash('sha256', $script);
+                $row['script_bytes'] = strlen($script);
             }
         }
 
@@ -893,6 +907,7 @@ final class PdfRichMediaAnnotationExtractor
             1 => 'stop',
             2 => 'pause',
             3 => 'resume',
+            4 => 'play_or_resume',
             default => 'unknown',
         };
     }
