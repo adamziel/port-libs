@@ -3256,13 +3256,7 @@ final class PdfTextExtractor
         $streamObjectNumbers = [];
         foreach ($objects as $body) {
             foreach ($this->pieceInfoDictionariesFromBody($body, $objects) as $pieceInfoDictionary) {
-                $matchCount = preg_match_all('/\/Private\s+(\d+)\s+\d+\s+R\b/s', $pieceInfoDictionary, $matches);
-                if ($matchCount === false || $matchCount === 0) {
-                    continue;
-                }
-
-                foreach ($matches[1] as $objectNumber) {
-                    $privateObjectNumber = (int) $objectNumber;
+                foreach ($this->pieceInfoPrivateObjectNumbersFromDictionary($pieceInfoDictionary, $objects) as $privateObjectNumber) {
                     if (!isset($objects[$privateObjectNumber])) {
                         continue;
                     }
@@ -3275,6 +3269,76 @@ final class PdfTextExtractor
         }
 
         return $streamObjectNumbers;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<int>
+     */
+    private function pieceInfoPrivateObjectNumbersFromDictionary(string $pieceInfoDictionary, array $objects): array
+    {
+        $objectNumbers = $this->directPrivateObjectNumbers($pieceInfoDictionary);
+        foreach ($this->pieceInfoApplicationDictionaries($pieceInfoDictionary, $objects) as $applicationDictionary) {
+            foreach ($this->directPrivateObjectNumbers($applicationDictionary) as $objectNumber) {
+                $objectNumbers[] = $objectNumber;
+            }
+        }
+
+        return array_values(array_unique($objectNumbers));
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function directPrivateObjectNumbers(string $dictionary): array
+    {
+        $matchCount = preg_match_all('/\/Private\s+(\d+)\s+\d+\s+R\b/s', $dictionary, $matches);
+        if ($matchCount === false || $matchCount === 0) {
+            return [];
+        }
+
+        return array_map('intval', $matches[1]);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function pieceInfoApplicationDictionaries(string $pieceInfoDictionary, array $objects): array
+    {
+        $dictionaries = [];
+        for ($offset = 0, $length = strlen($pieceInfoDictionary); $offset < $length;) {
+            $offset = $this->skipPdfWhitespace($pieceInfoDictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (($pieceInfoDictionary[$offset] ?? '') !== '/') {
+                $offset++;
+                continue;
+            }
+
+            if (preg_match('/\G\/[^\s\[\]()<>{}\/%]+/s', $pieceInfoDictionary, $nameMatch, 0, $offset) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $valueOffset = $this->skipPdfWhitespace($pieceInfoDictionary, $offset + strlen($nameMatch[0]));
+            $value = $this->pdfValueAtOffset($pieceInfoDictionary, $valueOffset);
+            if ($value === null) {
+                $offset += strlen($nameMatch[0]);
+                continue;
+            }
+
+            $applicationDictionary = $this->pdfDictionaryFromValue($value, $objects);
+            if ($applicationDictionary !== null) {
+                $dictionaries[] = $applicationDictionary;
+            }
+
+            $offset = max($valueOffset + strlen($value), $offset + strlen($nameMatch[0]));
+        }
+
+        return $dictionaries;
     }
 
     /**

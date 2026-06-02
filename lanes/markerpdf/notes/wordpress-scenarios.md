@@ -308,6 +308,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-associated-files-import.php` maps catalog `/AF` associated Filespec arrays into a WordPress import review path. It emits source and alternative file rows with `/AFRelationship`, description, MIME, size, and declared-size metadata while keeping payload bytes out of visible paragraph extraction.
 
+`examples/wordpress-pdf-associated-pieceinfo-indirect-boundary.php` maps catalog `/AF` associated Filespec `/PieceInfo` entries whose application dictionary is indirect. It emits attachment review metadata plus private-stream checksum state while proving attachment payload bytes and indirect PieceInfo private-stream bytes stay out of visible Gutenberg paragraphs without loading Python, pdftext, pypdfium, Poppler, Ghostscript, models, or external PDF tools.
+
 `examples/wordpress-pdf-javascript-action-safety.php` maps document name-tree, catalog, page, and annotation JavaScript actions into a non-executing safety-review path. It reports source, event, script preview, hashes, and object references while keeping JavaScript out of text extraction and Markdown links.
 
 `examples/wordpress-pdf-base14-font-metrics-import.php` maps Base14 and explicit simple-font width metrics into a WordPress text extraction path. It uses native width evidence for same-line gap decisions, preserving expected output such as `Ill Word`, `WWWImport`, `iii Word`, and `CourierText`.

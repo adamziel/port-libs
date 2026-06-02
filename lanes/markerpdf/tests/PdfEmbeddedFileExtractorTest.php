@@ -438,6 +438,47 @@ return [
         $t->same(false, str_contains($text, 'PieceInfo Private Checksum Leak'));
         $t->same(false, str_contains($text, 'verified'));
     },
+    'excludes associated Filespec PieceInfo private streams through indirect application dictionaries' => static function (TestRunner $t): void {
+        $attachmentPayload = '<wp-export><post id="901"/></wp-export>';
+        $privatePayload = 'BT /F1 12 Tf 72 720 Td (Indirect App PieceInfo Leak) Tj ET';
+        $privateChecksum = strtoupper(hash('md5', $privatePayload));
+
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AF [10 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (source.xml) /Desc (Original source packet) /AFRelationship /Source /PieceInfo << /WPImport 30 0 R >> /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($attachmentPayload) . " >> /Length " . strlen($attachmentPayload) . " >>\nstream\n{$attachmentPayload}\nendstream\nendobj\n"
+            . "30 0 obj\n<< /LastModified (D:20260602121925Z) /Private 31 0 R >>\nendobj\n"
+            . "31 0 obj\n<< /Type /Metadata /Subtype /text#2Fplain /Params << /Size " . strlen($privatePayload) . " /CheckSum <{$privateChecksum}> >> /Length " . strlen($privatePayload) . " >>\nstream\n{$privatePayload}\nendstream\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $text = (new PdfTextExtractor())->extractPlainText($pdf);
+
+        $t->same(1, count($files));
+
+        $file = $files[0];
+        $t->same('catalog_associated_files', $file['source']);
+        $t->same(true, $file['associated_file']);
+        $t->same('source.xml', $file['filename']);
+        $t->same('Source', $file['relationship']);
+        $t->same('Original source packet', $file['description']);
+        $t->same($attachmentPayload, $file['content']);
+        $t->same(strlen($attachmentPayload), $file['declared_size']);
+
+        $privateStream = $file['piece_info']['WPImport']['private_stream'];
+        $t->same('D:20260602121925Z', $file['piece_info']['WPImport']['last_modified']);
+        $t->same(31, $privateStream['object']);
+        $t->same(strlen($privatePayload), $privateStream['declared_length']);
+        $t->same(strlen($privatePayload), $privateStream['declared_size']);
+        $t->same('text/plain', $privateStream['mime_type']);
+        $t->same(strtolower($privateChecksum), $privateStream['checksum']);
+        $t->same(hash('md5', $privatePayload), $privateStream['computed_checksum']);
+        $t->same(true, $privateStream['checksum_matches']);
+        $t->same(hash('sha256', $privatePayload), $privateStream['content_sha256']);
+        $t->same(false, array_key_exists('content', $privateStream));
+        $t->same('', $text);
+    },
     'extracts PDF portfolio collection item and PieceInfo metadata from EmbeddedFiles name trees' => static function (TestRunner $t): void {
         $exportXml = '<wp-export><post id="42"/></wp-export>';
         $notes = 'Portfolio review notes';
