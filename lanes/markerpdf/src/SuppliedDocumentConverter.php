@@ -183,15 +183,16 @@ final class SuppliedDocumentConverter
         $markdownTables = $this->listOption($options, 'markdown_tables');
         $recognizedTables = $this->listOption($options, 'recognized_tables');
         if ($recognizedTables !== []) {
+            $detectBoxes = (bool) ($options['table_detect_boxes'] ?? $options['ocr_all_pages'] ?? false);
             $tablePlan = $this->tableFormatter->getTableBoxes(
                 $pages,
                 $this->listOption($options, 'table_text_lines'),
                 $this->listOption($options, 'table_rendered_image_sizes'),
-                $this->numericOption($options, 'table_dpi', 192.0)
+                $this->numericOption($options, 'table_dpi', 192.0),
+                $detectBoxes ? $this->tablePageIndexMap($pages) : []
             );
             $detectorCells = $this->listOption($options, 'table_detector_cells');
             $ocrTextLines = $this->listOption($options, 'table_ocr_text_lines');
-            $detectBoxes = (bool) ($options['table_detect_boxes'] ?? $options['ocr_all_pages'] ?? false);
             if ($detectorCells !== [] || $ocrTextLines !== [] || $detectBoxes) {
                 $cells = $this->tableRecognizer->getCells(
                     $tablePlan['table_bboxes'],
@@ -293,6 +294,20 @@ final class SuppliedDocumentConverter
             'doc_indexes' => $tablePlan['doc_indexes'],
             'table_page_indexes' => $tablePlan['table_page_indexes'],
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $pages
+     * @return array<int, bool>
+     */
+    private function tablePageIndexMap(array $pages): array
+    {
+        $indexes = [];
+        foreach ($pages as $index => $_page) {
+            $indexes[$index] = true;
+        }
+
+        return $indexes;
     }
 
     /**

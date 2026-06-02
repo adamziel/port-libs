@@ -231,6 +231,78 @@ return [
             unlink($path);
         }
     },
+    'routes forced OCR merged table layout boxes without stale pdftext table lines' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-forced-ocr-merged-table-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% forced OCR merged table supplied pipeline\n%%EOF");
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'OCR merged table packet', 'bbox' => [72.0, 48.0, 340.0, 68.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'Legacy pdftext table should be ignored after OCR.', 'bbox' => [72.0, 176.0, 430.0, 196.0]],
+                ['text' => 'Post table review note.', 'bbox' => [72.0, 276.0, 430.0, 294.0]],
+            ]);
+            $layout = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Title', 'bbox' => [72.0, 48.0, 340.0, 68.0]],
+                    ['label' => 'Table', 'bbox' => [72.0, 150.0, 250.0, 230.0]],
+                    ['label' => 'Table', 'bbox' => [248.0, 150.0, 430.0, 230.0]],
+                    ['label' => 'Text', 'bbox' => [72.0, 276.0, 430.0, 294.0]],
+                ],
+            ];
+            $recognizedTable = [
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 360.0, 30.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 40.0, 360.0, 70.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 170.0, 80.0]],
+                    ['col_id' => 1, 'bbox' => [190.0, 0.0, 360.0, 80.0]],
+                ],
+            ];
+            $detectorCells = [[
+                ['bbox' => [12.0, 8.0, 160.0, 28.0], 'text' => null],
+                ['bbox' => [198.0, 8.0, 344.0, 28.0], 'text' => null],
+                ['bbox' => [12.0, 44.0, 160.0, 66.0], 'text' => null],
+                ['bbox' => [198.0, 44.0, 344.0, 66.0], 'text' => null],
+            ]];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [$layout],
+                    'recognized_tables' => [$recognizedTable],
+                    'table_detector_cells' => $detectorCells,
+                    'table_ocr_text_lines' => [[
+                        ['text' => 'Segment'],
+                        ['text' => 'State'],
+                        ['text' => 'Merged OCR'],
+                        ['text' => 'Imported'],
+                    ]],
+                    'table_rendered_image_sizes' => [['width' => 612, 'height' => 792]],
+                    'ocr_all_pages' => true,
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $t->contains('# Ocr Merged Table Packet', $result['text']);
+            $t->contains('| Segment    | State    |', $result['text']);
+            $t->contains('| Merged OCR | Imported |', $result['text']);
+            $t->contains('Post table review note.', $result['text']);
+            $t->true(!str_contains($result['text'], 'Legacy pdftext table should be ignored after OCR.'));
+            $t->same(['layout', 'table-cell-routing', 'table-recognition', 'table-formatting'], $result['metadata']['supplied_boundaries']);
+            $t->same([1], $result['metadata']['table_plan']['table_counts']);
+            $t->same([[72.0, 150.0, 430.0, 230.0]], $result['metadata']['table_plan']['table_bboxes']);
+            $t->same([true], $result['metadata']['table_needs_ocr']);
+            $t->same(true, $result['metadata']['table_detect_boxes']);
+            $t->same([4], $result['metadata']['table_cell_counts']);
+            $t->same(1, $result['metadata']['block_stats']['table']);
+            $t->same(1, $result['metadata']['inserted_tables']);
+        } finally {
+            unlink($path);
+        }
+    },
     'converts a fuller multicolcnn supplied dictionary excerpt with upstream finalization metadata' => static function (TestRunner $t): void {
         $fixture = require __DIR__ . '/../fixtures/upstream-multicolcnn-supplied-document.php';
         $path = sys_get_temp_dir() . '/markerpdf-multicolcnn-supplied-' . bin2hex(random_bytes(4)) . '.pdf';

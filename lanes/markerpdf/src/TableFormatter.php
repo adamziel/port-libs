@@ -45,6 +45,7 @@ final class TableFormatter
      * @param list<array<string, mixed>> $pages
      * @param list<mixed> $suppliedTextLines One text-line prediction payload per non-OCR table page, in upstream selected-page order.
      * @param array<int, array{width?: int|float, height?: int|float}|list<int|float>> $renderedImageSizes Optional high-res image sizes by page index.
+     * @param array<int, bool> $forcedOcrPageIndexes Page indexes whose table text-line payloads should be treated like upstream OCRed pages.
      * @return array{
      *     table_images: list<array<string, mixed>>,
      *     table_bboxes: list<list<float>>,
@@ -61,7 +62,8 @@ final class TableFormatter
         array $pages,
         array $suppliedTextLines = [],
         array $renderedImageSizes = [],
-        float $tableDpi = self::DEFAULT_TABLE_DPI
+        float $tableDpi = self::DEFAULT_TABLE_DPI,
+        array $forcedOcrPageIndexes = []
     ): array {
         $tableImages = [];
         $tableBboxes = [];
@@ -128,7 +130,8 @@ final class TableFormatter
             }
 
             $page = $pages[$pageIndex];
-            $pageOcred = isset($page['ocr_method']) && $page['ocr_method'] !== null;
+            $pageOcred = (isset($page['ocr_method']) && $page['ocr_method'] !== null)
+                || (($forcedOcrPageIndexes[$pageIndex] ?? false) === true);
             if ($pageOcred) {
                 for ($i = 0; $i < $tableCount; $i++) {
                     $textLines[] = null;
