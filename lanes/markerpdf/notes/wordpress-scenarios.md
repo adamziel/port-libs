@@ -146,7 +146,7 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-toc-import.php` maps Marker's upstream heading and TOC cleaners into a document-outline import path. It splits detected heading lines out of text blocks by bounding-box overlap, infers heading levels from line heights, emits a core list as a table of contents, and renders the heading blocks with Marker-style Markdown heading levels.
 
-`examples/wordpress-pdf-outline-import.php` maps Marker's upstream `get_pdf_toc` helper into a PDF bookmark import path. It accepts a pypdfium-style `get_toc(max_depth)` adapter, preserves upstream `title`, `level`, and `page_index` metadata, and emits a Gutenberg list with page/level review attributes before any OCR or layout model runs.
+`examples/wordpress-pdf-outline-import.php` maps Marker's upstream `get_pdf_toc` helper plus PDF document-info metadata into a bookmark import path. It parses a native PDF catalog `/Outlines` tree and trailer `/Info` dictionary, preserves upstream-style `title`, `level`, and zero-based `page` metadata, and emits a Gutenberg list with document-info review attributes before any OCR or layout model runs.
 
 `examples/wordpress-paginated-import.php` maps Marker's upstream Markdown block-merge and full-text assembly path into a paginated Gutenberg import. It preserves PDF page-start markers as separator blocks, then emits merged headings, paragraphs, and lists after applying block type transitions and bbox-based line continuation rules.
 

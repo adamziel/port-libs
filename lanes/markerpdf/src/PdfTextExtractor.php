@@ -62,6 +62,27 @@ final class PdfTextExtractor
     }
 
     /**
+     * Native boundary for marker.pdf.extract_text::get_text_blocks metadata.
+     *
+     * Upstream obtains `pdf_toc` from pypdfium's document outline adapter
+     * before model execution. This reduced boundary extracts the same
+     * title/level/page shape, plus trailer `/Info` strings for WordPress review
+     * metadata, without running Python or external PDF tooling.
+     *
+     * @return array{pdf_toc: list<array{title: string, level: int, page: int}>, document_info: array<string, string>, pages: int}
+     */
+    public function extractOutlineMetadata(string $pdfBytes): array
+    {
+        $objects = $this->pdfObjects($pdfBytes);
+
+        return [
+            'pdf_toc' => $this->pdfTocFromObjects($objects),
+            'document_info' => $this->documentInfoFromPdf($pdfBytes, $objects),
+            'pages' => count($this->orderedPageObjectNumbers($objects)),
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     public function extractTextLines(string $pdfBytes): array
@@ -89,6 +110,154 @@ final class PdfTextExtractor
         }
 
         return $pages;
+    }
+
+    /**
+     * @return list<array{title: string, level: int, page: int}>
+     * @param array<int, string> $objects
+     */
+    private function pdfTocFromObjects(array $objects): array
+    {
+        $catalog = $this->catalogObjectBody($objects);
+        if ($catalog === null || preg_match('/\/Outlines\s+(\d+)\s+\d+\s+R\b/s', $catalog, $match) !== 1) {
+            return [];
+        }
+
+        $outlineRootNumber = (int) $match[1];
+        if (!isset($objects[$outlineRootNumber]) || preg_match('/\/First\s+(\d+)\s+\d+\s+R\b/s', $objects[$outlineRootNumber], $firstMatch) !== 1) {
+            return [];
+        }
+
+        $pageIndexes = array_flip($this->orderedPageObjectNumbers($objects));
+
+        return $this->outlineItemsFromLinkedList((int) $firstMatch[1], 1, $objects, $pageIndexes);
+    }
+
+    /**
+     * @return list<array{title: string, level: int, page: int}>
+     * @param array<int, string> $objects
+     * @param array<int, int> $pageIndexes
+     * @param array<int, true> $seen
+     */
+    private function outlineItemsFromLinkedList(
+        int $objectNumber,
+        int $level,
+        array $objects,
+        array $pageIndexes,
+        array $seen = []
+    ): array {
+        $items = [];
+
+        while (isset($objects[$objectNumber]) && !isset($seen[$objectNumber])) {
+            $seen[$objectNumber] = true;
+            $body = $objects[$objectNumber];
+            $title = $this->pdfStringValueAfterName($body, 'Title', $objects);
+            $page = $this->outlinePageIndex($body, $objects, $pageIndexes);
+
+            if ($title !== null && $title !== '' && $page !== null) {
+                $items[] = [
+                    'title' => $title,
+                    'level' => $level,
+                    'page' => $page,
+                ];
+            }
+
+            if (preg_match('/\/First\s+(\d+)\s+\d+\s+R\b/s', $body, $firstMatch) === 1) {
+                foreach ($this->outlineItemsFromLinkedList((int) $firstMatch[1], $level + 1, $objects, $pageIndexes, $seen) as $child) {
+                    $items[] = $child;
+                }
+            }
+
+            if (preg_match('/\/Next\s+(\d+)\s+\d+\s+R\b/s', $body, $nextMatch) !== 1) {
+                break;
+            }
+
+            $objectNumber = (int) $nextMatch[1];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, int> $pageIndexes
+     */
+    private function outlinePageIndex(string $outlineBody, array $objects, array $pageIndexes): ?int
+    {
+        foreach (['Dest', 'D'] as $key) {
+            $destination = $this->pdfArrayValueAfterName($outlineBody, $key);
+            if ($destination !== null) {
+                $pageObjectNumber = $this->firstObjectReference($destination);
+                if ($pageObjectNumber !== null && isset($pageIndexes[$pageObjectNumber])) {
+                    return $pageIndexes[$pageObjectNumber];
+                }
+            }
+        }
+
+        $destinationObjectNumber = $this->objectReferenceValueAfterName($outlineBody, 'Dest');
+        if ($destinationObjectNumber !== null && isset($objects[$destinationObjectNumber])) {
+            $destination = $this->pdfArrayAtStart(trim($objects[$destinationObjectNumber]));
+            if ($destination !== null) {
+                $pageObjectNumber = $this->firstObjectReference($destination);
+                if ($pageObjectNumber !== null && isset($pageIndexes[$pageObjectNumber])) {
+                    return $pageIndexes[$pageObjectNumber];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, string>
+     */
+    private function documentInfoFromPdf(string $pdfBytes, array $objects): array
+    {
+        if (preg_match('/\/Info\s+(\d+)\s+\d+\s+R\b/s', $pdfBytes, $match) !== 1) {
+            return [];
+        }
+
+        $infoObjectNumber = (int) $match[1];
+        if (!isset($objects[$infoObjectNumber])) {
+            return [];
+        }
+
+        $dictionary = $this->dictionaryObjectBody($objects[$infoObjectNumber]) ?? trim($objects[$infoObjectNumber]);
+        $fields = [
+            'Title' => 'title',
+            'Author' => 'author',
+            'Subject' => 'subject',
+            'Keywords' => 'keywords',
+            'Creator' => 'creator',
+            'Producer' => 'producer',
+            'CreationDate' => 'creation_date',
+            'ModDate' => 'mod_date',
+        ];
+
+        $info = [];
+        foreach ($fields as $pdfName => $key) {
+            $value = $this->pdfStringValueAfterName($dictionary, $pdfName, $objects);
+            if ($value !== null && $value !== '') {
+                $info[$key] = $value;
+            }
+        }
+
+        return $info;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function catalogObjectBody(array $objects): ?string
+    {
+        foreach ($objects as $body) {
+            if ($this->isCatalogObject($body)) {
+                return $body;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1105,6 +1274,285 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pdfStringValueAfterName(string $body, string $name, array $objects): ?string
+    {
+        $offset = $this->nameValueOffset($body, $name);
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->pdfStringTokenAt($body, $offset, $objects);
+    }
+
+    private function pdfArrayValueAfterName(string $body, string $name): ?string
+    {
+        $offset = $this->nameValueOffset($body, $name);
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->readPdfArrayAt($body, $offset);
+    }
+
+    private function objectReferenceValueAfterName(string $body, string $name): ?int
+    {
+        $offset = $this->nameValueOffset($body, $name);
+        if ($offset === null) {
+            return null;
+        }
+
+        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $body, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        return (int) $match[1];
+    }
+
+    private function nameValueOffset(string $body, string $name): ?int
+    {
+        if (preg_match('/\/' . preg_quote($name, '/') . '\b/s', $body, $match, PREG_OFFSET_CAPTURE) !== 1) {
+            return null;
+        }
+
+        return $this->skipPdfWhitespace($body, $match[0][1] + strlen($match[0][0]));
+    }
+
+    private function skipPdfWhitespace(string $value, int $offset): int
+    {
+        $length = strlen($value);
+        while ($offset < $length && ctype_space($value[$offset])) {
+            $offset++;
+        }
+
+        return $offset;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pdfStringTokenAt(string $body, int $offset, array $objects): ?string
+    {
+        if ($offset >= strlen($body)) {
+            return null;
+        }
+
+        $char = $body[$offset];
+        if ($char === '(') {
+            $raw = $this->readPdfLiteralStringAt($body, $offset);
+            return $raw === null ? null : $this->decodePdfStringBytes($this->decodeLiteralString($raw));
+        }
+
+        if ($char === '<' && substr($body, $offset, 2) !== '<<') {
+            $bytes = $this->readPdfHexStringAt($body, $offset);
+            return $bytes === null ? null : $this->decodePdfStringBytes($bytes);
+        }
+
+        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $body, $match, 0, $offset) === 1) {
+            $objectNumber = (int) $match[1];
+            return isset($objects[$objectNumber])
+                ? $this->pdfStringTokenAt(trim($objects[$objectNumber]), 0, $objects)
+                : null;
+        }
+
+        if ($char === '/') {
+            $end = strcspn($body, " \t\r\n\f[]()<>{}/%", $offset + 1);
+            return $this->decodePdfName(substr($body, $offset + 1, $end));
+        }
+
+        return null;
+    }
+
+    private function readPdfLiteralStringAt(string $value, int $offset): ?string
+    {
+        if ($offset >= strlen($value) || $value[$offset] !== '(') {
+            return null;
+        }
+
+        $depth = 0;
+        $raw = '';
+        for ($index = $offset + 1, $length = strlen($value); $index < $length; $index++) {
+            $char = $value[$index];
+            if ($char === '\\') {
+                if ($index + 1 < $length) {
+                    $raw .= $char . $value[$index + 1];
+                    $index++;
+                    continue;
+                }
+
+                $raw .= $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                $raw .= $char;
+                continue;
+            }
+
+            if ($char === ')') {
+                if ($depth === 0) {
+                    return $raw;
+                }
+                $depth--;
+                $raw .= $char;
+                continue;
+            }
+
+            $raw .= $char;
+        }
+
+        return null;
+    }
+
+    private function readPdfHexStringAt(string $value, int $offset): ?string
+    {
+        $end = strpos($value, '>', $offset + 1);
+        if ($end === false) {
+            return null;
+        }
+
+        $hex = preg_replace('/\s+/', '', substr($value, $offset + 1, $end - $offset - 1));
+        if ($hex === null || preg_match('/^[\da-fA-F]*$/', $hex) !== 1) {
+            return null;
+        }
+
+        if (strlen($hex) % 2 === 1) {
+            $hex .= '0';
+        }
+
+        $bytes = hex2bin($hex);
+        return $bytes === false ? null : $bytes;
+    }
+
+    private function pdfArrayAtStart(string $value): ?string
+    {
+        return str_starts_with($value, '[') ? $this->readPdfArrayAt($value, 0) : null;
+    }
+
+    private function readPdfArrayAt(string $value, int $offset): ?string
+    {
+        if ($offset >= strlen($value) || $value[$offset] !== '[') {
+            return null;
+        }
+
+        $depth = 0;
+        $bodyStart = $offset + 1;
+        for ($index = $offset, $length = strlen($value); $index < $length; $index++) {
+            $char = $value[$index];
+            if ($char === '(') {
+                $skipped = $this->skipPdfLiteralStringAt($value, $index);
+                if ($skipped === null) {
+                    return null;
+                }
+                $index = $skipped;
+                continue;
+            }
+
+            if ($char === '<' && substr($value, $index, 2) === '<<') {
+                $dictionaryEnd = $this->pdfDictionaryEndOffset($value, $index);
+                if ($dictionaryEnd === null) {
+                    return null;
+                }
+                $index = $dictionaryEnd;
+                continue;
+            }
+
+            if ($char === '[') {
+                $depth++;
+                continue;
+            }
+
+            if ($char !== ']') {
+                continue;
+            }
+
+            $depth--;
+            if ($depth === 0) {
+                return substr($value, $bodyStart, $index - $bodyStart);
+            }
+        }
+
+        return null;
+    }
+
+    private function skipPdfLiteralStringAt(string $value, int $offset): ?int
+    {
+        if ($offset >= strlen($value) || $value[$offset] !== '(') {
+            return null;
+        }
+
+        $depth = 0;
+        for ($index = $offset + 1, $length = strlen($value); $index < $length; $index++) {
+            $char = $value[$index];
+            if ($char === '\\') {
+                $index++;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                if ($depth === 0) {
+                    return $index;
+                }
+                $depth--;
+            }
+        }
+
+        return null;
+    }
+
+    private function pdfDictionaryEndOffset(string $value, int $offset): ?int
+    {
+        if (substr($value, $offset, 2) !== '<<') {
+            return null;
+        }
+
+        $depth = 0;
+        for ($index = $offset, $length = strlen($value); $index < $length - 1; $index++) {
+            if ($value[$index] === '(') {
+                $skipped = $this->skipPdfLiteralStringAt($value, $index);
+                if ($skipped === null) {
+                    return null;
+                }
+                $index = $skipped;
+                continue;
+            }
+
+            $pair = substr($value, $index, 2);
+            if ($pair === '<<') {
+                $depth++;
+                $index++;
+                continue;
+            }
+
+            if ($pair !== '>>') {
+                continue;
+            }
+
+            $depth--;
+            if ($depth === 0) {
+                return $index + 1;
+            }
+            $index++;
+        }
+
+        return null;
+    }
+
+    private function firstObjectReference(string $value): ?int
+    {
+        if (preg_match('/(\d+)\s+\d+\s+R\b/s', $value, $match) !== 1) {
+            return null;
+        }
+
+        return (int) $match[1];
     }
 
     /**
