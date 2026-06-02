@@ -328,6 +328,9 @@ final class PdfImageRenderer
      *     image_decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null,
      *     image_decode_applied_before_rgb: bool,
      *     image_decode_component_mismatch: bool,
+     *     color_key_mask: array{present: bool, ranges: list<array{min: int, max: int}>, component_count: int, expected_components: int|null, valid_for_components: bool, source: string, compares_before_decode: bool, transparent_when_all_components_match: bool}|null,
+     *     color_key_mask_applied_before_rgb: bool,
+     *     color_key_mask_component_mismatch: bool,
      *     image_mask: array{present: bool, width: int|null, height: int|null, bits_per_component: int, decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}, opacity_for_zero: float, opacity_for_one: float, inverted: bool}|null,
      *     image_mask_applied_before_rgb: bool,
      *     soft_mask_applied_before_rgb: bool,
@@ -384,6 +387,9 @@ final class PdfImageRenderer
         if ($imageMaskPresent && $imageDecode !== null) {
             $imageMask = $this->imageMaskDetails($imageDictionary, $objects, $imageDecode);
         }
+        $colorKeyMask = $imageMaskPresent ? null : $this->colorKeyMaskDetails($imageDictionary, $objects, $colorSpace['components']);
+        $colorKeyMaskValid = $colorKeyMask !== null && $colorKeyMask['valid_for_components'];
+        $colorKeyMaskMismatch = $colorKeyMask !== null && !$colorKeyMask['valid_for_components'];
         $softMask = $this->imageSoftMaskDetails($imageDictionary, $objects);
         $softMaskPresent = $softMask !== null && $softMask['present'] === true;
         $softMaskFilterBoundary = $softMask !== null ? $this->imageSoftMaskFilterBoundary($imageDictionary, $objects) : null;
@@ -427,6 +433,12 @@ final class PdfImageRenderer
             }
         } elseif ($imageDecodeMismatch) {
             $notes[] = 'image_decode_component_mismatch';
+        }
+        if ($colorKeyMaskValid) {
+            $notes[] = 'color_key_mask_applied_before_rgb_conversion';
+            $notes[] = 'color_key_mask_compares_raw_samples_before_decode';
+        } elseif ($colorKeyMaskMismatch) {
+            $notes[] = 'color_key_mask_component_mismatch';
         }
         foreach ($previewOnlyFilters as $filter) {
             $notes[] = match ($filter) {
@@ -497,6 +509,9 @@ final class PdfImageRenderer
             'image_decode' => $imageDecode,
             'image_decode_applied_before_rgb' => $imageDecodeValid,
             'image_decode_component_mismatch' => $imageDecodeMismatch,
+            'color_key_mask' => $colorKeyMask,
+            'color_key_mask_applied_before_rgb' => $colorKeyMaskValid,
+            'color_key_mask_component_mismatch' => $colorKeyMaskMismatch,
             'image_mask' => $imageMask,
             'image_mask_applied_before_rgb' => $imageMaskPresent,
             'soft_mask' => $softMask,
@@ -515,7 +530,15 @@ final class PdfImageRenderer
             'output_color_mode' => 'RGB',
             'alpha_output_mode' => $softMaskComposable
                 ? 'soft_mask_composited_to_rgb_preview'
-                : ($imageMaskPresent ? 'image_mask_composited_to_rgb_preview' : ($softMaskPresent ? 'soft_mask_review_only_rgb_preview' : 'opaque_rgb_preview')),
+                : (
+                    $imageMaskPresent
+                        ? 'image_mask_composited_to_rgb_preview'
+                        : (
+                            $colorKeyMaskValid
+                                ? 'color_key_mask_composited_to_rgb_preview'
+                                : ($softMaskPresent ? 'soft_mask_review_only_rgb_preview' : 'opaque_rgb_preview')
+                        )
+                ),
             'notes' => $notes,
         ];
     }
@@ -659,6 +682,70 @@ final class PdfImageRenderer
             'clamped_to_hival' => $paletteIndex !== $roundedIndex,
             'base_components' => $this->indexedSampleToBaseComponents($paletteIndex, $indexedPlan),
             'soft_mask_alpha' => $softMaskAlpha,
+            'output_color_mode' => (string) ($imagePlan['output_color_mode'] ?? 'RGB'),
+        ];
+    }
+
+    /**
+     * Applies a color-key `/Mask` array to raw image samples before any image
+     * `/Decode` mapping, then exposes the Decode-adjusted components that a
+     * future RGB preview compositor would receive for non-transparent pixels.
+     *
+     * @param list<int|float> $sample
+     * @param array{
+     *     bits_per_component?: int,
+     *     color_key_mask?: array{present?: bool, ranges?: list<array{min: int, max: int}>, valid_for_components?: bool}|null,
+     *     image_decode?: array{ranges: list<array{min: float, max: float}>, valid_for_components?: bool}|null,
+     *     output_color_mode?: string
+     * } $imagePlan
+     * @return array{raw_sample: list<float>, mask_ranges: list<array{min: int, max: int}>, matches_color_key: bool, alpha: float, decoded_components: list<float>, decode_applied_after_color_key: bool, output_color_mode: string}
+     */
+    public function colorKeyMaskSamplePreview(array $sample, array $imagePlan): array
+    {
+        $mask = $imagePlan['color_key_mask'] ?? null;
+        if (!is_array($mask) || ($mask['present'] ?? false) !== true) {
+            throw new InvalidArgumentException('ColorKey mask preview requires a present /Mask array plan.');
+        }
+        if (($mask['valid_for_components'] ?? false) !== true || !isset($mask['ranges']) || !is_array($mask['ranges'])) {
+            throw new InvalidArgumentException('ColorKey mask ranges must match the image component count.');
+        }
+
+        $values = array_values($sample);
+        $ranges = array_values($mask['ranges']);
+        if (count($values) !== count($ranges)) {
+            throw new InvalidArgumentException('ColorKey mask sample count must match the image component count.');
+        }
+
+        $rawSample = [];
+        $matches = true;
+        foreach ($values as $index => $value) {
+            if (!is_int($value) && !is_float($value)) {
+                throw new InvalidArgumentException('ColorKey mask sample values must be numeric.');
+            }
+
+            $raw = (float) $value;
+            $rawSample[] = $raw;
+            $range = $ranges[$index];
+            $min = (float) ($range['min'] ?? 0);
+            $max = (float) ($range['max'] ?? -1);
+            if ($raw < $min || $raw > $max) {
+                $matches = false;
+            }
+        }
+
+        $decode = $imagePlan['image_decode'] ?? null;
+        $decodeApplied = is_array($decode) && ($decode['valid_for_components'] ?? false) === true;
+        $decoded = $decodeApplied
+            ? $this->imageSampleDecodeValues($values, $decode, max(1, (int) ($imagePlan['bits_per_component'] ?? 8)))
+            : $rawSample;
+
+        return [
+            'raw_sample' => $rawSample,
+            'mask_ranges' => $ranges,
+            'matches_color_key' => $matches,
+            'alpha' => $matches ? 0.0 : 1.0,
+            'decoded_components' => $decoded,
+            'decode_applied_after_color_key' => $decodeApplied,
             'output_color_mode' => (string) ($imagePlan['output_color_mode'] ?? 'RGB'),
         ];
     }
@@ -1180,6 +1267,58 @@ final class PdfImageRenderer
             'opacity_for_zero' => max(0.0, min(1.0, $opacityForZero)),
             'opacity_for_one' => max(0.0, min(1.0, $opacityForOne)),
             'inverted' => $decode['valid_for_components'] && $decode['inverted_components'] !== [],
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{present: bool, ranges: list<array{min: int, max: int}>, component_count: int, expected_components: int|null, valid_for_components: bool, source: string, compares_before_decode: bool, transparent_when_all_components_match: bool}|null
+     */
+    private function colorKeyMaskDetails(string $dictionary, array $objects, ?int $expectedComponents): ?array
+    {
+        $value = $this->extractPdfNameValue($dictionary, 'Mask');
+        if ($value === null) {
+            return null;
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects));
+        if (!str_starts_with($resolved, '[')) {
+            return null;
+        }
+
+        $values = [];
+        $allIntegers = true;
+        foreach ($this->pdfArrayValues($resolved) as $entry) {
+            $entry = trim($this->resolvePdfValue($entry, $objects));
+            if (preg_match('/^[+-]?\d+$/', $entry) !== 1) {
+                $allIntegers = false;
+                break;
+            }
+
+            $values[] = (int) $entry;
+        }
+
+        $ranges = [];
+        $pairCount = $allIntegers ? intdiv(count($values), 2) : 0;
+        for ($index = 0; $index < $pairCount; $index++) {
+            $ranges[] = [
+                'min' => $values[$index * 2],
+                'max' => $values[($index * 2) + 1],
+            ];
+        }
+
+        $validPairs = $allIntegers && count($values) > 0 && count($values) % 2 === 0;
+        $validComponents = $expectedComponents === null || $pairCount === $expectedComponents;
+
+        return [
+            'present' => true,
+            'ranges' => $ranges,
+            'component_count' => $pairCount,
+            'expected_components' => $expectedComponents,
+            'valid_for_components' => $validPairs && $validComponents,
+            'source' => 'explicit',
+            'compares_before_decode' => true,
+            'transparent_when_all_components_match' => true,
         ];
     }
 

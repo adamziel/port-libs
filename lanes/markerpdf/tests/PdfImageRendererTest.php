@@ -669,6 +669,63 @@ return [
         $t->same(true, $stencil['inline_image_payload_excluded_from_text']);
         $t->contains('image_mask_decode_inverts_stencil', implode(',', $stencil['notes']));
     },
+    'maps ColorKey Mask arrays before Decode-adjusted RGB preview samples' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Decode [1 0 0 1 0 1] /Mask [0 0 120 140 200 255] >>'
+        );
+
+        $t->same([
+            'present' => true,
+            'ranges' => [
+                ['min' => 0, 'max' => 0],
+                ['min' => 120, 'max' => 140],
+                ['min' => 200, 'max' => 255],
+            ],
+            'component_count' => 3,
+            'expected_components' => 3,
+            'valid_for_components' => true,
+            'source' => 'explicit',
+            'compares_before_decode' => true,
+            'transparent_when_all_components_match' => true,
+        ], $plan['color_key_mask']);
+        $t->same(true, $plan['color_key_mask_applied_before_rgb']);
+        $t->same(false, $plan['color_key_mask_component_mismatch']);
+        $t->same('color_key_mask_composited_to_rgb_preview', $plan['alpha_output_mode']);
+        $t->same([
+            'image_decode_applied_before_rgb_conversion',
+            'image_decode_inverts_components_before_rgb',
+            'color_key_mask_applied_before_rgb_conversion',
+            'color_key_mask_compares_raw_samples_before_decode',
+        ], $plan['notes']);
+
+        $transparent = $renderer->colorKeyMaskSamplePreview([0, 128, 240], $plan);
+        $opaque = $renderer->colorKeyMaskSamplePreview([1, 128, 240], $plan);
+
+        $t->same([0.0, 128.0, 240.0], $transparent['raw_sample']);
+        $t->same(true, $transparent['matches_color_key']);
+        $t->same(0.0, $transparent['alpha']);
+        $t->same([1.0, 128 / 255, 240 / 255], $transparent['decoded_components']);
+        $t->same(true, $transparent['decode_applied_after_color_key']);
+        $t->same('RGB', $transparent['output_color_mode']);
+
+        $t->same(false, $opaque['matches_color_key']);
+        $t->same(1.0, $opaque['alpha']);
+        $t->true(abs($opaque['decoded_components'][0] - (1.0 - (1 / 255))) < 0.000001);
+        $t->same(true, $opaque['decode_applied_after_color_key']);
+
+        $mismatch = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceCMYK /BitsPerComponent 8 /Mask [0 255 0 255] >>'
+        );
+
+        $t->same(2, $mismatch['color_key_mask']['component_count']);
+        $t->same(4, $mismatch['color_key_mask']['expected_components']);
+        $t->same(false, $mismatch['color_key_mask']['valid_for_components']);
+        $t->same(false, $mismatch['color_key_mask_applied_before_rgb']);
+        $t->same(true, $mismatch['color_key_mask_component_mismatch']);
+        $t->contains('color_key_mask_component_mismatch', implode(',', $mismatch['notes']));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->colorKeyMaskSamplePreview([0, 128, 240, 255], $mismatch));
+    },
     'plans Separation and DeviceN alternate color spaces with CCITT preview filters before RGB preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $objects = [
