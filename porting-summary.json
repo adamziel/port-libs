@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 14:24:03 UTC",
-    "sourceCommit": "d7731f4d843b9ee16e7d6417115927782107050e",
-    "sourceCommitShort": "d7731f4d843b",
+    "generated": "2026-06-02 14:32:31 UTC",
+    "sourceCommit": "20c5c40b1fc026624304214604f36153d4ede169",
+    "sourceCommitShort": "20c5c40b1fc0",
     "sourceBranch": "main",
-    "dashboardCommit": "d7731f4d843b9ee16e7d6417115927782107050e",
-    "dashboardCommitShort": "d7731f4d843b",
+    "dashboardCommit": "20c5c40b1fc026624304214604f36153d4ede169",
+    "dashboardCommitShort": "20c5c40b1fc0",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "366",
-            "coverage": "366 / 78 (469.2%)",
-            "mapPercent": "469.2%",
+            "mapped": "367",
+            "coverage": "367 / 78 (470.5%)",
+            "mapPercent": "470.5%",
             "unmapped": "0",
-            "php": "518 pass / 0 fail",
+            "php": "519 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit d7731f4d; full m...",
-            "currentWork": "Xref-stream /Prev sparse /Index zero-width /W duplicate-row boundary is integrated an...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit 20c5c40; full ma...",
+            "currentWork": "AcroForm /XFA signature-like packet data is linked to matching AcroForm fields as rev...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded font, xref/object s...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "d7731f4"
+            "commit": "20c5c40"
         },
         {
             "lane": "readability",
