@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 13:11:41 UTC",
-    "sourceCommit": "7f8dacc3bba5b1195de4d4d56f9433f2114bc6ef",
-    "sourceCommitShort": "7f8dacc3bba5",
+    "generated": "2026-06-02 13:16:11 UTC",
+    "sourceCommit": "9674da5f0a87cf64a251ca3c254638e0662af931",
+    "sourceCommitShort": "9674da5f0a87",
     "sourceBranch": "main",
-    "dashboardCommit": "7f8dacc3bba5b1195de4d4d56f9433f2114bc6ef",
-    "dashboardCommitShort": "7f8dacc3bba5",
+    "dashboardCommit": "9674da5f0a87cf64a251ca3c254638e0662af931",
+    "dashboardCommitShort": "9674da5f0a87",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "354",
-            "coverage": "354 / 78 (453.8%)",
-            "mapPercent": "453.8%",
+            "mapped": "355",
+            "coverage": "355 / 78 (455.1%)",
+            "mapPercent": "455.1%",
             "unmapped": "0",
-            "php": "506 pass / 0 fail",
+            "php": "507 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Xref object-stream trailer-boundary repair is integrated and full-lane green; continu...",
+            "currentWork": "Rich-media screen rendition action review metadata is integrated and full-lane green;...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "7f8dacc"
+            "commit": "9674da5"
         },
         {
             "lane": "readability",
