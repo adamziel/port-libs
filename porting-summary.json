@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 15:10:00 UTC",
-    "sourceCommit": "d5f8cfabc1a9d92cfa697bbd13ea7457359e5eec",
-    "sourceCommitShort": "d5f8cfabc1a9",
+    "generated": "2026-06-02 15:17:16 UTC",
+    "sourceCommit": "3d9c5ee4a73d1abcceb91f5600acdd92f0540973",
+    "sourceCommitShort": "3d9c5ee4a73d",
     "sourceBranch": "main",
-    "dashboardCommit": "d5f8cfabc1a9d92cfa697bbd13ea7457359e5eec",
-    "dashboardCommitShort": "d5f8cfabc1a9",
+    "dashboardCommit": "3d9c5ee4a73d1abcceb91f5600acdd92f0540973",
+    "dashboardCommitShort": "3d9c5ee4a73d",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "373",
-            "coverage": "373 / 78 (478.2%)",
-            "mapPercent": "478.2%",
+            "mapped": "374",
+            "coverage": "374 / 78 (479.5%)",
+            "mapPercent": "479.5%",
             "unmapped": "0",
-            "php": "526 pass / 0 fail",
+            "php": "527 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit d5f8cfab; full m...",
-            "currentWork": "PdfMetadataExtractor now exposes OutputIntent-scoped /AF FileSpec rows as review-only...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit 3d9c5ee4; full m...",
+            "currentWork": "PdfTextExtractor now rejects xref table offsets whose byte positions are owned by ano...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded font, xref/object s...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "d5f8cfa"
+            "commit": "3d9c5ee"
         },
         {
             "lane": "readability",
