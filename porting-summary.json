@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 16:58:45 UTC",
-    "sourceCommit": "48450e76344e90b150fb8572401806c6f42e5ee4",
-    "sourceCommitShort": "48450e76344e",
+    "generated": "2026-06-02 17:02:12 UTC",
+    "sourceCommit": "1f7d3b040136f2df748a3693414fc3706b1b16f3",
+    "sourceCommitShort": "1f7d3b040136",
     "sourceBranch": "unknown",
-    "dashboardCommit": "48450e76344e90b150fb8572401806c6f42e5ee4",
-    "dashboardCommitShort": "48450e76344e",
+    "dashboardCommit": "1f7d3b040136f2df748a3693414fc3706b1b16f3",
+    "dashboardCommitShort": "1f7d3b040136",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "419",
-            "coverage": "419 / 78 (537.2%)",
-            "mapPercent": "537.2%",
+            "mapped": "420",
+            "coverage": "420 / 78 (538.5%)",
+            "mapPercent": "538.5%",
             "unmapped": "0",
-            "php": "582 pass / 0 fail",
+            "php": "583 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit 48450e763; five...",
-            "currentWork": "MarkerPDF now adds StructParents ParentTree tagged reading-order review, associated-f...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit 1f7d3b040; rebas...",
+            "currentWork": "MarkerPDF now adds ColorKey image mask review before Decode-adjusted RGB preview samp...",
             "nextTarget": "Resolve and score the remaining conflicted security29, outlin...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "48450e7"
+            "commit": "1f7d3b0"
         },
         {
             "lane": "readability",
