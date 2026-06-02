@@ -336,6 +336,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-xmp-metadata-import.php` now also maps XMP and trailer `/Info` timezone-bearing dates into WordPress review metadata. It preserves raw source date strings and adds UTC-normalized fields only when the PDF supplies an explicit timezone, avoiding false precision for timezone-free metadata.
 
+`examples/wordpress-pdf-stream-filter-error-boundary-import.php` maps declared stream-filter failure boundaries into a WordPress import path. It keeps visible unfiltered page content while excluding unsupported `/Crypt`, corrupt `/FlateDecode`, stacked unknown, and missing indirect filter streams so raw filtered bytes cannot leak PDF-looking text operators into Gutenberg paragraphs.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

@@ -3159,6 +3159,10 @@ final class PdfTextExtractor
     private function decodeStream(string $dict, string $stream, array $objects = []): ?string
     {
         $filters = $this->streamFilters($dict, $objects);
+        if ($filters === null) {
+            return null;
+        }
+
         $decodeParms = $this->streamDecodeParms($dict, $objects);
         foreach ($filters as $index => $filter) {
             $filterDecodeParms = $decodeParms[$index] ?? null;
@@ -3175,7 +3179,7 @@ final class PdfTextExtractor
                 'DCTDecode', 'DCT' => null,
                 'CCITTFaxDecode', 'CCF' => null,
                 'JPXDecode', 'JBIG2Decode' => null,
-                default => $stream,
+                default => null,
             };
 
             if ($decoded === null) {
@@ -3188,49 +3192,124 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return list<string>
+     * @return list<string>|null
      * @param array<int, string> $objects
      */
-    private function streamFilters(string $dict, array $objects = []): array
+    private function streamFilters(string $dict, array $objects = []): ?array
     {
-        if (!preg_match('/\/Filter\s*(?:\[(.*?)\]|\/([^\s\[\]()<>{}\/%]+)|(\d+)\s+\d+\s+R\b)/s', $dict, $match)) {
+        $offset = $this->nameValueOffset($dict, 'Filter');
+        if ($offset === null) {
             return [];
         }
 
-        if (($match[1] ?? '') !== '') {
-            return $this->filterNamesFromValue($match[1], $objects);
+        if ($offset >= strlen($dict)) {
+            return null;
         }
 
-        if (($match[2] ?? '') !== '') {
-            return [$this->decodePdfName($match[2])];
+        if ($dict[$offset] === '[') {
+            $arrayBody = $this->readPdfArrayAt($dict, $offset);
+            return $arrayBody === null ? null : $this->filterNamesFromValue($arrayBody, $objects);
         }
 
-        $objectNumber = isset($match[3]) ? (int) $match[3] : 0;
-        return $objectNumber > 0 && isset($objects[$objectNumber])
-            ? $this->filterNamesFromValue($objects[$objectNumber], $objects)
-            : [];
+        if ($dict[$offset] === '/') {
+            $end = $offset + 1;
+            while ($end < strlen($dict) && !str_contains(" \t\r\n\f[]()<>{}/%", $dict[$end])) {
+                $end++;
+            }
+
+            return [$this->decodePdfName(substr($dict, $offset + 1, $end - $offset - 1))];
+        }
+
+        if (preg_match('/\Gnull\b/s', $dict, $match, 0, $offset) === 1) {
+            return [];
+        }
+
+        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $dict, $match, 0, $offset) === 1) {
+            $objectNumber = (int) $match[1];
+            return $objectNumber > 0 && isset($objects[$objectNumber])
+                ? $this->filterNamesFromValue(trim($objects[$objectNumber]), $objects, [$objectNumber => true])
+                : null;
+        }
+
+        return null;
     }
 
     /**
-     * @return list<string>
+     * @return list<string>|null
      * @param array<int, string> $objects
+     * @param array<int, true> $seenObjects
      */
-    private function filterNamesFromValue(string $value, array $objects): array
+    private function filterNamesFromValue(string $value, array $objects, array $seenObjects = []): ?array
     {
-        preg_match_all('/\/([^\s\[\]()<>{}\/%]+)|(\d+)\s+\d+\s+R\b/', $value, $matches, PREG_SET_ORDER);
         $filters = [];
-        foreach ($matches as $match) {
-            if (($match[1] ?? '') !== '') {
-                $filters[] = $this->decodePdfName($match[1]);
+        $offset = 0;
+        $length = strlen($value);
+        while ($offset < $length) {
+            $offset = $this->skipPdfWhitespace($value, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($value[$offset] === '%') {
+                $this->skipPdfComment($value, $offset);
                 continue;
             }
 
-            $objectNumber = isset($match[2]) ? (int) $match[2] : 0;
-            if ($objectNumber > 0 && isset($objects[$objectNumber])) {
-                foreach ($this->filterNamesFromValue($objects[$objectNumber], $objects) as $filter) {
+            if ($value[$offset] === '[') {
+                $arrayBody = $this->readPdfArrayAt($value, $offset);
+                if ($arrayBody === null) {
+                    return null;
+                }
+
+                $nested = $this->filterNamesFromValue($arrayBody, $objects, $seenObjects);
+                if ($nested === null) {
+                    return null;
+                }
+
+                foreach ($nested as $filter) {
                     $filters[] = $filter;
                 }
+                $offset += strlen($arrayBody) + 2;
+                continue;
             }
+
+            if ($value[$offset] === '/') {
+                $end = $offset + 1;
+                while ($end < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $value[$end])) {
+                    $end++;
+                }
+
+                $filters[] = $this->decodePdfName(substr($value, $offset + 1, $end - $offset - 1));
+                $offset = $end;
+                continue;
+            }
+
+            if (preg_match('/\Gnull\b/s', $value, $match, 0, $offset) === 1) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $value, $match, 0, $offset) === 1) {
+                $objectNumber = (int) $match[1];
+                if ($objectNumber <= 0 || isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
+                    return null;
+                }
+
+                $nextSeen = $seenObjects;
+                $nextSeen[$objectNumber] = true;
+                $nested = $this->filterNamesFromValue(trim($objects[$objectNumber]), $objects, $nextSeen);
+                if ($nested === null) {
+                    return null;
+                }
+
+                foreach ($nested as $filter) {
+                    $filters[] = $filter;
+                }
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            return null;
         }
 
         return $filters;

@@ -885,6 +885,53 @@ return [
         $t->same('Indirect Filter Array', $extractor->extractPlainText($stackedPdf));
         $t->same('', $extractor->extractPlainText($unsupportedPdf));
     },
+    'fails closed on unsupported or corrupt stream filters before WordPress text parsing' => static function (TestRunner $t): void {
+        $visibleBefore = 'BT /F1 12 Tf 72 720 Td (Filter Boundary Visible) Tj ET';
+        $visibleAfter = 'BT /F1 12 Tf 72 688 Td (Filter Boundary Tail) Tj ET';
+        $cryptNoise = 'BT /F1 12 Tf 72 704 Td (Unsupported Crypt Leak) Tj ET';
+        $corruptFlateNoise = 'BT /F1 12 Tf 72 672 Td (Corrupt Flate Leak) Tj ET';
+        $stackedNoise = 'BT /F1 12 Tf 72 656 Td (Stacked Unknown Leak) Tj ET';
+        $stackedEncodedNoise = strtoupper(bin2hex($stackedNoise)) . '>';
+
+        $pagePdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 5 0 R 6 0 R 7 0 R 8 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($visibleBefore) . " >>\nstream\n{$visibleBefore}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Filter /Crypt /Length " . strlen($cryptNoise) . " >>\nstream\n{$cryptNoise}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Filter /FlateDecode /Length " . strlen($corruptFlateNoise) . " >>\nstream\n{$corruptFlateNoise}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Filter [ /ASCIIHexDecode /Crypt ] /Length " . strlen($stackedEncodedNoise) . " >>\nstream\n{$stackedEncodedNoise}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+            . "%%EOF";
+
+        $fallbackVisible = 'BT /F1 12 Tf 72 720 Td (Fallback Filter Visible) Tj ET';
+        $missingIndirectNoise = 'BT /F1 12 Tf 72 704 Td (Missing Indirect Filter Leak) Tj ET';
+        $directUnknownNoise = 'BT /F1 12 Tf 72 688 Td (Direct Unknown Filter Leak) Tj ET';
+        $fallbackStackedNoise = 'BT /F1 12 Tf 72 672 Td (Fallback Stacked Unknown Leak) Tj ET';
+        $fallbackStackedEncodedNoise = strtoupper(bin2hex($fallbackStackedNoise)) . '>';
+        $fallbackPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Length " . strlen($fallbackVisible) . " >>\nstream\n{$fallbackVisible}\nendstream\nendobj\n"
+            . "2 0 obj\n<< /Filter 99 0 R /Length " . strlen($missingIndirectNoise) . " >>\nstream\n{$missingIndirectNoise}\nendstream\nendobj\n"
+            . "3 0 obj\n<< /Filter /NoSuchDecode /Length " . strlen($directUnknownNoise) . " >>\nstream\n{$directUnknownNoise}\nendstream\nendobj\n"
+            . "4 0 obj\n<< /Filter [ /ASCIIHexDecode /NoSuchDecode ] /Length " . strlen($fallbackStackedEncodedNoise) . " >>\nstream\n{$fallbackStackedEncodedNoise}\nendstream\nendobj\n"
+            . "%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $pageText = $extractor->extractPlainText($pagePdf);
+        $fallbackText = $extractor->extractPlainText($fallbackPdf);
+
+        $t->same("Filter Boundary Visible\nFilter Boundary Tail", $pageText);
+        $t->same(['Filter Boundary Visible', 'Filter Boundary Tail'], $extractor->extractTextRuns($pagePdf));
+        $t->same("Filter Boundary Visible\nFilter Boundary Tail\n", $extractor->naiveGetText($pagePdf));
+        $t->true(!str_contains($pageText, 'Unsupported Crypt Leak'));
+        $t->true(!str_contains($pageText, 'Corrupt Flate Leak'));
+        $t->true(!str_contains($pageText, 'Stacked Unknown Leak'));
+        $t->same('Fallback Filter Visible', $fallbackText);
+        $t->same(['Fallback Filter Visible'], $extractor->extractTextRuns($fallbackPdf));
+        $t->true(!str_contains($fallbackText, 'Missing Indirect Filter Leak'));
+        $t->true(!str_contains($fallbackText, 'Direct Unknown Filter Leak'));
+        $t->true(!str_contains($fallbackText, 'Fallback Stacked Unknown Leak'));
+    },
     'applies Flate DecodeParms predictors before WordPress paragraph rendering' => static function (TestRunner $t) use ($pngPredictorEncode, $tiffPredictorEncode): void {
         $rowOne = 'BT /F1 12 Tf 72 720 Td (Predictor Import) Tj T* ';
         $rowTwo = '(Block Ready Content) Tj ET                     ';
