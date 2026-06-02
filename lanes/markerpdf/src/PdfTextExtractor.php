@@ -289,6 +289,10 @@ final class PdfTextExtractor
 
             $objectStreamNumber = (int) $entry['objectStream'];
             $defaultMemberIndex = (int) ($entry['index'] ?? 0);
+            $objectStreamXrefEntry = $xrefEntries[$objectStreamNumber] ?? null;
+            $objectStreamOwner = isset($objects[$objectStreamNumber])
+                ? $this->directObjectDefinitionForBody($definitions[$objectStreamNumber] ?? [], $objects[$objectStreamNumber])
+                : null;
             $memberTable = isset($objects[$objectStreamNumber])
                 ? $this->decodedObjectStreamMemberTable($objects[$objectStreamNumber], $objects)
                 : null;
@@ -346,6 +350,12 @@ final class PdfTextExtractor
                 'object_number' => $objectNumber,
                 'object_stream' => $objectStreamNumber,
                 'xref_member_index' => $defaultMemberIndex,
+                'object_stream_selected_generation' => $objectStreamOwner['generation'] ?? null,
+                'object_stream_selected_offset' => $objectStreamOwner['offset'] ?? null,
+                'object_stream_xref_entry_type' => $objectStreamXrefEntry['type'] ?? null,
+                'object_stream_xref_generation' => $objectStreamXrefEntry['generation'] ?? null,
+                'object_stream_xref_offset' => $objectStreamXrefEntry['offset'] ?? null,
+                'object_stream_owner_policy' => $this->objectStreamCarrierOwnerPolicy($objectStreamXrefEntry, $objectStreamOwner),
                 'index_is_explicit' => $indexIsExplicit,
                 'index_field_is_zero_width' => !$indexIsExplicit,
                 'strict_member_index' => $defaultMemberIndex,
@@ -12179,6 +12189,33 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}|null $xrefEntry
+     * @param array{generation: int, offset: int, body: string}|null $selectedDefinition
+     */
+    private function objectStreamCarrierOwnerPolicy(?array $xrefEntry, ?array $selectedDefinition): string
+    {
+        if (($xrefEntry['type'] ?? null) === 1 && $selectedDefinition !== null) {
+            return 'xref_selected_object_stream_carrier';
+        }
+
+        if ($xrefEntry === null && $selectedDefinition !== null) {
+            return 'scanned_object_stream_carrier';
+        }
+
+        if (($xrefEntry['type'] ?? null) === 0) {
+            return 'free_object_stream_carrier';
+        }
+
+        if (($xrefEntry['type'] ?? null) === 2) {
+            return $selectedDefinition !== null
+                ? 'direct_object_stream_carrier_preserved'
+                : 'compressed_object_stream_carrier_unavailable';
+        }
+
+        return 'missing_object_stream_carrier';
+    }
+
+    /**
      * Object streams contain generation-zero indirect objects. A nonzero
      * reference must be satisfied by a selected direct object generation or
      * remain unresolved; it must not bind to the compressed generation-zero
@@ -13674,8 +13711,14 @@ final class PdfTextExtractor
                     $currentTextY = $this->advanceTextYByLeading($currentTextY, $currentTextLeading);
                 }
 
+                if ($token === '"') {
+                    $wordSpacing = $this->quoteWordSpacingOperand($operands) ?? $wordSpacing;
+                    $characterSpacing = $this->quoteCharacterSpacingOperand($operands) ?? $characterSpacing;
+                }
+
                 $operand = $this->textShowingOperand($token, $operands);
                 if ($operand !== null) {
+                    $toUnicodeMap = $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource);
                     $replacementIndex = $this->activeMarkedContentReplacementIndex($markedContentStack);
                     $insideActiveClip = $this->textPositionInsideActiveClip($currentTextX, $currentTextY, $clipRectangle);
                     if (!$insideActiveClip) {
@@ -13739,6 +13782,24 @@ final class PdfTextExtractor
 
             if ($token === 'TL') {
                 $currentTextLeading = $this->textLeadingOperand($operands) ?? $currentTextLeading;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tc') {
+                $characterSpacing = $this->textCharacterSpacingOperand($operands) ?? $characterSpacing;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tw') {
+                $wordSpacing = $this->textWordSpacingOperand($operands) ?? $wordSpacing;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tz') {
+                $horizontalScale = $this->textHorizontalScaleOperand($operands) ?? $horizontalScale;
                 $operands = [];
                 continue;
             }
@@ -13862,6 +13923,10 @@ final class PdfTextExtractor
         $currentTextX = null;
         $currentTextY = null;
         $currentTextLeading = null;
+        $characterSpacing = 0.0;
+        $wordSpacing = 0.0;
+        $horizontalScale = 100.0;
+        $currentTextMatrixHorizontalScale = 1.0;
         $spanId = 0;
         $textRenderingMode = 0;
         $textStateStack = [];
@@ -13880,6 +13945,7 @@ final class PdfTextExtractor
 
                 $operand = $this->textShowingOperand($token, $operands);
                 if ($operand !== null) {
+                    $toUnicodeMap = $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource);
                     $replacementIndex = $this->activeMarkedContentReplacementIndex($markedContentStack);
                     $insideActiveClip = $this->textPositionInsideActiveClip($currentTextX, $currentTextY, $clipRectangle);
                     if (!$insideActiveClip) {
@@ -13898,7 +13964,7 @@ final class PdfTextExtractor
                             : $markedContentStack[$replacementIndex]['replacement'];
                         $markedContentStack[$replacementIndex]['emitted'] = true;
                     } else {
-                        $decoded = $this->decodeTextOperand($operand, $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource));
+                        $decoded = $this->decodeTextOperand($operand, $toUnicodeMap);
                     }
 
                     $this->appendNativeTextSpan(
@@ -13908,7 +13974,12 @@ final class PdfTextExtractor
                         $currentFontSize,
                         $fontToUnicodeMaps,
                         $pageIndex,
-                        $spanId
+                        $spanId,
+                        $operand,
+                        $toUnicodeMap,
+                        $characterSpacing,
+                        $wordSpacing,
+                        $horizontalScale * $currentTextMatrixHorizontalScale
                     );
                 }
                 $operands = [];
@@ -13960,6 +14031,9 @@ final class PdfTextExtractor
                     'fontResource' => $currentFontResource,
                     'fontSize' => $currentFontSize,
                     'textLeading' => $currentTextLeading,
+                    'characterSpacing' => $characterSpacing,
+                    'wordSpacing' => $wordSpacing,
+                    'horizontalScale' => $horizontalScale,
                     'textRenderingMode' => $textRenderingMode,
                 ];
                 $clipStateStack[] = [
@@ -13977,6 +14051,9 @@ final class PdfTextExtractor
                     $currentFontResource = $state['fontResource'];
                     $currentFontSize = $state['fontSize'];
                     $currentTextLeading = $state['textLeading'];
+                    $characterSpacing = $state['characterSpacing'];
+                    $wordSpacing = $state['wordSpacing'];
+                    $horizontalScale = $state['horizontalScale'];
                     $textRenderingMode = $state['textRenderingMode'];
                 }
                 $clipState = array_pop($clipStateStack);
@@ -13998,6 +14075,24 @@ final class PdfTextExtractor
 
             if ($token === 'TL') {
                 $currentTextLeading = $this->textLeadingOperand($operands) ?? $currentTextLeading;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tc') {
+                $characterSpacing = $this->textCharacterSpacingOperand($operands) ?? $characterSpacing;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tw') {
+                $wordSpacing = $this->textWordSpacingOperand($operands) ?? $wordSpacing;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tz') {
+                $horizontalScale = $this->textHorizontalScaleOperand($operands) ?? $horizontalScale;
                 $operands = [];
                 continue;
             }
@@ -14041,6 +14136,7 @@ final class PdfTextExtractor
                 }
                 $currentTextX = $this->textMatrixX($operands);
                 $currentTextY = $matrixY;
+                $currentTextMatrixHorizontalScale = $this->textMatrixHorizontalScale($operands) ?? 1.0;
                 $operands = [];
                 continue;
             }
@@ -14099,12 +14195,18 @@ final class PdfTextExtractor
         ?float $fontSize,
         array $fontToUnicodeMaps,
         int $pageIndex,
-        int &$spanId
+        int &$spanId,
+        ?string $sourceOperand = null,
+        ?array $toUnicodeMap = null,
+        float $characterSpacing = 0.0,
+        float $wordSpacing = 0.0,
+        float $horizontalScale = 100.0
     ): void {
         if ($text === '') {
             return;
         }
 
+        $toUnicodeMap ??= $this->currentToUnicodeMap($fontToUnicodeMaps, $fontResource);
         $fontInfo = $this->currentFontDescriptorInfo($fontToUnicodeMaps, $fontResource);
         $flags = $fontInfo['flags'];
         $fontName = $fontInfo['name'] ?? $fontResource ?? 'None';
@@ -14116,7 +14218,15 @@ final class PdfTextExtractor
                 $xStart = (float) $previousBbox[2];
             }
         }
-        $width = max(1.0, $this->length($text) * $fontSize * self::SIMPLE_TEXT_ADVANCE_RATIO);
+        $width = $this->nativeTextSpanWidth(
+            $text,
+            $sourceOperand,
+            $toUnicodeMap,
+            $fontSize,
+            $characterSpacing,
+            $wordSpacing,
+            $horizontalScale
+        );
 
         $span = [
             'text' => $text,
@@ -14132,6 +14242,33 @@ final class PdfTextExtractor
 
         $spans[] = $span;
         $spanId++;
+    }
+
+    private function nativeTextSpanWidth(
+        string $text,
+        ?string $sourceOperand,
+        ?array $toUnicodeMap,
+        float $fontSize,
+        float $characterSpacing,
+        float $wordSpacing,
+        float $horizontalScale
+    ): float {
+        if ($sourceOperand !== null && $this->mapWritingMode($toUnicodeMap) !== 1) {
+            $endX = $this->advanceTextEndXForOperand(
+                0.0,
+                $sourceOperand,
+                $toUnicodeMap,
+                $fontSize,
+                $characterSpacing,
+                $wordSpacing,
+                $horizontalScale
+            );
+            if ($endX !== null && is_finite($endX)) {
+                return max(1.0, $endX);
+            }
+        }
+
+        return max(1.0, $this->length($text) * $fontSize * self::SIMPLE_TEXT_ADVANCE_RATIO);
     }
 
     /**

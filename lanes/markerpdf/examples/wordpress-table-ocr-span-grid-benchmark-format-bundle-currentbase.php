@@ -120,6 +120,17 @@ echo json_encode([
     'passes_upstream_table_threshold' => true,
     'has_span_grid_bundle' => ($rows[0]['review_target'] ?? null) === 'table_ocr_span_grid_benchmark_format'
         && ($rows[0]['context']['caption_id'] ?? null) === 'markerpdf-table-0-caption',
+    'span_grid_quality' => [
+        'review_target' => $rows[0]['span_grid']['quality_review_target'] ?? null,
+        'passes' => $rows[0]['span_grid']['quality_passes'] ?? false,
+        'flags' => $rows[0]['span_grid']['quality_flags'] ?? [],
+        'expected_grid_cell_count' => $rows[0]['span_grid']['expected_grid_cell_count'] ?? null,
+        'missing_grid_cell_count' => $rows[0]['span_grid']['missing_grid_cell_count'] ?? null,
+        'orphan_covered_cell_count' => $rows[0]['span_grid']['orphan_covered_cell_count'] ?? null,
+        'non_contiguous_span_count' => $rows[0]['span_grid']['non_contiguous_span_count'] ?? null,
+    ],
+    'passes_span_grid_quality_gate' => ($rows[0]['span_grid']['quality_passes'] ?? false) === true
+        && ($rows[0]['span_grid']['quality_flags'] ?? []) === ['complete_grid', 'contiguous_spans', 'resolved_covered_cells'],
     'excluded_stale_pdftext_table_line' => !str_contains($result['text'], 'Stale benchmark table text should be replaced.'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,

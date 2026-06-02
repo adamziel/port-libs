@@ -29,6 +29,14 @@ $removeTree = static function (string $path) use (&$removeTree): void {
 $outputRoot = sys_get_temp_dir() . '/markerpdf-wordpress-output-image-bundle';
 $removeTree($outputRoot);
 
+$pngChunk = static function (string $type, string $data): string {
+    return pack('N', strlen($data)) . $type . $data . pack('N', (int) hexdec(hash('crc32b', $type . $data)));
+};
+$validPng = "\x89PNG\r\n\x1a\n"
+    . $pngChunk('IHDR', pack('NNC5', 1, 1, 8, 6, 0, 0, 0))
+    . $pngChunk('IDAT', gzcompress("\x00\x00\x00\x00\x00"))
+    . $pngChunk('IEND', '');
+
 $cover = '../wp-output/cover.jpeg';
 $detail = '../wp-output/cover?.jpeg';
 $markdown = <<<'MD'
@@ -46,9 +54,9 @@ $manifest = (new OutputWriter())->saveMarkdownArtifactBoundary(
     'wordpress-output-image-bundle.pdf',
     $markdown,
     [
-        $cover => 'PNG-COVER',
-        $detail => 'PNG-DETAIL',
-        '5_image_0.png' => 'PNG-REVIEW-ONLY',
+        $cover => $validPng,
+        $detail => $validPng,
+        '5_image_0.png' => 'BROKEN-REVIEW-ONLY',
     ],
     [
         'scenario' => 'wordpress-output-artifact-preview-markdown-image-bundle-currentbase',
@@ -71,6 +79,13 @@ if (($bundle['missing_markdown_image_targets'] ?? []) !== ['missing-crop.png']) 
 if (($bundle['unreferenced_image_artifacts'] ?? []) !== ['5_image_0.png']) {
     throw new RuntimeException('Expected unreferenced saved image artifact to remain review-only.');
 }
+$quality = $bundle['image_quality'] ?? [];
+if (($quality['wordpress_media_importable_count'] ?? null) !== 2) {
+    throw new RuntimeException('Expected referenced PNG artifacts to be importable by WordPress media review.');
+}
+if (($quality['unimportable_image_artifacts'] ?? []) !== ['5_image_0.png']) {
+    throw new RuntimeException('Expected malformed review-only PNG artifact to be flagged.');
+}
 if (($bundle['executes_streamlit'] ?? true) || ($bundle['executes_pdfium'] ?? true) || ($bundle['executes_python_or_models'] ?? true)) {
     throw new RuntimeException('Output image bundle review must not execute upstream runtimes.');
 }
@@ -87,6 +102,10 @@ echo json_encode([
     'preview_data_uri_count_matches_embedded_references' => $bundle['preview_data_uri_count_matches_embedded_references'],
     'missing_markdown_image_targets' => $bundle['missing_markdown_image_targets'],
     'unreferenced_image_artifacts' => $bundle['unreferenced_image_artifacts'],
+    'wordpress_media_importable_count' => $quality['wordpress_media_importable_count'],
+    'wordpress_media_unimportable_count' => $quality['wordpress_media_unimportable_count'],
+    'unimportable_image_artifacts' => $quality['unimportable_image_artifacts'],
+    'quality_warning_counts' => $quality['quality_warning_counts'],
     'cover_title_reference_rewritten' => str_contains($markdownOut, '![Cover artifact](cover.png "page crop")'),
     'detail_title_reference_rewritten' => str_contains($markdownOut, '![Detail artifact](cover_2.png "detail crop")'),
     'runtime_preview_only' => $manifest['runtime_preview']['runtime_only'],

@@ -539,6 +539,113 @@ final class BenchmarkRunner
     }
 
     /**
+     * Native upload benchmark boundary across marker_server.py upload handling,
+     * benchmarks/overall.py fail-fast output behavior, and marker.output artifact
+     * persistence. A successful upload conversion becomes a benchmark output
+     * bundle; a failed upload response becomes a review-only error artifact.
+     *
+     * @param array<string, mixed> $serverResponse
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    public function writeServerUploadBenchmarkResult(
+        string $outputFolder,
+        string $errorArtifactFile,
+        string $document,
+        array $serverResponse,
+        array $context = []
+    ): array {
+        $document = $this->serverBenchmarkOutputDocument($document);
+        if (!array_key_exists('phase', $context)) {
+            $context['phase'] = 'server_upload';
+        }
+        if (!array_key_exists('method', $context)) {
+            $context['method'] = 'marker';
+        }
+        $context['document'] = $document;
+
+        if (($serverResponse['success'] ?? null) === true) {
+            $bundle = $this->writeServerBenchmarkOutputBundle($outputFolder, $document, $serverResponse, $context);
+            $roundtrip = $this->readServerBenchmarkOutputBundleJson($bundle['bundle_artifact']['path']);
+
+            return [
+                'schema' => 'markerpdf.server_upload_benchmark_result.v1',
+                'source' => 'sddai/markerPDF marker_server.py + benchmarks/overall.py + marker/output.py',
+                'status' => 'complete',
+                'success' => true,
+                'result_kind' => 'output_bundle',
+                'document' => $document,
+                'context' => $bundle['context'],
+                'server_response' => $bundle['server_response'],
+                'output_bundle' => [
+                    'schema' => $bundle['bundle_artifact']['schema'],
+                    'status' => $bundle['bundle_artifact']['status'],
+                    'path' => $bundle['bundle_artifact']['path'],
+                    'filename' => $bundle['bundle_artifact']['filename'],
+                    'size' => $bundle['bundle_artifact']['size'],
+                    'sha256' => $bundle['bundle_artifact']['sha256'],
+                    'roundtrip_preserves_output_bundle' => $roundtrip['roundtrip_preserves_output_bundle'],
+                ],
+                'output_artifacts' => $bundle['output_artifacts'],
+                'error_artifact' => null,
+                'benchmark_output_bundle_written' => true,
+                'error_artifact_written' => false,
+                'success_report_written' => (bool) $bundle['success_report_written'],
+                'writes_markdown_after_failure' => false,
+                'executes_fastapi' => false,
+                'executes_uvicorn' => false,
+                'executes_live_http' => false,
+                'executes_external_tools' => false,
+                'executes_python_or_models' => false,
+                'review_only' => true,
+            ];
+        }
+
+        if (($serverResponse['success'] ?? null) === false) {
+            $this->ensureArtifactDirectory($errorArtifactFile, 'server upload benchmark error artifact');
+            $artifact = $this->writeServerBenchmarkErrorArtifactJson($errorArtifactFile, $serverResponse, $context);
+            $roundtrip = $this->readServerBenchmarkErrorArtifactJson($artifact['path']);
+
+            return [
+                'schema' => 'markerpdf.server_upload_benchmark_result.v1',
+                'source' => 'sddai/markerPDF marker_server.py + benchmarks/overall.py + marker/output.py',
+                'status' => 'error',
+                'success' => false,
+                'result_kind' => 'error_artifact',
+                'document' => $document,
+                'context' => $roundtrip['payload']['context'],
+                'server_response' => $roundtrip['payload']['server_response'],
+                'output_bundle' => null,
+                'output_artifacts' => null,
+                'error_artifact' => [
+                    'schema' => $artifact['schema'],
+                    'status' => $artifact['status'],
+                    'path' => $artifact['path'],
+                    'filename' => $artifact['filename'],
+                    'error' => $artifact['error'],
+                    'size' => $artifact['size'],
+                    'sha256' => $artifact['sha256'],
+                    'roundtrip_preserves_server_error' => $roundtrip['roundtrip_preserves_server_error'],
+                ],
+                'benchmark_output_bundle_written' => false,
+                'error_artifact_written' => true,
+                'success_report_written' => false,
+                'writes_markdown_after_failure' => false,
+                'executes_fastapi' => false,
+                'executes_uvicorn' => false,
+                'executes_live_http' => false,
+                'executes_external_tools' => false,
+                'executes_python_or_models' => false,
+                'review_only' => true,
+            ];
+        }
+
+        throw new InvalidArgumentException(
+            'Server upload benchmark result requires a marker server response with success true or false.'
+        );
+    }
+
+    /**
      * Native supplied-converter boundary for benchmarks/overall.py::main.
      *
      * @param array<string, callable(string, string, string, array<string, mixed>): mixed> $methodConverters
@@ -1336,6 +1443,17 @@ final class BenchmarkRunner
         }
 
         return $hash;
+    }
+
+    private function ensureArtifactDirectory(string $path, string $label): void
+    {
+        $directory = dirname($path);
+        if ($directory === '' || $directory === '.') {
+            return;
+        }
+        if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+            throw new RuntimeException('Unable to create markerPDF ' . $label . ' folder: ' . $directory);
+        }
     }
 
     /**

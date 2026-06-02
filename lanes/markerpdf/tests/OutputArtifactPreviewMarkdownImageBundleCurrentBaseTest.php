@@ -33,6 +33,17 @@ $removeTree = static function (string $path) use (&$removeTree): void {
     rmdir($path);
 };
 
+$validPng = static function (): string {
+    $chunk = static function (string $type, string $data): string {
+        return pack('N', strlen($data)) . $type . $data . pack('N', (int) hexdec(hash('crc32b', $type . $data)));
+    };
+
+    return "\x89PNG\r\n\x1a\n"
+        . $chunk('IHDR', pack('NNC5', 1, 1, 8, 6, 0, 0, 0))
+        . $chunk('IDAT', gzcompress("\x00\x00\x00\x00\x00"))
+        . $chunk('IEND', '');
+};
+
 return [
     'bundles saved markdown image artifacts with optional-title runtime preview targets' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $root = $makeTempDir();
@@ -176,6 +187,71 @@ MD;
             $t->same(false, $bundle['executes_pdfium']);
             $t->same(false, $bundle['executes_python_or_models']);
             $t->same(false, $bundle['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'audits saved markdown image artifact png quality for wordpress media import' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $validPng): void {
+        $root = $makeTempDir();
+        try {
+            $manifest = (new OutputWriter())->saveMarkdownArtifactBoundary(
+                $root,
+                'wordpress-quality-artifacts.pdf',
+                "![Valid preview](0_image_0.png)\n![Broken preview](1_image_0.png)\n![Missing preview](missing.png)",
+                [
+                    '0_image_0.png' => $validPng(),
+                    '1_image_0.png' => 'BROKEN-NOT-PNG',
+                    '2_image_0.png' => $validPng(),
+                ],
+                ['scenario' => 'wordpress-output-markdown-image-artifact-quality-currentbase']
+            );
+
+            $bundle = $manifest['markdown_image_bundle'];
+            $quality = $bundle['image_quality'];
+
+            $t->same('marker_output_markdown_image_artifact_quality', $quality['source']);
+            $t->same(
+                'marker.output.save_markdown image.save(..., "PNG") + marker_app.img_to_html PNG bytes',
+                $quality['upstream_boundary']
+            );
+            $t->same(3, $quality['png_artifact_count']);
+            $t->same(2, $quality['wordpress_media_importable_count']);
+            $t->same(1, $quality['wordpress_media_unimportable_count']);
+            $t->same(false, $quality['all_artifacts_wordpress_media_importable']);
+            $t->same(false, $quality['all_referenced_artifacts_wordpress_media_importable']);
+            $t->same(['0_image_0.png', '2_image_0.png'], $quality['importable_image_artifacts']);
+            $t->same(['1_image_0.png'], $quality['unimportable_image_artifacts']);
+            $t->same(['1_image_0.png'], $quality['referenced_unimportable_image_artifacts']);
+            $t->same(['1_image_0.png'], $quality['preview_embedded_unimportable_image_artifacts']);
+            $t->same(['invalid_png_signature' => 1], $quality['quality_warning_counts']);
+            $t->same(2, $bundle['embedded_reference_count']);
+            $t->same(1, $bundle['missing_reference_count']);
+
+            $rows = [];
+            foreach ($bundle['image_artifacts'] as $row) {
+                $rows[$row['filename']] = $row;
+            }
+
+            $valid = $rows['0_image_0.png']['png_quality'];
+            $t->same(true, $rows['0_image_0.png']['wordpress_media_importable']);
+            $t->same(true, $valid['png_signature_valid']);
+            $t->same(true, $valid['png_header_valid']);
+            $t->same(true, $valid['png_iend_present']);
+            $t->same(1, $valid['png_width']);
+            $t->same(1, $valid['png_height']);
+            $t->same(['width' => 1, 'height' => 1], $valid['png_dimensions']);
+            $t->same(['IHDR', 'IDAT', 'IEND'], $valid['png_chunk_types']);
+            $t->same(true, $valid['png_crc_valid']);
+            $t->same([], $valid['quality_warnings']);
+
+            $broken = $rows['1_image_0.png']['png_quality'];
+            $t->same(false, $rows['1_image_0.png']['wordpress_media_importable']);
+            $t->same(false, $broken['png_signature_valid']);
+            $t->same(false, $broken['png_header_valid']);
+            $t->same(false, $broken['png_iend_present']);
+            $t->same(null, $broken['png_dimensions']);
+            $t->same(null, $broken['png_crc_valid']);
+            $t->same(['invalid_png_signature'], $broken['quality_warnings']);
         } finally {
             $removeTree($root);
         }

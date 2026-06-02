@@ -162,11 +162,12 @@ final class TableBenchmarkBundleBuilder
                 (int) ($row['hypothesis_cells'] ?? 0),
                 implode(',', $this->stringList($spanGrid['header_ids'] ?? [])),
                 $this->spanFlags($spanGrid),
+                $this->spanQualityFlags($spanGrid),
             ];
         }
 
         return [
-            'score_headers' => ['Document', 'Table', 'Score', 'Reference cells', 'Hypothesis cells', 'Header IDs', 'Span grid'],
+            'score_headers' => ['Document', 'Table', 'Score', 'Reference cells', 'Hypothesis cells', 'Header IDs', 'Span grid', 'Span quality'],
             'score_rows' => $scoreRows,
         ];
     }
@@ -284,6 +285,8 @@ final class TableBenchmarkBundleBuilder
         $gridCells = $this->listOfArrays($grid['grid_cells'] ?? []);
         $headerCells = $this->listOfArrays($grid['header_cells'] ?? []);
         $dataCells = $this->listOfArrays($grid['data_cells'] ?? []);
+        $rows = $this->intList($grid['rows'] ?? []);
+        $cols = $this->intList($grid['cols'] ?? []);
         $cellspanCount = 0;
         $hasRowspan = false;
         $hasColspan = false;
@@ -303,10 +306,12 @@ final class TableBenchmarkBundleBuilder
             $headerIds = $this->stringList(array_map(static fn (array $cell): mixed => $cell['header_id'] ?? null, $headerCells));
         }
 
+        $quality = $this->spanGridQualitySummary($rows, $cols, $renderCells, $gridCells);
+
         return [
             'source_review_target' => isset($grid['review_target']) && is_scalar($grid['review_target']) ? (string) $grid['review_target'] : 'table_span_grid',
-            'rows' => $this->intList($grid['rows'] ?? []),
-            'cols' => $this->intList($grid['cols'] ?? []),
+            'rows' => $rows,
+            'cols' => $cols,
             'orientation' => isset($grid['orientation']) && is_scalar($grid['orientation']) ? (string) $grid['orientation'] : 'normal',
             'row_axis' => isset($grid['row_axis']) && is_scalar($grid['row_axis']) ? (string) $grid['row_axis'] : 'y',
             'col_axis' => isset($grid['col_axis']) && is_scalar($grid['col_axis']) ? (string) $grid['col_axis'] : 'x',
@@ -319,9 +324,200 @@ final class TableBenchmarkBundleBuilder
             'cellspan_count' => $cellspanCount,
             'has_rowspan' => $hasRowspan,
             'has_colspan' => $hasColspan,
+            'quality_review_target' => 'table_ocr_span_grid_quality',
+            'expected_grid_cell_count' => $quality['expected_grid_cell_count'],
+            'anchor_cell_count' => $quality['anchor_cell_count'],
+            'empty_cell_count' => $quality['empty_cell_count'],
+            'missing_grid_cell_count' => count($quality['missing_grid_cells']),
+            'duplicate_grid_cell_count' => count($quality['duplicate_grid_cells']),
+            'orphan_covered_cell_count' => count($quality['orphan_covered_cells']),
+            'non_contiguous_span_count' => count($quality['non_contiguous_spans']),
+            'covered_cell_count_matches_spans' => $quality['covered_cell_count_matches_spans'],
+            'quality_passes' => $quality['quality_passes'],
+            'quality_flags' => $quality['quality_flags'],
+            'quality_issues' => $quality['quality_issues'],
+            'missing_grid_cells' => $quality['missing_grid_cells'],
+            'duplicate_grid_cells' => $quality['duplicate_grid_cells'],
+            'orphan_covered_cells' => $quality['orphan_covered_cells'],
+            'non_contiguous_spans' => $quality['non_contiguous_spans'],
             'accessibility_target' => isset($accessibility['review_target']) && is_scalar($accessibility['review_target'])
                 ? (string) $accessibility['review_target']
                 : null,
+        ];
+    }
+
+    /**
+     * @param list<int> $rows
+     * @param list<int> $cols
+     * @param list<array<string, mixed>> $renderCells
+     * @param list<array<string, mixed>> $gridCells
+     * @return array{
+     *     expected_grid_cell_count: int,
+     *     anchor_cell_count: int,
+     *     empty_cell_count: int,
+     *     missing_grid_cells: list<array{row_id: int, col_id: int}>,
+     *     duplicate_grid_cells: list<array{row_id: int, col_id: int, count: int}>,
+     *     orphan_covered_cells: list<array<string, mixed>>,
+     *     non_contiguous_spans: list<array<string, mixed>>,
+     *     covered_cell_count_matches_spans: bool,
+     *     quality_passes: bool,
+     *     quality_flags: list<string>,
+     *     quality_issues: list<string>
+     * }
+     */
+    private function spanGridQualitySummary(array $rows, array $cols, array $renderCells, array $gridCells): array
+    {
+        if ($rows === [] && $cols === [] && $renderCells === [] && $gridCells === []) {
+            return [
+                'expected_grid_cell_count' => 0,
+                'anchor_cell_count' => 0,
+                'empty_cell_count' => 0,
+                'missing_grid_cells' => [],
+                'duplicate_grid_cells' => [],
+                'orphan_covered_cells' => [],
+                'non_contiguous_spans' => [],
+                'covered_cell_count_matches_spans' => true,
+                'quality_passes' => false,
+                'quality_flags' => ['missing_span_grid'],
+                'quality_issues' => ['missing_span_grid'],
+            ];
+        }
+
+        $expectedCount = count($rows) * count($cols);
+        $positions = [];
+        $positionCounts = [];
+        $anchorKeys = [];
+        $anchorCellCount = 0;
+        $coveredCellCount = 0;
+        $emptyCellCount = 0;
+        $orphanCoveredCells = [];
+
+        foreach ($gridCells as $gridCell) {
+            $rowId = $this->nullableInt($gridCell['row_id'] ?? null);
+            $colId = $this->nullableInt($gridCell['col_id'] ?? null);
+            if ($rowId === null || $colId === null) {
+                continue;
+            }
+
+            $key = $rowId . ':' . $colId;
+            $positions[$key] = ['row_id' => $rowId, 'col_id' => $colId];
+            $positionCounts[$key] = ($positionCounts[$key] ?? 0) + 1;
+
+            $state = is_scalar($gridCell['state'] ?? null) ? (string) $gridCell['state'] : '';
+            if ($state === 'anchor') {
+                $anchorCellCount++;
+                $anchorKeys[$key] = true;
+            } elseif ($state === 'covered') {
+                $coveredCellCount++;
+            } elseif ($state === 'empty') {
+                $emptyCellCount++;
+            }
+        }
+
+        foreach ($gridCells as $gridCell) {
+            $state = is_scalar($gridCell['state'] ?? null) ? (string) $gridCell['state'] : '';
+            if ($state !== 'covered') {
+                continue;
+            }
+
+            $coveredBy = isset($gridCell['covered_by']) && is_array($gridCell['covered_by']) ? $gridCell['covered_by'] : [];
+            $anchorRowId = $this->nullableInt($coveredBy['row_id'] ?? null);
+            $anchorColId = $this->nullableInt($coveredBy['col_id'] ?? null);
+            $renderCellIndex = $this->nullableInt($coveredBy['render_cell_index'] ?? null);
+            $anchorKey = $anchorRowId !== null && $anchorColId !== null ? $anchorRowId . ':' . $anchorColId : null;
+
+            if ($anchorKey === null || !isset($anchorKeys[$anchorKey]) || $renderCellIndex === null || !isset($renderCells[$renderCellIndex])) {
+                $orphanCoveredCells[] = [
+                    'row_id' => $this->nullableInt($gridCell['row_id'] ?? null),
+                    'col_id' => $this->nullableInt($gridCell['col_id'] ?? null),
+                    'covered_by' => $coveredBy,
+                ];
+            }
+        }
+
+        $missingGridCells = [];
+        foreach ($rows as $rowId) {
+            foreach ($cols as $colId) {
+                $key = $rowId . ':' . $colId;
+                if (!isset($positions[$key])) {
+                    $missingGridCells[] = ['row_id' => $rowId, 'col_id' => $colId];
+                }
+            }
+        }
+
+        $duplicateGridCells = [];
+        foreach ($positionCounts as $key => $count) {
+            if ($count <= 1) {
+                continue;
+            }
+            [$rowId, $colId] = array_map('intval', explode(':', $key, 2));
+            $duplicateGridCells[] = ['row_id' => $rowId, 'col_id' => $colId, 'count' => $count];
+        }
+
+        $nonContiguousSpans = [];
+        $declaredCoveredCells = 0;
+        foreach ($renderCells as $renderIndex => $renderCell) {
+            $rowIds = $this->intList($renderCell['row_ids'] ?? []);
+            $colIds = $this->intList($renderCell['col_ids'] ?? []);
+            $rowspan = count($rowIds);
+            $colspan = count($colIds);
+            if ($rowspan > 0 && $colspan > 0) {
+                $declaredCoveredCells += max(($rowspan * $colspan) - 1, 0);
+            }
+
+            $badAxes = [];
+            if (!$this->isContiguousIntList($rowIds)) {
+                $badAxes[] = 'rows';
+            }
+            if (!$this->isContiguousIntList($colIds)) {
+                $badAxes[] = 'cols';
+            }
+            if ($badAxes !== []) {
+                $nonContiguousSpans[] = [
+                    'render_cell_index' => $renderIndex,
+                    'text' => isset($renderCell['text']) && is_scalar($renderCell['text']) ? (string) $renderCell['text'] : '',
+                    'row_ids' => $rowIds,
+                    'col_ids' => $colIds,
+                    'axes' => $badAxes,
+                ];
+            }
+        }
+
+        $coveredMatches = $declaredCoveredCells === $coveredCellCount;
+        $issues = [];
+        if ($expectedCount > 0 && count($gridCells) !== $expectedCount) {
+            $issues[] = 'grid_cell_count_mismatch';
+        }
+        if ($missingGridCells !== []) {
+            $issues[] = 'missing_grid_cells';
+        }
+        if ($duplicateGridCells !== []) {
+            $issues[] = 'duplicate_grid_cells';
+        }
+        if ($orphanCoveredCells !== []) {
+            $issues[] = 'orphan_covered_cells';
+        }
+        if ($nonContiguousSpans !== []) {
+            $issues[] = 'non_contiguous_spans';
+        }
+        if (!$coveredMatches) {
+            $issues[] = 'covered_cell_count_mismatch';
+        }
+
+        return [
+            'expected_grid_cell_count' => $expectedCount,
+            'anchor_cell_count' => $anchorCellCount,
+            'empty_cell_count' => $emptyCellCount,
+            'missing_grid_cells' => $missingGridCells,
+            'duplicate_grid_cells' => $duplicateGridCells,
+            'orphan_covered_cells' => $orphanCoveredCells,
+            'non_contiguous_spans' => $nonContiguousSpans,
+            'covered_cell_count_matches_spans' => $coveredMatches,
+            'quality_passes' => $issues === [],
+            'quality_flags' => $issues === []
+                ? ['complete_grid', 'contiguous_spans', 'resolved_covered_cells']
+                : $issues,
+            'quality_issues' => $issues,
         ];
     }
 
@@ -462,6 +658,30 @@ final class TableBenchmarkBundleBuilder
         return array_values(array_unique($out));
     }
 
+    private function nullableInt(mixed $value): ?int
+    {
+        if (is_int($value) || is_float($value) || (is_string($value) && preg_match('/^-?\d+$/', $value) === 1)) {
+            return (int) $value;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<int> $values
+     */
+    private function isContiguousIntList(array $values): bool
+    {
+        if (count($values) <= 1) {
+            return true;
+        }
+
+        sort($values, SORT_NUMERIC);
+        $expected = range($values[0], $values[count($values) - 1]);
+
+        return $values === $expected;
+    }
+
     /**
      * @return list<string>
      */
@@ -498,5 +718,15 @@ final class TableBenchmarkBundleBuilder
         }
 
         return $flags === [] ? 'plain' : implode('+', $flags);
+    }
+
+    /**
+     * @param array<string, mixed> $spanGrid
+     */
+    private function spanQualityFlags(array $spanGrid): string
+    {
+        $flags = $this->stringList($spanGrid['quality_flags'] ?? []);
+
+        return $flags === [] ? 'unreviewed' : implode('+', $flags);
     }
 }

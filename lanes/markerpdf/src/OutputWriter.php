@@ -76,6 +76,7 @@ final class OutputWriter
         foreach ($saved['image_artifacts'] as $artifact) {
             $path = $this->joinPath($saved['subfolder'], $artifact['filename']);
             $bytes = $this->readSavedFile($path);
+            $quality = $this->pngArtifactQuality($bytes);
             $imageBytesByFilename[$artifact['filename']] = $bytes;
             $imageArtifacts[] = [
                 'source_filename' => $artifact['source_filename'],
@@ -88,6 +89,8 @@ final class OutputWriter
                 'persisted_to_output_folder' => true,
                 'source_filename_rewritten' => $artifact['source_filename'] !== $artifact['filename'],
                 'runtime_preview_embeddable' => true,
+                'wordpress_media_importable' => $quality['wordpress_media_importable'],
+                'png_quality' => $quality,
             ];
         }
 
@@ -307,10 +310,24 @@ final class OutputWriter
         $artifactRows = [];
         $referencedRows = [];
         $unreferencedFilenames = [];
+        $importableFilenames = [];
+        $unimportableFilenames = [];
+        $referencedUnimportableFilenames = [];
+        $previewEmbeddedUnimportableFilenames = [];
+        $qualityWarnings = [];
         foreach ($imageArtifacts as $artifact) {
             $filename = (string) $artifact['filename'];
             $markdownReferenceCount = $targetCounts[$filename] ?? 0;
             $runtimePreviewEmbeddedCount = $embeddedCounts[$filename] ?? 0;
+            $pngQuality = is_array($artifact['png_quality'] ?? null) ? $artifact['png_quality'] : [];
+            $wordpressMediaImportable = (bool) ($artifact['wordpress_media_importable'] ?? false);
+            $warnings = array_values(array_filter(
+                $pngQuality['quality_warnings'] ?? [],
+                static fn (mixed $warning): bool => is_string($warning) && $warning !== ''
+            ));
+            foreach ($warnings as $warning) {
+                $qualityWarnings[] = $warning;
+            }
             $row = [
                 'source_filename' => (string) $artifact['source_filename'],
                 'filename' => $filename,
@@ -324,9 +341,22 @@ final class OutputWriter
                 'markdown_reference_count' => $markdownReferenceCount,
                 'runtime_preview_embedded_count' => $runtimePreviewEmbeddedCount,
                 'runtime_preview_embeddable' => (bool) $artifact['runtime_preview_embeddable'],
+                'wordpress_media_importable' => $wordpressMediaImportable,
+                'png_quality' => $pngQuality,
             ];
 
             $artifactRows[] = $row;
+            if ($wordpressMediaImportable) {
+                $importableFilenames[] = $filename;
+            } else {
+                $unimportableFilenames[] = $filename;
+                if ($markdownReferenceCount > 0) {
+                    $referencedUnimportableFilenames[] = $filename;
+                }
+                if ($runtimePreviewEmbeddedCount > 0) {
+                    $previewEmbeddedUnimportableFilenames[] = $filename;
+                }
+            }
             if ($markdownReferenceCount > 0) {
                 $referencedRows[] = $row;
             } else {
@@ -355,6 +385,20 @@ final class OutputWriter
             'referenced_image_artifacts' => $referencedRows,
             'unreferenced_image_artifacts' => $unreferencedFilenames,
             'missing_markdown_image_targets' => $unembeddedTargets,
+            'image_quality' => [
+                'source' => 'marker_output_markdown_image_artifact_quality',
+                'upstream_boundary' => 'marker.output.save_markdown image.save(..., "PNG") + marker_app.img_to_html PNG bytes',
+                'png_artifact_count' => count($imageArtifacts),
+                'wordpress_media_importable_count' => count($importableFilenames),
+                'wordpress_media_unimportable_count' => count($unimportableFilenames),
+                'all_artifacts_wordpress_media_importable' => $unimportableFilenames === [],
+                'all_referenced_artifacts_wordpress_media_importable' => $referencedUnimportableFilenames === [],
+                'importable_image_artifacts' => $importableFilenames,
+                'unimportable_image_artifacts' => $unimportableFilenames,
+                'referenced_unimportable_image_artifacts' => $referencedUnimportableFilenames,
+                'preview_embedded_unimportable_image_artifacts' => $previewEmbeddedUnimportableFilenames,
+                'quality_warning_counts' => $this->valueCounts($qualityWarnings),
+            ],
             'executes_streamlit' => false,
             'executes_pdfium' => false,
             'executes_python_or_models' => false,
@@ -522,5 +566,133 @@ final class OutputWriter
         }
 
         throw new InvalidArgumentException('Image payload must be writable PNG bytes or expose save().');
+    }
+
+    /**
+     * @return array{
+     *     png_signature_valid: bool,
+     *     png_header_valid: bool,
+     *     png_iend_present: bool,
+     *     png_width: int|null,
+     *     png_height: int|null,
+     *     png_dimensions: array{width: int, height: int}|null,
+     *     png_bit_depth: int|null,
+     *     png_color_type: int|null,
+     *     png_color_type_label: string|null,
+     *     png_interlace_method: int|null,
+     *     png_chunk_types: list<string>,
+     *     png_crc_valid: bool|null,
+     *     wordpress_media_importable: bool,
+     *     quality_warnings: list<string>
+     * }
+     */
+    private function pngArtifactQuality(string $bytes): array
+    {
+        $warnings = [];
+        $chunkTypes = [];
+        $signatureValid = str_starts_with($bytes, "\x89PNG\r\n\x1a\n");
+        $ihdrValid = false;
+        $iendPresent = false;
+        $crcValid = null;
+        $width = null;
+        $height = null;
+        $bitDepth = null;
+        $colorType = null;
+        $interlaceMethod = null;
+
+        if (!$signatureValid) {
+            $warnings[] = 'invalid_png_signature';
+        } else {
+            $crcValid = true;
+            $offset = 8;
+            $length = strlen($bytes);
+            while ($offset + 8 <= $length) {
+                $chunkLength = unpack('Nlength', substr($bytes, $offset, 4))['length'];
+                $type = substr($bytes, $offset + 4, 4);
+                if (!preg_match('/^[A-Za-z]{4}$/', $type)) {
+                    $warnings[] = 'invalid_png_chunk_type';
+                    $crcValid = false;
+                    break;
+                }
+
+                $chunkTypes[] = $type;
+                $chunkEnd = $offset + 12 + $chunkLength;
+                if ($chunkEnd > $length) {
+                    $warnings[] = 'truncated_png_chunk_' . strtolower($type);
+                    $crcValid = false;
+                    break;
+                }
+
+                $data = substr($bytes, $offset + 8, $chunkLength);
+                $crc = substr($bytes, $offset + 8 + $chunkLength, 4);
+                if (hash('crc32b', $type . $data) !== bin2hex($crc)) {
+                    $warnings[] = 'invalid_png_crc_' . strtolower($type);
+                    $crcValid = false;
+                }
+
+                if ($type === 'IHDR') {
+                    if ($chunkLength === 13) {
+                        $header = unpack('Nwidth/Nheight/Cbit_depth/Ccolor_type/Ccompression/Cfilter/Cinterlace', $data);
+                        $width = (int) $header['width'];
+                        $height = (int) $header['height'];
+                        $bitDepth = (int) $header['bit_depth'];
+                        $colorType = (int) $header['color_type'];
+                        $interlaceMethod = (int) $header['interlace'];
+                        $ihdrValid = $width > 0 && $height > 0;
+                        if (!$ihdrValid) {
+                            $warnings[] = 'invalid_png_dimensions';
+                        }
+                    } else {
+                        $warnings[] = 'invalid_png_ihdr_length';
+                    }
+                } elseif ($type === 'IEND') {
+                    $iendPresent = $chunkLength === 0;
+                    if (!$iendPresent) {
+                        $warnings[] = 'invalid_png_iend_length';
+                    }
+                    break;
+                }
+
+                $offset = $chunkEnd;
+            }
+
+            if (!in_array('IHDR', $chunkTypes, true)) {
+                $warnings[] = 'missing_png_ihdr';
+            }
+            if (!$iendPresent) {
+                $warnings[] = 'missing_png_iend';
+            }
+        }
+
+        $importable = $signatureValid && $ihdrValid && $iendPresent && $crcValid === true;
+
+        return [
+            'png_signature_valid' => $signatureValid,
+            'png_header_valid' => $ihdrValid,
+            'png_iend_present' => $iendPresent,
+            'png_width' => $width,
+            'png_height' => $height,
+            'png_dimensions' => $ihdrValid ? ['width' => $width, 'height' => $height] : null,
+            'png_bit_depth' => $bitDepth,
+            'png_color_type' => $colorType,
+            'png_color_type_label' => $this->pngColorTypeLabel($colorType),
+            'png_interlace_method' => $interlaceMethod,
+            'png_chunk_types' => $chunkTypes,
+            'png_crc_valid' => $crcValid,
+            'wordpress_media_importable' => $importable,
+            'quality_warnings' => array_values(array_unique($warnings)),
+        ];
+    }
+
+    private function pngColorTypeLabel(?int $colorType): ?string
+    {
+        return match ($colorType) {
+            0 => 'grayscale',
+            2 => 'truecolor',
+            3 => 'indexed',
+            4 => 'grayscale_alpha',
+            6 => 'truecolor_alpha',
+            default => null,
+        };
     }
 }

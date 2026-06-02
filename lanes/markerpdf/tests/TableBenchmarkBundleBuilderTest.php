@@ -54,6 +54,7 @@ $spanGrid = static function (): array {
             ['row_id' => 1, 'col_id' => 0, 'state' => 'covered', 'covered_by' => ['row_id' => 0, 'col_id' => 0, 'render_cell_index' => 0]],
             ['row_id' => 1, 'col_id' => 1, 'state' => 'covered', 'covered_by' => ['row_id' => 0, 'col_id' => 0, 'render_cell_index' => 0]],
             ['row_id' => 0, 'col_id' => 2, 'state' => 'anchor', 'render_cell_index' => 1],
+            ['row_id' => 1, 'col_id' => 2, 'state' => 'empty'],
             ['row_id' => 2, 'col_id' => 0, 'state' => 'anchor', 'render_cell_index' => 2],
             ['row_id' => 2, 'col_id' => 1, 'state' => 'anchor', 'render_cell_index' => 3],
             ['row_id' => 2, 'col_id' => 2, 'state' => 'anchor', 'render_cell_index' => 4],
@@ -118,9 +119,16 @@ return [
         $t->same('table_ocr_span_grid_benchmark_format', $rows[0]['review_target']);
         $t->same(['h-r0-c0', 'h-r0-c2', 'h-r2-c0'], $rows[0]['span_grid']['header_ids']);
         $t->same(3, $rows[0]['span_grid']['covered_cell_count']);
+        $t->same(9, $rows[0]['span_grid']['expected_grid_cell_count']);
+        $t->same(5, $rows[0]['span_grid']['anchor_cell_count']);
+        $t->same(1, $rows[0]['span_grid']['empty_cell_count']);
         $t->same(1, $rows[0]['span_grid']['cellspan_count']);
         $t->same(true, $rows[0]['span_grid']['has_rowspan']);
         $t->same(true, $rows[0]['span_grid']['has_colspan']);
+        $t->same('table_ocr_span_grid_quality', $rows[0]['span_grid']['quality_review_target']);
+        $t->same(true, $rows[0]['span_grid']['covered_cell_count_matches_spans']);
+        $t->same(true, $rows[0]['span_grid']['quality_passes']);
+        $t->same(['complete_grid', 'contiguous_spans', 'resolved_covered_cells'], $rows[0]['span_grid']['quality_flags']);
         $t->same('markerpdf-table-0-caption', $rows[0]['context']['caption_id']);
         $t->same('markerpdf-table-0-section', $rows[0]['context']['section_id']);
         $t->same('forced_ocr', $rows[0]['ocr_assignment']);
@@ -197,6 +205,8 @@ return [
         $t->same('table_span_grid', $rows[0]['span_grid']['source_review_target']);
         $t->same(4, $rows[0]['span_grid']['grid_cell_count']);
         $t->same(['h-r0-c0', 'h-r0-c1'], $rows[0]['span_grid']['header_ids']);
+        $t->same(true, $rows[0]['span_grid']['quality_passes']);
+        $t->same(['complete_grid', 'contiguous_spans', 'resolved_covered_cells'], $rows[0]['span_grid']['quality_flags']);
         $t->same('markerpdf-table-0-caption', $rows[0]['context']['caption_id']);
         $t->same(true, $rows[0]['context']['caption_bound']);
         $t->same(0.5, $rows[0]['time']);
@@ -218,11 +228,12 @@ return [
             $decoded = json_decode((string) file_get_contents($outputFile), true, flags: JSON_THROW_ON_ERROR);
             (new BenchmarkReportVerifier())->verifyTableScores($decoded);
 
-            $t->same(['Document', 'Table', 'Score', 'Reference cells', 'Hypothesis cells', 'Header IDs', 'Span grid'], $tables['score_headers']);
+            $t->same(['Document', 'Table', 'Score', 'Reference cells', 'Hypothesis cells', 'Header IDs', 'Span grid', 'Span quality'], $tables['score_headers']);
             $t->same('multicolcnn.pdf', $tables['score_rows'][0][0]);
             $t->same(1.0, $tables['score_rows'][0][2]);
             $t->same('h-r0-c0,h-r0-c2,h-r2-c0', $tables['score_rows'][0][5]);
             $t->same('rowspan+colspan+covered', $tables['score_rows'][0][6]);
+            $t->same('complete_grid+contiguous_spans+resolved_covered_cells', $tables['score_rows'][0][7]);
             $t->same('table_ocr_span_grid_benchmark_format', $decoded[0]['review_target']);
         } finally {
             if (is_file($outputFile)) {
@@ -240,5 +251,45 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $builder->buildRowsFromConversion('', ['text' => $markdown], [$markdown]));
         $t->throws(InvalidArgumentException::class, static fn () => $builder->buildRowsFromConversion('doc.pdf', ['text' => 'no table here'], [$markdown]));
         $t->throws(InvalidArgumentException::class, static fn () => $builder->outputTables([]));
+    },
+    'flags incomplete or non-contiguous OCR span grids before benchmark quality gates trust them' => static function (TestRunner $t) use ($spanGrid): void {
+        $grid = $spanGrid();
+        array_pop($grid['grid_cells']);
+        $grid['render_cells'][0]['row_ids'] = [0, 2];
+        $grid['render_cells'][0]['rowspan'] = 2;
+        $grid['grid_cells'][] = [
+            'row_id' => 2,
+            'col_id' => 2,
+            'state' => 'covered',
+            'covered_by' => ['row_id' => 9, 'col_id' => 9, 'render_cell_index' => 99],
+        ];
+
+        $markdown = "| Feature | Status |\n| --- | --- |\n| Images | Ready |";
+        $rows = (new TableBenchmarkBundleBuilder())->buildRows([[
+            'document' => 'quality-gate.pdf',
+            'markdown' => $markdown,
+            'reference' => $markdown,
+            'span_grid' => $grid,
+        ]]);
+        $span = $rows[0]['span_grid'];
+
+        $t->same(false, $span['quality_passes']);
+        $t->same(
+            ['orphan_covered_cells', 'non_contiguous_spans', 'covered_cell_count_mismatch'],
+            $span['quality_flags']
+        );
+        $t->same(1, $span['orphan_covered_cell_count']);
+        $t->same(1, $span['non_contiguous_span_count']);
+        $t->same(['rows'], $span['non_contiguous_spans'][0]['axes']);
+        $t->same('Inventory axis', $span['non_contiguous_spans'][0]['text']);
+        $t->same(false, $span['covered_cell_count_matches_spans']);
+
+        $missing = (new TableBenchmarkBundleBuilder())->buildRows([[
+            'document' => 'missing-grid.pdf',
+            'markdown' => $markdown,
+            'reference' => $markdown,
+        ]]);
+        $t->same(false, $missing[0]['span_grid']['quality_passes']);
+        $t->same(['missing_span_grid'], $missing[0]['span_grid']['quality_flags']);
     },
 ];

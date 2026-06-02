@@ -1354,9 +1354,11 @@ final class PdfOutlineExtractor
             'thread_index',
             'thread_title',
             'thread_destination_type',
+            'thread_destination',
             'thread_bead_object',
             'thread_bead_index',
             'thread_bead_rect',
+            'thread_page_object',
         ] as $key) {
             if (array_key_exists($key, $details)) {
                 $context['destination_action_target_' . $key] = $details[$key];
@@ -2723,13 +2725,19 @@ final class PdfOutlineExtractor
      */
     private function threadActionDestinationDetails(array $target): array
     {
-        return [
+        $details = [
             'page' => $target['page'],
             'destination' => is_string($target['thread_title'] ?? null) ? $target['thread_title'] : ($target['thread_destination'] ?? null),
             'view_mode' => null,
             'view_position' => [],
             'view_parameters' => [],
         ] + $target;
+
+        if (is_int($target['thread_page_object'] ?? null)) {
+            $details['page_object'] = $target['thread_page_object'];
+        }
+
+        return $details;
     }
 
     /**
