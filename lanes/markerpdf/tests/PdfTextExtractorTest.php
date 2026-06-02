@@ -462,6 +462,54 @@ $xrefStreamIndexWidthCurrentBasePdf = static function (): string {
     return $pdf;
 };
 
+$startxrefObjectStreamRebuildPdf = static function (): string {
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current startxref page) Tj T* (Object stream rebuild guard) Tj ET';
+    $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale appended object stream page) Tj ET';
+
+    $pdf = "%PDF-1.5\n";
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf): int {
+        $offset = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $xrefRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+
+    $offsets = [];
+    $offsets[1] = $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R >>');
+    $offsets[2] = $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $offsets[3] = $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+    $offsets[4] = $addObject(4, 0, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+    $offsets[5] = $addObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+
+    $currentXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 6\n"
+        . $xrefRow(0, 65535, 'f')
+        . $xrefRow($offsets[1])
+        . $xrefRow($offsets[2])
+        . $xrefRow($offsets[3])
+        . $xrefRow($offsets[4])
+        . $xrefRow($offsets[5])
+        . "trailer\n<< /Size 6 /Root 1 0 R >>\n"
+        . "startxref\n{$currentXrefOffset}\n%%EOF\n";
+
+    $stalePage = '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 6 0 R >>';
+    $objectStreamPlain = "3 0\n{$stalePage}\n";
+    $compressedObjectStream = gzcompress($objectStreamPlain);
+    $staleObjectStreamOffset = $addObject(7, 0, '<< /Type /ObjStm /N 1 /First 4 /Filter /FlateDecode /Length ' . strlen($compressedObjectStream) . " >>\nstream\n{$compressedObjectStream}\nendstream");
+    $staleContentOffset = $addObject(6, 0, "<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream");
+
+    $staleXrefRows = ''
+        . chr(2) . pack('N', 7) . chr(0)
+        . chr(1) . pack('N', $staleContentOffset) . chr(0)
+        . chr(1) . pack('N', $staleObjectStreamOffset) . chr(0);
+    $compressedXref = gzcompress($staleXrefRows);
+    $addObject(20, 0, '<< /Type /XRef /Size 21 /Root 1 0 R /Index [3 1 6 2] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedXref) . " >>\nstream\n{$compressedXref}\nendstream");
+
+    return $pdf;
+};
+
 $encryptedPreflightPdf = static function (): string {
     $content = 'BT /F1 12 Tf 72 720 Td (Encrypted cleartext leak) Tj ET';
 
@@ -2016,6 +2064,19 @@ return [
         $t->true(!str_contains($text, 'Stale freed object stream page'));
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
         $t->same(['1'], $extractor->extractPageLabels($pdf));
+    },
+    'honors startxref current section before stale appended object-stream rebuild entries' => static function (TestRunner $t) use ($startxrefObjectStreamRebuildPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $startxrefObjectStreamRebuildPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $t->same(['Current startxref page', 'Object stream rebuild guard'], $extractor->extractTextLines($pdf));
+        $t->same(['Current startxref page', 'Object stream rebuild guard'], $extractor->extractTextRuns($pdf));
+        $t->same("Current startxref page\nObject stream rebuild guard", $text);
+        $t->same("Current startxref page\nObject stream rebuild guard\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Stale appended object stream page'));
     },
     'honors current xref stream Index and zero-width W defaults before WordPress text extraction' => static function (TestRunner $t) use ($xrefStreamIndexWidthCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
