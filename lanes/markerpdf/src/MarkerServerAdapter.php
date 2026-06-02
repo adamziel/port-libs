@@ -93,14 +93,22 @@ final class MarkerServerAdapter
         }
 
         $uploadPath = rtrim($uploadDirectory, '/\\') . DIRECTORY_SEPARATOR . $filename;
-        if (file_put_contents($uploadPath, $this->uploadBytes($upload)) === false) {
-            throw new RuntimeException('Unable to write markerPDF uploaded PDF: ' . $uploadPath);
-        }
-
         try {
-            $params['filepath'] = $uploadPath;
+            if (file_put_contents($uploadPath, $this->uploadBytes($upload)) === false) {
+                throw new RuntimeException('Unable to write markerPDF uploaded PDF: ' . $uploadPath);
+            }
 
-            return $this->convertPdf($params, $local, $localConverter, $remoteClient, $apiKey, $datalabUrl);
+            $params['filepath'] = $uploadPath;
+            $params = $this->normalizeParams($params);
+
+            return $local
+                ? $this->convertPdfLocal($params, $localConverter)
+                : $this->convertPdfRemote($params, $remoteClient, $apiKey, $datalabUrl);
+        } catch (Throwable $throwable) {
+            return [
+                'success' => false,
+                'error' => $throwable->getMessage(),
+            ];
         } finally {
             if (is_file($uploadPath)) {
                 unlink($uploadPath);

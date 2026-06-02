@@ -1639,6 +1639,176 @@ final class PdfImageRenderer
     }
 
     /**
+     * Decodes bounded CalGray/CalRGB/Lab image stream rows when the filter
+     * chain is native, while leaving JBIG2/JPX/CCITT/DCT raster streams as
+     * review-only boundaries and still decoding a supported current soft mask.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    public function calibratedImageStreamPreviewRows(string $imageObject, array $objects = [], int $maxPixels = 16): array
+    {
+        if ($maxPixels < 1) {
+            throw new InvalidArgumentException('Calibrated image stream preview requires at least one preview pixel.');
+        }
+
+        $dictionary = $this->streamDictionaryFromValue($imageObject) ?? trim($imageObject);
+        $plan = $this->imageColorSpaceSoftMaskPlan($dictionary, $objects);
+        if (($plan['uses_calibrated_color_space'] ?? false) !== true) {
+            throw new InvalidArgumentException('Calibrated image stream preview requires a CalGray, CalRGB, or Lab image.');
+        }
+
+        $width = $this->integerNameValue($dictionary, 'Width');
+        $height = $this->integerNameValue($dictionary, 'Height');
+        $components = $plan['components'] ?? null;
+        $bitsPerComponent = max(1, (int) ($plan['bits_per_component'] ?? 8));
+        if (!is_int($width) || !is_int($height) || $width < 1 || $height < 1) {
+            throw new InvalidArgumentException('Calibrated image stream preview requires positive image Width and Height.');
+        }
+        if (!is_int($components) || $components < 1) {
+            throw new InvalidArgumentException('Calibrated image stream preview requires a positive component count.');
+        }
+
+        $expectedPixelCount = $width * $height;
+        $imageStream = $this->decodedImageStreamPreviewBoundary($dictionary, $imageObject, $objects);
+        $imageStreamMeta = $this->streamBoundaryPublicMetadata($imageStream);
+
+        $softMaskStream = null;
+        $softMaskStreamMeta = null;
+        $softMaskSamples = null;
+        $softMask = $plan['soft_mask'] ?? null;
+        $softMaskPresent = is_array($softMask) && ($softMask['present'] ?? false) === true;
+        if ($softMaskPresent) {
+            if (($plan['soft_mask_applied_before_rgb'] ?? false) !== true) {
+                throw new InvalidArgumentException('Calibrated image stream preview requires a grayscale soft-mask image.');
+            }
+            if (is_int($softMask['width'] ?? null) && $softMask['width'] !== $width) {
+                throw new InvalidArgumentException('Calibrated soft-mask width must match the image width.');
+            }
+            if (is_int($softMask['height'] ?? null) && $softMask['height'] !== $height) {
+                throw new InvalidArgumentException('Calibrated soft-mask height must match the image height.');
+            }
+
+            $softMaskStream = $this->decodedSoftMaskStreamPreviewBoundary($dictionary, $objects);
+            $softMaskStreamMeta = is_array($softMaskStream) ? $this->streamBoundaryPublicMetadata($softMaskStream) : null;
+            if (is_array($softMaskStream) && ($softMaskStream['decoded_with_current_filters'] ?? false) === true && is_string($softMaskStream['decoded_bytes'] ?? null)) {
+                $softMaskSamples = $this->packedImagePixelSamples(
+                    $softMaskStream['decoded_bytes'],
+                    1,
+                    max(1, (int) ($softMask['bits_per_component'] ?? 8)),
+                    $expectedPixelCount
+                );
+            }
+        }
+
+        $streamNotes = [
+            $imageStreamMeta['filters'] === []
+                ? 'calibrated_image_stream_unfiltered_samples_before_rgb_conversion'
+                : 'calibrated_image_stream_filters_decoded_before_rgb_conversion',
+        ];
+        if (!$imageStreamMeta['decoded_with_current_filters'] && $imageStreamMeta['preview_only_filters'] !== []) {
+            $streamNotes[0] = 'calibrated_image_stream_preview_only_before_rgb_conversion';
+        }
+        if ($softMaskStreamMeta !== null) {
+            $streamNotes[] = $softMaskStreamMeta['filters'] === []
+                ? 'soft_mask_stream_unfiltered_samples_before_rgb_conversion'
+                : 'soft_mask_stream_filters_decoded_before_rgb_conversion';
+        }
+
+        if (($imageStream['decoded_with_current_filters'] ?? false) !== true || !is_string($imageStream['decoded_bytes'] ?? null)) {
+            if ($imageStreamMeta['preview_only_filters'] === []) {
+                throw new InvalidArgumentException('Calibrated image stream filters must be natively decoded before sample preview.');
+            }
+
+            return [
+                'source_color_space' => (string) $plan['source_color_space'],
+                'width' => $width,
+                'height' => $height,
+                'components_per_pixel' => $components,
+                'bits_per_component' => $bitsPerComponent,
+                'expected_pixel_count' => $expectedPixelCount,
+                'preview_pixel_count' => 0,
+                'review_only_image_stream' => true,
+                'complete_image_sample_data' => false,
+                'complete_soft_mask_sample_data' => $softMaskSamples === null ? null : $softMaskSamples['complete'],
+                'image_filter_boundary' => $plan['image_filter_boundary'],
+                'image_filter_details' => $plan['image_filter_details'],
+                'image_stream' => $imageStreamMeta,
+                'soft_mask_stream' => $softMaskStreamMeta,
+                'calibrated_color_space' => $plan['calibrated_color_space'],
+                'image_decode' => $plan['image_decode'],
+                'soft_mask' => $softMask,
+                'pixels' => [],
+                'stream_notes' => $streamNotes,
+                'notes' => array_values(array_unique(array_merge($plan['notes'] ?? [], $streamNotes))),
+                'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
+                'alpha_output_mode' => (string) ($plan['alpha_output_mode'] ?? 'opaque_rgb_preview'),
+            ];
+        }
+
+        $imageSamples = $this->packedImagePixelSamples(
+            $imageStream['decoded_bytes'],
+            $components,
+            $bitsPerComponent,
+            $expectedPixelCount
+        );
+        if (!$imageSamples['complete']) {
+            throw new InvalidArgumentException('Calibrated image stream does not contain complete image sample data.');
+        }
+        if ($softMaskPresent && $softMaskSamples === null) {
+            throw new InvalidArgumentException('Calibrated image soft-mask stream filters must be natively decoded before RGB preview.');
+        }
+        if (is_array($softMaskSamples) && !$softMaskSamples['complete']) {
+            throw new InvalidArgumentException('Calibrated image soft-mask stream does not contain complete alpha sample data.');
+        }
+
+        $limit = min($maxPixels, $expectedPixelCount);
+        $pixels = [];
+        for ($index = 0; $index < $limit; $index++) {
+            $rawSample = $imageSamples['pixels'][$index];
+            $softMaskSample = is_array($softMaskSamples) ? $softMaskSamples['pixels'][$index][0] : null;
+            $preview = $this->calibratedColorSamplePreview($rawSample, $plan, $softMaskSample);
+            $pixels[] = [
+                'pixel_index' => $index,
+                'x' => $index % $width,
+                'y' => intdiv($index, $width),
+                'raw_sample' => $rawSample,
+                'decoded_components' => $preview['decoded_components'],
+                'calibrated_components' => $preview['calibrated_components'],
+                'soft_mask_sample' => $softMaskSample,
+                'soft_mask_alpha' => $preview['soft_mask_alpha'],
+                'soft_mask_alpha_before_transfer' => $preview['soft_mask_alpha_before_transfer'],
+                'soft_mask_transfer_applied' => $preview['soft_mask_transfer_applied'],
+            ];
+        }
+
+        return [
+            'source_color_space' => (string) $plan['source_color_space'],
+            'width' => $width,
+            'height' => $height,
+            'components_per_pixel' => $components,
+            'bits_per_component' => $bitsPerComponent,
+            'expected_pixel_count' => $expectedPixelCount,
+            'preview_pixel_count' => count($pixels),
+            'review_only_image_stream' => false,
+            'complete_image_sample_data' => $imageSamples['complete'],
+            'complete_soft_mask_sample_data' => $softMaskSamples === null ? null : $softMaskSamples['complete'],
+            'image_filter_boundary' => $plan['image_filter_boundary'],
+            'image_filter_details' => $plan['image_filter_details'],
+            'image_stream' => $imageStreamMeta,
+            'soft_mask_stream' => $softMaskStreamMeta,
+            'calibrated_color_space' => $plan['calibrated_color_space'],
+            'image_decode' => $plan['image_decode'],
+            'soft_mask' => $softMask,
+            'pixels' => $pixels,
+            'stream_notes' => $streamNotes,
+            'notes' => array_values(array_unique(array_merge($plan['notes'] ?? [], $streamNotes))),
+            'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
+            'alpha_output_mode' => (string) ($plan['alpha_output_mode'] ?? 'opaque_rgb_preview'),
+        ];
+    }
+
+    /**
      * @param array{width?: int|float, height?: int|float}|list<int|float> $renderedImageSize
      * @return list<float>
      */
@@ -1875,9 +2045,16 @@ final class PdfImageRenderer
         }
 
         if ($filter === 'JBIG2Decode') {
+            $globals = $this->jbig2GlobalsMetadata($resolved, $objects);
+
             return [
                 'type' => 'JBIG2Decode',
-                'jbig2_globals_present' => $this->pdfValueContainsName($resolved, 'JBIG2Globals', $objects),
+                'jbig2_globals_present' => $globals['present'],
+                'jbig2_globals_source' => $globals['source'],
+                'jbig2_globals_object' => $globals['object'],
+                'jbig2_globals_length' => $globals['length'],
+                'jbig2_globals_sha256' => $globals['sha256'],
+                'jbig2_globals_preview_hex' => $globals['preview_hex'],
             ];
         }
 
@@ -3643,6 +3820,37 @@ final class PdfImageRenderer
         }
 
         return $this->pdfValueContainsName($value, 'JBIG2Globals', $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{present: bool, source: string|null, object: int|null, length: int|null, sha256: string|null, preview_hex: string|null}
+     */
+    private function jbig2GlobalsMetadata(string $decodeParms, array $objects): array
+    {
+        $value = $this->extractPdfNameValue($decodeParms, 'JBIG2Globals');
+        if ($value === null) {
+            return [
+                'present' => false,
+                'source' => null,
+                'object' => null,
+                'length' => null,
+                'sha256' => null,
+                'preview_hex' => null,
+            ];
+        }
+
+        $bytes = $this->pdfBytesFromValue($value, $objects);
+        $payload = $bytes['bytes'] ?? null;
+
+        return [
+            'present' => true,
+            'source' => $this->pdfValueSource($value),
+            'object' => $this->objectReferenceNumber($value),
+            'length' => is_string($payload) ? strlen($payload) : null,
+            'sha256' => is_string($payload) ? hash('sha256', $payload) : null,
+            'preview_hex' => is_string($payload) ? strtoupper(bin2hex(substr($payload, 0, 16))) : null,
+        ];
     }
 
     /**

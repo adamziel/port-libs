@@ -119,6 +119,46 @@ return [
             $removeTree($uploadRoot);
         }
     },
+    'routes uploaded local PDFs directly like marker_server.py upload conversion' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $uploadRoot = $makeTempDir();
+        try {
+            $adapter = new MarkerServerAdapter();
+            $seenOptions = null;
+            $response = $adapter->convertPdfFromUpload(
+                [
+                    'filename' => 'upload-local-route.pdf',
+                    'content_type' => 'application/pdf',
+                    'bytes' => '%PDF local route fixture',
+                ],
+                [
+                    'max_pages' => '4',
+                    'langs' => 'English',
+                    'force_ocr' => 'true',
+                    'paginate' => true,
+                    'extract_images' => false,
+                ],
+                $uploadRoot,
+                true,
+                static function (string $filepath, array $options) use (&$seenOptions): array {
+                    $seenOptions = $options;
+
+                    return [
+                        'markdown' => 'Uploaded local route: ' . basename($filepath),
+                        'images' => [],
+                        'metadata' => ['route' => 'upload-local-direct'],
+                    ];
+                }
+            );
+
+            $t->same(true, $response['success']);
+            $t->same('Uploaded local route: upload-local-route.pdf', $response['markdown']);
+            $t->same(['max_pages' => 4, 'langs' => 'English', 'ocr_all_pages' => true], $seenOptions);
+            $t->same(['route' => 'upload-local-direct'], $response['metadata']);
+            $t->true(!is_file($uploadRoot . DIRECTORY_SEPARATOR . 'upload-local-route.pdf'), 'Uploaded local-route PDF should be removed after conversion.');
+        } finally {
+            $removeTree($uploadRoot);
+        }
+    },
     'rejects non-pdf uploads before conversion' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $uploadRoot = $makeTempDir();
         try {
@@ -134,6 +174,54 @@ return [
                     static fn (): string => 'unused'
                 )
             );
+        } finally {
+            $removeTree($uploadRoot);
+        }
+    },
+    'returns upload success false when remote conversion fails and removes the temporary upload' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $uploadRoot = $makeTempDir();
+        try {
+            $adapter = new MarkerServerAdapter();
+            $response = $adapter->convertPdfFromUpload(
+                [
+                    'filename' => 'remote-error.pdf',
+                    'content_type' => 'application/pdf',
+                    'bytes' => '%PDF remote error fixture',
+                ],
+                ['max_pages' => 1],
+                $uploadRoot,
+                false,
+                static fn (): string => 'unused',
+                static fn (): array => ['status' => 'queued-without-check-url'],
+                'api-key',
+                'https://api.example/marker'
+            );
+
+            $t->same(false, $response['success']);
+            $t->contains('request_check_url', $response['error']);
+            $t->true(!is_file($uploadRoot . DIRECTORY_SEPARATOR . 'remote-error.pdf'), 'Uploaded PDF should be removed after remote conversion failure.');
+        } finally {
+            $removeTree($uploadRoot);
+        }
+    },
+    'returns upload success false when the upload payload cannot be read' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $uploadRoot = $makeTempDir();
+        try {
+            $adapter = new MarkerServerAdapter();
+            $response = $adapter->convertPdfFromUpload(
+                [
+                    'filename' => 'missing-bytes.pdf',
+                    'content_type' => 'application/pdf',
+                ],
+                [],
+                $uploadRoot,
+                true,
+                static fn (): string => 'unused'
+            );
+
+            $t->same(false, $response['success']);
+            $t->contains('Uploaded PDF payload must provide bytes.', $response['error']);
+            $t->true(!is_file($uploadRoot . DIRECTORY_SEPARATOR . 'missing-bytes.pdf'), 'Unreadable upload should not leave a temporary PDF.');
         } finally {
             $removeTree($uploadRoot);
         }

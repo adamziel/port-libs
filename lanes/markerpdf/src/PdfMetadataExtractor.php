@@ -2453,6 +2453,11 @@ final class PdfMetadataExtractor
      */
     private function encryptionDictionaryEntry(string $pdfBytes, array $objects): ?array
     {
+        $chainEntry = $this->trailerEncryptionDictionaryEntryFromStartxrefChain($pdfBytes, $objects);
+        if ($chainEntry['parsed']) {
+            return $chainEntry['entry'];
+        }
+
         $trailerEntry = $this->trailerDictionaryEntry($pdfBytes);
         if ($trailerEntry !== null) {
             $trailer = $trailerEntry['body'];
@@ -2485,6 +2490,83 @@ final class PdfMetadataExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{parsed: bool, entry: array{body: string, object: int|null, source: string}|null}
+     */
+    private function trailerEncryptionDictionaryEntryFromStartxrefChain(string $pdfBytes, array $objects): array
+    {
+        $offset = $this->latestStartxrefOffset($pdfBytes);
+        if ($offset === null) {
+            return ['parsed' => false, 'entry' => null];
+        }
+
+        return $this->trailerEncryptionDictionaryEntryAtOffsetChain($pdfBytes, $offset, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seenOffsets
+     * @return array{parsed: bool, entry: array{body: string, object: int|null, source: string}|null}
+     */
+    private function trailerEncryptionDictionaryEntryAtOffsetChain(
+        string $pdfBytes,
+        int $offset,
+        array $objects,
+        array $seenOffsets = [],
+        int $depth = 0
+    ): array {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return ['parsed' => false, 'entry' => null];
+        }
+        $seenOffsets[$offset] = true;
+
+        $trailer = $this->trailerDictionaryBodyAtOffset($pdfBytes, $offset);
+        if ($trailer === null) {
+            return ['parsed' => false, 'entry' => null];
+        }
+
+        $value = $this->dictionaryRawValue($trailer, 'Encrypt');
+        if ($value !== null) {
+            if (trim($value) === 'null') {
+                return ['parsed' => true, 'entry' => null];
+            }
+
+            $source = $this->trailerEncryptionSourceAtOffset($pdfBytes, $offset, $depth);
+            $entry = $this->resolvedEncryptionDictionary($value, $objects, $source);
+
+            return $entry === null
+                ? ['parsed' => false, 'entry' => null]
+                : ['parsed' => true, 'entry' => $entry];
+        }
+
+        $previousOffset = $this->dictionaryIntegerValue($trailer, 'Prev');
+        if ($previousOffset !== null && $previousOffset >= 0) {
+            $previous = $this->trailerEncryptionDictionaryEntryAtOffsetChain(
+                $pdfBytes,
+                $previousOffset,
+                $objects,
+                $seenOffsets,
+                $depth + 1
+            );
+            if ($previous['parsed']) {
+                return $previous;
+            }
+        }
+
+        return ['parsed' => true, 'entry' => null];
+    }
+
+    private function trailerEncryptionSourceAtOffset(string $pdfBytes, int $offset, int $depth): string
+    {
+        $trailerSource = $this->trailerDictionarySourceAtOffset($pdfBytes, $offset);
+        $source = $trailerSource === 'xref_stream_trailer'
+            ? 'xref_stream_trailer_encrypt'
+            : 'trailer_encrypt';
+
+        return $depth > 0 ? 'prev_' . $source : $source;
     }
 
     /**
