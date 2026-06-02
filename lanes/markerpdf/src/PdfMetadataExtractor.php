@@ -156,6 +156,7 @@ final class PdfMetadataExtractor
      *     document_destinations?: array<string, mixed>,
      *     document_security_store?: array<string, mixed>,
      *     pdfa_associated_name_tree?: array<string, mixed>,
+     *     pdfa_associated_files?: array<string, mixed>,
      *     pdfa?: array{has_output_intent: bool, output_condition_identifiers: list<string>, profile_sha256: list<string>}
      * }
      */
@@ -4103,6 +4104,10 @@ final class PdfMetadataExtractor
             if ($pdfaAssociatedNameTree !== []) {
                 $result['pdfa_associated_name_tree'] = $pdfaAssociatedNameTree;
             }
+            $pdfaAssociatedFiles = $this->pdfaAssociatedCatalogFilesMetadata($result['associated_files'] ?? [], $pdfa);
+            if ($pdfaAssociatedFiles !== []) {
+                $result['pdfa_associated_files'] = $pdfaAssociatedFiles;
+            }
         }
 
         return $result;
@@ -4119,17 +4124,58 @@ final class PdfMetadataExtractor
      */
     private function pdfaAssociatedNameTreeMetadata(mixed $embeddedFiles, array $pdfa): array
     {
-        if (!is_array($embeddedFiles) || $embeddedFiles === [] || ($pdfa['has_output_intent'] ?? false) !== true) {
+        return $this->pdfaAssociatedFilesSummaryMetadata(
+            $embeddedFiles,
+            $pdfa,
+            'pdfa_associated_name_tree',
+            ['catalog_names_embedded_files' => true]
+        );
+    }
+
+    /**
+     * Catalog /AF rows are the normative associated-file hook for PDF/A-3
+     * source, schema, alternative, and supplement attachments. Summarize them
+     * beside the root PDF/A OutputIntent without promoting attachment-local XMP
+     * or profile bytes into document roots.
+     *
+     * @param mixed $associatedFiles
+     * @param array{has_output_intent: bool, output_condition_identifiers: list<string>, profile_sha256: list<string>} $pdfa
+     * @return array<string, mixed>
+     */
+    private function pdfaAssociatedCatalogFilesMetadata(mixed $associatedFiles, array $pdfa): array
+    {
+        return $this->pdfaAssociatedFilesSummaryMetadata(
+            $associatedFiles,
+            $pdfa,
+            'pdfa_associated_files',
+            ['catalog_associated_files' => true]
+        );
+    }
+
+    /**
+     * @param mixed $files
+     * @param array{has_output_intent: bool, output_condition_identifiers: list<string>, profile_sha256: list<string>} $pdfa
+     * @param array<string, true> $allowedSources
+     * @return array<string, mixed>
+     */
+    private function pdfaAssociatedFilesSummaryMetadata(
+        mixed $files,
+        array $pdfa,
+        string $source,
+        array $allowedSources
+    ): array
+    {
+        if (!is_array($files) || $files === [] || ($pdfa['has_output_intent'] ?? false) !== true) {
             return [];
         }
 
         $entries = [];
-        foreach ($embeddedFiles as $file) {
+        foreach ($files as $file) {
             if (!is_array($file)) {
                 continue;
             }
 
-            $entry = $this->pdfaAssociatedNameTreeEntry($file, count($entries));
+            $entry = $this->pdfaAssociatedFileEntry($file, count($entries), $allowedSources);
             if ($entry !== []) {
                 $entries[] = $entry;
             }
@@ -4145,7 +4191,7 @@ final class PdfMetadataExtractor
         $relationshipRoles = [];
         $attachmentPdfaIdentifiers = [];
         foreach ($entries as $entry) {
-            $name = $entry['name_tree_name'] ?? null;
+            $name = $entry['name_tree_name'] ?? $entry['name'] ?? null;
             if (is_string($name) && $name !== '') {
                 $names[] = $name;
             }
@@ -4173,7 +4219,7 @@ final class PdfMetadataExtractor
         }
 
         $metadata = [
-            'source' => 'pdfa_associated_name_tree',
+            'source' => $source,
             'review_only' => true,
             'payload_included' => false,
             'root_has_output_intent' => true,
@@ -4200,11 +4246,13 @@ final class PdfMetadataExtractor
 
     /**
      * @param array<string, mixed> $file
+     * @param array<string, true> $allowedSources
      * @return array<string, mixed>
      */
-    private function pdfaAssociatedNameTreeEntry(array $file, int $index): array
+    private function pdfaAssociatedFileEntry(array $file, int $index, array $allowedSources): array
     {
-        if (($file['source'] ?? null) !== 'catalog_names_embedded_files') {
+        $source = $file['source'] ?? null;
+        if (!is_string($source) || !isset($allowedSources[$source])) {
             return [];
         }
 
@@ -4216,7 +4264,7 @@ final class PdfMetadataExtractor
         $provenance = $file['provenance_review'] ?? [];
         $provenance = is_array($provenance) ? $provenance : [];
         $entry = [
-            'source' => 'catalog_names_embedded_files',
+            'source' => $source,
             'review_only' => true,
             'payload_included' => false,
             'index' => $index,
@@ -4238,6 +4286,7 @@ final class PdfMetadataExtractor
             'description',
             'mime_type',
             'ef_key',
+            'language',
         ] as $key) {
             $value = $file[$key] ?? null;
             if (is_string($value) && $value !== '') {
@@ -4251,6 +4300,7 @@ final class PdfMetadataExtractor
             'embedded_file_object',
             'size',
             'declared_size',
+            'associated_file_index',
         ] as $key) {
             $value = $file[$key] ?? null;
             if (is_int($value)) {
