@@ -192,6 +192,36 @@ $calculationFormatActionPdf = static function (): array {
     return [$pdf, $keystrokeScript, $formatScript, $validateScript, $calculateScript];
 };
 
+$calculationSignatureStatePdf = static function (): array {
+    $calculateScript = "event.value = Number(this.getField('invoice.amount').value) + 3;";
+    $compressedCalculateScript = gzcompress($calculateScript);
+    if (!is_string($compressedCalculateScript)) {
+        throw new RuntimeException('Unable to compress calculation/signature boundary script fixture.');
+    }
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R 11 0 R 14 0 R 17 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 10 0 R 13 0 R 16 0 R] /SigFlags 3 /CO [10 0 R 6 0 R 13 0 R] >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (invoice.amount) /V (25.00) /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 240 664] /P 3 0 R /F 4 >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Tx /T (invoice.total) /V (28.00) /Kids [11 0 R] /AA << /C << /S /JavaScript /JS 30 0 R >> >> >>\nendobj\n"
+        . "11 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 600 240 624] /P 3 0 R /F 4 >>\nendobj\n"
+        . "13 0 obj\n<< /FT /Sig /T (approval.signature) /V 31 0 R /Lock 32 0 R /Kids [14 0 R] >>\nendobj\n"
+        . "14 0 obj\n<< /Subtype /Widget /Parent 13 0 R /Rect [72 552 300 584] /P 3 0 R /F 4 >>\nendobj\n"
+        . "16 0 obj\n<< /FT /Tx /T (internal.notes) /V (editable review note) /Kids [17 0 R] >>\nendobj\n"
+        . "17 0 obj\n<< /Subtype /Widget /Parent 16 0 R /Rect [72 512 300 536] /P 3 0 R /F 4 >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($compressedCalculateScript) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressedCalculateScript
+        . "\nendstream\nendobj\n"
+        . "31 0 obj\n<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Name (Editor Reviewer) /M (D:20260602081217Z) /ByteRange [0 128 512 64] /Contents <0102030405> >>\nendobj\n"
+        . "32 0 obj\n<< /Type /SigFieldLock /Action /Include /Fields [(invoice.amount) (invoice.total)] /P 2 >>\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, $calculateScript];
+};
+
 $currentValueStatePdf = static function (): string {
     return "%PDF-1.7\n"
         . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
@@ -685,5 +715,73 @@ return [
         $t->same(false, $calculate['executes_javascript']);
         $t->same(false, $calculate['executes_action']);
         $t->same('27.06', $fields['invoice.total']['value']);
+    },
+    'marks calculation order signature flags and signed lock state boundaries without executing scripts or validating signatures' => static function (TestRunner $t) use ($calculationSignatureStatePdf, $fieldsByName): void {
+        [$pdf, $calculateScript] = $calculationSignatureStatePdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+
+        $t->same(3, $form['signature_flags']['flags']);
+        $t->same(['signatures_exist', 'append_only'], $form['signature_flags']['flag_names']);
+        $t->true($form['signature_flags']['signatures_exist']);
+        $t->true($form['signature_flags']['append_only']);
+        $t->same(false, $form['signature_flags']['executes_signature_validation']);
+        $t->same([
+            ['object' => 10, 'field_name' => 'invoice.total'],
+            ['object' => 6, 'field_name' => 'invoice.amount'],
+            ['object' => 13, 'field_name' => 'approval.signature'],
+        ], $form['calculation_order']);
+
+        $total = $fields['invoice.total'];
+        $totalCalculation = $total['calculation_state'];
+        $t->true($totalCalculation['in_calculation_order']);
+        $t->same(0, $totalCalculation['calculation_order_index']);
+        $t->same(10, $totalCalculation['calculation_order_object']);
+        $t->same('invoice.total', $totalCalculation['calculation_order_field_name']);
+        $t->true($totalCalculation['has_calculate_action']);
+        $t->same(hash('sha256', $calculateScript), $totalCalculation['calculate_actions'][0]['script_sha256']);
+        $t->same(30, $totalCalculation['calculate_actions'][0]['script_object']);
+        $t->same(['FlateDecode'], $totalCalculation['calculate_actions'][0]['script_filters']);
+        $t->same(false, $totalCalculation['executes_javascript']);
+        $t->same(false, $totalCalculation['executes_action']);
+        $t->same('28.00', $total['value']);
+
+        $amountLock = $fields['invoice.amount']['signature_lock_state'];
+        $t->true($amountLock['effective_locked']);
+        $t->same('signed_signature_lock', $amountLock['lock_state_source']);
+        $t->same(['approval.signature'], $amountLock['locked_by_signatures']);
+        $t->same(['form_fill_templates_signatures'], $amountLock['permission_labels']);
+        $t->same(false, $amountLock['executes_action']);
+
+        $totalLock = $total['signature_lock_state'];
+        $t->true($totalLock['effective_locked']);
+        $t->same(1, $totalLock['locked_by_signature_count']);
+        $t->same('Include', $totalLock['locks'][0]['action']);
+
+        $notesLock = $fields['internal.notes']['signature_lock_state'];
+        $t->same(false, $notesLock['effective_locked']);
+        $t->same([], $notesLock['locked_by_signatures']);
+
+        $signatureField = $fields['approval.signature'];
+        $signatureCalculation = $signatureField['calculation_state'];
+        $signatureState = $signatureField['signature_state'];
+        $t->true($signatureCalculation['in_calculation_order']);
+        $t->same(2, $signatureCalculation['calculation_order_index']);
+        $t->same(false, $signatureCalculation['has_calculate_action']);
+        $t->same('acroform_signature_state_boundary', $signatureState['source']);
+        $t->true($signatureState['signatures_exist_hint']);
+        $t->true($signatureState['append_only']);
+        $t->true($signatureState['has_signature_dictionary']);
+        $t->true($signatureState['signed']);
+        $t->same(31, $signatureState['signature_object']);
+        $t->same('D:20260602081217Z', $signatureState['signed_at']);
+        $t->same([0, 128, 512, 64], $signatureState['byte_range']);
+        $t->same(2, $signatureState['byte_range_segment_count']);
+        $t->same(5, $signatureState['contents_length_bytes']);
+        $t->same('signature_dictionary_not_field_value', $signatureState['value_state_source']);
+        $t->same(false, $signatureState['executes_signature_validation']);
+        $t->same(false, $signatureState['executes_signing']);
+        $t->same(false, $signatureState['executes_action']);
+        $t->same(false, $signatureField['signature_lock_state']['effective_locked']);
     },
 ];

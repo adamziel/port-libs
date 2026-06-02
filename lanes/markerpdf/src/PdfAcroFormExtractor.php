@@ -51,7 +51,7 @@ final class PdfAcroFormExtractor
     /**
      * Native boundary for PDF AcroForm field dictionaries.
      *
-     * @return array{need_appearances: bool, permissions: array<string, mixed>, xfa_overrides_page_content: bool, xfa_packets: list<array<string, mixed>>, calculation_order: list<array{object: int, field_name: string|null}>, fields: list<array<string, mixed>>}
+     * @return array{need_appearances: bool, permissions: array<string, mixed>, signature_flags: array<string, mixed>, xfa_overrides_page_content: bool, xfa_packets: list<array<string, mixed>>, calculation_order: list<array{object: int, field_name: string|null}>, fields: list<array<string, mixed>>}
      */
     public function extractForm(string $pdfBytes): array
     {
@@ -63,6 +63,7 @@ final class PdfAcroFormExtractor
             return [
                 'need_appearances' => false,
                 'permissions' => $permissions,
+                'signature_flags' => $this->emptySignatureFlags(),
                 'xfa_overrides_page_content' => false,
                 'xfa_packets' => [],
                 'calculation_order' => [],
@@ -79,6 +80,7 @@ final class PdfAcroFormExtractor
         $fieldRefs = $this->fieldReferencesFromAcroForm($acroForm);
         $fieldNamesByObject = $this->fieldNamesByObject($fieldRefs, $objects);
         $calculationOrder = $this->calculationOrderFromAcroForm($acroForm, $fieldNamesByObject);
+        $signatureFlags = $this->acroFormSignatureFlags($acroForm);
 
         foreach ($fieldRefs as $fieldRef) {
             foreach ($this->fieldsFromObject(
@@ -96,10 +98,12 @@ final class PdfAcroFormExtractor
         }
 
         $fields = $this->markCertifyingSignatureFields($fields, $permissions);
+        $fields = $this->annotateCalculationAndSignatureState($fields, $calculationOrder, $signatureFlags);
 
         return [
             'need_appearances' => $this->boolValueAfterName($acroForm, 'NeedAppearances') === true,
             'permissions' => $permissions,
+            'signature_flags' => $signatureFlags,
             'xfa_overrides_page_content' => $xfaPackets !== [],
             'xfa_packets' => $xfaPackets,
             'calculation_order' => $calculationOrder,
@@ -113,6 +117,330 @@ final class PdfAcroFormExtractor
     public function extractFields(string $pdfBytes): array
     {
         return $this->extractForm($pdfBytes)['fields'];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptySignatureFlags(): array
+    {
+        return [
+            'source' => null,
+            'flags' => 0,
+            'flag_names' => [],
+            'signatures_exist' => false,
+            'append_only' => false,
+            'append_only_required' => false,
+            'executes_signature_validation' => false,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function acroFormSignatureFlags(string $acroForm): array
+    {
+        $rawFlags = $this->valueAfterName($acroForm, 'SigFlags');
+        $flags = $this->numberValueAfterName($acroForm, 'SigFlags') ?? 0;
+
+        return [
+            'source' => $rawFlags === null ? null : 'acroform_sigflags',
+            'flags' => $flags,
+            'flag_names' => $this->signatureFlagNames($flags),
+            'signatures_exist' => ($flags & 1) !== 0,
+            'append_only' => ($flags & 2) !== 0,
+            'append_only_required' => ($flags & 2) !== 0,
+            'executes_signature_validation' => false,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function signatureFlagNames(int $flags): array
+    {
+        $names = [];
+        if (($flags & 1) !== 0) {
+            $names[] = 'signatures_exist';
+        }
+        if (($flags & 2) !== 0) {
+            $names[] = 'append_only';
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fields
+     * @param list<array{object: int, field_name: string|null}> $calculationOrder
+     * @param array<string, mixed> $signatureFlags
+     * @return list<array<string, mixed>>
+     */
+    private function annotateCalculationAndSignatureState(array $fields, array $calculationOrder, array $signatureFlags): array
+    {
+        $calculationIndexesByObject = [];
+        $calculationIndexesByName = [];
+        foreach ($calculationOrder as $index => $entry) {
+            $calculationIndexesByObject[(int) $entry['object']] = $index;
+            if (is_string($entry['field_name']) && $entry['field_name'] !== '') {
+                $calculationIndexesByName[$entry['field_name']] = $index;
+            }
+        }
+
+        foreach ($fields as $index => $field) {
+            $fields[$index]['calculation_state'] = $this->fieldCalculationState($field, $calculationOrder, $calculationIndexesByObject, $calculationIndexesByName);
+            if (($field['field_type'] ?? null) === 'Sig') {
+                $fields[$index]['signature_state'] = $this->fieldSignatureState($field, $signatureFlags);
+            }
+        }
+
+        $signedLocks = $this->signedSignatureLockEntries($fields);
+        foreach ($fields as $index => $field) {
+            $fields[$index]['signature_lock_state'] = $this->fieldSignatureLockState($field, $signedLocks);
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param list<array{object: int, field_name: string|null}> $calculationOrder
+     * @param array<int, int> $calculationIndexesByObject
+     * @param array<string, int> $calculationIndexesByName
+     * @return array<string, mixed>
+     */
+    private function fieldCalculationState(
+        array $field,
+        array $calculationOrder,
+        array $calculationIndexesByObject,
+        array $calculationIndexesByName
+    ): array {
+        $objectNumber = $field['object'] ?? null;
+        $name = $field['name'] ?? null;
+        $orderIndex = is_int($objectNumber) && array_key_exists($objectNumber, $calculationIndexesByObject)
+            ? $calculationIndexesByObject[$objectNumber]
+            : (is_string($name) && array_key_exists($name, $calculationIndexesByName) ? $calculationIndexesByName[$name] : null);
+        $orderEntry = $orderIndex === null ? null : ($calculationOrder[$orderIndex] ?? null);
+        $calculateActions = $this->calculateActionSources($field);
+
+        return [
+            'source' => 'acroform_calculation_state_boundary',
+            'in_calculation_order' => $orderIndex !== null,
+            'calculation_order_index' => $orderIndex,
+            'calculation_order_object' => is_array($orderEntry) ? $orderEntry['object'] : null,
+            'calculation_order_field_name' => is_array($orderEntry) ? $orderEntry['field_name'] : null,
+            'has_calculate_action' => $calculateActions !== [],
+            'calculate_actions' => $calculateActions,
+            'value_is_static_review' => true,
+            'executes_javascript' => false,
+            'executes_action' => false,
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function calculateActionSources(array $field): array
+    {
+        $actions = [];
+        foreach ($field['actions'] ?? [] as $action) {
+            if (is_array($action) && ($action['trigger'] ?? null) === 'C') {
+                $actions[] = $this->calculateActionSource($action);
+            }
+        }
+
+        foreach ($field['widgets'] ?? [] as $widget) {
+            if (!is_array($widget)) {
+                continue;
+            }
+
+            foreach ($widget['actions'] ?? [] as $action) {
+                if (is_array($action) && ($action['trigger'] ?? null) === 'C') {
+                    $actions[] = $this->calculateActionSource($action);
+                }
+            }
+        }
+
+        return $actions;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function calculateActionSource(array $action): array
+    {
+        $source = [
+            'source' => $action['source'] ?? null,
+            'source_object' => $action['source_object'] ?? null,
+            'action_object' => $action['action_object'] ?? null,
+            'script_sha256' => $action['script_sha256'] ?? null,
+            'script_bytes' => $action['script_bytes'] ?? null,
+            'executes_javascript' => false,
+            'executes_action' => false,
+        ];
+
+        if (isset($action['script_object'])) {
+            $source['script_object'] = $action['script_object'];
+        }
+        if (isset($action['script_filters'])) {
+            $source['script_filters'] = $action['script_filters'];
+        }
+
+        return $source;
+    }
+
+    /**
+     * @param array<string, mixed> $signatureFlags
+     * @return array<string, mixed>
+     */
+    private function fieldSignatureState(array $field, array $signatureFlags): array
+    {
+        $signature = $field['signature'] ?? null;
+        $hasSignature = is_array($signature);
+        $byteRange = $hasSignature ? ($signature['byte_range'] ?? null) : null;
+
+        return [
+            'source' => 'acroform_signature_state_boundary',
+            'signatures_exist_hint' => (bool) ($signatureFlags['signatures_exist'] ?? false),
+            'append_only' => (bool) ($signatureFlags['append_only'] ?? false),
+            'append_only_required' => (bool) ($signatureFlags['append_only_required'] ?? false),
+            'has_signature_dictionary' => $hasSignature,
+            'signed' => $hasSignature && $this->signatureMetadataIndicatesSigned($signature),
+            'signature_object' => $hasSignature ? ($signature['object'] ?? null) : null,
+            'signed_at' => $hasSignature ? ($signature['signed_at'] ?? null) : null,
+            'byte_range' => is_array($byteRange) ? $byteRange : null,
+            'byte_range_segment_count' => is_array($byteRange) ? intdiv(count($byteRange), 2) : 0,
+            'contents_present' => $hasSignature && ($signature['contents_present'] ?? false) === true,
+            'contents_length_bytes' => $hasSignature ? ($signature['contents_length_bytes'] ?? null) : null,
+            'certifying_signature' => (bool) ($field['certifying_signature'] ?? false),
+            'value_state_source' => 'signature_dictionary_not_field_value',
+            'executes_signature_validation' => false,
+            'executes_signing' => false,
+            'executes_action' => false,
+        ];
+    }
+
+    private function signatureMetadataIndicatesSigned(?array $signature): bool
+    {
+        if ($signature === null) {
+            return false;
+        }
+
+        return ($signature['contents_present'] ?? false) === true
+            && ($signature['contents_length_bytes'] ?? 0) > 0
+            && is_array($signature['byte_range'] ?? null)
+            && count($signature['byte_range']) >= 4;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fields
+     * @return list<array<string, mixed>>
+     */
+    private function signedSignatureLockEntries(array $fields): array
+    {
+        $locks = [];
+        foreach ($fields as $field) {
+            if (($field['field_type'] ?? null) !== 'Sig') {
+                continue;
+            }
+
+            $signature = $field['signature'] ?? null;
+            $lock = $field['signature_lock'] ?? null;
+            if (!is_array($signature) || !is_array($lock) || !$this->signatureMetadataIndicatesSigned($signature)) {
+                continue;
+            }
+
+            $locks[] = [
+                'signature_field' => $field['name'] ?? null,
+                'signature_field_object' => $field['object'] ?? null,
+                'signature_object' => $signature['object'] ?? null,
+                'action' => $lock['action'] ?? null,
+                'action_label' => $lock['action_label'] ?? 'unknown',
+                'field_names' => $lock['field_names'] ?? [],
+                'permission_level' => $lock['permission_level'] ?? null,
+                'permission_label' => $lock['permission_label'] ?? null,
+                'allowed_changes' => $lock['allowed_changes'] ?? [],
+            ];
+        }
+
+        return $locks;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $signedLocks
+     * @return array<string, mixed>
+     */
+    private function fieldSignatureLockState(array $field, array $signedLocks): array
+    {
+        $fieldName = $field['name'] ?? null;
+        $lockedBy = [];
+        foreach ($signedLocks as $lock) {
+            if (!is_string($fieldName) || !$this->signatureLockAppliesToField($lock, $fieldName)) {
+                continue;
+            }
+
+            $lockedBy[] = [
+                'signature_field' => $lock['signature_field'],
+                'signature_object' => $lock['signature_object'],
+                'action' => $lock['action'],
+                'action_label' => $lock['action_label'],
+                'permission_level' => $lock['permission_level'],
+                'permission_label' => $lock['permission_label'],
+            ];
+        }
+
+        return [
+            'source' => 'acroform_signature_lock_state_boundary',
+            'lock_state_source' => $lockedBy === [] ? null : 'signed_signature_lock',
+            'effective_locked' => $lockedBy !== [],
+            'locked_by_signature_count' => count($lockedBy),
+            'locked_by_signatures' => array_values(array_filter(array_map(
+                static fn (array $lock): ?string => is_string($lock['signature_field'] ?? null) ? $lock['signature_field'] : null,
+                $lockedBy
+            ))),
+            'locks' => $lockedBy,
+            'permission_labels' => $this->uniqueScalarValues(array_map(
+                static fn (array $lock): mixed => $lock['permission_label'] ?? null,
+                $lockedBy
+            )),
+            'executes_action' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $lock
+     */
+    private function signatureLockAppliesToField(array $lock, string $fieldName): bool
+    {
+        $action = $lock['action'] ?? null;
+        $fieldNames = array_values(array_filter(
+            $lock['field_names'] ?? [],
+            static fn (mixed $name): bool => is_string($name) && $name !== ''
+        ));
+
+        return match ($action) {
+            'All' => true,
+            'Include' => in_array($fieldName, $fieldNames, true),
+            'Exclude' => !in_array($fieldName, $fieldNames, true),
+            default => false,
+        };
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @return list<mixed>
+     */
+    private function uniqueScalarValues(array $values): array
+    {
+        $unique = [];
+        foreach ($values as $value) {
+            if (!is_scalar($value) || in_array($value, $unique, true)) {
+                continue;
+            }
+
+            $unique[] = $value;
+        }
+
+        return $unique;
     }
 
     /**
