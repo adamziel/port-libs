@@ -1296,6 +1296,198 @@ final class PdfImageRenderer
     }
 
     /**
+     * Maps one DeviceGray image sample through the image Decode array, expands
+     * it to the RGB preview target used by Marker, and applies an optional
+     * soft-mask alpha/transfer sample.
+     *
+     * @param array{
+     *     source_color_space?: string,
+     *     components?: int|null,
+     *     bits_per_component?: int,
+     *     image_decode?: array{ranges: list<array{min: float, max: float}>, valid_for_components?: bool}|null,
+     *     soft_mask?: array{present?: bool, decode?: array{ranges?: list<array{min: float, max: float}>, valid_for_components?: bool}, bits_per_component?: int|null}|null,
+     *     soft_mask_transfer_function?: array<string, mixed>|null,
+     *     output_color_mode?: string
+     * } $imagePlan
+     * @return array{source_color_space: string, raw_sample: float, decoded_gray: float, rgb_components: list<float>, soft_mask_alpha: float|null, soft_mask_alpha_before_transfer: float|null, soft_mask_transfer_applied: bool, soft_mask_transfer_function: array<string, mixed>|null, output_color_mode: string}
+     */
+    public function deviceGraySamplePreview(int|float $sample, array $imagePlan, int|float|null $softMaskSample = null): array
+    {
+        if (($imagePlan['source_color_space'] ?? null) !== 'DeviceGray' || ($imagePlan['components'] ?? null) !== 1) {
+            throw new InvalidArgumentException('DeviceGray preview requires a DeviceGray image plan.');
+        }
+
+        if (!is_int($sample) && !is_float($sample)) {
+            throw new InvalidArgumentException('DeviceGray sample value must be numeric.');
+        }
+
+        $bitsPerComponent = max(1, (int) ($imagePlan['bits_per_component'] ?? 8));
+        $raw = (float) $sample;
+        $decode = $imagePlan['image_decode'] ?? null;
+        if (is_array($decode)) {
+            if (($decode['valid_for_components'] ?? false) !== true) {
+                throw new InvalidArgumentException('DeviceGray Decode array must match one component.');
+            }
+
+            $decodedGray = $this->imageSampleDecodeValues([$raw], $decode, $bitsPerComponent)[0];
+        } else {
+            $maxSample = (2 ** min($bitsPerComponent, 30)) - 1;
+            $decodedGray = $maxSample <= 0 ? 0.0 : $raw / $maxSample;
+        }
+        $decodedGray = max(0.0, min(1.0, $decodedGray));
+
+        $softMaskAlpha = null;
+        $softMaskAlphaBeforeTransfer = null;
+        $softMaskTransferApplied = false;
+        $softMaskTransferFunction = null;
+        if ($softMaskSample !== null) {
+            $softMaskAlphaPreview = $this->softMaskAlphaPreview($softMaskSample, $imagePlan, 'DeviceGray');
+            $softMaskAlpha = $softMaskAlphaPreview['alpha'];
+            $softMaskAlphaBeforeTransfer = $softMaskAlphaPreview['alpha_before_transfer'];
+            $softMaskTransferApplied = $softMaskAlphaPreview['transfer_applied'];
+            $softMaskTransferFunction = $softMaskAlphaPreview['transfer_function'];
+        }
+
+        return [
+            'source_color_space' => 'DeviceGray',
+            'raw_sample' => $raw,
+            'decoded_gray' => $decodedGray,
+            'rgb_components' => [$decodedGray, $decodedGray, $decodedGray],
+            'soft_mask_alpha' => $softMaskAlpha,
+            'soft_mask_alpha_before_transfer' => $softMaskAlphaBeforeTransfer,
+            'soft_mask_transfer_applied' => $softMaskTransferApplied,
+            'soft_mask_transfer_function' => $softMaskTransferFunction,
+            'output_color_mode' => (string) ($imagePlan['output_color_mode'] ?? 'RGB'),
+        ];
+    }
+
+    /**
+     * Decodes bounded DeviceGray image stream rows when the filter chain is
+     * native, attaches matching grayscale soft-mask samples, and exposes the
+     * RGB preview rows a future raster backend should receive.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    public function deviceGrayImageStreamPreviewRows(string $imageObject, array $objects = [], int $maxPixels = 16): array
+    {
+        if ($maxPixels < 1) {
+            throw new InvalidArgumentException('DeviceGray image stream preview requires at least one preview pixel.');
+        }
+
+        $dictionary = $this->streamDictionaryFromValue($imageObject) ?? trim($imageObject);
+        $plan = $this->imageColorSpaceSoftMaskPlan($dictionary, $objects);
+        if (($plan['source_color_space'] ?? null) !== 'DeviceGray' || ($plan['components'] ?? null) !== 1) {
+            throw new InvalidArgumentException('DeviceGray image stream preview requires a DeviceGray image.');
+        }
+
+        $width = $this->integerNameValue($dictionary, 'Width');
+        $height = $this->integerNameValue($dictionary, 'Height');
+        $bitsPerComponent = max(1, (int) ($plan['bits_per_component'] ?? 8));
+        if (!is_int($width) || !is_int($height) || $width < 1 || $height < 1) {
+            throw new InvalidArgumentException('DeviceGray image stream preview requires positive image Width and Height.');
+        }
+
+        $expectedPixelCount = $width * $height;
+        $imageStream = $this->decodedImageStreamPreviewBoundary($dictionary, $imageObject, $objects);
+        if (($imageStream['decoded_with_current_filters'] ?? false) !== true || !is_string($imageStream['decoded_bytes'] ?? null)) {
+            throw new InvalidArgumentException('DeviceGray image stream filters must be natively decoded before RGB preview.');
+        }
+
+        $imageSamples = $this->packedImagePixelSamples(
+            $imageStream['decoded_bytes'],
+            1,
+            $bitsPerComponent,
+            $expectedPixelCount
+        );
+        if (!$imageSamples['complete']) {
+            throw new InvalidArgumentException('DeviceGray image stream does not contain complete image sample data.');
+        }
+
+        $softMaskSamples = null;
+        $softMaskStream = null;
+        $softMask = $plan['soft_mask'] ?? null;
+        if (is_array($softMask) && ($softMask['present'] ?? false) === true && ($plan['soft_mask_applied_before_rgb'] ?? false) === true) {
+            if (is_int($softMask['width'] ?? null) && $softMask['width'] !== $width) {
+                throw new InvalidArgumentException('DeviceGray soft-mask width must match the image width.');
+            }
+            if (is_int($softMask['height'] ?? null) && $softMask['height'] !== $height) {
+                throw new InvalidArgumentException('DeviceGray soft-mask height must match the image height.');
+            }
+
+            $softMaskStream = $this->decodedSoftMaskStreamPreviewBoundary($dictionary, $objects);
+            if ($softMaskStream === null || ($softMaskStream['decoded_with_current_filters'] ?? false) !== true || !is_string($softMaskStream['decoded_bytes'] ?? null)) {
+                throw new InvalidArgumentException('DeviceGray soft-mask stream filters must be natively decoded before RGB preview.');
+            }
+
+            $softMaskSamples = $this->packedImagePixelSamples(
+                $softMaskStream['decoded_bytes'],
+                1,
+                max(1, (int) ($softMask['bits_per_component'] ?? 8)),
+                $expectedPixelCount
+            );
+            if (!$softMaskSamples['complete']) {
+                throw new InvalidArgumentException('DeviceGray soft-mask stream does not contain complete alpha sample data.');
+            }
+        }
+
+        $limit = min($maxPixels, $expectedPixelCount);
+        $pixels = [];
+        for ($index = 0; $index < $limit; $index++) {
+            $rawSample = $imageSamples['pixels'][$index][0];
+            $softMaskSample = is_array($softMaskSamples) ? $softMaskSamples['pixels'][$index][0] : null;
+            $preview = $this->deviceGraySamplePreview($rawSample, $plan, $softMaskSample);
+            $pixels[] = [
+                'pixel_index' => $index,
+                'x' => $index % $width,
+                'y' => intdiv($index, $width),
+                'raw_sample' => $rawSample,
+                'decoded_gray' => $preview['decoded_gray'],
+                'rgb_components' => $preview['rgb_components'],
+                'soft_mask_sample' => $softMaskSample,
+                'soft_mask_alpha' => $preview['soft_mask_alpha'],
+                'soft_mask_alpha_before_transfer' => $preview['soft_mask_alpha_before_transfer'],
+                'soft_mask_transfer_applied' => $preview['soft_mask_transfer_applied'],
+            ];
+        }
+
+        $imageStreamMeta = $this->streamBoundaryPublicMetadata($imageStream);
+        $softMaskStreamMeta = is_array($softMaskStream) ? $this->streamBoundaryPublicMetadata($softMaskStream) : null;
+        $streamNotes = [
+            $imageStreamMeta['filters'] === []
+                ? 'devicegray_image_stream_unfiltered_samples_before_rgb_conversion'
+                : 'devicegray_image_stream_filters_decoded_before_rgb_conversion',
+        ];
+        if ($softMaskStreamMeta !== null) {
+            $streamNotes[] = $softMaskStreamMeta['filters'] === []
+                ? 'soft_mask_stream_unfiltered_samples_before_rgb_conversion'
+                : 'soft_mask_stream_filters_decoded_before_rgb_conversion';
+        }
+
+        return [
+            'source_color_space' => (string) $plan['source_color_space'],
+            'width' => $width,
+            'height' => $height,
+            'components_per_pixel' => 1,
+            'bits_per_component' => $bitsPerComponent,
+            'expected_pixel_count' => $expectedPixelCount,
+            'preview_pixel_count' => count($pixels),
+            'complete_image_sample_data' => $imageSamples['complete'],
+            'complete_soft_mask_sample_data' => $softMaskSamples === null ? null : $softMaskSamples['complete'],
+            'image_stream' => $imageStreamMeta,
+            'soft_mask_stream' => $softMaskStreamMeta,
+            'soft_mask_filter_boundary' => $plan['soft_mask_filter_boundary'],
+            'image_decode' => $plan['image_decode'],
+            'soft_mask_transfer_function' => $plan['soft_mask_transfer_function'],
+            'soft_mask_transfer_function_applied_before_rgb' => $plan['soft_mask_transfer_function_applied_before_rgb'],
+            'pixels' => $pixels,
+            'stream_notes' => $streamNotes,
+            'notes' => array_values(array_unique(array_merge($plan['notes'] ?? [], $streamNotes))),
+            'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
+        ];
+    }
+
+    /**
      * Maps Separation/DeviceN image samples into named tint values and applies
      * the matching soft-mask alpha before the Marker RGB preview handoff.
      *
