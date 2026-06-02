@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 20:33:32 UTC",
-    "sourceCommit": "611b2c9429c7dd24f92f900f2be81c329a2cebb0",
-    "sourceCommitShort": "611b2c9429c7",
+    "generated": "2026-06-02 20:39:13 UTC",
+    "sourceCommit": "08ce850772114b0fa876e0ef9fece746f5be7863",
+    "sourceCommitShort": "08ce85077211",
     "sourceBranch": "unknown",
-    "dashboardCommit": "611b2c9429c7dd24f92f900f2be81c329a2cebb0",
-    "dashboardCommitShort": "611b2c9429c7",
+    "dashboardCommit": "08ce850772114b0fa876e0ef9fece746f5be7863",
+    "dashboardCommitShort": "08ce85077211",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "557",
-            "coverage": "557 / 78 (714.1%)",
-            "mapPercent": "714.1%",
+            "mapped": "564",
+            "coverage": "564 / 78 (723.1%)",
+            "mapPercent": "723.1%",
             "unmapped": "0",
-            "php": "787 pass / 0 fail",
+            "php": "798 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration correction: accepted meta46/fon...",
-            "currentWork": "MarkerPDF now preserves current trailer/name-tree metadata, indirect CIDFont vertical...",
+            "audit": "2026-06-02 UTC supervisor integration: accepted runtime48/security47/...",
+            "currentWork": "MarkerPDF now preserves batch progress/resume bookkeeping, inline Indexed filter pale...",
             "nextTarget": "Score newest markerPDF worker outputs as they complete; rebas...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "611b2c9"
+            "commit": "08ce850"
         },
         {
             "lane": "readability",
