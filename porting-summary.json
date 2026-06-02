@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 18:41:58 UTC",
-    "sourceCommit": "e1cf8e82181f6dbba2f47c96ca6b91dfc31b55a4",
-    "sourceCommitShort": "e1cf8e82181f",
+    "generated": "2026-06-02 18:51:58 UTC",
+    "sourceCommit": "ddb2882ffbfe2c2e6e3b577b5b8344aaa6235def",
+    "sourceCommitShort": "ddb2882ffbfe",
     "sourceBranch": "unknown",
-    "dashboardCommit": "e1cf8e821b173774e12ce48dc966b6a347af8651",
-    "dashboardCommitShort": "e1cf8e821b17",
+    "dashboardCommit": "ddb2882ffbfe2c2e6e3b577b5b8344aaa6235def",
+    "dashboardCommitShort": "ddb2882ffbfe",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "474",
-            "coverage": "474 / 78 (607.7%)",
-            "mapPercent": "607.7%",
+            "mapped": "482",
+            "coverage": "482 / 78 (617.9%)",
+            "mapPercent": "617.9%",
             "unmapped": "0",
-            "php": "648 pass / 0 fail",
+            "php": "659 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit e1cf8e82; accept...",
-            "currentWork": "MarkerPDF now carries StructTree/PieceInfo/thread page review metadata, object-valued...",
-            "nextTarget": "Score newly ready markerPDF handoffs from table36, outline35,...",
+            "audit": "2026-06-02 UTC supervisor integration: accepted runtime37/outline36/x...",
+            "currentWork": "MarkerPDF now carries runtime benchmark API callbacks, outline destination action con...",
+            "nextTarget": "Score newly ready markerPDF handoffs from page39/parser38/fon...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "e1cf8e8"
+            "commit": "ddb2882"
         },
         {
             "lane": "readability",
