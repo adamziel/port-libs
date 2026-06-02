@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 14:49:23 UTC",
-    "sourceCommit": "8675e205555d5d5ee6347334926b801f469defa4",
-    "sourceCommitShort": "8675e205555d",
+    "generated": "2026-06-02 14:57:22 UTC",
+    "sourceCommit": "7caaade64213b692e3fce14d6859ad479e1f8b5f",
+    "sourceCommitShort": "7caaade64213",
     "sourceBranch": "main",
-    "dashboardCommit": "8675e205555d5d5ee6347334926b801f469defa4",
-    "dashboardCommitShort": "8675e205555d",
+    "dashboardCommit": "7caaade64213b692e3fce14d6859ad479e1f8b5f",
+    "dashboardCommitShort": "7caaade64213",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "370",
-            "coverage": "370 / 78 (474.4%)",
-            "mapPercent": "474.4%",
+            "mapped": "371",
+            "coverage": "371 / 78 (475.6%)",
+            "mapPercent": "475.6%",
             "unmapped": "0",
-            "php": "522 pass / 0 fail",
+            "php": "524 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit 8675e20; full ma...",
-            "currentWork": "Xref-stream type-2 rows now cannot hide the current direct /ObjStm base object; expli...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit 7caaade; full ma...",
+            "currentWork": "PdfTextExtractor stream dictionaries now resolve escaped top-level /Fil#74er and /Len...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded font, xref/object s...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "8675e20"
+            "commit": "7caaade"
         },
         {
             "lane": "readability",
