@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 13:44:40 UTC",
-    "sourceCommit": "539c431dcdd74544693d70b46ff9c3fc17e74963",
-    "sourceCommitShort": "539c431dcdd7",
+    "generated": "2026-06-02 13:50:39 UTC",
+    "sourceCommit": "362755322eeda2c5b7c5a6929d4536addb4383c0",
+    "sourceCommitShort": "362755322eed",
     "sourceBranch": "main",
-    "dashboardCommit": "539c431dcdd74544693d70b46ff9c3fc17e74963",
-    "dashboardCommitShort": "539c431dcdd7",
+    "dashboardCommit": "362755322eeda2c5b7c5a6929d4536addb4383c0",
+    "dashboardCommitShort": "362755322eed",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "359",
-            "coverage": "359 / 78 (460.3%)",
-            "mapPercent": "460.3%",
+            "mapped": "360",
+            "coverage": "360 / 78 (461.5%)",
+            "mapPercent": "461.5%",
             "unmapped": "0",
-            "php": "511 pass / 0 fail",
+            "php": "512 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Image XObject soft-mask stream-filter review metadata is integrated and full-lane gre...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit 36275532; full m...",
+            "currentWork": "Catalog /DSS validation-material review metadata is integrated and full-lane green; c...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "539c431"
+            "commit": "3627553"
         },
         {
             "lane": "readability",
