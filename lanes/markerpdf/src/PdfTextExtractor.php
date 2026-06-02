@@ -5529,7 +5529,7 @@ final class PdfTextExtractor
      */
     private function simpleFontExplicitWidths(string $fontBody, array $objects): array
     {
-        $firstChar = $this->pdfNumberValueAfterName($fontBody, 'FirstChar');
+        $firstChar = $this->pdfNumberValueAfterNameResolvingObjects($fontBody, 'FirstChar', $objects);
         if ($firstChar === null) {
             return [];
         }

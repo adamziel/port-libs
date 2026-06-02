@@ -1612,6 +1612,29 @@ return [
         $t->same(['AABB', 'CCDD'], $extractor->extractTextLines($pdf));
         $t->same("AABB\nCCDD", $extractor->extractPlainText($pdf));
     },
+    'resolves indirect simple font FirstChar before subset Encoding width boundaries' => static function (TestRunner $t): void {
+        $content = 'BT /Fsubset 12 Tf 1 0 0 1 72 720 Tm <41424344> Tj 1 0 0 1 118 720 Tm <4546474849> Tj ET '
+            . 'BT /Fthin 12 Tf 1 0 0 1 72 704 Tm <54555657> Tj 1 0 0 1 98 704 Tm <58595A5B> Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fsubset 2 0 R /Fthin 7 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+WideSubset /Encoding 6 0 R /FirstChar 3 0 R /LastChar 4 0 R /Widths [1000 1000 1000 1000 1000 1000 1000 1000 1000] >>\nendobj\n"
+            . "3 0 obj\n65\nendobj\n"
+            . "4 0 obj\n73\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences [65 /W /i /d /e /B /l /o /c /k 84 /T /h /i /n /T /e /x /t] >>\nendobj\n"
+            . "7 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+ThinSubset /Encoding 6 0 R /FirstChar 8 0 R /LastChar 9 0 R /Widths 10 0 R >>\nendobj\n"
+            . "8 0 obj\n84\nendobj\n"
+            . "9 0 obj\n91\nendobj\n"
+            . "10 0 obj\n[250 250 250 250 250 250 250 250]\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['WideBlock', 'Thin Text'], $extractor->extractTextLines($pdf));
+        $t->same(['Wide', 'Block', 'Thin', 'Text'], $extractor->extractTextRuns($pdf));
+        $t->same("WideBlock\nThin Text", $plainText);
+        $t->true(!str_contains($plainText, 'Wide Block'));
+        $t->true(!str_contains($plainText, 'ThinText'));
+    },
     'extracts native FontDescriptor flags into upstream-style span font names' => static function (TestRunner $t): void {
         $content = 'BT /Fplain 12 Tf 72 720 Td (Plain ) Tj /Fitalic 12 Tf (italic segment) Tj /Fplain 12 Tf ( bridge ) Tj /Fbold 12 Tf (bold segment) Tj /Fplain 12 Tf ( outro) Tj ET';
         $pdf = "%PDF-1.4\n"
