@@ -338,6 +338,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-icc-softmask-image-review.php` maps ICCBased image color-space and soft-mask metadata into a WordPress media-review path. It exposes profile component count, `/Alternate`, `/Range`, direct/indirect `/SMask`, `/Matte`, matte-unblend, and RGB preview intent without loading Python, pypdfium, PIL, Poppler, Ghostscript, or external PDF tools.
 
+`examples/wordpress-pdf-image-xobject-smask-filter-currentbase.php` maps an image XObject `/SMask` stream filter chain into a WordPress media-review path. It resolves the current soft-mask object, decodes supported `ASCIIHexDecode` and `FlateDecode` filters before RGB preview planning, records decoded mask hash/sample bytes, and keeps stale mask objects plus pypdfium/PIL/model execution out of the import path.
+
 `examples/wordpress-pdf-encryption-permission-metadata-import.php` maps Standard PDF encryption permission metadata into a review-only WordPress import path. It reports crypt-filter settings, permission allow/deny labels, print quality, and hashed `/Perms`, blocks encrypted text extraction, and suppresses raw owner/user keys without attempting password validation or decryption.
 
 `examples/wordpress-pdf-embedded-files-import.php` now also maps embedded-file `/Params /CheckSum` into attachment review metadata. It exposes declared checksum, computed MD5, and match state so WordPress import workflows can flag stale embedded payloads without dropping the file or executing external PDF tooling.

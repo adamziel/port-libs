@@ -277,6 +277,7 @@ final class PdfImageRenderer
      *     uses_indexed_color_space: bool,
      *     indexed_color_space: array{base_color_space: string|null, base_components: int|null, base_uses_icc_profile: bool, base_icc_profile: array{components: int|null, alternate_color_space: string|null, range: list<float>, length: int|null}|null, high_value: int|null, lookup_source: string|null, lookup_length: int|null, expected_lookup_length: int|null, lookup_length_matches: bool, lookup_entry_count: int|null, lookup_preview_hex: string, lookup_bytes: list<int>}|null,
      *     soft_mask: array{present: bool, subtype: string|null, width: int|null, height: int|null, color_space: string|null, components: int|null, bits_per_component: int|null, decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null, opacity_for_zero: float|null, opacity_for_max: float|null, decode_inverted: bool, decode_component_mismatch: bool, matte: list<float>|null, interpolate: bool|null}|null,
+     *     soft_mask_filter_boundary: array{present: bool, source_object: int|null, filters: list<string>, preview_only_filters: list<string>, unsupported_filters: list<string>, raw_length: int|null, decoded_length: int|null, decoded_sha256: string|null, decoded_preview_hex: string|null, decoded_sample_bytes: list<int>, decoded_with_current_filters: bool, decode_failed: bool, uses_current_object_map: bool}|null,
      *     image_decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null,
      *     image_decode_applied_before_rgb: bool,
      *     image_decode_component_mismatch: bool,
@@ -313,6 +314,7 @@ final class PdfImageRenderer
         }
         $softMask = $this->imageSoftMaskDetails($imageDictionary, $objects);
         $softMaskPresent = $softMask !== null && $softMask['present'] === true;
+        $softMaskFilterBoundary = $softMask !== null ? $this->imageSoftMaskFilterBoundary($imageDictionary, $objects) : null;
         $matteUnblendingRequired = $softMaskPresent && $softMask['matte'] !== null;
         $imageDecodeValid = $imageDecode !== null && $imageDecode['valid_for_components'];
         $imageDecodeMismatch = $imageDecode !== null && !$imageDecode['valid_for_components'];
@@ -369,6 +371,15 @@ final class PdfImageRenderer
             } elseif (($softMask['decode_component_mismatch'] ?? false) === true) {
                 $notes[] = 'soft_mask_decode_component_mismatch';
             }
+            if ($softMaskFilterBoundary !== null && $softMaskFilterBoundary['filters'] !== []) {
+                if ($softMaskFilterBoundary['decoded_with_current_filters']) {
+                    $notes[] = 'soft_mask_stream_filters_decoded_before_rgb_conversion';
+                } elseif ($softMaskFilterBoundary['preview_only_filters'] !== []) {
+                    $notes[] = 'soft_mask_stream_filter_preview_only';
+                } elseif ($softMaskFilterBoundary['decode_failed']) {
+                    $notes[] = 'soft_mask_stream_filter_decode_failed';
+                }
+            }
         } elseif ($softMask !== null) {
             $notes[] = 'soft_mask_none';
         }
@@ -399,6 +410,7 @@ final class PdfImageRenderer
             'image_mask' => $imageMask,
             'image_mask_applied_before_rgb' => $imageMaskPresent,
             'soft_mask' => $softMask,
+            'soft_mask_filter_boundary' => $softMaskFilterBoundary,
             'soft_mask_applied_before_rgb' => $softMaskPresent,
             'soft_mask_decode_applied_before_rgb' => $softMaskPresent
                 && ($softMask['decode'] ?? null) !== null
@@ -1090,6 +1102,468 @@ final class PdfImageRenderer
             'matte' => $matte === [] ? null : $matte,
             'interpolate' => $this->booleanNameValue($maskDictionary, 'Interpolate'),
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{present: bool, source_object: int|null, filters: list<string>, preview_only_filters: list<string>, unsupported_filters: list<string>, raw_length: int|null, decoded_length: int|null, decoded_sha256: string|null, decoded_preview_hex: string|null, decoded_sample_bytes: list<int>, decoded_with_current_filters: bool, decode_failed: bool, uses_current_object_map: bool}|null
+     */
+    private function imageSoftMaskFilterBoundary(string $dictionary, array $objects): ?array
+    {
+        $value = $this->extractPdfNameValue($dictionary, 'SMask');
+        if ($value === null) {
+            return null;
+        }
+
+        $sourceObject = $this->objectReferenceNumber($value);
+        $usesCurrentObjectMap = $sourceObject !== null && isset($objects[$sourceObject]);
+
+        if ($this->pdfNameValue($value) === 'None') {
+            return [
+                'present' => false,
+                'source_object' => $sourceObject,
+                'filters' => [],
+                'preview_only_filters' => [],
+                'unsupported_filters' => [],
+                'raw_length' => null,
+                'decoded_length' => null,
+                'decoded_sha256' => null,
+                'decoded_preview_hex' => null,
+                'decoded_sample_bytes' => [],
+                'decoded_with_current_filters' => false,
+                'decode_failed' => false,
+                'uses_current_object_map' => $usesCurrentObjectMap,
+            ];
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects));
+        $maskDictionary = $this->streamDictionaryFromValue($resolved) ?? $resolved;
+        $stream = $this->streamPayloadBytes($resolved);
+        $filters = $this->imageFilterNames($maskDictionary, $objects);
+        $decoded = null;
+        $unsupportedFilters = [];
+        $decodeFailed = false;
+
+        if ($stream !== null) {
+            $decodeResult = $this->decodeImageStreamByFilters($maskDictionary, $stream, $objects);
+            $decoded = $decodeResult['decoded'];
+            $unsupportedFilters = $decodeResult['unsupported_filters'];
+            $decodeFailed = $decodeResult['decode_failed'];
+        } elseif ($filters !== []) {
+            $decodeFailed = true;
+        }
+
+        $previewOnlyFilters = array_values(array_filter(
+            $filters,
+            fn (string $filter): bool => $this->isPreviewOnlyStreamFilter($filter)
+        ));
+        foreach ($previewOnlyFilters as $filter) {
+            if (!in_array($filter, $unsupportedFilters, true)) {
+                $unsupportedFilters[] = $filter;
+            }
+        }
+
+        return [
+            'present' => true,
+            'source_object' => $sourceObject,
+            'filters' => $filters,
+            'preview_only_filters' => $previewOnlyFilters,
+            'unsupported_filters' => array_values($unsupportedFilters),
+            'raw_length' => $stream === null ? null : strlen($stream),
+            'decoded_length' => $decoded === null ? null : strlen($decoded),
+            'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
+            'decoded_preview_hex' => $decoded === null ? null : strtoupper(bin2hex(substr($decoded, 0, 16))),
+            'decoded_sample_bytes' => $decoded === null ? [] : $this->byteList(substr($decoded, 0, 16)),
+            'decoded_with_current_filters' => $decoded !== null,
+            'decode_failed' => $decodeFailed,
+            'uses_current_object_map' => $usesCurrentObjectMap,
+        ];
+    }
+
+    private function streamDictionaryFromValue(string $resolved): ?string
+    {
+        $offset = $this->skipPdfWhitespace($resolved, 0);
+        $read = $this->readBalancedDictionary($resolved, $offset);
+
+        return $read['value'] ?? null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{decoded: string|null, unsupported_filters: list<string>, decode_failed: bool}
+     */
+    private function decodeImageStreamByFilters(string $dictionary, string $stream, array $objects): array
+    {
+        $filters = $this->imageFilterNames($dictionary, $objects);
+        if ($filters === []) {
+            return [
+                'decoded' => $stream,
+                'unsupported_filters' => [],
+                'decode_failed' => false,
+            ];
+        }
+
+        $decodeParms = $this->imageDecodeParmsValues($dictionary, $objects);
+        $unsupportedFilters = [];
+
+        foreach ($filters as $index => $filter) {
+            $decodeParmsValue = $decodeParms[$index] ?? (count($filters) === 1 ? ($decodeParms[0] ?? null) : null);
+            $resolvedDecodeParms = $this->resolvedDecodeParmsDictionary($decodeParmsValue, $objects);
+            if ($this->isPreviewOnlyStreamFilter($filter) || !$this->canApplyImageDecodeParms($filter, $resolvedDecodeParms, $objects)) {
+                $unsupportedFilters[] = $filter;
+
+                return [
+                    'decoded' => null,
+                    'unsupported_filters' => $unsupportedFilters,
+                    'decode_failed' => !$this->isPreviewOnlyStreamFilter($filter),
+                ];
+            }
+
+            $decoded = match ($filter) {
+                'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
+                'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
+                'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
+                'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $resolvedDecodeParms, $objects),
+                default => null,
+            };
+
+            if ($decoded === null) {
+                $unsupportedFilters[] = $filter;
+
+                return [
+                    'decoded' => null,
+                    'unsupported_filters' => $unsupportedFilters,
+                    'decode_failed' => true,
+                ];
+            }
+
+            $stream = $decoded;
+        }
+
+        return [
+            'decoded' => $stream,
+            'unsupported_filters' => [],
+            'decode_failed' => false,
+        ];
+    }
+
+    private function isPreviewOnlyStreamFilter(string $filter): bool
+    {
+        return $this->isPreviewOnlyImageFilter($filter) || in_array($filter, ['DCTDecode', 'DCT'], true);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function resolvedDecodeParmsDictionary(?string $value, array $objects): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects));
+        if ($resolved === '' || $resolved === 'null' || !str_starts_with($resolved, '<<')) {
+            return null;
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function canApplyImageDecodeParms(string $filter, ?string $decodeParms, array $objects): bool
+    {
+        if ($decodeParms === null) {
+            return true;
+        }
+
+        foreach (['Predictor', 'Columns', 'Colors', 'BitsPerComponent'] as $name) {
+            if (
+                $this->extractPdfNameValue($decodeParms, $name) !== null
+                && $this->decodeParmsInt($decodeParms, $name, $objects) === null
+            ) {
+                return false;
+            }
+        }
+
+        $predictor = $this->decodeParmsInt($decodeParms, 'Predictor', $objects);
+        if ($predictor !== null && $predictor !== 1 && !in_array($filter, ['FlateDecode', 'Fl'], true)) {
+            return false;
+        }
+
+        foreach (['Columns', 'Colors', 'BitsPerComponent'] as $name) {
+            $value = $this->decodeParmsInt($decodeParms, $name, $objects);
+            if ($value !== null && $value < 1) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodeParmsInt(?string $decodeParms, string $name, array $objects): ?int
+    {
+        if ($decodeParms === null) {
+            return null;
+        }
+
+        $value = $this->extractPdfNameValue($decodeParms, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        return $this->integerFromPdfValue($value, $objects);
+    }
+
+    private function decodeAsciiHexStream(string $stream): ?string
+    {
+        $body = strstr($stream, '>', true);
+        if ($body === false) {
+            $body = $stream;
+        }
+
+        $hex = preg_replace('/\s+/', '', $body);
+        if ($hex === null || preg_match('/^[\da-fA-F]*$/', $hex) !== 1) {
+            return null;
+        }
+
+        if (strlen($hex) % 2 === 1) {
+            $hex .= '0';
+        }
+
+        $decoded = hex2bin($hex);
+
+        return $decoded === false ? null : $decoded;
+    }
+
+    private function decodeAscii85Stream(string $stream): ?string
+    {
+        $body = trim($stream);
+        if (str_starts_with($body, '<~')) {
+            $body = substr($body, 2);
+        }
+
+        $terminator = strpos($body, '~>');
+        if ($terminator !== false) {
+            $body = substr($body, 0, $terminator);
+        }
+
+        $out = '';
+        $group = [];
+        $length = strlen($body);
+        for ($index = 0; $index < $length; $index++) {
+            $char = $body[$index];
+            if (ctype_space($char)) {
+                continue;
+            }
+
+            if ($char === 'z') {
+                if ($group !== []) {
+                    return null;
+                }
+                $out .= "\0\0\0\0";
+                continue;
+            }
+
+            $ord = ord($char);
+            if ($ord < 33 || $ord > 117) {
+                return null;
+            }
+
+            $group[] = $ord - 33;
+            if (count($group) === 5) {
+                $out .= $this->decodeAscii85Group($group, 4);
+                $group = [];
+            }
+        }
+
+        if ($group !== []) {
+            $groupLength = count($group);
+            if ($groupLength === 1) {
+                return null;
+            }
+            while (count($group) < 5) {
+                $group[] = 84;
+            }
+            $out .= $this->decodeAscii85Group($group, $groupLength - 1);
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<int> $group
+     */
+    private function decodeAscii85Group(array $group, int $bytesToReturn): string
+    {
+        $value = 0;
+        foreach ($group as $digit) {
+            $value = ($value * 85) + $digit;
+        }
+
+        $bytes = '';
+        for ($shift = 24; $shift >= 0; $shift -= 8) {
+            $bytes .= chr(($value >> $shift) & 0xff);
+        }
+
+        return substr($bytes, 0, $bytesToReturn);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodeFlateStream(string $stream, ?string $decodeParms = null, array $objects = []): ?string
+    {
+        $inflated = @gzuncompress($stream);
+        if ($inflated === false) {
+            $inflated = @gzinflate($stream);
+        }
+        if ($inflated === false) {
+            $inflated = @gzdecode($stream);
+        }
+        if ($inflated === false) {
+            return null;
+        }
+
+        return $this->applyDecodeParmsPredictor($inflated, $decodeParms, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function applyDecodeParmsPredictor(string $bytes, ?string $decodeParms, array $objects = []): ?string
+    {
+        $predictor = $this->decodeParmsInt($decodeParms, 'Predictor', $objects) ?? 1;
+        if ($predictor === 1) {
+            return $bytes;
+        }
+
+        $colors = max(1, $this->decodeParmsInt($decodeParms, 'Colors', $objects) ?? 1);
+        $bitsPerComponent = max(1, $this->decodeParmsInt($decodeParms, 'BitsPerComponent', $objects) ?? 8);
+        $columns = max(1, $this->decodeParmsInt($decodeParms, 'Columns', $objects) ?? 1);
+        $rowLength = intdiv(($colors * $columns * $bitsPerComponent) + 7, 8);
+        $bytesPerPixel = max(1, intdiv(($colors * $bitsPerComponent) + 7, 8));
+
+        if ($predictor === 2) {
+            return $this->applyTiffPredictor($bytes, $rowLength, $bytesPerPixel);
+        }
+
+        if ($predictor < 10 || $predictor > 15) {
+            return null;
+        }
+
+        return $this->applyPngPredictor($bytes, $rowLength, $bytesPerPixel);
+    }
+
+    private function applyTiffPredictor(string $bytes, int $rowLength, int $bytesPerPixel): ?string
+    {
+        if ($rowLength < 1 || strlen($bytes) % $rowLength !== 0) {
+            return null;
+        }
+
+        $out = '';
+        for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += $rowLength) {
+            $row = substr($bytes, $offset, $rowLength);
+            for ($index = $bytesPerPixel; $index < $rowLength; $index++) {
+                $row[$index] = chr((ord($row[$index]) + ord($row[$index - $bytesPerPixel])) & 0xff);
+            }
+            $out .= $row;
+        }
+
+        return $out;
+    }
+
+    private function applyPngPredictor(string $bytes, int $rowLength, int $bytesPerPixel): ?string
+    {
+        $stride = $rowLength + 1;
+        if ($rowLength < 1 || strlen($bytes) % $stride !== 0) {
+            return null;
+        }
+
+        $out = '';
+        $previous = str_repeat("\0", $rowLength);
+        for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += $stride) {
+            $filter = ord($bytes[$offset]);
+            $row = substr($bytes, $offset + 1, $rowLength);
+            if ($filter > 4) {
+                return null;
+            }
+
+            for ($index = 0; $index < $rowLength; $index++) {
+                $left = $index >= $bytesPerPixel ? ord($row[$index - $bytesPerPixel]) : 0;
+                $up = ord($previous[$index]);
+                $upperLeft = $index >= $bytesPerPixel ? ord($previous[$index - $bytesPerPixel]) : 0;
+                $encoded = ord($row[$index]);
+                $row[$index] = chr(($encoded + $this->pngPredictorValue($filter, $left, $up, $upperLeft)) & 0xff);
+            }
+
+            $out .= $row;
+            $previous = $row;
+        }
+
+        return $out;
+    }
+
+    private function pngPredictorValue(int $filter, int $left, int $up, int $upperLeft): int
+    {
+        return match ($filter) {
+            0 => 0,
+            1 => $left,
+            2 => $up,
+            3 => intdiv($left + $up, 2),
+            4 => $this->paethPredictor($left, $up, $upperLeft),
+        };
+    }
+
+    private function paethPredictor(int $left, int $up, int $upperLeft): int
+    {
+        $estimate = $left + $up - $upperLeft;
+        $leftDistance = abs($estimate - $left);
+        $upDistance = abs($estimate - $up);
+        $upperLeftDistance = abs($estimate - $upperLeft);
+
+        if ($leftDistance <= $upDistance && $leftDistance <= $upperLeftDistance) {
+            return $left;
+        }
+        if ($upDistance <= $upperLeftDistance) {
+            return $up;
+        }
+
+        return $upperLeft;
+    }
+
+    private function decodeRunLengthStream(string $stream): ?string
+    {
+        $out = '';
+        $length = strlen($stream);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $control = ord($stream[$offset]);
+            if ($control === 128) {
+                return $out;
+            }
+
+            if ($control <= 127) {
+                $copyLength = $control + 1;
+                if ($offset + $copyLength >= $length) {
+                    return null;
+                }
+                $out .= substr($stream, $offset + 1, $copyLength);
+                $offset += $copyLength;
+                continue;
+            }
+
+            if ($offset + 1 >= $length) {
+                return null;
+            }
+            $out .= str_repeat($stream[$offset + 1], 257 - $control);
+            $offset++;
+        }
+
+        return null;
     }
 
     private function dictionaryNameValue(string $dictionary, string $name): ?string

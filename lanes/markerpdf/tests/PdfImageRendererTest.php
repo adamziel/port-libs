@@ -315,6 +315,57 @@ return [
         $t->contains('soft_mask_decode_component_mismatch', implode(',', $mismatch['notes']));
         $t->throws(InvalidArgumentException::class, static fn (): float => $renderer->softMaskSampleOpacity(128, $mismatch['soft_mask']));
     },
+    'decodes soft-mask XObject stream filters from the current object map before RGB preview compositing' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $maskBytes = "\x00\x7f\xff";
+        $compressed = gzcompress($maskBytes);
+        if (!is_string($compressed)) {
+            throw new RuntimeException('Unable to compress soft-mask fixture.');
+        }
+
+        $asciiHex = strtoupper(bin2hex($compressed)) . '>';
+        $objects = [
+            31 => "<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter [/ASCIIHexDecode /FlateDecode] /DecodeParms [null 32 0 R] /Decode [0 1] /Length " . strlen($asciiHex) . " >>\nstream\n{$asciiHex}\nendstream",
+            32 => '<< /Predictor 1 /Columns 3 /Colors 1 /BitsPerComponent 8 >>',
+            99 => "<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length 8 >>\nstream\nSTALEMSK\nendstream",
+        ];
+
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /SMask 31 0 R >>',
+            $objects
+        );
+
+        $t->same([
+            'present' => true,
+            'source_object' => 31,
+            'filters' => ['ASCIIHexDecode', 'FlateDecode'],
+            'preview_only_filters' => [],
+            'unsupported_filters' => [],
+            'raw_length' => strlen($asciiHex),
+            'decoded_length' => 3,
+            'decoded_sha256' => hash('sha256', $maskBytes),
+            'decoded_preview_hex' => '007FFF',
+            'decoded_sample_bytes' => [0, 127, 255],
+            'decoded_with_current_filters' => true,
+            'decode_failed' => false,
+            'uses_current_object_map' => true,
+        ], $plan['soft_mask_filter_boundary']);
+        $t->same(1.0, $renderer->softMaskSampleOpacity(255, $plan['soft_mask']));
+        $t->contains('soft_mask_stream_filters_decoded_before_rgb_conversion', implode(',', $plan['notes']));
+
+        $unsupported = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /SMask 41 0 R >>',
+            [
+                41 => "<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /JPXDecode /Length 3 >>\nstream\nJPX\nendstream",
+            ]
+        );
+
+        $t->same(['JPXDecode'], $unsupported['soft_mask_filter_boundary']['preview_only_filters']);
+        $t->same(['JPXDecode'], $unsupported['soft_mask_filter_boundary']['unsupported_filters']);
+        $t->same(null, $unsupported['soft_mask_filter_boundary']['decoded_length']);
+        $t->same(false, $unsupported['soft_mask_filter_boundary']['decoded_with_current_filters']);
+        $t->contains('soft_mask_stream_filter_preview_only', implode(',', $unsupported['notes']));
+    },
     'plans Indexed ICCBased JBIG2 image palette and soft-mask boundary before RGB preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $objects = [
