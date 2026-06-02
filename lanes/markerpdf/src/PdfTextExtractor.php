@@ -16,7 +16,11 @@ final class PdfTextExtractor
     {
         $runs = [];
         foreach ($this->contentStreamsWithFontMaps($pdfBytes) as $entry) {
-            foreach ($this->textRunsFromContentStream($entry['stream'], $entry['fontToUnicodeMaps']) as $run) {
+            foreach ($this->textRunsFromContentStream(
+                $entry['stream'],
+                $entry['fontToUnicodeMaps'],
+                $entry['markedContentProperties']
+            ) as $run) {
                 if ($run !== '') {
                     $runs[] = $run;
                 }
@@ -135,7 +139,11 @@ final class PdfTextExtractor
     {
         $lines = [];
         foreach ($this->contentStreamsWithFontMaps($pdfBytes) as $entry) {
-            foreach ($this->textLinesFromContentStream($entry['stream'], $entry['fontToUnicodeMaps']) as $line) {
+            foreach ($this->textLinesFromContentStream(
+                $entry['stream'],
+                $entry['fontToUnicodeMaps'],
+                $entry['markedContentProperties']
+            ) as $line) {
                 if ($line !== '') {
                     $lines[] = $line;
                 }
@@ -152,7 +160,11 @@ final class PdfTextExtractor
     {
         $pages = [];
         foreach ($this->contentStreamsWithFontMaps($pdfBytes) as $entry) {
-            $pages[] = implode("\n", $this->textLinesFromContentStream($entry['stream'], $entry['fontToUnicodeMaps']));
+            $pages[] = implode("\n", $this->textLinesFromContentStream(
+                $entry['stream'],
+                $entry['fontToUnicodeMaps'],
+                $entry['markedContentProperties']
+            ));
         }
 
         return $pages;
@@ -307,7 +319,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return list<array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>}>
+     * @return list<array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>}>
      */
     private function contentStreamsWithFontMaps(string $pdfBytes): array
     {
@@ -330,13 +342,14 @@ final class PdfTextExtractor
             static fn (string $stream): array => [
                 'stream' => $stream,
                 'fontToUnicodeMaps' => $fontToUnicodeMaps,
+                'markedContentProperties' => [],
             ],
             $this->allDecodedStreams($pdfBytes, $objects)
         );
     }
 
     /**
-     * @return list<array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>}>
+     * @return list<array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>}>
      * @param array<int, string> $objects
      * @param list<int> $pageObjectNumbers
      * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
@@ -366,16 +379,19 @@ final class PdfTextExtractor
             $expanded = [
                 'stream' => implode("\n", $streams),
                 'fontToUnicodeMaps' => $pageFontToUnicodeMaps,
+                'markedContentProperties' => $this->pageMarkedContentProperties($pageObjectNumber, $objects),
             ];
 
             if ($streams !== []) {
-                $expanded = $this->expandFormXObjectInvocations(
+                $expandedForms = $this->expandFormXObjectInvocations(
                     $expanded['stream'],
                     $objects[$pageObjectNumber],
                     $objects,
                     $fontObjectMaps,
                     $expanded['fontToUnicodeMaps']
                 );
+                $expanded['stream'] = $expandedForms['stream'];
+                $expanded['fontToUnicodeMaps'] = $expandedForms['fontToUnicodeMaps'];
             }
 
             $expanded['stream'] = $this->applyStructureTreeReadingOrder(
@@ -404,6 +420,7 @@ final class PdfTextExtractor
             $pages[] = [
                 'stream' => $expanded['stream'],
                 'fontToUnicodeMaps' => $expanded['fontToUnicodeMaps'],
+                'markedContentProperties' => $expanded['markedContentProperties'],
             ];
         }
 
@@ -769,24 +786,6 @@ final class PdfTextExtractor
         return $properties;
     }
 
-    /**
-     * @param array<int, string> $objects
-     */
-    private function propertiesResourceDictionaryBody(string $resourceDictionary, array $objects): ?string
-    {
-        if (!preg_match('/\/Properties\s*(?:(\d+)\s+\d+\s+R|<<)/s', $resourceDictionary, $match, PREG_OFFSET_CAPTURE)) {
-            return null;
-        }
-
-        if (($match[1][0] ?? '') !== '') {
-            $objectNumber = (int) $match[1][0];
-            return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
-        }
-
-        $offset = strpos($resourceDictionary, '<<', $match[0][1]);
-        return $offset === false ? null : $this->readPdfDictionaryAt($resourceDictionary, $offset);
-    }
-
     private function formatPdfNumber(float $value): string
     {
         if (abs($value - round($value)) < 0.000001) {
@@ -961,6 +960,27 @@ final class PdfTextExtractor
         $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
 
         return $this->fontResourceMapsFromResourceDictionary($resourceDictionary, $objects, $fontObjectMaps);
+    }
+
+    /**
+     * @return array<string, array{actualText: string|null, altText: string|null}>
+     * @param array<int, string> $objects
+     */
+    private function pageMarkedContentProperties(int $pageObjectNumber, array $objects): array
+    {
+        $properties = [];
+        foreach (array_reverse($this->pageObjectLineage($pageObjectNumber, $objects)) as $objectNumber) {
+            $resourceDictionary = $this->resourceDictionaryBody($objects[$objectNumber], $objects);
+            if ($resourceDictionary === null) {
+                continue;
+            }
+
+            foreach ($this->markedContentPropertiesFromResourceDictionary($resourceDictionary, $objects) as $name => $property) {
+                $properties[$name] = $property;
+            }
+        }
+
+        return $properties;
     }
 
     /**
@@ -2546,6 +2566,66 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return array<string, array{actualText: string|null, altText: string|null}>
+     * @param array<int, string> $objects
+     */
+    private function markedContentPropertiesFromResourceDictionary(string $resourceDictionary, array $objects): array
+    {
+        $propertiesDictionary = $this->propertiesResourceDictionaryBody($resourceDictionary, $objects);
+        if ($propertiesDictionary === null) {
+            return [];
+        }
+
+        $properties = [];
+        if (preg_match_all(
+            '/\/([^\s\[\]()<>{}\/%]+)\s*(?:(\d+)\s+\d+\s+R|<<)/s',
+            $propertiesDictionary,
+            $matches,
+            PREG_SET_ORDER | PREG_OFFSET_CAPTURE
+        ) !== false) {
+            foreach ($matches as $match) {
+                $name = $this->decodePdfName($match[1][0]);
+                if (($match[2][0] ?? '') !== '') {
+                    $objectNumber = (int) $match[2][0];
+                    $dictionary = isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
+                } else {
+                    $offset = strpos($propertiesDictionary, '<<', $match[0][1]);
+                    $dictionary = $offset === false ? null : $this->readPdfDictionaryAt($propertiesDictionary, $offset);
+                }
+
+                if ($dictionary === null) {
+                    continue;
+                }
+
+                $properties[$name] = [
+                    'actualText' => $this->pdfOptionalStringValueAfterName($dictionary, 'ActualText', $objects),
+                    'altText' => $this->pdfOptionalStringValueAfterName($dictionary, 'Alt', $objects),
+                ];
+            }
+        }
+
+        return $properties;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function propertiesResourceDictionaryBody(string $resourceDictionary, array $objects): ?string
+    {
+        if (!preg_match('/\/Properties\s*(?:(\d+)\s+\d+\s+R|<<)/s', $resourceDictionary, $match, PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+
+        if (($match[1][0] ?? '') !== '') {
+            $objectNumber = (int) $match[1][0];
+            return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
+        }
+
+        $offset = strpos($resourceDictionary, '<<', $match[0][1]);
+        return $offset === false ? null : $this->readPdfDictionaryAt($resourceDictionary, $offset);
+    }
+
+    /**
      * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}|null
      */
     private function fontEncodingMap(string $fontBody): ?array
@@ -2969,6 +3049,19 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      */
     private function pdfStringValueAfterName(string $body, string $name, array $objects): ?string
+    {
+        $offset = $this->nameValueOffset($body, $name);
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->pdfStringTokenAt($body, $offset, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pdfOptionalStringValueAfterName(string $body, string $name, array $objects): ?string
     {
         $offset = $this->nameValueOffset($body, $name);
         if ($offset === null) {
@@ -4284,17 +4377,27 @@ final class PdfTextExtractor
     /**
      * @return list<string>
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
+     * @param array<string, array{actualText: string|null, altText: string|null}> $markedContentProperties
      */
-    private function textRunsFromContentStream(string $stream, array $fontToUnicodeMaps): array
+    private function textRunsFromContentStream(string $stream, array $fontToUnicodeMaps, array $markedContentProperties = []): array
     {
         $runs = [];
         $operands = [];
         $currentFontResource = null;
+        $markedContentStack = [];
         foreach ($this->contentTokens($stream) as $token) {
             if ($this->isTextShowingOperator($token)) {
                 $operand = $this->textShowingOperand($token, $operands);
                 if ($operand !== null) {
-                    $runs[] = $this->decodeTextOperand($operand, $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource));
+                    $replacementIndex = $this->activeMarkedContentReplacementIndex($markedContentStack);
+                    if ($replacementIndex !== null) {
+                        if (!$markedContentStack[$replacementIndex]['emitted']) {
+                            $runs[] = $markedContentStack[$replacementIndex]['replacement'];
+                            $markedContentStack[$replacementIndex]['emitted'] = true;
+                        }
+                    } else {
+                        $runs[] = $this->decodeTextOperand($operand, $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource));
+                    }
                 }
                 $operands = [];
                 continue;
@@ -4302,6 +4405,38 @@ final class PdfTextExtractor
 
             if ($token === 'Tf') {
                 $currentFontResource = $this->fontResourceOperand($operands) ?? $currentFontResource;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BMC') {
+                $markedContentStack[] = [
+                    'replacement' => null,
+                    'emitted' => true,
+                ];
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BDC') {
+                $markedContentStack[] = [
+                    'replacement' => $this->markedContentReplacementOperand($operands, $markedContentProperties),
+                    'emitted' => false,
+                ];
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'EMC') {
+                $markedContent = array_pop($markedContentStack);
+                if (
+                    is_array($markedContent)
+                    && $markedContent['replacement'] !== null
+                    && !$markedContent['emitted']
+                    && $this->activeMarkedContentReplacementIndex($markedContentStack) === null
+                ) {
+                    $runs[] = $markedContent['replacement'];
+                }
                 $operands = [];
                 continue;
             }
@@ -4320,8 +4455,9 @@ final class PdfTextExtractor
     /**
      * @return list<string>
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
+     * @param array<string, array{actualText: string|null, altText: string|null}> $markedContentProperties
      */
-    private function textLinesFromContentStream(string $stream, array $fontToUnicodeMaps): array
+    private function textLinesFromContentStream(string $stream, array $fontToUnicodeMaps, array $markedContentProperties = []): array
     {
         $lines = [];
         $operands = [];
@@ -4339,6 +4475,7 @@ final class PdfTextExtractor
         $currentTextMatrixHorizontalScale = 1.0;
         $pendingPositionWordGap = false;
         $textStateStack = [];
+        $markedContentStack = [];
 
         foreach ($this->contentTokens($stream) as $token) {
             if ($this->isTextShowingOperator($token)) {
@@ -4358,7 +4495,15 @@ final class PdfTextExtractor
                 $operand = $this->textShowingOperand($token, $operands);
                 if ($operand !== null) {
                     $toUnicodeMap = $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource);
-                    $decoded = $this->decodeTextOperand($operand, $toUnicodeMap);
+                    $replacementIndex = $this->activeMarkedContentReplacementIndex($markedContentStack);
+                    if ($replacementIndex !== null) {
+                        $decoded = $markedContentStack[$replacementIndex]['emitted']
+                            ? ''
+                            : $markedContentStack[$replacementIndex]['replacement'];
+                        $markedContentStack[$replacementIndex]['emitted'] = true;
+                    } else {
+                        $decoded = $this->decodeTextOperand($operand, $toUnicodeMap);
+                    }
                     $this->appendPositionedText($currentLine, $decoded, $pendingPositionWordGap);
                     if ($this->mapWritingMode($toUnicodeMap) === 1) {
                         $currentTextEndY = $this->advanceTextEndYForOperand(
@@ -4380,6 +4525,38 @@ final class PdfTextExtractor
                             $horizontalScale * $currentTextMatrixHorizontalScale
                         );
                     }
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BMC') {
+                $markedContentStack[] = [
+                    'replacement' => null,
+                    'emitted' => true,
+                ];
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BDC') {
+                $markedContentStack[] = [
+                    'replacement' => $this->markedContentReplacementOperand($operands, $markedContentProperties),
+                    'emitted' => false,
+                ];
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'EMC') {
+                $markedContent = array_pop($markedContentStack);
+                if (
+                    is_array($markedContent)
+                    && $markedContent['replacement'] !== null
+                    && !$markedContent['emitted']
+                    && $this->activeMarkedContentReplacementIndex($markedContentStack) === null
+                ) {
+                    $this->appendPositionedText($currentLine, $markedContent['replacement'], $pendingPositionWordGap);
                 }
                 $operands = [];
                 continue;
@@ -4813,6 +4990,65 @@ final class PdfTextExtractor
     private function isTextShowingOperator(string $token): bool
     {
         return in_array($token, ['Tj', 'TJ', "'", '"'], true);
+    }
+
+    /**
+     * @param list<string> $operands
+     * @param array<string, array{actualText: string|null, altText: string|null}> $markedContentProperties
+     */
+    private function markedContentReplacementOperand(array $operands, array $markedContentProperties): ?string
+    {
+        if (count($operands) < 2) {
+            return null;
+        }
+
+        $propertyOperand = trim((string) $operands[count($operands) - 1]);
+        if (str_starts_with($propertyOperand, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($propertyOperand, 0);
+            if ($dictionary === null) {
+                return null;
+            }
+
+            return $this->markedContentReplacementFromProperty([
+                'actualText' => $this->pdfOptionalStringValueAfterName($dictionary, 'ActualText', []),
+                'altText' => $this->pdfOptionalStringValueAfterName($dictionary, 'Alt', []),
+            ]);
+        }
+
+        if (!str_starts_with($propertyOperand, '/')) {
+            return null;
+        }
+
+        $resourceName = $this->decodePdfName(substr($propertyOperand, 1));
+        return isset($markedContentProperties[$resourceName])
+            ? $this->markedContentReplacementFromProperty($markedContentProperties[$resourceName])
+            : null;
+    }
+
+    /**
+     * @param array{actualText: string|null, altText: string|null} $property
+     */
+    private function markedContentReplacementFromProperty(array $property): ?string
+    {
+        if ($property['actualText'] !== null) {
+            return $property['actualText'];
+        }
+
+        return $property['altText'];
+    }
+
+    /**
+     * @param list<array{replacement: string|null, emitted: bool}> $markedContentStack
+     */
+    private function activeMarkedContentReplacementIndex(array $markedContentStack): ?int
+    {
+        foreach ($markedContentStack as $index => $markedContent) {
+            if ($markedContent['replacement'] !== null) {
+                return $index;
+            }
+        }
+
+        return null;
     }
 
     private function isTextOperand(string $token): bool

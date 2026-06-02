@@ -380,6 +380,46 @@ return [
         $runs = (new PdfTextExtractor())->extractTextRuns($pdfWithContent($content));
         $t->same(['Hello (WP)', 'Data Liberation'], $runs);
     },
+    'uses marked-content ActualText and Alt replacements before WordPress paragraph rendering' => static function (TestRunner $t): void {
+        $actualTextUtf16 = '<FEFF005200650073006F0075007200630065006400200057005000200042006C006F0063006B0073>';
+        $pageContent = 'BT /F1 12 Tf 72 720 Td (Visible Intro) Tj T* '
+            . '/Span << /ActualText (Accessible WordPress Import) /Alt (Ignored Alt Text) >> BDC (Glyph Noise) Tj EMC T* '
+            . '/Span /PActual BDC (Resource Glyph Noise) Tj EMC T* ET '
+            . '/Figure << /Alt (Figure: migration workflow screenshot) >> BDC q /Im1 Do Q EMC '
+            . 'BT /F1 12 Tf 72 672 Td /Span << /Alt (Inline Alt Summary) >> BDC (Inline Alt Glyphs) Tj EMC ET';
+        $imageNoise = 'BT /F1 12 Tf 72 704 Td (Raster Alt Noise) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> /Properties << /PActual 6 0 R >> /XObject << /Im1 5 0 R >> >> /Contents 7 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Length " . strlen($imageNoise) . " >>\nstream\n{$imageNoise}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /ActualText {$actualTextUtf16} >>\nendobj\n"
+            . "7 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same([
+            'Visible Intro',
+            'Accessible WordPress Import',
+            'Resourced WP Blocks',
+            'Figure: migration workflow screenshot',
+            'Inline Alt Summary',
+        ], $extractor->extractTextLines($pdf));
+        $t->same([
+            'Visible Intro',
+            'Accessible WordPress Import',
+            'Resourced WP Blocks',
+            'Figure: migration workflow screenshot',
+            'Inline Alt Summary',
+        ], $extractor->extractTextRuns($pdf));
+        $t->same("Visible Intro\nAccessible WordPress Import\nResourced WP Blocks\nFigure: migration workflow screenshot\nInline Alt Summary", $plainText);
+        $t->same($plainText . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Glyph Noise'));
+        $t->true(!str_contains($plainText, 'Resource Glyph Noise'));
+        $t->true(!str_contains($plainText, 'Ignored Alt Text'));
+        $t->true(!str_contains($plainText, 'Raster Alt Noise'));
+    },
     'extracts flate encoded content streams' => static function (TestRunner $t): void {
         $content = 'BT <48656c6c6f> Tj ET';
         $compressed = gzcompress($content);
