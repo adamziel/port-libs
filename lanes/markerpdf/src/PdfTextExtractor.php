@@ -5356,7 +5356,7 @@ final class PdfTextExtractor
                 $widths[$code] = $width;
             }
 
-            $widthArray = $this->pdfArrayValueAfterName($body, 'W');
+            $widthArray = $this->pdfArrayValueAfterNameResolvingObjects($body, 'W', $objects);
             if ($widthArray !== null) {
                 $hasWidthArray = true;
                 foreach ($this->cidWidthsFromWArray($widthArray) as $cid => $width) {
