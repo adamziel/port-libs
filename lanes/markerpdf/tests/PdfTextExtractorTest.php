@@ -3211,6 +3211,49 @@ return [
             'Figure dashboard alt text',
         ], array_column($tagged, 'text'));
     },
+    'keeps StructTreeRoot RoleMap MCID order authoritative when catalog Threads are present' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf '
+            . '/BodyCopy /BodyProp BDC 72 704 Td (Body glyph noise) Tj EMC '
+            . '/Chap#54itle << /MCID 0 >> BDC 72 720 Td (Chapter heading glyphs) Tj EMC '
+            . '/Illustration << /MCID 2 /Alt (Figure dashboard alt text) >> BDC q /Im1 Do Q EMC '
+            . '/Artifact << /MCID 9 >> BDC 72 688 Td (Artifact footer noise) Tj EMC ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Threads [40 0 R] /MarkInfo << /Marked true >> /StructTreeRoot 20 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> /Properties << /BodyProp 30 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Type /StructTreeRoot /RoleMap 24 0 R /K [21 0 R 22 0 R 23 0 R] >>\nendobj\n"
+            . "21 0 obj\n<< /Type /StructElem /S /Chap#54itle /Pg 3 0 R /K 0 >>\nendobj\n"
+            . "22 0 obj\n<< /Type /StructElem /S /BodyAlias /Pg 3 0 R /K << /Type /MCR /MCID 1 >> >>\nendobj\n"
+            . "23 0 obj\n<< /Type /StructElem /S /Illustration /Pg 3 0 R /K [<< /Type /MCR /Pg 3 0 R /MCID 2 >>] >>\nendobj\n"
+            . "24 0 obj\n<< /Chap#54itle /H1 /BodyAlias /BodyCopy /BodyCopy /P /Illustration /Figure >>\nendobj\n"
+            . "30 0 obj\n<< /MCID 1 /ActualText (Threaded paragraph replacement) >>\nendobj\n"
+            . "40 0 obj\n<< /Type /Thread /F 41 0 R /I << /Title (Thread should not erase MCIDs) >> >>\nendobj\n"
+            . "41 0 obj\n<< /Type /Bead /T 40 0 R /P 3 0 R /R [60 696 250 710] /N 42 0 R /V 42 0 R >>\nendobj\n"
+            . "42 0 obj\n<< /Type /Bead /T 40 0 R /P 3 0 R /R [60 714 250 730] /N 41 0 R /V 41 0 R >>\nendobj\n"
+            . "%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $tagged = $extractor->extractTaggedContent($pdf);
+
+        $expected = [
+            'Chapter heading glyphs',
+            'Threaded paragraph replacement',
+            'Figure dashboard alt text',
+        ];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(['H1', 'P', 'Figure'], array_column($tagged, 'role'));
+        $t->same(['ChapTitle', 'BodyAlias', 'Illustration'], array_column($tagged, 'raw_role'));
+        $t->same([true, true, true], array_column($tagged, 'role_mapped'));
+        $t->same([0, 1, 2], array_column($tagged, 'mcid'));
+        $t->same($expected, array_column($tagged, 'text'));
+        $t->true(!str_contains($plainText, 'Body glyph noise'));
+        $t->true(!str_contains($plainText, 'Artifact footer noise'));
+        $t->true(!str_contains($plainText, "Body glyph noise\nChapter heading glyphs"));
+    },
     'uses catalog Threads bead order before raw page content order' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Article part one) Tj ET '
             . 'BT /F1 12 Tf 320 720 Td (Article part three) Tj ET '

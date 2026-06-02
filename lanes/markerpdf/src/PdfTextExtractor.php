@@ -592,17 +592,20 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $expanded['stream'] = $this->applyArticleThreadReadingOrder(
-                $expanded['stream'],
-                $articleBeadsByPage[$pageObjectNumber] ?? []
-            );
-
-            $expanded['stream'] = $this->applyStructureTreeReadingOrder(
+            $structureOrderedStream = $this->structureTreeReadingOrderedStream(
                 $expanded['stream'],
                 $objects[$pageObjectNumber],
                 $objects,
                 $structureMcidOrderByPage[$pageObjectNumber] ?? []
             );
+            if ($structureOrderedStream !== null) {
+                $expanded['stream'] = $structureOrderedStream;
+            } else {
+                $expanded['stream'] = $this->applyArticleThreadReadingOrder(
+                    $expanded['stream'],
+                    $articleBeadsByPage[$pageObjectNumber] ?? []
+                );
+            }
 
             foreach ($this->annotationAppearanceStreamsWithFontMaps(
                 $objects[$pageObjectNumber],
@@ -1351,15 +1354,15 @@ final class PdfTextExtractor
      * @param list<int> $mcidOrder
      * @param array<int, string> $objects
      */
-    private function applyStructureTreeReadingOrder(string $stream, string $pageBody, array $objects, array $mcidOrder): string
+    private function structureTreeReadingOrderedStream(string $stream, string $pageBody, array $objects, array $mcidOrder): ?string
     {
         if ($mcidOrder === []) {
-            return $stream;
+            return null;
         }
 
         $segments = $this->markedContentSegmentsByMcid($stream, $pageBody, $objects);
         if ($segments === []) {
-            return $stream;
+            return null;
         }
 
         $orderedSegments = [];
@@ -1376,7 +1379,7 @@ final class PdfTextExtractor
             }
         }
 
-        return $orderedSegments === [] ? $stream : implode("\n", $orderedSegments);
+        return $orderedSegments === [] ? null : implode("\n", $orderedSegments);
     }
 
     /**
