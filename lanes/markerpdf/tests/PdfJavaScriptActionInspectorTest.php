@@ -52,6 +52,22 @@ $catalogAndAnnotationActionPdf = static function (): string {
         . "%%EOF";
 };
 
+$cyclicActionChainPdf = static function (): string {
+    $content = 'BT /F1 12 Tf 72 720 Td (Action chain import body) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /OpenAction 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /S /URI /URI (https://example.com/import) /Next [6 0 R 9 0 R] >>\nendobj\n"
+        . "6 0 obj\n<< /S /JavaScript /JS (firstChainReview\\(\\)) /Next 7 0 R >>\nendobj\n"
+        . "7 0 obj\n<< /S /Launch /F (helper.exe) /Next [8 0 R 6 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /S /JavaScript /JS (deepChainReview\\(\\)) /Next 5 0 R >>\nendobj\n"
+        . "9 0 obj\n<< /S /JavaScript /JS (siblingChainReview\\(\\)) >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'reviews catalog JavaScript name tree actions without executing them' => static function (TestRunner $t) use ($nameTreeJavaScriptPdf): void {
         [$pdf, $streamScript] = $nameTreeJavaScriptPdf();
@@ -117,5 +133,24 @@ return [
         $t->true(!$review['has_javascript']);
         $t->same(0, $review['action_count']);
         $t->same([], $review['actions']);
+        $t->same(0, $review['chain_safety']['cycle_edges_blocked']);
+    },
+    'reviews cyclic JavaScript action chains once without executing or looping' => static function (TestRunner $t) use ($cyclicActionChainPdf): void {
+        $pdf = $cyclicActionChainPdf();
+
+        $review = (new PdfJavaScriptActionInspector())->reviewDocumentActions($pdf);
+        $text = (new PdfTextExtractor())->extractPlainText($pdf);
+
+        $t->true($review['has_javascript']);
+        $t->true(!$review['executes_javascript']);
+        $t->same(3, $review['action_count']);
+        $t->same(['firstChainReview()', 'deepChainReview()', 'siblingChainReview()'], array_column($review['actions'], 'script_preview'));
+        $t->same([1, 3, 1], array_column($review['actions'], 'chain_index'));
+        $t->same([true, true, true], array_column($review['actions'], 'chained'));
+        $t->same([6, 8, 9], array_column($review['actions'], 'action_object'));
+        $t->same(2, $review['chain_safety']['cycle_edges_blocked']);
+        $t->same(0, $review['chain_safety']['max_depth_edges_blocked']);
+        $t->same('Action chain import body', $text);
+        $t->true(!str_contains($text, 'firstChainReview'));
     },
 ];

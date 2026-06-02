@@ -6,29 +6,33 @@ namespace PortLibs\MarkerPDF;
 
 final class PdfJavaScriptActionInspector
 {
+    private const MAX_ACTION_CHAIN_DEPTH = 20;
+
     /**
      * Reviews document JavaScript actions without executing them.
      *
-     * @return array{has_javascript: bool, executes_javascript: false, action_count: int, actions: list<array<string, mixed>>}
+     * @return array{has_javascript: bool, executes_javascript: false, action_count: int, actions: list<array<string, mixed>>, chain_safety: array{max_depth: int, cycle_edges_blocked: int, max_depth_edges_blocked: int}}
      */
     public function reviewDocumentActions(string $pdfBytes, int $previewBytes = 160): array
     {
         $objects = $this->parsedObjectValues($pdfBytes);
         $rawObjects = $this->rawObjects($pdfBytes);
         $catalog = $this->catalogDictionary($objects);
+        $chainSafety = $this->emptyChainSafety();
         if ($catalog === null) {
             return [
                 'has_javascript' => false,
                 'executes_javascript' => false,
                 'action_count' => 0,
                 'actions' => [],
+                'chain_safety' => $chainSafety,
             ];
         }
 
         $actions = [];
         $seen = [];
 
-        $this->inspectNameTreeActions($catalog, $objects, $rawObjects, $actions, $seen, $previewBytes);
+        $this->inspectNameTreeActions($catalog, $objects, $rawObjects, $actions, $seen, $previewBytes, $chainSafety);
 
         if (array_key_exists('OpenAction', $catalog)) {
             $this->inspectActionValue(
@@ -38,13 +42,14 @@ final class PdfJavaScriptActionInspector
                 ['source' => 'catalog_open_action'],
                 $actions,
                 $seen,
-                $previewBytes
+                $previewBytes,
+                $chainSafety
             );
         }
 
         $this->inspectAdditionalActions($catalog['AA'] ?? null, $objects, $rawObjects, [
             'source' => 'catalog_additional_action',
-        ], $actions, $seen, $previewBytes);
+        ], $actions, $seen, $previewBytes, $chainSafety);
 
         foreach ($this->orderedPageObjectNumbers($objects) as $pageIndex => $pageObjectNumber) {
             $page = $this->resolveDictionary($this->refValue($pageObjectNumber), $objects);
@@ -56,7 +61,7 @@ final class PdfJavaScriptActionInspector
                 'source' => 'page_additional_action',
                 'page' => $pageIndex,
                 'page_object' => $pageObjectNumber,
-            ], $actions, $seen, $previewBytes);
+            ], $actions, $seen, $previewBytes, $chainSafety);
 
             foreach ($this->annotationDictionaries($page['Annots'] ?? null, $objects) as $annotation) {
                 $annotationContext = [
@@ -65,14 +70,14 @@ final class PdfJavaScriptActionInspector
                     'page_object' => $pageObjectNumber,
                     'annotation_object' => $annotation['object'],
                 ];
-                $this->inspectActionValue($annotation['dictionary']['A'] ?? null, $objects, $rawObjects, $annotationContext, $actions, $seen, $previewBytes);
+                $this->inspectActionValue($annotation['dictionary']['A'] ?? null, $objects, $rawObjects, $annotationContext, $actions, $seen, $previewBytes, $chainSafety);
 
                 $this->inspectAdditionalActions($annotation['dictionary']['AA'] ?? null, $objects, $rawObjects, [
                     'source' => 'annotation_additional_action',
                     'page' => $pageIndex,
                     'page_object' => $pageObjectNumber,
                     'annotation_object' => $annotation['object'],
-                ], $actions, $seen, $previewBytes);
+                ], $actions, $seen, $previewBytes, $chainSafety);
             }
         }
 
@@ -81,6 +86,7 @@ final class PdfJavaScriptActionInspector
             'executes_javascript' => false,
             'action_count' => count($actions),
             'actions' => $actions,
+            'chain_safety' => $chainSafety,
         ];
     }
 
@@ -97,7 +103,8 @@ final class PdfJavaScriptActionInspector
         array $rawObjects,
         array &$actions,
         array &$seen,
-        int $previewBytes
+        int $previewBytes,
+        array &$chainSafety
     ): void {
         $names = $this->resolveDictionary($catalog['Names'] ?? null, $objects);
         if ($names === null) {
@@ -109,7 +116,7 @@ final class PdfJavaScriptActionInspector
             return;
         }
 
-        $this->collectNameTreeJavaScriptActions($javascript, $objects, $rawObjects, $actions, $seen, $previewBytes);
+        $this->collectNameTreeJavaScriptActions($javascript, $objects, $rawObjects, $actions, $seen, $previewBytes, $chainSafety);
     }
 
     /**
@@ -127,6 +134,7 @@ final class PdfJavaScriptActionInspector
         array &$actions,
         array &$seenActions,
         int $previewBytes,
+        array &$chainSafety,
         array $seenNodes = []
     ): void {
         $names = $this->resolveArray($node['Names'] ?? null, $objects);
@@ -144,7 +152,8 @@ final class PdfJavaScriptActionInspector
                     ['source' => 'document_name_tree', 'name' => $name],
                     $actions,
                     $seenActions,
-                    $previewBytes
+                    $previewBytes,
+                    $chainSafety
                 );
             }
         }
@@ -165,7 +174,7 @@ final class PdfJavaScriptActionInspector
 
             $child = $this->resolveDictionary($kid, $objects);
             if ($child !== null) {
-                $this->collectNameTreeJavaScriptActions($child, $objects, $rawObjects, $actions, $seenActions, $previewBytes, $seenNodes);
+                $this->collectNameTreeJavaScriptActions($child, $objects, $rawObjects, $actions, $seenActions, $previewBytes, $chainSafety, $seenNodes);
             }
         }
     }
@@ -184,7 +193,8 @@ final class PdfJavaScriptActionInspector
         array $context,
         array &$actions,
         array &$seen,
-        int $previewBytes
+        int $previewBytes,
+        array &$chainSafety
     ): void {
         $dict = $this->resolveDictionary($value, $objects);
         if ($dict === null) {
@@ -199,7 +209,8 @@ final class PdfJavaScriptActionInspector
                 $context + ['event' => $event],
                 $actions,
                 $seen,
-                $previewBytes
+                $previewBytes,
+                $chainSafety
             );
         }
     }
@@ -219,16 +230,23 @@ final class PdfJavaScriptActionInspector
         array &$actions,
         array &$seen,
         int $previewBytes,
-        int $depth = 0
+        array &$chainSafety,
+        int $depth = 0,
+        array $chainPath = []
     ): void {
-        if ($value === null || $depth > 20) {
+        if ($value === null) {
+            return;
+        }
+
+        if ($depth > self::MAX_ACTION_CHAIN_DEPTH) {
+            $chainSafety['max_depth_edges_blocked']++;
             return;
         }
 
         $array = $this->arrayItems($this->resolveValue($value, $objects));
         if ($array !== null) {
             foreach ($array as $item) {
-                $this->inspectActionValue($item, $objects, $rawObjects, $context, $actions, $seen, $previewBytes, $depth + 1);
+                $this->inspectActionValue($item, $objects, $rawObjects, $context, $actions, $seen, $previewBytes, $chainSafety, $depth + 1, $chainPath);
             }
 
             return;
@@ -240,6 +258,13 @@ final class PdfJavaScriptActionInspector
             return;
         }
 
+        $visitKey = $this->actionVisitKey($value, $dict);
+        if (isset($chainPath[$visitKey])) {
+            $chainSafety['cycle_edges_blocked']++;
+            return;
+        }
+        $chainPath[$visitKey] = true;
+
         $identity = $this->actionIdentity($value, $dict, $context, $objects);
         if (isset($seen[$identity])) {
             return;
@@ -248,6 +273,10 @@ final class PdfJavaScriptActionInspector
 
         if ($this->nameValue($dict['S'] ?? null) === 'JavaScript') {
             $record = $context;
+            $chainIndex = (int) ($context['chain_index'] ?? 0);
+            if ($chainIndex > 0) {
+                $record['chained'] = true;
+            }
             if ($actionObject !== null) {
                 $record['action_object'] = $actionObject;
             }
@@ -265,8 +294,20 @@ final class PdfJavaScriptActionInspector
         if (array_key_exists('Next', $dict)) {
             $nextContext = $context;
             $nextContext['chain_index'] = (int) ($context['chain_index'] ?? 0) + 1;
-            $this->inspectActionValue($dict['Next'], $objects, $rawObjects, $nextContext, $actions, $seen, $previewBytes, $depth + 1);
+            $this->inspectActionValue($dict['Next'], $objects, $rawObjects, $nextContext, $actions, $seen, $previewBytes, $chainSafety, $depth + 1, $chainPath);
         }
+    }
+
+    /**
+     * @return array{max_depth: int, cycle_edges_blocked: int, max_depth_edges_blocked: int}
+     */
+    private function emptyChainSafety(): array
+    {
+        return [
+            'max_depth' => self::MAX_ACTION_CHAIN_DEPTH,
+            'cycle_edges_blocked' => 0,
+            'max_depth_edges_blocked' => 0,
+        ];
     }
 
     /**
@@ -374,6 +415,19 @@ final class PdfJavaScriptActionInspector
         $material = $objectNumber === null ? $dict : ['object' => $objectNumber];
 
         return hash('sha256', serialize([$context, $material]));
+    }
+
+    /**
+     * @param array<string, mixed> $dict
+     */
+    private function actionVisitKey(mixed $value, array $dict): string
+    {
+        $objectNumber = $this->referenceObjectNumber($value);
+        if ($objectNumber !== null) {
+            return 'object:' . $objectNumber;
+        }
+
+        return 'inline:' . hash('sha256', serialize($dict));
     }
 
     /**
