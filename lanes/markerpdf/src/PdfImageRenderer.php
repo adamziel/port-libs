@@ -173,6 +173,64 @@ final class PdfImageRenderer
     }
 
     /**
+     * Native metadata boundary for PDF image ColorSpace and soft-mask handling.
+     *
+     * Upstream rasterizes through pypdfium/PIL and always returns an RGB image.
+     * This does not rasterize pixels, but records the ICC profile, soft mask,
+     * and matte decisions a review UI needs before handing the crop to a future
+     * raster backend.
+     *
+     * @param array<int, string> $objects
+     * @return array{
+     *     source_color_space: string,
+     *     components: int|null,
+     *     bits_per_component: int,
+     *     uses_icc_profile: bool,
+     *     icc_profile: array{components: int|null, alternate_color_space: string|null, range: list<float>, length: int|null}|null,
+     *     soft_mask: array{present: bool, subtype: string|null, width: int|null, height: int|null, color_space: string|null, components: int|null, bits_per_component: int|null, matte: list<float>|null, interpolate: bool|null}|null,
+     *     soft_mask_applied_before_rgb: bool,
+     *     matte_unblending_required: bool,
+     *     output_color_mode: string,
+     *     alpha_output_mode: string,
+     *     notes: list<string>
+     * }
+     */
+    public function imageColorSpaceSoftMaskPlan(string $imageDictionary, array $objects = []): array
+    {
+        $colorSpace = $this->imageColorSpaceDetails($imageDictionary, $objects);
+        $softMask = $this->imageSoftMaskDetails($imageDictionary, $objects);
+        $softMaskPresent = $softMask !== null && $softMask['present'] === true;
+        $matteUnblendingRequired = $softMaskPresent && $softMask['matte'] !== null;
+        $notes = [];
+
+        if ($colorSpace['uses_icc_profile']) {
+            $notes[] = 'icc_profile_color_space';
+        }
+        if ($softMaskPresent) {
+            $notes[] = 'soft_mask_applied_before_rgb_conversion';
+        } elseif ($softMask !== null) {
+            $notes[] = 'soft_mask_none';
+        }
+        if ($matteUnblendingRequired) {
+            $notes[] = 'soft_mask_matte_unblend_before_rgb';
+        }
+
+        return [
+            'source_color_space' => $colorSpace['source_color_space'],
+            'components' => $colorSpace['components'],
+            'bits_per_component' => $this->imageBitsPerComponent($imageDictionary) ?? 8,
+            'uses_icc_profile' => $colorSpace['uses_icc_profile'],
+            'icc_profile' => $colorSpace['icc_profile'],
+            'soft_mask' => $softMask,
+            'soft_mask_applied_before_rgb' => $softMaskPresent,
+            'matte_unblending_required' => $matteUnblendingRequired,
+            'output_color_mode' => 'RGB',
+            'alpha_output_mode' => $softMaskPresent ? 'soft_mask_composited_to_rgb_preview' : 'opaque_rgb_preview',
+            'notes' => $notes,
+        ];
+    }
+
+    /**
      * @param array{width?: int|float, height?: int|float}|list<int|float> $renderedImageSize
      * @return list<float>
      */
@@ -211,7 +269,7 @@ final class PdfImageRenderer
 
     private function imageBitsPerComponent(string $dictionary): ?int
     {
-        if (preg_match('/\/BitsPerComponent\s+(\d+)/', $dictionary, $match) !== 1) {
+        if (preg_match('/\/(?:BitsPerComponent|BPC)\s+(\d+)/', $dictionary, $match) !== 1) {
             return null;
         }
 
@@ -237,11 +295,446 @@ final class PdfImageRenderer
     private function componentCountForColorSpace(string $colorSpace): ?int
     {
         return match ($colorSpace) {
-            'DeviceGray' => 1,
+            'DeviceGray', 'CalGray' => 1,
             'DeviceRGB', 'CalRGB' => 3,
             'DeviceCMYK' => 4,
             default => null,
         };
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{source_color_space: string, components: int|null, uses_icc_profile: bool, icc_profile: array{components: int|null, alternate_color_space: string|null, range: list<float>, length: int|null}|null}
+     */
+    private function imageColorSpaceDetails(string $dictionary, array $objects): array
+    {
+        $value = $this->extractPdfNameValue($dictionary, 'ColorSpace')
+            ?? $this->extractPdfNameValue($dictionary, 'CS');
+
+        if ($value === null) {
+            return [
+                'source_color_space' => 'DeviceRGB',
+                'components' => 3,
+                'uses_icc_profile' => false,
+                'icc_profile' => null,
+            ];
+        }
+
+        return $this->colorSpaceDetailsFromValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seenObjects
+     * @return array{source_color_space: string, components: int|null, uses_icc_profile: bool, icc_profile: array{components: int|null, alternate_color_space: string|null, range: list<float>, length: int|null}|null}
+     */
+    private function colorSpaceDetailsFromValue(string $value, array $objects, array $seenObjects = []): array
+    {
+        $resolved = trim($this->resolvePdfValue($value, $objects, $seenObjects));
+
+        if (str_starts_with($resolved, '[')) {
+            $values = $this->pdfArrayValues($resolved);
+            $family = isset($values[0]) ? $this->pdfNameValue($values[0]) : null;
+            $family = $family === null ? 'DeviceRGB' : $this->normalizeColorSpaceName($family);
+
+            if ($family === 'ICCBased') {
+                $profile = isset($values[1]) ? trim($this->resolvePdfValue($values[1], $objects, $seenObjects)) : '';
+                $components = $this->integerNameValue($profile, 'N');
+                $alternateValue = $this->extractPdfNameValue($profile, 'Alternate');
+                $alternate = $alternateValue === null ? null : $this->colorSpaceNameFromValue($alternateValue, $objects, $seenObjects);
+                $rangeValue = $this->extractPdfNameValue($profile, 'Range');
+
+                return [
+                    'source_color_space' => 'ICCBased',
+                    'components' => $components ?? ($alternate === null ? null : $this->componentCountForColorSpace($alternate)),
+                    'uses_icc_profile' => true,
+                    'icc_profile' => [
+                        'components' => $components,
+                        'alternate_color_space' => $alternate,
+                        'range' => $this->numericArrayValue($rangeValue),
+                        'length' => $this->integerNameValue($profile, 'Length'),
+                    ],
+                ];
+            }
+
+            return [
+                'source_color_space' => $family,
+                'components' => $family === 'Indexed' ? 1 : $this->componentCountForColorSpace($family),
+                'uses_icc_profile' => false,
+                'icc_profile' => null,
+            ];
+        }
+
+        $name = $this->pdfNameValue($resolved);
+        $colorSpace = $name === null ? 'DeviceRGB' : $this->normalizeColorSpaceName($name);
+
+        return [
+            'source_color_space' => $colorSpace,
+            'components' => $this->componentCountForColorSpace($colorSpace),
+            'uses_icc_profile' => false,
+            'icc_profile' => null,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seenObjects
+     */
+    private function colorSpaceNameFromValue(string $value, array $objects, array $seenObjects = []): ?string
+    {
+        $resolved = trim($this->resolvePdfValue($value, $objects, $seenObjects));
+        if (str_starts_with($resolved, '[')) {
+            $values = $this->pdfArrayValues($resolved);
+            $name = isset($values[0]) ? $this->pdfNameValue($values[0]) : null;
+
+            return $name === null ? null : $this->normalizeColorSpaceName($name);
+        }
+
+        $name = $this->pdfNameValue($resolved);
+
+        return $name === null ? null : $this->normalizeColorSpaceName($name);
+    }
+
+    private function normalizeColorSpaceName(string $name): string
+    {
+        return match ($name) {
+            'G' => 'DeviceGray',
+            'RGB' => 'DeviceRGB',
+            'CMYK' => 'DeviceCMYK',
+            'I' => 'Indexed',
+            default => $name,
+        };
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{present: bool, subtype: string|null, width: int|null, height: int|null, color_space: string|null, components: int|null, bits_per_component: int|null, matte: list<float>|null, interpolate: bool|null}|null
+     */
+    private function imageSoftMaskDetails(string $dictionary, array $objects): ?array
+    {
+        $value = $this->extractPdfNameValue($dictionary, 'SMask');
+        if ($value === null) {
+            return null;
+        }
+
+        if ($this->pdfNameValue($value) === 'None') {
+            return [
+                'present' => false,
+                'subtype' => null,
+                'width' => null,
+                'height' => null,
+                'color_space' => null,
+                'components' => null,
+                'bits_per_component' => null,
+                'matte' => null,
+                'interpolate' => null,
+            ];
+        }
+
+        $maskDictionary = trim($this->resolvePdfValue($value, $objects));
+        $colorSpace = $this->imageColorSpaceDetails($maskDictionary, $objects);
+        $matte = $this->numericArrayValue($this->extractPdfNameValue($maskDictionary, 'Matte'));
+
+        return [
+            'present' => true,
+            'subtype' => $this->dictionaryNameValue($maskDictionary, 'Subtype'),
+            'width' => $this->integerNameValue($maskDictionary, 'Width'),
+            'height' => $this->integerNameValue($maskDictionary, 'Height'),
+            'color_space' => $colorSpace['source_color_space'],
+            'components' => $colorSpace['components'],
+            'bits_per_component' => $this->imageBitsPerComponent($maskDictionary),
+            'matte' => $matte === [] ? null : $matte,
+            'interpolate' => $this->booleanNameValue($maskDictionary, 'Interpolate'),
+        ];
+    }
+
+    private function dictionaryNameValue(string $dictionary, string $name): ?string
+    {
+        $value = $this->extractPdfNameValue($dictionary, $name);
+
+        return $value === null ? null : $this->pdfNameValue($value);
+    }
+
+    private function integerNameValue(string $dictionary, string $name): ?int
+    {
+        $value = $this->extractPdfNameValue($dictionary, $name);
+        if ($value === null || preg_match('/^[+-]?\d+/', trim($value), $match) !== 1) {
+            return null;
+        }
+
+        return (int) $match[0];
+    }
+
+    private function booleanNameValue(string $dictionary, string $name): ?bool
+    {
+        $value = $this->extractPdfNameValue($dictionary, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        return match (trim($value)) {
+            'true' => true,
+            'false' => false,
+            default => null,
+        };
+    }
+
+    /**
+     * @return list<float>
+     */
+    private function numericArrayValue(?string $value): array
+    {
+        if ($value === null || preg_match_all('/[+-]?(?:\d+(?:\.\d*)?|\.\d+)/', $value, $matches) === 0) {
+            return [];
+        }
+
+        return array_map(static fn (string $number): float => (float) $number, $matches[0]);
+    }
+
+    private function extractPdfNameValue(string $dictionary, string $name): ?string
+    {
+        if (preg_match('/\/' . preg_quote($name, '/') . '\b/s', $dictionary, $match, PREG_OFFSET_CAPTURE) !== 1) {
+            return null;
+        }
+
+        return $this->readPdfValueAt($dictionary, $match[0][1] + strlen($match[0][0]));
+    }
+
+    private function readPdfValueAt(string $source, int $offset): ?string
+    {
+        $read = $this->readPdfValueWithOffset($source, $offset);
+
+        return $read['value'] ?? null;
+    }
+
+    /**
+     * @return array{value: string, next: int}|null
+     */
+    private function readPdfValueWithOffset(string $source, int $offset): ?array
+    {
+        $offset = $this->skipPdfWhitespace($source, $offset);
+        $length = strlen($source);
+        if ($offset >= $length) {
+            return null;
+        }
+
+        if (substr($source, $offset, 2) === '<<') {
+            return $this->readBalancedDictionary($source, $offset);
+        }
+        if ($source[$offset] === '[') {
+            return $this->readBalancedArray($source, $offset);
+        }
+        if ($source[$offset] === '/') {
+            if (preg_match('/\G\/[^\s\[\]()<>{}\/%]+/s', $source, $match, 0, $offset) !== 1) {
+                return null;
+            }
+
+            return ['value' => $match[0], 'next' => $offset + strlen($match[0])];
+        }
+        if ($source[$offset] === '(') {
+            $next = $this->skipPdfLiteralString($source, $offset);
+
+            return ['value' => substr($source, $offset, $next - $offset), 'next' => $next];
+        }
+        if ($source[$offset] === '<') {
+            $next = strpos($source, '>', $offset + 1);
+            if ($next === false) {
+                return null;
+            }
+
+            return ['value' => substr($source, $offset, $next - $offset + 1), 'next' => $next + 1];
+        }
+        if (preg_match('/\G\d+\s+\d+\s+R\b/s', $source, $match, 0, $offset) === 1) {
+            return ['value' => $match[0], 'next' => $offset + strlen($match[0])];
+        }
+        if (preg_match('/\G(?:true|false|null)\b/s', $source, $match, 0, $offset) === 1) {
+            return ['value' => $match[0], 'next' => $offset + strlen($match[0])];
+        }
+        if (preg_match('/\G[+-]?(?:\d+(?:\.\d*)?|\.\d+)/s', $source, $match, 0, $offset) === 1) {
+            return ['value' => $match[0], 'next' => $offset + strlen($match[0])];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pdfArrayValues(string $array): array
+    {
+        $body = trim($array);
+        if (!str_starts_with($body, '[') || !str_ends_with($body, ']')) {
+            return [];
+        }
+
+        $values = [];
+        $offset = 1;
+        $end = strlen($body) - 1;
+        while ($offset < $end) {
+            $read = $this->readPdfValueWithOffset($body, $offset);
+            if ($read === null || $read['next'] <= $offset) {
+                break;
+            }
+
+            $values[] = $read['value'];
+            $offset = $read['next'];
+        }
+
+        return $values;
+    }
+
+    private function pdfNameValue(string $value): ?string
+    {
+        $value = trim($value);
+        if (!str_starts_with($value, '/')) {
+            return null;
+        }
+
+        return $this->decodePdfName(substr($value, 1));
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seenObjects
+     */
+    private function resolvePdfValue(string $value, array $objects, array $seenObjects = []): string
+    {
+        $trimmed = trim($value);
+        if (preg_match('/^(\d+)\s+\d+\s+R$/', $trimmed, $match) !== 1) {
+            return $trimmed;
+        }
+
+        $objectNumber = (int) $match[1];
+        if (isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
+            return $trimmed;
+        }
+
+        $seenObjects[$objectNumber] = true;
+
+        return trim($objects[$objectNumber]);
+    }
+
+    /**
+     * @return array{value: string, next: int}|null
+     */
+    private function readBalancedArray(string $source, int $offset): ?array
+    {
+        $length = strlen($source);
+        $depth = 0;
+        for ($index = $offset; $index < $length; $index++) {
+            $char = $source[$index];
+            if ($char === '(') {
+                $index = $this->skipPdfLiteralString($source, $index) - 1;
+                continue;
+            }
+            if ($char === '<' && substr($source, $index, 2) !== '<<') {
+                $end = strpos($source, '>', $index + 1);
+                if ($end === false) {
+                    return null;
+                }
+                $index = $end;
+                continue;
+            }
+            if ($char === '[') {
+                $depth++;
+                continue;
+            }
+            if ($char !== ']') {
+                continue;
+            }
+
+            $depth--;
+            if ($depth === 0) {
+                return ['value' => substr($source, $offset, $index - $offset + 1), 'next' => $index + 1];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{value: string, next: int}|null
+     */
+    private function readBalancedDictionary(string $source, int $offset): ?array
+    {
+        $length = strlen($source);
+        $depth = 0;
+        for ($index = $offset; $index < $length; $index++) {
+            if ($source[$index] === '(') {
+                $index = $this->skipPdfLiteralString($source, $index) - 1;
+                continue;
+            }
+            if ($source[$index] === '<' && substr($source, $index, 2) === '<<') {
+                $depth++;
+                $index++;
+                continue;
+            }
+            if ($source[$index] === '<') {
+                $end = strpos($source, '>', $index + 1);
+                if ($end === false) {
+                    return null;
+                }
+                $index = $end;
+                continue;
+            }
+            if ($source[$index] !== '>' || substr($source, $index, 2) !== '>>') {
+                continue;
+            }
+
+            $depth--;
+            $index++;
+            if ($depth === 0) {
+                return ['value' => substr($source, $offset, $index - $offset + 1), 'next' => $index + 1];
+            }
+        }
+
+        return null;
+    }
+
+    private function skipPdfLiteralString(string $source, int $offset): int
+    {
+        $length = strlen($source);
+        $depth = 0;
+        for ($index = $offset; $index < $length; $index++) {
+            $char = $source[$index];
+            if ($char === '\\') {
+                $index++;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char !== ')') {
+                continue;
+            }
+
+            $depth--;
+            if ($depth === 0) {
+                return $index + 1;
+            }
+        }
+
+        return $length;
+    }
+
+    private function skipPdfWhitespace(string $source, int $offset): int
+    {
+        $length = strlen($source);
+        while ($offset < $length) {
+            $char = $source[$offset];
+            if ($char === '%') {
+                $lineEnd = strcspn($source, "\r\n", $offset);
+                $offset += $lineEnd;
+                continue;
+            }
+            if (!str_contains(" \t\r\n\f\0", $char)) {
+                break;
+            }
+            $offset++;
+        }
+
+        return $offset;
     }
 
     private function jpegComponentCount(string $jpegBytes): ?int

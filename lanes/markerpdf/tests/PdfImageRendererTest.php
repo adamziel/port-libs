@@ -80,6 +80,81 @@ return [
         $t->contains('data-marker-crop="120,200,560,440"', $html);
         $t->contains('0_image_0.png', $html);
     },
+    'plans ICCBased image color profile and soft mask metadata before RGB preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $objects = [
+            10 => "<< /N 3 /Alternate /DeviceRGB /Range [0 1 0 1 0 1] /Length 12 >>\nstream\nICC-PROFILE\nendstream",
+            11 => "<< /Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Matte [1 0.5 0] /Interpolate true /Length 4 >>\nstream\nMASK\nendstream",
+        ];
+
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace [/ICCBased 10 0 R] /BitsPerComponent 8 /SMask 11 0 R >>',
+            $objects
+        );
+
+        $t->same('ICCBased', $plan['source_color_space']);
+        $t->same(3, $plan['components']);
+        $t->same(8, $plan['bits_per_component']);
+        $t->same(true, $plan['uses_icc_profile']);
+        $t->same([
+            'components' => 3,
+            'alternate_color_space' => 'DeviceRGB',
+            'range' => [0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
+            'length' => 12,
+        ], $plan['icc_profile']);
+        $t->same([
+            'present' => true,
+            'subtype' => 'Image',
+            'width' => 2,
+            'height' => 2,
+            'color_space' => 'DeviceGray',
+            'components' => 1,
+            'bits_per_component' => 8,
+            'matte' => [1.0, 0.5, 0.0],
+            'interpolate' => true,
+        ], $plan['soft_mask']);
+        $t->same(true, $plan['soft_mask_applied_before_rgb']);
+        $t->same(true, $plan['matte_unblending_required']);
+        $t->same('RGB', $plan['output_color_mode']);
+        $t->same('soft_mask_composited_to_rgb_preview', $plan['alpha_output_mode']);
+        $t->same([
+            'icc_profile_color_space',
+            'soft_mask_applied_before_rgb_conversion',
+            'soft_mask_matte_unblend_before_rgb',
+        ], $plan['notes']);
+    },
+    'handles direct ICCBased profile dictionaries and explicit soft-mask none' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 1 /Height 1 /CS [/ICCBased << /N 4 /Alternate /DeviceCMYK /Range [0 1 0 1 0 1 0 1] /Length 9 >>] /BPC 16 /SMask /None >>'
+        );
+
+        $t->same('ICCBased', $plan['source_color_space']);
+        $t->same(4, $plan['components']);
+        $t->same(16, $plan['bits_per_component']);
+        $t->same(true, $plan['uses_icc_profile']);
+        $t->same([
+            'components' => 4,
+            'alternate_color_space' => 'DeviceCMYK',
+            'range' => [0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
+            'length' => 9,
+        ], $plan['icc_profile']);
+        $t->same([
+            'present' => false,
+            'subtype' => null,
+            'width' => null,
+            'height' => null,
+            'color_space' => null,
+            'components' => null,
+            'bits_per_component' => null,
+            'matte' => null,
+            'interpolate' => null,
+        ], $plan['soft_mask']);
+        $t->same(false, $plan['soft_mask_applied_before_rgb']);
+        $t->same(false, $plan['matte_unblending_required']);
+        $t->same('opaque_rgb_preview', $plan['alpha_output_mode']);
+        $t->same(['icc_profile_color_space', 'soft_mask_none'], $plan['notes']);
+    },
     'plans DCTDecode CMYK Adobe transform before WordPress RGB image preview' => static function (TestRunner $t) use ($dctJpeg): void {
         $renderer = new PdfImageRenderer();
         $plan = $renderer->dctDecodeImageColorPlan(
