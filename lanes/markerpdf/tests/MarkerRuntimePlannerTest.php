@@ -40,6 +40,69 @@ return [
         $t->same('true', $env['IN_STREAMLIT']);
         $t->same('1', $env['PDFTEXT_CPU_WORKERS']);
     },
+    'plans marker_app sidebar config and convert args without executing Streamlit or models' => static function (TestRunner $t): void {
+        $plan = (new MarkerRuntimePlanner())->markerAppConfigPlan([
+            'languages' => ['English', 'Spanish'],
+            'max_pages' => '7',
+            'ocr_all_pages' => 'true',
+        ]);
+
+        $t->same('wide', $plan['page_config']['layout']);
+        $t->same([0.5, 0.5], $plan['page_config']['columns']);
+        $t->same('PDF file:', $plan['file_upload']['label']);
+        $t->same(['pdf'], $plan['file_upload']['type']);
+        $t->same(true, $plan['file_upload']['accepts_pdf_only']);
+        $t->same('Languages', $plan['sidebar']['languages']['label']);
+        $t->true(in_array('English', $plan['sidebar']['languages']['options'], true));
+        $t->true(in_array('Spanish', $plan['sidebar']['languages']['options'], true));
+        $t->same(['English', 'Spanish'], $plan['sidebar']['languages']['selected']);
+        $t->same([], $plan['sidebar']['languages']['default']);
+        $t->same(4, $plan['sidebar']['languages']['max_selections']);
+        $t->same('Max pages to parse', $plan['sidebar']['max_pages']['label']);
+        $t->same(7, $plan['sidebar']['max_pages']['value']);
+        $t->same(10, $plan['sidebar']['max_pages']['default']);
+        $t->same(1, $plan['sidebar']['max_pages']['min_value']);
+        $t->same(true, $plan['sidebar']['ocr_all_pages']['value']);
+        $t->same('Run Marker', $plan['sidebar']['run_button']['label']);
+        $t->same(['langs' => ['English', 'Spanish'], 'max_pages' => 7, 'ocr_all_pages' => true], $plan['conversion_args']);
+        $t->same('Page number out of {page_count}:', $plan['preview']['page_number_input']['label_template']);
+        $t->same(96, $plan['preview']['page_image_dpi']);
+        $t->same(true, $plan['stop_gates']['requires_uploaded_pdf']);
+        $t->same(true, $plan['stop_gates']['requires_run_button']);
+        $t->same('true', $plan['environment']['IN_STREAMLIT']);
+        $t->same(false, $plan['executes_streamlit']);
+        $t->same(false, $plan['executes_pdfium']);
+        $t->same(false, $plan['executes_python_or_models']);
+    },
+    'rejects marker_app config values outside upstream Streamlit control bounds' => static function (TestRunner $t): void {
+        $planner = new MarkerRuntimePlanner();
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $planner->markerAppConfigPlan(['languages' => ['English', 'Spanish', 'French', 'German', 'Italian']])
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $planner->markerAppConfigPlan(['languages' => ['English', 'Not a Surya label']])
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $planner->markerAppConfigPlan(['languages' => ['English', 'English']])
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $planner->markerAppConfigPlan(['max_pages' => 0])
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $planner->markerAppConfigPlan(['ocr_all_pages' => 'sometimes'])
+        );
+
+        $defaults = $planner->markerAppConfigPlan();
+        $t->same([], $defaults['conversion_args']['langs']);
+        $t->same(10, $defaults['conversion_args']['max_pages']);
+        $t->same(false, $defaults['conversion_args']['ocr_all_pages']);
+    },
     'records convert.py import-time environment setup for batch workers' => static function (TestRunner $t): void {
         $env = (new MarkerRuntimePlanner())->conversionImportEnvironment();
 

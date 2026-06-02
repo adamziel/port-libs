@@ -75,6 +75,105 @@ final class MarkerRuntimePlanner
     }
 
     /**
+     * Native non-executing boundary for marker_app.py's Streamlit controls.
+     *
+     * Upstream builds a PDF-only uploader, a Surya language multiselect from
+     * CODE_TO_LANGUAGE values capped at 4 selections, a max-pages numeric input
+     * defaulting to 10/min 1, and a Force OCR checkbox. This records the same
+     * app configuration and normalized convert_single_pdf arguments without
+     * importing Streamlit, PDFium, PIL, Python models, or file uploads.
+     *
+     * @param array<string, mixed> $submitted
+     * @return array{
+     *     page_config: array{layout: string, columns: list<float>},
+     *     file_upload: array{label: string, type: list<string>, accepts_pdf_only: bool},
+     *     sidebar: array{
+     *         languages: array{label: string, options: list<string>, selected: list<string>, default: list<string>, max_selections: int, help: string},
+     *         max_pages: array{label: string, value: int, default: int, min_value: int, help: string},
+     *         ocr_all_pages: array{label: string, value: bool, default: bool, help: string},
+     *         run_button: array{label: string}
+     *     },
+     *     preview: array{page_number_input: array{label_template: string, min_value: int, default: int, max_value_source: string}, page_image_dpi: int, image_caption: string},
+     *     conversion_args: array{langs: list<string>, max_pages: int, ocr_all_pages: bool},
+     *     stop_gates: array{requires_uploaded_pdf: bool, requires_run_button: bool},
+     *     environment: array{PYTORCH_ENABLE_MPS_FALLBACK: string, IN_STREAMLIT: string, PDFTEXT_CPU_WORKERS: string},
+     *     executes_streamlit: false,
+     *     executes_pdfium: false,
+     *     executes_python_or_models: false
+     * }
+     */
+    public function markerAppConfigPlan(array $submitted = []): array
+    {
+        $languageOptions = array_values((new OcrLanguage())->suryaCodeToLanguage());
+        sort($languageOptions, SORT_STRING);
+
+        $selectedLanguages = $this->markerAppLanguages($submitted['languages'] ?? $submitted['langs'] ?? [], $languageOptions);
+        $maxPages = $this->markerAppMaxPages($submitted['max_pages'] ?? $submitted['maxPages'] ?? 10);
+        $ocrAllPages = $this->markerAppBool($submitted['ocr_all_pages'] ?? $submitted['ocrAllPages'] ?? false, 'ocr_all_pages');
+
+        return [
+            'page_config' => [
+                'layout' => 'wide',
+                'columns' => [0.5, 0.5],
+            ],
+            'file_upload' => [
+                'label' => 'PDF file:',
+                'type' => ['pdf'],
+                'accepts_pdf_only' => true,
+            ],
+            'sidebar' => [
+                'languages' => [
+                    'label' => 'Languages',
+                    'options' => $languageOptions,
+                    'selected' => $selectedLanguages,
+                    'default' => [],
+                    'max_selections' => 4,
+                    'help' => 'Select the languages in the pdf (if known) to improve OCR accuracy. Optional.',
+                ],
+                'max_pages' => [
+                    'label' => 'Max pages to parse',
+                    'value' => $maxPages,
+                    'default' => 10,
+                    'min_value' => 1,
+                    'help' => 'Optional maximum number of pages to convert',
+                ],
+                'ocr_all_pages' => [
+                    'label' => 'Force OCR on all pages',
+                    'value' => $ocrAllPages,
+                    'default' => false,
+                    'help' => 'Force OCR on all pages, even if they are images',
+                ],
+                'run_button' => [
+                    'label' => 'Run Marker',
+                ],
+            ],
+            'preview' => [
+                'page_number_input' => [
+                    'label_template' => 'Page number out of {page_count}:',
+                    'min_value' => 1,
+                    'default' => 1,
+                    'max_value_source' => 'page_count(pdf_file)',
+                ],
+                'page_image_dpi' => 96,
+                'image_caption' => 'PDF file (preview)',
+            ],
+            'conversion_args' => [
+                'langs' => $selectedLanguages,
+                'max_pages' => $maxPages,
+                'ocr_all_pages' => $ocrAllPages,
+            ],
+            'stop_gates' => [
+                'requires_uploaded_pdf' => true,
+                'requires_run_button' => true,
+            ],
+            'environment' => $this->markerAppImportEnvironment(),
+            'executes_streamlit' => false,
+            'executes_pdfium' => false,
+            'executes_python_or_models' => false,
+        ];
+    }
+
+    /**
      * Native boundary for convert.py's import-time environment setup.
      *
      * @return array{PYTORCH_ENABLE_MPS_FALLBACK: string, IN_STREAMLIT: string, PDFTEXT_CPU_WORKERS: string}
@@ -220,6 +319,79 @@ final class MarkerRuntimePlanner
     {
         return str_starts_with($path, DIRECTORY_SEPARATOR)
             || preg_match('/^[A-Za-z]:[\\\\\\/]/', $path) === 1;
+    }
+
+    /**
+     * @param mixed $value
+     * @param list<string> $languageOptions
+     * @return list<string>
+     */
+    private function markerAppLanguages(mixed $value, array $languageOptions): array
+    {
+        if ($value === null || $value === '') {
+            return [];
+        }
+        if (!is_array($value)) {
+            throw new InvalidArgumentException('Marker app languages must be a list of upstream language labels.');
+        }
+
+        $allowed = array_fill_keys($languageOptions, true);
+        $selected = [];
+        foreach (array_values($value) as $language) {
+            if (!is_string($language) || trim($language) === '') {
+                throw new InvalidArgumentException('Marker app languages must be non-empty strings.');
+            }
+
+            $language = trim($language);
+            if (!isset($allowed[$language])) {
+                throw new InvalidArgumentException('Marker app language selection must use upstream Surya language labels.');
+            }
+            if (in_array($language, $selected, true)) {
+                throw new InvalidArgumentException('Marker app language selections must not contain duplicates.');
+            }
+
+            $selected[] = $language;
+        }
+
+        if (count($selected) > 4) {
+            throw new InvalidArgumentException('Marker app language selection is limited to 4 entries.');
+        }
+
+        return $selected;
+    }
+
+    private function markerAppMaxPages(mixed $value): int
+    {
+        if (is_int($value)) {
+            $maxPages = $value;
+        } elseif (is_string($value) && preg_match('/^\d+$/', trim($value)) === 1) {
+            $maxPages = (int) trim($value);
+        } else {
+            throw new InvalidArgumentException('Marker app max_pages must be an integer.');
+        }
+
+        if ($maxPages < 1) {
+            throw new InvalidArgumentException('Marker app max_pages must be at least 1.');
+        }
+
+        return $maxPages;
+    }
+
+    private function markerAppBool(mixed $value, string $name): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        $normalized = strtolower(trim((string) $value));
+        if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+            return true;
+        }
+        if (in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+            return false;
+        }
+
+        throw new InvalidArgumentException("Marker app {$name} must be a boolean.");
     }
 
     private function envValue(string|int|float|bool $value): string

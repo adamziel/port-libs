@@ -1176,8 +1176,13 @@ final class PdfOutlineExtractor
             return true;
         }
 
-        return ($action['action_type'] ?? null) === 'GoTo'
-            && ($action['safety'] ?? null) === 'local-destination';
+        return (
+            ($action['action_type'] ?? null) === 'GoTo'
+            && ($action['safety'] ?? null) === 'local-destination'
+        ) || (
+            ($action['action_type'] ?? null) === 'GoToR'
+            && ($action['safety'] ?? null) === 'remote-document-review'
+        );
     }
 
     /**
