@@ -368,6 +368,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-signature-reference-transform-review.php` maps PDF signature `/Reference` transform dictionaries into a WordPress security-review path. It exposes FieldMDP and UR3 usage-rights metadata, field locks, digest presence, and allowed right categories while suppressing digest/signature bytes and without executing signature validation, signing, rights enforcement, Python, models, or external PDF tools.
 
+`examples/wordpress-pdf-signature-dss-currentbase.php` maps catalog `/DSS` long-term-validation material into a WordPress security-review path. It exposes Cert/OCSP/CRL/VRI/timestamp-token counts and hashes while importing visible signed text natively, suppressing raw validation/signature bytes, and avoiding signature validation, revocation checks, trust-chain validation, signing, Python, models, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

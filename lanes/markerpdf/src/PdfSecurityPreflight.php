@@ -17,9 +17,11 @@ final class PdfSecurityPreflight
     {
         $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdfBytes);
         $form = (new PdfAcroFormExtractor())->extractForm($pdfBytes);
+        $documentSecurityStore = (new PdfDocumentSecurityStoreExtractor())->extract($pdfBytes);
         $encryption = is_array($metadata['encryption'] ?? null) ? $metadata['encryption'] : null;
         $signatures = $this->signatureReviews($form['fields'] ?? [], $pdfBytes);
         $encrypted = $encryption !== null;
+        $hasDocumentSecurityStore = ($documentSecurityStore['present'] ?? false) === true;
         $signedSignatureCount = count(array_filter(
             $signatures,
             static fn (array $signature): bool => ($signature['signed'] ?? false) === true
@@ -38,7 +40,8 @@ final class PdfSecurityPreflight
             $invalidByteRangeCount,
             $referenceTransformCount,
             $lockedFieldNames,
-            $permissionPreflight
+            $permissionPreflight,
+            $hasDocumentSecurityStore
         );
 
         return [
@@ -48,9 +51,9 @@ final class PdfSecurityPreflight
             'content_extraction_allowed' => !$encrypted,
             'text_extraction_policy' => $encrypted ? 'blocked_without_decryption' : 'native_text_allowed',
             'form_value_import_policy' => $encrypted ? 'review_only_encrypted' : 'native_review_metadata',
-            'import_decision' => $this->importDecision($encrypted, $invalidByteRangeCount, $signedSignatureCount),
+            'import_decision' => $this->importDecision($encrypted, $invalidByteRangeCount, $signedSignatureCount, $hasDocumentSecurityStore),
             'review_reasons' => $reviewReasons,
-            'blocked_operations' => $this->blockedOperations($encrypted, $signatures),
+            'blocked_operations' => $this->blockedOperations($encrypted, $signatures, $hasDocumentSecurityStore),
             'encryption' => $this->encryptionReview($encryption),
             'permission_preflight' => $permissionPreflight,
             'signature_flags' => $form['signature_flags'] ?? [],
@@ -60,10 +63,15 @@ final class PdfSecurityPreflight
             'signature_reference_transform_count' => $referenceTransformCount,
             'signature_reference_transform_methods' => $this->referenceTransformMethods($signatures),
             'locked_field_names' => $lockedFieldNames,
+            'document_security_store_count' => $hasDocumentSecurityStore ? 1 : 0,
+            'document_security_store' => $documentSecurityStore,
             'signatures' => $signatures,
             'raw_owner_user_keys_exposed' => false,
+            'raw_signature_validation_bytes_exposed' => false,
             'executes_decryption' => false,
             'executes_signature_validation' => false,
+            'executes_revocation_check' => false,
+            'executes_trust_chain_validation' => false,
             'executes_signing' => false,
             'executes_javascript' => false,
             'executes_python_or_models' => false,
@@ -507,7 +515,8 @@ final class PdfSecurityPreflight
         int $invalidByteRangeCount,
         int $referenceTransformCount,
         array $lockedFieldNames,
-        array $permissionPreflight
+        array $permissionPreflight,
+        bool $hasDocumentSecurityStore
     ): array
     {
         $reasons = [];
@@ -536,11 +545,14 @@ final class PdfSecurityPreflight
         if ($invalidByteRangeCount > 0) {
             $reasons[] = 'signature_byte_range_invalid';
         }
+        if ($hasDocumentSecurityStore) {
+            $reasons[] = 'document_security_store_present';
+        }
 
         return $reasons;
     }
 
-    private function importDecision(bool $encrypted, int $invalidByteRangeCount, int $signedSignatureCount): string
+    private function importDecision(bool $encrypted, int $invalidByteRangeCount, int $signedSignatureCount, bool $hasDocumentSecurityStore): string
     {
         if ($encrypted) {
             return 'block_encrypted_content_review_security_metadata';
@@ -551,6 +563,9 @@ final class PdfSecurityPreflight
         if ($signedSignatureCount > 0) {
             return 'review_required_signature_metadata';
         }
+        if ($hasDocumentSecurityStore) {
+            return 'review_required_signature_metadata';
+        }
 
         return 'allow_native_import';
     }
@@ -559,7 +574,7 @@ final class PdfSecurityPreflight
      * @param list<array<string, mixed>> $signatures
      * @return list<string>
      */
-    private function blockedOperations(bool $encrypted, array $signatures): array
+    private function blockedOperations(bool $encrypted, array $signatures, bool $hasDocumentSecurityStore): array
     {
         $blocked = [];
         if ($encrypted) {
@@ -569,6 +584,10 @@ final class PdfSecurityPreflight
         if ($signatures !== []) {
             $blocked[] = 'signature_validation';
             $blocked[] = 'signing';
+        }
+        if ($hasDocumentSecurityStore) {
+            $blocked[] = 'revocation_check';
+            $blocked[] = 'trust_chain_validation';
         }
 
         return $blocked;

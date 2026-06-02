@@ -110,6 +110,54 @@ $signedPdfWithReferenceTransforms = static function (): string {
     ]);
 };
 
+$signedPdfWithDssValidationStore = static function (): array {
+    $content = 'BT /F1 12 Tf 72 720 Td (Signed DSS review content) Tj ET';
+    $signatureContentsHex = str_repeat('B', 96);
+    $signatureContentsToken = '<' . $signatureContentsHex . '>';
+    $certBytes = 'SIGNER_CERTIFICATE_DER_BYTES_SHOULD_NOT_LEAK';
+    $ocspBytes = 'OCSP_RESPONSE_DER_BYTES_SHOULD_NOT_LEAK';
+    $crlBytes = 'CRL_BYTES_SHOULD_NOT_LEAK';
+    $timestampBytes = 'TIMESTAMP_TOKEN_BYTES_SHOULD_NOT_LEAK';
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R /DSS 60 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R] /SigFlags 3 >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Sig /T (approval.signature) /V 30 0 R /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 300 684] /P 3 0 R /F 4 >>\nendobj\n"
+        . "30 0 obj\n<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Name (DSS Reviewer) /M (D:20260602133500Z) /ByteRange [0 AAAAAAAAAA BBBBBBBBBB CCCCCCCCCC] /Contents {$signatureContentsToken} >>\nendobj\n"
+        . "60 0 obj\n<< /Type /DSS /Certs [70 0 R] /OCSPs [71 0 R] /CRLs [72 0 R] /VRI << /ABCDEF1234 61 0 R /Stale#20Name 62 0 R >> >>\nendobj\n"
+        . "61 0 obj\n<< /Type /VRI /Cert [70 0 R] /OCSP [71 0 R] /CRL [72 0 R] /TU (D:20260602133500Z) /TS 73 0 R >>\nendobj\n"
+        . "62 0 obj\n<< /Type /VRI /Cert [999 0 R] /OCSP [] /CRL [] /TU (D:20260602133000Z) >>\nendobj\n"
+        . "70 0 obj\n<< /Length " . strlen($certBytes) . " /Subtype /application#2Fpkix-cert >>\nstream\n{$certBytes}\nendstream\nendobj\n"
+        . "71 0 obj\n<< /Length " . strlen($ocspBytes) . " /Subtype /application#2Focsp-response >>\nstream\n{$ocspBytes}\nendstream\nendobj\n"
+        . "72 0 obj\n<< /Length " . strlen($crlBytes) . " /Subtype /application#2Fpkix-crl >>\nstream\n{$crlBytes}\nendstream\nendobj\n"
+        . "73 0 obj\n<< /Length " . strlen($timestampBytes) . " /Subtype /application#2Ftst-info >>\nstream\n{$timestampBytes}\nendstream\nendobj\n"
+        . "%%EOF";
+
+    $gapStart = strpos($pdf, $signatureContentsToken);
+    if ($gapStart === false) {
+        throw new RuntimeException('Unable to locate signature contents token in focused fixture.');
+    }
+
+    $gapEnd = $gapStart + strlen($signatureContentsToken);
+    $pdf = strtr($pdf, [
+        'AAAAAAAAAA' => sprintf('%010d', $gapStart),
+        'BBBBBBBBBB' => sprintf('%010d', $gapEnd),
+        'CCCCCCCCCC' => sprintf('%010d', strlen($pdf) - $gapEnd),
+    ]);
+
+    return [
+        $pdf,
+        hash('sha256', $certBytes),
+        hash('sha256', $ocspBytes),
+        hash('sha256', $crlBytes),
+        hash('sha256', $timestampBytes),
+    ];
+};
+
 return [
     'blocks encrypted text extraction and quarantines invalid signature byte ranges' => static function (TestRunner $t) use ($encryptedSignedPdf): void {
         $pdf = $encryptedSignedPdf();
@@ -286,5 +334,57 @@ return [
         $t->same(false, $report['executes_python_or_models']);
         $t->same(false, $report['executes_external_pdf_tools']);
         $t->true(is_string($encoded) && !str_contains($encoded, 'DEADC0DE') && !str_contains($encoded, $rawSignatureHex));
+    },
+    'summarizes catalog DSS validation material without validating signatures or revocation' => static function (TestRunner $t) use ($signedPdfWithDssValidationStore): void {
+        [$pdf, $certHash, $ocspHash, $crlHash, $timestampHash] = $signedPdfWithDssValidationStore();
+        $report = (new PdfSecurityPreflight())->analyze($pdf);
+        $dss = $report['document_security_store'];
+        $encoded = json_encode($report, JSON_UNESCAPED_SLASHES);
+
+        $t->same('Signed DSS review content', (new PdfTextExtractor())->extractPlainText($pdf));
+        $t->same('review_required_signature_metadata', $report['import_decision']);
+        $t->same(['signed_signature_present', 'document_security_store_present'], $report['review_reasons']);
+        $t->same(['signature_validation', 'signing', 'revocation_check', 'trust_chain_validation'], $report['blocked_operations']);
+        $t->same(1, $report['signature_field_count']);
+        $t->same(1, $report['signed_signature_count']);
+        $t->same(1, $report['document_security_store_count']);
+
+        $t->true($dss['present']);
+        $t->same('catalog_dss_dictionary', $dss['source']);
+        $t->same(60, $dss['object_number']);
+        $t->same(1, $dss['cert_count']);
+        $t->same(1, $dss['ocsp_count']);
+        $t->same(1, $dss['crl_count']);
+        $t->same(2, $dss['vri_count']);
+        $t->same(4, $dss['total_validation_stream_count']);
+        $t->same(['ABCDEF1234', 'Stale Name'], $dss['vri_keys']);
+        $t->same(false, $dss['raw_validation_bytes_exposed']);
+        $t->same(false, $dss['executes_signature_validation']);
+        $t->same(false, $dss['executes_revocation_check']);
+        $t->same(false, $dss['executes_external_pdf_tools']);
+
+        $t->same($certHash, $dss['global_certificates'][0]['sha256']);
+        $t->same(strlen('SIGNER_CERTIFICATE_DER_BYTES_SHOULD_NOT_LEAK'), $dss['global_certificates'][0]['length_bytes']);
+        $t->same('application/pkix-cert', $dss['global_certificates'][0]['subtype']);
+        $t->same($ocspHash, $dss['global_ocsps'][0]['sha256']);
+        $t->same($crlHash, $dss['global_crls'][0]['sha256']);
+
+        $vri = $dss['vri'][0];
+        $t->same('ABCDEF1234', $vri['key']);
+        $t->same(61, $vri['object_number']);
+        $t->same(1, $vri['cert_count']);
+        $t->same(1, $vri['ocsp_count']);
+        $t->same(1, $vri['crl_count']);
+        $t->same('D:20260602133500Z', $vri['timestamp_update']);
+        $t->same($timestampHash, $vri['timestamp_token']['sha256']);
+        $t->same(false, $vri['timestamp_token']['raw_bytes_exposed']);
+        $t->same([999], $dss['vri'][1]['unresolved_cert_refs']);
+
+        $t->true(is_string($encoded)
+            && !str_contains($encoded, 'SIGNER_CERTIFICATE_DER_BYTES_SHOULD_NOT_LEAK')
+            && !str_contains($encoded, 'OCSP_RESPONSE_DER_BYTES_SHOULD_NOT_LEAK')
+            && !str_contains($encoded, 'CRL_BYTES_SHOULD_NOT_LEAK')
+            && !str_contains($encoded, 'TIMESTAMP_TOKEN_BYTES_SHOULD_NOT_LEAK')
+            && !str_contains($encoded, str_repeat('B', 96)));
     },
 ];
