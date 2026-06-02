@@ -322,6 +322,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-annotation-geometry-import.php` maps page annotation geometry for line, ink, polygon, callout, square, and circle annotations into review-only WordPress list rows. It exposes derived bounding boxes and shape metadata while confirming no PDF actions are executed and annotation appearances are not rendered.
 
+`examples/wordpress-pdf-icc-softmask-image-review.php` maps ICCBased image color-space and soft-mask metadata into a WordPress media-review path. It exposes profile component count, `/Alternate`, `/Range`, direct/indirect `/SMask`, `/Matte`, matte-unblend, and RGB preview intent without loading Python, pypdfium, PIL, Poppler, Ghostscript, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
