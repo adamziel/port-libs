@@ -217,6 +217,115 @@ final class PdfTextExtractor
     }
 
     /**
+     * Review-only tagged PDF structure boundary for WordPress import.
+     *
+     * Upstream markerPDF receives logical text and layout metadata from
+     * pdfium/pdftext before block conversion. This native reduced boundary
+     * exposes the tagged PDF /StructTreeRoot MCID order, including /RoleMap
+     * standard-role resolution, without executing Python, models, or external
+     * PDF tools.
+     *
+     * @return list<array{page_index: int, page_number: int, page_object_number: int, mcid: int, raw_role: string|null, role: string|null, role_mapped: bool, content_tags: list<string>, text: string}>
+     */
+    public function extractTaggedContent(string $pdfBytes): array
+    {
+        if ($this->hasEncryptedTrailer($pdfBytes)) {
+            return [];
+        }
+
+        $objects = $this->pdfObjects($pdfBytes);
+        $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
+        if ($pageObjectNumbers === []) {
+            return [];
+        }
+
+        $structureEntriesByPage = $this->structureTreeMcidEntriesByPage($objects);
+        if ($structureEntriesByPage === []) {
+            return [];
+        }
+
+        $fontObjectMaps = $this->fontObjectMaps($objects);
+        $optionalContentStates = $this->optionalContentVisibilityStates($objects);
+        $rows = [];
+
+        foreach ($pageObjectNumbers as $pageIndex => $pageObjectNumber) {
+            if (!isset($objects[$pageObjectNumber]) || !isset($structureEntriesByPage[$pageObjectNumber])) {
+                continue;
+            }
+
+            $expanded = $this->expandedPageContentStreamWithFontMaps(
+                $pageObjectNumber,
+                $objects,
+                $fontObjectMaps,
+                $optionalContentStates
+            );
+            if ($expanded === null || trim($expanded['stream']) === '') {
+                continue;
+            }
+
+            $segments = $this->markedContentSegmentsByMcid(
+                $expanded['stream'],
+                $objects[$pageObjectNumber],
+                $objects
+            );
+            if ($segments === []) {
+                continue;
+            }
+
+            foreach ($structureEntriesByPage[$pageObjectNumber] as $entry) {
+                $mcid = $entry['mcid'];
+                if (!isset($segments[$mcid])) {
+                    continue;
+                }
+
+                $texts = [];
+                $contentTags = [];
+                foreach ($segments[$mcid] as $segmentTokens) {
+                    $tag = $this->markedContentTagFromSegmentTokens($segmentTokens);
+                    if ($tag !== null) {
+                        $contentTags[$tag] = $tag;
+                    }
+
+                    $segmentStream = $this->contentStreamForMarkedContentSegment($segmentTokens);
+                    if ($segmentStream === '') {
+                        continue;
+                    }
+
+                    $text = trim(implode("\n", $this->textLinesFromContentStream(
+                        $segmentStream,
+                        $expanded['fontToUnicodeMaps'],
+                        $expanded['markedContentProperties']
+                    )));
+                    if ($text !== '') {
+                        $texts[] = $text;
+                    }
+                }
+
+                $text = trim(implode("\n", $texts));
+                if ($text === '') {
+                    continue;
+                }
+
+                $rawRole = $entry['rawRole'];
+                $role = $entry['role'];
+                $rows[] = [
+                    'page_index' => $pageIndex,
+                    'page_number' => $pageIndex + 1,
+                    'page_object_number' => $pageObjectNumber,
+                    'mcid' => $mcid,
+                    'raw_role' => $rawRole,
+                    'role' => $role,
+                    'role_mapped' => $rawRole !== null && $role !== null && $rawRole !== $role,
+                    'content_tags' => array_values($contentTags),
+                    'text' => $text,
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return list<string>
      */
     public function extractTextLines(string $pdfBytes): array
@@ -449,45 +558,14 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $streams = [];
-            $optionalContentProperties = $this->pageOptionalContentPropertyVisibilityMap(
+            $expanded = $this->expandedPageContentStreamWithFontMaps(
                 $pageObjectNumber,
                 $objects,
+                $fontObjectMaps,
                 $optionalContentStates
             );
-            foreach ($this->pageContentObjectNumbers($objects[$pageObjectNumber]) as $contentObjectNumber) {
-                if (!isset($objects[$contentObjectNumber])) {
-                    continue;
-                }
-
-                if (!$this->optionalContentObjectVisible($objects[$contentObjectNumber], $objects, $optionalContentStates)) {
-                    continue;
-                }
-
-                $decoded = $this->decodeStreamObject($objects[$contentObjectNumber], $objects);
-                if ($decoded !== null) {
-                    $streams[] = $this->filterOptionalContentMarkedBlocks($decoded, $optionalContentProperties);
-                }
-            }
-
-            $pageFontToUnicodeMaps = $this->pageFontToUnicodeMaps($pageObjectNumber, $objects, $fontObjectMaps);
-            $expanded = [
-                'stream' => implode("\n", $streams),
-                'fontToUnicodeMaps' => $pageFontToUnicodeMaps,
-                'markedContentProperties' => $this->pageMarkedContentProperties($pageObjectNumber, $objects),
-            ];
-
-            if ($streams !== []) {
-                $expandedForms = $this->expandFormXObjectInvocations(
-                    $expanded['stream'],
-                    $objects[$pageObjectNumber],
-                    $objects,
-                    $fontObjectMaps,
-                    $expanded['fontToUnicodeMaps'],
-                    $optionalContentStates
-                );
-                $expanded['stream'] = $expandedForms['stream'];
-                $expanded['fontToUnicodeMaps'] = $expandedForms['fontToUnicodeMaps'];
+            if ($expanded === null) {
+                continue;
             }
 
             $expanded['stream'] = $this->applyArticleThreadReadingOrder(
@@ -527,6 +605,65 @@ final class PdfTextExtractor
         }
 
         return $pages;
+    }
+
+    /**
+     * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>}|null
+     * @param array<int, string> $objects
+     * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
+     * @param array<int, bool> $optionalContentStates
+     */
+    private function expandedPageContentStreamWithFontMaps(
+        int $pageObjectNumber,
+        array $objects,
+        array $fontObjectMaps,
+        array $optionalContentStates
+    ): ?array {
+        if (!isset($objects[$pageObjectNumber])) {
+            return null;
+        }
+
+        $streams = [];
+        $optionalContentProperties = $this->pageOptionalContentPropertyVisibilityMap(
+            $pageObjectNumber,
+            $objects,
+            $optionalContentStates
+        );
+        foreach ($this->pageContentObjectNumbers($objects[$pageObjectNumber]) as $contentObjectNumber) {
+            if (!isset($objects[$contentObjectNumber])) {
+                continue;
+            }
+
+            if (!$this->optionalContentObjectVisible($objects[$contentObjectNumber], $objects, $optionalContentStates)) {
+                continue;
+            }
+
+            $decoded = $this->decodeStreamObject($objects[$contentObjectNumber], $objects);
+            if ($decoded !== null) {
+                $streams[] = $this->filterOptionalContentMarkedBlocks($decoded, $optionalContentProperties);
+            }
+        }
+
+        $expanded = [
+            'stream' => implode("\n", $streams),
+            'fontToUnicodeMaps' => $this->pageFontToUnicodeMaps($pageObjectNumber, $objects, $fontObjectMaps),
+            'markedContentProperties' => $this->pageMarkedContentProperties($pageObjectNumber, $objects),
+        ];
+
+        if ($streams !== []) {
+            $expandedForms = $this->expandFormXObjectInvocations(
+                $expanded['stream'],
+                $objects[$pageObjectNumber],
+                $objects,
+                $fontObjectMaps,
+                $expanded['fontToUnicodeMaps'],
+                $optionalContentStates
+            );
+            $expanded['stream'] = $expandedForms['stream'];
+            $expanded['fontToUnicodeMaps'] = $expandedForms['fontToUnicodeMaps'];
+        }
+
+        return $expanded;
     }
 
     /**
@@ -861,6 +998,84 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return array<int, list<array{mcid: int, rawRole: string|null, role: string|null}>>
+     * @param array<int, string> $objects
+     */
+    private function structureTreeMcidEntriesByPage(array $objects): array
+    {
+        $rootDictionary = $this->structureTreeRootDictionaryBody($objects);
+        if ($rootDictionary === null) {
+            return [];
+        }
+
+        $k = $this->pdfValueAfterName($rootDictionary, 'K');
+        if ($k === null) {
+            return [];
+        }
+
+        $entries = [];
+        $this->collectStructureMcidEntries(
+            $k,
+            $objects,
+            null,
+            null,
+            null,
+            $this->structureRoleMap($rootDictionary, $objects),
+            $entries
+        );
+
+        foreach ($entries as $pageObjectNumber => $pageEntries) {
+            $deduped = [];
+            foreach ($pageEntries as $entry) {
+                $deduped[$entry['mcid']] = $entry;
+            }
+            $entries[$pageObjectNumber] = array_values($deduped);
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return array<string, string>
+     * @param array<int, string> $objects
+     */
+    private function structureRoleMap(string $rootDictionary, array $objects): array
+    {
+        $roleMapDictionary = $this->pdfDictionaryValueAfterNameResolved($rootDictionary, 'RoleMap', $objects);
+        if ($roleMapDictionary === null) {
+            return [];
+        }
+
+        $roleMap = [];
+        if (preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+\/([^\s\[\]()<>{}\/%]+)/s', $roleMapDictionary, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $match) {
+                $roleMap[$this->decodePdfName($match[1])] = $this->decodePdfName($match[2]);
+            }
+        }
+
+        return $roleMap;
+    }
+
+    /**
+     * @param array<string, string> $roleMap
+     */
+    private function resolveStructureRole(string $role, array $roleMap): string
+    {
+        $current = $role;
+        $seen = [];
+        for ($depth = 0; $depth < 16; $depth++) {
+            if (!isset($roleMap[$current]) || isset($seen[$current])) {
+                break;
+            }
+
+            $seen[$current] = true;
+            $current = $roleMap[$current];
+        }
+
+        return $current;
+    }
+
+    /**
      * @param array<int, string> $objects
      */
     private function structureTreeRootDictionaryBody(array $objects): ?string
@@ -949,6 +1164,143 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
+     * @param array<string, string> $roleMap
+     * @param array<int, list<array{mcid: int, rawRole: string|null, role: string|null}>> $entries
+     * @param array<int, true> $seenObjects
+     */
+    private function collectStructureMcidEntries(
+        string $value,
+        array $objects,
+        ?int $inheritedPageObjectNumber,
+        ?string $inheritedRawRole,
+        ?string $inheritedRole,
+        array $roleMap,
+        array &$entries,
+        array $seenObjects = []
+    ): void {
+        $value = trim($value);
+        if ($value === '') {
+            return;
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            if (isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
+                return;
+            }
+
+            $seenObjects[$objectNumber] = true;
+            $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+            if ($dictionary !== null) {
+                $this->collectStructureDictionaryMcidEntries(
+                    $dictionary,
+                    $objects,
+                    $inheritedPageObjectNumber,
+                    $inheritedRawRole,
+                    $inheritedRole,
+                    $roleMap,
+                    $entries,
+                    $seenObjects
+                );
+            }
+            return;
+        }
+
+        if (str_starts_with($value, '[')) {
+            $arrayBody = $this->pdfArrayAtStart($value);
+            if ($arrayBody === null) {
+                return;
+            }
+
+            foreach ($this->pdfArrayItems($arrayBody) as $item) {
+                $this->collectStructureMcidEntries(
+                    $item,
+                    $objects,
+                    $inheritedPageObjectNumber,
+                    $inheritedRawRole,
+                    $inheritedRole,
+                    $roleMap,
+                    $entries,
+                    $seenObjects
+                );
+            }
+            return;
+        }
+
+        if (str_starts_with($value, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($value, 0);
+            if ($dictionary !== null) {
+                $this->collectStructureDictionaryMcidEntries(
+                    $dictionary,
+                    $objects,
+                    $inheritedPageObjectNumber,
+                    $inheritedRawRole,
+                    $inheritedRole,
+                    $roleMap,
+                    $entries,
+                    $seenObjects
+                );
+            }
+            return;
+        }
+
+        if ($inheritedPageObjectNumber !== null && preg_match('/^[+-]?\d+$/', $value) === 1) {
+            $mcid = (int) $value;
+            if ($mcid >= 0) {
+                $entries[$inheritedPageObjectNumber][] = [
+                    'mcid' => $mcid,
+                    'rawRole' => $inheritedRawRole,
+                    'role' => $inheritedRole,
+                ];
+            }
+        }
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, string> $roleMap
+     * @param array<int, list<array{mcid: int, rawRole: string|null, role: string|null}>> $entries
+     * @param array<int, true> $seenObjects
+     */
+    private function collectStructureDictionaryMcidEntries(
+        string $dictionary,
+        array $objects,
+        ?int $inheritedPageObjectNumber,
+        ?string $inheritedRawRole,
+        ?string $inheritedRole,
+        array $roleMap,
+        array &$entries,
+        array $seenObjects
+    ): void {
+        $rawRole = $this->pdfNameValueAfterName($dictionary, 'S') ?? $inheritedRawRole;
+        $role = $rawRole === null ? $inheritedRole : $this->resolveStructureRole($rawRole, $roleMap);
+        $pageObjectNumber = $this->objectReferenceValueAfterName($dictionary, 'Pg') ?? $inheritedPageObjectNumber;
+        $mcid = $this->pdfIntegerValueAfterName($dictionary, 'MCID');
+        if ($pageObjectNumber !== null && $mcid !== null && $mcid >= 0) {
+            $entries[$pageObjectNumber][] = [
+                'mcid' => $mcid,
+                'rawRole' => $rawRole,
+                'role' => $role,
+            ];
+        }
+
+        $k = $this->pdfValueAfterName($dictionary, 'K');
+        if ($k !== null) {
+            $this->collectStructureMcidEntries(
+                $k,
+                $objects,
+                $pageObjectNumber,
+                $rawRole,
+                $role,
+                $roleMap,
+                $entries,
+                $seenObjects
+            );
+        }
+    }
+
+    /**
+     * @param array<int, string> $objects
      * @param array<int, list<int>> $order
      * @param array<int, true> $seenObjects
      */
@@ -993,9 +1345,9 @@ final class PdfTextExtractor
             }
 
             foreach ($segments[$mcid] as $segmentTokens) {
-                $segment = trim(implode(' ', $segmentTokens));
+                $segment = $this->contentStreamForMarkedContentSegment($segmentTokens);
                 if ($segment !== '') {
-                    $orderedSegments[] = 'BT ' . $segment . ' ET';
+                    $orderedSegments[] = $segment;
                 }
             }
         }
@@ -1018,11 +1370,24 @@ final class PdfTextExtractor
 
         foreach ($this->contentTokens($stream) as $token) {
             if ($token === 'BDC') {
+                $activeSegment = $this->activeMarkedContentSegment($activeSegments);
+                if ($activeSegment !== null) {
+                    foreach ($operands as $operand) {
+                        $segments[$activeSegment['mcid']][$activeSegment['segmentIndex']][] = $operand;
+                    }
+                    $segments[$activeSegment['mcid']][$activeSegment['segmentIndex']][] = $token;
+                }
+
                 $mcid = $this->markedContentMcidOperand($operands, $properties);
                 $segmentIndex = null;
                 if ($mcid !== null) {
                     $segments[$mcid] ??= [];
-                    $segments[$mcid][] = $this->markedContentSegmentPrefix($currentFontResource, $currentFontSize);
+                    $segmentTokens = $this->markedContentSegmentPrefix($currentFontResource, $currentFontSize);
+                    foreach ($operands as $operand) {
+                        $segmentTokens[] = $operand;
+                    }
+                    $segmentTokens[] = $token;
+                    $segments[$mcid][] = $segmentTokens;
                     $segmentIndex = count($segments[$mcid]) - 1;
                 }
 
@@ -1032,12 +1397,25 @@ final class PdfTextExtractor
             }
 
             if ($token === 'BMC') {
+                $activeSegment = $this->activeMarkedContentSegment($activeSegments);
+                if ($activeSegment !== null) {
+                    foreach ($operands as $operand) {
+                        $segments[$activeSegment['mcid']][$activeSegment['segmentIndex']][] = $operand;
+                    }
+                    $segments[$activeSegment['mcid']][$activeSegment['segmentIndex']][] = $token;
+                }
+
                 $activeSegments[] = ['mcid' => null, 'segmentIndex' => null];
                 $operands = [];
                 continue;
             }
 
             if ($token === 'EMC') {
+                $activeSegment = $this->activeMarkedContentSegment($activeSegments);
+                if ($activeSegment !== null) {
+                    $segments[$activeSegment['mcid']][$activeSegment['segmentIndex']][] = $token;
+                }
+
                 array_pop($activeSegments);
                 $operands = [];
                 continue;
@@ -1065,6 +1443,43 @@ final class PdfTextExtractor
         }
 
         return $segments;
+    }
+
+    /**
+     * @param list<string> $segmentTokens
+     */
+    private function contentStreamForMarkedContentSegment(array $segmentTokens): string
+    {
+        $segment = trim(implode(' ', $segmentTokens));
+        if ($segment === '') {
+            return '';
+        }
+
+        if (preg_match('/(?:^|\s)BT(?:\s|$)/', $segment) === 1) {
+            return $segment;
+        }
+
+        return 'BT ' . $segment . ' ET';
+    }
+
+    /**
+     * @param list<string> $segmentTokens
+     */
+    private function markedContentTagFromSegmentTokens(array $segmentTokens): ?string
+    {
+        foreach ($segmentTokens as $index => $token) {
+            if ($token === 'BDC') {
+                $tag = $segmentTokens[$index - 2] ?? null;
+                return is_string($tag) && str_starts_with($tag, '/') ? $this->decodePdfName(substr($tag, 1)) : null;
+            }
+
+            if ($token === 'BMC') {
+                $tag = $segmentTokens[$index - 1] ?? null;
+                return is_string($tag) && str_starts_with($tag, '/') ? $this->decodePdfName(substr($tag, 1)) : null;
+            }
+        }
+
+        return null;
     }
 
     /**
