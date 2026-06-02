@@ -262,6 +262,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-xmp-metadata-import.php` maps catalog XMP document metadata into a WordPress import path. It prefers XMP title, authors, description, keywords, and dates over trailer `/Info` fallback values, excludes metadata streams from visible paragraph extraction, and emits document review metadata without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
+`examples/wordpress-pdf-trailer-id-fingerprint-import.php` maps PDF trailer `/ID` permanent/changing identifiers into a WordPress review metadata path. It emits a stable `document_fingerprint` derived from the permanent ID plus review-safe hex and changed-since-creation metadata while preserving visible Gutenberg paragraphs, without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
 `examples/wordpress-pdf-cidfont-widths-import.php` maps CIDFont `/W` and `/DW` width metrics into a WordPress import path. It keeps wide adjacent CID glyphs together as `WideBlock`, inserts the expected gap for narrow text as `Thin Text`, and emits Gutenberg paragraphs without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
 `examples/wordpress-pdf-inline-image-boundary-import.php` maps inline image `BI ... ID ... EI` page-content data into a WordPress import path. It emits only the surrounding paragraphs and excludes text-looking image payload bytes without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
@@ -276,6 +278,12 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-type3-charproc-widths-import.php` maps Type3 font `/CharProcs` d0/d1 width declarations into a WordPress import path. It uses declared glyph widths to keep wide Type3 glyph clusters together and insert spacing for narrow advances, emitting `WideBlock` and `Thin Text` without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
+`examples/wordpress-pdf-trailer-id-fingerprint-import.php` maps trailer `/ID` document fingerprint metadata into a WordPress review path. It emits stable and changing identifier metadata for editorial/import dedupe workflows while keeping visible PDF text extraction native and review-safe.
+
+`examples/wordpress-pdf-catalog-lang-viewer-preferences-import.php` maps catalog `/Lang` and `/ViewerPreferences` metadata into a WordPress import review path. It exposes document language plus viewer hints such as display title, print scaling, and reading direction without executing Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
+`examples/wordpress-pdf-openaction-safety-review.php` maps catalog OpenAction metadata into a non-executing WordPress safety-review path. It classifies local `GoTo`, remote `GoToR`, `URI`, and `Launch` actions for review and keeps them out of same-document TOC rows before import.
+
 ## Next Task
 
-Choose the next bounded markerPDF/PDF extraction gap on current base, favoring parser, font, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
+Choose the next bounded markerPDF/PDF extraction gap on current base, favoring embedded-file/name-tree metadata, AcroForm value dictionaries, object-stream/xref edges, page/action metadata, parser, font, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
