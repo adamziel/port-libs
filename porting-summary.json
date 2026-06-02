@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 22:43:27 UTC",
-    "sourceCommit": "f0ff33c4d9719c4ef7d3a7fda06a6cd1f094525c",
-    "sourceCommitShort": "f0ff33c4d971",
+    "generated": "2026-06-02 22:50:46 UTC",
+    "sourceCommit": "c93c398ffd6cafcca4318f8854c395ce8c1ca0c3",
+    "sourceCommitShort": "c93c398ffd6c",
     "sourceBranch": "unknown",
-    "dashboardCommit": "f0ff33c4d9719c4ef7d3a7fda06a6cd1f094525c",
-    "dashboardCommitShort": "f0ff33c4d971",
+    "dashboardCommit": "c93c398ffd6cafcca4318f8854c395ce8c1ca0c3",
+    "dashboardCommitShort": "c93c398ffd6c",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "654",
-            "coverage": "654 / 78 (838.5%)",
-            "mapPercent": "838.5%",
+            "mapped": "664",
+            "coverage": "664 / 78 (851.3%)",
+            "mapPercent": "851.3%",
             "unmapped": "0",
-            "php": "930 pass / 0 fail",
+            "php": "943 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor font/runtime/output/xref/table/outline inte...",
-            "currentWork": "MarkerPDF now maps CID width resource spacing for styled spans, server upload benchma...",
+            "audit": "2026-06-02 UTC supervisor 10-handoff markerPDF integration: accepted...",
+            "currentWork": "MarkerPDF now maps rotated OCR header captions, xref-stream Prev/Index width repair,...",
             "nextTarget": "Keep 10-11 visible markerPDF lanes active; next score newly r...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "f0ff33c"
+            "commit": "c93c398"
         },
         {
             "lane": "readability",
