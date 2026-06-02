@@ -180,6 +180,30 @@ $screenRenditionPlaybackPolicyPdf = static function (): string {
         . "%%EOF";
 };
 
+$screenActionTargetBoundaryPdf = static function (): string {
+    $pageContent = 'BT /F1 12 Tf 72 720 Td (Article Body) Tj ET';
+    $screenAppearance = 'BT /F1 12 Tf 0 0 Td (Current Screen Appearance Noise) Tj ET';
+    $staleMovieAppearance = 'BT /F1 12 Tf 0 0 Td (Detached Movie Appearance Noise) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Annots [5 0 R] /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Annot /Subtype /Screen /Rect [72 500 360 650] /T (Current screen player) /Contents (Only this screen annotation belongs to the page) /A 10 0 R /AA << /PV 12 0 R /PI 13 0 R >> /AP << /N 6 0 R >> >>\nendobj\n"
+        . "6 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 30 0 R >> >> /Length " . strlen($screenAppearance) . " >>\nstream\n{$screenAppearance}\nendstream\nendobj\n"
+        . "10 0 obj\n<< /S /Movie /Annotation 50 0 R /T (Detached screen movie action) /Operation /Play /Next 14 0 R >>\nendobj\n"
+        . "12 0 obj\n<< /S /URI /URI (https://cdn.example.com/current-screen.mp4) >>\nendobj\n"
+        . "13 0 obj\n<< /S /Launch /F (screen-helper.exe) /Win << /F (screen-setup.exe) /O (open) >> >>\nendobj\n"
+        . "14 0 obj\n<< /S /JavaScript /JS (app.alert\\('screen action stays review only'\\)) >>\nendobj\n"
+        . "50 0 obj\n<< /Type /Annot /Subtype /Movie /Rect [10 10 20 20] /T (Detached movie target) /Contents (Detached screen target must not become current media) /Movie 51 0 R /A << /S /URI /URI (https://cdn.example.com/stale-screen-target.mov) >> /AP << /N 53 0 R >> >>\nendobj\n"
+        . "51 0 obj\n<< /F 52 0 R /T (Detached target movie title) /Aspect [320 180] /Poster true >>\nendobj\n"
+        . "52 0 obj\n<< /Type /Filespec /F (stale-screen-target.mov) >>\nendobj\n"
+        . "53 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 30 0 R >> >> /Length " . strlen($staleMovieAppearance) . " >>\nstream\n{$staleMovieAppearance}\nendstream\nendobj\n"
+        . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'extracts screen and rich media annotations as review-only metadata' => static function (TestRunner $t) use ($richMediaAnnotationPdf): void {
         $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($richMediaAnnotationPdf());
@@ -583,5 +607,61 @@ return [
         $t->same(['Article Body'], (new PdfTextExtractor())->extractTextLines($screenRenditionPlaybackPolicyPdf()));
         $t->true(!str_contains($plainText, 'Playback Policy Noise'));
         $t->true(!str_contains($plainText, 'Leaked Playback Payload'));
+    },
+    'keeps detached screen action targets out of current annotation media review rows' => static function (TestRunner $t) use ($screenActionTargetBoundaryPdf): void {
+        $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($screenActionTargetBoundaryPdf());
+
+        $t->same(1, count($pages));
+        $t->same(0, $pages[0]['pnum']);
+        $t->same(3, $pages[0]['page_object']);
+        $t->same(1, count($pages[0]['annotations']), 'Only page /Annots entries are emitted as current media annotations.');
+
+        $screen = $pages[0]['annotations'][0];
+        $t->same('Screen', $screen['subtype']);
+        $t->same(5, $screen['annotation_object']);
+        $t->same('Current screen player', $screen['title']);
+        $t->same('Only this screen annotation belongs to the page', $screen['contents']);
+        $t->same(['Movie', 'JavaScript', 'URI', 'Launch'], $screen['action_types']);
+        $t->same(['https://cdn.example.com/current-screen.mp4'], $screen['action_uris']);
+        $t->same(['screen-helper.exe', 'screen-setup.exe'], $screen['file_names']);
+        $t->true(!in_array('stale-screen-target.mov', $screen['file_names'], true));
+        $t->same(false, $screen['executes_media']);
+        $t->same(false, $screen['executes_javascript']);
+
+        $movie = $screen['actions'][0];
+        $t->same('Movie', $movie['action_type']);
+        $t->same('movie-action-review', $movie['safety']);
+        $t->same(50, $movie['target_annotation_object']);
+        $t->same(false, $movie['target_annotation_is_page_annotation']);
+        $t->same('Detached screen movie action', $movie['title']);
+        $t->same('Play', $movie['operation']);
+        $t->same(null, $movie['movie'] ?? null);
+        $t->same(false, $movie['executes_on_import']);
+        $t->same(false, $movie['executes_media']);
+
+        $script = $screen['actions'][1];
+        $t->same('JavaScript', $script['action_type']);
+        $t->same(true, $script['chained']);
+        $t->same('blocked-javascript', $script['safety']);
+
+        $visible = $screen['actions'][2];
+        $t->same('PV', $visible['event']);
+        $t->same('URI', $visible['action_type']);
+        $t->same('https://cdn.example.com/current-screen.mp4', $visible['uri']);
+        $t->same(true, $visible['is_safe_uri']);
+
+        $launch = $screen['actions'][3];
+        $t->same('PI', $launch['event']);
+        $t->same('Launch', $launch['action_type']);
+        $t->same('blocked-launch', $launch['safety']);
+        $t->same('screen-helper.exe', $launch['file']);
+        $t->same('open', $launch['operation']);
+
+        $plainText = (new PdfTextExtractor())->extractPlainText($screenActionTargetBoundaryPdf());
+        $t->same(['Article Body'], (new PdfTextExtractor())->extractTextLines($screenActionTargetBoundaryPdf()));
+        $t->true(!str_contains($plainText, 'Current Screen Appearance Noise'));
+        $t->true(!str_contains($plainText, 'Detached Movie Appearance Noise'));
+        $t->true(!str_contains($plainText, 'Detached screen target must not become current media'));
+        $t->true(!str_contains($plainText, 'screen action stays review only'));
     },
 ];

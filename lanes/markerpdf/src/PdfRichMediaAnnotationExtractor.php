@@ -36,10 +36,17 @@ final class PdfRichMediaAnnotationExtractor
             }
 
             $records = $this->annotationBodiesForPage($objects[$pageObjectNumber], $objects);
+            $pageAnnotationObjects = $this->pageAnnotationObjectMap($records);
             $reversePopups = $this->popupRecordsByParentObject($records);
             $annotations = [];
             foreach ($records as $annotation) {
-                $review = $this->reviewAnnotationFromBody($annotation['body'], $objects, $annotation['object'], $reversePopups);
+                $review = $this->reviewAnnotationFromBody(
+                    $annotation['body'],
+                    $objects,
+                    $annotation['object'],
+                    $reversePopups,
+                    $pageAnnotationObjects
+                );
                 if ($review !== null) {
                     $annotations[] = $review;
                 }
@@ -166,6 +173,22 @@ final class PdfRichMediaAnnotationExtractor
 
     /**
      * @param list<array{body: string, object: int|null}> $records
+     * @return array<int, true>
+     */
+    private function pageAnnotationObjectMap(array $records): array
+    {
+        $objects = [];
+        foreach ($records as $record) {
+            if ($record['object'] !== null) {
+                $objects[$record['object']] = true;
+            }
+        }
+
+        return $objects;
+    }
+
+    /**
+     * @param list<array{body: string, object: int|null}> $records
      * @return array<int, array{body: string, object: int|null}>
      */
     private function popupRecordsByParentObject(array $records): array
@@ -190,9 +213,16 @@ final class PdfRichMediaAnnotationExtractor
     /**
      * @param array<int, string> $objects
      * @param array<int, array{body: string, object: int|null}> $reversePopups
+     * @param array<int, true> $pageAnnotationObjects
      * @return array<string, mixed>|null
      */
-    private function reviewAnnotationFromBody(string $annotationBody, array $objects, ?int $annotationObject, array $reversePopups): ?array
+    private function reviewAnnotationFromBody(
+        string $annotationBody,
+        array $objects,
+        ?int $annotationObject,
+        array $reversePopups,
+        array $pageAnnotationObjects
+    ): ?array
     {
         $subtype = $this->nameValueAfterName($annotationBody, 'Subtype');
         if ($subtype === null || !isset(self::REVIEW_SUBTYPES[$subtype])) {
@@ -200,7 +230,7 @@ final class PdfRichMediaAnnotationExtractor
         }
 
         $chainSafety = $this->emptyActionChainSafety();
-        $actions = $this->actionReviewRowsFromAnnotation($annotationBody, $objects, $chainSafety);
+        $actions = $this->actionReviewRowsFromAnnotation($annotationBody, $objects, $chainSafety, $pageAnnotationObjects);
         $contextBodies = $this->dedupeStrings(array_merge(
             [$annotationBody],
             $this->mediaContextBodiesFromAnnotation($annotationBody, $objects),
@@ -286,9 +316,15 @@ final class PdfRichMediaAnnotationExtractor
     /**
      * @param array<int, string> $objects
      * @param array{max_depth: int, cycle_edges_blocked: int, max_depth_edges_blocked: int} $chainSafety
+     * @param array<int, true> $pageAnnotationObjects
      * @return list<array<string, mixed>>
      */
-    private function actionReviewRowsFromAnnotation(string $annotationBody, array $objects, array &$chainSafety): array
+    private function actionReviewRowsFromAnnotation(
+        string $annotationBody,
+        array $objects,
+        array &$chainSafety,
+        array $pageAnnotationObjects
+    ): array
     {
         $actions = [];
         $seen = [];
@@ -301,7 +337,8 @@ final class PdfRichMediaAnnotationExtractor
                 ['source' => 'annotation_action', 'event' => 'A'],
                 $actions,
                 $seen,
-                $chainSafety
+                $chainSafety,
+                $pageAnnotationObjects
             );
         }
 
@@ -322,7 +359,8 @@ final class PdfRichMediaAnnotationExtractor
                 ['source' => 'annotation_additional_action', 'event' => $entry['name']],
                 $actions,
                 $seen,
-                $chainSafety
+                $chainSafety,
+                $pageAnnotationObjects
             );
         }
 
@@ -494,6 +532,7 @@ final class PdfRichMediaAnnotationExtractor
      * @param list<array<string, mixed>> $actions
      * @param array<string, true> $seen
      * @param array{max_depth: int, cycle_edges_blocked: int, max_depth_edges_blocked: int} $chainSafety
+     * @param array<int, true> $pageAnnotationObjects
      * @param array<string, true> $chainPath
      */
     private function appendActionReviewRowsFromValue(
@@ -503,6 +542,7 @@ final class PdfRichMediaAnnotationExtractor
         array &$actions,
         array &$seen,
         array &$chainSafety,
+        array $pageAnnotationObjects,
         int $chainIndex = 0,
         array $chainPath = []
     ): void {
@@ -514,7 +554,17 @@ final class PdfRichMediaAnnotationExtractor
         $arrayValues = $this->arrayValuesFromPdfValue($value, $objects);
         if ($arrayValues !== null) {
             foreach ($arrayValues as $arrayValue) {
-                $this->appendActionReviewRowsFromValue($arrayValue, $objects, $context, $actions, $seen, $chainSafety, $chainIndex, $chainPath);
+                $this->appendActionReviewRowsFromValue(
+                    $arrayValue,
+                    $objects,
+                    $context,
+                    $actions,
+                    $seen,
+                    $chainSafety,
+                    $pageAnnotationObjects,
+                    $chainIndex,
+                    $chainPath
+                );
             }
 
             return;
@@ -535,7 +585,14 @@ final class PdfRichMediaAnnotationExtractor
         $identity = hash('sha256', serialize([$context, $chainIndex, $visitKey]));
         if (!isset($seen[$identity])) {
             $seen[$identity] = true;
-            $review = $this->actionReviewRowFromBody($record['body'], $objects, $record['object'], $context, $chainIndex);
+            $review = $this->actionReviewRowFromBody(
+                $record['body'],
+                $objects,
+                $record['object'],
+                $context,
+                $chainIndex,
+                $pageAnnotationObjects
+            );
             if ($review !== null) {
                 $actions[] = $review;
             }
@@ -543,16 +600,34 @@ final class PdfRichMediaAnnotationExtractor
 
         $next = $this->topLevelValueAfterName($record['body'], 'Next');
         if ($next !== null) {
-            $this->appendActionReviewRowsFromValue($next, $objects, $context, $actions, $seen, $chainSafety, $chainIndex + 1, $chainPath);
+            $this->appendActionReviewRowsFromValue(
+                $next,
+                $objects,
+                $context,
+                $actions,
+                $seen,
+                $chainSafety,
+                $pageAnnotationObjects,
+                $chainIndex + 1,
+                $chainPath
+            );
         }
     }
 
     /**
      * @param array<int, string> $objects
      * @param array<string, mixed> $context
+     * @param array<int, true> $pageAnnotationObjects
      * @return array<string, mixed>|null
      */
-    private function actionReviewRowFromBody(string $actionBody, array $objects, ?int $actionObject, array $context, int $chainIndex): ?array
+    private function actionReviewRowFromBody(
+        string $actionBody,
+        array $objects,
+        ?int $actionObject,
+        array $context,
+        int $chainIndex,
+        array $pageAnnotationObjects
+    ): ?array
     {
         $actionType = $this->topLevelNameValueAfterName($actionBody, 'S');
         if ($actionType === null || $actionType === '') {
@@ -651,7 +726,10 @@ final class PdfRichMediaAnnotationExtractor
                 ?? $this->objectReferenceValueAfterName($actionBody, 'AN');
             if ($targetAnnotation !== null) {
                 $row['target_annotation_object'] = $targetAnnotation;
-                $targetBody = isset($objects[$targetAnnotation]) ? $this->dictionaryObjectBody($objects[$targetAnnotation]) : null;
+                $row['target_annotation_is_page_annotation'] = isset($pageAnnotationObjects[$targetAnnotation]);
+                $targetBody = $row['target_annotation_is_page_annotation'] && isset($objects[$targetAnnotation])
+                    ? $this->dictionaryObjectBody($objects[$targetAnnotation])
+                    : null;
                 if ($targetBody !== null) {
                     $movie = $this->movieDetailsFromAnnotation($targetBody, $objects);
                     if ($movie !== null) {
@@ -705,6 +783,7 @@ final class PdfRichMediaAnnotationExtractor
             $targetAnnotation = $this->objectReferenceValueAfterName($actionBody, 'AN');
             if ($targetAnnotation !== null) {
                 $row['target_annotation_object'] = $targetAnnotation;
+                $row['target_annotation_is_page_annotation'] = isset($pageAnnotationObjects[$targetAnnotation]);
             }
 
             $rendition = $this->dictionaryFromTopLevelValue($actionBody, 'R', $objects);
@@ -722,6 +801,7 @@ final class PdfRichMediaAnnotationExtractor
             $targetAnnotation = $this->objectReferenceValueAfterName($actionBody, 'AN');
             if ($targetAnnotation !== null) {
                 $row['target_annotation_object'] = $targetAnnotation;
+                $row['target_annotation_is_page_annotation'] = isset($pageAnnotationObjects[$targetAnnotation]);
             }
 
             $command = $this->dictionaryFromTopLevelValue($actionBody, 'CMD', $objects);
