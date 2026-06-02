@@ -1132,6 +1132,24 @@ final class PdfOutlineExtractor
         if (is_string($details['page_label'] ?? null)) {
             $context['destination_action_target_page_label'] = $details['page_label'];
         }
+        if (array_key_exists('view_mode', $details)) {
+            $context['destination_action_target_view_mode'] = $details['view_mode'];
+        }
+        if (is_array($details['view_position'] ?? null)) {
+            $context['destination_action_target_view_position'] = $details['view_position'];
+        }
+        if (is_array($details['view_parameters'] ?? null)) {
+            $context['destination_action_target_view_parameters'] = $details['view_parameters'];
+        }
+        if (array_key_exists('target_display_duration', $details)) {
+            $context['destination_action_target_display_duration'] = $details['target_display_duration'];
+        }
+        if (array_key_exists('target_page_transition', $details)) {
+            $context['destination_action_target_page_transition'] = $details['target_page_transition'];
+        }
+        if (is_array($details['target_page_actions'] ?? null)) {
+            $context['destination_action_target_page_actions'] = $details['target_page_actions'];
+        }
         if (is_array($details['target_article_beads'] ?? null)) {
             $context['destination_action_target_article_beads'] = $details['target_article_beads'];
         }
@@ -1140,6 +1158,12 @@ final class PdfOutlineExtractor
         }
         if (is_array($details['target_page_review'] ?? null)) {
             $context['destination_action_target_page_review'] = $details['target_page_review'];
+        }
+        if (is_array($details['target_tagged_content'] ?? null)) {
+            $context['destination_action_target_tagged_content'] = $details['target_tagged_content'];
+        }
+        if (is_array($details['target_structure_roles'] ?? null)) {
+            $context['destination_action_target_structure_roles'] = $details['target_structure_roles'];
         }
 
         return $context;

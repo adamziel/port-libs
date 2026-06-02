@@ -819,6 +819,76 @@ return [
             unlink($path);
         }
     },
+    'assigns supplied OCR polygon text by geometry before WordPress table rendering' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-table-ocr-polygon-geometry-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% OCR polygon geometry supplied pipeline\n%%EOF");
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'OCR polygon geometry review', 'bbox' => [72.0, 48.0, 410.0, 68.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'Stale polygon table text should be replaced.', 'bbox' => [72.0, 176.0, 460.0, 196.0]],
+                ['text' => 'Reviewer note after polygon table.', 'bbox' => [72.0, 276.0, 500.0, 294.0]],
+            ]);
+            $layout = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Title', 'bbox' => [72.0, 48.0, 410.0, 68.0]],
+                    ['label' => 'Table', 'bbox' => [72.0, 150.0, 430.0, 230.0]],
+                    ['label' => 'Text', 'bbox' => [72.0, 276.0, 500.0, 294.0]],
+                ],
+            ];
+            $recognizedTable = [
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 200.0, 30.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 38.0, 200.0, 70.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 96.0, 72.0]],
+                    ['col_id' => 1, 'bbox' => [98.0, 0.0, 200.0, 72.0]],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [$layout],
+                    'recognized_tables' => [$recognizedTable],
+                    'table_detector_cells' => [[
+                        ['bbox' => [0.0, 0.0, 90.0, 24.0], 'text' => null],
+                        ['bbox' => [100.0, 0.0, 190.0, 24.0], 'text' => null],
+                        ['bbox' => [0.0, 40.0, 90.0, 64.0], 'text' => null],
+                        ['bbox' => [100.0, 40.0, 190.0, 64.0], 'text' => null],
+                    ]],
+                    'table_ocr_text_lines' => [[
+                        'text_lines' => [
+                            ['text' => 'Status', 'polygon' => [[102.0, 4.0], [188.0, 4.0], [188.0, 20.0], [102.0, 20.0]]],
+                            ['text' => 'Feature', 'polygon' => [[2.0, 4.0], [88.0, 4.0], [88.0, 20.0], [2.0, 20.0]]],
+                            ['text' => 'Ready', 'polygon' => [[102.0, 44.0], [188.0, 44.0], [188.0, 60.0], [102.0, 60.0]]],
+                            ['text' => 'Images', 'polygon' => [[2.0, 44.0], [88.0, 44.0], [88.0, 60.0], [2.0, 60.0]]],
+                        ],
+                    ]],
+                    'table_rendered_image_sizes' => [['width' => 612, 'height' => 792]],
+                    'ocr_all_pages' => true,
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $t->contains('# Ocr Polygon Geometry Review', $result['text']);
+            $t->contains('| Feature | Status |', $result['text']);
+            $t->contains('| Images  | Ready  |', $result['text']);
+            $t->contains('Reviewer note after polygon table.', $result['text']);
+            $t->true(!str_contains($result['text'], 'Stale polygon table text should be replaced.'));
+            $t->same(['layout', 'table-cell-routing', 'table-recognition', 'table-formatting'], $result['metadata']['supplied_boundaries']);
+            $t->same([true], $result['metadata']['table_needs_ocr']);
+            $t->same(true, $result['metadata']['table_detect_boxes']);
+            $t->same([4], $result['metadata']['table_cell_counts']);
+            $t->same(['Feature', 'Status', 'Images', 'Ready'], array_column($result['metadata']['table_assigned_cells'][0], 'text'));
+            $t->true(!isset($result['metadata']['table_ocr_grid_border_conflicts']));
+        } finally {
+            unlink($path);
+        }
+    },
     'routes upstream OCR prediction objects through forced table recognition' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-forced-ocr-table-prediction-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% forced OCR table prediction supplied pipeline\n%%EOF");

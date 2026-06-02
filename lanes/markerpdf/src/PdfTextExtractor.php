@@ -9110,11 +9110,12 @@ final class PdfTextExtractor
                     ? $this->liveDirectObjectDefinition($definitions[$objectNumber] ?? [], $xrefEntry)
                     : null;
                 $canRepairCompressedMember = !isset($repaired[$objectNumber]) && ($xrefEntry['type'] ?? null) === 2;
+                $canRepairMissingDirectGeneration = !isset($repaired[$objectNumber]) && ($xrefEntry['type'] ?? null) === 1;
                 $canRepairDirectGeneration = isset($repaired[$objectNumber])
                     && ($xrefEntry['type'] ?? null) === 1
                     && $selected !== null;
 
-                if (!$canRepairCompressedMember && !$canRepairDirectGeneration) {
+                if (!$canRepairCompressedMember && !$canRepairMissingDirectGeneration && !$canRepairDirectGeneration) {
                     continue;
                 }
 

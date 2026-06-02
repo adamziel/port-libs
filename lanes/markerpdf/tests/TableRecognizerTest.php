@@ -785,6 +785,42 @@ return [
         $t->same(true, $conflicts[0]['spans_grid_border']);
         $t->contains('| Images  | Ready  |', $formatted['markdown_tables'][0]);
     },
+    'assigns out-of-order OCR polygon text by upstream TextLine geometry' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $recognized = $recognizer->recognizeTables(
+            [[
+                ['bbox' => [0.0, 0.0, 90.0, 24.0], 'text' => ''],
+                ['bbox' => [100.0, 0.0, 190.0, 24.0], 'text' => ''],
+                ['bbox' => [0.0, 40.0, 90.0, 64.0], 'text' => ''],
+                ['bbox' => [100.0, 40.0, 190.0, 64.0], 'text' => ''],
+            ]],
+            [true],
+            [[
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 200.0, 30.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 38.0, 200.0, 70.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 96.0, 72.0]],
+                    ['col_id' => 1, 'bbox' => [98.0, 0.0, 200.0, 72.0]],
+                ],
+            ]],
+            [[
+                'text_lines' => [
+                    ['text' => 'Status', 'polygon' => [[102.0, 4.0], [188.0, 4.0], [188.0, 20.0], [102.0, 20.0]]],
+                    ['text' => 'Feature', 'polygon' => [[2.0, 4.0], [88.0, 4.0], [88.0, 20.0], [2.0, 20.0]]],
+                    ['text' => 'Ready', 'polygon' => [[102.0, 44.0], [188.0, 44.0], [188.0, 60.0], [102.0, 60.0]]],
+                    ['text' => 'Images', 'polygon' => [[2.0, 44.0], [88.0, 44.0], [88.0, 60.0], [2.0, 60.0]]],
+                ],
+            ]]
+        );
+        $formatted = $recognizer->formatRecognizedTables($recognized, [['width' => 200, 'height' => 72]]);
+
+        $t->same(['Feature', 'Status', 'Images', 'Ready'], array_column($recognized[0]['cells'], 'text'));
+        $t->contains('| Feature | Status |', $formatted['markdown_tables'][0]);
+        $t->contains('| Images  | Ready  |', $formatted['markdown_tables'][0]);
+        $t->same([], $recognized[0]['ocr_grid_border_conflicts'] ?? []);
+    },
     'falls back to heuristic row layout when model rows and columns leave most cells unassigned' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $assigned = $recognizer->assignRowsColumns(

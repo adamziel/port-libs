@@ -1434,6 +1434,97 @@ return [
         $t->true(!str_contains($text, '<wp-export>'));
         $t->true(!str_contains($text, 'PieceInfo Metadata Private Leak'));
     },
+    'bounds current xref-selected catalog name-tree metadata by node limits' => static function (TestRunner $t): void {
+        $currentSourcePayload = '<wp-export><post id="1838"/></wp-export>';
+        $currentPreviewPayload = 'Current bounded preview bytes';
+        $staleSourcePayload = '<wp-export><post id="stale-nametree"/></wp-export>';
+        $currentSourceChecksum = strtoupper(hash('md5', $currentSourcePayload));
+        $currentContent = 'BT /F1 12 Tf 72 720 Td (Current Catalog NameTree Limits Body) Tj ET';
+        $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale Catalog NameTree Body) Tj ET';
+        $pdf = "%PDF-2.0\n";
+        $offsets = [];
+        $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): void {
+            $offsets[$objectNumber] = strlen($pdf);
+            $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+        };
+
+        $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 20 0 R /Dests 30 0 R >> >>');
+        $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>');
+        $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>');
+        $addObject(4, 0, '<< /Type /Page /Parent 2 0 R >>');
+        $addObject(5, 0, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+        $addObject(20, 0, '<< /Kids [21 0 R 22 0 R] >>');
+        $addObject(21, 0, '<< /Limits [(a) (m)] /Names [(current-source.xml) 40 0 R (z-stale-source.xml) 50 0 R] >>');
+        $addObject(22, 0, '<< /Limits [(n) (z)] /Names [(review-bundle.pdf) 42 0 R] >>');
+        $addObject(30, 0, '<< /Kids [31 0 R 32 0 R] >>');
+        $addObject(31, 0, '<< /Limits [(A) (M)] /Names [(Current Start) [3 0 R /FitH 700] (Z Stale Destination) [4 0 R /Fit]] >>');
+        $addObject(32, 0, '<< /Limits [(N) (Z)] /Names [(Review Summary) [4 0 R /XYZ 144 null 0]] >>');
+        $addObject(40, 0, '<< /Type /Filespec /F (current-source.xml) /UF (current-source.xml) /Desc (Current bounded source export) /AFRelationship /Source /EF << /F 41 0 R >> >>');
+        $addObject(41, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size ' . strlen($currentSourcePayload) . ' /CheckSum <' . $currentSourceChecksum . "> >> /Length " . strlen($currentSourcePayload) . " >>\nstream\n{$currentSourcePayload}\nendstream");
+        $addObject(42, 0, '<< /Type /Filespec /F (review-bundle.pdf) /Desc (Current bounded preview) /AFRelationship /Alternative /EF << /F 43 0 R >> >>');
+        $addObject(43, 0, '<< /Type /EmbeddedFile /Subtype /application#2Fpdf /Length ' . strlen($currentPreviewPayload) . " >>\nstream\n{$currentPreviewPayload}\nendstream");
+        $addObject(50, 0, '<< /Type /Filespec /F (z-stale-source.xml) /Desc (Stale out-of-limits source) /AFRelationship /Source /EF << /F 51 0 R >> >>');
+        $addObject(51, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($staleSourcePayload) . " >>\nstream\n{$staleSourcePayload}\nendstream");
+        $addObject(60, 0, '<< /Title (Current NameTree Info) /Author (Current NameTree Author) /Producer (Current NameTree Producer) >>');
+
+        $xrefOffset = strlen($pdf);
+        $rows = '';
+        for ($objectNumber = 0; $objectNumber < 91; $objectNumber++) {
+            if ($objectNumber === 0 || (!isset($offsets[$objectNumber]) && $objectNumber !== 90)) {
+                $rows .= pack('CNn', 0, 0, $objectNumber === 0 ? 65535 : 0);
+                continue;
+            }
+
+            $rows .= pack('CNn', 1, $objectNumber === 90 ? $xrefOffset : $offsets[$objectNumber], 0);
+        }
+        $compressedXref = gzcompress($rows);
+        if (!is_string($compressedXref)) {
+            throw new RuntimeException('Unable to compress current name-tree xref stream.');
+        }
+
+        $pdf .= "90 0 obj\n"
+            . '<< /Type /XRef /Size 91 /Root 1 0 R /Info 60 0 R /W [1 4 2] /Filter /FlateDecode /Length ' . strlen($compressedXref) . " >>\n"
+            . "stream\n{$compressedXref}\nendstream\nendobj\n"
+            . "startxref\n{$xrefOffset}\n%%EOF\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 70 0 R /Dests 72 0 R >> >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream\nendobj\n"
+            . "40 0 obj\n<< /Type /Filespec /F (stale-selected-source.xml) /Desc (Stale appended source) /AFRelationship /Source /EF << /F 41 0 R >> >>\nendobj\n"
+            . "41 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length " . strlen($staleSourcePayload) . " >>\nstream\n{$staleSourcePayload}\nendstream\nendobj\n"
+            . "60 0 obj\n<< /Title (Stale NameTree Info) /Author (Stale NameTree Author) /Producer (Stale NameTree Producer) >>\nendobj\n"
+            . "70 0 obj\n<< /Names [(stale-detached.xml) 40 0 R] >>\nendobj\n"
+            . "72 0 obj\n<< /Names [(Stale Detached Destination) [4 0 R /Fit]] >>\nendobj\n";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $embeddedFiles = $metadata['embedded_files'] ?? [];
+        $destinations = $metadata['document_destinations'] ?? [];
+
+        $t->same(['info', 'catalog'], $metadata['source']);
+        $t->same('Current NameTree Info', $metadata['title']);
+        $t->same('Current NameTree Author', $metadata['info']['Author']);
+        $t->same('Current Catalog NameTree Limits Body', $plainText);
+        $t->same(2, count($embeddedFiles));
+        $t->same(['current-source.xml', 'review-bundle.pdf'], array_column($embeddedFiles, 'name_tree_name'));
+        $t->same('current-source.xml', $embeddedFiles[0]['filename']);
+        $t->same(true, $embeddedFiles[0]['checksum_matches']);
+        $t->same(hash('sha256', $currentSourcePayload), $embeddedFiles[0]['content_sha256']);
+        $t->same('review-bundle.pdf', $embeddedFiles[1]['filename']);
+        $t->same('Alternative', $embeddedFiles[1]['relationship']);
+        $t->same(2, $destinations['count']);
+        $t->same(['Current Start', 'Review Summary'], $destinations['names']);
+        $t->same('FitH', $destinations['destinations'][0]['view_mode']);
+        $t->same(['top' => 700.0], $destinations['destinations'][0]['view_parameters']);
+        $t->same('XYZ', $destinations['destinations'][1]['view_mode']);
+        $t->same(['left' => 144.0, 'top' => null, 'zoom' => null], $destinations['destinations'][1]['view_parameters']);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'z-stale-source.xml'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Z Stale Destination'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Stale NameTree Info'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'stale-detached.xml'));
+        $t->true(is_string($encoded) && !str_contains($encoded, $staleSourcePayload));
+        $t->true(!str_contains($plainText, 'Stale Catalog NameTree Body'));
+        $t->true(!str_contains($plainText, '<wp-export>'));
+    },
     'extracts catalog language and indirect viewer preferences for WordPress review' => static function (TestRunner $t) use ($pdfWithCatalogReview): void {
         $lang = strtoupper(bin2hex("\xfe\xff\x00e\x00s\x00-\x00M\x00X"));
         $viewerPreferences = "7 0 obj\n"

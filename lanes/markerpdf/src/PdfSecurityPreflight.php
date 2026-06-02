@@ -20,7 +20,7 @@ final class PdfSecurityPreflight
         $documentSecurityStore = (new PdfDocumentSecurityStoreExtractor())->extract($pdfBytes);
         $encryption = is_array($metadata['encryption'] ?? null) ? $metadata['encryption'] : null;
         $signatures = $this->signatureReviews($form['fields'] ?? [], $pdfBytes, $documentSecurityStore);
-        $documentActionReview = $this->documentActionSecurityReview($pdfBytes, $signatures);
+        $documentActionReview = $this->documentActionSecurityReview($pdfBytes, $signatures, $form);
         $encrypted = $encryption !== null;
         $hasDocumentSecurityStore = ($documentSecurityStore['present'] ?? false) === true;
         $signedSignatureCount = count(array_filter(
@@ -373,7 +373,7 @@ final class PdfSecurityPreflight
      * @param list<array<string, mixed>> $signatures
      * @return array<string, mixed>
      */
-    private function documentActionSecurityReview(string $pdfBytes, array $signatures): array
+    private function documentActionSecurityReview(string $pdfBytes, array $signatures, array $form): array
     {
         $actions = [];
         $outline = new PdfOutlineExtractor();
@@ -423,6 +423,7 @@ final class PdfSecurityPreflight
             }
         }
 
+        $this->addAcroFormActionReviewRows($actions, $form);
         $actions = $this->annotateDocumentActionByteRangeReviews(
             $actions,
             $signatures,
@@ -438,8 +439,20 @@ final class PdfSecurityPreflight
             'open_action_count' => $this->documentActionCountBySource($actions, 'catalog_open_action'),
             'annotation_action_count' => $this->documentActionCountBySources($actions, ['page_annotation_action', 'page_annotation_additional_action']),
             'page_additional_action_count' => $this->documentActionCountBySource($actions, 'page_additional_action'),
+            'acroform_action_count' => $this->documentActionCountBySources($actions, ['acroform_field_action', 'acroform_widget_action']),
+            'acroform_field_action_count' => $this->documentActionCountBySource($actions, 'acroform_field_action'),
+            'acroform_widget_action_count' => $this->documentActionCountBySource($actions, 'acroform_widget_action'),
+            'signed_locked_field_action_count' => count(array_filter(
+                $actions,
+                static fn (array $action): bool => ($action['field_locked_by_signed_signature'] ?? false) === true
+            )),
             'launch_action_count' => $this->documentActionCountByType($actions, 'Launch'),
             'uri_action_count' => $this->documentActionCountByType($actions, 'URI'),
+            'javascript_action_count' => $this->documentActionCountByType($actions, 'JavaScript'),
+            'form_submit_action_count' => $this->documentActionCountByType($actions, 'SubmitForm'),
+            'form_reset_action_count' => $this->documentActionCountByType($actions, 'ResetForm'),
+            'import_data_action_count' => $this->documentActionCountByType($actions, 'ImportData'),
+            'hide_action_count' => $this->documentActionCountByType($actions, 'Hide'),
             'safe_uri_action_count' => count(array_filter(
                 $actions,
                 static fn (array $action): bool => ($action['action_type'] ?? null) === 'URI'
@@ -472,12 +485,118 @@ final class PdfSecurityPreflight
             )),
             'certifying_permission_labels' => $this->certifyingPermissionLabels($signatures),
             'signature_reference_transform_methods' => $this->referenceTransformMethods($signatures),
+            'acroform_action_field_names' => $this->uniqueNestedStringColumn($actions, 'action_field_names'),
+            'signed_locked_field_permission_labels' => $this->uniqueNestedStringColumn($actions, 'permission_labels'),
+            'signed_locked_by_signatures' => $this->uniqueNestedStringColumn($actions, 'locked_by_signatures'),
             'actions' => $actions,
             'all_actions_review_only' => true,
             'executes_actions_on_import' => false,
             'executes_javascript' => false,
             'executes_external_pdf_tools' => false,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @param array<string, mixed> $form
+     */
+    private function addAcroFormActionReviewRows(array &$actions, array $form): void
+    {
+        $widgetContexts = [];
+        foreach ($form['fields'] ?? [] as $field) {
+            if (!is_array($field)) {
+                continue;
+            }
+
+            $fieldContext = $this->acroFormFieldActionContext($field);
+            foreach ($field['widgets'] ?? [] as $widget) {
+                if (!is_array($widget) || !is_int($widget['object'] ?? null)) {
+                    continue;
+                }
+
+                $widgetContexts[$widget['object']] = $fieldContext + [
+                    'widget_object' => $widget['object'],
+                ];
+            }
+        }
+
+        $pageAnnotationActionWidgetObjects = [];
+        foreach ($actions as &$row) {
+            if (!in_array($row['source'] ?? null, ['page_annotation_action', 'page_annotation_additional_action'], true)) {
+                continue;
+            }
+
+            $annotationObject = is_int($row['annotation_object'] ?? null) ? $row['annotation_object'] : null;
+            if ($annotationObject === null || !isset($widgetContexts[$annotationObject])) {
+                continue;
+            }
+
+            $pageAnnotationActionWidgetObjects[$annotationObject] = true;
+            $this->applyAcroFormActionContext($row, $widgetContexts[$annotationObject]);
+        }
+        unset($row);
+
+        foreach ($form['fields'] ?? [] as $field) {
+            if (!is_array($field)) {
+                continue;
+            }
+
+            $fieldContext = $this->acroFormFieldActionContext($field);
+            foreach ($field['actions'] ?? [] as $action) {
+                if (is_array($action)) {
+                    $this->addDocumentActionReviewRow($actions, $action, 'acroform_field_action', $fieldContext);
+                }
+            }
+
+            foreach ($field['widgets'] ?? [] as $widget) {
+                if (!is_array($widget)) {
+                    continue;
+                }
+
+                $widgetObject = is_int($widget['object'] ?? null) ? $widget['object'] : null;
+                if ($widgetObject !== null && isset($pageAnnotationActionWidgetObjects[$widgetObject])) {
+                    continue;
+                }
+
+                $widgetContext = $fieldContext + ['widget_object' => $widgetObject];
+                foreach ($widget['actions'] ?? [] as $action) {
+                    if (is_array($action)) {
+                        $this->addDocumentActionReviewRow($actions, $action, 'acroform_widget_action', $widgetContext);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $field
+     * @return array<string, mixed>
+     */
+    private function acroFormFieldActionContext(array $field): array
+    {
+        $lockState = is_array($field['signature_lock_state'] ?? null) ? $field['signature_lock_state'] : [];
+
+        return [
+            'field_name' => is_string($field['name'] ?? null) ? $field['name'] : null,
+            'field_object' => is_int($field['object'] ?? null) ? $field['object'] : null,
+            'field_locked_by_signed_signature' => ($lockState['effective_locked'] ?? false) === true,
+            'locked_by_signatures' => $this->stringList($lockState['locked_by_signatures'] ?? []),
+            'permission_labels' => $this->stringList($lockState['permission_labels'] ?? []),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param array<string, mixed> $context
+     */
+    private function applyAcroFormActionContext(array &$row, array $context): void
+    {
+        $row['field_name'] = is_string($context['field_name'] ?? null) ? $context['field_name'] : null;
+        $row['field_object'] = is_int($context['field_object'] ?? null) ? $context['field_object'] : null;
+        $row['widget_object'] = is_int($context['widget_object'] ?? null) ? $context['widget_object'] : null;
+        $row['field_locked_by_signed_signature'] = ($context['field_locked_by_signed_signature'] ?? false) === true;
+        $row['locked_by_signatures'] = $this->stringList($context['locked_by_signatures'] ?? []);
+        $row['permission_labels'] = $this->stringList($context['permission_labels'] ?? []);
     }
 
     /**
@@ -496,25 +615,107 @@ final class PdfSecurityPreflight
             'annotation_subtype' => $context['annotation_subtype'] ?? null,
             'event' => $action['event'] ?? null,
             'event_label' => $action['event_label'] ?? null,
+            'trigger' => is_string($action['trigger'] ?? null) ? $action['trigger'] : null,
+            'trigger_label' => is_string($action['trigger_label'] ?? null) ? $action['trigger_label'] : null,
+            'field_name' => is_string($context['field_name'] ?? null) ? $context['field_name'] : null,
+            'field_object' => is_int($context['field_object'] ?? null) ? $context['field_object'] : null,
+            'widget_object' => is_int($context['widget_object'] ?? null) ? $context['widget_object'] : null,
+            'field_locked_by_signed_signature' => ($context['field_locked_by_signed_signature'] ?? false) === true,
+            'locked_by_signatures' => $this->stringList($context['locked_by_signatures'] ?? []),
+            'permission_labels' => $this->stringList($context['permission_labels'] ?? []),
             'action_type' => is_string($action['action_type'] ?? null) ? $action['action_type'] : null,
-            'safety' => is_string($action['safety'] ?? null) ? $action['safety'] : null,
+            'safety' => $this->documentActionSafety($action),
             'action_object' => is_int($action['action_object'] ?? null) ? $action['action_object'] : null,
-            'uri' => is_string($action['uri'] ?? null) ? $action['uri'] : null,
-            'file' => is_string($action['file'] ?? null) ? $action['file'] : null,
+            'uri' => $this->documentActionUri($action),
+            'file' => $this->documentActionFile($action),
+            'target' => is_string($action['target'] ?? null) ? $action['target'] : null,
+            'target_scheme' => is_string($action['target_scheme'] ?? null) ? $action['target_scheme'] : null,
             'operation' => is_string($action['operation'] ?? null) ? $action['operation'] : null,
             'destination' => is_string($action['destination'] ?? null) ? $action['destination'] : null,
             'destination_page' => is_int($action['destination_page'] ?? null) ? $action['destination_page'] : null,
             'page' => is_int($action['page'] ?? null) ? $action['page'] : null,
             'new_window' => is_bool($action['new_window'] ?? null) ? $action['new_window'] : null,
-            'is_safe_uri' => is_bool($action['is_safe_uri'] ?? null) ? $action['is_safe_uri'] : null,
+            'is_safe_uri' => $this->documentActionSafeUri($action),
             'chained' => is_bool($action['chained'] ?? null) ? $action['chained'] : false,
             'chain_index' => is_int($action['chain_index'] ?? null) ? $action['chain_index'] : null,
+            'action_field_objects' => $this->integerList($action['field_objects'] ?? []),
+            'action_field_names' => $this->stringList($action['field_names'] ?? []),
+            'unresolved_field_objects' => $this->integerList($action['unresolved_field_objects'] ?? []),
+            'flags' => is_int($action['flags'] ?? null) ? $action['flags'] : null,
+            'flag_names' => $this->stringList($action['flag_names'] ?? []),
+            'fields_mode' => is_string($action['fields_mode'] ?? null) ? $action['fields_mode'] : null,
+            'submit_format' => is_string($action['submit_format'] ?? null) ? $action['submit_format'] : null,
+            'include_no_value_fields' => is_bool($action['include_no_value_fields'] ?? null) ? $action['include_no_value_fields'] : null,
+            'reset_to_default' => is_bool($action['reset_to_default'] ?? null) ? $action['reset_to_default'] : null,
             'review_only' => true,
             'executes_on_import' => false,
             'executes_action' => false,
         ];
 
         $actions[] = $row;
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     */
+    private function documentActionSafety(array $action): ?string
+    {
+        if (is_string($action['safety'] ?? null)) {
+            return $action['safety'];
+        }
+
+        return match ($action['action_type'] ?? null) {
+            'JavaScript' => 'blocked-javascript',
+            'Launch' => 'launch-action-review',
+            'SubmitForm' => 'submit-form-action-review',
+            'ResetForm' => 'reset-form-action-review',
+            'ImportData' => 'import-data-action-review',
+            'Hide' => 'hide-action-review',
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     */
+    private function documentActionUri(array $action): ?string
+    {
+        if (is_string($action['uri'] ?? null)) {
+            return $action['uri'];
+        }
+
+        return ($action['action_type'] ?? null) === 'URI' && is_string($action['target'] ?? null)
+            ? $action['target']
+            : null;
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     */
+    private function documentActionFile(array $action): ?string
+    {
+        if (is_string($action['file'] ?? null)) {
+            return $action['file'];
+        }
+
+        return in_array($action['action_type'] ?? null, ['GoToR', 'Launch', 'ImportData'], true) && is_string($action['target'] ?? null)
+            ? $action['target']
+            : null;
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     */
+    private function documentActionSafeUri(array $action): ?bool
+    {
+        if (is_bool($action['is_safe_uri'] ?? null)) {
+            return $action['is_safe_uri'];
+        }
+        if (is_bool($action['safe_uri'] ?? null)) {
+            return $action['safe_uri'];
+        }
+
+        return null;
     }
 
     /**
@@ -822,8 +1023,17 @@ final class PdfSecurityPreflight
         $safety = $action['safety'] ?? null;
         $type = $action['action_type'] ?? null;
 
-        return in_array($safety, ['blocked-launch', 'launch-action-review', 'blocked-javascript', 'blocked-unsafe-uri'], true)
-            || in_array($type, ['Launch', 'JavaScript'], true);
+        return in_array($safety, [
+            'blocked-launch',
+            'launch-action-review',
+            'blocked-javascript',
+            'blocked-unsafe-uri',
+            'submit-form-action-review',
+            'import-data-action-review',
+            'reset-form-action-review',
+            'hide-action-review',
+        ], true)
+            || in_array($type, ['Launch', 'JavaScript', 'SubmitForm', 'ImportData', 'ResetForm', 'Hide'], true);
     }
 
     /**
@@ -842,6 +1052,54 @@ final class PdfSecurityPreflight
         }
 
         return $values;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private function uniqueNestedStringColumn(array $rows, string $key): array
+    {
+        $values = [];
+        foreach ($rows as $row) {
+            foreach ($this->stringList($row[$key] ?? []) as $value) {
+                if (!in_array($value, $values, true)) {
+                    $values[] = $value;
+                }
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stringList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $value,
+            static fn (mixed $item): bool => is_string($item)
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function integerList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $value,
+            static fn (mixed $item): bool => is_int($item)
+        ));
     }
 
     /**
@@ -1493,6 +1751,18 @@ final class PdfSecurityPreflight
         if ($hasDocumentSecurityStore) {
             $reasons[] = 'document_security_store_present';
         }
+        if ((int) ($documentActionReview['acroform_action_count'] ?? 0) > 0) {
+            $reasons[] = 'acroform_actions_present';
+        }
+        if ((int) ($documentActionReview['signed_locked_field_action_count'] ?? 0) > 0) {
+            $reasons[] = 'signed_locked_field_actions_present';
+        }
+        if (
+            (int) ($documentActionReview['form_submit_action_count'] ?? 0) > 0
+            || (int) ($documentActionReview['import_data_action_count'] ?? 0) > 0
+        ) {
+            $reasons[] = 'form_data_actions_present';
+        }
         if ((int) ($documentActionReview['unsafe_action_count'] ?? 0) > 0) {
             $reasons[] = 'unsafe_pdf_actions_present';
         }
@@ -1557,6 +1827,9 @@ final class PdfSecurityPreflight
         }
         if ((int) ($documentActionReview['unsafe_action_count'] ?? 0) > 0) {
             $blocked[] = 'pdf_action_execution';
+        }
+        if ((int) ($documentActionReview['acroform_action_count'] ?? 0) > 0) {
+            $blocked[] = 'form_action_execution';
         }
 
         return $blocked;

@@ -108,7 +108,7 @@ final class TableRecognizer
      * @param list<list<array<string, mixed>>> $tableCells
      * @param list<bool> $needsOcr
      * @param list<array<string, mixed>> $suppliedTableResults
-     * @param array<int, list<string|array{text?: string, bbox?: list<int|float>}>|array{text_lines?: list<string|array{text?: string, bbox?: list<int|float>}>, lines?: list<string|array{text?: string, bbox?: list<int|float>}>}> $suppliedOcrTextLines
+     * @param array<int, list<string|array{text?: string, bbox?: list<int|float>, polygon?: list<list<int|float>>}>|array{text_lines?: list<string|array{text?: string, bbox?: list<int|float>, polygon?: list<list<int|float>>}>, lines?: list<string|array{text?: string, bbox?: list<int|float>, polygon?: list<list<int|float>>}>}> $suppliedOcrTextLines
      * @return list<array{cells: list<array<string, mixed>>, rows: list<array<string, mixed>>, cols: list<array<string, mixed>>, ocr_text_assignment?: string, ocr_grid_border_conflicts?: list<array<string, mixed>>}>
      */
     public function recognizeTables(
@@ -483,7 +483,7 @@ final class TableRecognizer
 
     /**
      * @param list<array<string, mixed>> $cells
-     * @param list<string|array{text?: string, bbox?: list<int|float>}> $ocrTextLines
+     * @param list<string|array{text?: string, bbox?: list<int|float>, polygon?: list<list<int|float>>}> $ocrTextLines
      * @return array{cells: list<array<string, mixed>>, assignment_mode: string, grid_border_conflicts: list<array<string, mixed>>}
      */
     private function applyOcrText(array $cells, array $ocrTextLines): array
@@ -521,7 +521,7 @@ final class TableRecognizer
 
     /**
      * @param list<array<string, mixed>> $cells
-     * @param list<string|array{text?: string, bbox?: list<int|float>}> $ocrLines
+     * @param list<string|array{text?: string, bbox?: list<int|float>, polygon?: list<list<int|float>>}> $ocrLines
      * @return list<array<string, mixed>>
      */
     private function applyOcrTextByOrder(array $cells, array $ocrLines): array
@@ -538,7 +538,7 @@ final class TableRecognizer
 
     /**
      * @param list<array<string, mixed>> $cells
-     * @param list<string|array{text?: string, bbox?: list<int|float>}> $ocrTextLines
+     * @param list<string|array{text?: string, bbox?: list<int|float>, polygon?: list<list<int|float>>}> $ocrTextLines
      * @return list<array<string, mixed>>
      */
     private function ocrGridBorderConflicts(array $cells, array $ocrTextLines, float $minOverlap = 0.15): array
@@ -549,7 +549,7 @@ final class TableRecognizer
                 continue;
             }
 
-            $bbox = $this->nullableBbox($ocrLine['bbox'] ?? null);
+            $bbox = $this->ocrLineBbox($ocrLine);
             if ($bbox === null) {
                 continue;
             }
@@ -590,7 +590,7 @@ final class TableRecognizer
     }
 
     /**
-     * @param list<string|array{text?: string, bbox?: list<int|float>}> $ocrTextLines
+     * @param list<string|array{text?: string, bbox?: list<int|float>, polygon?: list<list<int|float>>}> $ocrTextLines
      * @return list<array<string, mixed>>
      */
     private function applyOcrTextByBbox(array $cells, array $ocrTextLines): array
@@ -601,7 +601,7 @@ final class TableRecognizer
                 continue;
             }
 
-            $bbox = $this->nullableBbox($ocrLine['bbox'] ?? null);
+            $bbox = $this->ocrLineBbox($ocrLine);
             if ($bbox === null) {
                 continue;
             }
@@ -683,7 +683,7 @@ final class TableRecognizer
     }
 
     /**
-     * @param list<string|array{text?: string, bbox?: list<int|float>}> $ocrTextLines
+     * @param list<string|array{text?: string, bbox?: list<int|float>, polygon?: list<list<int|float>>}> $ocrTextLines
      */
     private function ocrTextLinesHaveBboxes(array $ocrTextLines): bool
     {
@@ -692,7 +692,7 @@ final class TableRecognizer
         }
 
         foreach ($ocrTextLines as $ocrLine) {
-            if (!is_array($ocrLine) || $this->nullableBbox($ocrLine['bbox'] ?? null) === null) {
+            if (!is_array($ocrLine) || $this->ocrLineBbox($ocrLine) === null) {
                 return false;
             }
         }
@@ -711,8 +711,8 @@ final class TableRecognizer
     }
 
     /**
-     * @param list<string|array{text?: string, bbox?: list<int|float>}>|array{text_lines?: list<string|array{text?: string, bbox?: list<int|float>}>, lines?: list<string|array{text?: string, bbox?: list<int|float>}>} $ocrTextLines
-     * @return list<string|array{text?: string, bbox?: list<int|float>}>
+     * @param list<string|array{text?: string, bbox?: list<int|float>, polygon?: list<list<int|float>>}>|array{text_lines?: list<string|array{text?: string, bbox?: list<int|float>, polygon?: list<list<int|float>>}>, lines?: list<string|array{text?: string, bbox?: list<int|float>, polygon?: list<list<int|float>>}>} $ocrTextLines
+     * @return list<string|array{text?: string, bbox?: list<int|float>, polygon?: list<list<int|float>>}>
      */
     private function ocrTextLineItems(array $ocrTextLines): array
     {
@@ -1141,6 +1141,52 @@ final class TableRecognizer
     }
 
     /**
+     * @param array<string, mixed> $ocrLine
+     * @return list<float>|null
+     */
+    private function ocrLineBbox(array $ocrLine): ?array
+    {
+        return $this->nullableBbox($ocrLine['bbox'] ?? null)
+            ?? $this->polygonBbox($ocrLine['polygon'] ?? null);
+    }
+
+    /**
+     * Upstream Surya TextLine objects carry four-corner polygons and expose
+     * bbox as a derived property. Mirror that derivation at the supplied-input
+     * boundary so OCR geometry survives array serialization.
+     *
+     * @param mixed $polygon
+     * @return list<float>|null
+     */
+    private function polygonBbox(mixed $polygon): ?array
+    {
+        if (!is_array($polygon) || count($polygon) !== 4) {
+            return null;
+        }
+
+        $xs = [];
+        $ys = [];
+        foreach (array_values($polygon) as $point) {
+            if (!is_array($point) || count($point) !== 2) {
+                return null;
+            }
+            $values = array_values($point);
+            if ((!is_int($values[0]) && !is_float($values[0])) || (!is_int($values[1]) && !is_float($values[1]))) {
+                return null;
+            }
+            $xs[] = (float) $values[0];
+            $ys[] = (float) $values[1];
+        }
+
+        return [
+            min($xs),
+            min($ys),
+            max($xs),
+            max($ys),
+        ];
+    }
+
+    /**
      * @param list<float> $bbox
      * @param list<float> $tableBbox
      * @return list<float>
@@ -1167,7 +1213,7 @@ final class TableRecognizer
                 throw new InvalidArgumentException('Table cells must be arrays.');
             }
             $normalized[] = [
-                'bbox' => $this->bbox($cell['bbox'] ?? null),
+                'bbox' => $this->bboxFromRecord($cell),
                 'text' => array_key_exists('text', $cell) && $cell['text'] !== null ? (string) $cell['text'] : '',
             ];
         }
@@ -1205,7 +1251,7 @@ final class TableRecognizer
             }
 
             $entry = [
-                'bbox' => $this->bbox($cell['bbox'] ?? null),
+                'bbox' => $this->bboxFromRecord($cell),
                 'text' => (string) ($cell['text'] ?? ''),
                 'row_ids' => array_map(static fn (mixed $id): ?int => $id === null ? null : (int) $id, array_values($rowIds)),
                 'col_ids' => array_map(static fn (mixed $id): ?int => $id === null ? null : (int) $id, array_values($colIds)),
@@ -1236,7 +1282,7 @@ final class TableRecognizer
             }
 
             $id = $item[$idField] ?? $item['id'] ?? $index;
-            $bbox = $this->bbox($item['bbox'] ?? null);
+            $bbox = $this->bboxFromRecord($item);
             $normalized[] = [
                 $idField => (int) $id,
                 'bbox' => $bbox,
@@ -2033,7 +2079,7 @@ final class TableRecognizer
 
         foreach ($rows as $row) {
             foreach ($row as $cell) {
-                $bbox = $this->bbox($cell['bbox'] ?? null);
+                $bbox = $this->bboxFromRecord($cell);
                 $normalized = [
                     $bbox[0] / max(1.0, (float) $imageSize['width']),
                     $bbox[1] / max(1.0, (float) $imageSize['height']),
@@ -2354,6 +2400,21 @@ final class TableRecognizer
         }
 
         return array_map(static fn (int|float $value): float => (float) $value, $values);
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return list<float>
+     */
+    private function bboxFromRecord(array $record): array
+    {
+        $bbox = $this->nullableBbox($record['bbox'] ?? null)
+            ?? $this->polygonBbox($record['polygon'] ?? null);
+        if ($bbox === null) {
+            throw new InvalidArgumentException('Table geometry entries must include a four-value bbox or four-corner polygon.');
+        }
+
+        return $bbox;
     }
 
     /**

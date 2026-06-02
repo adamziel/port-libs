@@ -48,10 +48,18 @@ try {
         $referenceFolder,
         [
             'marker' => static fn (string $pdfPath, string $document): string => $pairsByDocument[$document]['markerExcerpt'],
+            'nougat' => static fn (string $pdfPath, string $document, string $reference): string => $reference,
         ],
         static fn (string $pdfPath): int => str_contains($pdfPath, 'switch_trans') ? 4 : 3,
         $markdownFolder,
-        array_map(static fn (array $pair): int => $pair['chunkLength'], $pairsByDocument)
+        array_map(static fn (array $pair): int => $pair['chunkLength'], $pairsByDocument),
+        null,
+        [
+            'nougat' => true,
+            'marker_batch_multiplier' => 2,
+            'nougat_batch_size' => 1,
+            'profile_memory' => true,
+        ]
     );
     (new BenchmarkReportVerifier())->verifyMarkerScores($result['report']);
 
@@ -64,6 +72,7 @@ try {
         ],
         'benchmark_files' => $result['benchmark_files'],
         'written_markdown' => array_map('basename', $result['written_markdown']),
+        'runtime' => $result['runtime'],
         'report' => $result['report'],
         'passes_upstream_ci_marker_thresholds' => true,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

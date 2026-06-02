@@ -829,6 +829,7 @@ final class PdfAcroFormExtractor
         $fieldNames = $this->xfaFieldNames($xml);
         $dataNodeNames = $this->xfaDataNodeNames($xml);
         $dataPaths = $this->xfaDataPaths($xml);
+        $dataPathValues = $this->xfaDataPathValues($xml);
         $signatureFieldNames = $this->xfaSignatureFieldNames($fieldNames, $dataPaths);
 
         return [
@@ -847,6 +848,7 @@ final class PdfAcroFormExtractor
             'field_names' => $fieldNames,
             'data_node_names' => $dataNodeNames,
             'data_paths' => $dataPaths,
+            'data_path_values' => $dataPathValues,
             'signature_field_names' => $signatureFieldNames,
             'has_signature_field' => $signatureFieldNames !== []
                 || in_array('signature', $xdpPacketNames, true)
@@ -873,6 +875,7 @@ final class PdfAcroFormExtractor
             $fieldType = is_string($field['field_type'] ?? null) ? $field['field_type'] : null;
             $boundary = $this->xfaBoundaryForField($fieldName, $fieldType, $xfaPackets);
             $fields[$index]['xfa_boundary'] = $boundary;
+            $fields[$index]['xfa_widget_review'] = $this->xfaWidgetCurrentBaseReview($fields[$index], $boundary);
 
             if ($fieldType === 'Sig' && is_array($fields[$index]['signature_state'] ?? null)) {
                 $fields[$index]['signature_state']['xfa_referenced'] = $boundary['referenced_by_xfa'];
@@ -1328,12 +1331,14 @@ final class PdfAcroFormExtractor
         $packetObjects = [];
         $matchedFieldNames = [];
         $matchedDataPaths = [];
+        $matchedDataValueRows = [];
 
         if ($fieldName !== null && $fieldName !== '') {
             foreach ($xfaPackets as $packet) {
                 $fieldMatches = $this->matchingXfaNames($packet['field_names'] ?? [], $fieldName);
                 $dataMatches = $this->matchingXfaNames($packet['data_paths'] ?? [], $fieldName);
-                if ($fieldMatches === [] && $dataMatches === []) {
+                $dataValueMatches = $this->matchingXfaDataValueRows($packet['data_path_values'] ?? [], $fieldName);
+                if ($fieldMatches === [] && $dataMatches === [] && $dataValueMatches === []) {
                     continue;
                 }
 
@@ -1349,11 +1354,13 @@ final class PdfAcroFormExtractor
 
                 $matchedFieldNames = array_merge($matchedFieldNames, $fieldMatches);
                 $matchedDataPaths = array_merge($matchedDataPaths, $dataMatches);
+                $matchedDataValueRows = array_merge($matchedDataValueRows, $dataValueMatches);
             }
         }
 
         $matchedFieldNames = $this->uniqueStrings($matchedFieldNames);
         $matchedDataPaths = $this->uniqueStrings($matchedDataPaths);
+        $matchedDataValueRows = $this->uniqueXfaDataValueRows($matchedDataValueRows);
         $boundary = [
             'source' => 'acroform_xfa_field_boundary',
             'field_name' => $fieldName,
@@ -1364,9 +1371,20 @@ final class PdfAcroFormExtractor
             'packet_objects' => array_values(array_unique($packetObjects)),
             'matched_field_names' => $matchedFieldNames,
             'matched_data_paths' => $matchedDataPaths,
+            'matched_data_values' => $matchedDataValueRows,
+            'matched_data_value_count' => count($matchedDataValueRows),
+            'matched_data_value_previews' => $this->uniqueStrings(array_values(array_filter(array_map(
+                static fn (array $row): mixed => $row['value_preview'] ?? null,
+                $matchedDataValueRows
+            ), static fn (mixed $value): bool => is_string($value)))),
+            'matched_data_value_sha256' => $this->uniqueStrings(array_values(array_filter(array_map(
+                static fn (array $row): mixed => $row['value_sha256'] ?? null,
+                $matchedDataValueRows
+            ), static fn (mixed $value): bool => is_string($value)))),
             'has_xfa_template_reference' => $matchedFieldNames !== [],
             'has_xfa_dataset_reference' => $matchedDataPaths !== [],
             'dynamic_value_present' => $matchedDataPaths !== [],
+            'dynamic_value_used_for_current_value' => false,
             'value_used_for_import' => false,
             'xfa_payload_text_exposed' => false,
             'executes_xfa_javascript' => false,
@@ -1385,6 +1403,122 @@ final class PdfAcroFormExtractor
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private function xfaWidgetCurrentBaseReview(array $field, array $boundary): array
+    {
+        $widgets = $this->arrayRows($field['widgets'] ?? []);
+        $pageWidgets = array_values(array_filter(
+            $widgets,
+            static fn (array $widget): bool => ($widget['referenced_from_page_annots'] ?? false) === true
+        ));
+        $primaryWidget = $pageWidgets[0] ?? ($widgets[0] ?? null);
+        $normalAppearance = is_array($primaryWidget['normal_appearance'] ?? null) ? $primaryWidget['normal_appearance'] : null;
+        $selectedAppearance = is_array($normalAppearance['selected_appearance'] ?? null) ? $normalAppearance['selected_appearance'] : null;
+        $valueState = is_array($field['value_state'] ?? null) ? $field['value_state'] : [];
+
+        $appearanceStates = [];
+        $checkedExportValues = [];
+        $selectedAppearanceObjects = [];
+        $staleAppearanceStateCount = 0;
+        foreach ($widgets as $widget) {
+            foreach ($widget['appearance_states'] ?? [] as $state) {
+                if (is_string($state) && $state !== '' && !in_array($state, $appearanceStates, true)) {
+                    $appearanceStates[] = $state;
+                }
+            }
+
+            $exportValue = $widget['export_value'] ?? null;
+            if (($widget['checked'] ?? false) === true && is_string($exportValue) && $exportValue !== '' && !in_array($exportValue, $checkedExportValues, true)) {
+                $checkedExportValues[] = $exportValue;
+            }
+
+            $appearance = is_array($widget['normal_appearance'] ?? null) ? $widget['normal_appearance'] : null;
+            if ($appearance !== null && ($appearance['stale_appearance_state'] ?? false) === true) {
+                $staleAppearanceStateCount++;
+            }
+            $selected = is_array($appearance['selected_appearance'] ?? null) ? $appearance['selected_appearance'] : null;
+            $selectedObject = $selected['object'] ?? null;
+            if (is_int($selectedObject) && !in_array($selectedObject, $selectedAppearanceObjects, true)) {
+                $selectedAppearanceObjects[] = $selectedObject;
+            }
+        }
+
+        return [
+            'source' => 'acroform_xfa_widget_currentbase_review_boundary',
+            'field_name' => $field['name'] ?? null,
+            'field_type' => $field['field_type'] ?? null,
+            'field_object' => $field['object'] ?? null,
+            'referenced_by_xfa' => (bool) ($boundary['referenced_by_xfa'] ?? false),
+            'has_xfa_template_reference' => (bool) ($boundary['has_xfa_template_reference'] ?? false),
+            'has_xfa_dataset_reference' => (bool) ($boundary['has_xfa_dataset_reference'] ?? false),
+            'dynamic_value_present' => (bool) ($boundary['dynamic_value_present'] ?? false),
+            'packet_indexes' => $boundary['packet_indexes'] ?? [],
+            'packet_names' => $boundary['packet_names'] ?? [],
+            'packet_objects' => $boundary['packet_objects'] ?? [],
+            'matched_field_names' => $boundary['matched_field_names'] ?? [],
+            'matched_data_paths' => $boundary['matched_data_paths'] ?? [],
+            'matched_data_value_count' => (int) ($boundary['matched_data_value_count'] ?? 0),
+            'matched_data_value_previews' => $boundary['matched_data_value_previews'] ?? [],
+            'matched_data_value_sha256' => $boundary['matched_data_value_sha256'] ?? [],
+            'has_current_value' => (bool) ($valueState['has_current_value'] ?? false),
+            'has_default_value' => (bool) ($valueState['has_default_value'] ?? false),
+            'current' => $valueState['current'] ?? ($field['value'] ?? null),
+            'default' => $valueState['default'] ?? ($field['default_value'] ?? null),
+            'display_value' => $valueState['display_value'] ?? $this->displayValue($field['value'] ?? null),
+            'current_source' => $valueState['current_source'] ?? null,
+            'current_source_object' => $valueState['current_source_object'] ?? null,
+            'default_source' => $valueState['default_source'] ?? null,
+            'default_source_object' => $valueState['default_source_object'] ?? null,
+            'state_source' => $valueState['state_source'] ?? null,
+            'effective_current_state' => $valueState['effective_current_state'] ?? null,
+            'changed_from_default' => $valueState['changed_from_default'] ?? null,
+            'acroform_current_value_authoritative' => true,
+            'acroform_default_value_authoritative_for_reset' => true,
+            'widget_appearance_state_authoritative' => ($field['field_type'] ?? null) === 'Btn',
+            'xfa_value_used_for_current_value' => false,
+            'xfa_value_used_for_default_value' => false,
+            'xfa_value_used_for_widget_state' => false,
+            'xfa_value_used_for_import' => false,
+            'xfa_payload_text_exposed' => false,
+            'widget_count' => count($widgets),
+            'page_referenced_widget_count' => count($pageWidgets),
+            'widget_objects' => $this->integerValuesFromRows($widgets, 'object'),
+            'page_widget_objects' => $this->integerValuesFromRows($pageWidgets, 'object'),
+            'visible_widget_count' => count(array_filter($widgets, static fn (array $widget): bool => ($widget['visible'] ?? false) === true)),
+            'hidden_widget_count' => count(array_filter($widgets, static fn (array $widget): bool => ($widget['hidden'] ?? false) === true)),
+            'printable_widget_count' => count(array_filter($widgets, static fn (array $widget): bool => ($widget['printable'] ?? false) === true)),
+            'primary_widget_object' => is_array($primaryWidget) ? ($primaryWidget['object'] ?? null) : null,
+            'primary_widget_page_index' => is_array($primaryWidget) ? ($primaryWidget['page_index'] ?? null) : null,
+            'primary_widget_page_object' => is_array($primaryWidget) ? ($primaryWidget['page_object'] ?? null) : null,
+            'primary_widget_page_annotation_index' => is_array($primaryWidget) ? ($primaryWidget['page_annotation_index'] ?? null) : null,
+            'primary_widget_referenced_from_page_annots' => is_array($primaryWidget) && ($primaryWidget['referenced_from_page_annots'] ?? false) === true,
+            'primary_widget_visibility' => is_array($primaryWidget) ? ($primaryWidget['annotation_visibility'] ?? null) : null,
+            'primary_widget_flag_names' => is_array($primaryWidget) ? ($primaryWidget['annotation_flag_names'] ?? []) : [],
+            'primary_widget_rect' => is_array($primaryWidget) ? ($primaryWidget['rect'] ?? null) : null,
+            'primary_widget_appearance_state' => is_array($primaryWidget) ? ($primaryWidget['appearance_state'] ?? null) : null,
+            'primary_widget_normal_appearance_type' => is_array($normalAppearance) ? ($normalAppearance['normal_appearance_type'] ?? null) : null,
+            'widget_appearance_states' => $appearanceStates,
+            'checked_widget_export_values' => $checkedExportValues,
+            'checked_widget_count' => (int) ($valueState['checked_widget_count'] ?? 0),
+            'widget_state_consistent' => $valueState['widget_state_consistent'] ?? null,
+            'selected_appearance_object' => is_array($selectedAppearance) ? ($selectedAppearance['object'] ?? null) : null,
+            'selected_appearance_objects' => $selectedAppearanceObjects,
+            'selected_appearance_decoded_sha256' => is_array($selectedAppearance) ? ($selectedAppearance['decoded_sha256'] ?? null) : null,
+            'state_matches_appearance' => is_array($normalAppearance) ? ($normalAppearance['state_matches_appearance'] ?? null) : null,
+            'stale_appearance_state_count' => $staleAppearanceStateCount,
+            'appearance_value_used_for_import' => false,
+            'appearance_payload_text_exposed' => false,
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
+            'imports_xfa_payload' => false,
+            'executes_xfa_javascript' => false,
+            'executes_form_actions' => false,
+            'executes_javascript' => false,
+        ];
+    }
+
+    /**
      * @param mixed $names
      * @return list<string>
      */
@@ -1397,6 +1531,24 @@ final class PdfAcroFormExtractor
         return array_values(array_filter(
             $names,
             static fn (mixed $name): bool => is_string($name) && $name === $fieldName
+        ));
+    }
+
+    /**
+     * @param mixed $rows
+     * @return list<array<string, mixed>>
+     */
+    private function matchingXfaDataValueRows(mixed $rows, string $fieldName): array
+    {
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $rows,
+            static fn (mixed $row): bool => is_array($row)
+                && is_string($row['path'] ?? null)
+                && $row['path'] === $fieldName
         ));
     }
 
@@ -1647,6 +1799,21 @@ final class PdfAcroFormExtractor
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    private function xfaDataPathValues(string $xml): array
+    {
+        $rows = [];
+        foreach ($this->xfaDataSections($xml) as $section) {
+            foreach ($this->xmlLeafTextPathValueRows($section) as $row) {
+                $rows[] = $row;
+            }
+        }
+
+        return $this->uniqueXfaDataValueRows($rows);
+    }
+
+    /**
      * @return list<string>
      */
     private function xfaDataSections(string $xml): array
@@ -1705,6 +1872,63 @@ final class PdfAcroFormExtractor
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    private function xmlLeafTextPathValueRows(string $xml): array
+    {
+        $rows = [];
+        $stack = [];
+        $offset = 0;
+        while (preg_match('/<\s*(\/?)([A-Za-z_][A-Za-z0-9_.:-]*)\b[^>]*(\/?)>/s', $xml, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $tag = $match[0][0];
+            $tagStart = $match[0][1];
+            $tagEnd = $tagStart + strlen($tag);
+            $offset = $tagEnd;
+
+            $closing = $match[1][0] === '/';
+            $localName = $this->xmlLocalName($match[2][0]);
+            if ($localName === null || $localName === '') {
+                continue;
+            }
+
+            if ($closing) {
+                $this->popXmlStackTo($stack, $localName);
+                continue;
+            }
+
+            $selfClosing = str_ends_with(rtrim($tag), '/>');
+            if ($selfClosing) {
+                continue;
+            }
+
+            $nextTagStart = strpos($xml, '<', $tagEnd);
+            $text = $nextTagStart === false
+                ? substr($xml, $tagEnd)
+                : substr($xml, $tagEnd, $nextTagStart - $tagEnd);
+            $text = trim($this->decodeXmlText($text));
+            if ($text !== '') {
+                $path = implode('.', array_merge($stack, [$localName]));
+                if ($path !== '') {
+                    $preview = $this->boundedPreview($text, 160);
+                    $rows[] = [
+                        'path' => $path,
+                        'value_preview' => $preview['preview'],
+                        'value_truncated' => $preview['truncated'],
+                        'value_bytes' => strlen($text),
+                        'value_sha256' => hash('sha256', $text),
+                        'value_used_for_import' => false,
+                        'payload_text_exposed' => false,
+                    ];
+                }
+            }
+
+            $stack[] = $localName;
+        }
+
+        return $rows;
+    }
+
+    /**
      * @param list<string> $stack
      */
     private function popXmlStackTo(array &$stack, string $localName): void
@@ -1759,6 +1983,33 @@ final class PdfAcroFormExtractor
             }
 
             $unique[] = $value;
+        }
+
+        return $unique;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<array<string, mixed>>
+     */
+    private function uniqueXfaDataValueRows(array $rows): array
+    {
+        $unique = [];
+        $seen = [];
+        foreach ($rows as $row) {
+            $path = $row['path'] ?? null;
+            $hash = $row['value_sha256'] ?? null;
+            if (!is_string($path) || $path === '' || !is_string($hash) || $hash === '') {
+                continue;
+            }
+
+            $key = $path . "\0" . $hash;
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $unique[] = $row;
         }
 
         return $unique;

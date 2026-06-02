@@ -1616,4 +1616,92 @@ return [
         $t->contains('image_decode_component_mismatch', implode(',', $mismatch['notes']));
         $t->same(['red' => 255, 'green' => 255, 'blue' => 255], $renderer->dctDecodeSampleToRgb([0, 0, 0, 0], $mismatch));
     },
+    'resolves named resource color spaces before current soft-mask RGB preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $maskBytes = "\x20\x80\xe0";
+        $compressedMask = gzcompress($maskBytes);
+        if (!is_string($compressedMask)) {
+            throw new RuntimeException('Unable to compress named-resource soft-mask fixture.');
+        }
+
+        $maskHex = strtoupper(bin2hex($compressedMask)) . '>';
+        $objects = [
+            'Resources' => '70 0 R',
+            70 => '<< /ColorSpace << /CSspot [/Separation /Spot#20Gold /DeviceCMYK 81 0 R] /CSstale /DeviceRGB >> >>',
+            71 => '<< /ColorSpace << /CSspot /DeviceRGB >> >>',
+            81 => '<< /FunctionType 2 /Domain [0 1] /Range [0 1 0 1 0 1 0 1] /C0 [0 0 0 0] /C1 [0 0.12 0.8 0] /N 1 >>',
+            82 => "<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter [/ASCIIHexDecode /FlateDecode] /DecodeParms [null << /Predictor 1 /Columns 3 /Colors 1 /BitsPerComponent 8 >>] /Decode [1 0] /Length " . strlen($maskHex) . " >>\nstream\n{$maskHex}\nendstream",
+        ];
+
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 3 /Height 1 /ColorSpace /CSspot /BitsPerComponent 8 /Decode [1 0] /SMask 82 0 R >>',
+            $objects
+        );
+
+        $t->same('Separation', $plan['source_color_space']);
+        $t->same(true, $plan['color_space_resolved_from_resources']);
+        $t->same('CSspot', $plan['color_space_resource_name']);
+        $t->same('[/Separation /Spot#20Gold /DeviceCMYK 81 0 R]', $plan['color_space_resource_value']);
+        $t->same('Resources.ColorSpace', $plan['color_space_resource_source']);
+        $t->same(1, $plan['components']);
+        $t->same(true, $plan['uses_alternate_color_space']);
+        $t->same([
+            'family' => 'Separation',
+            'colorant_names' => ['Spot Gold'],
+            'alternate_color_space' => 'DeviceCMYK',
+            'alternate_components' => 4,
+            'alternate_uses_icc_profile' => false,
+            'tint_transform_source' => 'object_ref',
+            'tint_transform_object' => 81,
+            'tint_transform_function_type' => 2,
+            'attributes_present' => false,
+        ], $plan['alternate_color_space']);
+        $t->same([
+            'ranges' => [
+                ['min' => 1.0, 'max' => 0.0],
+            ],
+            'component_count' => 1,
+            'expected_components' => 1,
+            'valid_for_components' => true,
+            'identity' => false,
+            'inverted_components' => [0],
+            'source' => 'explicit',
+        ], $plan['image_decode']);
+        $t->same([
+            'present' => true,
+            'source_object' => 82,
+            'filters' => ['ASCIIHexDecode', 'FlateDecode'],
+            'preview_only_filters' => [],
+            'unsupported_filters' => [],
+            'raw_length' => strlen($maskHex),
+            'decoded_length' => 3,
+            'decoded_sha256' => hash('sha256', $maskBytes),
+            'decoded_preview_hex' => '2080E0',
+            'decoded_sample_bytes' => [32, 128, 224],
+            'decoded_with_current_filters' => true,
+            'decode_failed' => false,
+            'uses_current_object_map' => true,
+        ], $plan['soft_mask_filter_boundary']);
+        $t->same(true, $plan['soft_mask_applied_before_rgb']);
+        $t->same(true, $plan['soft_mask_decode_applied_before_rgb']);
+        $t->same('soft_mask_composited_to_rgb_preview', $plan['alpha_output_mode']);
+
+        $preview = $renderer->alternateColorantSamplePreview([64], $plan, 128);
+        $t->same('Separation', $preview['source_color_space']);
+        $t->same('DeviceCMYK', $preview['alternate_color_space']);
+        $t->same(['Spot Gold'], array_keys($preview['colorant_tints']));
+        $t->true(abs($preview['colorant_tints']['Spot Gold'] - (1.0 - (64 / 255))) < 0.000001);
+        $t->true(abs((float) $preview['soft_mask_alpha'] - (1.0 - (128 / 255))) < 0.000001);
+        $t->contains('image_color_space_resolved_from_current_resources', implode(',', $plan['notes']));
+        $t->contains('soft_mask_stream_filters_decoded_before_rgb_conversion', implode(',', $plan['notes']));
+
+        $unresolved = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /CSspot /BitsPerComponent 8 >>',
+            [71 => $objects[71]]
+        );
+
+        $t->same('CSspot', $unresolved['source_color_space']);
+        $t->same(false, $unresolved['color_space_resolved_from_resources']);
+        $t->same(null, $unresolved['components']);
+    },
 ];

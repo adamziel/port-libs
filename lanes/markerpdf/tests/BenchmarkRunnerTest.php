@@ -115,6 +115,64 @@ return [
             $removeTree($referenceFolder);
         }
     },
+    'maps current-base overall.py runtime options into supplied benchmark API callbacks' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $prepareCiFolders): void {
+        $pdfFolder = $makeTempDir();
+        $referenceFolder = $makeTempDir();
+        $markdownFolder = $makeTempDir();
+        try {
+            $pairsByDocument = $prepareCiFolders($pdfFolder, $referenceFolder);
+            $contexts = [];
+
+            $result = (new BenchmarkRunner())->run(
+                $pdfFolder,
+                $referenceFolder,
+                [
+                    'nougat' => static function (string $pdfPath, string $document, string $reference, array $context) use (&$contexts): string {
+                        $contexts[] = $context;
+
+                        return $reference;
+                    },
+                    'marker' => static function (string $pdfPath, string $document, string $reference, array $context) use (&$contexts, $pairsByDocument): string {
+                        $contexts[] = $context;
+
+                        return $pairsByDocument[$document]['markerExcerpt'];
+                    },
+                ],
+                static fn (): int => 2,
+                $markdownFolder,
+                array_map(static fn (array $pair): int => $pair['chunkLength'], $pairsByDocument),
+                null,
+                [
+                    'nougat' => true,
+                    'marker_batch_multiplier' => '3',
+                    'nougat_batch_size' => 2,
+                    'profile_memory' => true,
+                ]
+            );
+
+            $t->same(['marker', 'nougat'], $result['runtime']['methods']);
+            $t->same(['marker', 'nougat'], array_values(array_keys($result['report'])));
+            $t->same(3, $result['runtime']['marker_batch_multiplier']);
+            $t->same(2, $result['runtime']['nougat_batch_size']);
+            $t->same(true, $result['runtime']['profile_memory']);
+            $t->same('model_load.pickle', $result['runtime']['model_load_snapshot']);
+            $t->same(false, $result['runtime']['executes_external_tools']);
+            $t->same(2, count($result['runtime']['conversion_snapshots']));
+            $t->same('marker_memory_0.pickle', $result['runtime']['conversion_snapshots'][0]['snapshot']);
+            $t->same('marker_memory_1.pickle', $result['runtime']['conversion_snapshots'][1]['snapshot']);
+            $t->same('marker', $contexts[0]['method']);
+            $t->same('marker_memory_0.pickle', $contexts[0]['memory_snapshot']);
+            $t->same(3, $contexts[0]['batch_multiplier']);
+            $t->same('nougat', $contexts[1]['method']);
+            $t->same(2, $contexts[1]['batch_size']);
+            $t->true(!array_key_exists('memory_snapshot', $contexts[1]));
+            $t->same(['marker_multicolcnn.md', 'nougat_multicolcnn.md', 'marker_switch_trans.md', 'nougat_switch_trans.md'], array_map('basename', $result['written_markdown']));
+        } finally {
+            $removeTree($pdfFolder);
+            $removeTree($referenceFolder);
+            $removeTree($markdownFolder);
+        }
+    },
     'writes overall.py style report output file and exposes score table rows' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $prepareCiFolders): void {
         $pdfFolder = $makeTempDir();
         $referenceFolder = $makeTempDir();
@@ -183,6 +241,24 @@ return [
                     $referenceFolder,
                     ['marker' => static fn (): string => 'ok'],
                     static fn (): int => 0
+                )
+            );
+            $t->throws(
+                InvalidArgumentException::class,
+                static fn (): array => $runner->run(
+                    $pdfFolder,
+                    $referenceFolder,
+                    ['marker' => static fn (): string => 'ok'],
+                    runtimeOptions: ['nougat' => true]
+                )
+            );
+            $t->throws(
+                InvalidArgumentException::class,
+                static fn (): array => $runner->run(
+                    $pdfFolder,
+                    $referenceFolder,
+                    ['marker' => static fn (): string => 'ok'],
+                    runtimeOptions: ['marker_batch_multiplier' => 0]
                 )
             );
         } finally {
