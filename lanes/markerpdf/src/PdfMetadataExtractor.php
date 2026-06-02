@@ -133,6 +133,7 @@ final class PdfMetadataExtractor
      *     page_layout?: string,
      *     page_mode?: string,
      *     viewer_preferences?: array<string, mixed>,
+     *     collection?: array<string, mixed>,
      *     document_destinations?: array<string, mixed>,
      *     pdfa?: array{has_output_intent: bool, output_condition_identifiers: list<string>, profile_sha256: list<string>}
      * }
@@ -538,12 +539,509 @@ final class PdfMetadataExtractor
             $metadata['piece_info'] = $pieceInfo;
         }
 
+        $collection = $this->collectionMetadata(
+            $this->dictionaryTopLevelRawValue($catalog, 'Collection'),
+            $this->dictionaryTopLevelRawValue($catalog, 'AF'),
+            $objects
+        );
+        if ($collection !== []) {
+            $metadata['collection'] = $collection;
+        }
+
         $documentDestinations = $this->documentDestinationMetadata($catalog, $objects);
         if ($documentDestinations !== []) {
             $metadata['document_destinations'] = $documentDestinations;
         }
 
         return $metadata;
+    }
+
+    /**
+     * PDF Portfolio /Collection dictionaries are document review metadata.
+     * Associated FileSpec rows remain attachment-local: their payload, XMP, and
+     * OutputIntent streams are summarized without becoming document roots.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function collectionMetadata(?string $collectionValue, ?string $associatedFilesValue, array $objects): array
+    {
+        $collection = $this->resolveDictionaryFromValue($collectionValue, $objects);
+        if ($collection === null) {
+            return [];
+        }
+
+        $body = $collection['body'];
+        $entries = $this->dictionaryTopLevelEntries($body);
+        $metadata = ['source' => 'catalog_collection'];
+
+        foreach ([
+            'type' => $this->reviewStringFromRaw($entries['Type'] ?? null, $objects),
+            'view' => $this->reviewStringFromRaw($entries['View'] ?? null, $objects),
+            'default_document' => $this->reviewValueFromRaw($entries['D'] ?? null, $objects),
+        ] as $key => $value) {
+            if ($value !== null && $value !== '') {
+                $metadata[$key] = $value;
+            }
+        }
+
+        $schema = $this->collectionSchemaMetadata($entries['Schema'] ?? null, $objects);
+        if ($schema !== []) {
+            $metadata['schema'] = $schema;
+        }
+
+        $sort = $this->collectionSortMetadata($entries['Sort'] ?? null, $objects);
+        if ($sort !== []) {
+            $metadata['sort'] = $sort;
+        }
+
+        if (isset($entries['Folders'])) {
+            $metadata['has_folders'] = true;
+        }
+
+        $associatedFiles = $this->collectionAssociatedFiles($associatedFilesValue, $metadata, $objects);
+        if ($associatedFiles !== []) {
+            $metadata['associated_file_count'] = count($associatedFiles);
+            $metadata['associated_files'] = $associatedFiles;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, array<string, mixed>>
+     */
+    private function collectionSchemaMetadata(?string $schemaValue, array $objects): array
+    {
+        $schema = $this->resolveDictionaryFromValue($schemaValue, $objects);
+        if ($schema === null) {
+            return [];
+        }
+
+        $fields = [];
+        foreach ($this->dictionaryTopLevelEntries($schema['body']) as $name => $fieldValue) {
+            $fieldDictionary = $this->resolveDictionaryFromValue($fieldValue, $objects);
+            if ($fieldDictionary === null) {
+                continue;
+            }
+
+            $entries = $this->dictionaryTopLevelEntries($fieldDictionary['body']);
+            $field = [];
+            foreach ([
+                'subtype' => $this->reviewStringFromRaw($entries['Subtype'] ?? null, $objects),
+                'label' => $this->reviewStringFromRaw($entries['N'] ?? null, $objects),
+                'order' => $this->reviewValueFromRaw($entries['O'] ?? null, $objects),
+                'visible' => $this->reviewValueFromRaw($entries['V'] ?? null, $objects),
+                'editable' => $this->reviewValueFromRaw($entries['E'] ?? null, $objects),
+            ] as $key => $value) {
+                if ($value !== null && $value !== '') {
+                    $field[$key] = $value;
+                }
+            }
+
+            if ($field !== []) {
+                $fields[$name] = $field;
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function collectionSortMetadata(?string $sortValue, array $objects): array
+    {
+        $sort = $this->resolveDictionaryFromValue($sortValue, $objects);
+        if ($sort === null) {
+            return [];
+        }
+
+        $entries = $this->dictionaryTopLevelEntries($sort['body']);
+        $metadata = [];
+        $keys = $this->reviewListFromRaw($entries['S'] ?? null, $objects);
+        if ($keys !== []) {
+            $metadata['keys'] = $keys;
+        }
+
+        $ascending = $this->reviewListFromRaw($entries['A'] ?? null, $objects);
+        if ($ascending !== []) {
+            $metadata['ascending'] = $ascending;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, mixed> $collection
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function collectionAssociatedFiles(?string $associatedFilesValue, array $collection, array $objects): array
+    {
+        if ($associatedFilesValue === null) {
+            return [];
+        }
+
+        $files = [];
+        foreach ($this->arrayItemsFromValue($associatedFilesValue, $objects) as $index => $fileSpecValue) {
+            $file = $this->collectionAssociatedFileFromValue($fileSpecValue, $index, $collection, $objects);
+            if ($file !== null) {
+                $files[] = $file;
+            }
+        }
+
+        return $files;
+    }
+
+    /**
+     * @param array<string, mixed> $collection
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function collectionAssociatedFileFromValue(string $value, int $index, array $collection, array $objects): ?array
+    {
+        $fileSpec = $this->resolveDictionaryFromValue($value, $objects);
+        if ($fileSpec === null) {
+            return null;
+        }
+
+        $body = $fileSpec['body'];
+        $ef = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($body, 'EF'), $objects);
+        if ($ef === null) {
+            return null;
+        }
+
+        $unicodeFilename = $this->dictionaryStringValue($body, 'UF');
+        $platformFilename = $this->firstDictionaryString($body, ['F', 'DOS', 'Unix', 'Mac']);
+        $filename = $unicodeFilename ?? $platformFilename ?? 'embedded-file';
+        $file = [
+            'source' => 'catalog_collection_associated_files',
+            'associated_file' => true,
+            'associated_file_index' => $index,
+            'name' => $filename,
+            'filename' => $filename,
+            'file_spec_object' => $fileSpec['object'],
+        ];
+
+        if ($unicodeFilename !== null && $unicodeFilename !== '') {
+            $file['unicode_filename'] = $unicodeFilename;
+        }
+        if ($platformFilename !== null && $platformFilename !== '' && $platformFilename !== $filename) {
+            $file['platform_filename'] = $platformFilename;
+        }
+
+        foreach ([
+            'description' => $this->dictionaryStringValue($body, 'Desc'),
+            'relationship' => $this->dictionaryNameValue($body, 'AFRelationship', $objects),
+        ] as $key => $metadataValue) {
+            if (is_string($metadataValue) && $metadataValue !== '') {
+                $file[$key] = $metadataValue;
+            }
+        }
+
+        $streamMetadata = null;
+        foreach ($this->embeddedFileKeys($unicodeFilename !== null) as $efKey) {
+            $streamValue = $this->dictionaryTopLevelRawValue($ef['body'], $efKey);
+            if ($streamValue === null) {
+                continue;
+            }
+
+            $streamMetadata = $this->embeddedFileStreamReviewMetadata($streamValue, $objects);
+            if ($streamMetadata === null) {
+                continue;
+            }
+
+            $file['ef_key'] = $efKey;
+            foreach ($streamMetadata as $key => $metadataValue) {
+                $file[$key] = $metadataValue;
+            }
+            break;
+        }
+
+        if ($streamMetadata === null) {
+            return null;
+        }
+
+        $collectionItemValue = $this->dictionaryTopLevelRawValue($body, 'CI');
+        $collectionItem = $this->collectionItemMetadata($collectionItemValue, $objects);
+        if ($collectionItem !== []) {
+            $file['collection_item'] = $collectionItem;
+        }
+
+        $fieldValues = $this->collectionFieldValueReview($collection, $collectionItemValue, $objects, $file);
+        if ($fieldValues !== []) {
+            $file['collection_field_values'] = $fieldValues;
+        }
+
+        $metadataReview = $this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($body, 'Metadata'), $objects);
+        if (is_array($metadataReview) && $metadataReview !== []) {
+            $file['metadata_review'] = $metadataReview;
+        }
+
+        $outputIntentReview = $this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($body, 'OutputIntents'), $objects);
+        if (is_array($outputIntentReview) && $outputIntentReview !== []) {
+            $file['output_intents_review'] = $outputIntentReview;
+        }
+
+        return $file;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function collectionItemMetadata(?string $collectionItemValue, array $objects): array
+    {
+        $collectionItem = $this->resolveDictionaryFromValue($collectionItemValue, $objects);
+        if ($collectionItem === null) {
+            return [];
+        }
+
+        $metadata = [];
+        foreach ($this->dictionaryTopLevelEntries($collectionItem['body']) as $name => $value) {
+            if ($name === 'Type') {
+                continue;
+            }
+
+            $subitem = $this->collectionSubitemMetadata($value, $objects);
+            if ($subitem !== null) {
+                $metadata[$name] = $subitem;
+                continue;
+            }
+
+            $reviewValue = $this->reviewValueFromRaw($value, $objects);
+            if ($reviewValue !== null && $reviewValue !== '') {
+                $metadata[$name] = $reviewValue;
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, mixed> $collection
+     * @param array<int, string> $objects
+     * @param array<string, mixed> $file
+     * @return array<string, array<string, mixed>>
+     */
+    private function collectionFieldValueReview(
+        array $collection,
+        ?string $collectionItemValue,
+        array $objects,
+        array $file
+    ): array {
+        $schema = $collection['schema'] ?? null;
+        if (!is_array($schema) || $schema === []) {
+            return [];
+        }
+
+        $collectionItem = $this->resolveDictionaryFromValue($collectionItemValue, $objects);
+        $collectionItemEntries = $collectionItem === null ? [] : $this->dictionaryTopLevelEntries($collectionItem['body']);
+        $metadata = [];
+        foreach ($schema as $fieldName => $fieldSchema) {
+            if (!is_string($fieldName) || !is_array($fieldSchema)) {
+                continue;
+            }
+
+            $subtype = $fieldSchema['subtype'] ?? null;
+            $value = null;
+            if (isset($collectionItemEntries[$fieldName])) {
+                $value = $this->collectionItemFieldValueReview($collectionItemEntries[$fieldName], $objects);
+            } elseif (is_string($subtype)) {
+                $value = $this->collectionFileRelatedFieldValueReview($subtype, $file);
+            }
+
+            if ($value === null) {
+                continue;
+            }
+
+            $field = [];
+            foreach (['subtype', 'label', 'order', 'visible', 'editable'] as $schemaKey) {
+                if (array_key_exists($schemaKey, $fieldSchema)) {
+                    $field[$schemaKey] = $fieldSchema[$schemaKey];
+                }
+            }
+
+            if (is_string($subtype)) {
+                $valueType = $this->collectionFieldValueType($subtype);
+                if ($valueType !== null) {
+                    $field['value_type'] = $valueType;
+                }
+            }
+
+            foreach ($value as $key => $entryValue) {
+                $field[$key] = $entryValue;
+            }
+
+            $metadata[$fieldName] = $field;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function collectionItemFieldValueReview(string $value, array $objects): ?array
+    {
+        $subitem = $this->resolveDictionaryFromValue($value, $objects);
+        if ($subitem !== null) {
+            $body = $subitem['body'];
+            if ($this->dictionaryTopLevelRawValue($body, 'D') !== null || $this->dictionaryTopLevelRawValue($body, 'P') !== null) {
+                $metadata = ['source' => 'collection_subitem'];
+
+                $type = $this->reviewStringFromRaw($this->dictionaryTopLevelRawValue($body, 'Type'), $objects);
+                if ($type !== null && $type !== '') {
+                    $metadata['subitem_type'] = $type;
+                }
+
+                $data = $this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($body, 'D'), $objects);
+                if ($data !== null && $data !== '') {
+                    $metadata['value'] = $data;
+                }
+
+                $prefix = $this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($body, 'P'), $objects);
+                if ($prefix !== null && $prefix !== '') {
+                    $metadata['prefix'] = $prefix;
+                }
+
+                $displayValue = $this->collectionDisplayValue($metadata['value'] ?? null, $metadata['prefix'] ?? null);
+                if ($displayValue !== null && $displayValue !== '') {
+                    $metadata['display_value'] = $displayValue;
+                }
+
+                return array_key_exists('value', $metadata) || array_key_exists('prefix', $metadata) ? $metadata : null;
+            }
+        }
+
+        $reviewValue = $this->reviewValueFromRaw($value, $objects);
+        if ($reviewValue === null || $reviewValue === '') {
+            return null;
+        }
+
+        $metadata = [
+            'source' => 'collection_item',
+            'value' => $reviewValue,
+        ];
+
+        $displayValue = $this->collectionDisplayValue($reviewValue);
+        if ($displayValue !== null && $displayValue !== '') {
+            $metadata['display_value'] = $displayValue;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, mixed> $file
+     * @return array<string, mixed>|null
+     */
+    private function collectionFileRelatedFieldValueReview(string $subtype, array $file): ?array
+    {
+        $source = null;
+        $value = match ($subtype) {
+            'F' => $file['unicode_filename'] ?? $file['filename'] ?? null,
+            'Desc' => $file['description'] ?? null,
+            'ModDate' => $file['modified_at'] ?? null,
+            'CreationDate' => $file['created_at'] ?? null,
+            'Size' => $file['declared_size'] ?? null,
+            default => null,
+        };
+
+        if ($subtype === 'F' || $subtype === 'Desc') {
+            $source = 'file_spec';
+        } elseif ($subtype === 'ModDate' || $subtype === 'CreationDate' || $subtype === 'Size') {
+            $source = 'embedded_file_params';
+        }
+
+        if ($source === null || $value === null || $value === '') {
+            return null;
+        }
+
+        $metadata = [
+            'source' => $source,
+            'value' => $value,
+        ];
+
+        $displayValue = $this->collectionDisplayValue($value);
+        if ($displayValue !== null && $displayValue !== '') {
+            $metadata['display_value'] = $displayValue;
+        }
+
+        return $metadata;
+    }
+
+    private function collectionFieldValueType(string $subtype): ?string
+    {
+        return match ($subtype) {
+            'S', 'F', 'Desc' => 'text',
+            'D', 'ModDate', 'CreationDate' => 'date',
+            'N', 'Size' => 'number',
+            default => null,
+        };
+    }
+
+    private function collectionDisplayValue(mixed $value, mixed $prefix = null): ?string
+    {
+        $displayValue = $this->collectionScalarDisplayValue($value);
+        if ($displayValue === null) {
+            return null;
+        }
+
+        $displayPrefix = $this->collectionScalarDisplayValue($prefix);
+
+        return ($displayPrefix ?? '') . $displayValue;
+    }
+
+    private function collectionScalarDisplayValue(mixed $value): ?string
+    {
+        if (is_string($value)) {
+            return $value;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return (string) $value;
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function collectionSubitemMetadata(string $value, array $objects): ?array
+    {
+        $subitem = $this->resolveDictionaryFromValue($value, $objects);
+        if ($subitem === null) {
+            return null;
+        }
+
+        $body = $subitem['body'];
+        if ($this->dictionaryTopLevelRawValue($body, 'D') === null && $this->dictionaryTopLevelRawValue($body, 'P') === null) {
+            return null;
+        }
+
+        $metadata = [];
+        $value = $this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($body, 'D'), $objects);
+        if ($value !== null && $value !== '') {
+            $metadata['value'] = $value;
+        }
+
+        $prefix = $this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($body, 'P'), $objects);
+        if ($prefix !== null && $prefix !== '') {
+            $metadata['prefix'] = $prefix;
+        }
+
+        return $metadata === [] ? null : $metadata;
     }
 
     /**
@@ -1457,7 +1955,7 @@ final class PdfMetadataExtractor
             $result['keywords'] = array_values($keywords);
         }
 
-        foreach (['language', 'page_layout', 'page_mode', 'viewer_preferences', 'document_destinations'] as $field) {
+        foreach (['language', 'page_layout', 'page_mode', 'viewer_preferences', 'collection', 'document_destinations'] as $field) {
             if (array_key_exists($field, $catalog)) {
                 $result[$field] = $catalog[$field];
             }
@@ -2909,6 +3407,30 @@ final class PdfMetadataExtractor
         }
 
         return $this->stringValueFromRaw($resolved);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function reviewStringFromRaw(?string $value, array $objects): ?string
+    {
+        $reviewValue = $this->reviewValueFromRaw($value, $objects);
+
+        return is_string($reviewValue) && $reviewValue !== '' ? $reviewValue : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<mixed>
+     */
+    private function reviewListFromRaw(?string $value, array $objects): array
+    {
+        $reviewValue = $this->reviewValueFromRaw($value, $objects);
+        if (is_array($reviewValue)) {
+            return array_values($reviewValue);
+        }
+
+        return ($reviewValue === null || $reviewValue === '') ? [] : [$reviewValue];
     }
 
     private function stringValueFromRaw(string $value): ?string

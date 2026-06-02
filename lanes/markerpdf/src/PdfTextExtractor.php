@@ -3212,6 +3212,7 @@ final class PdfTextExtractor
 
             if (
                 $this->isObjectStreamDictionary($entry['dict'], $objects)
+                || $this->isXrefStreamDictionary($entry['dict'], $objects)
                 || $this->isImageStreamDictionary($entry['dict'], $objects)
                 || $this->isEmbeddedFileStreamDictionary($entry['dict'])
             ) {
@@ -4269,6 +4270,19 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      */
+    private function isXrefStreamDictionary(string $dict, array $objects): bool
+    {
+        $offset = $this->topLevelNameValueOffset($dict, 'Type');
+        if ($offset === null) {
+            return false;
+        }
+
+        return $this->pdfNameValueAt($dict, $offset, $objects) === 'XRef';
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
     private function decodeStream(string $dict, string $stream, array $objects = []): ?string
     {
         $filters = $this->streamFilters($dict, $objects);
@@ -4324,7 +4338,7 @@ final class PdfTextExtractor
 
         if ($dict[$offset] === '[') {
             $arrayBody = $this->readPdfArrayAt($dict, $offset);
-            return $arrayBody === null ? null : $this->filterNamesFromValue($arrayBody, $objects);
+            return $arrayBody === null ? null : $this->filterNamesFromValue($arrayBody, $objects, [], false);
         }
 
         if ($dict[$offset] === '/') {
@@ -4355,7 +4369,12 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @param array<int, true> $seenObjects
      */
-    private function filterNamesFromValue(string $value, array $objects, array $seenObjects = []): ?array
+    private function filterNamesFromValue(
+        string $value,
+        array $objects,
+        array $seenObjects = [],
+        bool $allowArrayValue = true
+    ): ?array
     {
         $filters = [];
         $offset = 0;
@@ -4372,12 +4391,16 @@ final class PdfTextExtractor
             }
 
             if ($value[$offset] === '[') {
+                if (!$allowArrayValue || $filters !== []) {
+                    return null;
+                }
+
                 $arrayBody = $this->readPdfArrayAt($value, $offset);
                 if ($arrayBody === null) {
                     return null;
                 }
 
-                $nested = $this->filterNamesFromValue($arrayBody, $objects, $seenObjects);
+                $nested = $this->filterNamesFromValue($arrayBody, $objects, $seenObjects, false);
                 if ($nested === null) {
                     return null;
                 }
@@ -4413,7 +4436,7 @@ final class PdfTextExtractor
 
                 $nextSeen = $seenObjects;
                 $nextSeen[$objectNumber] = true;
-                $nested = $this->filterNamesFromValue(trim($objects[$objectNumber]), $objects, $nextSeen);
+                $nested = $this->filterNamesFromValue(trim($objects[$objectNumber]), $objects, $nextSeen, $allowArrayValue && $filters === []);
                 if ($nested === null) {
                     return null;
                 }
@@ -8333,6 +8356,8 @@ final class PdfTextExtractor
      * A type-2 row from a previous xref section is owned by that section's
      * object-stream carrier. If the current section replaces that carrier,
      * do not let the stale compressed-object row bind to the current carrier.
+     * If the previous chain never selected the carrier, the member row is not
+     * safe to replay against a scanned newer /ObjStm fallback.
      *
      * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $entry
      * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $currentEntries
@@ -8345,13 +8370,13 @@ final class PdfTextExtractor
         }
 
         $objectStreamNumber = $entry['objectStream'];
-        if (!isset($currentEntries[$objectStreamNumber])) {
-            return false;
-        }
-
         $previousObjectStreamEntry = $previousEntries[$objectStreamNumber] ?? null;
         if ($previousObjectStreamEntry === null) {
             return true;
+        }
+
+        if (!isset($currentEntries[$objectStreamNumber])) {
+            return false;
         }
 
         return !$this->xrefEntriesSelectSameStorage($currentEntries[$objectStreamNumber], $previousObjectStreamEntry);

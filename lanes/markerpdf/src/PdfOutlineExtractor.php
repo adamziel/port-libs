@@ -69,7 +69,12 @@ final class PdfOutlineExtractor
             return [];
         }
 
-        return $this->remoteGoToOutlineItems($outlineRoot['First'] ?? null, $objects, max(1, $maxDepth));
+        return $this->remoteGoToOutlineItems(
+            $outlineRoot['First'] ?? null,
+            $objects,
+            $this->destinationMap($catalog, $objects),
+            max(1, $maxDepth)
+        );
     }
 
     /**
@@ -940,12 +945,14 @@ final class PdfOutlineExtractor
 
     /**
      * @param array<int, mixed> $objects
+     * @param array<string, mixed> $destinations
      * @param array<int, true> $seen
      * @return list<array{title: string, level: int, file: string, destination: string|null, page: int|null, new_window: bool|null}>
      */
     private function remoteGoToOutlineItems(
         mixed $firstItem,
         array $objects,
+        array $destinations,
         int $maxDepth,
         int $level = 1,
         array $seen = []
@@ -964,7 +971,7 @@ final class PdfOutlineExtractor
             }
 
             $title = $this->stringOrNameValue($this->resolveValue($dict['Title'] ?? null, $objects));
-            $target = $this->remoteGoToActionTarget($dict, $objects);
+            $target = $this->remoteGoToActionTarget($dict, $objects, $destinations);
             if ($title !== null && $target !== null) {
                 $items[] = [
                     'title' => $title,
@@ -977,7 +984,7 @@ final class PdfOutlineExtractor
             }
 
             if ($level < $maxDepth) {
-                foreach ($this->remoteGoToOutlineItems($dict['First'] ?? null, $objects, $maxDepth, $level + 1, $seen) as $child) {
+                foreach ($this->remoteGoToOutlineItems($dict['First'] ?? null, $objects, $destinations, $maxDepth, $level + 1, $seen) as $child) {
                     $items[] = $child;
                 }
             }
@@ -991,16 +998,61 @@ final class PdfOutlineExtractor
     /**
      * @param array<string, mixed> $outline
      * @param array<int, mixed> $objects
+     * @param array<string, mixed> $destinations
      * @return array{file: string, destination: string|null, page: int|null, new_window: bool|null}|null
      */
-    private function remoteGoToActionTarget(array $outline, array $objects): ?array
+    private function remoteGoToActionTarget(array $outline, array $objects, array $destinations): ?array
     {
         $action = $this->resolveDictionary($outline['A'] ?? null, $objects);
-        if ($action === null || $this->nameValue($action['S'] ?? null) !== 'GoToR') {
+        if ($action !== null && $this->nameValue($action['S'] ?? null) === 'GoToR') {
+            return $this->remoteGoToTargetFromAction($action, $objects);
+        }
+
+        if (array_key_exists('Dest', $outline)) {
+            return $this->remoteGoToTargetFromDestination($outline['Dest'], $objects, $destinations);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @param array<string, mixed> $destinations
+     * @param array<string, true> $seenNames
+     * @return array{file: string, destination: string|null, page: int|null, new_window: bool|null}|null
+     */
+    private function remoteGoToTargetFromDestination(
+        mixed $destination,
+        array $objects,
+        array $destinations,
+        array $seenNames = []
+    ): ?array {
+        $resolved = $this->resolveValue($destination, $objects);
+        $name = $this->stringOrNameValue($resolved);
+        if ($name !== null) {
+            if (isset($seenNames[$name]) || !array_key_exists($name, $destinations)) {
+                return null;
+            }
+            $seenNames[$name] = true;
+
+            return $this->remoteGoToTargetFromDestination($destinations[$name], $objects, $destinations, $seenNames);
+        }
+
+        $dict = $this->dictionaryItems($resolved);
+        if ($dict === null) {
             return null;
         }
 
-        return $this->remoteGoToTargetFromAction($action, $objects);
+        $type = $this->nameValue($dict['S'] ?? null);
+        if ($type === 'GoToR') {
+            return $this->remoteGoToTargetFromAction($dict, $objects);
+        }
+
+        if ($type === null && array_key_exists('D', $dict)) {
+            return $this->remoteGoToTargetFromDestination($dict['D'], $objects, $destinations, $seenNames);
+        }
+
+        return null;
     }
 
     /**
@@ -1483,8 +1535,11 @@ final class PdfOutlineExtractor
         }
 
         $dict = $this->dictionaryItems($resolved);
-        if ($dict !== null && array_key_exists('D', $dict)) {
-            return $this->destinationViewDetails($dict['D'], $objects, $pageIndexes, $destinations, $destinationName, $seenNames);
+        if ($dict !== null) {
+            $localDestination = $this->localDestinationDictionaryValue($dict);
+            if ($localDestination !== null) {
+                return $this->destinationViewDetails($localDestination['value'], $objects, $pageIndexes, $destinations, $destinationName, $seenNames);
+            }
         }
 
         $array = $this->arrayItems($resolved);
@@ -1653,8 +1708,11 @@ final class PdfOutlineExtractor
         }
 
         $dict = $this->dictionaryItems($resolved);
-        if ($dict !== null && array_key_exists('D', $dict)) {
-            return $this->destinationPageIndex($dict['D'], $objects, $pageIndexes, $destinations, $seenNames);
+        if ($dict !== null) {
+            $localDestination = $this->localDestinationDictionaryValue($dict);
+            if ($localDestination !== null) {
+                return $this->destinationPageIndex($localDestination['value'], $objects, $pageIndexes, $destinations, $seenNames);
+            }
         }
 
         $array = $this->arrayItems($resolved);
@@ -1673,6 +1731,24 @@ final class PdfOutlineExtractor
         }
 
         return $this->destinationPageIndex($first, $objects, $pageIndexes, $destinations, $seenNames);
+    }
+
+    /**
+     * @param array<string, mixed> $dict
+     * @return array{value: mixed}|null
+     */
+    private function localDestinationDictionaryValue(array $dict): ?array
+    {
+        if (!array_key_exists('D', $dict)) {
+            return null;
+        }
+
+        $type = $this->nameValue($dict['S'] ?? null);
+        if ($type !== null && $type !== 'GoTo') {
+            return null;
+        }
+
+        return ['value' => $dict['D']];
     }
 
     /**

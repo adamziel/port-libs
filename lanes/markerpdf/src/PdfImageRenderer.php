@@ -289,6 +289,8 @@ final class PdfImageRenderer
      *     bits_per_component: int,
      *     uses_icc_profile: bool,
      *     icc_profile: array{components: int|null, alternate_color_space: string|null, range: list<float>, length: int|null}|null,
+     *     uses_calibrated_color_space: bool,
+     *     calibrated_color_space: array{family: string, dictionary_source: string|null, dictionary_object: int|null, white_point: list<float>, black_point: list<float>, gamma: float|list<float>|null, matrix: list<float>|null, range: list<float>|null, default_decode: list<float>}|null,
      *     uses_alternate_color_space: bool,
      *     alternate_color_space: array{family: string, colorant_names: list<string>, alternate_color_space: string|null, alternate_components: int|null, alternate_uses_icc_profile: bool, tint_transform_source: string|null, tint_transform_object: int|null, tint_transform_function_type: int|null, attributes_present: bool}|null,
      *     uses_indexed_color_space: bool,
@@ -342,6 +344,18 @@ final class PdfImageRenderer
                 'default-indexed'
             );
         }
+        if (
+            $imageDecode === null
+            && !$imageMaskPresent
+            && ($colorSpace['uses_calibrated_color_space'] ?? false) === true
+            && is_array($colorSpace['calibrated_color_space'] ?? null)
+        ) {
+            $imageDecode = $this->buildImageDecodeDetails(
+                $colorSpace['calibrated_color_space']['default_decode'],
+                $colorSpace['components'],
+                'default-calibrated'
+            );
+        }
         if ($imageMaskPresent && $imageDecode !== null) {
             $imageMask = $this->imageMaskDetails($imageDictionary, $objects, $imageDecode);
         }
@@ -374,6 +388,12 @@ final class PdfImageRenderer
         }
         if ($colorSpace['uses_icc_profile']) {
             $notes[] = 'icc_profile_color_space';
+        }
+        if (($colorSpace['uses_calibrated_color_space'] ?? false) === true && is_array($colorSpace['calibrated_color_space'] ?? null)) {
+            $notes[] = strtolower((string) $colorSpace['calibrated_color_space']['family']) . '_calibrated_color_space_review_before_rgb_conversion';
+            if ($imageDecode !== null && $imageDecode['source'] === 'default-calibrated') {
+                $notes[] = 'calibrated_default_decode_applied_before_rgb_conversion';
+            }
         }
         if ($imageDecodeValid) {
             $notes[] = 'image_decode_applied_before_rgb_conversion';
@@ -443,6 +463,8 @@ final class PdfImageRenderer
             'bits_per_component' => $bitsPerComponent,
             'uses_icc_profile' => $colorSpace['uses_icc_profile'],
             'icc_profile' => $colorSpace['icc_profile'],
+            'uses_calibrated_color_space' => ($colorSpace['uses_calibrated_color_space'] ?? false) === true,
+            'calibrated_color_space' => $colorSpace['calibrated_color_space'] ?? null,
             'uses_alternate_color_space' => $colorSpace['uses_alternate_color_space'],
             'alternate_color_space' => $colorSpace['alternate_color_space'],
             'uses_indexed_color_space' => $colorSpace['uses_indexed_color_space'],
@@ -671,6 +693,93 @@ final class PdfImageRenderer
             'tint_transform_object' => $alternate['tint_transform_object'] ?? null,
             'tint_transform_function_type' => $functionType,
             'tint_transform_preview_mode' => $functionType === null ? 'none' : 'review_only',
+            'soft_mask_alpha' => $softMaskAlpha,
+            'output_color_mode' => (string) ($imagePlan['output_color_mode'] ?? 'RGB'),
+        ];
+    }
+
+    /**
+     * Applies calibrated color-space Decode ranges to one image sample before
+     * the Marker RGB preview handoff and attaches the matching soft-mask alpha.
+     *
+     * @param list<int|float> $sample
+     * @param array{
+     *     source_color_space?: string,
+     *     components?: int|null,
+     *     bits_per_component?: int,
+     *     uses_calibrated_color_space?: bool,
+     *     calibrated_color_space?: array{family?: string, white_point?: list<float>, black_point?: list<float>, gamma?: float|list<float>|null, matrix?: list<float>|null, range?: list<float>|null, default_decode?: list<float>}|null,
+     *     image_decode?: array{ranges: list<array{min: float, max: float}>, valid_for_components?: bool, source?: string}|null,
+     *     soft_mask?: array{present?: bool, decode?: array{ranges?: list<array{min: float, max: float}>, valid_for_components?: bool}, bits_per_component?: int|null}|null,
+     *     output_color_mode?: string
+     * } $imagePlan
+     * @return array{source_color_space: string, decoded_components: list<float>, calibrated_components: array<string, float>, white_point: list<float>, black_point: list<float>, gamma: float|list<float>|null, matrix: list<float>|null, range: list<float>|null, decode_source: string|null, uses_default_decode: bool, soft_mask_alpha: float|null, output_color_mode: string}
+     */
+    public function calibratedColorSamplePreview(array $sample, array $imagePlan, int|float|null $softMaskSample = null): array
+    {
+        $calibrated = $imagePlan['calibrated_color_space'] ?? null;
+        if (($imagePlan['uses_calibrated_color_space'] ?? false) !== true || !is_array($calibrated)) {
+            throw new InvalidArgumentException('Calibrated color preview requires a CalGray, CalRGB, or Lab image plan.');
+        }
+
+        $expectedComponents = $imagePlan['components'] ?? null;
+        if (!is_int($expectedComponents) || $expectedComponents < 1) {
+            throw new InvalidArgumentException('Calibrated color preview requires a positive component count.');
+        }
+
+        $values = array_values($sample);
+        if (count($values) !== $expectedComponents) {
+            throw new InvalidArgumentException('Calibrated color sample count must match the image component count.');
+        }
+        foreach ($values as $value) {
+            if (!is_int($value) && !is_float($value)) {
+                throw new InvalidArgumentException('Calibrated color sample values must be numeric.');
+            }
+        }
+
+        $decode = $imagePlan['image_decode'] ?? null;
+        if (!is_array($decode) || ($decode['valid_for_components'] ?? false) !== true) {
+            throw new InvalidArgumentException('Calibrated color Decode array must match the image component count.');
+        }
+
+        $decoded = $this->imageSampleDecodeValues(
+            $values,
+            $decode,
+            max(1, (int) ($imagePlan['bits_per_component'] ?? 8))
+        );
+
+        $family = (string) ($calibrated['family'] ?? ($imagePlan['source_color_space'] ?? 'CalRGB'));
+        $labels = match ($family) {
+            'CalGray' => ['gray'],
+            'Lab' => ['l', 'a', 'b'],
+            default => ['red', 'green', 'blue'],
+        };
+        $components = [];
+        foreach ($decoded as $index => $value) {
+            $components[$labels[$index] ?? 'component_' . ($index + 1)] = $value;
+        }
+
+        $softMaskAlpha = null;
+        if ($softMaskSample !== null) {
+            $softMask = $imagePlan['soft_mask'] ?? null;
+            if (!is_array($softMask)) {
+                throw new InvalidArgumentException('Calibrated color soft-mask preview requires a soft-mask plan.');
+            }
+
+            $softMaskAlpha = $this->softMaskSampleOpacity($softMaskSample, $softMask);
+        }
+
+        return [
+            'source_color_space' => $family,
+            'decoded_components' => $decoded,
+            'calibrated_components' => $components,
+            'white_point' => $calibrated['white_point'] ?? [],
+            'black_point' => $calibrated['black_point'] ?? [],
+            'gamma' => $calibrated['gamma'] ?? null,
+            'matrix' => $calibrated['matrix'] ?? null,
+            'range' => $calibrated['range'] ?? null,
+            'decode_source' => $decode['source'] ?? null,
+            'uses_default_decode' => ($decode['source'] ?? null) === 'default-calibrated',
             'soft_mask_alpha' => $softMaskAlpha,
             'output_color_mode' => (string) ($imagePlan['output_color_mode'] ?? 'RGB'),
         ];
@@ -980,6 +1089,8 @@ final class PdfImageRenderer
                 'components' => 3,
                 'uses_icc_profile' => false,
                 'icc_profile' => null,
+                'uses_calibrated_color_space' => false,
+                'calibrated_color_space' => null,
                 'uses_alternate_color_space' => false,
                 'alternate_color_space' => null,
                 'uses_indexed_color_space' => false,
@@ -1023,6 +1134,8 @@ final class PdfImageRenderer
                         'range' => $this->numericArrayValue($rangeValue),
                         'length' => $this->integerNameValue($profile, 'Length'),
                     ],
+                    'uses_calibrated_color_space' => false,
+                    'calibrated_color_space' => null,
                     'uses_alternate_color_space' => false,
                     'alternate_color_space' => null,
                     'uses_indexed_color_space' => false,
@@ -1038,11 +1151,17 @@ final class PdfImageRenderer
                 return $this->indexedColorSpaceDetails($values, $objects, $seenObjects);
             }
 
+            if (in_array($family, ['CalGray', 'CalRGB', 'Lab'], true)) {
+                return $this->calibratedColorSpaceDetails($family, $values, $objects, $seenObjects);
+            }
+
             return [
                 'source_color_space' => $family,
                 'components' => $this->componentCountForColorSpace($family),
                 'uses_icc_profile' => false,
                 'icc_profile' => null,
+                'uses_calibrated_color_space' => false,
+                'calibrated_color_space' => null,
                 'uses_alternate_color_space' => false,
                 'alternate_color_space' => null,
                 'uses_indexed_color_space' => false,
@@ -1058,6 +1177,8 @@ final class PdfImageRenderer
             'components' => $this->componentCountForColorSpace($colorSpace),
             'uses_icc_profile' => false,
             'icc_profile' => null,
+            'uses_calibrated_color_space' => false,
+            'calibrated_color_space' => null,
             'uses_alternate_color_space' => false,
             'alternate_color_space' => null,
             'uses_indexed_color_space' => false,
@@ -1084,6 +1205,8 @@ final class PdfImageRenderer
                 'components' => null,
                 'uses_icc_profile' => false,
                 'icc_profile' => null,
+                'uses_calibrated_color_space' => false,
+                'calibrated_color_space' => null,
                 'uses_alternate_color_space' => false,
                 'alternate_color_space' => null,
                 'uses_indexed_color_space' => false,
@@ -1109,6 +1232,71 @@ final class PdfImageRenderer
                 'tint_transform_function_type' => $resolvedTintTransform === '' ? null : $this->integerNameValue($resolvedTintTransform, 'FunctionType'),
                 'attributes_present' => $attributesIndex !== null && isset($values[$attributesIndex]) && trim($values[$attributesIndex]) !== 'null',
             ],
+            'uses_indexed_color_space' => false,
+            'indexed_color_space' => null,
+        ];
+    }
+
+    /**
+     * @param list<string> $values
+     * @param array<int, string> $objects
+     * @param array<int, true> $seenObjects
+     * @return array{source_color_space: string, components: int, uses_icc_profile: false, icc_profile: null, uses_calibrated_color_space: true, calibrated_color_space: array{family: string, dictionary_source: string|null, dictionary_object: int|null, white_point: list<float>, black_point: list<float>, gamma: float|list<float>|null, matrix: list<float>|null, range: list<float>|null, default_decode: list<float>}, uses_alternate_color_space: false, alternate_color_space: null, uses_indexed_color_space: false, indexed_color_space: null}
+     */
+    private function calibratedColorSpaceDetails(string $family, array $values, array $objects, array $seenObjects): array
+    {
+        $dictionaryValue = $values[1] ?? null;
+        $dictionary = $dictionaryValue === null ? '' : trim($this->resolvePdfValue($dictionaryValue, $objects, $seenObjects));
+        $whitePoint = $this->numericArrayValue($this->extractPdfNameValue($dictionary, 'WhitePoint'));
+        $blackPoint = $this->numericArrayValue($this->extractPdfNameValue($dictionary, 'BlackPoint'));
+        $range = $this->numericArrayValue($this->extractPdfNameValue($dictionary, 'Range'));
+
+        if (count($blackPoint) !== 3) {
+            $blackPoint = [0.0, 0.0, 0.0];
+        }
+        if ($family === 'Lab' && count($range) !== 4) {
+            $range = [-100.0, 100.0, -100.0, 100.0];
+        }
+
+        $gamma = null;
+        $matrix = null;
+        $defaultDecode = [0.0, 1.0];
+        if ($family === 'CalRGB') {
+            $gamma = $this->numericArrayValue($this->extractPdfNameValue($dictionary, 'Gamma'));
+            if (!is_array($gamma) || count($gamma) !== 3) {
+                $gamma = [1.0, 1.0, 1.0];
+            }
+            $matrix = $this->numericArrayValue($this->extractPdfNameValue($dictionary, 'Matrix'));
+            if (count($matrix) !== 9) {
+                $matrix = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+            }
+            $defaultDecode = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0];
+        } elseif ($family === 'Lab') {
+            $defaultDecode = [0.0, 100.0, $range[0], $range[1], $range[2], $range[3]];
+        } else {
+            $gammaValue = $this->floatNameValue($dictionary, 'Gamma');
+            $gamma = $gammaValue ?? 1.0;
+        }
+
+        return [
+            'source_color_space' => $family,
+            'components' => $this->componentCountForColorSpace($family) ?? 1,
+            'uses_icc_profile' => false,
+            'icc_profile' => null,
+            'uses_calibrated_color_space' => true,
+            'calibrated_color_space' => [
+                'family' => $family,
+                'dictionary_source' => $this->pdfValueSource($dictionaryValue),
+                'dictionary_object' => $dictionaryValue === null ? null : $this->objectReferenceNumber($dictionaryValue),
+                'white_point' => $whitePoint,
+                'black_point' => $blackPoint,
+                'gamma' => $gamma,
+                'matrix' => $matrix,
+                'range' => $range === [] ? null : $range,
+                'default_decode' => $defaultDecode,
+            ],
+            'uses_alternate_color_space' => false,
+            'alternate_color_space' => null,
             'uses_indexed_color_space' => false,
             'indexed_color_space' => null,
         ];
@@ -1179,6 +1367,8 @@ final class PdfImageRenderer
                 'components' => null,
                 'uses_icc_profile' => false,
                 'icc_profile' => null,
+                'uses_calibrated_color_space' => false,
+                'calibrated_color_space' => null,
                 'uses_alternate_color_space' => false,
                 'alternate_color_space' => null,
                 'uses_indexed_color_space' => false,
@@ -1199,6 +1389,8 @@ final class PdfImageRenderer
             'components' => 1,
             'uses_icc_profile' => $base['uses_icc_profile'],
             'icc_profile' => $base['icc_profile'],
+            'uses_calibrated_color_space' => false,
+            'calibrated_color_space' => null,
             'uses_alternate_color_space' => false,
             'alternate_color_space' => null,
             'uses_indexed_color_space' => true,
@@ -1824,6 +2016,16 @@ final class PdfImageRenderer
         }
 
         return (int) $match[0];
+    }
+
+    private function floatNameValue(string $dictionary, string $name): ?float
+    {
+        $value = $this->extractPdfNameValue($dictionary, $name);
+        if ($value === null || preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)/', trim($value), $match) !== 1) {
+            return null;
+        }
+
+        return (float) $match[0];
     }
 
     private function booleanNameValue(string $dictionary, string $name): ?bool

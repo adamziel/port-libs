@@ -745,6 +745,132 @@ return [
         $t->contains('soft_mask_stream_filters_decoded_before_rgb_conversion', implode(',', $plan['notes']));
         $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->alternateColorantSamplePreview([1, 2, 3], $plan));
     },
+    'maps calibrated image color spaces and soft-mask alpha before RGB preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $objects = [
+            81 => '<< /WhitePoint [0.9505 1 1.089] /BlackPoint [0.01 0.02 0.03] /Gamma [2.2 2.1 2.0] /Matrix [0.4 0.3 0.2 0.1 0.8 0.1 0.2 0.1 0.7] >>',
+            82 => "<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Decode [1 0] /Length 3 >>\nstream\nMSK\nendstream",
+            83 => '<< /WhitePoint [0.9642 1 0.8249] /Range [-80 90 -70 60] >>',
+        ];
+
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 3 /Height 1 /ColorSpace [/CalRGB 81 0 R] /BitsPerComponent 8 /SMask 82 0 R >>',
+            $objects
+        );
+
+        $t->same('CalRGB', $plan['source_color_space']);
+        $t->same(3, $plan['components']);
+        $t->same(true, $plan['uses_calibrated_color_space']);
+        $t->same([
+            'family' => 'CalRGB',
+            'dictionary_source' => 'object_ref',
+            'dictionary_object' => 81,
+            'white_point' => [0.9505, 1.0, 1.089],
+            'black_point' => [0.01, 0.02, 0.03],
+            'gamma' => [2.2, 2.1, 2.0],
+            'matrix' => [0.4, 0.3, 0.2, 0.1, 0.8, 0.1, 0.2, 0.1, 0.7],
+            'range' => null,
+            'default_decode' => [0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
+        ], $plan['calibrated_color_space']);
+        $t->same([
+            'ranges' => [
+                ['min' => 0.0, 'max' => 1.0],
+                ['min' => 0.0, 'max' => 1.0],
+                ['min' => 0.0, 'max' => 1.0],
+            ],
+            'component_count' => 3,
+            'expected_components' => 3,
+            'valid_for_components' => true,
+            'identity' => true,
+            'inverted_components' => [],
+            'source' => 'default-calibrated',
+        ], $plan['image_decode']);
+        $t->same(true, $plan['image_decode_applied_before_rgb']);
+        $t->same(true, $plan['soft_mask_decode_applied_before_rgb']);
+        $t->same(true, $plan['soft_mask']['decode_inverted']);
+        $t->same([
+            'calrgb_calibrated_color_space_review_before_rgb_conversion',
+            'calibrated_default_decode_applied_before_rgb_conversion',
+            'image_decode_applied_before_rgb_conversion',
+            'soft_mask_applied_before_rgb_conversion',
+            'soft_mask_decode_applied_before_rgb_conversion',
+            'soft_mask_decode_inverts_alpha',
+        ], $plan['notes']);
+
+        $preview = $renderer->calibratedColorSamplePreview([0, 128, 255], $plan, 64);
+
+        $t->same('CalRGB', $preview['source_color_space']);
+        $t->same(0.0, $preview['decoded_components'][0]);
+        $t->true(abs($preview['decoded_components'][1] - (128 / 255)) < 0.000001);
+        $t->same(1.0, $preview['decoded_components'][2]);
+        $t->same(0.0, $preview['calibrated_components']['red']);
+        $t->true(abs($preview['calibrated_components']['green'] - (128 / 255)) < 0.000001);
+        $t->same(1.0, $preview['calibrated_components']['blue']);
+        $t->same([0.9505, 1.0, 1.089], $preview['white_point']);
+        $t->same([0.01, 0.02, 0.03], $preview['black_point']);
+        $t->same([2.2, 2.1, 2.0], $preview['gamma']);
+        $t->same([0.4, 0.3, 0.2, 0.1, 0.8, 0.1, 0.2, 0.1, 0.7], $preview['matrix']);
+        $t->same(null, $preview['range']);
+        $t->same('default-calibrated', $preview['decode_source']);
+        $t->same(true, $preview['uses_default_decode']);
+        $t->true(abs((float) $preview['soft_mask_alpha'] - (1.0 - (64 / 255))) < 0.000001);
+        $t->same('RGB', $preview['output_color_mode']);
+
+        $lab = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace [/Lab 83 0 R] /BitsPerComponent 8 >>',
+            $objects
+        );
+        $labPreview = $renderer->calibratedColorSamplePreview([255, 0, 255], $lab);
+
+        $t->same('Lab', $lab['source_color_space']);
+        $t->same([
+            'family' => 'Lab',
+            'dictionary_source' => 'object_ref',
+            'dictionary_object' => 83,
+            'white_point' => [0.9642, 1.0, 0.8249],
+            'black_point' => [0.0, 0.0, 0.0],
+            'gamma' => null,
+            'matrix' => null,
+            'range' => [-80.0, 90.0, -70.0, 60.0],
+            'default_decode' => [0.0, 100.0, -80.0, 90.0, -70.0, 60.0],
+        ], $lab['calibrated_color_space']);
+        $t->same([100.0, -80.0, 60.0], $labPreview['decoded_components']);
+        $t->same(['l' => 100.0, 'a' => -80.0, 'b' => 60.0], $labPreview['calibrated_components']);
+        $t->same('default-calibrated', $labPreview['decode_source']);
+        $t->same(true, $labPreview['uses_default_decode']);
+        $t->same(null, $labPreview['soft_mask_alpha']);
+
+        $calGray = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace [/CalGray << /WhitePoint [1 1 1] /Gamma 2.4 >>] /BitsPerComponent 4 >>',
+            $objects
+        );
+        $calGrayPreview = $renderer->calibratedColorSamplePreview([15], $calGray);
+
+        $t->same('CalGray', $calGray['source_color_space']);
+        $t->same([
+            'family' => 'CalGray',
+            'dictionary_source' => 'dictionary',
+            'dictionary_object' => null,
+            'white_point' => [1.0, 1.0, 1.0],
+            'black_point' => [0.0, 0.0, 0.0],
+            'gamma' => 2.4,
+            'matrix' => null,
+            'range' => null,
+            'default_decode' => [0.0, 1.0],
+        ], $calGray['calibrated_color_space']);
+        $t->same([1.0], $calGrayPreview['decoded_components']);
+        $t->same(['gray' => 1.0], $calGrayPreview['calibrated_components']);
+        $t->same('default-calibrated', $calGrayPreview['decode_source']);
+
+        $mismatch = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace [/CalRGB 81 0 R] /BitsPerComponent 8 /Decode [0 1 0 1] >>',
+            $objects
+        );
+        $t->same(false, $mismatch['image_decode_applied_before_rgb']);
+        $t->same(true, $mismatch['image_decode_component_mismatch']);
+        $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->calibratedColorSamplePreview([1, 2, 3], $mismatch));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->calibratedColorSamplePreview([1, 2], $plan));
+    },
     'plans DCTDecode CMYK Adobe transform before WordPress RGB image preview' => static function (TestRunner $t) use ($dctJpeg): void {
         $renderer = new PdfImageRenderer();
         $plan = $renderer->dctDecodeImageColorPlan(

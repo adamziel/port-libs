@@ -378,6 +378,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-outline-destination-action-transition-currentbase.php` maps outline `/Dest` entries that resolve to GoTo action dictionaries into WordPress navigation review rows. It preserves local destination labels, target page transition metadata, and page-open action review rows while surfacing chained URI/JavaScript followups as non-executing metadata and keeping action operands out of visible Gutenberg paragraphs.
 
+`examples/wordpress-pdf-object-stream-nested-filter-currentbase.php` maps malformed object-stream `/Filter` arrays into a WordPress-safe fallback path. It rejects nested filter arrays on an xref-selected `/ObjStm`, excludes xref-stream bytes from fallback pages, and emits only the direct safe paragraph `Direct fallback survives nested filter review` without Python, pdftext, pypdfium, Poppler, Ghostscript, models, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

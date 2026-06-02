@@ -695,6 +695,100 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, 'PieceInfo Private XMP Title'));
         $t->true(!str_contains($text, 'PieceInfo private ICC bytes'));
     },
+    'reviews catalog Collection schema with associated FileSpec rows as metadata' => static function (TestRunner $t) use ($xmpPacket): void {
+        $sourcePayload = '<wp-export><post id="1628"/></wp-export>';
+        $previewPayload = '{"preview":"metadata-schema"}';
+        $sourceChecksum = strtoupper(hash('md5', $sourcePayload));
+        $previewChecksum = str_repeat('0a', 16);
+        $fileXmp = gzcompress($xmpPacket([
+            'title' => 'Associated Collection XMP Title',
+            'description' => 'Attachment-local XMP should stay review-only',
+        ]));
+        $iccProfile = gzcompress('Associated Collection ICC bytes should stay nested');
+        if (!is_string($fileXmp) || !is_string($iccProfile)) {
+            throw new RuntimeException('Unable to compress collection schema associated metadata fixture.');
+        }
+
+        $content = 'BT /F1 12 Tf 72 720 Td (Collection Schema Metadata Body) Tj ET';
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageMode /UseAttachments /Collection 5 0 R /AF [10 0 R << /Type /Filespec /F (preview.json) /Desc (Rendered preview JSON) /AFRelationship /Alternative /CI << /Subject (Preview JSON) /Priority << /Type /CollectionSubitem /D 1 /P (P) >> /ReviewDate (D:20260602162500Z) /Stale (ignored) >> /Metadata 31 0 R /OutputIntents [40 0 R] /EF << /F 21 0 R >> >> 99 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Collection /View /T /D (source-unicode.xml) /Schema << /NameField << /Subtype /F /N (Filename) /O 1 >> /DescriptionField << /Subtype /Desc /N (Description) /O 2 /V true /E false >> /BytesField << /Subtype /Size /N (Bytes) /O 3 >> /Subject << /Subtype /S /N (Subject) /O 4 >> /Priority << /Subtype /N /N (Priority) /O 5 >> /ReviewDate << /Subtype /D /N (Reviewed) /O 6 >> >> /Sort << /S [/Priority /ReviewDate] /A [true false] >> >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (legacy-source.xml) /UF (source-unicode.xml) /Desc (Original WordPress export) /AFRelationship /Source /CI 30 0 R /Metadata 31 0 R /OutputIntents [40 0 R] /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourcePayload) . " /CheckSum <{$sourceChecksum}> /ModDate (D:20260602162400Z) >> /Length " . strlen($sourcePayload) . " >>\nstream\n{$sourcePayload}\nendstream\nendobj\n"
+            . "21 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fjson /Params << /Size " . strlen($previewPayload) . " /CheckSum <{$previewChecksum}> >> /Length " . strlen($previewPayload) . " >>\nstream\n{$previewPayload}\nendstream\nendobj\n"
+            . "30 0 obj\n<< /Subject (Migration Source) /Priority << /Type /CollectionSubitem /D 2 /P (P) >> /ReviewDate (D:20260602162600Z) /Stale (not in schema) >>\nendobj\n"
+            . "31 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($fileXmp) . " >>\nstream\n{$fileXmp}\nendstream\nendobj\n"
+            . "40 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Associated Collection sRGB) /Info (Nested collection PDF/A) /DestOutputProfile 41 0 R >>\nendobj\n"
+            . "41 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($iccProfile) . " >>\nstream\n{$iccProfile}\nendstream\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $text = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['catalog'], $metadata['source']);
+        $t->same('Collection Schema Metadata Body', $text);
+        $t->same('UseAttachments', $metadata['page_mode']);
+        $collection = $metadata['catalog']['collection'];
+        $t->same('catalog_collection', $collection['source']);
+        $t->same('Collection', $collection['type']);
+        $t->same('T', $collection['view']);
+        $t->same('source-unicode.xml', $collection['default_document']);
+        $t->same(['Priority', 'ReviewDate'], $collection['sort']['keys']);
+        $t->same([true, false], $collection['sort']['ascending']);
+        $t->same(['NameField', 'DescriptionField', 'BytesField', 'Subject', 'Priority', 'ReviewDate'], array_keys($collection['schema']));
+        $t->same('N', $collection['schema']['Priority']['subtype']);
+        $t->same('Priority', $collection['schema']['Priority']['label']);
+        $t->same(2, count($collection['associated_files']));
+
+        $source = $collection['associated_files'][0];
+        $t->same('catalog_collection_associated_files', $source['source']);
+        $t->same(true, $source['associated_file']);
+        $t->same(0, $source['associated_file_index']);
+        $t->same('source-unicode.xml', $source['filename']);
+        $t->same('legacy-source.xml', $source['platform_filename']);
+        $t->same('Original WordPress export', $source['description']);
+        $t->same('Source', $source['relationship']);
+        $t->same('text/xml', $source['mime_type']);
+        $t->same(10, $source['file_spec_object']);
+        $t->same(11, $source['embedded_file_object']);
+        $t->same(strlen($sourcePayload), $source['declared_size']);
+        $t->same(true, $source['checksum_matches']);
+        $t->same('Migration Source', $source['collection_item']['Subject']);
+        $t->same('source-unicode.xml', $source['collection_field_values']['NameField']['value']);
+        $t->same('file_spec', $source['collection_field_values']['NameField']['source']);
+        $t->same(strlen($sourcePayload), $source['collection_field_values']['BytesField']['value']);
+        $t->same('embedded_file_params', $source['collection_field_values']['BytesField']['source']);
+        $t->same('P2', $source['collection_field_values']['Priority']['display_value']);
+        $t->same('number', $source['collection_field_values']['Priority']['value_type']);
+        $t->same('D:20260602162600Z', $source['collection_field_values']['ReviewDate']['value']);
+        $t->true(!array_key_exists('Stale', $source['collection_field_values']));
+        $t->same('Associated Collection sRGB', $source['output_intents_review'][0]['OutputConditionIdentifier']);
+        $t->true(!array_key_exists('content', $source));
+
+        $preview = $collection['associated_files'][1];
+        $t->same('preview.json', $preview['filename']);
+        $t->same('Alternative', $preview['relationship']);
+        $t->same('Rendered preview JSON', $preview['description']);
+        $t->same('application/json', $preview['mime_type']);
+        $t->same(false, $preview['checksum_matches']);
+        $t->same('P1', $preview['collection_field_values']['Priority']['display_value']);
+        $t->same('Preview JSON', $preview['collection_field_values']['Subject']['value']);
+        $t->same('Associated Collection sRGB', $preview['output_intents_review'][0]['OutputConditionIdentifier']);
+        $t->true(!array_key_exists('content', $preview));
+
+        $t->same([], $metadata['output_intents']);
+        $t->true(!isset($metadata['pdfa']));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Associated Collection XMP Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Associated Collection ICC bytes'));
+        $t->true(is_string($encoded) && !str_contains($encoded, $sourcePayload));
+        $t->true(is_string($encoded) && !str_contains($encoded, $previewPayload));
+        $t->true(!str_contains($text, '<wp-export>'));
+        $t->true(!str_contains($text, 'metadata-schema'));
+    },
     'extracts catalog language and indirect viewer preferences for WordPress review' => static function (TestRunner $t) use ($pdfWithCatalogReview): void {
         $lang = strtoupper(bin2hex("\xfe\xff\x00e\x00s\x00-\x00M\x00X"));
         $viewerPreferences = "7 0 obj\n"
