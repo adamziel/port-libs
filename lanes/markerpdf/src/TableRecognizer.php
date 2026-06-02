@@ -1140,14 +1140,23 @@ final class TableRecognizer
         $rotated = $this->isRotated($rows, $cols);
 
         foreach ($cells as $cellIndex => &$cell) {
+            $spanStarted = false;
             foreach ($cols as $col) {
-                $pct = $rotated ? $this->intersectionYPct($cell['bbox'], $col['bbox']) : $this->intersectionXPct($cell['bbox'], $col['bbox']);
-                if ($pct <= $thresh || in_array((int) $col['col_id'], $cell['col_ids'], true)) {
+                $colId = (int) $col['col_id'];
+                if (in_array($colId, $cell['col_ids'], true)) {
+                    $spanStarted = true;
                     continue;
                 }
 
-                if (!$this->hasOtherCellAt($cells, $cellIndex, (int) $cell['row_ids'][0], (int) $col['col_id'])) {
-                    $cell['col_ids'][] = (int) $col['col_id'];
+                $pct = $rotated ? $this->intersectionYPct($cell['bbox'], $col['bbox']) : $this->intersectionXPct($cell['bbox'], $col['bbox']);
+                if ($pct > $thresh && !$this->hasOtherCellAt($cells, $cellIndex, (int) $cell['row_ids'][0], $colId)) {
+                    $cell['col_ids'][] = $colId;
+                    $spanStarted = true;
+                    continue;
+                }
+
+                if ($spanStarted) {
+                    break;
                 }
             }
             sort($cell['col_ids']);
@@ -1155,14 +1164,23 @@ final class TableRecognizer
         unset($cell);
 
         foreach ($cells as $cellIndex => &$cell) {
+            $spanStarted = false;
             foreach ($rows as $row) {
-                $pct = $rotated ? $this->intersectionXPct($cell['bbox'], $row['bbox']) : $this->intersectionYPct($cell['bbox'], $row['bbox']);
-                if ($pct <= $thresh || in_array((int) $row['row_id'], $cell['row_ids'], true)) {
+                $rowId = (int) $row['row_id'];
+                if (in_array($rowId, $cell['row_ids'], true)) {
+                    $spanStarted = true;
                     continue;
                 }
 
-                if (!$this->hasOtherCellAt($cells, $cellIndex, (int) $row['row_id'], (int) $cell['col_ids'][0])) {
-                    $cell['row_ids'][] = (int) $row['row_id'];
+                $pct = $rotated ? $this->intersectionXPct($cell['bbox'], $row['bbox']) : $this->intersectionYPct($cell['bbox'], $row['bbox']);
+                if ($pct > $thresh && !$this->hasOtherCellAt($cells, $cellIndex, $rowId, (int) $cell['col_ids'][0])) {
+                    $cell['row_ids'][] = $rowId;
+                    $spanStarted = true;
+                    continue;
+                }
+
+                if ($spanStarted) {
+                    break;
                 }
             }
             sort($cell['row_ids']);

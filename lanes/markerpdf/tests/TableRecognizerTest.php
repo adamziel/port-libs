@@ -52,6 +52,25 @@ $mergedSpanResult = static function (): array {
     ];
 };
 
+$discontiguousSpanResult = static function (): array {
+    return [
+        'rows' => [
+            ['row_id' => 0, 'bbox' => [0.0, 0.0, 200.0, 30.0]],
+            ['row_id' => 1, 'bbox' => [0.0, 45.0, 200.0, 75.0]],
+        ],
+        'cols' => [
+            ['col_id' => 0, 'bbox' => [0.0, 0.0, 120.0, 90.0]],
+            ['col_id' => 1, 'bbox' => [120.0, 0.0, 140.0, 90.0]],
+            ['col_id' => 2, 'bbox' => [140.0, 0.0, 200.0, 90.0]],
+        ],
+        'cells' => [
+            ['bbox' => [0.0, 5.0, 190.0, 24.0], 'text' => 'Section note'],
+            ['bbox' => [125.0, 50.0, 135.0, 70.0], 'text' => 'Gap marker'],
+            ['bbox' => [150.0, 50.0, 190.0, 70.0], 'text' => 'Status'],
+        ],
+    ];
+};
+
 $tablePage = static function (): array {
     return [
         'pnum' => 2,
@@ -374,6 +393,18 @@ return [
         $t->same([1], $byText['Image count']['col_ids']);
         $t->same([2], $byText['Needs review']['row_ids']);
         $t->same([2], $byText['Needs review']['col_ids']);
+    },
+    'stops merged column spans at the first unspanned band like tabled handle_rowcol_spans' => static function (TestRunner $t) use ($discontiguousSpanResult): void {
+        $recognizer = new TableRecognizer();
+        $assigned = $recognizer->assignRowsColumns($discontiguousSpanResult(), ['width' => 200, 'height' => 90]);
+        $byText = [];
+        foreach ($assigned as $cell) {
+            $byText[$cell['text']] = $cell;
+        }
+
+        $t->same([0], $byText['Section note']['row_ids']);
+        $t->same([0], $byText['Section note']['col_ids']);
+        $t->same([], $recognizer->mergedCellGeometry($assigned, $discontiguousSpanResult()['rows'], $discontiguousSpanResult()['cols']));
     },
     'exports merged-cell grid geometry for WordPress rowspan and colspan review' => static function (TestRunner $t) use ($mergedSpanResult): void {
         $recognizer = new TableRecognizer();

@@ -229,6 +229,16 @@ final class PdfEmbeddedFileExtractor
                 $file['catalog_piece_info'] = $catalogPieceInfo;
             }
 
+            $metadataReview = $this->reviewValueFromRaw($this->dictionaryRawValue($body, 'Metadata'), $objects);
+            if (is_array($metadataReview) && $metadataReview !== []) {
+                $file['metadata_review'] = $metadataReview;
+            }
+
+            $outputIntentsReview = $this->reviewValueFromRaw($this->dictionaryRawValue($body, 'OutputIntents'), $objects);
+            if (is_array($outputIntentsReview) && $outputIntentsReview !== []) {
+                $file['output_intents_review'] = $outputIntentsReview;
+            }
+
             $portfolioFieldValues = $this->collectionFieldValueReview($portfolioMetadata, $portfolioItemValue, $objects, $file);
             if ($portfolioFieldValues !== []) {
                 $file['portfolio_field_values'] = $portfolioFieldValues;

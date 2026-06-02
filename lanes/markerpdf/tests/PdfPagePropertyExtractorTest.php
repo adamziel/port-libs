@@ -146,4 +146,69 @@ return [
         $t->same(false, str_contains($plainText, 'wp-export'));
         $t->same(false, str_contains($plainText, 'Page AF Payload Leak'));
     },
+    'combines page associated Filespecs with transition and action review metadata' => static function (TestRunner $t): void {
+        $sourcePayload = '<wp-export><post id="44"/></wp-export>';
+        $previewPayload = 'BT /F1 12 Tf 72 720 Td (Associated Transition Payload Leak) Tj ET';
+        $pageText = 'BT /F1 12 Tf 72 720 Td (Associated Transition Review) Tj ET';
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels << /Nums [0 << /P (deck-) /S /D /St 7 >>] >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 30 0 R /Dur 12 /Trans 5 0 R /AA << /O 6 0 R /C << /S /URI /URI (javascript:alert\\(1\\)) /Next 7 0 R >> >> /AF [10 0 R << /Type /Filespec /UF (preview.pdf) /Desc (Rendered slide preview) /AFRelationship /Alternative /EF << /UF 15 0 R >> >>] >>\nendobj\n"
+            . "5 0 obj\n<< /S /Fly /D 0.75 /Dm /V /M /I /Di 270 /SS 0.8 /B false >>\nendobj\n"
+            . "6 0 obj\n<< /S /URI /URI (https://example.com/deck-notes) >>\nendobj\n"
+            . "7 0 obj\n<< /S /GoToR /F (appendix.pdf) /D (Slide 8) /NewWindow true >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (source.xml) /Desc (Original WordPress export) /AFRelationship /Source /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourcePayload) . " >> /Length " . strlen($sourcePayload) . " >>\nstream\n{$sourcePayload}\nendstream\nendobj\n"
+            . "15 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fpdf /Length " . strlen($previewPayload) . " >>\nstream\n{$previewPayload}\nendstream\nendobj\n"
+            . "30 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $pages = (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+
+        $t->same(1, count($pages));
+        $page = $pages[0];
+        $t->same(0, $page['pnum']);
+        $t->same(3, $page['page_object']);
+        $t->same(2, count($page['page_associated_files']));
+        $t->same(['Source', 'Alternative'], array_column($page['page_associated_files'], 'relationship'));
+        $t->same(['source.xml', 'preview.pdf'], array_column($page['page_associated_files'], 'filename'));
+        $t->same(hash('sha256', $sourcePayload), $page['page_associated_files'][0]['content_sha256']);
+        $t->same(hash('sha256', $previewPayload), $page['page_associated_files'][1]['content_sha256']);
+        $t->same(false, array_key_exists('content', $page['page_associated_files'][0]));
+        $t->same(false, array_key_exists('content', $page['page_associated_files'][1]));
+
+        $presentation = $page['page_presentation'];
+        $t->same(0, $presentation['pnum']);
+        $t->same(1, $presentation['page_number']);
+        $t->same(3, $presentation['page_object']);
+        $t->same('deck-7', $presentation['page_label']);
+        $t->same(12.0, $presentation['display_duration']);
+        $t->same([
+            'style' => 'Fly',
+            'duration' => 0.75,
+            'dimension' => 'V',
+            'motion' => 'I',
+            'direction' => 270.0,
+            'scale' => 0.8,
+            'opaque_background' => false,
+        ], $presentation['transition']);
+        $t->same(3, count($presentation['actions']));
+        $t->same(['page_open', 'page_close', 'page_close'], array_column($presentation['actions'], 'event_label'));
+        $t->same(['URI', 'URI', 'GoToR'], array_column($presentation['actions'], 'action_type'));
+        $t->same(['review-uri', 'blocked-unsafe-uri', 'remote-document-review'], array_column($presentation['actions'], 'safety'));
+        $t->same(false, $presentation['actions'][0]['executes_on_import']);
+        $t->same('https://example.com/deck-notes', $presentation['actions'][0]['uri']);
+        $t->same(false, $presentation['actions'][1]['is_safe_uri']);
+        $t->same(true, $presentation['actions'][2]['chained']);
+        $t->same('appendix.pdf', $presentation['actions'][2]['file']);
+        $t->same('Slide 8', $presentation['actions'][2]['destination']);
+        $t->same(true, $presentation['actions'][2]['new_window']);
+
+        $t->contains('Associated Transition Review', $plainText);
+        $t->same(false, str_contains($plainText, 'wp-export'));
+        $t->same(false, str_contains($plainText, 'Associated Transition Payload Leak'));
+        $t->same(false, str_contains($plainText, 'javascript:alert'));
+        $t->same(false, str_contains($plainText, 'appendix.pdf'));
+    },
 ];

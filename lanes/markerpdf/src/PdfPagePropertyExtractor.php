@@ -30,6 +30,7 @@ final class PdfPagePropertyExtractor
         $userPropertiesByPage = $markInfoUserProperties
             ? $this->structureUserPropertiesByPageObject($catalog, $objects)
             : [];
+        $pagePresentationsByObject = $this->pagePresentationMetadataByPageObject($pdfBytes);
 
         $pages = [];
         foreach ($pageObjectNumbers as $pnum => $pageObjectNumber) {
@@ -44,6 +45,7 @@ final class PdfPagePropertyExtractor
             if ($pieceInfo === [] && $associatedFiles === [] && $userProperties === []) {
                 continue;
             }
+            $pagePresentation = $pagePresentationsByObject[$pageObjectNumber] ?? null;
 
             $page = [
                 'pnum' => $pnum,
@@ -62,6 +64,10 @@ final class PdfPagePropertyExtractor
                 $page['page_associated_files'] = $associatedFiles;
             }
 
+            if ($pagePresentation !== null) {
+                $page['page_presentation'] = $pagePresentation;
+            }
+
             if ($userProperties !== []) {
                 $page['mark_info_user_properties'] = $markInfoUserProperties;
                 $page['user_properties'] = array_values($userProperties);
@@ -71,6 +77,22 @@ final class PdfPagePropertyExtractor
         }
 
         return $pages;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function pagePresentationMetadataByPageObject(string $pdfBytes): array
+    {
+        $presentations = [];
+        foreach ((new PdfOutlineExtractor())->getPageTransitionActionMetadata($pdfBytes) as $presentation) {
+            $pageObject = $presentation['page_object'] ?? null;
+            if (is_int($pageObject)) {
+                $presentations[$pageObject] = $presentation;
+            }
+        }
+
+        return $presentations;
     }
 
     /**

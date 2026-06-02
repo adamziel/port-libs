@@ -221,6 +221,12 @@ final class PdfAcroFormExtractor
             $fields[$index]['signature_lock_state'] = $this->fieldSignatureLockState($field, $signedLocks);
         }
 
+        foreach ($fields as $index => $field) {
+            if (($field['field_type'] ?? null) === 'Sig') {
+                $fields[$index]['signature_action_state'] = $this->signatureFieldActionState($fields[$index]);
+            }
+        }
+
         return $fields;
     }
 
@@ -426,6 +432,149 @@ final class PdfAcroFormExtractor
             )),
             'executes_action' => false,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function signatureFieldActionState(array $field): array
+    {
+        $signatureState = is_array($field['signature_state'] ?? null) ? $field['signature_state'] : [];
+        $valueState = is_array($field['value_state'] ?? null) ? $field['value_state'] : [];
+        $lock = is_array($field['signature_lock'] ?? null) ? $field['signature_lock'] : null;
+        $lockState = is_array($field['signature_lock_state'] ?? null) ? $field['signature_lock_state'] : [];
+        $widgets = $this->arrayRows($field['widgets'] ?? []);
+        $fieldActions = $this->arrayRows($field['actions'] ?? []);
+        $widgetActions = [];
+        $widgetObjects = [];
+        $appearanceStates = [];
+        $selectedAppearanceObjects = [];
+        $staleAppearanceStateCount = 0;
+
+        foreach ($widgets as $widget) {
+            if (is_int($widget['object'] ?? null)) {
+                $widgetObjects[] = $widget['object'];
+            }
+            if (is_string($widget['appearance_state'] ?? null) && $widget['appearance_state'] !== '') {
+                $appearanceStates[] = $widget['appearance_state'];
+            }
+
+            $normalAppearance = is_array($widget['normal_appearance'] ?? null) ? $widget['normal_appearance'] : null;
+            if ($normalAppearance !== null && ($normalAppearance['stale_appearance_state'] ?? false) === true) {
+                $staleAppearanceStateCount++;
+            }
+
+            $selectedAppearance = is_array($normalAppearance['selected_appearance'] ?? null)
+                ? $normalAppearance['selected_appearance']
+                : null;
+            if ($selectedAppearance !== null && is_int($selectedAppearance['object'] ?? null)) {
+                $selectedAppearanceObjects[] = $selectedAppearance['object'];
+            }
+
+            foreach ($this->arrayRows($widget['actions'] ?? []) as $action) {
+                $widgetActions[] = $action;
+            }
+        }
+
+        $actions = array_merge($fieldActions, $widgetActions);
+        $signed = ($signatureState['signed'] ?? false) === true;
+
+        return [
+            'source' => 'acroform_signature_field_action_state_boundary',
+            'field_name' => $field['name'] ?? null,
+            'field_object' => $field['object'] ?? null,
+            'signed' => $signed,
+            'signature_object' => $signatureState['signature_object'] ?? null,
+            'signed_at' => $signatureState['signed_at'] ?? null,
+            'signatures_exist_hint' => (bool) ($signatureState['signatures_exist_hint'] ?? false),
+            'append_only' => (bool) ($signatureState['append_only'] ?? false),
+            'value_state_source' => $signatureState['value_state_source'] ?? null,
+            'has_current_value' => (bool) ($valueState['has_current_value'] ?? false),
+            'field_value_used_for_signature' => false,
+            'field_value_used_for_import' => false,
+            'appearance_value_used_for_signature' => false,
+            'appearance_value_used_for_import' => false,
+            'action_count' => count($actions),
+            'field_action_count' => count($fieldActions),
+            'widget_action_count' => count($widgetActions),
+            'action_types' => $this->uniqueScalarValues(array_map(
+                static fn (array $action): mixed => $action['action_type'] ?? null,
+                $actions
+            )),
+            'action_triggers' => $this->uniqueScalarValues(array_map(
+                static fn (array $action): mixed => $action['trigger'] ?? null,
+                $actions
+            )),
+            'action_safety_labels' => $this->uniqueScalarValues(array_map(
+                static fn (array $action): mixed => $action['safety'] ?? null,
+                $actions
+            )),
+            'blocked_unsafe_action_count' => $this->actionCountWithSafety($actions, 'blocked-unsafe-uri'),
+            'launch_action_count' => $this->actionCountWithType($actions, 'Launch'),
+            'review_only_action_count' => count($actions),
+            'executes_action' => $this->anyActionFlagTrue($actions, 'executes_action'),
+            'executes_javascript' => $this->anyActionFlagTrue($actions, 'executes_javascript'),
+            'executes_signature_validation' => false,
+            'executes_signing' => false,
+            'widget_count' => count($widgets),
+            'widget_objects' => array_values(array_unique($widgetObjects)),
+            'appearance_states' => $this->uniqueScalarValues($appearanceStates),
+            'selected_appearance_objects' => array_values(array_unique($selectedAppearanceObjects)),
+            'stale_appearance_state_count' => $staleAppearanceStateCount,
+            'signature_lock_action' => $lock['action'] ?? null,
+            'signature_lock_field_names' => is_array($lock['field_names'] ?? null) ? $lock['field_names'] : [],
+            'signature_lock_applies_after_signing' => $signed && $lock !== null && ($lock['action_valid'] ?? false) === true,
+            'signature_lock_effective_locked' => (bool) ($lockState['effective_locked'] ?? false),
+            'locked_by_signature_count' => (int) ($lockState['locked_by_signature_count'] ?? 0),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function arrayRows(mixed $rows): array
+    {
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        return array_values(array_filter($rows, static fn (mixed $row): bool => is_array($row)));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     */
+    private function actionCountWithSafety(array $actions, string $safety): int
+    {
+        return count(array_filter(
+            $actions,
+            static fn (array $action): bool => ($action['safety'] ?? null) === $safety
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     */
+    private function actionCountWithType(array $actions, string $type): int
+    {
+        return count(array_filter(
+            $actions,
+            static fn (array $action): bool => ($action['action_type'] ?? null) === $type
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     */
+    private function anyActionFlagTrue(array $actions, string $flag): bool
+    {
+        foreach ($actions as $action) {
+            if (($action[$flag] ?? false) === true) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

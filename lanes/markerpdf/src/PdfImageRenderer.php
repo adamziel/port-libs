@@ -557,6 +557,109 @@ final class PdfImageRenderer
     }
 
     /**
+     * Maps Separation/DeviceN image samples into named tint values and applies
+     * the matching soft-mask alpha before the Marker RGB preview handoff.
+     *
+     * @param list<int|float> $sample
+     * @param array{
+     *     source_color_space?: string,
+     *     components?: int|null,
+     *     bits_per_component?: int,
+     *     uses_alternate_color_space?: bool,
+     *     alternate_color_space?: array{
+     *         family?: string,
+     *         colorant_names?: list<string>,
+     *         alternate_color_space?: string|null,
+     *         alternate_components?: int|null,
+     *         alternate_uses_icc_profile?: bool,
+     *         tint_transform_object?: int|null,
+     *         tint_transform_function_type?: int|null
+     *     }|null,
+     *     icc_profile?: array{components: int|null, alternate_color_space: string|null, range: list<float>, length: int|null}|null,
+     *     image_decode?: array{ranges: list<array{min: float, max: float}>, valid_for_components?: bool}|null,
+     *     soft_mask?: array{present?: bool, decode?: array{ranges?: list<array{min: float, max: float}>, valid_for_components?: bool}, bits_per_component?: int|null}|null,
+     *     output_color_mode?: string
+     * } $imagePlan
+     * @return array{source_color_space: string, colorant_tints: array<string, float>, tint_values: list<float>, alternate_color_space: string|null, alternate_components: int|null, alternate_uses_icc_profile: bool, icc_profile: array{components: int|null, alternate_color_space: string|null, range: list<float>, length: int|null}|null, tint_transform_object: int|null, tint_transform_function_type: int|null, tint_transform_preview_mode: string, soft_mask_alpha: float|null, output_color_mode: string}
+     */
+    public function alternateColorantSamplePreview(array $sample, array $imagePlan, int|float|null $softMaskSample = null): array
+    {
+        $alternate = $imagePlan['alternate_color_space'] ?? null;
+        if (($imagePlan['uses_alternate_color_space'] ?? false) !== true || !is_array($alternate)) {
+            throw new InvalidArgumentException('Alternate colorant preview requires a Separation or DeviceN image plan.');
+        }
+
+        $colorantNames = array_values(array_filter(
+            $alternate['colorant_names'] ?? [],
+            static fn (mixed $name): bool => is_string($name) && $name !== ''
+        ));
+        $expectedComponents = count($colorantNames);
+        if ($expectedComponents === 0 && isset($imagePlan['components']) && is_int($imagePlan['components'])) {
+            $expectedComponents = $imagePlan['components'];
+        }
+        if ($expectedComponents < 1) {
+            throw new InvalidArgumentException('Alternate colorant preview requires at least one colorant.');
+        }
+
+        $values = array_values($sample);
+        if (count($values) !== $expectedComponents) {
+            throw new InvalidArgumentException('Alternate colorant sample count must match the image colorant count.');
+        }
+        foreach ($values as $value) {
+            if (!is_int($value) && !is_float($value)) {
+                throw new InvalidArgumentException('Alternate colorant sample values must be numeric.');
+            }
+        }
+
+        $decode = $imagePlan['image_decode'] ?? null;
+        $tints = array_map(static fn (int|float $value): float => (float) $value, $values);
+        if (is_array($decode)) {
+            if (($decode['valid_for_components'] ?? false) !== true) {
+                throw new InvalidArgumentException('Alternate colorant Decode array must match the image colorant count.');
+            }
+
+            $tints = $this->imageSampleDecodeValues(
+                $values,
+                $decode,
+                max(1, (int) ($imagePlan['bits_per_component'] ?? 8))
+            );
+        }
+
+        $namedTints = [];
+        for ($index = 0; $index < $expectedComponents; $index++) {
+            $name = $colorantNames[$index] ?? 'colorant_' . ($index + 1);
+            $namedTints[$name] = $tints[$index];
+        }
+
+        $softMaskAlpha = null;
+        if ($softMaskSample !== null) {
+            $softMask = $imagePlan['soft_mask'] ?? null;
+            if (!is_array($softMask)) {
+                throw new InvalidArgumentException('Alternate colorant soft-mask preview requires a soft-mask plan.');
+            }
+
+            $softMaskAlpha = $this->softMaskSampleOpacity($softMaskSample, $softMask);
+        }
+
+        $functionType = $alternate['tint_transform_function_type'] ?? null;
+
+        return [
+            'source_color_space' => (string) ($imagePlan['source_color_space'] ?? ($alternate['family'] ?? 'DeviceN')),
+            'colorant_tints' => $namedTints,
+            'tint_values' => $tints,
+            'alternate_color_space' => $alternate['alternate_color_space'] ?? null,
+            'alternate_components' => $alternate['alternate_components'] ?? null,
+            'alternate_uses_icc_profile' => ($alternate['alternate_uses_icc_profile'] ?? false) === true,
+            'icc_profile' => $imagePlan['icc_profile'] ?? null,
+            'tint_transform_object' => $alternate['tint_transform_object'] ?? null,
+            'tint_transform_function_type' => $functionType,
+            'tint_transform_preview_mode' => $functionType === null ? 'none' : 'review_only',
+            'soft_mask_alpha' => $softMaskAlpha,
+            'output_color_mode' => (string) ($imagePlan['output_color_mode'] ?? 'RGB'),
+        ];
+    }
+
+    /**
      * @param array{width?: int|float, height?: int|float}|list<int|float> $renderedImageSize
      * @return list<float>
      */

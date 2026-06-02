@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\PdfEmbeddedFileExtractor;
+use PortLibs\MarkerPDF\PdfMetadataExtractor;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
 $embeddedFilesPdf = static function (): array {
@@ -578,6 +579,94 @@ return [
         $t->same(hash('sha256', $privatePayload), $privateStream['content_sha256']);
         $t->same(false, array_key_exists('content', $privateStream));
         $t->same('', $text);
+    },
+    'keeps portfolio Filespec XMP and OutputIntent metadata review-only' => static function (TestRunner $t): void {
+        $xmp = '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
+            . '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+            . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+            . '<rdf:Description rdf:about=""'
+            . ' xmlns:dc="http://purl.org/dc/elements/1.1/"'
+            . ' xmlns:xmp="http://ns.adobe.com/xap/1.0/">'
+            . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Attachment XMP Hidden Title</rdf:li></rdf:Alt></dc:title>'
+            . '<xmp:CreateDate>2026-06-02T15:57:00Z</xmp:CreateDate>'
+            . '</rdf:Description>'
+            . '</rdf:RDF>'
+            . '</x:xmpmeta>'
+            . '<?xpacket end="w"?>';
+        $iccProfile = 'Attachment ICC bytes should stay out of document PDF/A roots';
+        $sourcePayload = '<wp-export><post id="1557"/></wp-export>';
+        $previewPayload = 'Preview attachment bytes';
+        $compressedXmp = gzcompress($xmp);
+        $compressedProfile = gzcompress($iccProfile);
+        if (!is_string($compressedXmp) || !is_string($compressedProfile)) {
+            throw new RuntimeException('Unable to compress FileSpec metadata fixture.');
+        }
+
+        $pageContent = 'BT /F1 12 Tf 72 720 Td (Portfolio XMP Review Body) Tj ET';
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageMode /UseAttachments /Collection 5 0 R /Names << /EmbeddedFiles 6 0 R >> /AF [20 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Collection /View /T /D (source.xml) /Schema << /Subject << /Subtype /S /N (Subject) /O 1 >> /Bytes << /Subtype /Size /N (Bytes) /O 2 >> >> >>\nendobj\n"
+            . "6 0 obj\n<< /Names [(source.xml) 10 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (source.xml) /Desc (Original WordPress export) /AFRelationship /Source /Metadata 30 0 R /OutputIntents [40 0 R << /Type /OutputIntent /S /GTS_PDFX /OutputConditionIdentifier (Inline Proof) >>] /CI << /Subject (Migration Source) >> /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourcePayload) . " >> /Length " . strlen($sourcePayload) . " >>\nstream\n{$sourcePayload}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Type /Filespec /F (preview.pdf) /Desc (Rendered preview) /AFRelationship /Alternative /Metadata 30 0 R /OutputIntents [40 0 R] /EF << /F 21 0 R >> >>\nendobj\n"
+            . "21 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fpdf /Length " . strlen($previewPayload) . " >>\nstream\n{$previewPayload}\nendstream\nendobj\n"
+            . "30 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($compressedXmp) . " >>\nstream\n{$compressedXmp}\nendstream\nendobj\n"
+            . "40 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Attachment sRGB) /Info (Attachment PDF/A profile) /DestOutputProfile 41 0 R >>\nendobj\n"
+            . "41 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($compressedProfile) . " >>\nstream\n{$compressedProfile}\nendstream\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $documentMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $text = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+        $encodedDocumentMetadata = json_encode($documentMetadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same(2, count($files));
+        $t->same('Portfolio XMP Review Body', $text);
+
+        $source = $files[0];
+        $t->same('catalog_names_embedded_files', $source['source']);
+        $t->same('source.xml', $source['filename']);
+        $t->same('Source', $source['relationship']);
+        $t->same('Migration Source', $source['portfolio_item']['Subject']);
+        $t->same(strlen($sourcePayload), $source['portfolio_field_values']['Bytes']['value']);
+        $t->same('Metadata', $source['metadata_review']['Type']);
+        $t->same('XML', $source['metadata_review']['Subtype']);
+        $t->same('FlateDecode', $source['metadata_review']['Filter']);
+        $t->same(strlen($compressedXmp), $source['metadata_review']['Length']);
+        $t->same('GTS_PDFA1', $source['output_intents_review'][0]['S']);
+        $t->same('Attachment sRGB', $source['output_intents_review'][0]['OutputConditionIdentifier']);
+        $t->same('Attachment PDF/A profile', $source['output_intents_review'][0]['Info']);
+        $t->same(3, $source['output_intents_review'][0]['DestOutputProfile']['N']);
+        $t->same('DeviceRGB', $source['output_intents_review'][0]['DestOutputProfile']['Alternate']);
+        $t->same('FlateDecode', $source['output_intents_review'][0]['DestOutputProfile']['Filter']);
+        $t->same(strlen($compressedProfile), $source['output_intents_review'][0]['DestOutputProfile']['Length']);
+        $t->same('GTS_PDFX', $source['output_intents_review'][1]['S']);
+        $t->same('Inline Proof', $source['output_intents_review'][1]['OutputConditionIdentifier']);
+
+        $preview = $files[1];
+        $t->same('catalog_associated_files', $preview['source']);
+        $t->same(true, $preview['associated_file']);
+        $t->same(0, $preview['associated_file_index']);
+        $t->same('preview.pdf', $preview['filename']);
+        $t->same('Alternative', $preview['relationship']);
+        $t->same('Metadata', $preview['metadata_review']['Type']);
+        $t->same('GTS_PDFA1', $preview['output_intents_review'][0]['S']);
+
+        $t->same([], $documentMetadata['xmp']);
+        $t->same([], $documentMetadata['output_intents']);
+        $t->true(!isset($documentMetadata['title']));
+        $t->true(!isset($documentMetadata['pdfa']));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'Attachment XMP Hidden Title'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, $iccProfile));
+        $t->true(is_string($encodedDocumentMetadata) && !str_contains($encodedDocumentMetadata, 'Attachment XMP Hidden Title'));
+        $t->true(!str_contains($text, 'Attachment XMP Hidden Title'));
+        $t->true(!str_contains($text, 'wp-export'));
+        $t->true(!str_contains($text, 'Attachment ICC bytes'));
     },
     'returns no attachment review rows when catalog EmbeddedFiles is absent' => static function (TestRunner $t): void {
         $t->same([], (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles('%PDF-1.4 no catalog'));

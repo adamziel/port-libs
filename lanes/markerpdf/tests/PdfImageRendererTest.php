@@ -619,6 +619,66 @@ return [
         $t->same([0.0, 1.0], $renderer->imageSampleDecodeValues([0, 0], $deviceN['image_decode'], $deviceN['bits_per_component']));
         $t->same(['devicen_tint_transform_review_before_rgb_conversion', 'image_decode_applied_before_rgb_conversion', 'image_decode_inverts_components_before_rgb', 'jpx_image_filter_review_only'], $deviceN['notes']);
     },
+    'maps DeviceN ICCBased colorant samples and soft-mask alpha before RGB preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $maskBytes = "\x00\x40\xff";
+        $compressedMask = gzcompress($maskBytes);
+        if (!is_string($compressedMask)) {
+            throw new RuntimeException('Unable to compress soft-mask fixture.');
+        }
+
+        $maskHex = strtoupper(bin2hex($compressedMask)) . '>';
+        $objects = [
+            71 => '[/ICCBased 72 0 R]',
+            72 => "<< /N 3 /Alternate /DeviceRGB /Range [0 1 0 1 0 1] /Length 15 >>\nstream\nICC-DEVICE-N\nendstream",
+            73 => "<< /FunctionType 4 /Domain [0 1 0 1] /Range [0 1 0 1 0 1] /Length 24 >>\nstream\n{ exch dup mul exch }\nendstream",
+            74 => "<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter [/ASCIIHexDecode /FlateDecode] /Decode [1 0] /DecodeParms [null << /Predictor 1 /Columns 3 /Colors 1 /BitsPerComponent 8 >>] /Length " . strlen($maskHex) . " >>\nstream\n{$maskHex}\nendstream",
+        ];
+
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 3 /Height 1 /ColorSpace [/DeviceN [/Spot#20Blue /Spot#20Varnish] 71 0 R 73 0 R << /Subtype /NChannel >>] /BitsPerComponent 8 /Decode [1 0 0 1] /SMask 74 0 R >>',
+            $objects
+        );
+
+        $preview = $renderer->alternateColorantSamplePreview([64, 128], $plan, 64);
+
+        $t->same('DeviceN', $preview['source_color_space']);
+        $t->same(['Spot Blue', 'Spot Varnish'], array_keys($preview['colorant_tints']));
+        $t->true(abs($preview['colorant_tints']['Spot Blue'] - (1.0 - (64 / 255))) < 0.000001);
+        $t->true(abs($preview['colorant_tints']['Spot Varnish'] - (128 / 255)) < 0.000001);
+        $t->same('ICCBased', $preview['alternate_color_space']);
+        $t->same(3, $preview['alternate_components']);
+        $t->same(true, $preview['alternate_uses_icc_profile']);
+        $t->same([
+            'components' => 3,
+            'alternate_color_space' => 'DeviceRGB',
+            'range' => [0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
+            'length' => 15,
+        ], $preview['icc_profile']);
+        $t->same(73, $preview['tint_transform_object']);
+        $t->same(4, $preview['tint_transform_function_type']);
+        $t->same('review_only', $preview['tint_transform_preview_mode']);
+        $t->true(abs($preview['soft_mask_alpha'] - (1.0 - (64 / 255))) < 0.000001);
+        $t->same('RGB', $preview['output_color_mode']);
+        $t->same([
+            'present' => true,
+            'source_object' => 74,
+            'filters' => ['ASCIIHexDecode', 'FlateDecode'],
+            'preview_only_filters' => [],
+            'unsupported_filters' => [],
+            'raw_length' => strlen($maskHex),
+            'decoded_length' => 3,
+            'decoded_sha256' => hash('sha256', $maskBytes),
+            'decoded_preview_hex' => '0040FF',
+            'decoded_sample_bytes' => [0, 64, 255],
+            'decoded_with_current_filters' => true,
+            'decode_failed' => false,
+            'uses_current_object_map' => true,
+        ], $plan['soft_mask_filter_boundary']);
+        $t->contains('alternate_icc_profile_color_space', implode(',', $plan['notes']));
+        $t->contains('soft_mask_stream_filters_decoded_before_rgb_conversion', implode(',', $plan['notes']));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->alternateColorantSamplePreview([1, 2, 3], $plan));
+    },
     'plans DCTDecode CMYK Adobe transform before WordPress RGB image preview' => static function (TestRunner $t) use ($dctJpeg): void {
         $renderer = new PdfImageRenderer();
         $plan = $renderer->dctDecodeImageColorPlan(
