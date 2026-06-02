@@ -397,6 +397,7 @@ final class PdfTextExtractor
      *     skipped_type2_entry_count: int,
      *     skipped_unselected_carrier_count: int,
      *     skipped_replaced_carrier_count: int,
+     *     skipped_current_free_object_count: int,
      *     same_carrier_storage_count: int,
      *     entries: list<array<string, mixed>>,
      *     executes_python_or_models: false,
@@ -414,6 +415,7 @@ final class PdfTextExtractor
             'skipped_type2_entry_count' => 0,
             'skipped_unselected_carrier_count' => 0,
             'skipped_replaced_carrier_count' => 0,
+            'skipped_current_free_object_count' => 0,
             'same_carrier_storage_count' => 0,
             'entries' => [],
             'executes_python_or_models' => false,
@@ -453,6 +455,8 @@ final class PdfTextExtractor
                 $review['skipped_unselected_carrier_count']++;
             } elseif ($ownerPolicy === 'skipped_current_replaced_carrier_storage') {
                 $review['skipped_replaced_carrier_count']++;
+            } elseif ($ownerPolicy === 'skipped_current_free_object_generation') {
+                $review['skipped_current_free_object_count']++;
             }
         }
         $review['entries'] = $entries;
@@ -11274,7 +11278,40 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                if (isset($section['entries'][$objectNumber])) {
+                $currentObjectEntry = $section['entries'][$objectNumber] ?? null;
+                if ($currentObjectEntry !== null) {
+                    if (($currentObjectEntry['type'] ?? null) === 0) {
+                        $objectStreamNumber = (int) $entry['objectStream'];
+                        $previousCarrierEntry = $previousEntries[$objectStreamNumber] ?? null;
+                        $currentCarrierEntry = $section['entries'][$objectStreamNumber] ?? null;
+                        $reviewEntries[] = [
+                            'object_number' => $objectNumber,
+                            'object_stream' => $objectStreamNumber,
+                            'member_index' => (int) ($entry['index'] ?? 0),
+                            'index_is_explicit' => ($entry['indexIsExplicit'] ?? true) === true,
+                            'current_section_source' => $section['source'],
+                            'current_xref_offset' => $section['offset'],
+                            'previous_xref_offset' => $previousOffset,
+                            'previous_carrier_selected' => ($previousCarrierEntry['type'] ?? null) === 1,
+                            'previous_carrier_type' => $previousCarrierEntry['type'] ?? null,
+                            'previous_carrier_generation' => $previousCarrierEntry['generation'] ?? null,
+                            'previous_carrier_offset' => $previousCarrierEntry['offset'] ?? null,
+                            'current_object_entry_type' => $currentObjectEntry['type'],
+                            'current_object_generation' => $currentObjectEntry['generation'] ?? null,
+                            'current_object_offset' => $currentObjectEntry['offset'] ?? null,
+                            'current_free_object_suppressed' => true,
+                            'current_carrier_present' => $currentCarrierEntry !== null,
+                            'current_carrier_type' => $currentCarrierEntry['type'] ?? null,
+                            'current_carrier_generation' => $currentCarrierEntry['generation'] ?? null,
+                            'current_carrier_offset' => $currentCarrierEntry['offset'] ?? null,
+                            'same_carrier_storage' => false,
+                            'current_carrier_invalid_generation_recovered' => false,
+                            'skipped' => true,
+                            'owner_policy' => 'skipped_current_free_object_generation',
+                            'review_only' => true,
+                        ];
+                    }
+
                     continue;
                 }
 
@@ -15405,11 +15442,22 @@ final class PdfTextExtractor
 
     private function sourceKeyUsesWordSpacing(string $sourceKey, array $toUnicodeMap): bool
     {
+        $usesCidMapForWordSpacing = ($toUnicodeMap['wordSpacingUsesCidMap'] ?? false) === true;
+        $cidMap = $toUnicodeMap['cidMap'] ?? [];
+        if (
+            $usesCidMapForWordSpacing
+            && is_array($cidMap)
+            && array_key_exists($sourceKey, $cidMap)
+            && is_int($cidMap[$sourceKey])
+        ) {
+            return $cidMap[$sourceKey] === 0x20;
+        }
+
         if (hexdec($sourceKey) === 0x20) {
             return true;
         }
 
-        return ($toUnicodeMap['wordSpacingUsesCidMap'] ?? false) === true
+        return $usesCidMapForWordSpacing
             && $this->cidForWidthSourceKey($sourceKey, $toUnicodeMap) === 0x20;
     }
 
