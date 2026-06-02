@@ -310,6 +310,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-annotation-border-color-popup-import.php` maps page annotation presentation metadata into a WordPress review path. It reports annotation subtype, colors, opacity, border style, and popup state without executing PDF actions, Python, models, or external PDF tools.
 
+`examples/wordpress-pdf-thread-bead-reading-order-import.php` maps catalog `/Threads` article bead reading order into a WordPress paragraph import path. It follows bead rectangles and linked-list order so multi-column article text emits as `one, two, three, four` instead of raw content stream order.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
