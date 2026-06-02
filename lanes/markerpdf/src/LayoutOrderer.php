@@ -323,23 +323,116 @@ final class LayoutOrderer
     private function rescaleOrderBbox(array $page, array $bbox): array
     {
         $order = $page['order'] ?? [];
-        $imageBbox = is_array($order) ? ($order['image_bbox'] ?? null) : null;
-        $pageBbox = $page['bbox'] ?? null;
+        $imageBbox = is_array($order) ? $this->bboxValue($order['image_bbox'] ?? null) : null;
+        $pageBbox = $this->bboxValue($page['bbox'] ?? null);
 
-        if (
-            is_array($imageBbox)
-            && count($imageBbox) === 4
-            && is_array($pageBbox)
-            && count($pageBbox) === 4
-        ) {
-            return $this->rescaleBbox(
-                array_map(static fn (float|int $value): float => (float) $value, array_values($imageBbox)),
-                array_map(static fn (float|int $value): float => (float) $value, array_values($pageBbox)),
-                $bbox
-            );
+        if ($imageBbox !== null && $pageBbox !== null) {
+            $rotation = $this->normalizedRotation((int) round((float) ($page['rotation'] ?? 0)));
+            if ($this->shouldRotateUnrotatedOrderImage($imageBbox, $pageBbox, $rotation)) {
+                $bbox = $this->rotateUnrotatedImageBbox($bbox, $imageBbox, $rotation);
+                $imageBbox = [
+                    0.0,
+                    0.0,
+                    $this->rectHeight($imageBbox),
+                    $this->rectWidth($imageBbox),
+                ];
+            }
+
+            return $this->rescaleBbox($imageBbox, $pageBbox, $bbox);
         }
 
         return $bbox;
+    }
+
+    /**
+     * Upstream pdftext normalizes 90/270-degree pages by swapping the page bbox
+     * axes before layout ordering. Some native preview/order fixtures still
+     * carry pre-rotation image dimensions, so rotate those model boxes into the
+     * same page-local coordinates before maximum-overlap matching.
+     *
+     * @param list<float> $imageBbox
+     * @param list<float> $pageBbox
+     */
+    private function shouldRotateUnrotatedOrderImage(array $imageBbox, array $pageBbox, int $rotation): bool
+    {
+        if (!in_array($rotation, [90, 270], true)) {
+            return false;
+        }
+
+        $imageWidth = $this->rectWidth($imageBbox);
+        $imageHeight = $this->rectHeight($imageBbox);
+        $pageWidth = $this->rectWidth($pageBbox);
+        $pageHeight = $this->rectHeight($pageBbox);
+        if ($imageWidth <= 0.0 || $imageHeight <= 0.0 || $pageWidth <= 0.0 || $pageHeight <= 0.0) {
+            return false;
+        }
+
+        $imageRatio = $imageWidth / $imageHeight;
+        $pageRatio = $pageWidth / $pageHeight;
+        $unrotatedPageRatio = $pageHeight / $pageWidth;
+
+        return abs($imageRatio - $unrotatedPageRatio) + 0.000001 < abs($imageRatio - $pageRatio);
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @param list<float> $imageBbox
+     * @return list<float>
+     */
+    private function rotateUnrotatedImageBbox(array $bbox, array $imageBbox, int $rotation): array
+    {
+        $width = $this->rectWidth($imageBbox);
+        $height = $this->rectHeight($imageBbox);
+        $x1 = $bbox[0] - $imageBbox[0];
+        $y1 = $bbox[1] - $imageBbox[1];
+        $x2 = $bbox[2] - $imageBbox[0];
+        $y2 = $bbox[3] - $imageBbox[1];
+
+        return $this->normalizeRect(match ($rotation) {
+            90 => [$height - $y2, $x1, $height - $y1, $x2],
+            270 => [$y1, $width - $x2, $y2, $width - $x1],
+            default => [$x1, $y1, $x2, $y2],
+        });
+    }
+
+    /**
+     * @param list<float> $bbox
+     */
+    private function rectWidth(array $bbox): float
+    {
+        return max(0.0, $bbox[2] - $bbox[0]);
+    }
+
+    /**
+     * @param list<float> $bbox
+     */
+    private function rectHeight(array $bbox): float
+    {
+        return max(0.0, $bbox[3] - $bbox[1]);
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @return list<float>
+     */
+    private function normalizeRect(array $bbox): array
+    {
+        return [
+            min($bbox[0], $bbox[2]),
+            min($bbox[1], $bbox[3]),
+            max($bbox[0], $bbox[2]),
+            max($bbox[1], $bbox[3]),
+        ];
+    }
+
+    private function normalizedRotation(int $rotation): int
+    {
+        $rotation %= 360;
+        if ($rotation < 0) {
+            $rotation += 360;
+        }
+
+        return in_array($rotation, [0, 90, 180, 270], true) ? $rotation : 0;
     }
 
     /**
@@ -446,30 +539,6 @@ final class LayoutOrderer
             $mapped[2] * $userUnit,
             $mapped[3] * $userUnit,
         ];
-    }
-
-    /**
-     * @param list<float> $rect
-     * @return list<float>
-     */
-    private function normalizeRect(array $rect): array
-    {
-        return [
-            min($rect[0], $rect[2]),
-            min($rect[1], $rect[3]),
-            max($rect[0], $rect[2]),
-            max($rect[1], $rect[3]),
-        ];
-    }
-
-    private function normalizedRotation(int $rotation): int
-    {
-        $rotation %= 360;
-        if ($rotation < 0) {
-            $rotation += 360;
-        }
-
-        return in_array($rotation, [0, 90, 180, 270], true) ? $rotation : 0;
     }
 
     private function positiveNumber(mixed $value): ?float

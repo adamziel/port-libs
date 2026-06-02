@@ -496,6 +496,7 @@ return [
         $result = $rotatedSpanResult();
         $assigned = $recognizer->assignRowsColumns($result, ['width' => 120, 'height' => 240]);
         $review = $recognizer->spanningGridReview($assigned, $result['rows'], $result['cols']);
+        $accessibilityGrid = $review['accessibility_grid'];
         $gridByPosition = [];
         foreach ($review['grid_cells'] as $gridCell) {
             $gridByPosition[$gridCell['row_id'] . ':' . $gridCell['col_id']] = $gridCell;
@@ -510,17 +511,94 @@ return [
         $t->same('Rotated inventory', $review['render_cells'][0]['text']);
         $t->same('th', $review['render_cells'][0]['tag']);
         $t->same('colgroup', $review['render_cells'][0]['scope']);
+        $t->same('h-r0-c0', $review['render_cells'][0]['header_id']);
         $t->same(true, $review['render_cells'][0]['rotated']);
         $t->same([0.0, 0.0, 25.0, 240.0], $review['render_cells'][0]['grid_bbox']);
         $t->same('Media group', $review['render_cells'][1]['text']);
         $t->same('rowgroup', $review['render_cells'][1]['scope']);
+        $t->same('h-r1-c0', $review['render_cells'][1]['header_id']);
         $t->same([2, 1], [$review['render_cells'][1]['rowspan'], $review['render_cells'][1]['colspan']]);
         $t->same([35.0, 0.0, 110.0, 70.0], $review['render_cells'][1]['grid_bbox']);
+        $t->same(['h-r0-c0', 'h-r1-c0'], $review['render_cells'][2]['headers']);
+        $t->same(['h-r0-c0'], $review['render_cells'][2]['column_header_ids']);
+        $t->same(['h-r1-c0'], $review['render_cells'][2]['row_header_ids']);
+        $t->same('table_rotated_header_accessibility_grid', $accessibilityGrid['review_target']);
+        $t->same('y', $accessibilityGrid['column_header_physical_axis']);
+        $t->same('x', $accessibilityGrid['row_header_physical_axis']);
+        $t->same(
+            [
+                ['col_id' => 0, 'physical_axis' => 'y', 'header_ids' => ['h-r0-c0'], 'header_texts' => ['Rotated inventory']],
+                ['col_id' => 1, 'physical_axis' => 'y', 'header_ids' => ['h-r0-c0'], 'header_texts' => ['Rotated inventory']],
+                ['col_id' => 2, 'physical_axis' => 'y', 'header_ids' => ['h-r0-c0'], 'header_texts' => ['Rotated inventory']],
+            ],
+            $accessibilityGrid['column_header_grid']
+        );
+        $t->same(
+            [
+                ['row_id' => 0, 'physical_axis' => 'x', 'header_ids' => [], 'header_texts' => []],
+                ['row_id' => 1, 'physical_axis' => 'x', 'header_ids' => ['h-r1-c0'], 'header_texts' => ['Media group']],
+                ['row_id' => 2, 'physical_axis' => 'x', 'header_ids' => ['h-r1-c0'], 'header_texts' => ['Media group']],
+            ],
+            $accessibilityGrid['row_header_grid']
+        );
+        $t->same(['h-r0-c0', 'h-r1-c0'], $accessibilityGrid['data_cell_headers'][0]['headers']);
+        $t->same('y', $accessibilityGrid['data_cell_headers'][0]['column_header_physical_axis']);
+        $t->same('x', $accessibilityGrid['data_cell_headers'][0]['row_header_physical_axis']);
         $t->same('covered', $gridByPosition['0:2']['state']);
         $t->same(['row_id' => 0, 'col_id' => 0, 'render_cell_index' => 0], $gridByPosition['0:1']['covered_by']);
         $t->same('covered', $gridByPosition['2:0']['state']);
         $t->same('td', $gridByPosition['2:1']['tag']);
         $t->same('Review state', $gridByPosition['2:1']['text']);
+    },
+    'builds rotated header accessibility grid for WordPress headers attributes' => static function (TestRunner $t) use ($rotatedSpanResult): void {
+        $recognizer = new TableRecognizer();
+        $result = $rotatedSpanResult();
+        $assigned = $recognizer->assignRowsColumns($result, ['width' => 120, 'height' => 240]);
+        $review = $recognizer->spanningGridReview($assigned, $result['rows'], $result['cols']);
+        $accessibilityGrid = $review['accessibility_grid'];
+
+        $t->same('table_rotated_header_accessibility_grid', $accessibilityGrid['review_target']);
+        $t->same(true, $accessibilityGrid['rotated']);
+        $t->same('rotated', $accessibilityGrid['orientation']);
+        $t->same('x', $accessibilityGrid['row_axis']);
+        $t->same('y', $accessibilityGrid['col_axis']);
+        $t->same(['h-r0-c0', 'h-r1-c0'], $accessibilityGrid['header_ids']);
+        $t->same(
+            [
+                ['col_id' => 0, 'physical_axis' => 'y', 'header_ids' => ['h-r0-c0'], 'header_texts' => ['Rotated inventory']],
+                ['col_id' => 1, 'physical_axis' => 'y', 'header_ids' => ['h-r0-c0'], 'header_texts' => ['Rotated inventory']],
+                ['col_id' => 2, 'physical_axis' => 'y', 'header_ids' => ['h-r0-c0'], 'header_texts' => ['Rotated inventory']],
+            ],
+            $accessibilityGrid['column_header_grid']
+        );
+        $t->same(
+            [
+                ['row_id' => 0, 'physical_axis' => 'x', 'header_ids' => [], 'header_texts' => []],
+                ['row_id' => 1, 'physical_axis' => 'x', 'header_ids' => ['h-r1-c0'], 'header_texts' => ['Media group']],
+                ['row_id' => 2, 'physical_axis' => 'x', 'header_ids' => ['h-r1-c0'], 'header_texts' => ['Media group']],
+            ],
+            $accessibilityGrid['row_header_grid']
+        );
+        $t->same(4, $accessibilityGrid['data_cell_count']);
+        $t->same(
+            [
+                'render_cell_index' => 2,
+                'text' => 'Image count',
+                'row_ids' => [1],
+                'col_ids' => [1],
+                'anchor' => ['row_id' => 1, 'col_id' => 1],
+                'headers' => ['h-r0-c0', 'h-r1-c0'],
+                'column_header_ids' => ['h-r0-c0'],
+                'row_header_ids' => ['h-r1-c0'],
+                'header_texts' => ['Rotated inventory', 'Media group'],
+                'header_text' => 'Rotated inventory / Media group',
+                'column_header_physical_axis' => 'y',
+                'row_header_physical_axis' => 'x',
+            ],
+            $accessibilityGrid['data_cell_headers'][0]
+        );
+        $t->same('y', $review['render_cells'][2]['column_header_physical_axis']);
+        $t->same('x', $review['render_cells'][2]['row_header_physical_axis']);
     },
     'folds OCR continuation covered anchors into rowspan colspan grid review' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
@@ -849,6 +927,8 @@ return [
                 'row_header_ids' => ['h-r2-c0'],
                 'header_texts' => ['Inventory axis', 'Media group'],
                 'header_text' => 'Inventory axis / Media group',
+                'column_header_physical_axis' => 'x',
+                'row_header_physical_axis' => 'y',
             ],
             $review['data_cells'][0]
         );
@@ -916,6 +996,8 @@ return [
                 'row_header_ids' => [],
                 'header_texts' => ['Assets', 'Images'],
                 'header_text' => 'Assets / Images',
+                'column_header_physical_axis' => 'x',
+                'row_header_physical_axis' => 'y',
             ],
             $review['data_cells'][1]
         );

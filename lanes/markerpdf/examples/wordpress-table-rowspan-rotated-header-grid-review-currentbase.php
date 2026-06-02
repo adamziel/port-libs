@@ -104,7 +104,9 @@ $review = $result['metadata']['table_spanning_grid_review'][0] ?? [
     'col_axis' => 'x',
     'render_cells' => [],
     'grid_cells' => [],
+    'accessibility_grid' => [],
 ];
+$accessibilityGrid = $review['accessibility_grid'] ?? [];
 
 $gridByPosition = [];
 foreach ($review['grid_cells'] as $gridCell) {
@@ -129,6 +131,12 @@ foreach ($review['rows'] as $rowId) {
             : null;
         $tag = $renderCell['tag'] ?? 'td';
         $attrs = '';
+        if (($renderCell['header_id'] ?? null) !== null) {
+            $attrs .= ' id="' . htmlspecialchars((string) $renderCell['header_id'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+        }
+        if (($renderCell['headers'] ?? []) !== []) {
+            $attrs .= ' headers="' . htmlspecialchars(implode(' ', $renderCell['headers']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+        }
         if (($renderCell['scope'] ?? null) !== null) {
             $attrs .= ' scope="' . htmlspecialchars((string) $renderCell['scope'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
         }
@@ -140,6 +148,12 @@ foreach ($review['rows'] as $rowId) {
         }
         if (($renderCell['rotated'] ?? false) === true) {
             $attrs .= ' data-markerpdf-rotated="true"';
+        }
+        if (($renderCell['column_header_physical_axis'] ?? null) !== null) {
+            $attrs .= ' data-markerpdf-column-header-axis="' . htmlspecialchars((string) $renderCell['column_header_physical_axis'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+        }
+        if (($renderCell['row_header_physical_axis'] ?? null) !== null) {
+            $attrs .= ' data-markerpdf-row-header-axis="' . htmlspecialchars((string) $renderCell['row_header_physical_axis'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
         }
 
         $tableHtml .= '<' . $tag . $attrs . '>'
@@ -155,13 +169,19 @@ echo json_encode([
     'native_boundary' => 'supplied rotated table recognition exposes tabled row_ids/col_ids spans plus swapped grid axes before Markdown drops covered cells',
     'source_truth' => 'tabled.assignment.is_rotated swaps row/column intersection axes, while tabled markdown/html formatters still use only first row/column anchors with headers="firstrow"',
     'table_spanning_grid_review' => $review,
+    'table_accessibility_grid' => $accessibilityGrid,
     'wordpress_table_html' => $tableHtml,
     'rotated_grid_review' => ($review['rotated'] ?? false) === true,
     'row_axis_x_col_axis_y' => ($review['row_axis'] ?? null) === 'x' && ($review['col_axis'] ?? null) === 'y',
-    'has_th_colgroup_colspan_3' => str_contains($tableHtml, '<th scope="colgroup" colspan="3" data-markerpdf-rotated="true">Rotated inventory</th>'),
-    'has_th_rowgroup_rowspan_2' => str_contains($tableHtml, '<th scope="rowgroup" rowspan="2" data-markerpdf-rotated="true">Media group</th>'),
+    'has_th_colgroup_colspan_3' => str_contains($tableHtml, '<th id="h-r0-c0" scope="colgroup" colspan="3" data-markerpdf-rotated="true">Rotated inventory</th>'),
+    'has_th_rowgroup_rowspan_2' => str_contains($tableHtml, '<th id="h-r1-c0" scope="rowgroup" rowspan="2" data-markerpdf-rotated="true">Media group</th>'),
+    'has_rotated_accessibility_grid' => ($accessibilityGrid['review_target'] ?? null) === 'table_rotated_header_accessibility_grid',
+    'column_headers_follow_y_axis' => ($accessibilityGrid['column_header_physical_axis'] ?? null) === 'y',
+    'row_headers_follow_x_axis' => ($accessibilityGrid['row_header_physical_axis'] ?? null) === 'x',
+    'maps_image_count_to_rotated_headers' => str_contains($tableHtml, '<td headers="h-r0-c0 h-r1-c0" data-markerpdf-rotated="true" data-markerpdf-column-header-axis="y" data-markerpdf-row-header-axis="x">Image count</td>'),
+    'maps_needs_review_to_rotated_headers' => str_contains($tableHtml, '<td headers="h-r0-c0 h-r1-c0" data-markerpdf-rotated="true" data-markerpdf-column-header-axis="y" data-markerpdf-row-header-axis="x">Needs review</td>'),
     'rotated_rowspan_grid_bbox' => $review['render_cells'][1]['grid_bbox'] ?? null,
-    'covered_rotated_cells_skipped' => !str_contains($tableHtml, '<td></td>') && str_contains($tableHtml, '<td data-markerpdf-rotated="true">Review state</td>'),
+    'covered_rotated_cells_skipped' => !str_contains($tableHtml, '<td></td>') && str_contains($tableHtml, '<td headers="h-r0-c0 h-r1-c0" data-markerpdf-rotated="true" data-markerpdf-column-header-axis="y" data-markerpdf-row-header-axis="x">Review state</td>'),
     'excluded_stale_pdftext_table_line' => !str_contains($result['text'], 'Stale rotated table text should be replaced.'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,

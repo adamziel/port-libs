@@ -304,7 +304,7 @@ final class TableRecognizer
      * @param list<array<string, mixed>> $cells Assigned cells from assignRowsColumns().
      * @param list<array<string, mixed>> $rows Optional model row bands in table-image coordinates.
      * @param list<array<string, mixed>> $cols Optional model column bands in table-image coordinates.
-     * @return array{rows: list<int>, cols: list<int>, column_header_rows?: list<int>, rotated: bool, orientation: string, row_axis: string, col_axis: string, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>, header_cells: list<array<string, mixed>>, data_cells: list<array<string, mixed>>}
+     * @return array{rows: list<int>, cols: list<int>, column_header_rows?: list<int>, rotated: bool, orientation: string, row_axis: string, col_axis: string, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>, header_cells: list<array<string, mixed>>, data_cells: list<array<string, mixed>>, accessibility_grid: array<string, mixed>}
      */
     public function spanningGridReview(array $cells, array $rows = [], array $cols = []): array
     {
@@ -413,6 +413,13 @@ final class TableRecognizer
 
         $headerReferences = $this->applyHeaderReferences($renderCells);
         $renderCells = $headerReferences['render_cells'];
+        $accessibilityGrid = $this->accessibilityGridReview(
+            $rowIds,
+            $colIds,
+            $axisMetadata,
+            $headerReferences['header_cells'],
+            $headerReferences['data_cells']
+        );
         $gridCells = [];
         foreach ($rowIds as $rowId) {
             foreach ($colIds as $colId) {
@@ -440,7 +447,7 @@ final class TableRecognizer
                         'rowspan' => $renderCell['rowspan'],
                         'colspan' => $renderCell['colspan'],
                     ];
-                    foreach (['header_id', 'headers', 'column_header_ids', 'row_header_ids', 'header_texts', 'header_text'] as $field) {
+                    foreach (['header_id', 'headers', 'column_header_ids', 'row_header_ids', 'header_texts', 'header_text', 'column_header_physical_axis', 'row_header_physical_axis'] as $field) {
                         if (array_key_exists($field, $renderCell)) {
                             $cell[$field] = $renderCell[$field];
                         }
@@ -469,6 +476,7 @@ final class TableRecognizer
             'grid_cells' => $gridCells,
             'header_cells' => $headerReferences['header_cells'],
             'data_cells' => $headerReferences['data_cells'],
+            'accessibility_grid' => $accessibilityGrid,
         ];
     }
 
@@ -716,6 +724,8 @@ final class TableRecognizer
             'row_header_ids',
             'header_texts',
             'header_text',
+            'column_header_physical_axis',
+            'row_header_physical_axis',
             'covered_by',
         ] as $field) {
             if (array_key_exists($field, $gridCell)) {
@@ -783,6 +793,8 @@ final class TableRecognizer
             'row_header_ids',
             'header_texts',
             'header_text',
+            'column_header_physical_axis',
+            'row_header_physical_axis',
         ] as $field) {
             if (array_key_exists($field, $renderCell)) {
                 $summary[$field] = $renderCell[$field];
@@ -2290,7 +2302,7 @@ final class TableRecognizer
     }
 
     /**
-     * @return array{rows: list<int>, cols: list<int>, column_header_rows: list<int>, rotated: bool, orientation: string, row_axis: string, col_axis: string, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>, header_cells: list<array<string, mixed>>, data_cells: list<array<string, mixed>>}
+     * @return array{rows: list<int>, cols: list<int>, column_header_rows: list<int>, rotated: bool, orientation: string, row_axis: string, col_axis: string, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>, header_cells: list<array<string, mixed>>, data_cells: list<array<string, mixed>>, accessibility_grid: array<string, mixed>}
      */
     private function emptySpanningGridReview(bool $rotated = false): array
     {
@@ -2308,6 +2320,7 @@ final class TableRecognizer
             'grid_cells' => [],
             'header_cells' => [],
             'data_cells' => [],
+            'accessibility_grid' => $this->accessibilityGridReview([], [], $axisMetadata, [], []),
         ];
     }
 
@@ -2385,6 +2398,8 @@ final class TableRecognizer
             $renderCell['row_header_ids'] = $references['row_header_ids'];
             $renderCell['header_texts'] = $references['header_texts'];
             $renderCell['header_text'] = $references['header_text'];
+            $renderCell['column_header_physical_axis'] = (string) ($renderCell['col_axis'] ?? 'x');
+            $renderCell['row_header_physical_axis'] = (string) ($renderCell['row_axis'] ?? 'y');
 
             $dataCells[] = [
                 'render_cell_index' => $index,
@@ -2397,6 +2412,8 @@ final class TableRecognizer
                 'row_header_ids' => $references['row_header_ids'],
                 'header_texts' => $references['header_texts'],
                 'header_text' => $references['header_text'],
+                'column_header_physical_axis' => $renderCell['column_header_physical_axis'],
+                'row_header_physical_axis' => $renderCell['row_header_physical_axis'],
             ];
         }
         unset($renderCell);
@@ -2487,6 +2504,127 @@ final class TableRecognizer
             'header_texts' => $headerTexts,
             'header_text' => implode(' / ', $headerTexts),
         ];
+    }
+
+    /**
+     * @param list<int> $rowIds
+     * @param list<int> $colIds
+     * @param array{orientation: string, row_axis: string, col_axis: string} $axisMetadata
+     * @param list<array<string, mixed>> $headerCells
+     * @param list<array<string, mixed>> $dataCells
+     * @return array<string, mixed>
+     */
+    private function accessibilityGridReview(array $rowIds, array $colIds, array $axisMetadata, array $headerCells, array $dataCells): array
+    {
+        $columnHeaderGrid = [];
+        foreach ($colIds as $colId) {
+            $headers = $this->headerCoverageForGridId($headerCells, 'col_ids', $colId, 'column');
+            $columnHeaderGrid[] = [
+                'col_id' => $colId,
+                'physical_axis' => $axisMetadata['col_axis'],
+                'header_ids' => $headers['header_ids'],
+                'header_texts' => $headers['header_texts'],
+            ];
+        }
+
+        $rowHeaderGrid = [];
+        foreach ($rowIds as $rowId) {
+            $headers = $this->headerCoverageForGridId($headerCells, 'row_ids', $rowId, 'row');
+            $rowHeaderGrid[] = [
+                'row_id' => $rowId,
+                'physical_axis' => $axisMetadata['row_axis'],
+                'header_ids' => $headers['header_ids'],
+                'header_texts' => $headers['header_texts'],
+            ];
+        }
+
+        $dataCellHeaders = [];
+        foreach ($dataCells as $dataCell) {
+            $dataCellHeaders[] = [
+                'render_cell_index' => (int) ($dataCell['render_cell_index'] ?? 0),
+                'text' => (string) ($dataCell['text'] ?? ''),
+                'row_ids' => $this->integerList($dataCell['row_ids'] ?? []),
+                'col_ids' => $this->integerList($dataCell['col_ids'] ?? []),
+                'anchor' => $dataCell['anchor'] ?? null,
+                'headers' => $this->stringList($dataCell['headers'] ?? []),
+                'column_header_ids' => $this->stringList($dataCell['column_header_ids'] ?? []),
+                'row_header_ids' => $this->stringList($dataCell['row_header_ids'] ?? []),
+                'header_texts' => $this->stringList($dataCell['header_texts'] ?? []),
+                'header_text' => (string) ($dataCell['header_text'] ?? ''),
+                'column_header_physical_axis' => $axisMetadata['col_axis'],
+                'row_header_physical_axis' => $axisMetadata['row_axis'],
+            ];
+        }
+
+        return [
+            'review_target' => $axisMetadata['orientation'] === 'rotated'
+                ? 'table_rotated_header_accessibility_grid'
+                : 'table_header_accessibility_grid',
+            'rotated' => $axisMetadata['orientation'] === 'rotated',
+            'orientation' => $axisMetadata['orientation'],
+            'row_axis' => $axisMetadata['row_axis'],
+            'col_axis' => $axisMetadata['col_axis'],
+            'column_header_physical_axis' => $axisMetadata['col_axis'],
+            'row_header_physical_axis' => $axisMetadata['row_axis'],
+            'header_ids' => $this->stringList(array_map(static fn (array $cell): mixed => $cell['header_id'] ?? null, $headerCells)),
+            'column_header_grid' => $columnHeaderGrid,
+            'row_header_grid' => $rowHeaderGrid,
+            'data_cell_headers' => $dataCellHeaders,
+            'data_cell_count' => count($dataCellHeaders),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $headerCells
+     * @return array{header_ids: list<string>, header_texts: list<string>}
+     */
+    private function headerCoverageForGridId(array $headerCells, string $idField, int $gridId, string $axis): array
+    {
+        $headerIds = [];
+        $headerTexts = [];
+        foreach ($headerCells as $headerCell) {
+            $headerAxes = $this->stringList($headerCell['header_axes'] ?? []);
+            if (!in_array($axis, $headerAxes, true)) {
+                continue;
+            }
+            if (!in_array($gridId, $this->integerList($headerCell[$idField] ?? []), true)) {
+                continue;
+            }
+
+            $headerId = (string) ($headerCell['header_id'] ?? '');
+            if ($headerId === '') {
+                continue;
+            }
+            $headerIds[] = $headerId;
+            $text = trim((string) ($headerCell['text'] ?? ''));
+            if ($text !== '') {
+                $headerTexts[] = $text;
+            }
+        }
+
+        return [
+            'header_ids' => $this->uniqueStrings($headerIds),
+            'header_texts' => $this->uniqueStrings($headerTexts),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stringList(mixed $values): array
+    {
+        if (!is_array($values)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($values as $value) {
+            if (is_scalar($value) && (string) $value !== '') {
+                $out[] = (string) $value;
+            }
+        }
+
+        return $this->uniqueStrings($out);
     }
 
     /**

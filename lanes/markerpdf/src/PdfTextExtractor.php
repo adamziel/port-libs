@@ -6772,7 +6772,7 @@ final class PdfTextExtractor
             return [];
         }
 
-        $glyphNamesByCode = $this->encodingDifferencesGlyphNames($fontBody, $objects);
+        $glyphNamesByCode = $this->type3EncodingGlyphNamesByCode($fontBody, $objects);
         $charProcObjectNumbers = $this->charProcObjectNumbers($fontBody, $objects);
         if ($glyphNamesByCode === [] || $charProcObjectNumbers === []) {
             return [];
@@ -6811,7 +6811,7 @@ final class PdfTextExtractor
         }
 
         $map = [];
-        foreach ($this->encodingDifferencesGlyphNames($fontBody, $objects) as $code => $glyphName) {
+        foreach ($this->type3EncodingGlyphNamesByCode($fontBody, $objects) as $code => $glyphName) {
             if (!isset($unicodeByGlyphName[$glyphName])) {
                 continue;
             }
@@ -6880,6 +6880,53 @@ final class PdfTextExtractor
      * @return array<int, string>
      * @param array<int, string> $objects
      */
+    private function type3EncodingGlyphNamesByCode(string $fontBody, array $objects): array
+    {
+        $glyphNames = $this->baseEncodingGlyphNamesByCode($fontBody, $objects);
+        $differences = $this->encodingDifferencesGlyphNames($fontBody, $objects);
+
+        if ($glyphNames === []) {
+            $glyphNames = $this->namedEncodingGlyphNamesByCode('StandardEncoding');
+        }
+
+        return $differences === [] ? $glyphNames : array_replace($glyphNames, $differences);
+    }
+
+    /**
+     * @return array<int, string>
+     * @param array<int, string> $objects
+     */
+    private function baseEncodingGlyphNamesByCode(string $fontBody, array $objects): array
+    {
+        $encodingObjectNumber = $this->objectReferenceValueAfterName($fontBody, 'Encoding');
+        if ($encodingObjectNumber !== null && isset($objects[$encodingObjectNumber])) {
+            $encodingObject = trim($objects[$encodingObjectNumber]);
+            if (preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $encodingObject, $match) === 1) {
+                return $this->namedEncodingGlyphNamesByCode($this->decodePdfName($match[1]));
+            }
+
+            if (str_starts_with($encodingObject, '<<')) {
+                return $this->baseEncodingGlyphNamesByCode($encodingObject, $objects);
+            }
+        }
+
+        $baseEncodingName = $this->pdfNameValueAfterNameResolvingObjects($fontBody, 'BaseEncoding', $objects);
+        if ($baseEncodingName !== null) {
+            return $this->namedEncodingGlyphNamesByCode($baseEncodingName);
+        }
+
+        $encodingName = $this->pdfNameValueAfterNameResolvingObjects($fontBody, 'Encoding', $objects);
+        if ($encodingName !== null) {
+            return $this->namedEncodingGlyphNamesByCode($encodingName);
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<int, string>
+     * @param array<int, string> $objects
+     */
     private function encodingDifferencesGlyphNames(string $fontBody, array $objects = []): array
     {
         $encodingObjectNumber = $this->objectReferenceValueAfterName($fontBody, 'Encoding');
@@ -6913,6 +6960,64 @@ final class PdfTextExtractor
 
             $glyphNames[$code] = $this->decodePdfName(substr($token, 1));
             $code++;
+        }
+
+        return $glyphNames;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function namedEncodingGlyphNamesByCode(string $encodingName): array
+    {
+        if (!in_array($encodingName, ['WinAnsiEncoding', 'StandardEncoding', 'MacRomanEncoding'], true)) {
+            return [];
+        }
+
+        $glyphNames = [
+            0x20 => 'space',
+            0x21 => 'exclam',
+            0x22 => 'quotedbl',
+            0x23 => 'numbersign',
+            0x24 => 'dollar',
+            0x25 => 'percent',
+            0x26 => 'ampersand',
+            0x27 => 'quotesingle',
+            0x28 => 'parenleft',
+            0x29 => 'parenright',
+            0x2a => 'asterisk',
+            0x2b => 'plus',
+            0x2c => 'comma',
+            0x2d => 'hyphen',
+            0x2e => 'period',
+            0x2f => 'slash',
+            0x3a => 'colon',
+            0x3b => 'semicolon',
+            0x3c => 'less',
+            0x3d => 'equal',
+            0x3e => 'greater',
+            0x3f => 'question',
+            0x40 => 'at',
+            0x5b => 'bracketleft',
+            0x5c => 'backslash',
+            0x5d => 'bracketright',
+            0x5e => 'asciicircum',
+            0x5f => 'underscore',
+            0x60 => 'grave',
+            0x7b => 'braceleft',
+            0x7c => 'bar',
+            0x7d => 'braceright',
+            0x7e => 'asciitilde',
+        ];
+
+        for ($code = 0x30; $code <= 0x39; $code++) {
+            $glyphNames[$code] = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'][$code - 0x30];
+        }
+        for ($code = 0x41; $code <= 0x5a; $code++) {
+            $glyphNames[$code] = chr($code);
+        }
+        for ($code = 0x61; $code <= 0x7a; $code++) {
+            $glyphNames[$code] = chr($code);
         }
 
         return $glyphNames;
@@ -11873,18 +11978,9 @@ final class PdfTextExtractor
             return null;
         }
 
-        $header = substr($decoded, 0, $first);
-        if (!preg_match_all('/(\d+)\s+(\d+)/', $header, $matches, PREG_SET_ORDER)) {
+        $members = $this->objectStreamHeaderMembers(substr($decoded, 0, $first), $count);
+        if ($members === []) {
             return null;
-        }
-
-        $members = [];
-        foreach (array_slice($matches, 0, $count) as $index => $match) {
-            $members[] = [
-                'objectNumber' => (int) $match[1],
-                'offset' => (int) $match[2],
-                'index' => $index,
-            ];
         }
 
         return [
@@ -11892,6 +11988,50 @@ final class PdfTextExtractor
             'first' => $first,
             'members' => $members,
         ];
+    }
+
+    /**
+     * @return list<array{objectNumber: int, offset: int, index: int}>
+     */
+    private function objectStreamHeaderMembers(string $header, int $count): array
+    {
+        $members = [];
+        $offset = 0;
+        for ($index = 0; $index < $count; $index++) {
+            $objectNumber = $this->readPdfUnsignedIntegerToken($header, $offset);
+            if ($objectNumber === null) {
+                break;
+            }
+
+            $objectOffset = $this->readPdfUnsignedIntegerToken($header, $offset);
+            if ($objectOffset === null) {
+                break;
+            }
+
+            if ($objectNumber === 0) {
+                continue;
+            }
+
+            $members[] = [
+                'objectNumber' => $objectNumber,
+                'offset' => $objectOffset,
+                'index' => $index,
+            ];
+        }
+
+        return $members;
+    }
+
+    private function readPdfUnsignedIntegerToken(string $value, int &$offset): ?int
+    {
+        $offset = $this->skipPdfWhitespace($value, $offset);
+        if (preg_match('/\G(\d+)(?=$|[\s\[\]()<>{}\/%])/s', $value, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $offset += strlen($match[1]);
+
+        return (int) $match[1];
     }
 
     /**

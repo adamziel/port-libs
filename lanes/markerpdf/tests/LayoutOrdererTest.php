@@ -275,6 +275,37 @@ return [
 
         $t->same("First column import summary.\n\nSecond column media checklist.", $merged[0]['text']);
     },
+    'rotates unrotated order boxes before sorting columns with pinned page edges' => static function (TestRunner $t): void {
+        $orderer = new LayoutOrderer();
+        $pages = [
+            [
+                'bbox' => [0.0, 0.0, 800.0, 600.0],
+                'rotation' => 90,
+                'order' => [
+                    'image_bbox' => [0.0, 0.0, 600.0, 800.0],
+                    'bboxes' => [
+                        ['position' => 0, 'bbox' => [20.0, 60.0, 50.0, 740.0]],
+                        ['position' => 1, 'bbox' => [310.0, 500.0, 500.0, 740.0]],
+                        ['position' => 2, 'bbox' => [310.0, 60.0, 500.0, 360.0]],
+                        ['position' => 9, 'bbox' => [560.0, 60.0, 590.0, 740.0]],
+                    ],
+                ],
+                'blocks' => [
+                    ['type' => 'Page-footer', 'text' => 'Rotated import footer', 'bbox' => [70.0, 564.0, 730.0, 586.0]],
+                    ['type' => 'Text', 'text' => 'Right rotated column', 'bbox' => [450.0, 320.0, 720.0, 338.0]],
+                    ['type' => 'Page-header', 'text' => 'Rotated import header', 'bbox' => [70.0, 24.0, 730.0, 44.0]],
+                    ['type' => 'Text', 'text' => 'Left rotated column', 'bbox' => [72.0, 320.0, 280.0, 338.0]],
+                ],
+            ],
+        ];
+
+        $sorted = $orderer->sortBlocksInReadingOrder($pages);
+
+        $t->same(
+            ['Rotated import header', 'Left rotated column', 'Right rotated column', 'Rotated import footer'],
+            array_column($sorted[0]['blocks'], 'text')
+        );
+    },
     'drives a WordPress ordering-model preflight before Gutenberg paragraph merge' => static function (TestRunner $t): void {
         $orderer = new LayoutOrderer();
         $processor = new MarkdownPostProcessor();
