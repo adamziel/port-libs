@@ -4555,7 +4555,8 @@ final class PdfTextExtractor
                     return substr($value, $streamStart, $length);
                 }
 
-                $end = $this->endstreamTerminatorOffset($value, $streamStart, $declaredEnd);
+                $end = $this->contentStreamEndstreamTerminatorOffset($value, $streamStart, $dict)
+                    ?? $this->endstreamTerminatorOffset($value, $streamStart, $declaredEnd);
                 if ($end === null) {
                     return substr($value, $streamStart, $length);
                 }
@@ -4563,7 +4564,8 @@ final class PdfTextExtractor
                 return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $end - $streamStart));
             }
 
-            $end = $this->endstreamTerminatorOffset($value, $streamStart, null);
+            $end = $this->contentStreamEndstreamTerminatorOffset($value, $streamStart, $dict)
+                ?? $this->endstreamTerminatorOffset($value, $streamStart, null);
             if ($end === null) {
                 return null;
             }
@@ -4571,7 +4573,8 @@ final class PdfTextExtractor
             return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $end - $streamStart));
         }
 
-        $end = $this->endstreamTerminatorOffset($value, $streamStart, null);
+        $end = $this->contentStreamEndstreamTerminatorOffset($value, $streamStart, $dict)
+            ?? $this->endstreamTerminatorOffset($value, $streamStart, null);
         $end = $this->filteredEndstreamTerminatorOffset($value, $streamStart, $dict, $objects) ?? $end;
         if ($end === null) {
             return null;
@@ -4627,6 +4630,11 @@ final class PdfTextExtractor
 
     private function streamLengthEndsAtTerminator(string $value, int $declaredEnd): bool
     {
+        return $this->streamLengthTerminatorOffset($value, $declaredEnd) !== null;
+    }
+
+    private function streamLengthTerminatorOffset(string $value, int $declaredEnd): ?int
+    {
         $offset = $declaredEnd;
         if (substr($value, $offset, 2) === "\r\n") {
             $offset += 2;
@@ -4634,7 +4642,7 @@ final class PdfTextExtractor
             $offset++;
         }
 
-        return $this->endstreamKeywordAt($value, $offset);
+        return $this->endstreamKeywordAt($value, $offset) ? $offset : null;
     }
 
     private function endstreamTerminatorOffset(string $value, int $streamStart, ?int $declaredEnd): ?int
@@ -4712,6 +4720,82 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    private function contentStreamEndstreamTerminatorOffset(string $value, int $streamStart, string $dict): ?int
+    {
+        if (!$this->canScanContentStreamForInlineImages($dict)) {
+            return null;
+        }
+
+        $index = $streamStart;
+        $length = strlen($value);
+        while ($index < $length) {
+            $char = $value[$index];
+            if (ctype_space($char)) {
+                $index++;
+                continue;
+            }
+
+            if ($char === '%') {
+                $this->skipPdfComment($value, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $this->readLiteralToken($value, $index);
+                continue;
+            }
+
+            if ($char === '<') {
+                if ($index + 1 < $length && $value[$index + 1] === '<') {
+                    $this->readDictionaryToken($value, $index);
+                    continue;
+                }
+
+                $this->readHexToken($value, $index);
+                continue;
+            }
+
+            if ($char === '[') {
+                $this->readArrayToken($value, $index);
+                continue;
+            }
+
+            if (
+                $this->pdfKeywordAt($value, $index, 'endstream')
+                && $this->endstreamTerminatorAt($value, $index, $streamStart)
+            ) {
+                return $index;
+            }
+
+            $start = $index;
+            while ($index < $length && !$this->isDelimiter($value[$index])) {
+                $index++;
+            }
+
+            if ($index === $start) {
+                $index++;
+                continue;
+            }
+
+            if (substr($value, $start, $index - $start) === 'BI') {
+                $this->skipInlineImage($value, $index);
+            }
+        }
+
+        return null;
+    }
+
+    private function canScanContentStreamForInlineImages(string $dict): bool
+    {
+        $filters = $this->streamFilters($dict, []);
+        if ($filters !== []) {
+            return false;
+        }
+
+        return preg_match('/\/(?:Type|Subtype)\s*\/(?:ObjStm|XRef|Image|Metadata|EmbeddedFile|XML)\b/s', $dict) !== 1
+            && preg_match('/\/Type\s*\/EmbeddedFile\b/s', $dict) !== 1;
     }
 
     /**
@@ -8170,7 +8254,9 @@ final class PdfTextExtractor
         if ($declaredLength !== null && $declaredLength >= 0) {
             $declaredEnd = $streamStart + $declaredLength;
             if ($declaredEnd <= strlen($pdfBytes)) {
-                $streamEnd = $this->endstreamTerminatorOffset($pdfBytes, $streamStart, $declaredEnd);
+                $streamEnd = $this->streamLengthTerminatorOffset($pdfBytes, $declaredEnd)
+                    ?? $this->contentStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict)
+                    ?? $this->endstreamTerminatorOffset($pdfBytes, $streamStart, $declaredEnd);
             }
         }
 
@@ -8449,16 +8535,22 @@ final class PdfTextExtractor
                     $streamStart++;
                 }
 
+                $dict = $this->directObjectStreamDictionaryBeforeKeyword($pdfBytes, $objectBodyStart, $index);
                 $declaredEnd = $this->directObjectStreamDeclaredEnd($pdfBytes, $objectBodyStart, $index, $streamStart);
                 if ($declaredEnd !== null) {
-                    $streamEnd = $this->endstreamTerminatorOffset($pdfBytes, $streamStart, $declaredEnd);
+                    $streamEnd = $this->streamLengthTerminatorOffset($pdfBytes, $declaredEnd);
+                    $streamEnd ??= $dict === null
+                        ? $this->endstreamTerminatorOffset($pdfBytes, $streamStart, $declaredEnd)
+                        : (
+                            $this->contentStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict)
+                            ?? $this->endstreamTerminatorOffset($pdfBytes, $streamStart, $declaredEnd)
+                        );
                     if ($streamEnd !== null && $streamEnd >= $declaredEnd) {
                         $index = $streamEnd + strlen('endstream');
                         continue;
                     }
                 }
 
-                $dict = $this->directObjectStreamDictionaryBeforeKeyword($pdfBytes, $objectBodyStart, $index);
                 $streamEnd = null;
                 if ($dict !== null) {
                     $streamEnd = $this->filteredEndstreamTerminatorOffset(
@@ -8467,6 +8559,7 @@ final class PdfTextExtractor
                         $dict,
                         $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart)
                     );
+                    $streamEnd ??= $this->contentStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict);
                 }
                 $streamEnd ??= $this->endstreamTerminatorOffset($pdfBytes, $streamStart, null);
                 if ($streamEnd !== null) {
@@ -10305,7 +10398,7 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      */
-    private function decodedCMapBody(string $objectBody, array $objects): ?string
+    private function decodedCMapBody(string $objectBody, array $objects, array $seenCMapObjects = []): ?string
     {
         $entry = $this->streamDictionaryAndPayload($objectBody, $objects);
         if ($entry === null) {
@@ -10317,18 +10410,27 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->cMapStreamDictionaryPrelude($entry['dict'], $objects) . $decoded;
+        return $this->cMapStreamDictionaryPrelude($entry['dict'], $objects, $seenCMapObjects) . $decoded;
     }
 
     /**
      * @param array<int, string> $objects
      */
-    private function cMapStreamDictionaryPrelude(string $dict, array $objects): string
+    private function cMapStreamDictionaryPrelude(string $dict, array $objects, array $seenCMapObjects = []): string
     {
         $lines = [];
         $useCMapName = $this->cMapUseCMapNameFromDictionary($dict, $objects);
         if ($useCMapName !== null && $useCMapName !== '') {
             $lines[] = '/' . $this->encodePdfName($useCMapName) . ' usecmap';
+        } else {
+            $useCMapObjectNumber = $this->objectReferenceValueAfterName($dict, 'UseCMap');
+            if ($useCMapObjectNumber !== null && isset($objects[$useCMapObjectNumber]) && !isset($seenCMapObjects[$useCMapObjectNumber])) {
+                $seenCMapObjects[$useCMapObjectNumber] = true;
+                $baseCMap = $this->decodedCMapBody($objects[$useCMapObjectNumber], $objects, $seenCMapObjects);
+                if ($baseCMap !== null && trim($baseCMap) !== '') {
+                    $lines[] = rtrim($baseCMap);
+                }
+            }
         }
 
         $cMapName = $this->pdfNameValueAfterNameResolvingObjects($dict, 'CMapName', $objects);

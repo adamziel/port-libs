@@ -386,6 +386,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-page-structparents-parenttree-reading-order-currentbase.php` maps page `/StructParents` and StructTreeRoot `/ParentTree` arrays into a WordPress tagged-content import path. It emits page-local H2 and paragraph blocks in tagged MCID order, resolves `/RoleMap`, and excludes unlisted `/Artifact` MCIDs without Python, pdftext, pypdfium/PDFium execution, Poppler, Ghostscript, models, or external PDF tools.
 
+`examples/wordpress-pdf-page-structparents-pieceinfo-thread-currentbase.php` maps page `/StructParents` ParentTree MCID rows into a WordPress import path while preserving page `/PieceInfo`, catalog `/Threads`, and StructElem-associated FileSpec metadata as review-only comments. It emits visible Gutenberg paragraphs in ParentTree order and proves attachment payloads, article thread dictionaries, PieceInfo private values, and accessibility review strings stay out of body text without Python, pdftext, pypdfium/PDFium execution, Poppler, Ghostscript, models, or external PDF tools.
+
 `examples/wordpress-pdf-xref-prev-object-stream-generation-currentbase.php` maps incremental `/Prev` object-stream carrier generation reuse into a WordPress paragraph import path. It skips stale previous type-2 rows when their carrier object number was itself only a compressed decoy, keeping the current direct page text while excluding stale previous and replacement-generation object-stream member text without Python, pdftext, pypdfium, Poppler, Ghostscript, models, or external PDF tools.
 
 ## Next Task

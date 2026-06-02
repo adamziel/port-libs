@@ -210,12 +210,18 @@ final class PdfPagePropertyExtractor
 
         $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
         $rowsByPage = [];
+        $elementsByObject = [];
         if (is_array($structureTree)) {
             $elements = $structureTree['elements'] ?? [];
             if (is_array($elements)) {
                 foreach ($elements as $elementIndex => $element) {
                     if (!is_array($element)) {
                         continue;
+                    }
+
+                    $object = $element['object'] ?? null;
+                    if (is_int($object)) {
+                        $elementsByObject[$object] = $element;
                     }
 
                     $markedContent = $element['marked_content'] ?? [];
@@ -283,10 +289,114 @@ final class PdfPagePropertyExtractor
             }
         }
 
+        $fallbackRowsByPage = $this->decorateTaggedContentRowsWithStructureMetadata(
+            $this->taggedContentReviewByPageObject($pdfBytes),
+            $this->parentTreeEntriesByPageObject($pdfBytes),
+            $elementsByObject
+        );
+
         return $this->mergeStructureMarkedContentRows(
             $rowsByPage,
-            $this->taggedContentReviewByPageObject($pdfBytes)
+            $fallbackRowsByPage
         );
+    }
+
+    /**
+     * @param array<int, list<array<string, mixed>>> $rowsByPage
+     * @param array<int, array<int, array<string, mixed>>> $parentTreeEntriesByPage
+     * @param array<int, array<string, mixed>> $elementsByObject
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private function decorateTaggedContentRowsWithStructureMetadata(
+        array $rowsByPage,
+        array $parentTreeEntriesByPage,
+        array $elementsByObject
+    ): array {
+        foreach ($rowsByPage as $pageObject => &$rows) {
+            foreach ($rows as &$row) {
+                $mcid = $row['mcid'] ?? null;
+                if (!is_int($mcid)) {
+                    continue;
+                }
+
+                $parentEntry = $parentTreeEntriesByPage[$pageObject][$mcid] ?? null;
+                if (!is_array($parentEntry)) {
+                    continue;
+                }
+
+                foreach ([
+                    'struct_object',
+                    'raw_role',
+                    'role',
+                    'role_mapped',
+                ] as $key) {
+                    if (array_key_exists($key, $parentEntry) && !array_key_exists($key, $row)) {
+                        $row[$key] = $parentEntry[$key];
+                    }
+                }
+
+                $structObject = $row['struct_object'] ?? null;
+                if (!is_int($structObject) || !isset($elementsByObject[$structObject])) {
+                    continue;
+                }
+
+                foreach ([
+                    'title',
+                    'language',
+                    'language_inherited',
+                    'alternate_text',
+                    'actual_text',
+                    'expansion_text',
+                    'id',
+                    'classes',
+                    'revision',
+                    'namespace',
+                    'associated_file_count',
+                    'associated_files',
+                ] as $key) {
+                    if (array_key_exists($key, $elementsByObject[$structObject]) && !array_key_exists($key, $row)) {
+                        $row[$key] = $elementsByObject[$structObject][$key];
+                    }
+                }
+            }
+            unset($row);
+        }
+        unset($rows);
+
+        return $rowsByPage;
+    }
+
+    /**
+     * @return array<int, array<int, array<string, mixed>>>
+     */
+    private function parentTreeEntriesByPageObject(string $pdfBytes): array
+    {
+        $objects = $this->pdfObjects($pdfBytes);
+        $catalog = $this->catalogObjectBody($pdfBytes, $objects);
+        if ($catalog === null) {
+            return [];
+        }
+
+        $entries = [];
+        foreach ($this->pageBoundaryMetadataByPageObject($pdfBytes, $catalog, $objects) as $pageObject => $page) {
+            $parentTree = $page['parent_tree']['entries'] ?? null;
+            if (!is_array($parentTree)) {
+                continue;
+            }
+
+            foreach ($parentTree as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $mcid = $entry['mcid'] ?? null;
+                if (is_int($mcid)) {
+                    $entries[$pageObject][$mcid] = $entry;
+                }
+            }
+        }
+
+        return $entries;
     }
 
     /**
