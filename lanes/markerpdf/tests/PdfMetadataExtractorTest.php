@@ -351,6 +351,75 @@ return [
         $t->true(!str_contains($plainText, 'Café'));
         $t->true(!str_contains($plainText, 'Legacy Encoded Title'));
     },
+    'keeps XMP and DocInfo metadata distinct from catalog destination names' => static function (TestRunner $t): void {
+        $xmp = '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
+            . '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+            . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+            . '<rdf:Description rdf:about=""'
+            . ' xmlns:dc="http://purl.org/dc/elements/1.1/"'
+            . ' xmlns:xmp="http://ns.adobe.com/xap/1.0/">'
+            . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Destination Boundary XMP Title</rdf:li></rdf:Alt></dc:title>'
+            . '<dc:description><rdf:Alt><rdf:li xml:lang="x-default">Navigation names are review metadata</rdf:li></rdf:Alt></dc:description>'
+            . '<xmp:CreateDate>2026-06-02T12:41:55Z</xmp:CreateDate>'
+            . '</rdf:Description>'
+            . '</rdf:RDF>'
+            . '</x:xmpmeta>'
+            . '<?xpacket end="w"?>';
+        $compressedXmp = gzcompress($xmp);
+        if (!is_string($compressedXmp)) {
+            throw new RuntimeException('Unable to compress destination metadata boundary fixture.');
+        }
+
+        $content = 'BT /F1 12 Tf 72 720 Td (Destination Metadata Body) Tj ET';
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Metadata 5 0 R /Names << /Dests 8 0 R >> /Dests << /LegacyAppendix [4 0 R /Fit] /LegacyStale [99 0 R /Fit] >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 6 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($compressedXmp) . " >>\nstream\n{$compressedXmp}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Title (DocInfo Destination Title) /Author (Metadata Owner; Site Editor) /Producer (DocInfo Producer) >>\nendobj\n"
+            . "8 0 obj\n<< /Kids [9 0 R 10 0 R 8 0 R] >>\nendobj\n"
+            . "9 0 obj\n<< /Limits [(A) (M)] /Names [(Chapter One) [3 0 R /FitH 640] 12 0 R 13 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Limits [(N) (Z)] /Names [(Review Deck) 14 0 R (Stale Review) [99 0 R /XYZ 1 2 3]] >>\nendobj\n"
+            . "12 0 obj\n<FEFF0049006E00640069007200650063007400200044006500730074>\nendobj\n"
+            . "13 0 obj\n<< /D [4 0 R /FitR 10 20 300 740] >>\nendobj\n"
+            . "14 0 obj\n[3 0 R /XYZ 144 null 0]\nendobj\n"
+            . "trailer\n<< /Root 1 0 R /Info 7 0 R >>\n%%EOF";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $destinations = $metadata['document_destinations'] ?? [];
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['xmp', 'info', 'catalog'], $metadata['source']);
+        $t->same('Destination Boundary XMP Title', $metadata['title']);
+        $t->same(['Metadata Owner', 'Site Editor'], $metadata['authors']);
+        $t->same('DocInfo Producer', $metadata['producer']);
+        $t->same(['names_dests', 'legacy_dests'], $destinations['source']);
+        $t->same(4, $destinations['count']);
+        $t->same(2, $destinations['page_count']);
+        $t->same(['Chapter One', 'Indirect Dest', 'Review Deck', 'LegacyAppendix'], $destinations['names']);
+        $t->same(2, $destinations['unresolved_count']);
+        $t->same('Chapter One', $destinations['destinations'][0]['name']);
+        $t->same(0, $destinations['destinations'][0]['page']);
+        $t->same(1, $destinations['destinations'][0]['page_number']);
+        $t->same('FitH', $destinations['destinations'][0]['view_mode']);
+        $t->same(['top' => 640.0], $destinations['destinations'][0]['view_parameters']);
+        $t->same('Indirect Dest', $destinations['destinations'][1]['name']);
+        $t->same(1, $destinations['destinations'][1]['page']);
+        $t->same('FitR', $destinations['destinations'][1]['view_mode']);
+        $t->same(['left' => 10.0, 'bottom' => 20.0, 'right' => 300.0, 'top' => 740.0], $destinations['destinations'][1]['view_parameters']);
+        $t->same('Review Deck', $destinations['destinations'][2]['name']);
+        $t->same('XYZ', $destinations['destinations'][2]['view_mode']);
+        $t->same(['left' => 144.0, 'top' => null, 'zoom' => null], $destinations['destinations'][2]['view_parameters']);
+        $t->same('legacy_dests', $destinations['destinations'][3]['source']);
+        $t->same('Fit', $destinations['destinations'][3]['view_mode']);
+        $t->same('Destination Metadata Body', $plainText);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Stale Review'));
+        $t->true(!str_contains($plainText, 'Chapter One'));
+        $t->true(!str_contains($plainText, 'Destination Boundary XMP Title'));
+    },
     'extracts trailer ID array as document fingerprint metadata' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Fingerprint Body) Tj ET';
         $permanentId = "WP PDF\x00ID-A";

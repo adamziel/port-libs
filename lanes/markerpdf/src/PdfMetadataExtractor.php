@@ -133,6 +133,7 @@ final class PdfMetadataExtractor
      *     page_layout?: string,
      *     page_mode?: string,
      *     viewer_preferences?: array<string, mixed>,
+     *     document_destinations?: array<string, mixed>,
      *     pdfa?: array{has_output_intent: bool, output_condition_identifiers: list<string>, profile_sha256: list<string>}
      * }
      */
@@ -537,7 +538,421 @@ final class PdfMetadataExtractor
             $metadata['piece_info'] = $pieceInfo;
         }
 
+        $documentDestinations = $this->documentDestinationMetadata($catalog, $objects);
+        if ($documentDestinations !== []) {
+            $metadata['document_destinations'] = $documentDestinations;
+        }
+
         return $metadata;
+    }
+
+    /**
+     * Catalog destination name trees are navigation metadata. They should be
+     * available to WordPress review UIs without becoming title/author fallback
+     * strings or visible page text.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function documentDestinationMetadata(string $catalog, array $objects): array
+    {
+        $pageObjectNumbers = $this->orderedDestinationPageObjectNumbers($catalog, $objects);
+        if ($pageObjectNumbers === []) {
+            return [];
+        }
+
+        $pageIndexes = [];
+        foreach ($pageObjectNumbers as $index => $pageObjectNumber) {
+            $pageIndexes[$pageObjectNumber] = $index;
+        }
+
+        $entries = [];
+        $names = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Names'), $objects);
+        $nameTreeRoot = $names === null
+            ? null
+            : $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($names['body'], 'Dests'), $objects);
+        if ($nameTreeRoot !== null) {
+            $seenNameTreeObjects = [];
+            $this->collectDestinationNameTreeEntries($nameTreeRoot, $objects, $entries, $seenNameTreeObjects);
+        }
+
+        $legacyDests = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Dests'), $objects);
+        if ($legacyDests !== null) {
+            foreach ($this->dictionaryTopLevelEntries($legacyDests['body']) as $name => $value) {
+                $entries[] = [
+                    'name' => $name,
+                    'value' => $value,
+                    'source' => 'legacy_dests',
+                ];
+            }
+        }
+
+        if ($entries === []) {
+            return [];
+        }
+
+        $destinationsByName = [];
+        foreach ($entries as $entry) {
+            if (!isset($destinationsByName[$entry['name']])) {
+                $destinationsByName[$entry['name']] = $entry['value'];
+            }
+        }
+
+        $destinations = [];
+        $unresolved = 0;
+        foreach ($entries as $entry) {
+            $details = $this->documentDestinationDetails(
+                $entry['value'],
+                $objects,
+                $pageIndexes,
+                $destinationsByName,
+                $entry['name']
+            );
+            if ($details === null) {
+                $unresolved++;
+                continue;
+            }
+
+            $details['name'] = $entry['name'];
+            $details['destination'] = $entry['name'];
+            $details['source'] = $entry['source'];
+            $destinations[] = $details;
+        }
+
+        if ($destinations === []) {
+            return $unresolved > 0
+                ? [
+                    'source' => $this->uniqueStrings(array_column($entries, 'source')),
+                    'count' => 0,
+                    'page_count' => count($pageObjectNumbers),
+                    'names' => [],
+                    'destinations' => [],
+                    'unresolved_count' => $unresolved,
+                ]
+                : [];
+        }
+
+        return [
+            'source' => $this->uniqueStrings(array_column($entries, 'source')),
+            'count' => count($destinations),
+            'page_count' => count($pageObjectNumbers),
+            'names' => array_values(array_map(static fn (array $destination): string => $destination['name'], $destinations)),
+            'destinations' => $destinations,
+            'unresolved_count' => $unresolved,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<int>
+     */
+    private function orderedDestinationPageObjectNumbers(string $catalog, array $objects): array
+    {
+        $pagesValue = $this->dictionaryTopLevelRawValue($catalog, 'Pages');
+        $pagesRoot = $pagesValue === null ? null : $this->objectNumberFromReference($pagesValue);
+        if ($pagesRoot !== null) {
+            $pages = $this->destinationPageObjectNumbersFromTree($pagesRoot, $objects);
+            if ($pages !== []) {
+                return $pages;
+            }
+        }
+
+        $pages = [];
+        foreach ($objects as $objectNumber => $objectBody) {
+            $dictionary = $this->dictionaryObjectBody($objectBody);
+            if ($dictionary !== null && $this->dictionaryStringValue($dictionary, 'Type') === 'Page') {
+                $pages[] = $objectNumber;
+            }
+        }
+
+        return $pages;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     * @return list<int>
+     */
+    private function destinationPageObjectNumbersFromTree(int $objectNumber, array $objects, array $seen = []): array
+    {
+        if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+            return [];
+        }
+        $seen[$objectNumber] = true;
+
+        $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+        if ($dictionary === null) {
+            return [];
+        }
+
+        $type = $this->dictionaryStringValue($dictionary, 'Type');
+        if ($type === 'Page') {
+            return [$objectNumber];
+        }
+
+        $kids = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($dictionary, 'Kids') ?? '', $objects);
+        if ($kids === []) {
+            return [];
+        }
+
+        $pages = [];
+        foreach ($kids as $kid) {
+            $kidObjectNumber = $this->objectNumberFromReference($kid);
+            if ($kidObjectNumber === null) {
+                continue;
+            }
+
+            foreach ($this->destinationPageObjectNumbersFromTree($kidObjectNumber, $objects, $seen) as $pageObjectNumber) {
+                $pages[] = $pageObjectNumber;
+            }
+        }
+
+        return $pages;
+    }
+
+    /**
+     * @param array{body: string, object: int|null} $node
+     * @param array<int, string> $objects
+     * @param list<array{name: string, value: string, source: string}> $entries
+     * @param array<int, true> $seenObjects
+     */
+    private function collectDestinationNameTreeEntries(array $node, array $objects, array &$entries, array &$seenObjects, int $depth = 0): void
+    {
+        if ($depth > 20) {
+            return;
+        }
+
+        $objectNumber = $node['object'];
+        if ($objectNumber !== null) {
+            if (isset($seenObjects[$objectNumber])) {
+                return;
+            }
+            $seenObjects[$objectNumber] = true;
+        }
+
+        $names = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Names') ?? '', $objects);
+        for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
+            $name = $this->destinationNameFromRaw($names[$index], $objects);
+            if ($name === null || $name === '') {
+                continue;
+            }
+
+            $entries[] = [
+                'name' => $name,
+                'value' => $names[$index + 1],
+                'source' => 'names_dests',
+            ];
+        }
+
+        $kids = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Kids') ?? '', $objects);
+        foreach ($kids as $kid) {
+            $child = $this->resolveDictionaryFromValue($kid, $objects);
+            if ($child !== null) {
+                $this->collectDestinationNameTreeEntries($child, $objects, $entries, $seenObjects, $depth + 1);
+            }
+        }
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, int> $pageIndexes
+     * @param array<string, string> $destinationsByName
+     * @param array<string, true> $seenNames
+     * @return array<string, mixed>|null
+     */
+    private function documentDestinationDetails(
+        string $value,
+        array $objects,
+        array $pageIndexes,
+        array $destinationsByName,
+        ?string $destinationName,
+        array $seenNames = []
+    ): ?array {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        $page = $this->destinationPageFromRaw($trimmed, $objects, $pageIndexes);
+        if ($page !== null) {
+            return $this->documentDestinationRow($page, $destinationName, null, []);
+        }
+
+        $name = $this->destinationNameFromRaw($trimmed, $objects);
+        if ($name !== null && array_key_exists($name, $destinationsByName)) {
+            if (isset($seenNames[$name])) {
+                return null;
+            }
+            $seenNames[$name] = true;
+
+            return $this->documentDestinationDetails(
+                $destinationsByName[$name],
+                $objects,
+                $pageIndexes,
+                $destinationsByName,
+                $name,
+                $seenNames
+            );
+        }
+
+        $dictionary = $this->resolveDictionaryFromValue($trimmed, $objects);
+        if ($dictionary !== null) {
+            $entries = $this->dictionaryTopLevelEntries($dictionary['body']);
+            if (isset($entries['D'])) {
+                return $this->documentDestinationDetails(
+                    $entries['D'],
+                    $objects,
+                    $pageIndexes,
+                    $destinationsByName,
+                    $destinationName,
+                    $seenNames
+                );
+            }
+        }
+
+        $items = $this->arrayItemsFromValue($trimmed, $objects);
+        if ($items !== []) {
+            return $this->documentDestinationArrayDetails($items, $objects, $pageIndexes, $destinationName);
+        }
+
+        $resolved = trim($this->resolvePdfValue($trimmed, $objects) ?? $trimmed);
+        if (preg_match('/^\d+$/', $resolved) === 1) {
+            $pageIndex = (int) $resolved;
+            return $pageIndex >= 0 && $pageIndex < count($pageIndexes)
+                ? $this->documentDestinationRow(['page' => $pageIndex, 'page_object' => null], $destinationName, null, [])
+                : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $items
+     * @param array<int, string> $objects
+     * @param array<int, int> $pageIndexes
+     * @return array<string, mixed>|null
+     */
+    private function documentDestinationArrayDetails(array $items, array $objects, array $pageIndexes, ?string $destinationName): ?array
+    {
+        $page = $this->destinationPageFromRaw($items[0] ?? '', $objects, $pageIndexes);
+        if ($page === null) {
+            return null;
+        }
+
+        $viewMode = isset($items[1]) ? $this->destinationNameFromRaw($items[1], $objects) : null;
+        $viewPosition = [];
+        for ($index = 2, $count = count($items); $index < $count; $index++) {
+            $viewPosition[] = $this->destinationNumericValue($items[$index], $objects);
+        }
+
+        if ($viewMode === 'XYZ' && array_key_exists(2, $viewPosition) && $viewPosition[2] === 0.0) {
+            $viewPosition[2] = null;
+        }
+
+        return $this->documentDestinationRow($page, $destinationName, $viewMode, $viewPosition);
+    }
+
+    /**
+     * @param array{page: int, page_object: int|null} $page
+     * @param list<float|null> $viewPosition
+     * @return array<string, mixed>
+     */
+    private function documentDestinationRow(array $page, ?string $destinationName, ?string $viewMode, array $viewPosition): array
+    {
+        return [
+            'name' => $destinationName,
+            'destination' => $destinationName,
+            'page' => $page['page'],
+            'page_number' => $page['page'] + 1,
+            'page_object' => $page['page_object'],
+            'view_mode' => $viewMode,
+            'view_position' => $viewPosition,
+            'view_parameters' => $this->destinationViewParameters($viewMode, $viewPosition),
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, int> $pageIndexes
+     * @return array{page: int, page_object: int|null}|null
+     */
+    private function destinationPageFromRaw(string $value, array $objects, array $pageIndexes): ?array
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        $objectNumber = $this->objectNumberFromReference($trimmed);
+        if ($objectNumber !== null && isset($pageIndexes[$objectNumber])) {
+            return [
+                'page' => $pageIndexes[$objectNumber],
+                'page_object' => $objectNumber,
+            ];
+        }
+
+        $resolved = trim($this->resolvePdfValue($trimmed, $objects) ?? $trimmed);
+        $resolvedObjectNumber = $this->objectNumberFromReference($resolved);
+        if ($resolvedObjectNumber !== null && isset($pageIndexes[$resolvedObjectNumber])) {
+            return [
+                'page' => $pageIndexes[$resolvedObjectNumber],
+                'page_object' => $resolvedObjectNumber,
+            ];
+        }
+
+        if (preg_match('/^\d+$/', $resolved) === 1 && (int) $resolved < count($pageIndexes)) {
+            return [
+                'page' => (int) $resolved,
+                'page_object' => null,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function destinationNameFromRaw(string $value, array $objects): ?string
+    {
+        $resolved = $this->reviewValueFromRaw($value, $objects);
+
+        return is_string($resolved) && $resolved !== '' ? $resolved : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function destinationNumericValue(string $value, array $objects): ?float
+    {
+        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        if ($resolved === '' || $resolved === 'null') {
+            return null;
+        }
+
+        return is_numeric($resolved) ? (float) $resolved : null;
+    }
+
+    /**
+     * @param list<float|null> $viewPosition
+     * @return array<string, float|null>
+     */
+    private function destinationViewParameters(?string $viewMode, array $viewPosition): array
+    {
+        $names = match ($viewMode) {
+            'XYZ' => ['left', 'top', 'zoom'],
+            'FitH', 'FitBH' => ['top'],
+            'FitV', 'FitBV' => ['left'],
+            'FitR' => ['left', 'bottom', 'right', 'top'],
+            default => [],
+        };
+
+        $parameters = [];
+        foreach ($names as $index => $name) {
+            $parameters[$name] = $viewPosition[$index] ?? null;
+        }
+
+        return $parameters;
     }
 
     /**
@@ -1000,7 +1415,7 @@ final class PdfMetadataExtractor
             $result['keywords'] = array_values($keywords);
         }
 
-        foreach (['language', 'page_layout', 'page_mode', 'viewer_preferences'] as $field) {
+        foreach (['language', 'page_layout', 'page_mode', 'viewer_preferences', 'document_destinations'] as $field) {
             if (array_key_exists($field, $catalog)) {
                 $result[$field] = $catalog[$field];
             }
