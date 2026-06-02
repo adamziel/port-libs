@@ -45,6 +45,29 @@ final class PdfOutlineExtractor
     }
 
     /**
+     * Native boundary for PDF outline /S /GoToR actions. Marker receives link
+     * and reference metadata from pdftext/pypdfium; this keeps remote document
+     * targets reviewable without treating them as same-document page rows.
+     *
+     * @return list<array{title: string, level: int, file: string, destination: string|null, page: int|null, new_window: bool|null}>
+     */
+    public function getRemoteGoToActions(string $pdfBytes, int $maxDepth = 15): array
+    {
+        $objects = $this->parsedObjectValues($pdfBytes);
+        $catalog = $this->catalogDictionary($objects);
+        if ($catalog === null) {
+            return [];
+        }
+
+        $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
+        if ($outlineRoot === null) {
+            return [];
+        }
+
+        return $this->remoteGoToOutlineItems($outlineRoot['First'] ?? null, $objects, max(1, $maxDepth));
+    }
+
+    /**
      * @return array<int, mixed>
      */
     private function parsedObjectValues(string $pdfBytes): array
@@ -268,6 +291,147 @@ final class PdfOutlineExtractor
         }
 
         return $items;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @param array<int, true> $seen
+     * @return list<array{title: string, level: int, file: string, destination: string|null, page: int|null, new_window: bool|null}>
+     */
+    private function remoteGoToOutlineItems(
+        mixed $firstItem,
+        array $objects,
+        int $maxDepth,
+        int $level = 1,
+        array $seen = []
+    ): array {
+        if ($level > $maxDepth) {
+            return [];
+        }
+
+        $items = [];
+        $current = $this->referenceObjectNumber($firstItem);
+        while ($current !== null && !isset($seen[$current])) {
+            $seen[$current] = true;
+            $dict = $this->resolveDictionary($this->refValue($current), $objects);
+            if ($dict === null) {
+                break;
+            }
+
+            $title = $this->stringOrNameValue($this->resolveValue($dict['Title'] ?? null, $objects));
+            $target = $this->remoteGoToActionTarget($dict, $objects);
+            if ($title !== null && $target !== null) {
+                $items[] = [
+                    'title' => $title,
+                    'level' => $level,
+                    'file' => $target['file'],
+                    'destination' => $target['destination'],
+                    'page' => $target['page'],
+                    'new_window' => $target['new_window'],
+                ];
+            }
+
+            if ($level < $maxDepth) {
+                foreach ($this->remoteGoToOutlineItems($dict['First'] ?? null, $objects, $maxDepth, $level + 1, $seen) as $child) {
+                    $items[] = $child;
+                }
+            }
+
+            $current = $this->referenceObjectNumber($dict['Next'] ?? null);
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<string, mixed> $outline
+     * @param array<int, mixed> $objects
+     * @return array{file: string, destination: string|null, page: int|null, new_window: bool|null}|null
+     */
+    private function remoteGoToActionTarget(array $outline, array $objects): ?array
+    {
+        $action = $this->resolveDictionary($outline['A'] ?? null, $objects);
+        if ($action === null || $this->nameValue($action['S'] ?? null) !== 'GoToR') {
+            return null;
+        }
+
+        $file = $this->fileSpecValue($action['F'] ?? null, $objects);
+        if ($file === null || !array_key_exists('D', $action)) {
+            return null;
+        }
+
+        $destination = $this->remoteDestinationValue($action['D'], $objects);
+        if ($destination === null) {
+            return null;
+        }
+
+        return [
+            'file' => $file,
+            'destination' => $destination['destination'],
+            'page' => $destination['page'],
+            'new_window' => is_bool($action['NewWindow'] ?? null) ? $action['NewWindow'] : null,
+        ];
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     */
+    private function fileSpecValue(mixed $value, array $objects): ?string
+    {
+        $resolved = $this->resolveValue($value, $objects);
+        $file = $this->stringOrNameValue($resolved);
+        if ($file !== null && $file !== '') {
+            return $file;
+        }
+
+        $dict = $this->dictionaryItems($resolved);
+        if ($dict === null) {
+            return null;
+        }
+
+        foreach (['UF', 'F', 'DOS', 'Unix', 'Mac'] as $key) {
+            $file = $this->stringOrNameValue($this->resolveValue($dict[$key] ?? null, $objects));
+            if ($file !== null && $file !== '') {
+                return $file;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @return array{destination: string|null, page: int|null}|null
+     */
+    private function remoteDestinationValue(mixed $value, array $objects): ?array
+    {
+        $resolved = $this->resolveValue($value, $objects);
+        $name = $this->stringOrNameValue($resolved);
+        if ($name !== null) {
+            return ['destination' => $name, 'page' => null];
+        }
+
+        $dict = $this->dictionaryItems($resolved);
+        if ($dict !== null && array_key_exists('D', $dict)) {
+            return $this->remoteDestinationValue($dict['D'], $objects);
+        }
+
+        $array = $this->arrayItems($resolved);
+        if ($array === null || $array === []) {
+            return null;
+        }
+
+        $first = $this->resolveValue($array[0], $objects);
+        if (is_int($first) && $first >= 0) {
+            return ['destination' => null, 'page' => $first];
+        }
+
+        $name = $this->stringOrNameValue($first);
+        if ($name !== null) {
+            return ['destination' => $name, 'page' => null];
+        }
+
+        return null;
     }
 
     /**

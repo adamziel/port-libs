@@ -23,6 +23,7 @@ final class PdfMetadataExtractor
      *     source: list<string>,
      *     xmp: array<string, mixed>,
      *     info: array<string, string>,
+     *     output_intents: list<array<string, mixed>>,
      *     title?: string,
      *     authors?: list<string>,
      *     description?: string,
@@ -31,7 +32,8 @@ final class PdfMetadataExtractor
      *     producer?: string,
      *     created_at?: string,
      *     modified_at?: string,
-     *     metadata_date?: string
+     *     metadata_date?: string,
+     *     pdfa?: array{has_output_intent: bool, output_condition_identifiers: list<string>, profile_sha256: list<string>}
      * }
      */
     public function extractDocumentMetadata(string $pdfBytes): array
@@ -39,8 +41,9 @@ final class PdfMetadataExtractor
         $objects = $this->pdfObjects($pdfBytes);
         $xmp = $this->extractXmpMetadata($pdfBytes, $objects);
         $info = $this->extractInfoMetadata($pdfBytes, $objects);
+        $outputIntents = $this->extractOutputIntentMetadata($pdfBytes, $objects);
 
-        return $this->mergedMetadata($xmp, $info);
+        return $this->mergedMetadata($xmp, $info, $outputIntents);
     }
 
     /**
@@ -100,16 +103,45 @@ final class PdfMetadataExtractor
     }
 
     /**
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function extractOutputIntentMetadata(string $pdfBytes, array $objects): array
+    {
+        $catalog = $this->catalogObjectBody($pdfBytes, $objects);
+        if ($catalog === null) {
+            return [];
+        }
+
+        $value = $this->dictionaryRawValue($catalog, 'OutputIntents');
+        if ($value === null) {
+            return [];
+        }
+
+        $outputIntents = [];
+        foreach ($this->outputIntentDictionariesFromValue($value, $objects) as $dictionary) {
+            $intent = $this->outputIntentFromDictionary($dictionary, $objects);
+            if ($intent !== null) {
+                $outputIntents[] = $intent;
+            }
+        }
+
+        return $outputIntents;
+    }
+
+    /**
      * @param array<string, mixed> $xmp
      * @param array<string, string> $info
+     * @param list<array<string, mixed>> $outputIntents
      * @return array<string, mixed>
      */
-    private function mergedMetadata(array $xmp, array $info): array
+    private function mergedMetadata(array $xmp, array $info, array $outputIntents): array
     {
         $result = [
             'source' => [],
             'xmp' => $xmp,
             'info' => $info,
+            'output_intents' => $outputIntents,
         ];
 
         if ($xmp !== []) {
@@ -117,6 +149,9 @@ final class PdfMetadataExtractor
         }
         if ($info !== []) {
             $result['source'][] = 'info';
+        }
+        if ($outputIntents !== []) {
+            $result['source'][] = 'output_intents';
         }
 
         foreach (['title', 'description', 'creator_tool', 'producer', 'created_at', 'modified_at', 'metadata_date'] as $field) {
@@ -134,6 +169,11 @@ final class PdfMetadataExtractor
         $keywords = $xmp['keywords'] ?? $this->keywordsFromInfo($info);
         if (is_array($keywords) && $keywords !== []) {
             $result['keywords'] = array_values($keywords);
+        }
+
+        $pdfa = $this->pdfaOutputIntentSummary($outputIntents);
+        if ($pdfa !== null) {
+            $result['pdfa'] = $pdfa;
         }
 
         return $result;
@@ -465,6 +505,349 @@ final class PdfMetadataExtractor
         return $filters;
     }
 
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function outputIntentDictionariesFromValue(string $value, array $objects): array
+    {
+        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        if ($resolved === '') {
+            return [];
+        }
+
+        if (str_starts_with($resolved, '[')) {
+            return $this->outputIntentDictionariesFromArray($resolved, $objects);
+        }
+
+        if (str_starts_with($resolved, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($resolved, 0);
+            return $dictionary === null ? [] : [$dictionary];
+        }
+
+        $dictionary = $this->dictionaryObjectBody($resolved);
+        return $dictionary === null ? [] : [$dictionary];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function outputIntentDictionariesFromArray(string $arrayValue, array $objects): array
+    {
+        $body = $this->arrayBody($arrayValue);
+        if ($body === null) {
+            return [];
+        }
+
+        $dictionaries = [];
+        for ($offset = 0, $length = strlen($body); $offset < $length;) {
+            while ($offset < $length && ctype_space($body[$offset])) {
+                $offset++;
+            }
+
+            if ($offset >= $length) {
+                break;
+            }
+
+            $remaining = substr($body, $offset);
+            if (preg_match('/(\d+)\s+\d+\s+R\b/A', $remaining, $match) === 1) {
+                $objectNumber = (int) $match[1];
+                if (isset($objects[$objectNumber])) {
+                    foreach ($this->outputIntentDictionariesFromValue($objects[$objectNumber], $objects) as $dictionary) {
+                        $dictionaries[] = $dictionary;
+                    }
+                }
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            if (substr($body, $offset, 2) === '<<') {
+                $dictionary = $this->readPdfDictionaryAt($body, $offset);
+                if ($dictionary !== null) {
+                    $dictionaries[] = $dictionary;
+                    $offset += strlen($dictionary) + 4;
+                    continue;
+                }
+            }
+
+            $offset++;
+        }
+
+        return $dictionaries;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function outputIntentFromDictionary(string $dictionary, array $objects): ?array
+    {
+        $subtype = $this->dictionaryStringValue($dictionary, 'S');
+        $identifier = $this->dictionaryStringValue($dictionary, 'OutputConditionIdentifier');
+        $condition = $this->dictionaryStringValue($dictionary, 'OutputCondition');
+        $registryName = $this->dictionaryStringValue($dictionary, 'RegistryName');
+        $info = $this->dictionaryStringValue($dictionary, 'Info');
+        $type = $this->dictionaryStringValue($dictionary, 'Type');
+
+        if ($subtype === null && $identifier === null && $condition === null && $info === null) {
+            return null;
+        }
+
+        $intent = [
+            'is_pdfa' => $subtype === 'GTS_PDFA1',
+        ];
+
+        foreach ([
+            'type' => $type,
+            'subtype' => $subtype,
+            'output_condition_identifier' => $identifier,
+            'output_condition' => $condition,
+            'registry_name' => $registryName,
+            'info' => $info,
+        ] as $key => $value) {
+            if (is_string($value) && $value !== '') {
+                $intent[$key] = $value;
+            }
+        }
+
+        $profile = $this->outputProfileMetadata($dictionary, $objects);
+        if ($profile !== null) {
+            $intent['dest_output_profile'] = $profile;
+        }
+
+        return $intent;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function outputProfileMetadata(string $dictionary, array $objects): ?array
+    {
+        $value = $this->dictionaryRawValue($dictionary, 'DestOutputProfile');
+        if ($value === null || preg_match('/^(\d+)\s+\d+\s+R\b/', trim($value), $match) !== 1) {
+            return null;
+        }
+
+        $objectNumber = (int) $match[1];
+        if (!isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        $profileDictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+        $stream = $this->decodeStreamObject($objects[$objectNumber], $objects);
+        if ($profileDictionary === null || $stream === null) {
+            return null;
+        }
+
+        $profile = [
+            'object_number' => $objectNumber,
+            'bytes' => strlen($stream),
+            'sha256' => hash('sha256', $stream),
+        ];
+
+        $components = $this->dictionaryIntegerValue($profileDictionary, 'N');
+        if ($components !== null) {
+            $profile['color_components'] = $components;
+        }
+
+        $alternate = $this->dictionaryStringValue($profileDictionary, 'Alternate');
+        if ($alternate !== null) {
+            $profile['alternate_color_space'] = $alternate;
+        }
+
+        $filters = $this->streamFilters($profileDictionary, $objects);
+        if ($filters !== []) {
+            $profile['filters'] = $filters;
+        }
+
+        return $profile;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $outputIntents
+     * @return array{has_output_intent: bool, output_condition_identifiers: list<string>, profile_sha256: list<string>}|null
+     */
+    private function pdfaOutputIntentSummary(array $outputIntents): ?array
+    {
+        $hasPdfaOutputIntent = false;
+        $identifiers = [];
+        $hashes = [];
+
+        foreach ($outputIntents as $intent) {
+            if (($intent['subtype'] ?? null) !== 'GTS_PDFA1') {
+                continue;
+            }
+
+            $hasPdfaOutputIntent = true;
+            if (isset($intent['output_condition_identifier']) && is_string($intent['output_condition_identifier'])) {
+                $identifiers[] = $intent['output_condition_identifier'];
+            }
+
+            $profile = $intent['dest_output_profile'] ?? null;
+            if (is_array($profile) && isset($profile['sha256']) && is_string($profile['sha256'])) {
+                $hashes[] = $profile['sha256'];
+            }
+        }
+
+        $identifiers = $this->uniqueStrings($identifiers);
+        $hashes = $this->uniqueStrings($hashes);
+        if (!$hasPdfaOutputIntent) {
+            return null;
+        }
+
+        return [
+            'has_output_intent' => true,
+            'output_condition_identifiers' => $identifiers,
+            'profile_sha256' => $hashes,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function resolvePdfValue(string $value, array $objects): ?string
+    {
+        $trimmed = trim($value);
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $trimmed, $match) !== 1) {
+            return $trimmed;
+        }
+
+        $objectNumber = (int) $match[1];
+        return $objects[$objectNumber] ?? null;
+    }
+
+    private function dictionaryRawValue(string $dictionary, string $key): ?string
+    {
+        if (preg_match('/\/' . preg_quote($key, '/') . '\b/s', $dictionary, $match, PREG_OFFSET_CAPTURE) !== 1) {
+            return null;
+        }
+
+        $offset = $match[0][1] + strlen($match[0][0]);
+        return $this->readPdfValueAt($dictionary, $offset);
+    }
+
+    private function readPdfValueAt(string $value, int $offset): ?string
+    {
+        $length = strlen($value);
+        while ($offset < $length && ctype_space($value[$offset])) {
+            $offset++;
+        }
+
+        if ($offset >= $length) {
+            return null;
+        }
+
+        if ($value[$offset] === '[') {
+            return $this->readPdfArrayAt($value, $offset);
+        }
+
+        if (substr($value, $offset, 2) === '<<') {
+            $dictionary = $this->readPdfDictionaryAt($value, $offset);
+            return $dictionary === null ? null : '<<' . $dictionary . '>>';
+        }
+
+        $remaining = substr($value, $offset);
+        if (preg_match('/\d+\s+\d+\s+R\b/A', $remaining, $match) === 1) {
+            return $match[0];
+        }
+
+        if ($value[$offset] === '(') {
+            $literal = $this->literalStringValueAt($value, $offset);
+            return $literal === null ? null : '(' . $literal . ')';
+        }
+
+        if ($value[$offset] === '<' && $offset + 1 < $length && $value[$offset + 1] !== '<') {
+            $end = strpos($value, '>', $offset + 1);
+            return $end === false ? null : substr($value, $offset, $end - $offset + 1);
+        }
+
+        if (preg_match('/\/[^\s\[\]()<>{}\/%]+|[^\s\[\]()<>{}\/%]+/A', $remaining, $match) === 1) {
+            return $match[0];
+        }
+
+        return null;
+    }
+
+    private function readPdfArrayAt(string $value, int $offset): ?string
+    {
+        if ($offset >= strlen($value) || $value[$offset] !== '[') {
+            return null;
+        }
+
+        $depth = 0;
+        $literalDepth = 0;
+        for ($index = $offset, $length = strlen($value); $index < $length; $index++) {
+            $char = $value[$index];
+
+            if ($literalDepth > 0) {
+                if ($char === '\\') {
+                    $index++;
+                    continue;
+                }
+                if ($char === '(') {
+                    $literalDepth++;
+                    continue;
+                }
+                if ($char === ')') {
+                    $literalDepth--;
+                }
+                continue;
+            }
+
+            if ($char === '(') {
+                $literalDepth = 1;
+                continue;
+            }
+
+            if ($char === '<' && $index + 1 < $length && $value[$index + 1] !== '<') {
+                $end = strpos($value, '>', $index + 1);
+                if ($end === false) {
+                    return null;
+                }
+                $index = $end;
+                continue;
+            }
+
+            if ($char === '[') {
+                $depth++;
+                continue;
+            }
+
+            if ($char !== ']') {
+                continue;
+            }
+
+            $depth--;
+            if ($depth === 0) {
+                return substr($value, $offset, $index - $offset + 1);
+            }
+        }
+
+        return null;
+    }
+
+    private function arrayBody(string $arrayValue): ?string
+    {
+        $array = $this->readPdfArrayAt(trim($arrayValue), 0);
+        if ($array === null || strlen($array) < 2) {
+            return null;
+        }
+
+        return substr($array, 1, -1);
+    }
+
+    private function dictionaryIntegerValue(string $dictionary, string $key): ?int
+    {
+        $value = $this->dictionaryRawValue($dictionary, $key);
+        if ($value === null || preg_match('/^-?\d+$/', trim($value)) !== 1) {
+            return null;
+        }
+
+        return (int) trim($value);
+    }
+
     private function decodeAsciiHexStream(string $stream): ?string
     {
         $body = strstr($stream, '>', true);
@@ -741,5 +1124,21 @@ final class PdfMetadataExtractor
     private function splitKeywords(string $keywords): array
     {
         return $this->cleanList(preg_split('/\s*[,;]\s*/', $keywords) ?: []);
+    }
+
+    /**
+     * @param list<string> $values
+     * @return list<string>
+     */
+    private function uniqueStrings(array $values): array
+    {
+        $out = [];
+        foreach ($values as $value) {
+            if ($value !== '' && !in_array($value, $out, true)) {
+                $out[] = $value;
+            }
+        }
+
+        return $out;
     }
 }

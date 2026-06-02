@@ -1511,16 +1511,93 @@ final class PdfTextExtractor
      */
     private function streamDecodeParms(string $dict, array $objects): array
     {
-        if (!preg_match('/\/DecodeParms\s*(\[(.*?)\]|<<(.*?)>>|null|(\d+)\s+\d+\s+R\b)/s', $dict, $match)) {
+        $offset = $this->nameValueOffset($dict, 'DecodeParms');
+        if ($offset === null) {
             return [];
         }
 
-        if (($match[2] ?? '') !== '') {
-            preg_match_all('/<<(.*?)>>|null|(\d+)\s+\d+\s+R\b/s', $match[2], $items, PREG_SET_ORDER);
-            return array_map(fn (array $item): ?string => $this->decodeParmsItem($item[0], $objects), $items);
+        return $this->decodeParmsValueList($dict, $offset, $objects);
+    }
+
+    /**
+     * @return list<string|null>
+     * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     */
+    private function decodeParmsValueList(string $value, int $offset, array $objects, array $seen = []): array
+    {
+        $offset = $this->skipPdfWhitespace($value, $offset);
+        if ($offset >= strlen($value)) {
+            return [];
         }
 
-        return [$this->decodeParmsItem($match[1], $objects)];
+        if ($value[$offset] === '[') {
+            $arrayBody = $this->readPdfArrayAt($value, $offset);
+            return $arrayBody === null ? [] : $this->decodeParmsArrayItems($arrayBody, $objects, $seen);
+        }
+
+        if (substr($value, $offset, 2) === '<<') {
+            $dictionary = $this->readPdfDictionaryTokenAt($value, $offset);
+            return $dictionary === null ? [] : [$dictionary];
+        }
+
+        if (preg_match('/\Gnull\b/s', $value, $match, 0, $offset) === 1) {
+            return [null];
+        }
+
+        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $value, $match, 0, $offset) === 1) {
+            $objectNumber = (int) $match[1];
+            if ($objectNumber <= 0 || isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+                return [];
+            }
+
+            $seen[$objectNumber] = true;
+            return $this->decodeParmsValueList(trim($objects[$objectNumber]), 0, $objects, $seen);
+        }
+
+        return [$this->decodeParmsItem(trim(substr($value, $offset)), $objects)];
+    }
+
+    /**
+     * @return list<string|null>
+     * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     */
+    private function decodeParmsArrayItems(string $arrayBody, array $objects, array $seen): array
+    {
+        $items = [];
+        $offset = 0;
+        $length = strlen($arrayBody);
+        while ($offset < $length) {
+            $offset = $this->skipPdfWhitespace($arrayBody, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (preg_match('/\Gnull\b/s', $arrayBody, $match, 0, $offset) === 1) {
+                $items[] = null;
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            if (substr($arrayBody, $offset, 2) === '<<') {
+                $dictionary = $this->readPdfDictionaryTokenAt($arrayBody, $offset);
+                if ($dictionary !== null) {
+                    $items[] = $dictionary;
+                    continue;
+                }
+            }
+
+            if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $arrayBody, $match, 0, $offset) === 1) {
+                $items[] = $this->decodeParmsItem($match[0], $objects);
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $offset++;
+        }
+
+        return $items;
     }
 
     /**

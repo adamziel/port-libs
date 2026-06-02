@@ -49,6 +49,27 @@ $pdfWithMetadata = static function (string $metadataStream, string $infoDictiona
         . "trailer\n<< /Root 1 0 R{$infoTrailer} >>\n%%EOF";
 };
 
+$pdfWithOutputIntent = static function (): array {
+    $pageContent = 'BT /F1 12 Tf 72 720 Td (PDF/A Ready Body) Tj ET';
+    $profileBytes = "ICC profile bytes for native PDF/A import review\n";
+    $compressedProfile = gzcompress($profileBytes);
+    if (!is_string($compressedProfile)) {
+        throw new RuntimeException('Unable to compress ICC profile fixture.');
+    }
+
+    $pdf = "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /OutputIntents 8 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($compressedProfile) . " >>\nstream\n{$compressedProfile}\nendstream\nendobj\n"
+        . "8 0 obj\n[9 0 R << /Type /OutputIntent /S /GTS_PDFX /OutputConditionIdentifier (Press Proof) /Info (Non PDF/A proof intent) >>]\nendobj\n"
+        . "9 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (sRGB IEC61966-2.1) /OutputCondition (sRGB display profile) /RegistryName (http://www.color.org) /Info <FEFF005000440046002F004100200073005200470042> /DestOutputProfile 7 0 R >>\nendobj\n"
+        . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+    return [$pdf, $profileBytes];
+};
+
 return [
     'extracts catalog XMP metadata before WordPress import review' => static function (TestRunner $t) use ($xmpPacket, $pdfWithMetadata): void {
         $info = '<< /Title (Legacy Title) /Author (Legacy Author) /Keywords (legacy,hidden) /Creator (Legacy Tool) /Producer (Legacy Producer) >>';
@@ -102,5 +123,35 @@ return [
         $t->same('Fallback Import Title', $metadata['title']);
         $t->same(['fallback', 'review'], $metadata['keywords']);
         $t->same('Visible PDF Body', (new PdfTextExtractor())->extractPlainText($pdf));
+    },
+    'extracts catalog PDF/A output intent metadata for WordPress review' => static function (TestRunner $t) use ($pdfWithOutputIntent): void {
+        [$pdf, $profileBytes] = $pdfWithOutputIntent();
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $text = (new PdfTextExtractor())->extractPlainText($pdf);
+
+        $t->same(['output_intents'], $metadata['source']);
+        $t->same('PDF/A Ready Body', $text);
+        $t->same(2, count($metadata['output_intents']));
+        $t->same('GTS_PDFA1', $metadata['output_intents'][0]['subtype']);
+        $t->true($metadata['output_intents'][0]['is_pdfa']);
+        $t->same('sRGB IEC61966-2.1', $metadata['output_intents'][0]['output_condition_identifier']);
+        $t->same('sRGB display profile', $metadata['output_intents'][0]['output_condition']);
+        $t->same('http://www.color.org', $metadata['output_intents'][0]['registry_name']);
+        $t->same('PDF/A sRGB', $metadata['output_intents'][0]['info']);
+        $t->same(7, $metadata['output_intents'][0]['dest_output_profile']['object_number']);
+        $t->same(3, $metadata['output_intents'][0]['dest_output_profile']['color_components']);
+        $t->same('DeviceRGB', $metadata['output_intents'][0]['dest_output_profile']['alternate_color_space']);
+        $t->same(strlen($profileBytes), $metadata['output_intents'][0]['dest_output_profile']['bytes']);
+        $t->same(hash('sha256', $profileBytes), $metadata['output_intents'][0]['dest_output_profile']['sha256']);
+        $t->same(['FlateDecode'], $metadata['output_intents'][0]['dest_output_profile']['filters']);
+        $t->same('GTS_PDFX', $metadata['output_intents'][1]['subtype']);
+        $t->true(!$metadata['output_intents'][1]['is_pdfa']);
+        $t->same([
+            'has_output_intent' => true,
+            'output_condition_identifiers' => ['sRGB IEC61966-2.1'],
+            'profile_sha256' => [hash('sha256', $profileBytes)],
+        ], $metadata['pdfa']);
+        $t->true(!str_contains($text, 'ICC profile bytes'));
     },
 ];

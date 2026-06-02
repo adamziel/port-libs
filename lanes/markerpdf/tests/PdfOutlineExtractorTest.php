@@ -33,6 +33,21 @@ $kidNameTreePdf = static function (): string {
         . "%%EOF";
 };
 
+$remoteGoToPdf = static function (): string {
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Outlines /First 6 0 R /Count 4 >>\nendobj\n"
+        . "6 0 obj\n<< /Title (Appendix PDF) /Parent 5 0 R /A << /S /GoToR /F (appendix.pdf) /D [2 /FitH 720] /NewWindow true >> /Next 7 0 R /First 9 0 R /Count 1 >>\nendobj\n"
+        . "7 0 obj\n<< /Title (Legacy Remote) /Parent 5 0 R /A 8 0 R /Next 10 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /S /GoToR /F << /F (legacy.pdf) /UF <FEFF007200650076006900650077002D00670075006900640065002E007000640066> >> /D /Chapter#202 /NewWindow false >>\nendobj\n"
+        . "9 0 obj\n<< /Title <FEFF00520065006D006F007400650020004300680069006C0064> /Parent 6 0 R /A << /S /GoToR /F (child.pdf) /D (named-child) >> >>\nendobj\n"
+        . "10 0 obj\n<< /Title (Local Only) /Parent 5 0 R /A << /S /GoTo /D [3 0 R /Fit] >> /Next 11 0 R >>\nendobj\n"
+        . "11 0 obj\n<< /Title (Broken Remote) /Parent 5 0 R /A << /S /GoToR /F (missing-destination.pdf) >> >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'resolves PDF outline named destinations before WordPress TOC import' => static function (TestRunner $t) use ($namedDestinationPdf): void {
         $toc = (new PdfOutlineExtractor())->getPdfToc($namedDestinationPdf());
@@ -74,5 +89,42 @@ return [
 
         $t->same([], (new PdfOutlineExtractor())->getPdfToc($pdf));
         $t->same([], (new PdfOutlineExtractor())->getPdfToc('%PDF-1.4 no catalog here'));
+    },
+    'extracts PDF outline remote GoTo actions for external document review' => static function (TestRunner $t) use ($remoteGoToPdf): void {
+        $actions = (new PdfOutlineExtractor())->getRemoteGoToActions($remoteGoToPdf());
+
+        $t->same(3, count($actions));
+        $t->same(
+            [
+                'title' => 'Appendix PDF',
+                'level' => 1,
+                'file' => 'appendix.pdf',
+                'destination' => null,
+                'page' => 2,
+                'new_window' => true,
+            ],
+            $actions[0]
+        );
+        $t->same(
+            [
+                'title' => 'Remote Child',
+                'level' => 2,
+                'file' => 'child.pdf',
+                'destination' => 'named-child',
+                'page' => null,
+                'new_window' => null,
+            ],
+            $actions[1]
+        );
+        $t->same('review-guide.pdf', $actions[2]['file']);
+        $t->same('Chapter 2', $actions[2]['destination']);
+        $t->same(false, $actions[2]['new_window']);
+    },
+    'keeps remote GoTo actions out of same-document TOC page rows and honors max depth' => static function (TestRunner $t) use ($remoteGoToPdf): void {
+        $extractor = new PdfOutlineExtractor();
+
+        $t->same([['title' => 'Local Only', 'level' => 1, 'page' => 0, 'destination' => null]], $extractor->getPdfToc($remoteGoToPdf()));
+        $t->same(['Appendix PDF', 'Legacy Remote'], array_column($extractor->getRemoteGoToActions($remoteGoToPdf(), 1), 'title'));
+        $t->same([], $extractor->getRemoteGoToActions('%PDF-1.4 no catalog here'));
     },
 ];

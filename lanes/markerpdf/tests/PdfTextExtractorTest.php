@@ -524,6 +524,25 @@ return [
         $t->same('TIFF Predictor Import', $extractor->extractPlainText($tiffPdf));
         $t->same('', $extractor->extractPlainText($badPdf));
     },
+    'applies indirect DecodeParms arrays to the current filter in stream chains' => static function (TestRunner $t) use ($ascii85Encode, $pngPredictorEncode): void {
+        $rowOne = 'BT /F1 12 Tf 72 720 Td (Chained Params Import) Tj T* ';
+        $rowTwo = '(Current Filter Base) Tj ET                          ';
+        $content = $rowOne . $rowTwo;
+        $predictorEncoded = $pngPredictorEncode($content, strlen($rowOne));
+        $compressed = gzcompress($predictorEncoded);
+        $t->true(is_string($compressed), 'DecodeParms-array fixture should compress.');
+        $encoded = $ascii85Encode($compressed);
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms 2 0 R /Length " . strlen($encoded) . " >>\n"
+            . "stream\n{$encoded}\nendstream\nendobj\n"
+            . "2 0 obj\n[ null << /Predictor 12 /Columns " . strlen($rowOne) . " >> ]\nendobj\n"
+            . "%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $t->same("Chained Params Import\nCurrent Filter Base", $extractor->extractPlainText($pdf));
+        $t->same(['Chained Params Import', 'Current Filter Base'], $extractor->extractTextRuns($pdf));
+        $t->same("Chained Params Import\nCurrent Filter Base\n", $extractor->naiveGetText($pdf));
+    },
     'uses ToUnicode CMap codespacerange widths for variable-length WordPress text' => static function (TestRunner $t): void {
         $content = 'BT /Fcid 12 Tf 72 720 Td <8141208142> Tj ET';
         $cmap = "/CIDInit /ProcSet findresource begin\n"
