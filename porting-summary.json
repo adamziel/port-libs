@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 14:38:23 UTC",
-    "sourceCommit": "e12b7bd41ad3b7a153db54e92a49715ef022a13e",
-    "sourceCommitShort": "e12b7bd41ad3",
+    "generated": "2026-06-02 14:42:34 UTC",
+    "sourceCommit": "db83be2f37d6d386e98ea6c61ec69974cd9286df",
+    "sourceCommitShort": "db83be2f37d6",
     "sourceBranch": "main",
-    "dashboardCommit": "e12b7bd41ad3b7a153db54e92a49715ef022a13e",
-    "dashboardCommitShort": "e12b7bd41ad3",
+    "dashboardCommit": "db83be2f37d6d386e98ea6c61ec69974cd9286df",
+    "dashboardCommitShort": "db83be2f37d6",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "368",
-            "coverage": "368 / 78 (471.8%)",
-            "mapPercent": "471.8%",
+            "mapped": "369",
+            "coverage": "369 / 78 (473.1%)",
+            "mapPercent": "473.1%",
             "unmapped": "0",
-            "php": "520 pass / 0 fail",
+            "php": "521 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit e12b7bd; full ma...",
-            "currentWork": "DCTDecode CMYK/YCCK image /Decode arrays now resolve direct or indirect ranges and ap...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit db83be2; full ma...",
+            "currentWork": "RichMedia target-instance asset FileSpecs now expose review-only embedded-file stream...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded font, xref/object s...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "e12b7bd"
+            "commit": "db83be2"
         },
         {
             "lane": "readability",
