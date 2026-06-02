@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use PortLibs\MarkerPDF\FontStyleCleaner;
+use PortLibs\MarkerPDF\MarkdownPostProcessor;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
 $pdfWithContent = static function (string $content): string {
@@ -957,6 +959,34 @@ return [
 
         $t->same(['AABB', 'CCDD'], $extractor->extractTextLines($pdf));
         $t->same("AABB\nCCDD", $extractor->extractPlainText($pdf));
+    },
+    'extracts native FontDescriptor flags into upstream-style span font names' => static function (TestRunner $t): void {
+        $content = 'BT /Fplain 12 Tf 72 720 Td (Plain ) Tj /Fitalic 12 Tf (italic segment) Tj /Fplain 12 Tf ( bridge ) Tj /Fbold 12 Tf (bold segment) Tj /Fplain 12 Tf ( outro) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fplain 2 0 R /Fitalic 4 0 R /Fbold 6 0 R >> >> /Contents 8 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /SourceSerif /Encoding /WinAnsiEncoding /FontDescriptor 3 0 R >>\nendobj\n"
+            . "3 0 obj\n<< /Type /FontDescriptor /FontName /SourceSerif /Flags " . ((1 << 1) | (1 << 5)) . " /FontWeight 400 >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /SourceSerifItalic /Encoding /WinAnsiEncoding /FontDescriptor << /Type /FontDescriptor /FontName /SourceSerifItalic /Flags " . ((1 << 1) | (1 << 5) | (1 << 6)) . " /ItalicAngle -12 >> >>\nendobj\n"
+            . "6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /SourceSansForceBold /Encoding /WinAnsiEncoding /FontDescriptor 7 0 R >>\nendobj\n"
+            . "7 0 obj\n<< /Type /FontDescriptor /FontName /SourceSansForceBold /Flags " . ((1 << 5) | (1 << 18)) . " /FontWeight 700 >>\nendobj\n"
+            . "8 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $pages = $extractor->extractStyledTextPages($pdf);
+
+        $t->same('Plain italic segment bridge bold segment outro', $extractor->extractPlainText($pdf));
+        $t->same(1, count($pages));
+        $spans = $pages[0]['blocks'][0]['lines'][0]['spans'];
+        $t->same('SourceSerif_serif_non_symbolic', $spans[0]['font']);
+        $t->same('SourceSerifItalic_serif_non_symbolic_italic', $spans[1]['font']);
+        $t->same('SourceSansForceBold_non_symbolic_bold', $spans[3]['font']);
+        $t->same((1 << 1) | (1 << 5), $spans[0]['font_flags']);
+        $t->same((1 << 1) | (1 << 5) | (1 << 6), $spans[1]['font_flags']);
+        $t->same((1 << 5) | (1 << 18), $spans[3]['font_flags']);
+        $t->same(700.0, $spans[3]['font_weight']);
+
+        $pages[0]['blocks'] = (new FontStyleCleaner())->markBoldItalicSpans($pages[0]['blocks']);
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($pages));
+        $t->same('Plain *italic segment* bridge **bold segment** outro', $blocks[0]['text']);
     },
     'uses Identity-H and Identity-V font CMap widths before WordPress fallback text extraction' => static function (TestRunner $t): void {
         $content = 'BT /Fcid 12 Tf 72 720 Td <0057005000200049006D0070006F00720074> Tj T* [<0042006C006F0063006B0073> -120 <0021>] TJ ET';

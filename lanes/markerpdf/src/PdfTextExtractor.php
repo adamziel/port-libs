@@ -173,6 +173,50 @@ final class PdfTextExtractor
     }
 
     /**
+     * Native styled-span boundary for marker.pdf.extract_text::pdftext_format_to_blocks.
+     *
+     * The full upstream path receives pdftext dictionaries from pdfium, where
+     * each span carries PDF 1.7 FontDescriptor flags. This native reduced
+     * boundary exposes the same font-name plus decomposed-flags convention for
+     * PDFs that can be parsed without Python/pdfium.
+     *
+     * @return list<array{blocks: list<array{lines: list<array{spans: list<array<string, mixed>>, bbox: list<float>}>, bbox: list<float>, pnum: int}>, pnum: int, bbox: list<float>, rotation: int}>
+     */
+    public function extractStyledTextPages(string $pdfBytes): array
+    {
+        $pages = [];
+        foreach ($this->contentStreamsWithFontMaps($pdfBytes) as $pageIndex => $entry) {
+            $lines = $this->textSpanLinesFromContentStream(
+                $entry['stream'],
+                $entry['fontToUnicodeMaps'],
+                $entry['markedContentProperties'],
+                $pageIndex
+            );
+            if ($lines === []) {
+                continue;
+            }
+
+            $blocks = [];
+            foreach ($lines as $line) {
+                $blocks[] = [
+                    'lines' => [$line],
+                    'bbox' => $line['bbox'],
+                    'pnum' => $pageIndex,
+                ];
+            }
+
+            $pages[] = [
+                'blocks' => $blocks,
+                'pnum' => $pageIndex,
+                'bbox' => $this->pageBboxFromLines($lines),
+                'rotation' => 0,
+            ];
+        }
+
+        return $pages;
+    }
+
+    /**
      * @return list<string>
      */
     public function extractTextLines(string $pdfBytes): array
@@ -3454,6 +3498,7 @@ final class PdfTextExtractor
 
             $encodingFallback = $this->fontEncodingMap($body);
             $widthMetrics = $this->fontWidthMetrics($body, $objects);
+            $descriptorInfo = $this->fontDescriptorInfo($body, $objects);
             $cmap = null;
             if (preg_match('/\/ToUnicode\s+(\d+)\s+\d+\s+R\b/', $body, $match)) {
                 $cmapObjectNumber = (int) $match[1];
@@ -3475,8 +3520,16 @@ final class PdfTextExtractor
                 ];
             }
 
-            if ($cmap !== null && ($cmap['map'] !== [] || $cmap['codeSpaceRanges'] !== [])) {
+            if ($cmap === null && ($descriptorInfo['name'] !== null || $descriptorInfo['flags'] !== null)) {
+                $cmap = [
+                    'map' => [],
+                    'codeSpaceRanges' => [],
+                ];
+            }
+
+            if ($cmap !== null && ($cmap['map'] !== [] || $cmap['codeSpaceRanges'] !== [] || $descriptorInfo['name'] !== null || $descriptorInfo['flags'] !== null)) {
                 $cmap = $this->withFontWidthMetrics($cmap, $widthMetrics, $this->fontWritingMode($body, $cmap));
+                $cmap = $this->withFontDescriptorInfo($cmap, $descriptorInfo);
                 $fontObjectMaps[$objectNumber] = $cmap;
             }
         }
@@ -3653,6 +3706,49 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @return array{name: string|null, flags: int|null, weight: float|null}
+     * @param array<int, string> $objects
+     */
+    private function fontDescriptorInfo(string $fontBody, array $objects): array
+    {
+        $name = $this->pdfNameValueAfterName($fontBody, 'BaseFont');
+        $flags = null;
+        $weight = null;
+
+        foreach ([$fontBody, ...$this->descendantFontBodies($fontBody, $objects)] as $body) {
+            $descriptor = $this->fontDescriptorBody($body, $objects);
+            if ($descriptor === null) {
+                continue;
+            }
+
+            $descriptorName = $this->pdfNameValueAfterName($descriptor, 'FontName');
+            if ($descriptorName !== null && $descriptorName !== '') {
+                $name = $descriptorName;
+            }
+
+            $descriptorFlags = $this->pdfIntegerValueAfterName($descriptor, 'Flags');
+            if ($descriptorFlags !== null) {
+                $flags = $descriptorFlags;
+            }
+
+            $descriptorWeight = $this->pdfNumberValueAfterName($descriptor, 'FontWeight');
+            if ($descriptorWeight !== null) {
+                $weight = $descriptorWeight;
+            }
+        }
+
+        if ($weight === null && $flags !== null && ($flags & (1 << 18)) !== 0) {
+            $weight = 700.0;
+        }
+
+        return [
+            'name' => $name,
+            'flags' => $flags,
+            'weight' => $weight,
+        ];
     }
 
     /**
@@ -4211,6 +4307,26 @@ final class PdfTextExtractor
             : $metrics['defaultVerticalDisplacement'];
         if ($metrics['cidSet'] !== null) {
             $map['cidSet'] = $metrics['cidSet'];
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param array<string, mixed> $map
+     * @param array{name: string|null, flags: int|null, weight: float|null} $info
+     * @return array<string, mixed>
+     */
+    private function withFontDescriptorInfo(array $map, array $info): array
+    {
+        if ($info['name'] !== null) {
+            $map['fontName'] = $info['name'];
+        }
+        if ($info['flags'] !== null) {
+            $map['fontFlags'] = $info['flags'];
+        }
+        if ($info['weight'] !== null) {
+            $map['fontWeight'] = $info['weight'];
         }
 
         return $map;
@@ -5767,6 +5883,279 @@ final class PdfTextExtractor
         }
 
         return $runs;
+    }
+
+    /**
+     * @return list<array{spans: list<array<string, mixed>>, bbox: list<float>}>
+     * @param array<string, array<string, mixed>> $fontToUnicodeMaps
+     * @param array<string, array{actualText: string|null, altText: string|null}> $markedContentProperties
+     */
+    private function textSpanLinesFromContentStream(
+        string $stream,
+        array $fontToUnicodeMaps,
+        array $markedContentProperties,
+        int $pageIndex
+    ): array {
+        $lines = [];
+        $spans = [];
+        $operands = [];
+        $currentFontResource = null;
+        $currentFontSize = 12.0;
+        $currentTextY = null;
+        $spanId = 0;
+        $markedContentStack = [];
+
+        foreach ($this->contentTokens($stream) as $token) {
+            if ($this->isTextShowingOperator($token)) {
+                if ($token === "'" || $token === '"') {
+                    $this->pushSpanLine($lines, $spans);
+                }
+
+                $operand = $this->textShowingOperand($token, $operands);
+                if ($operand !== null) {
+                    $replacementIndex = $this->activeMarkedContentReplacementIndex($markedContentStack);
+                    if ($replacementIndex !== null) {
+                        $decoded = $markedContentStack[$replacementIndex]['emitted']
+                            ? ''
+                            : $markedContentStack[$replacementIndex]['replacement'];
+                        $markedContentStack[$replacementIndex]['emitted'] = true;
+                    } else {
+                        $decoded = $this->decodeTextOperand($operand, $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource));
+                    }
+
+                    $this->appendNativeTextSpan(
+                        $spans,
+                        (string) $decoded,
+                        $currentFontResource,
+                        $currentFontSize,
+                        $fontToUnicodeMaps,
+                        $pageIndex,
+                        $spanId
+                    );
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BMC') {
+                $markedContentStack[] = [
+                    'replacement' => null,
+                    'emitted' => true,
+                ];
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BDC') {
+                $markedContentStack[] = [
+                    'replacement' => $this->markedContentReplacementOperand($operands, $markedContentProperties),
+                    'emitted' => false,
+                ];
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'EMC') {
+                $markedContent = array_pop($markedContentStack);
+                if (
+                    is_array($markedContent)
+                    && $markedContent['replacement'] !== null
+                    && !$markedContent['emitted']
+                    && $this->activeMarkedContentReplacementIndex($markedContentStack) === null
+                ) {
+                    $this->appendNativeTextSpan(
+                        $spans,
+                        $markedContent['replacement'],
+                        $currentFontResource,
+                        $currentFontSize,
+                        $fontToUnicodeMaps,
+                        $pageIndex,
+                        $spanId
+                    );
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tf') {
+                $currentFontResource = $this->fontResourceOperand($operands) ?? $currentFontResource;
+                $currentFontSize = $this->fontSizeOperand($operands) ?? $currentFontSize;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Td' || $token === 'TD') {
+                if ($this->textMoveBreaksLine($operands)) {
+                    $this->pushSpanLine($lines, $spans);
+                }
+                $currentTextY = $this->textMoveY($operands, $currentTextY);
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tm') {
+                $matrixY = $this->textMatrixY($operands);
+                if ($matrixY !== null && $currentTextY !== null && abs($matrixY - $currentTextY) > 0.000001) {
+                    $this->pushSpanLine($lines, $spans);
+                }
+                $currentTextY = $matrixY;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'T*' || $token === 'ET') {
+                $this->pushSpanLine($lines, $spans);
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BT') {
+                $currentTextY = null;
+                $operands = [];
+                continue;
+            }
+
+            if ($this->isOperator($token)) {
+                $operands = [];
+                continue;
+            }
+
+            $operands[] = $token;
+        }
+
+        $this->pushSpanLine($lines, $spans);
+
+        return $lines;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $spans
+     * @param array<string, array<string, mixed>> $fontToUnicodeMaps
+     */
+    private function appendNativeTextSpan(
+        array &$spans,
+        string $text,
+        ?string $fontResource,
+        ?float $fontSize,
+        array $fontToUnicodeMaps,
+        int $pageIndex,
+        int &$spanId
+    ): void {
+        if ($text === '') {
+            return;
+        }
+
+        $fontInfo = $this->currentFontDescriptorInfo($fontToUnicodeMaps, $fontResource);
+        $flags = $fontInfo['flags'];
+        $fontName = $fontInfo['name'] ?? $fontResource ?? 'None';
+        $fontSize ??= 12.0;
+        $xStart = 0.0;
+        if ($spans !== []) {
+            $previousBbox = $spans[count($spans) - 1]['bbox'] ?? null;
+            if (is_array($previousBbox) && isset($previousBbox[2]) && (is_int($previousBbox[2]) || is_float($previousBbox[2]))) {
+                $xStart = (float) $previousBbox[2];
+            }
+        }
+        $width = max(1.0, $this->length($text) * $fontSize * self::SIMPLE_TEXT_ADVANCE_RATIO);
+
+        $span = [
+            'text' => $text,
+            'bbox' => [$xStart, 0.0, $xStart + $width, max(1.0, $fontSize)],
+            'span_id' => $pageIndex . '_' . $spanId,
+            'font' => $fontName . '_' . (new PdfTextBlockConverter())->fontFlagsDecomposer($flags),
+            'font_weight' => $fontInfo['weight'],
+            'font_size' => $fontSize,
+        ];
+        if ($flags !== null) {
+            $span['font_flags'] = $flags;
+        }
+
+        $spans[] = $span;
+        $spanId++;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $fontToUnicodeMaps
+     * @return array{name: string|null, flags: int|null, weight: float}
+     */
+    private function currentFontDescriptorInfo(array $fontToUnicodeMaps, ?string $fontResource): array
+    {
+        $map = $this->currentToUnicodeMap($fontToUnicodeMaps, $fontResource);
+        $name = isset($map['fontName']) && is_string($map['fontName']) && $map['fontName'] !== ''
+            ? $map['fontName']
+            : null;
+        $flags = isset($map['fontFlags']) && is_int($map['fontFlags'])
+            ? $map['fontFlags']
+            : null;
+        $weight = isset($map['fontWeight']) && (is_int($map['fontWeight']) || is_float($map['fontWeight']))
+            ? (float) $map['fontWeight']
+            : null;
+
+        if ($weight === null) {
+            $weight = $flags !== null && ($flags & (1 << 18)) !== 0 ? 700.0 : 400.0;
+        }
+
+        return [
+            'name' => $name,
+            'flags' => $flags,
+            'weight' => $weight,
+        ];
+    }
+
+    /**
+     * @param list<array{spans: list<array<string, mixed>>, bbox: list<float>}> $lines
+     * @param list<array<string, mixed>> $spans
+     */
+    private function pushSpanLine(array &$lines, array &$spans): void
+    {
+        $spans = array_values(array_filter($spans, static fn (array $span): bool => trim((string) ($span['text'] ?? '')) !== ''));
+        if ($spans === []) {
+            return;
+        }
+
+        $bbox = $this->bboxFromSpans($spans);
+        $lines[] = [
+            'spans' => $spans,
+            'bbox' => $bbox,
+        ];
+        $spans = [];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $spans
+     * @return list<float>
+     */
+    private function bboxFromSpans(array $spans): array
+    {
+        $x1 = null;
+        $y1 = null;
+        $x2 = null;
+        $y2 = null;
+        foreach ($spans as $span) {
+            $bbox = $span['bbox'] ?? null;
+            if (!is_array($bbox) || count($bbox) < 4) {
+                continue;
+            }
+
+            $x1 = $x1 === null ? (float) $bbox[0] : min($x1, (float) $bbox[0]);
+            $y1 = $y1 === null ? (float) $bbox[1] : min($y1, (float) $bbox[1]);
+            $x2 = $x2 === null ? (float) $bbox[2] : max($x2, (float) $bbox[2]);
+            $y2 = $y2 === null ? (float) $bbox[3] : max($y2, (float) $bbox[3]);
+        }
+
+        return [$x1 ?? 0.0, $y1 ?? 0.0, $x2 ?? 0.0, $y2 ?? 0.0];
+    }
+
+    /**
+     * @param list<array{spans: list<array<string, mixed>>, bbox: list<float>}> $lines
+     * @return list<float>
+     */
+    private function pageBboxFromLines(array $lines): array
+    {
+        return $this->bboxFromSpans(array_map(
+            static fn (array $line): array => ['bbox' => $line['bbox'], 'text' => 'line'],
+            $lines
+        ));
     }
 
     /**
