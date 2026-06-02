@@ -200,6 +200,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-table-merged-cell-geometry-currentbase.php` maps current-base tabled-style merged-cell geometry into a Gutenberg table import path. It uses native assigned `row_ids` and `col_ids` to emit review metadata with occupied grid cells, anchor positions, original cell bboxes, row/column-band grid bboxes, and stable `rowspan`/`colspan` attributes without reparsing Markdown tables or running Python/model workers.
 
+`examples/wordpress-table-ocr-merged-cell-geometry-currentbase.php` maps forced-OCR merged-cell geometry into a Gutenberg table import path. It runs supplied OCR detector cells through native table recognition, preserves OCR-applied tabled `row_ids` and `col_ids` as `table_merged_cell_geometry`, emits `colspan` and `rowspan` attributes from that metadata, and excludes stale pdftext table lines without running Python, Surya, tabled, pdftext, pypdfium, PIL, or model workers.
+
 `examples/wordpress-table-detector-filter.php` maps the detector fallback half of `tabled.inference.recognition.py::get_cells` into a Gutenberg table import preflight. It drops zero-width and zero-height detector boxes before OCR text assignment, reports how many cells were discarded, and renders the remaining OCR-backed cells as a core table block.
 
 `examples/wordpress-table-multiline-row-import.php` maps `tabled.assignment.py::merge_multiline_rows` into a Gutenberg table import path. It starts with three model-detected table rows, merges a wrapped continuation row into the prior row using initially assigned column IDs despite slight x-coordinate jitter, reports the row merge as review metadata, and renders two clean core table rows.

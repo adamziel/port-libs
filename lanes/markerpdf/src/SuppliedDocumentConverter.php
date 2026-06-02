@@ -216,6 +216,7 @@ final class SuppliedDocumentConverter
             $markdownTables = $recognition['markdown_tables'];
             $metadata['table_plan'] = $this->tablePlanMetadata($tablePlan);
             $metadata['table_assigned_cells'] = $recognition['assigned_cells'];
+            $metadata['table_merged_cell_geometry'] = $this->mergedCellGeometryForTables($recognition['assigned_cells'], $recognizedTables);
             $metadata['supplied_boundaries'][] = 'table-recognition';
         }
 
@@ -294,6 +295,29 @@ final class SuppliedDocumentConverter
             'doc_indexes' => $tablePlan['doc_indexes'],
             'table_page_indexes' => $tablePlan['table_page_indexes'],
         ];
+    }
+
+    /**
+     * @param list<list<array<string, mixed>>> $assignedTables
+     * @param list<array<string, mixed>> $recognizedTables
+     * @return list<list<array<string, mixed>>>
+     */
+    private function mergedCellGeometryForTables(array $assignedTables, array $recognizedTables): array
+    {
+        $geometry = [];
+        foreach ($assignedTables as $tableIndex => $assignedCells) {
+            $table = $recognizedTables[$tableIndex] ?? [];
+            if (!is_array($table)) {
+                $geometry[] = [];
+                continue;
+            }
+
+            $rows = isset($table['rows']) && is_array($table['rows']) ? $table['rows'] : [];
+            $cols = isset($table['cols']) && is_array($table['cols']) ? $table['cols'] : [];
+            $geometry[] = $this->tableRecognizer->mergedCellGeometry($assignedCells, $rows, $cols);
+        }
+
+        return $geometry;
     }
 
     /**

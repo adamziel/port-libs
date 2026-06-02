@@ -338,6 +338,106 @@ return [
             unlink($path);
         }
     },
+    'exposes forced OCR merged-cell geometry for WordPress table review' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-ocr-merged-cell-geometry-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% OCR merged cell geometry supplied pipeline\n%%EOF");
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'OCR table geometry review', 'bbox' => [72.0, 48.0, 360.0, 68.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'Stale OCR table line should be replaced.', 'bbox' => [72.0, 176.0, 430.0, 196.0]],
+                ['text' => 'Reviewer note after table.', 'bbox' => [72.0, 306.0, 430.0, 324.0]],
+            ]);
+            $layout = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Title', 'bbox' => [72.0, 48.0, 360.0, 68.0]],
+                    ['label' => 'Table', 'bbox' => [72.0, 150.0, 430.0, 260.0]],
+                    ['label' => 'Text', 'bbox' => [72.0, 306.0, 430.0, 324.0]],
+                ],
+            ];
+            $recognizedTable = [
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 358.0, 25.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 35.0, 358.0, 60.0]],
+                    ['row_id' => 2, 'bbox' => [0.0, 85.0, 358.0, 110.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 110.0, 110.0]],
+                    ['col_id' => 1, 'bbox' => [124.0, 0.0, 238.0, 110.0]],
+                    ['col_id' => 2, 'bbox' => [252.0, 0.0, 358.0, 110.0]],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [$layout],
+                    'recognized_tables' => [$recognizedTable],
+                    'table_detector_cells' => [[
+                        ['bbox' => [5.0, 5.0, 353.0, 20.0], 'text' => null],
+                        ['bbox' => [5.0, 36.0, 106.0, 108.0], 'text' => null],
+                        ['bbox' => [128.0, 39.0, 232.0, 56.0], 'text' => null],
+                        ['bbox' => [258.0, 39.0, 348.0, 56.0], 'text' => null],
+                        ['bbox' => [128.0, 89.0, 232.0, 106.0], 'text' => null],
+                        ['bbox' => [258.0, 89.0, 348.0, 106.0], 'text' => null],
+                    ]],
+                    'table_ocr_text_lines' => [[
+                        'lines' => [
+                            ['text' => 'Inventory OCR summary'],
+                            ['text' => 'Media group'],
+                            ['text' => 'Image count'],
+                            ['text' => '12'],
+                            ['text' => 'Review state'],
+                            ['text' => 'Needs review'],
+                        ],
+                    ]],
+                    'table_rendered_image_sizes' => [['width' => 612, 'height' => 792]],
+                    'ocr_all_pages' => true,
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $geometry = $result['metadata']['table_merged_cell_geometry'][0] ?? [];
+
+            $t->contains('# Ocr Table Geometry Review', $result['text']);
+            $t->contains('Reviewer note after table.', $result['text']);
+            $t->true(!str_contains($result['text'], 'Stale OCR table line should be replaced.'));
+            $t->same(['layout', 'table-cell-routing', 'table-recognition', 'table-formatting'], $result['metadata']['supplied_boundaries']);
+            $t->same([true], $result['metadata']['table_needs_ocr']);
+            $t->same(true, $result['metadata']['table_detect_boxes']);
+            $t->same([6], $result['metadata']['table_cell_counts']);
+            $t->same([1], $result['metadata']['table_plan']['table_counts']);
+            $t->same(['Inventory OCR summary', 'Media group'], array_column($geometry, 'text'));
+            $t->same([1, 3], [$geometry[0]['rowspan'], $geometry[0]['colspan']]);
+            $t->same([2, 1], [$geometry[1]['rowspan'], $geometry[1]['colspan']]);
+            $t->same(['row_id' => 0, 'col_id' => 0], $geometry[0]['anchor']);
+            $t->same(['row_id' => 1, 'col_id' => 0], $geometry[1]['anchor']);
+            $t->same([0.0, 0.0, 358.0, 25.0], $geometry[0]['grid_bbox']);
+            $t->same([0.0, 35.0, 110.0, 110.0], $geometry[1]['grid_bbox']);
+            $t->same(
+                [
+                    ['row_id' => 0, 'col_id' => 0],
+                    ['row_id' => 0, 'col_id' => 1],
+                    ['row_id' => 0, 'col_id' => 2],
+                ],
+                $geometry[0]['grid_cells']
+            );
+            $t->same(
+                [
+                    ['row_id' => 1, 'col_id' => 0],
+                    ['row_id' => 2, 'col_id' => 0],
+                ],
+                $geometry[1]['grid_cells']
+            );
+            $t->same('Inventory OCR summary', $result['metadata']['table_assigned_cells'][0][0]['text']);
+            $t->same([0, 1, 2], $result['metadata']['table_assigned_cells'][0][0]['col_ids']);
+            $t->same([1, 2], $result['metadata']['table_assigned_cells'][0][1]['row_ids']);
+        } finally {
+            unlink($path);
+        }
+    },
     'routes upstream OCR prediction objects through forced table recognition' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-forced-ocr-table-prediction-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% forced OCR table prediction supplied pipeline\n%%EOF");
