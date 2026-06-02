@@ -3719,7 +3719,7 @@ final class DeclarationBlock
         }
 
         if ($this->gridTemplateValueHasAreas($value)) {
-            return null;
+            return $this->gridTemplateAreaComponentsFromShorthand($value, $important);
         }
 
         $parts = array_map(
@@ -3740,6 +3740,39 @@ final class DeclarationBlock
                 'important' => $important,
             ],
             'grid-template-areas' => ['value' => 'none', 'important' => $important],
+        ];
+    }
+
+    /**
+     * @return array<string, array{value:string, important:bool}>|null
+     */
+    private function gridTemplateAreaComponentsFromShorthand(string $value, bool $important): ?array
+    {
+        $parts = array_map(
+            static fn (string $part): string => trim($part),
+            $this->splitTopLevel($value, '/')
+        );
+        if (count($parts) < 1 || count($parts) > 2 || $parts[0] === '') {
+            return null;
+        }
+
+        $rows = $this->parseGridTemplateAreaTrackRows($parts[0]);
+        if ($rows === null) {
+            return null;
+        }
+
+        $columns = 'none';
+        if (count($parts) === 2) {
+            if ($parts[1] === '') {
+                return null;
+            }
+            $columns = $this->normalizeGridTrackValue($parts[1]);
+        }
+
+        return [
+            'grid-template-rows' => ['value' => $rows['rows'], 'important' => $important],
+            'grid-template-columns' => ['value' => $columns, 'important' => $important],
+            'grid-template-areas' => ['value' => $rows['areas'], 'important' => $important],
         ];
     }
 
@@ -4058,6 +4091,96 @@ final class DeclarationBlock
         }
 
         return $quote === null ? $rows : null;
+    }
+
+    /**
+     * @return array{rows:string, areas:string}|null
+     */
+    private function parseGridTemplateAreaTrackRows(string $value): ?array
+    {
+        $items = [];
+        $lineNames = [[]];
+        $areas = [];
+        $areaColumnCount = null;
+        $tokens = $this->splitGridTrackTokens($value);
+        $tokenCount = count($tokens);
+
+        for ($index = 0; $index < $tokenCount; $index++) {
+            $token = $tokens[$index];
+            $names = $this->parseGridLineNameToken($token);
+            if ($names !== null) {
+                $lineIndex = count($items);
+                if (!isset($lineNames[$lineIndex])) {
+                    $lineNames[$lineIndex] = [];
+                }
+                array_push($lineNames[$lineIndex], ...$names);
+                continue;
+            }
+
+            $area = $this->parseGridTemplateAreaRowToken($token);
+            if ($area === null) {
+                return null;
+            }
+            if ($areaColumnCount !== null && $areaColumnCount !== $area['columns']) {
+                return null;
+            }
+
+            $areaColumnCount = $area['columns'];
+            $areas[] = $area['text'];
+            $track = 'auto';
+            $next = $tokens[$index + 1] ?? null;
+            if (
+                $next !== null
+                && $this->parseGridLineNameToken($next) === null
+                && $this->parseGridTemplateAreaRowToken($next) === null
+            ) {
+                $track = $next;
+                $index++;
+            }
+
+            $items[] = $track;
+            if (!isset($lineNames[count($items)])) {
+                $lineNames[count($items)] = [];
+            }
+        }
+
+        if ($areas === [] || $items === []) {
+            return null;
+        }
+
+        return [
+            'rows' => $this->serializeGridTrackList([
+                'none' => false,
+                'items' => $items,
+                'lineNames' => $lineNames,
+                'hasRepeat' => false,
+            ]),
+            'areas' => implode(
+                ' ',
+                array_map(
+                    static fn (string $area): string => '"' . str_replace('"', '\\"', $area) . '"',
+                    $areas
+                )
+            ),
+        ];
+    }
+
+    /**
+     * @return array{text:string, columns:int}|null
+     */
+    private function parseGridTemplateAreaRowToken(string $token): ?array
+    {
+        $token = trim($token);
+        if ($token === '' || ($token[0] !== '"' && $token[0] !== "'")) {
+            return null;
+        }
+
+        $rows = $this->parseGridTemplateAreaRows($token);
+        if ($rows === null || count($rows) !== 1) {
+            return null;
+        }
+
+        return $rows[0];
     }
 
     /**

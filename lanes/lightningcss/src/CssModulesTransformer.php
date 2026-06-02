@@ -4271,7 +4271,12 @@ final class CssModulesTransformer
             $source = ltrim(substr($source, $end + 2));
         }
 
-        if (preg_match('/^@value\b/i', $source) !== 1) {
+        if (($source[0] ?? '') !== '@') {
+            return;
+        }
+
+        $token = $this->readCssIdentifierToken($source, 1);
+        if ($token === null || strcasecmp($token['decoded'], 'value') !== 0) {
             return;
         }
 

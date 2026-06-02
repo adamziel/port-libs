@@ -10,12 +10,17 @@ $block = new DeclarationBlock();
 
 $longhandDeclarations = 'grid-template-areas: "header header" "content sidebar"; grid-template-rows: [header-start] auto [header-end content-start] 1fr [content-end]; grid-template-columns: minmax(0, 1fr) 18rem; grid-auto-flow: row; grid-auto-rows: auto; grid-auto-columns: auto';
 $heroTemplate = 'grid-template: auto / minmax(0, 1fr) 18rem; gap: var(--wp--preset--spacing--40)';
+$areaTemplate = 'grid-template: [header-start] "header header" [header-end content-start] "content sidebar" 1fr [content-end] / minmax(0, 1fr) 18rem; gap: var(--wp--preset--spacing--40)';
 
 $actual = [
     'gridTemplate' => $block->getProperty($longhandDeclarations, 'grid-template'),
     'grid' => $block->getProperty($longhandDeclarations, 'grid'),
     'templateRows' => $block->getProperty($heroTemplate, 'grid-template-rows'),
     'templateColumns' => $block->getProperty($heroTemplate, 'grid-template-columns'),
+    'areaTemplate' => $block->getProperty($areaTemplate, 'grid-template'),
+    'areaTemplateRows' => $block->getProperty($areaTemplate, 'grid-template-rows'),
+    'areaTemplateColumns' => $block->getProperty($areaTemplate, 'grid-template-columns'),
+    'areaTemplateAreas' => $block->getProperty($areaTemplate, 'grid-template-areas'),
     'expandedSidebar' => $block->setProperty($heroTemplate, 'grid-template-columns', 'minmax(0, 1fr) 22rem'),
     'resetRows' => $block->removeProperty($heroTemplate, 'grid-template-rows'),
 ];
@@ -35,6 +40,22 @@ $expected = [
     ],
     'templateColumns' => [
         'value' => 'minmax(0, 1fr) 18rem',
+        'important' => false,
+    ],
+    'areaTemplate' => [
+        'value' => '[header-start] "header header" [header-end] [content-start] "content sidebar" 1fr [content-end] / minmax(0, 1fr) 18rem',
+        'important' => false,
+    ],
+    'areaTemplateRows' => [
+        'value' => '[header-start] auto [header-end content-start] 1fr [content-end]',
+        'important' => false,
+    ],
+    'areaTemplateColumns' => [
+        'value' => 'minmax(0, 1fr) 18rem',
+        'important' => false,
+    ],
+    'areaTemplateAreas' => [
+        'value' => '"header header" "content sidebar"',
         'important' => false,
     ],
     'expandedSidebar' => 'grid-template: auto / minmax(0, 1fr) 22rem; gap: var(--wp--preset--spacing--40)',

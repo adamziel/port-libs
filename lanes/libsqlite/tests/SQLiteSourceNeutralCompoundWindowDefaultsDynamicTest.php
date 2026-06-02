@@ -7,21 +7,39 @@ use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNex
 
 $libsqliteRoot = dirname(__DIR__);
 $sourceRoot = $libsqliteRoot . '/src';
-$sourceFiles = [
-    $sourceRoot . '/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php',
-    $sourceRoot . '/SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNextPlan.php',
-    $sourceRoot . '/SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan.php',
-    $sourceRoot . '/SQLiteCompoundHavingWindowCurrentSourceNextPlan.php',
-    $sourceRoot . '/SQLiteCompoundSelectRecursiveAffinityLimitPlan.php',
-    $sourceRoot . '/SQLiteWindowRowValueUpsertCurrentSourcePlan.php',
-];
+$compoundWindowSourceFiles = static function () use ($sourceRoot): array {
+    $files = [];
+    foreach ([
+        $sourceRoot . '/SQLiteCompound*.php',
+        $sourceRoot . '/SQLite*Window*.php',
+    ] as $pattern) {
+        foreach (glob($pattern) ?: [] as $file) {
+            $files[] = $file;
+        }
+    }
+    $files[] = $sourceRoot . '/SQLiteSelectRecursiveWindowMaterializePlan.php';
+    sort($files, SORT_STRING);
+
+    return array_values(array_unique($files));
+};
 $partitionedWindowSourceFile = $sourceRoot . '/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php';
 $compoundWindowFixtureFiles = [
     $libsqliteRoot . '/tests/SQLiteCompoundHavingWindowCurrentSourceNext128Test.php',
     $libsqliteRoot . '/examples/application-compound-having-window-current-source-next128.php',
 ];
 
-$compoundWindowSourceMatches = static function () use ($sourceFiles, $libsqliteRoot): array {
+$compoundWindowSourceInventory = static function () use ($compoundWindowSourceFiles): array {
+    $relative = array_map(static fn (string $file): string => basename($file), $compoundWindowSourceFiles());
+
+    return [
+        'countAtLeast40' => count($relative) >= 40,
+        'hasRecursiveLimitPlan' => in_array('SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php', $relative, true),
+        'hasWindowRowValuePlan' => in_array('SQLiteWindowRowValueUpsertCurrentSourcePlan.php', $relative, true),
+        'hasVdbeWindowCursor' => in_array('SQLiteVdbeWindowAggregateCursor.php', $relative, true),
+    ];
+};
+
+$compoundWindowSourceMatches = static function () use ($compoundWindowSourceFiles, $libsqliteRoot): array {
     $terms = [
         'wp' . '_',
         'wp' . '_options',
@@ -38,7 +56,7 @@ $compoundWindowSourceMatches = static function () use ($sourceFiles, $libsqliteR
     $pattern = '/(?:\bwp\b|' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
     $matches = [];
 
-    foreach ($sourceFiles as $sourceFile) {
+    foreach ($compoundWindowSourceFiles() as $sourceFile) {
         $contents = file_get_contents($sourceFile);
         if ($contents === false) {
             throw new RuntimeException("Unable to read {$sourceFile}");
@@ -264,6 +282,12 @@ $yieldGateDefaultRows = static fn (): array => SQLiteRowValueUpdateDeleteReturni
 );
 
 return [
+    'source-neutral compound window defaults dynamic source inventory covers current family' => static fn (TestRunner $t) => $t->same([
+        'countAtLeast40' => true,
+        'hasRecursiveLimitPlan' => true,
+        'hasWindowRowValuePlan' => true,
+        'hasVdbeWindowCursor' => true,
+    ], $compoundWindowSourceInventory()),
     'source-neutral compound window defaults dynamic source has no legacy setting table terms' => static fn (TestRunner $t) => $t->same([], $compoundWindowSourceMatches()),
     'source-neutral compound having window fixture defaults use setting terms' => static fn (TestRunner $t) => $t->same([], $compoundWindowFixtureMatches()),
     'source-neutral partitioned row-value window source defaults use setting terms' => static fn (TestRunner $t) => $t->same([], $partitionedWindowSourceMatches()),

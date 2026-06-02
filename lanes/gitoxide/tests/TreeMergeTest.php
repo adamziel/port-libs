@@ -2126,6 +2126,11 @@ return [
         $base = new Tree([]);
         $ours = new Tree([$blobEntry('content', "A\n")]);
         $theirs = new Tree([$blobEntry('content', "B\n")]);
+        $bodyOf = static function (Tree $tree, string $path) use ($read): ?string {
+            $entry = $tree->entryNamed($path);
+
+            return $entry === null ? null : $read($entry->oid)->body;
+        };
 
         $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
         $content = $read($result->tree->entryNamed('content')?->oid ?? '');
@@ -2160,6 +2165,58 @@ return [
             $result->indexEntries(),
         ));
         $t->same(['content'], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
+
+        $diff3 = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write, BlobMerge::STYLE_DIFF3);
+        $diff3Reverse = TreeMerge::mergeRecursive($base, $theirs, $ours, $read, $write, BlobMerge::STYLE_DIFF3);
+        $ancestorResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR, TreeMergeResult::RESOLVE_ANCESTOR);
+        $oursResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS, TreeMergeResult::RESOLVE_OURS);
+        $theirsResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_THEIRS, TreeMergeResult::RESOLVE_THEIRS);
+        $reverseOursResolved = TreeMerge::mergeRecursive($base, $theirs, $ours, $read, $write)
+            ->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS, TreeMergeResult::RESOLVE_OURS);
+
+        $t->same(false, $diff3->isClean());
+        $t->same(
+            "<<<<<<< ours/content\nA\n||||||| base/content\n=======\nB\n>>>>>>> theirs/content\n",
+            $bodyOf($diff3->tree, 'content'),
+        );
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'content', 'body' => "A\n"],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'content', 'body' => "B\n"],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'body' => $read($entry->oid)->body,
+            ],
+            $diff3->indexEntries(),
+        ));
+        $t->same([
+            ['path' => 'content', 'content' => "<<<<<<< ours/content\nA\n||||||| base/content\n=======\nB\n>>>>>>> theirs/content\n"],
+        ], array_map(
+            static fn ($file): array => ['path' => $file->path, 'content' => $file->content],
+            $diff3->worktreeConflictFiles($read),
+        ));
+        $t->same(
+            "<<<<<<< ours/content\nB\n||||||| base/content\n=======\nA\n>>>>>>> theirs/content\n",
+            $bodyOf($diff3Reverse->tree, 'content'),
+        );
+
+        $t->true($ancestorResolved->isClean());
+        $t->same([], $names($ancestorResolved->tree));
+        $t->same([], $ancestorResolved->indexEntries());
+        $t->same([], $ancestorResolved->worktreeConflictFiles($read));
+        $t->true($oursResolved->isClean());
+        $t->same(['content'], $names($oursResolved->tree));
+        $t->same("A\n", $bodyOf($oursResolved->tree, 'content'));
+        $t->same([], $oursResolved->indexEntries());
+        $t->true($theirsResolved->isClean());
+        $t->same(['content'], $names($theirsResolved->tree));
+        $t->same("B\n", $bodyOf($theirsResolved->tree, 'content'));
+        $t->same([], $theirsResolved->indexEntries());
+        $t->true($reverseOursResolved->isClean());
+        $t->same("B\n", $bodyOf($reverseOursResolved->tree, 'content'));
+        $t->same([], $reverseOursResolved->indexEntries());
     },
     'maps upstream gix-merge tree-baseline multiple-merge-bases fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry] = $objectStore();

@@ -49,6 +49,13 @@ return [
         'ours' => new Tree([$entry('theme.json', $oid('7'))]),
         'theirs' => new Tree([$entry('theme.json', $oid('8'))]),
     ],
+    'unrelatedHistories' => [
+        'read' => $read,
+        'write' => $write,
+        'base' => new Tree([]),
+        'ours' => new Tree([$blob('acme-bootstrap.php', "<?php\n// Review branch bootstrap.\n")]),
+        'theirs' => new Tree([$blob('acme-bootstrap.php', "<?php\n// Imported upstream bootstrap.\n")]),
+    ],
     'virtualBase' => [
         'read' => $read,
         'write' => $write,

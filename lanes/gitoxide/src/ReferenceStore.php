@@ -147,13 +147,33 @@ final class ReferenceStore
                 $physicalTarget = $preparedUpdate['physicalTarget'];
                 $derefParents = $preparedUpdate['derefParents'];
                 $existing = $this->tryFindPhysical($physicalName, $algorithm);
-                $this->assertPreviousValueAllowsUpdate($physicalName, $physicalTarget, $existing, $previous, $expectedTarget);
                 $packedPhysicalName = $this->packedTransactionPhysicalName($physicalName);
                 $writesObjectToPackedRefs = $packedPhysicalName !== null
                     && $packedRefsMode !== self::PACKED_DELETIONS_ONLY
                     && $physicalTarget->isObject();
                 $removesLooseSourceAfterPackedCommit = $packedRefsMode === self::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE
                     && $physicalTarget->isObject();
+
+                if ($derefParents !== []) {
+                    foreach ($derefParents as $parent) {
+                        $parentPhysicalName = $parent['name'];
+                        $this->assertPreparedReferenceLockAvailable(
+                            $this->referencePath($parentPhysicalName) . '.lock',
+                            $this->storeRelativeName($parentPhysicalName),
+                        );
+                    }
+                }
+
+                $targetPath = $this->referencePath($physicalName);
+                $lockPath = $targetPath . '.lock';
+                if (
+                    !$writesObjectToPackedRefs
+                    && !($existing !== null && self::targetsEqual($existing->target, $physicalTarget))
+                ) {
+                    $this->assertPreparedReferenceLockAvailable($lockPath, $this->storeRelativeName($physicalName));
+                }
+
+                $this->assertPreviousValueAllowsUpdate($physicalName, $physicalTarget, $existing, $previous, $expectedTarget);
 
                 if ($writesObjectToPackedRefs) {
                     $packedRefsUpdates[$packedPhysicalName] = $this->packedReferenceForUpdate(
@@ -210,8 +230,6 @@ final class ReferenceStore
                     }
                 }
 
-                $targetPath = $this->referencePath($physicalName);
-                $lockPath = $targetPath . '.lock';
                 $leafReflogTarget = $this->leafReflogTargetForUpdate($physicalTarget, $previous, $expectedTarget);
                 $edit = ReferenceTransactionEdit::update(
                     $this->storeRelativeName($physicalName),
@@ -323,15 +341,25 @@ final class ReferenceStore
 
                 [$physicalName, $derefParents] = $this->dereferenceDeleteSplit($this->physicalName($name), $deref, $algorithm, $previous);
                 [$existing, $brokenLooseExists] = $this->tryFindPhysicalForDeletion($physicalName, $algorithm);
-                $this->assertPreviousValueAllowsDeletion($physicalName, $existing, $previous, $expectedTarget, $brokenLooseExists);
+                $deleteEdits = $this->deleteReport($derefParents, $existing?->target, $physicalName, $reflogMode);
 
-                foreach ($this->deleteReport($derefParents, $existing?->target, $physicalName, $reflogMode) as $edit) {
+                foreach ($deleteEdits as $edit) {
                     $editPhysicalName = $this->physicalName($edit->name);
                     if (isset($preparedNames[$editPhysicalName])) {
                         throw new \RuntimeException("A reference named \"{$edit->name}\" has multiple prepared edits");
                     }
                     $preparedNames[$editPhysicalName] = true;
 
+                    $this->assertPreparedReferenceLockAvailable(
+                        $this->referencePath($editPhysicalName) . '.lock',
+                        $edit->name,
+                    );
+                }
+
+                $this->assertPreviousValueAllowsDeletion($physicalName, $existing, $previous, $expectedTarget, $brokenLooseExists);
+
+                foreach ($deleteEdits as $edit) {
+                    $editPhysicalName = $this->physicalName($edit->name);
                     $deletePlans[] = [
                         'edit' => $edit,
                         'physicalName' => $editPhysicalName,
@@ -1925,6 +1953,13 @@ final class ReferenceStore
         ReferenceName::assertValid($physicalName);
 
         return rtrim($this->gitDirectory, '/\\') . '/' . $physicalName;
+    }
+
+    private function assertPreparedReferenceLockAvailable(string $lockPath, string $name): void
+    {
+        if (is_file($lockPath) || is_dir($lockPath)) {
+            throw new \RuntimeException("A lock could not be obtained for reference \"{$name}\"");
+        }
     }
 
     private function deleteEmptyParents(string $directory, string $boundary): void

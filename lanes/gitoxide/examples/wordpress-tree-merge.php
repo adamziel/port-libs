@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Gitoxide\TreeEntry;
 use PortLibs\Gitoxide\Tree;
+use PortLibs\Gitoxide\BlobMerge;
 use PortLibs\Gitoxide\TreeMerge;
 use PortLibs\Gitoxide\TreeMergeResult;
 
@@ -26,6 +27,30 @@ $treeAtPath = static function (Tree $root, string $path, callable $read): Tree {
 
 $clean = TreeMerge::mergeFlat($fixture['clean']['base'], $fixture['clean']['ours'], $fixture['clean']['theirs']);
 $conflict = TreeMerge::mergeFlat($fixture['conflict']['base'], $fixture['conflict']['ours'], $fixture['conflict']['theirs']);
+$unrelated = $fixture['unrelatedHistories'];
+$unrelatedMerge = TreeMerge::mergeRecursive(
+    $unrelated['base'],
+    $unrelated['ours'],
+    $unrelated['theirs'],
+    $unrelated['read'],
+    $unrelated['write'],
+);
+$unrelatedDiff3 = TreeMerge::mergeRecursive(
+    $unrelated['base'],
+    $unrelated['ours'],
+    $unrelated['theirs'],
+    $unrelated['read'],
+    $unrelated['write'],
+    BlobMerge::STYLE_DIFF3,
+);
+$unrelatedOurs = $unrelatedMerge->resolveTreeConflicts(
+    $unrelated['read'],
+    $unrelated['write'],
+    TreeMergeResult::RESOLVE_OURS,
+    TreeMergeResult::RESOLVE_OURS,
+);
+$unrelatedPath = 'acme-bootstrap.php';
+$unrelatedDiff3Body = $unrelated['read']($unrelatedDiff3->tree->entryNamed($unrelatedPath)?->oid ?? '')->body;
 $virtualBase = $fixture['virtualBase'];
 $virtualBaseMerge = TreeMerge::mergeRecursiveWithVirtualBase(
     $virtualBase['mergeBaseAncestor'],
@@ -116,6 +141,9 @@ echo 'clean=' . ($clean->isClean() ? 'yes' : 'no') . "\n";
 echo 'entries=' . $entryNames($clean->tree) . "\n";
 echo 'conflicts=' . count($conflict->conflicts) . "\n";
 echo 'first-conflict=' . $conflict->conflicts[0]->path . ':' . $conflict->conflicts[0]->reason . "\n";
+echo 'unrelated-conflicts=' . count($unrelatedMerge->conflicts) . "\n";
+echo 'unrelated-diff3-base=' . (str_contains($unrelatedDiff3Body, '||||||| base/' . $unrelatedPath) ? 'yes' : 'no') . "\n";
+echo 'unrelated-ours=' . $unrelated['read']($unrelatedOurs->tree->entryNamed($unrelatedPath)?->oid ?? '')->body;
 echo 'virtual-base-conflicts=' . count($virtualBaseMerge->conflicts) . "\n";
 echo 'virtual-base-ours=' . $virtualBase['read']($virtualBaseResolved->tree->entryNamed('renamed-content')?->oid ?? '')->body;
 echo 'rename-add-delete-conflicts=' . count($renameAddDeleteMerge->conflicts) . "\n";

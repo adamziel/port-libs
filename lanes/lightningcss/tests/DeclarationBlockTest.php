@@ -2111,6 +2111,26 @@ return [
         $t->same(['value' => 'auto', 'important' => false], $block->getProperty('grid-template: auto / 1fr', 'grid-template-rows'));
         $t->same(['value' => '1fr', 'important' => false], $block->getProperty('grid-template: auto / 1fr', 'grid-template-columns'));
         $t->same(['value' => 'none', 'important' => false], $block->getProperty('grid-template: auto / 1fr', 'grid-template-areas'));
+        $areaTemplate = 'grid-template: [header-top] "a a a" [header-bottom main-top] "b b b" 1fr [main-bottom] / auto 1fr auto';
+        $t->same(
+            [
+                'value' => '[header-top] "a a a" [header-bottom] [main-top] "b b b" 1fr [main-bottom] / auto 1fr auto',
+                'important' => false,
+            ],
+            $block->getProperty($areaTemplate, 'grid-template')
+        );
+        $t->same(
+            ['value' => '[header-top] auto [header-bottom main-top] 1fr [main-bottom]', 'important' => false],
+            $block->getProperty($areaTemplate, 'grid-template-rows')
+        );
+        $t->same(
+            ['value' => 'auto 1fr auto', 'important' => false],
+            $block->getProperty($areaTemplate, 'grid-template-columns')
+        );
+        $t->same(
+            ['value' => '"a a a" "b b b"', 'important' => false],
+            $block->getProperty($areaTemplate, 'grid-template-areas')
+        );
         $t->same(
             ['value' => 'minmax(0, 1fr) 18rem', 'important' => true],
             $block->getProperty('grid-template: auto / minmax(0, 1fr) 18rem !important', 'grid-template-columns')
@@ -3986,6 +4006,14 @@ return [
             $block->setProperty('grid-template: auto / 1fr; grid-template-columns: 3fr', 'grid-template-columns', '2fr')
         );
         $t->same(
+            'grid-template: [header-top] "a a a" [header-bottom] [main-top] "b b b" 2fr [main-bottom] / auto 1fr auto',
+            $block->setProperty(
+                'grid-template: [header-top] "a a a" [header-bottom main-top] "b b b" 1fr [main-bottom] / auto 1fr auto',
+                'grid-template-rows',
+                '[header-top] auto [header-bottom main-top] 2fr [main-bottom]'
+            )
+        );
+        $t->same(
             'grid-template-columns: 2fr; grid-template: auto / 1fr !important',
             $block->setProperty('grid-template: auto / 1fr !important', 'grid-template-columns', '2fr')
         );
@@ -4913,6 +4941,13 @@ return [
         $t->same(
             'grid-template-rows: auto; grid-template-columns: 1fr',
             $block->removeProperty('grid-template: auto / 1fr', 'grid-template-areas')
+        );
+        $t->same(
+            'grid-template-rows: [header-top] auto [header-bottom main-top] 1fr [main-bottom]; grid-template-areas: "a a a" "b b b"',
+            $block->removeProperty(
+                'grid-template: [header-top] "a a a" [header-bottom main-top] "b b b" 1fr [main-bottom] / auto 1fr auto',
+                'grid-template-columns'
+            )
         );
         $t->same(
             'grid-template-columns: none; grid-template-areas: none',

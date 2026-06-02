@@ -2493,10 +2493,15 @@ CSS);
     'css modules rejects upstream deprecated value rules before composing exports' => static function (TestRunner $t): void {
         foreach ([
             '@value compact: (max-width: 37.4375em);',
+            '@v\61 lue compact: (max-width: 37.4375em);',
+            '@V\61 LUE compact: (max-width: 37.4375em);',
             '/* migrated CSS Modules alias */ @value compact: (max-width: 37.4375em);',
             '.card { composes: base; color: red } @value compact: (max-width:37em); .base { color: blue }',
+            '.card { composes: base; color: red } @v\61 lue compact: (max-width:37em); .base { color: blue }',
             '@media (min-width: 1px) { @value compact: (min-width: 1px); .card { composes: base; color: red } }',
+            '@media (min-width: 1px) { @v\61 lue compact: (min-width: 1px); .card { composes: base; color: red } }',
             '@value compact { .card { color: red } }',
+            '@v\61 lue compact { .card { color: red } }',
         ] as $css) {
             try {
                 (new CssModulesTransformer())->transform($css);

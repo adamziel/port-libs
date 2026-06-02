@@ -144,6 +144,39 @@ $preparedNoOp = $store->prepareLooseUpdateTransaction(
 );
 $preparedNoOpEdits = $preparedNoOp->commit();
 
+$preparedHeldLockDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-held-lock-stale-' . bin2hex(random_bytes(4));
+$preparedHeldLockStore = new ReferenceStore($preparedHeldLockDir, null, $fixture['namespace']);
+$preparedHeldLockPrefix = ReferenceName::expandNamespace($fixture['namespace']);
+$preparedHeldLockPath = $preparedHeldLockDir . '/' . $preparedHeldLockPrefix . $fixture['preparedHeldLockStaleRef'];
+$preparedHeldLockStore->looseStore()->writeDirect(
+    $preparedHeldLockPrefix . $fixture['preparedHeldLockStaleRef'],
+    $fixture['reviewCommit'],
+);
+$preparedHeldLockStore->appendReflog(
+    $fixture['preparedHeldLockStaleRef'],
+    ReferenceTarget::object($fixture['reviewCommit']),
+    ReferenceTarget::object($fixture['productionCommit']),
+    new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'),
+    $fixture['preparedHeldLockReflogMessage'],
+    true,
+);
+$preparedHeldLockReflogBefore = $preparedHeldLockStore->reflogContents($fixture['preparedHeldLockStaleRef']);
+file_put_contents($preparedHeldLockPath . '.lock', 'held by another tenant deployment');
+$preparedHeldLockError = null;
+try {
+    $preparedHeldLockStore->prepareLooseUpdateTransaction(
+        [$fixture['preparedHeldLockStaleRef'] => ReferenceTarget::object($fixture['productionCommit'])],
+        'sha1',
+        new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'),
+        'stale update should not write',
+        true,
+        ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+        ReferenceTarget::object($fixture['productionCommit']),
+    );
+} catch (RuntimeException $exception) {
+    $preparedHeldLockError = $exception->getMessage();
+}
+
 $preparedSymbolicNoOpDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-symbolic-noop-' . bin2hex(random_bytes(4));
 $preparedSymbolicNoOpStore = new ReferenceStore($preparedSymbolicNoOpDir, null, $fixture['namespace']);
 $preparedSymbolicNoOpPrefix = ReferenceName::expandNamespace($fixture['namespace']);
@@ -744,6 +777,11 @@ return [
     'preparedNoOpHeldLockPreserved' => is_file($preparedNoOpPath . '.lock')
         && file_get_contents($preparedNoOpPath . '.lock') === 'held by an idempotent deploy check',
     'preparedNoOpReflogExists' => $store->reflogExists($preparedNoOpRef),
+    'preparedHeldLockError' => $preparedHeldLockError,
+    'preparedHeldLockPreserved' => is_file($preparedHeldLockPath . '.lock')
+        && file_get_contents($preparedHeldLockPath . '.lock') === 'held by another tenant deployment',
+    'preparedHeldLockRefPreserved' => $preparedHeldLockStore->find($fixture['preparedHeldLockStaleRef'])->targetObjectId() === $fixture['reviewCommit'],
+    'preparedHeldLockReflogUnchanged' => $preparedHeldLockReflogBefore === $preparedHeldLockStore->reflogContents($fixture['preparedHeldLockStaleRef']),
     'preparedSymbolicNoOpEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedSymbolicNoOpEdits),
     'preparedSymbolicNoOpTarget' => $preparedSymbolicNoOpStore->find($fixture['preparedSymbolicNoOpRef'])->target->value,
     'preparedSymbolicNoOpHeadContents' => file_get_contents($preparedSymbolicNoOpPath),

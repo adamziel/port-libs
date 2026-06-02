@@ -81,6 +81,21 @@ $rowValueSourceFiles = static function () use ($sourceRoot): array {
 
     return array_values(array_unique($files));
 };
+$compoundWindowSourceFiles = static function () use ($sourceRoot): array {
+    $files = [];
+    foreach ([
+        $sourceRoot . '/SQLiteCompound*.php',
+        $sourceRoot . '/SQLite*Window*.php',
+    ] as $pattern) {
+        foreach (glob($pattern) ?: [] as $file) {
+            $files[] = $file;
+        }
+    }
+    $files[] = $sourceRoot . '/SQLiteSelectRecursiveWindowMaterializePlan.php';
+    sort($files, SORT_STRING);
+
+    return array_values(array_unique($files));
+};
 $keyValueFixtureFiles = [
     $libsqliteRoot . '/examples/application-current-smoke-key-value-import.php',
     $libsqliteRoot . '/examples/application-automatic-indexed-generated-setting-insert-plan.php',
@@ -230,6 +245,39 @@ $rowValueSourceTermMatches = static function () use ($rowValueSourceFiles, $rela
     return $matches;
 };
 
+$compoundWindowSourceTermMatches = static function () use ($compoundWindowSourceFiles, $relativePath): array {
+    $matches = [];
+    $terms = [
+        'wp' . '_',
+        'wp' . '_options',
+        'opt' . 'ion_id',
+        'opt' . 'ion_name',
+        'opt' . 'ion_value',
+        'opt' . 'ion_walk',
+        'auto' . 'load',
+        'Auto' . 'load',
+        'plugin' . '_',
+        'application-' . 'option',
+        'Application ' . 'option',
+    ];
+    $pattern = '/(?:\bwp\b|' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
+
+    foreach ($compoundWindowSourceFiles() as $file) {
+        $contents = file_get_contents($file);
+        if ($contents === false) {
+            throw new RuntimeException("Unable to read {$file}");
+        }
+
+        if (preg_match_all($pattern, $contents, $fileMatches) > 0) {
+            foreach ($fileMatches[0] as $match) {
+                $matches[] = $relativePath($file) . ': ' . $match;
+            }
+        }
+    }
+
+    return $matches;
+};
+
 $keyValueFixtureTermMatches = static function () use ($keyValueFixtureFiles, $relativePath): array {
     $matches = [];
     $pattern = '/wp_|wp_options|wp_sitemeta|blog_id|blogId|BlogId|option_id|option_name|option_value|OptionRow|optionRow|optionName|optionValue|optionId|Autoload|autoload|continue_on_site_error|siteurl|blogname|blogdescription|blog_public|site_name|site_admins|network_meta|rewrite_rules|stylesheet|active_plugins|active_sitewide_plugins|plugin|Plugin|\bhome\b/';
@@ -293,6 +341,7 @@ return [
     'libsqlite key-value source API uses neutral setting names' => static fn (TestRunner $t) => $t->same([], $keyValueSourceTermMatches()),
     'libsqlite jsonb current-source API uses neutral setting names' => static fn (TestRunner $t) => $t->same([], $jsonbCurrentSourceTermMatches()),
     'libsqlite row-value source API uses neutral setting names' => static fn (TestRunner $t) => $t->same([], $rowValueSourceTermMatches()),
+    'libsqlite compound/window source API uses neutral setting names' => static fn (TestRunner $t) => $t->same([], $compoundWindowSourceTermMatches()),
     'libsqlite key-value test and example filenames use neutral setting names' => static fn (TestRunner $t) => $t->same([], $keyValueFixtureFilenameMatches()),
     'libsqlite key-value tests and examples use neutral fixtures' => static fn (TestRunner $t) => $t->same([], $keyValueFixtureTermMatches()),
     'libsqlite row-value ordered subquery fixtures use neutral setting names' => static fn (TestRunner $t) => $t->same([], $rowValueFixtureTermMatches()),

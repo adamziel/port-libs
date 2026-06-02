@@ -1464,6 +1464,77 @@ return [
             $t->same(false, $deleteStore->reflogExists($name), "{$name} reflog is removed before references are pruned");
         }
     },
+    'prepared reference transactions report held loose locks before stale previous values' => static function (TestRunner $t) use ($old, $new, $other): void {
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+
+        $updateDir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-lock-precedence-update-' . bin2hex(random_bytes(4));
+        $updateStore = new ReferenceStore($updateDir);
+        $updateStore->looseStore()->writeDirect('refs/heads/main', $old);
+        $updateStore->appendReflog(
+            'refs/heads/main',
+            ReferenceTarget::object($old),
+            ReferenceTarget::object($other),
+            $committer,
+            'audit before held update lock',
+            true,
+        );
+        $updateReflogBefore = $updateStore->reflogContents('refs/heads/main');
+        file_put_contents($updateDir . '/refs/heads/main.lock', 'held by another prepared update');
+        $updateError = null;
+
+        try {
+            $updateStore->prepareLooseUpdateTransaction(
+                ['refs/heads/main' => ReferenceTarget::object($new)],
+                'sha1',
+                $committer,
+                'should not reach reflog',
+                true,
+                ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+                ReferenceTarget::object($other),
+            );
+            $t->same(true, false, 'held prepared update lock should fail before stale previous value');
+        } catch (RuntimeException $exception) {
+            $updateError = $exception->getMessage();
+        }
+
+        $t->contains('A lock could not be obtained for reference "refs/heads/main"', (string) $updateError);
+        $t->same('held by another prepared update', file_get_contents($updateDir . '/refs/heads/main.lock'));
+        $t->same("{$old}\n", file_get_contents($updateDir . '/refs/heads/main'));
+        $t->same($updateReflogBefore, $updateStore->reflogContents('refs/heads/main'));
+        $t->same($old, $updateStore->find('refs/heads/main')->targetObjectId());
+
+        $deleteDir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-lock-precedence-delete-' . bin2hex(random_bytes(4));
+        $deleteStore = new ReferenceStore($deleteDir);
+        $deleteStore->looseStore()->writeDirect('refs/heads/main', $old);
+        $deleteStore->appendReflog(
+            'refs/heads/main',
+            ReferenceTarget::object($old),
+            ReferenceTarget::object($other),
+            $committer,
+            'audit before held delete lock',
+            true,
+        );
+        $deleteReflogBefore = $deleteStore->reflogContents('refs/heads/main');
+        file_put_contents($deleteDir . '/refs/heads/main.lock', 'held by another prepared delete');
+        $deleteError = null;
+
+        try {
+            $deleteStore->prepareLooseDeleteTransaction(
+                ['refs/heads/main'],
+                ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+                ReferenceTarget::object($other),
+            );
+            $t->same(true, false, 'held prepared delete lock should fail before stale previous value');
+        } catch (RuntimeException $exception) {
+            $deleteError = $exception->getMessage();
+        }
+
+        $t->contains('A lock could not be obtained for reference "refs/heads/main"', (string) $deleteError);
+        $t->same('held by another prepared delete', file_get_contents($deleteDir . '/refs/heads/main.lock'));
+        $t->same("{$old}\n", file_get_contents($deleteDir . '/refs/heads/main'));
+        $t->same($deleteReflogBefore, $deleteStore->reflogContents('refs/heads/main'));
+        $t->same($old, $deleteStore->find('refs/heads/main')->targetObjectId());
+    },
     'prepared deref duplicate leaf updates fail before packed refs lock acquisition like upstream' => static function (TestRunner $t) use ($old, $new, $other): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-deref-duplicate-' . bin2hex(random_bytes(4));
         mkdir($dir, 0777, true);
@@ -2375,6 +2446,13 @@ return [
         $t->same($fixture['reviewCommit'], $summary['preparedNoOpCommit']);
         $t->same($fixture['expectedPreparedNoOpHeldLockPreserved'], $summary['preparedNoOpHeldLockPreserved']);
         $t->same($fixture['expectedPreparedNoOpReflogExists'], $summary['preparedNoOpReflogExists']);
+        $t->same(
+            $fixture['expectedPreparedHeldLockErrorPrefix'],
+            substr((string) $summary['preparedHeldLockError'], 0, strlen($fixture['expectedPreparedHeldLockErrorPrefix'])),
+        );
+        $t->same($fixture['expectedPreparedHeldLockPreserved'], $summary['preparedHeldLockPreserved']);
+        $t->same($fixture['expectedPreparedHeldLockRefPreserved'], $summary['preparedHeldLockRefPreserved']);
+        $t->same($fixture['expectedPreparedHeldLockReflogUnchanged'], $summary['preparedHeldLockReflogUnchanged']);
         $t->same($fixture['expectedPreparedSymbolicNoOpEditNames'], $summary['preparedSymbolicNoOpEditNames']);
         $t->same($fixture['preparedSymbolicNoOpTargetRef'], $summary['preparedSymbolicNoOpTarget']);
         $t->same($fixture['expectedPreparedSymbolicNoOpHeadContents'], $summary['preparedSymbolicNoOpHeadContents']);
@@ -2589,6 +2667,7 @@ return [
         $t->contains('recursive symbolic tenant HEAD publishes and prunes', $summary['wordpressUse']);
         $t->contains('direct production referent publish', $summary['wordpressUse']);
         $t->contains('reject duplicate dereferenced prepared updates before waiting on packed-ref locks', $summary['wordpressUse']);
+        $t->contains('held prepared locks before stale expected-value checks', $summary['wordpressUse']);
         $t->contains('quiet publish previews', $summary['wordpressUse']);
         $t->contains('disabled write-mode audit cleanup', $summary['wordpressUse']);
         $t->contains('protected Windows device refnames', $summary['wordpressUse']);
