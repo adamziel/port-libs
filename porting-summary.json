@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 11:55:14 UTC",
-    "sourceCommit": "96a5d7f9701b7e2f6af6484fad32fbb25e216f55",
-    "sourceCommitShort": "96a5d7f9701b",
+    "generated": "2026-06-02 11:59:05 UTC",
+    "sourceCommit": "8c840ab09a81efa754ceb198e832226fe6466c32",
+    "sourceCommitShort": "8c840ab09a81",
     "sourceBranch": "main",
-    "dashboardCommit": "96a5d7f9701b7e2f6af6484fad32fbb25e216f55",
-    "dashboardCommitShort": "96a5d7f9701b",
+    "dashboardCommit": "8c840ab09a81efa754ceb198e832226fe6466c32",
+    "dashboardCommitShort": "8c840ab09a81",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "339",
-            "coverage": "339 / 78 (434.6%)",
-            "mapPercent": "434.6%",
+            "mapped": "340",
+            "coverage": "340 / 78 (435.9%)",
+            "mapPercent": "435.9%",
             "unmapped": "0",
-            "php": "491 pass / 0 fail",
+            "php": "492 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Portfolio collection schema field-value review is integrated and fully green; continu...",
+            "currentWork": "Annotation appearance and Sound stream review metadata is integrated and fully green;...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "96a5d7f"
+            "commit": "8c840ab"
         },
         {
             "lane": "readability",
