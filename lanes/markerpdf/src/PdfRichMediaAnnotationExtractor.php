@@ -122,19 +122,43 @@ final class PdfRichMediaAnnotationExtractor
         }
 
         $annotations = [];
-        foreach ($this->objectReferences($arrayBody) as $objectNumber) {
-            if (!isset($objects[$objectNumber])) {
+        for ($offset = 0, $length = strlen($arrayBody); $offset < $length;) {
+            $this->skipWhitespaceAndComments($arrayBody, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $endOffset = null;
+            $value = $this->readPdfValueAtOffset($arrayBody, $offset, $endOffset);
+            if ($value === null || $endOffset === null || $endOffset <= $offset) {
+                $offset++;
                 continue;
             }
 
-            $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
-            if ($dictionary !== null) {
-                $annotations[] = ['body' => $dictionary, 'object' => $objectNumber];
+            $value = trim($value);
+            if (str_starts_with($value, '<<')) {
+                $dictionary = $this->readPdfDictionaryAt($value, 0);
+                if ($dictionary !== null) {
+                    $annotations[] = ['body' => $dictionary, 'object' => null];
+                }
+                $offset = $endOffset;
+                continue;
             }
-        }
 
-        foreach ($this->directDictionaries($arrayBody) as $dictionary) {
-            $annotations[] = ['body' => $dictionary, 'object' => null];
+            if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1) {
+                $objectNumber = (int) $match[1];
+                $objectBody = trim($objects[$objectNumber] ?? '');
+                if (str_starts_with($objectBody, '[')) {
+                    array_push($annotations, ...$this->annotationBodiesFromArray($this->arrayBodyFromValue($objectBody), $objects));
+                } else {
+                    $dictionary = $this->dictionaryObjectBody($objectBody);
+                    if ($dictionary !== null) {
+                        $annotations[] = ['body' => $dictionary, 'object' => $objectNumber];
+                    }
+                }
+            }
+
+            $offset = $endOffset;
         }
 
         return $annotations;
@@ -177,12 +201,10 @@ final class PdfRichMediaAnnotationExtractor
 
         $chainSafety = $this->emptyActionChainSafety();
         $actions = $this->actionReviewRowsFromAnnotation($annotationBody, $objects, $chainSafety);
-        $actionDictionaries = $this->actionDictionaries($annotationBody, $objects);
         $contextBodies = $this->dedupeStrings(array_merge(
             [$annotationBody],
-            $actionDictionaries,
-            $this->referencedDictionaryBodies($annotationBody, $objects, 3),
-            ...array_map(fn (string $body): array => $this->referencedDictionaryBodies($body, $objects, 2), $actionDictionaries)
+            $this->mediaContextBodiesFromAnnotation($annotationBody, $objects),
+            $this->actionContextBodiesFromAnnotation($annotationBody, $objects)
         ));
         $actionTypes = $this->dedupeStrings(array_values(array_filter(
             array_map(static fn (array $action): ?string => $action['action_type'] ?? null, $actions),
@@ -305,6 +327,158 @@ final class PdfRichMediaAnnotationExtractor
         }
 
         return $actions;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function mediaContextBodiesFromAnnotation(string $annotationBody, array $objects): array
+    {
+        $bodies = [];
+        foreach (['RichMediaContent', 'Movie', 'Sound'] as $name) {
+            $value = $this->topLevelValueAfterName($annotationBody, $name);
+            if ($value === null) {
+                continue;
+            }
+
+            $record = $this->resolvedDictionaryFromValue($value, $objects);
+            if ($record === null) {
+                continue;
+            }
+
+            $bodies[] = $record['body'];
+            array_push($bodies, ...$this->referencedDictionaryBodies($record['body'], $objects, 2));
+        }
+
+        return $this->dedupeStrings($bodies);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function actionContextBodiesFromAnnotation(string $annotationBody, array $objects): array
+    {
+        $bodies = [];
+        $seen = [];
+
+        $action = $this->topLevelValueAfterName($annotationBody, 'A');
+        if ($action !== null) {
+            $this->appendActionContextBodiesFromValue($action, $objects, $bodies, $seen);
+        }
+
+        $additionalActions = $this->topLevelValueAfterName($annotationBody, 'AA');
+        if ($additionalActions === null) {
+            return $this->dedupeStrings($bodies);
+        }
+
+        $dictionary = $this->resolvedDictionaryFromValue($additionalActions, $objects);
+        if ($dictionary === null) {
+            return $this->dedupeStrings($bodies);
+        }
+
+        foreach ($this->topLevelDictionaryEntries($dictionary['body']) as $entry) {
+            $this->appendActionContextBodiesFromValue($entry['value'], $objects, $bodies, $seen);
+        }
+
+        return $this->dedupeStrings($bodies);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string> $bodies
+     * @param array<string, true> $seen
+     */
+    private function appendActionContextBodiesFromValue(
+        string $value,
+        array $objects,
+        array &$bodies,
+        array &$seen,
+        int $chainIndex = 0,
+        array $chainPath = []
+    ): void {
+        if ($chainIndex > self::MAX_ACTION_CHAIN_DEPTH) {
+            return;
+        }
+
+        $arrayValues = $this->arrayValuesFromPdfValue($value, $objects);
+        if ($arrayValues !== null) {
+            foreach ($arrayValues as $arrayValue) {
+                $this->appendActionContextBodiesFromValue($arrayValue, $objects, $bodies, $seen, $chainIndex, $chainPath);
+            }
+
+            return;
+        }
+
+        $record = $this->resolvedDictionaryFromValue($value, $objects);
+        if ($record === null) {
+            return;
+        }
+
+        $visitKey = $record['object'] === null ? 'inline:' . hash('sha256', $record['body']) : 'object:' . $record['object'];
+        if (isset($chainPath[$visitKey])) {
+            return;
+        }
+        $chainPath[$visitKey] = true;
+
+        $identity = $visitKey . '@' . $chainIndex;
+        if (!isset($seen[$identity])) {
+            $seen[$identity] = true;
+            $bodies[] = $record['body'];
+            array_push($bodies, ...$this->actionSpecificContextBodies($record['body'], $objects));
+        }
+
+        $next = $this->topLevelValueAfterName($record['body'], 'Next');
+        if ($next !== null) {
+            $this->appendActionContextBodiesFromValue($next, $objects, $bodies, $seen, $chainIndex + 1, $chainPath);
+        }
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function actionSpecificContextBodies(string $actionBody, array $objects): array
+    {
+        $actionType = $this->topLevelNameValueAfterName($actionBody, 'S');
+        if ($actionType === null) {
+            return [];
+        }
+
+        $bodies = [];
+        if ($actionType === 'Rendition') {
+            $rendition = $this->dictionaryFromTopLevelValue($actionBody, 'R', $objects);
+            if ($rendition !== null) {
+                $bodies[] = $rendition['body'];
+                array_push($bodies, ...$this->referencedDictionaryBodies($rendition['body'], $objects, 2));
+            }
+        }
+
+        if ($actionType === 'Launch' || $actionType === 'GoToR') {
+            $fileSpec = $this->dictionaryFromTopLevelValue($actionBody, 'F', $objects);
+            if ($fileSpec !== null) {
+                $bodies[] = $fileSpec['body'];
+            }
+
+            $win = $this->dictionaryFromTopLevelValue($actionBody, 'Win', $objects);
+            if ($win !== null) {
+                $bodies[] = $win['body'];
+                $winFileSpec = $this->dictionaryFromTopLevelValue($win['body'], 'F', $objects);
+                if ($winFileSpec !== null) {
+                    $bodies[] = $winFileSpec['body'];
+                }
+            }
+        }
+
+        if ($actionType === 'RichMediaExecute') {
+            $command = $this->dictionaryFromTopLevelValue($actionBody, 'CMD', $objects);
+            if ($command !== null) {
+                $bodies[] = $command['body'];
+            }
+        }
+
+        return $this->dedupeStrings($bodies);
     }
 
     /**
@@ -938,39 +1112,6 @@ final class PdfRichMediaAnnotationExtractor
      * @return list<string>
      * @param array<int, string> $objects
      */
-    private function actionDictionaries(string $annotationBody, array $objects): array
-    {
-        $actions = [];
-
-        $action = $this->valueAfterName($annotationBody, 'A');
-        if ($action !== null) {
-            array_push($actions, ...$this->dictionariesFromValue($action, $objects));
-        }
-
-        $additionalActions = $this->valueAfterName($annotationBody, 'AA');
-        if ($additionalActions !== null) {
-            foreach ($this->dictionariesFromValue($additionalActions, $objects) as $dictionary) {
-                foreach ($this->directDictionaries($dictionary) as $nestedDictionary) {
-                    if ($this->nameValueAfterName($nestedDictionary, 'S') !== null) {
-                        $actions[] = $nestedDictionary;
-                    }
-                }
-
-                foreach ($this->referencedDictionaryBodies($dictionary, $objects, 1) as $referencedDictionary) {
-                    if ($this->nameValueAfterName($referencedDictionary, 'S') !== null) {
-                        $actions[] = $referencedDictionary;
-                    }
-                }
-            }
-        }
-
-        return $this->dedupeStrings($actions);
-    }
-
-    /**
-     * @return list<string>
-     * @param array<int, string> $objects
-     */
     private function dictionariesFromValue(string $value, array $objects): array
     {
         $value = trim($value);
@@ -1506,26 +1647,6 @@ final class PdfRichMediaAnnotationExtractor
     {
         $offset = strpos($objectBody, '<<');
         return $offset === false ? null : $this->readPdfDictionaryAt($objectBody, $offset);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function directDictionaries(string $value): array
-    {
-        $dictionaries = [];
-        $offset = 0;
-        while (($start = strpos($value, '<<', $offset)) !== false) {
-            $endOffset = null;
-            $body = $this->readPdfDictionaryAt($value, $start, $endOffset);
-            if ($body === null || $endOffset === null) {
-                break;
-            }
-            $dictionaries[] = $body;
-            $offset = $endOffset;
-        }
-
-        return $dictionaries;
     }
 
     private function arrayBodyFromValue(string $value): ?string

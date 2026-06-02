@@ -76,6 +76,26 @@ $richMediaActionPopupPdf = static function (): string {
         . "%%EOF";
 };
 
+$currentAnnotationActionBoundaryPdf = static function (): string {
+    $pageContent = 'BT /F1 12 Tf 72 720 Td (Article Body) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 20 0 R >> >> /Annots [<< /Type /Annot /Subtype /RichMedia /Rect [72 520 320 700] /T (Current inline player) /Contents (Only this inline annotation belongs to the page) /RichMediaContent 30 0 R /A << /S /Rendition /R << /C 31 0 R /OP 0 >> /Next 14 0 R >> /AA << /PV [12 0 R << /S /RichMediaExecute /AN 50 0 R /CMD << /C (targetStalePlayer) >> >>] /PI 13 0 R >> /Popup << /Type /Annot /Subtype /Popup /Rect [200 540 380 620] /Open false /Contents (Inline popup metadata) >> >>] /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+        . "12 0 obj\n<< /S /URI /URI (https://cdn.example.com/current-inline.mp4) >>\nendobj\n"
+        . "13 0 obj\n<< /S /Launch /F (current-helper.exe) /Win << /F (current-setup.exe) /O (open) >> >>\nendobj\n"
+        . "14 0 obj\n<< /S /JavaScript /JS (app.alert\\('current only'\\)) >>\nendobj\n"
+        . "30 0 obj\n<< /RichMediaContent << /Assets << /Names [(current-inline.mp4) 31 0 R] >> >> >>\nendobj\n"
+        . "31 0 obj\n<< /Type /Filespec /F (current-rendition.mp4) >>\nendobj\n"
+        . "50 0 obj\n<< /Type /Annot /Subtype /RichMedia /Rect [10 10 20 20] /T (Stale detached player) /Contents (Detached target must not become a page annotation) /RichMediaContent 51 0 R /A << /S /URI /URI (https://cdn.example.com/stale-detached.mp4) >> >>\nendobj\n"
+        . "51 0 obj\n<< /RichMediaContent << /Assets << /Names [(stale-detached.mp4) 52 0 R] >> >> >>\nendobj\n"
+        . "52 0 obj\n<< /Type /Filespec /F (stale-detached.mp4) >>\nendobj\n"
+        . "20 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'extracts screen and rich media annotations as review-only metadata' => static function (TestRunner $t) use ($richMediaAnnotationPdf): void {
         $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($richMediaAnnotationPdf());
@@ -187,6 +207,44 @@ return [
         $t->same(['Article Body'], (new PdfTextExtractor())->extractTextLines($richMediaActionPopupPdf()));
         $t->true(!str_contains($plainText, 'Reviewer popup stays metadata'));
         $t->true(!str_contains($plainText, 'blocked media script'));
+    },
+    'keeps inline annotation action targets inside the current page annotation boundary' => static function (TestRunner $t) use ($currentAnnotationActionBoundaryPdf): void {
+        $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($currentAnnotationActionBoundaryPdf());
+
+        $t->same(1, count($pages));
+        $t->same(0, $pages[0]['pnum']);
+        $t->same(3, $pages[0]['page_object']);
+        $t->same(1, count($pages[0]['annotations']), 'Only top-level /Annots entries are page annotations; nested /A and /AA references remain action metadata.');
+
+        $annotation = $pages[0]['annotations'][0];
+        $t->same('RichMedia', $annotation['subtype']);
+        $t->same(null, $annotation['annotation_object']);
+        $t->same('Current inline player', $annotation['title']);
+        $t->same('Only this inline annotation belongs to the page', $annotation['contents']);
+        $t->same(['current-inline.mp4'], $annotation['asset_names']);
+        $t->same(['current-rendition.mp4', 'current-helper.exe', 'current-setup.exe'], $annotation['file_names']);
+        $t->true(!in_array('stale-detached.mp4', $annotation['asset_names'], true));
+        $t->true(!in_array('stale-detached.mp4', $annotation['file_names'], true));
+
+        $t->same(['Rendition', 'JavaScript', 'URI', 'RichMediaExecute', 'Launch'], $annotation['action_types']);
+        $t->same(['https://cdn.example.com/current-inline.mp4'], $annotation['action_uris']);
+        $t->same(5, count($annotation['actions']));
+
+        $targeted = $annotation['actions'][3];
+        $t->same('RichMediaExecute', $targeted['action_type']);
+        $t->same(50, $targeted['target_annotation_object']);
+        $t->same('targetStalePlayer', $targeted['command']);
+        $t->same(false, $targeted['executes_on_import']);
+
+        $launch = $annotation['actions'][4];
+        $t->same('Launch', $launch['action_type']);
+        $t->same('blocked-launch', $launch['safety']);
+        $t->same('current-helper.exe', $launch['file']);
+        $t->same('open', $launch['operation']);
+
+        $plainText = (new PdfTextExtractor())->extractPlainText($currentAnnotationActionBoundaryPdf());
+        $t->same(['Article Body'], (new PdfTextExtractor())->extractTextLines($currentAnnotationActionBoundaryPdf()));
+        $t->true(!str_contains($plainText, 'Detached target must not become a page annotation'));
     },
     'keeps rich media and screen appearances out of native text extraction' => static function (TestRunner $t) use ($richMediaAnnotationPdf): void {
         $extractor = new PdfTextExtractor();
