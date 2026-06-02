@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 12:36:02 UTC",
-    "sourceCommit": "929690b7c2a393f4f6267eccc40c2d75616d04d9",
-    "sourceCommitShort": "929690b7c2a3",
+    "generated": "2026-06-02 12:45:06 UTC",
+    "sourceCommit": "0d98b7e5126d47814d3903e4ea0c296a59334e68",
+    "sourceCommitShort": "0d98b7e5126d",
     "sourceBranch": "main",
-    "dashboardCommit": "929690b7c2a393f4f6267eccc40c2d75616d04d9",
-    "dashboardCommitShort": "929690b7c2a3",
+    "dashboardCommit": "0d98b7e5126d47814d3903e4ea0c296a59334e68",
+    "dashboardCommitShort": "0d98b7e5126d",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "348",
-            "coverage": "348 / 78 (446.2%)",
-            "mapPercent": "446.2%",
+            "mapped": "349",
+            "coverage": "349 / 78 (447.4%)",
+            "mapPercent": "447.4%",
             "unmapped": "0",
-            "php": "500 pass / 0 fail",
+            "php": "501 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Pdftext table-line structure routing is integrated and full-lane green; continue mark...",
+            "currentWork": "Page-tree /Contents non-inheritance and inherited /Resources are integrated and full-...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "929690b"
+            "commit": "0d98b7e"
         },
         {
             "lane": "readability",
