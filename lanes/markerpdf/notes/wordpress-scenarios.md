@@ -312,6 +312,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-thread-bead-reading-order-import.php` maps catalog `/Threads` article bead reading order into a WordPress paragraph import path. It follows bead rectangles and linked-list order so multi-column article text emits as `one, two, three, four` instead of raw content stream order.
 
+`examples/wordpress-pdf-object-generation-free-entry-import.php` maps object-generation free-entry reuse into a WordPress paragraph import path. It keeps the current direct page text while excluding a stale object-stream member whose object number is reserved by a current xref free entry.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
