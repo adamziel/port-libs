@@ -367,6 +367,23 @@ $appearanceValueActionBoundaryPdf = static function (): array {
     return [$pdf, $selectedAppearance, $directAppearance, $focusScript];
 };
 
+$fieldActionReviewBoundaryPdf = static function (): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R 12 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 10 0 R] >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (registration.url) /V (https://example.test/import) /Kids [8 0 R] /AA << /K << /S /Named /N /Print >> /V 20 0 R >> >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 620 320 644] /P 3 0 R /F 4 >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Btn /T (actions.import_data) /Ff 65536 /Kids [12 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 580 240 604] /P 3 0 R /F 4 /A 21 0 R >>\nendobj\n"
+        . "20 0 obj\n<< /S /URI /URI (javascript:app.alert\\('blocked field validation'\\)) /Next [22 0 R << /S /Hide /T [(registration.url) 8 0 R] /H true >>] >>\nendobj\n"
+        . "21 0 obj\n<< /S /ImportData /F 30 0 R >>\nendobj\n"
+        . "22 0 obj\n<< /S /Launch /F (cmd.exe) /NewWindow true >>\nendobj\n"
+        . "30 0 obj\n<< /Type /Filespec /F (review.fdf) >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'extracts inherited field flags and field default appearance strings' => static function (TestRunner $t) use ($acroFormPdf, $fieldsByName): void {
         $form = (new PdfAcroFormExtractor())->extractForm($acroFormPdf());
@@ -1082,5 +1099,57 @@ return [
         $t->same(false, $directSelected['imports_visible_text']);
         $t->same('JavaScript', $direct['widgets'][0]['actions'][0]['action_type']);
         $t->same(false, $direct['widgets'][0]['actions'][0]['executes_action']);
+    },
+    'keeps non JavaScript AcroForm field actions review only without executing URI launch hide or import actions' => static function (TestRunner $t) use ($fieldActionReviewBoundaryPdf, $fieldsByName): void {
+        $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($fieldActionReviewBoundaryPdf()));
+        $url = $fields['registration.url'];
+        $fieldActions = $url['actions'];
+        $widgetAction = $fields['actions.import_data']['widgets'][0]['actions'][0];
+
+        $t->same(['Named', 'URI', 'Launch', 'Hide'], array_column($fieldActions, 'action_type'));
+        $t->same(['K', 'V', 'V', 'V'], array_column($fieldActions, 'trigger'));
+        $t->same(['keystroke', 'validate', 'validate', 'validate'], array_column($fieldActions, 'trigger_label'));
+        $t->same(['named-action-review', 'blocked-unsafe-uri', 'launch-action-review', 'hide-action-review'], array_column($fieldActions, 'safety'));
+        $t->same([false, false, false, false], array_column($fieldActions, 'executes_action'));
+        $t->same([false, false, false, false], array_column($fieldActions, 'executes_javascript'));
+        $t->same([true, true], array_column(array_slice($fieldActions, 2), 'chained'));
+
+        $named = $fieldActions[0];
+        $t->same('Print', $named['named_action']);
+        $t->same('field', $named['source']);
+        $t->same(6, $named['source_object']);
+
+        $uri = $fieldActions[1];
+        $t->same(20, $uri['action_object']);
+        $t->same("javascript:app.alert('blocked field validation')", $uri['uri']);
+        $t->same('javascript', $uri['target_scheme']);
+        $t->same(false, $uri['safe_uri']);
+        $t->true($uri['review_only']);
+
+        $launch = $fieldActions[2];
+        $t->same(22, $launch['action_object']);
+        $t->same('cmd.exe', $launch['target']);
+        $t->same(null, $launch['target_scheme']);
+        $t->true($launch['new_window']);
+        $t->true($launch['review_only']);
+
+        $hide = $fieldActions[3];
+        $t->same(null, $hide['action_object']);
+        $t->same('hide', $hide['operation']);
+        $t->true($hide['hide']);
+        $t->same([8], $hide['field_objects']);
+        $t->same(['registration.url'], $hide['field_names']);
+        $t->same([], $hide['unresolved_field_objects']);
+
+        $t->same('ImportData', $widgetAction['action_type']);
+        $t->same('activation', $widgetAction['trigger']);
+        $t->same('widget', $widgetAction['source']);
+        $t->same(12, $widgetAction['source_object']);
+        $t->same(21, $widgetAction['action_object']);
+        $t->same('review.fdf', $widgetAction['target']);
+        $t->same('import-data-action-review', $widgetAction['safety']);
+        $t->same(false, $widgetAction['imports_form_data']);
+        $t->same(false, $widgetAction['executes_action']);
+        $t->same(false, $widgetAction['executes_javascript']);
     },
 ];

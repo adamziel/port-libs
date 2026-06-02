@@ -2735,7 +2735,16 @@ final class PdfAcroFormExtractor
         }
 
         if (!in_array($actionType, ['SubmitForm', 'ResetForm'], true)) {
-            return null;
+            return $this->genericActionMetadataFromBody(
+                $actionBody,
+                $objects,
+                $fieldNamesByObject,
+                $trigger,
+                $source,
+                $sourceObject,
+                $actionObject,
+                $actionType
+            );
         }
 
         $flags = $this->numberValueAfterName($actionBody, 'Flags') ?? 0;
@@ -2771,6 +2780,238 @@ final class PdfAcroFormExtractor
         }
 
         return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, string> $fieldNamesByObject
+     * @return array<string, mixed>|null
+     */
+    private function genericActionMetadataFromBody(
+        string $actionBody,
+        array $objects,
+        array $fieldNamesByObject,
+        string $trigger,
+        string $source,
+        int $sourceObject,
+        ?int $actionObject,
+        ?string $actionType
+    ): ?array {
+        if ($actionType === null || $actionType === '') {
+            return null;
+        }
+
+        $metadata = [
+            'action_type' => $actionType,
+            'trigger' => $trigger,
+            'trigger_label' => $this->actionTriggerLabel($trigger),
+            'source' => $source,
+            'source_object' => $sourceObject,
+            'action_object' => $actionObject,
+            'safety' => $this->genericActionSafety($actionType, $actionBody, $objects),
+            'review_only' => true,
+            'executes_action' => false,
+            'executes_javascript' => false,
+        ];
+
+        if ($actionType === 'URI') {
+            $uriValue = $this->dictionaryEntryValueAfterName($actionBody, 'URI');
+            $uri = $uriValue === null ? null : $this->pdfValueToString($uriValue, $objects);
+            $metadata['uri'] = $uri;
+            $metadata['target'] = $uri;
+            $metadata['target_scheme'] = is_string($uri) ? $this->uriScheme($uri) : null;
+            $metadata['safe_uri'] = is_string($uri) && $this->isSafeUri($uri);
+
+            return $metadata;
+        }
+
+        if ($actionType === 'Launch') {
+            $targetValue = $this->dictionaryEntryValueAfterName($actionBody, 'F');
+            $target = $targetValue === null ? null : $this->fileSpecificationFromValue($targetValue, $objects);
+            $metadata['target'] = $target;
+            $metadata['target_scheme'] = is_string($target) ? $this->uriScheme($target) : null;
+            $metadata['new_window'] = $this->boolValueAfterName($actionBody, 'NewWindow');
+
+            return $metadata;
+        }
+
+        if ($actionType === 'ImportData') {
+            $targetValue = $this->dictionaryEntryValueAfterName($actionBody, 'F');
+            $target = $targetValue === null ? null : $this->fileSpecificationFromValue($targetValue, $objects);
+            $metadata['target'] = $target;
+            $metadata['target_scheme'] = is_string($target) ? $this->uriScheme($target) : null;
+            $metadata['imports_form_data'] = false;
+
+            return $metadata;
+        }
+
+        if ($actionType === 'Hide') {
+            $targetValue = $this->dictionaryEntryValueAfterName($actionBody, 'T');
+            $selection = $targetValue === null
+                ? ['field_objects' => [], 'field_names' => [], 'unresolved_field_objects' => []]
+                : $this->fieldTargetsFromValue($targetValue, $objects, $fieldNamesByObject);
+            $hide = $this->boolValueAfterName($actionBody, 'H');
+            $metadata += [
+                'hide' => $hide ?? true,
+                'operation' => ($hide ?? true) ? 'hide' : 'show',
+                'field_objects' => $selection['field_objects'],
+                'field_names' => $selection['field_names'],
+                'unresolved_field_objects' => $selection['unresolved_field_objects'],
+            ];
+
+            return $metadata;
+        }
+
+        if ($actionType === 'Named') {
+            $nameValue = $this->dictionaryEntryValueAfterName($actionBody, 'N');
+            $metadata['named_action'] = $nameValue === null ? null : $this->pdfValueToString($nameValue, $objects);
+
+            return $metadata;
+        }
+
+        if ($actionType === 'GoTo' || $actionType === 'GoToR') {
+            $destination = $this->actionDestinationValue($this->dictionaryEntryValueAfterName($actionBody, 'D'), $objects);
+            $metadata['destination'] = $destination;
+            if ($actionType === 'GoToR') {
+                $targetValue = $this->dictionaryEntryValueAfterName($actionBody, 'F');
+                $target = $targetValue === null ? null : $this->fileSpecificationFromValue($targetValue, $objects);
+                $metadata['target'] = $target;
+                $metadata['target_scheme'] = is_string($target) ? $this->uriScheme($target) : null;
+                $metadata['new_window'] = $this->boolValueAfterName($actionBody, 'NewWindow');
+            }
+
+            return $metadata;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function genericActionSafety(string $actionType, string $actionBody, array $objects): string
+    {
+        if ($actionType === 'URI') {
+            $uriValue = $this->dictionaryEntryValueAfterName($actionBody, 'URI');
+            $uri = $uriValue === null ? null : $this->pdfValueToString($uriValue, $objects);
+            return is_string($uri) && $this->isSafeUri($uri) ? 'review-uri' : 'blocked-unsafe-uri';
+        }
+
+        return match ($actionType) {
+            'Launch' => 'launch-action-review',
+            'ImportData' => 'import-data-action-review',
+            'Hide' => 'hide-action-review',
+            'Named' => 'named-action-review',
+            'GoTo' => 'local-destination-review',
+            'GoToR' => 'remote-document-review',
+            default => 'unsupported-action-review',
+        };
+    }
+
+    private function isSafeUri(string $uri): bool
+    {
+        $scheme = $this->uriScheme($uri);
+        return $scheme === null || in_array($scheme, ['http', 'https', 'mailto'], true);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, string> $fieldNamesByObject
+     * @return array{field_objects: list<int>, field_names: list<string>, unresolved_field_objects: list<int>}
+     */
+    private function fieldTargetsFromValue(string $value, array $objects, array $fieldNamesByObject): array
+    {
+        $value = trim($value);
+        $body = str_starts_with($value, '[') ? $this->arrayBodyFromValue($value) : $value;
+        if ($body === null) {
+            return [
+                'field_objects' => [],
+                'field_names' => [],
+                'unresolved_field_objects' => [],
+            ];
+        }
+
+        $fieldObjects = array_values(array_unique($this->objectReferences($body)));
+        $fieldNames = [];
+        $unresolved = [];
+        foreach ($fieldObjects as $fieldObject) {
+            if (isset($fieldNamesByObject[$fieldObject])) {
+                $fieldNames[] = $fieldNamesByObject[$fieldObject];
+                continue;
+            }
+
+            $unresolved[] = $fieldObject;
+        }
+
+        foreach ($this->scalarValuesFromArrayBody($body, $objects) as $fieldName) {
+            if ($fieldName !== '' && !in_array($fieldName, $fieldNames, true)) {
+                $fieldNames[] = $fieldName;
+            }
+        }
+
+        return [
+            'field_objects' => $fieldObjects,
+            'field_names' => $fieldNames,
+            'unresolved_field_objects' => $unresolved,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return mixed
+     */
+    private function actionDestinationValue(?string $value, array $objects): mixed
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (str_starts_with($value, '[')) {
+            $body = $this->arrayBodyFromValue($value);
+            return $body === null ? [] : $this->destinationArrayPreview($body, $objects);
+        }
+
+        return $this->pdfValueToPhpValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<mixed>
+     */
+    private function destinationArrayPreview(string $body, array $objects): array
+    {
+        $items = [];
+        $offset = 0;
+        $length = strlen($body);
+        while ($offset < $length) {
+            $endOffset = null;
+            $value = $this->readPdfValueAt($body, $offset, $endOffset);
+            if ($value === null || $endOffset === null) {
+                $offset++;
+                continue;
+            }
+
+            $value = trim($value);
+            if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1) {
+                $items[] = ['object' => (int) $match[1]];
+            } else {
+                $items[] = $this->pdfValueToPhpValue($value, $objects);
+            }
+            $offset = $endOffset;
+        }
+
+        return $items;
+    }
+
+    private function dictionaryEntryValueAfterName(string $dictionaryBody, string $name): ?string
+    {
+        $entries = $this->dictionaryNameValueMap($dictionaryBody);
+        return $entries[$name] ?? null;
     }
 
     /**
