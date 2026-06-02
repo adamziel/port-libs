@@ -3186,6 +3186,7 @@ final class PdfTextExtractor
             return $streams;
         }
 
+        $definitions = $this->directObjectDefinitions($pdfBytes);
         $linearizedHintRanges = $this->linearizedHintTableRanges($pdfBytes);
         $embeddedFilePayloadObjectNumbers = $this->embeddedFilePayloadObjectNumbers($objects);
         $pieceInfoPrivateObjectNumbers = $this->pieceInfoPrivateStreamObjectNumbers($objects);
@@ -3193,7 +3194,7 @@ final class PdfTextExtractor
             $dict = $match[1][0];
             $dictOffset = $match[1][1] - 2;
             $streamStart = $match[0][1] + strlen($match[0][0]);
-            $streamObjectNumber = $this->directObjectNumberAtOffset($pdfBytes, $streamStart);
+            $streamObjectNumber = $this->directObjectNumberAtOffset($pdfBytes, $streamStart, $definitions);
             if (
                 $this->offsetInPdfByteRanges($dictOffset, $linearizedHintRanges)
                 || $this->offsetInPdfByteRanges($streamStart, $linearizedHintRanges)
@@ -3368,26 +3369,30 @@ final class PdfTextExtractor
         return $end === $offset ? null : substr($body, $offset, $end - $offset);
     }
 
-    private function directObjectNumberAtOffset(string $pdfBytes, int $offset): ?int
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>>|null $definitions
+     */
+    private function directObjectNumberAtOffset(string $pdfBytes, int $offset, ?array $definitions = null): ?int
     {
-        $prefix = substr($pdfBytes, 0, max(0, $offset));
-        if (!preg_match_all('/(\d+)\s+\d+\s+obj\b/s', $prefix, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
-            return null;
+        $definitions ??= $this->directObjectDefinitions($pdfBytes);
+        $ownerObjectNumber = null;
+        $ownerOffset = -1;
+        foreach ($definitions as $objectNumber => $entries) {
+            foreach ($entries as $definition) {
+                if (
+                    $offset < $definition['bodyStart']
+                    || $offset > $definition['bodyEnd']
+                    || $definition['offset'] < $ownerOffset
+                ) {
+                    continue;
+                }
+
+                $ownerObjectNumber = $objectNumber;
+                $ownerOffset = $definition['offset'];
+            }
         }
 
-        $last = end($matches);
-        if (!is_array($last)) {
-            return null;
-        }
-
-        $objectStart = $last[0][1];
-        $bodyStart = $objectStart + strlen($last[0][0]);
-        $objectEnd = $this->pdfObjectEndOffset($pdfBytes, $bodyStart);
-        if ($objectEnd === null || $objectEnd < $offset) {
-            return null;
-        }
-
-        return (int) $last[1][0];
+        return $ownerObjectNumber;
     }
 
     /**
@@ -7242,7 +7247,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array<int, list<array{generation: int, offset: int, body: string}>>
+     * @return array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>>
      */
     private function directObjectDefinitions(string $pdfBytes): array
     {
@@ -7260,6 +7265,8 @@ final class PdfTextExtractor
             $definitions[$objectNumber][] = [
                 'generation' => (int) $match[2][0],
                 'offset' => $objectOffset,
+                'bodyStart' => $bodyStart,
+                'bodyEnd' => $bodyEnd,
                 'body' => substr($pdfBytes, $bodyStart, $bodyEnd - $bodyStart),
             ];
             $offset = $bodyEnd + strlen('endobj');
@@ -7423,7 +7430,7 @@ final class PdfTextExtractor
         $objectNumbers = [];
         foreach ($ranges as $range) {
             foreach ([$range['start'], max($range['start'], $range['end'] - 1)] as $offset) {
-                $objectNumber = $this->directObjectNumberAtOffset($pdfBytes, $offset);
+                $objectNumber = $this->directObjectNumberAtOffset($pdfBytes, $offset, $definitions);
                 if ($objectNumber !== null) {
                     $objectNumbers[$objectNumber] = true;
                 }
