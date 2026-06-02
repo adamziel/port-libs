@@ -356,6 +356,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-parser-stream-filter-object-boundary.php` maps the fallback PDF stream parser boundary into a WordPress import path. It decodes only current xref-selected direct stream objects and ignores fake nested stream tokens inside a current stream payload, emitting `Current filtered object boundary` and `Current base fallback` while excluding stale filtered bytes and inline-image fake stream text without Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
+`examples/wordpress-pdf-xref-generation-repair-boundary.php` maps hybrid xref generation repair into a WordPress paragraph import path. It keeps the current xref table direct generation row authoritative over a companion `/XRefStm` compressed stale member, emitting `Current direct generation page` and `Hybrid table boundary kept` while excluding previous-generation compressed text without Python, pdftext, pypdfium, Poppler, Ghostscript, models, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

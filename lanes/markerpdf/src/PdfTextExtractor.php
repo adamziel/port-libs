@@ -7766,7 +7766,7 @@ final class PdfTextExtractor
             $hybridStreamOffset = $this->pdfIntegerValueAfterName($trailer, 'XRefStm');
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
                 foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions) as $objectNumber => $entry) {
-                    if (isset($entries[$objectNumber]) && ($entries[$objectNumber]['type'] ?? null) === 0) {
+                    if (isset($entries[$objectNumber])) {
                         continue;
                     }
 
