@@ -320,6 +320,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-indirect-nametree-destinations-import.php` maps indirect `/Names /Dests` string keys and destination dictionaries into a WordPress navigation review path. It emits Gutenberg list items with resolved `data-marker-destination-name` attributes, `/FitBH` and `/FitR` view metadata, and non-executing catalog OpenAction review metadata without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
+`examples/wordpress-pdf-annotation-geometry-import.php` maps page annotation geometry for line, ink, polygon, callout, square, and circle annotations into review-only WordPress list rows. It exposes derived bounding boxes and shape metadata while confirming no PDF actions are executed and annotation appearances are not rendered.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

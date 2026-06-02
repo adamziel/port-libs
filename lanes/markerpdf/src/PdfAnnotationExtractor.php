@@ -68,11 +68,13 @@ final class PdfAnnotationExtractor
     private function annotationReviewRow(array $record, array $objects, array $reversePopups): array
     {
         $body = $record['body'];
+        $subtype = $this->subtypeFromAnnotation($body);
+        $rect = $this->rectFromAnnotation($body);
 
-        return [
-            'subtype' => $this->subtypeFromAnnotation($body),
+        $row = [
+            'subtype' => $subtype,
             'annotation_object' => $record['object'],
-            'rect' => $this->rectFromAnnotation($body),
+            'rect' => $rect,
             'contents' => $this->pdfStringValueAfterName($body, 'Contents', $objects),
             'title' => $this->pdfStringValueAfterName($body, 'T', $objects),
             'name' => $this->pdfStringValueAfterName($body, 'NM', $objects),
@@ -83,6 +85,13 @@ final class PdfAnnotationExtractor
             'border' => $this->borderFromAnnotation($body, $objects),
             'popup' => $this->popupFromAnnotation($body, $objects, $record['object'], $reversePopups),
         ];
+
+        $geometry = $this->geometryFromAnnotation($body, $objects, $subtype, $rect);
+        if ($geometry !== null) {
+            $row['geometry'] = $geometry;
+        }
+
+        return $row;
     }
 
     /**
@@ -390,6 +399,272 @@ final class PdfAnnotationExtractor
     }
 
     /**
+     * @param array<int, string> $objects
+     * @param list<float>|null $rect
+     * @return array<string, mixed>|null
+     */
+    private function geometryFromAnnotation(string $body, array $objects, string $subtype, ?array $rect): ?array
+    {
+        return match ($subtype) {
+            'Line' => $this->lineGeometryFromAnnotation($body, $objects),
+            'Ink' => $this->inkGeometryFromAnnotation($body, $objects),
+            'Polygon', 'PolyLine' => $this->verticesGeometryFromAnnotation($body, $objects, $subtype),
+            'Square', 'Circle' => $this->rectShapeGeometryFromAnnotation($body, $objects, $subtype, $rect),
+            'FreeText' => $this->freeTextGeometryFromAnnotation($body, $objects, $rect),
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function lineGeometryFromAnnotation(string $body, array $objects): ?array
+    {
+        $points = $this->pointsFromNumberArray($this->numberArrayValueAfterName($body, 'L', $objects), 2);
+        if (count($points) !== 2) {
+            return null;
+        }
+
+        return [
+            'type' => 'line',
+            'points' => $points,
+            'bbox' => $this->bboxFromPoints($points),
+            'line_endings' => $this->nameArrayValueAfterName($body, 'LE', $objects),
+            'leader_line_length' => $this->floatValueAfterName($body, 'LL', $objects),
+            'leader_line_extension' => $this->floatValueAfterName($body, 'LLE', $objects),
+            'caption' => $this->boolValueAfterName($body, 'Cap'),
+            'intent' => $this->pdfNameValueAfterName($body, 'IT'),
+            'caption_offset' => $this->numberArrayValueAfterName($body, 'CO', $objects),
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function inkGeometryFromAnnotation(string $body, array $objects): ?array
+    {
+        $value = $this->valueAfterName($body, 'InkList');
+        if ($value === null) {
+            return null;
+        }
+
+        $arrayBody = $this->arrayBodyFromPdfValue($value, $objects);
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        $paths = [];
+        $offset = 0;
+        $length = strlen($arrayBody);
+        while ($offset < $length) {
+            $start = strpos($arrayBody, '[', $offset);
+            if ($start === false) {
+                break;
+            }
+
+            $endOffset = null;
+            $pathBody = $this->readPdfArrayAt($arrayBody, $start, $endOffset);
+            if ($pathBody === null || $endOffset === null) {
+                break;
+            }
+
+            $points = $this->pointsFromNumberArray($this->numbersFromPdfArray($pathBody));
+            if (count($points) >= 2) {
+                $paths[] = $points;
+            }
+            $offset = $endOffset;
+        }
+
+        if ($paths === []) {
+            $points = $this->pointsFromNumberArray($this->numbersFromPdfArray($arrayBody));
+            if (count($points) >= 2) {
+                $paths[] = $points;
+            }
+        }
+
+        if ($paths === []) {
+            return null;
+        }
+
+        $pathBboxes = array_map(fn (array $path): array => $this->bboxFromPoints($path), $paths);
+
+        return [
+            'type' => 'ink',
+            'paths' => $paths,
+            'path_bboxes' => $pathBboxes,
+            'bbox' => $this->unionRects($pathBboxes),
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function verticesGeometryFromAnnotation(string $body, array $objects, string $subtype): ?array
+    {
+        $vertices = $this->pointsFromNumberArray($this->numberArrayValueAfterName($body, 'Vertices', $objects));
+        if (count($vertices) < 2) {
+            return null;
+        }
+
+        $geometry = [
+            'type' => $subtype === 'Polygon' ? 'polygon' : 'polyline',
+            'vertices' => $vertices,
+            'bbox' => $this->bboxFromPoints($vertices),
+            'closed' => $subtype === 'Polygon',
+        ];
+
+        $lineEndings = $this->nameArrayValueAfterName($body, 'LE', $objects);
+        if ($lineEndings !== null) {
+            $geometry['line_endings'] = $lineEndings;
+        }
+
+        return $geometry;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<float>|null $rect
+     * @return array<string, mixed>|null
+     */
+    private function rectShapeGeometryFromAnnotation(string $body, array $objects, string $subtype, ?array $rect): ?array
+    {
+        if ($rect === null) {
+            return null;
+        }
+
+        $rectDifference = $this->rectDifferenceFromAnnotation($body, $objects);
+        $shapeRect = $rectDifference === null ? $rect : $this->insetRect($rect, $rectDifference);
+        $size = [
+            max(0.0, $shapeRect[2] - $shapeRect[0]),
+            max(0.0, $shapeRect[3] - $shapeRect[1]),
+        ];
+
+        $geometry = [
+            'type' => strtolower($subtype),
+            'rect' => $rect,
+            'rect_difference' => $rectDifference,
+            'shape_rect' => $shapeRect,
+            'center' => [
+                ($shapeRect[0] + $shapeRect[2]) / 2.0,
+                ($shapeRect[1] + $shapeRect[3]) / 2.0,
+            ],
+            'size' => $size,
+        ];
+
+        if ($subtype === 'Circle') {
+            $geometry['radii'] = [$size[0] / 2.0, $size[1] / 2.0];
+        }
+
+        return $geometry;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<float>|null $rect
+     * @return array<string, mixed>|null
+     */
+    private function freeTextGeometryFromAnnotation(string $body, array $objects, ?array $rect): ?array
+    {
+        $calloutLine = $this->pointsFromNumberArray($this->numberArrayValueAfterName($body, 'CL', $objects));
+        if (count($calloutLine) < 2) {
+            return null;
+        }
+
+        $geometry = [
+            'type' => 'callout',
+            'callout_line' => $calloutLine,
+            'bbox' => $this->bboxFromPoints($calloutLine),
+            'rect' => $rect,
+            'rect_difference' => $this->rectDifferenceFromAnnotation($body, $objects),
+            'elbow_point' => count($calloutLine) >= 3 ? $calloutLine[1] : null,
+        ];
+
+        $lineEndings = $this->nameArrayValueAfterName($body, 'LE', $objects);
+        if ($lineEndings !== null) {
+            $geometry['line_endings'] = $lineEndings;
+        }
+
+        return $geometry;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<float>|null
+     */
+    private function rectDifferenceFromAnnotation(string $body, array $objects): ?array
+    {
+        $numbers = $this->numberArrayValueAfterName($body, 'RD', $objects);
+        return $numbers !== null && count($numbers) >= 4 ? array_slice($numbers, 0, 4) : null;
+    }
+
+    /**
+     * @param list<float> $rect
+     * @param list<float> $difference
+     * @return list<float>
+     */
+    private function insetRect(array $rect, array $difference): array
+    {
+        $shapeRect = [
+            $rect[0] + $difference[0],
+            $rect[1] + $difference[1],
+            $rect[2] - $difference[2],
+            $rect[3] - $difference[3],
+        ];
+
+        return $this->normalizeRect($shapeRect);
+    }
+
+    /**
+     * @param list<float>|null $numbers
+     * @return list<array{0: float, 1: float}>
+     */
+    private function pointsFromNumberArray(?array $numbers, ?int $limit = null): array
+    {
+        if ($numbers === null) {
+            return [];
+        }
+
+        $points = [];
+        for ($index = 0, $count = count($numbers) - 1; $index < $count; $index += 2) {
+            $points[] = [(float) $numbers[$index], (float) $numbers[$index + 1]];
+            if ($limit !== null && count($points) >= $limit) {
+                break;
+            }
+        }
+
+        return $points;
+    }
+
+    /**
+     * @param list<array{0: float, 1: float}> $points
+     * @return list<float>
+     */
+    private function bboxFromPoints(array $points): array
+    {
+        $xs = array_column($points, 0);
+        $ys = array_column($points, 1);
+
+        return [min($xs), min($ys), max($xs), max($ys)];
+    }
+
+    /**
+     * @param list<list<float>> $rects
+     * @return list<float>
+     */
+    private function unionRects(array $rects): array
+    {
+        return [
+            min(array_column($rects, 0)),
+            min(array_column($rects, 1)),
+            max(array_column($rects, 2)),
+            max(array_column($rects, 3)),
+        ];
+    }
+
+    /**
      * @param list<float> $components
      */
     private function rgbHex(array $components): string
@@ -464,6 +739,34 @@ final class PdfAnnotationExtractor
             }
 
             $offset = $valueOffset;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>|null
+     */
+    private function nameArrayValueAfterName(string $body, string $name, array $objects): ?array
+    {
+        $value = $this->valueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        $arrayBody = $this->arrayBodyFromPdfValue($value, $objects);
+        if ($arrayBody !== null) {
+            if (!preg_match_all('/\/([^\s\[\]<>()\/%]+)/', $arrayBody, $matches)) {
+                return [];
+            }
+
+            return array_map(fn (string $name): string => $this->decodePdfName($name), $matches[0]);
+        }
+
+        $value = trim($value);
+        if (str_starts_with($value, '/')) {
+            return [$this->decodePdfName($value)];
         }
 
         return null;
