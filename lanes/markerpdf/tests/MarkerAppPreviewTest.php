@@ -188,6 +188,47 @@ return [
         $t->same(['width' => 600.0, 'height' => 450.0], $plan['physical_page_size']);
         $t->same(['width' => 600, 'height' => 450], $plan['rendered_image_size']);
     },
+    'clips marker app preview crop boxes to media boundaries before rotation and UserUnit sizing' => static function (TestRunner $t): void {
+        $pdf = "%PDF-1.6\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 400 300] /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /CropBox [-50 20 500 260] /Rotate 90 /UserUnit 2.5 >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Page /Parent 2 0 R /CropBox [450 350 600 500] /Rotate 270 /UserUnit 3 >>\nendobj\n"
+            . "%%EOF\n";
+
+        $preview = new MarkerAppPreview();
+        $summary = $preview->openPdfSummary($pdf);
+        $first = $summary['pages'][0];
+        $second = $summary['pages'][1];
+        $firstPlan = $preview->getPageImagePlan($pdf, 1, 72.0);
+        $secondPlan = $preview->getPageImagePlan($pdf, 2, 72.0);
+
+        $t->same([-50.0, 20.0, 500.0, 260.0], $first['crop_box']);
+        $t->same([0.0, 20.0, 400.0, 260.0], $first['bbox']);
+        $t->same([0.0, 20.0, 400.0, 260.0], $first['effective_crop_box']);
+        $t->same('crop_box_clipped_to_media_box', $first['effective_crop_box_source']);
+        $t->same(true, $first['crop_box_clipped_to_media']);
+        $t->same(true, $first['crop_box_intersects_media']);
+        $t->same(false, $first['preview_zero_area']);
+        $t->same(true, $first['rotation_swaps_axes']);
+        $t->same(true, $first['user_unit_applied_to_preview']);
+        $t->same(['crop_box_clipped_to_media_box', 'rotation_swaps_display_axes', 'user_unit_scales_rendered_preview'], $first['boundary_notes']);
+        $t->same(['width' => 240.0, 'height' => 400.0], $firstPlan['display_page_size']);
+        $t->same(['width' => 600.0, 'height' => 1000.0], $firstPlan['physical_page_size']);
+        $t->same(['width' => 600, 'height' => 1000], $firstPlan['rendered_image_size']);
+
+        $t->same([450.0, 350.0, 600.0, 500.0], $second['crop_box']);
+        $t->same([400.0, 300.0, 400.0, 300.0], $second['bbox']);
+        $t->same([400.0, 300.0, 400.0, 300.0], $secondPlan['page_bbox']);
+        $t->same(false, $second['crop_box_intersects_media']);
+        $t->same(true, $second['preview_zero_area']);
+        $t->same(['width' => 0.0, 'height' => 0.0], $secondPlan['display_page_size']);
+        $t->same(['width' => 0, 'height' => 0], $secondPlan['rendered_image_size']);
+        $t->same(
+            ['crop_box_clipped_to_media_box', 'zero_area_preview_box', 'rotation_swaps_display_axes', 'user_unit_scales_rendered_preview'],
+            $secondPlan['boundary_notes']
+        );
+    },
     'plans marker app get_page_image pypdfium page index scale annotations and rgb output' => static function (TestRunner $t) use ($pdfWithPagesTree): void {
         $plan = (new MarkerAppPreview())->getPageImagePlan($pdfWithPagesTree(), 2, 144.0);
 

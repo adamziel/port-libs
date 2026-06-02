@@ -74,6 +74,14 @@ final class MarkerAppPreview
             'rotation_source' => $page['rotation_source'],
             'user_unit' => $page['user_unit'],
             'user_unit_source' => $page['user_unit_source'],
+            'effective_crop_box' => $page['effective_crop_box'],
+            'effective_crop_box_source' => $page['effective_crop_box_source'],
+            'crop_box_clipped_to_media' => $page['crop_box_clipped_to_media'],
+            'crop_box_intersects_media' => $page['crop_box_intersects_media'],
+            'preview_zero_area' => $page['preview_zero_area'],
+            'rotation_swaps_axes' => $page['rotation_swaps_axes'],
+            'user_unit_applied_to_preview' => $page['user_unit_applied_to_preview'],
+            'boundary_notes' => $page['boundary_notes'],
             'display_page_size' => $this->displayPageSize($page['bbox'], $page['rotation']),
             'physical_page_size' => $this->displayPageSize($page['bbox'], $page['rotation'], $page['user_unit']),
             'dpi' => $dpi,
@@ -332,13 +340,18 @@ final class MarkerAppPreview
         }
 
         $bbox = $this->intersectBoxes($mediaBox, $cropBox);
+        $cropBoxClippedToMedia = !$this->sameBox($cropBox, $bbox);
+        $previewZeroArea = !$this->hasPositiveArea($bbox);
+        $rotationSwapsAxes = in_array($rotation, [90, 270], true);
+        $userUnitAppliedToPreview = abs($userUnit - 1.0) > 0.000001;
+        $bboxSource = $cropBoxSource === 'media_box' ? $mediaBoxSource : 'crop_box';
         $bleedBox = $this->boxValue($pageBody, 'BleedBox', $objects);
         $trimBox = $this->boxValue($pageBody, 'TrimBox', $objects);
         $artBox = $this->boxValue($pageBody, 'ArtBox', $objects);
 
         return [
             'bbox' => $bbox,
-            'bbox_source' => $cropBoxSource === 'media_box' ? $mediaBoxSource : 'crop_box',
+            'bbox_source' => $bboxSource,
             'media_box' => $mediaBox,
             'media_box_source' => $mediaBoxSource,
             'crop_box' => $cropBox,
@@ -353,6 +366,14 @@ final class MarkerAppPreview
             'rotation_source' => $rotationSource,
             'user_unit' => $userUnit,
             'user_unit_source' => $userUnitSource,
+            'effective_crop_box' => $bbox,
+            'effective_crop_box_source' => $cropBoxClippedToMedia ? 'crop_box_clipped_to_media_box' : $bboxSource,
+            'crop_box_clipped_to_media' => $cropBoxClippedToMedia,
+            'crop_box_intersects_media' => $this->hasPositiveIntersection($mediaBox, $cropBox),
+            'preview_zero_area' => $previewZeroArea,
+            'rotation_swaps_axes' => $rotationSwapsAxes,
+            'user_unit_applied_to_preview' => $userUnitAppliedToPreview,
+            'boundary_notes' => $this->previewBoundaryNotes($cropBoxClippedToMedia, $previewZeroArea, $rotationSwapsAxes, $userUnitAppliedToPreview),
         ];
     }
 
@@ -527,17 +548,76 @@ final class MarkerAppPreview
      */
     private function intersectBoxes(array $mediaBox, array $cropBox): array
     {
-        $left = max($mediaBox[0], $cropBox[0]);
-        $bottom = max($mediaBox[1], $cropBox[1]);
-        $right = min($mediaBox[2], $cropBox[2]);
-        $top = min($mediaBox[3], $cropBox[3]);
+        $left = max($mediaBox[0], min($mediaBox[2], $cropBox[0]));
+        $right = max($mediaBox[0], min($mediaBox[2], $cropBox[2]));
+        $bottom = max($mediaBox[1], min($mediaBox[3], $cropBox[1]));
+        $top = max($mediaBox[1], min($mediaBox[3], $cropBox[3]));
 
         return [
-            $left,
-            $bottom,
+            min($left, $right),
+            min($bottom, $top),
             max($left, $right),
             max($bottom, $top),
         ];
+    }
+
+    /**
+     * @param list<float> $left
+     * @param list<float> $right
+     */
+    private function sameBox(array $left, array $right): bool
+    {
+        for ($index = 0; $index < 4; $index++) {
+            if (abs($left[$index] - $right[$index]) > 0.000001) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<float> $box
+     */
+    private function hasPositiveArea(array $box): bool
+    {
+        return ($box[2] - $box[0]) > 0.000001 && ($box[3] - $box[1]) > 0.000001;
+    }
+
+    /**
+     * @param list<float> $left
+     * @param list<float> $right
+     */
+    private function hasPositiveIntersection(array $left, array $right): bool
+    {
+        return min($left[2], $right[2]) - max($left[0], $right[0]) > 0.000001
+            && min($left[3], $right[3]) - max($left[1], $right[1]) > 0.000001;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function previewBoundaryNotes(
+        bool $cropBoxClippedToMedia,
+        bool $previewZeroArea,
+        bool $rotationSwapsAxes,
+        bool $userUnitAppliedToPreview
+    ): array {
+        $notes = [];
+        if ($cropBoxClippedToMedia) {
+            $notes[] = 'crop_box_clipped_to_media_box';
+        }
+        if ($previewZeroArea) {
+            $notes[] = 'zero_area_preview_box';
+        }
+        if ($rotationSwapsAxes) {
+            $notes[] = 'rotation_swaps_display_axes';
+        }
+        if ($userUnitAppliedToPreview) {
+            $notes[] = 'user_unit_scales_rendered_preview';
+        }
+
+        return $notes;
     }
 
     /**
