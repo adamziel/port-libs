@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 21:59:21 UTC",
-    "sourceCommit": "94c5c1290410b3fadd280f855cd7c688686fd319",
-    "sourceCommitShort": "94c5c1290410",
+    "generated": "2026-06-02 22:05:22 UTC",
+    "sourceCommit": "aab5375a5836fba6a25baff51016a308e01b765c",
+    "sourceCommitShort": "aab5375a5836",
     "sourceBranch": "unknown",
-    "dashboardCommit": "94c5c1290410b3fadd280f855cd7c688686fd319",
-    "dashboardCommitShort": "94c5c1290410",
+    "dashboardCommit": "aab5375a5836fba6a25baff51016a308e01b765c",
+    "dashboardCommitShort": "aab5375a5836",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "623",
-            "coverage": "623 / 78 (798.7%)",
-            "mapPercent": "798.7%",
+            "mapped": "629",
+            "coverage": "629 / 78 (806.4%)",
+            "mapPercent": "806.4%",
             "unmapped": "0",
-            "php": "883 pass / 0 fail",
+            "php": "892 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor image/table integration: accepted image65 a...",
-            "currentWork": "MarkerPDF now also maps inline JPX ColorKey output-preview rows from supplied decoded...",
+            "audit": "2026-06-02 UTC supervisor font/parser/runtime/outline/page/xref integ...",
+            "currentWork": "MarkerPDF now maps Type0/Type3 CMap source-space word grouping, exact-generation xref...",
             "nextTarget": "Keep 10-11 markerPDF lanes active with larger independent bun...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "94c5c12"
+            "commit": "aab5375"
         },
         {
             "lane": "readability",
