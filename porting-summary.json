@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 16:34:59 UTC",
-    "sourceCommit": "8f63879b8a8a1b03108684ad45692ef0297adf39",
-    "sourceCommitShort": "8f63879b8a8a",
+    "generated": "2026-06-02 16:45:26 UTC",
+    "sourceCommit": "289d1ad997b31b2932215d1eb40c7953ca546e90",
+    "sourceCommitShort": "289d1ad997b3",
     "sourceBranch": "unknown",
-    "dashboardCommit": "8f63879b8a8a1b03108684ad45692ef0297adf39",
-    "dashboardCommitShort": "8f63879b8a8a",
+    "dashboardCommit": "289d1ad997b31b2932215d1eb40c7953ca546e90",
+    "dashboardCommitShort": "289d1ad997b3",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "404",
-            "coverage": "404 / 78 (517.9%)",
-            "mapPercent": "517.9%",
+            "mapped": "413",
+            "coverage": "413 / 78 (529.5%)",
+            "mapPercent": "529.5%",
             "unmapped": "0",
-            "php": "564 pass / 0 fail",
+            "php": "576 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit 8f63879b; full m...",
-            "currentWork": "MarkerPDF now adds catalog Collection schema associated-file metadata, calibrated Cal...",
-            "nextTarget": "Rebase the conflicted form/table/page/meta handoffs against c...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit 289d1ad9; lint p...",
+            "currentWork": "MarkerPDF now adds inline Indexed/JBIG2 and ImageMask review, multiline OCR table-hea...",
+            "nextTarget": "Rebase the remaining conflicted metadata structure-tree hando...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "8f63879"
+            "commit": "289d1ad"
         },
         {
             "lane": "readability",
