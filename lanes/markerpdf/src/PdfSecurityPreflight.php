@@ -30,7 +30,14 @@ final class PdfSecurityPreflight
                 && ($signature['byte_range']['valid'] ?? false) !== true
         ));
         $lockedFieldNames = $this->lockedFieldNames($form['fields'] ?? []);
-        $reviewReasons = $this->reviewReasons($encrypted, $encryption, $signedSignatureCount, $invalidByteRangeCount, $lockedFieldNames);
+        $permissionPreflight = $this->permissionPreflight($encrypted, $encryption);
+        $reviewReasons = $this->reviewReasons(
+            $encrypted,
+            $signedSignatureCount,
+            $invalidByteRangeCount,
+            $lockedFieldNames,
+            $permissionPreflight
+        );
 
         return [
             'source' => 'pdf_security_preflight',
@@ -43,6 +50,7 @@ final class PdfSecurityPreflight
             'review_reasons' => $reviewReasons,
             'blocked_operations' => $this->blockedOperations($encrypted, $signatures),
             'encryption' => $this->encryptionReview($encryption),
+            'permission_preflight' => $permissionPreflight,
             'signature_flags' => $form['signature_flags'] ?? [],
             'signature_field_count' => count($signatures),
             'signed_signature_count' => $signedSignatureCount,
@@ -56,6 +64,75 @@ final class PdfSecurityPreflight
             'executes_javascript' => false,
             'executes_python_or_models' => false,
             'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $encryption
+     * @return array<string, mixed>
+     */
+    private function permissionPreflight(bool $encrypted, ?array $encryption): array
+    {
+        if (!$encrypted || $encryption === null) {
+            return [
+                'source' => 'unencrypted_document',
+                'encrypted' => false,
+                'permissions_declared' => false,
+                'requires_password_for_content_extraction' => false,
+                'decryption_performed' => false,
+                'native_text_extraction_allowed_now' => true,
+                'policy' => 'native_text_allowed',
+                'review_only' => true,
+                'raw_key_material_exposed' => false,
+            ];
+        }
+
+        $permissions = is_array($encryption['standard_permissions'] ?? null) ? $encryption['standard_permissions'] : [];
+        $allowed = array_values(array_filter(
+            $permissions['allowed'] ?? [],
+            static fn (mixed $value): bool => is_string($value)
+        ));
+        $denied = array_values(array_filter(
+            $permissions['denied'] ?? [],
+            static fn (mixed $value): bool => is_string($value)
+        ));
+        $declared = $permissions !== [];
+        $copyAllowed = $declared ? in_array('copy_or_extract', $allowed, true) : null;
+        $accessibilityAllowed = $declared ? in_array('extract_for_accessibility', $allowed, true) : null;
+
+        if (!$declared) {
+            $policy = 'permissions_unknown_blocked_without_decryption';
+            $boundary = 'blocked_encrypted_permissions_unknown';
+            $source = 'encryption_dictionary_without_standard_permissions';
+        } elseif ($copyAllowed) {
+            $policy = 'copy_extract_allowed_after_decryption';
+            $boundary = 'blocked_until_decryption_password_available';
+            $source = 'standard_security_handler_permissions';
+        } else {
+            $policy = 'copy_extract_denied_by_permissions';
+            $boundary = 'blocked_by_encryption_and_copy_permission';
+            $source = 'standard_security_handler_permissions';
+        }
+
+        return [
+            'source' => $source,
+            'encrypted' => true,
+            'handler' => $encryption['filter'] ?? null,
+            'revision_label' => $encryption['revision_label'] ?? null,
+            'permissions_declared' => $declared,
+            'permission_hex' => $permissions['hex'] ?? null,
+            'allowed' => $allowed,
+            'denied' => $denied,
+            'copy_or_extract_allowed' => $copyAllowed,
+            'accessibility_extract_allowed' => $accessibilityAllowed,
+            'print_quality' => $permissions['print_quality'] ?? null,
+            'requires_password_for_content_extraction' => (bool) ($encryption['requires_password_for_content_extraction'] ?? true),
+            'decryption_performed' => false,
+            'native_text_extraction_allowed_now' => false,
+            'policy' => $policy,
+            'content_extraction_boundary' => $boundary,
+            'review_only' => true,
+            'raw_key_material_exposed' => false,
         ];
     }
 
@@ -342,20 +419,30 @@ final class PdfSecurityPreflight
     }
 
     /**
-     * @param array<string, mixed>|null $encryption
      * @param list<string> $lockedFieldNames
+     * @param array<string, mixed> $permissionPreflight
      * @return list<string>
      */
-    private function reviewReasons(bool $encrypted, ?array $encryption, int $signedSignatureCount, int $invalidByteRangeCount, array $lockedFieldNames): array
+    private function reviewReasons(
+        bool $encrypted,
+        int $signedSignatureCount,
+        int $invalidByteRangeCount,
+        array $lockedFieldNames,
+        array $permissionPreflight
+    ): array
     {
         $reasons = [];
         if ($encrypted) {
             $reasons[] = 'encrypted_document';
             $reasons[] = 'encrypted_text_extraction_blocked';
-            $permissions = is_array($encryption['standard_permissions'] ?? null) ? $encryption['standard_permissions'] : [];
-            $allowed = is_array($permissions['allowed'] ?? null) ? $permissions['allowed'] : [];
-            if (!in_array('copy_or_extract', $allowed, true)) {
+            $permissionPolicy = $permissionPreflight['policy'] ?? null;
+            if ($permissionPolicy === 'copy_extract_denied_by_permissions') {
                 $reasons[] = 'copy_or_extract_denied';
+            }
+            if ($permissionPolicy === 'copy_extract_allowed_after_decryption') {
+                $reasons[] = 'copy_or_extract_allowed_but_decryption_required';
+            } elseif ($permissionPolicy === 'permissions_unknown_blocked_without_decryption') {
+                $reasons[] = 'encryption_permissions_unknown';
             }
         }
         if ($signedSignatureCount > 0 && !$encrypted) {

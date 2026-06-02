@@ -50,6 +50,30 @@ $signedPdfWithValidByteRange = static function (): string {
     ]);
 };
 
+$encryptedPdfAllowingCopy = static function (): string {
+    $content = 'BT /F1 12 Tf 72 720 Td (Copy-permitted encrypted leak) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Filter /Standard /V 4 /R 4 /Length 128 /O <DEADBEEF> /U <CAFEFEED> /P -44 /EncryptMetadata true >>\nendobj\n"
+        . "trailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF";
+};
+
+$encryptedPdfWithoutStandardPermissions = static function (): string {
+    $content = 'BT /F1 12 Tf 72 720 Td (Unknown-permission encrypted leak) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Filter /PublicKey /SubFilter /adbe.pkcs7.s5 /V 4 /Length 128 >>\nendobj\n"
+        . "trailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF";
+};
+
 return [
     'blocks encrypted text extraction and quarantines invalid signature byte ranges' => static function (TestRunner $t) use ($encryptedSignedPdf): void {
         $pdf = $encryptedSignedPdf();
@@ -106,5 +130,63 @@ return [
         $t->same(false, $report['executes_signature_validation']);
         $t->same(false, $report['executes_signing']);
         $t->same(false, $report['executes_external_pdf_tools']);
+    },
+    'distinguishes copy-permitted encrypted PDFs from importable decrypted content' => static function (TestRunner $t) use ($encryptedPdfAllowingCopy): void {
+        $pdf = $encryptedPdfAllowingCopy();
+        $report = (new PdfSecurityPreflight())->analyze($pdf);
+        $permission = $report['permission_preflight'];
+
+        $t->same('', (new PdfTextExtractor())->extractPlainText($pdf));
+        $t->true($report['encrypted']);
+        $t->same(false, $report['content_extraction_allowed']);
+        $t->same('blocked_without_decryption', $report['text_extraction_policy']);
+        $t->same('block_encrypted_content_review_security_metadata', $report['import_decision']);
+        $t->same(['encrypted_document', 'encrypted_text_extraction_blocked', 'copy_or_extract_allowed_but_decryption_required'], $report['review_reasons']);
+        $t->same(['native_text_extraction', 'decryption'], $report['blocked_operations']);
+        $t->same('FFFFFFD4', $report['encryption']['permission_hex']);
+        $t->same(true, $report['encryption']['copy_or_extract_allowed']);
+        $t->same('standard_security_handler_permissions', $permission['source']);
+        $t->same(true, $permission['permissions_declared']);
+        $t->same('FFFFFFD4', $permission['permission_hex']);
+        $t->same(['print', 'copy_or_extract', 'fill_form_fields', 'extract_for_accessibility', 'assemble_document', 'high_quality_print'], $permission['allowed']);
+        $t->same(['modify_contents', 'add_or_modify_annotations'], $permission['denied']);
+        $t->same(true, $permission['copy_or_extract_allowed']);
+        $t->same(true, $permission['accessibility_extract_allowed']);
+        $t->same(true, $permission['requires_password_for_content_extraction']);
+        $t->same(false, $permission['decryption_performed']);
+        $t->same(false, $permission['native_text_extraction_allowed_now']);
+        $t->same('copy_extract_allowed_after_decryption', $permission['policy']);
+        $t->same('blocked_until_decryption_password_available', $permission['content_extraction_boundary']);
+        $t->same(false, $permission['raw_key_material_exposed']);
+        $t->same(false, $report['executes_decryption']);
+        $t->same(false, $report['executes_external_pdf_tools']);
+    },
+    'marks encrypted PDFs with unavailable Standard permissions as unknown review-only boundaries' => static function (TestRunner $t) use ($encryptedPdfWithoutStandardPermissions): void {
+        $pdf = $encryptedPdfWithoutStandardPermissions();
+        $report = (new PdfSecurityPreflight())->analyze($pdf);
+        $permission = $report['permission_preflight'];
+        $encoded = json_encode($report, JSON_UNESCAPED_SLASHES);
+
+        $t->same('', (new PdfTextExtractor())->extractPlainText($pdf));
+        $t->true($report['encrypted']);
+        $t->same(false, $report['content_extraction_allowed']);
+        $t->same(['encrypted_document', 'encrypted_text_extraction_blocked', 'encryption_permissions_unknown'], $report['review_reasons']);
+        $t->same('PublicKey', $report['encryption']['filter']);
+        $t->same('adbe.pkcs7.s5', $report['encryption']['subfilter']);
+        $t->same('encryption_dictionary_without_standard_permissions', $permission['source']);
+        $t->same(false, $permission['permissions_declared']);
+        $t->same(null, $permission['permission_hex']);
+        $t->same([], $permission['allowed']);
+        $t->same([], $permission['denied']);
+        $t->same(null, $permission['copy_or_extract_allowed']);
+        $t->same(null, $permission['accessibility_extract_allowed']);
+        $t->same('permissions_unknown_blocked_without_decryption', $permission['policy']);
+        $t->same('blocked_encrypted_permissions_unknown', $permission['content_extraction_boundary']);
+        $t->same(false, $permission['decryption_performed']);
+        $t->same(false, $permission['native_text_extraction_allowed_now']);
+        $t->same(false, $permission['raw_key_material_exposed']);
+        $t->same(false, $report['executes_decryption']);
+        $t->same(false, $report['executes_external_pdf_tools']);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Unknown-permission encrypted leak'));
     },
 ];
