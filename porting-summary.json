@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 13:41:11 UTC",
-    "sourceCommit": "3a4f4fa8885cdde7a1edb265669f0448c0e3af22",
-    "sourceCommitShort": "3a4f4fa8885c",
+    "generated": "2026-06-02 13:44:40 UTC",
+    "sourceCommit": "539c431dcdd74544693d70b46ff9c3fc17e74963",
+    "sourceCommitShort": "539c431dcdd7",
     "sourceBranch": "main",
-    "dashboardCommit": "3a4f4fa8885cdde7a1edb265669f0448c0e3af22",
-    "dashboardCommitShort": "3a4f4fa8885c",
+    "dashboardCommit": "539c431dcdd74544693d70b46ff9c3fc17e74963",
+    "dashboardCommitShort": "539c431dcdd7",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "358",
-            "coverage": "358 / 78 (459.0%)",
-            "mapPercent": "459.0%",
+            "mapped": "359",
+            "coverage": "359 / 78 (460.3%)",
+            "mapPercent": "460.3%",
             "unmapped": "0",
-            "php": "510 pass / 0 fail",
+            "php": "511 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Current-page Widget annotation link promotion is integrated and full-lane green; cont...",
+            "currentWork": "Image XObject soft-mask stream-filter review metadata is integrated and full-lane gre...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "3a4f4fa"
+            "commit": "539c431"
         },
         {
             "lane": "readability",
