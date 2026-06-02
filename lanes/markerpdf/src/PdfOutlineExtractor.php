@@ -68,6 +68,37 @@ final class PdfOutlineExtractor
     }
 
     /**
+     * Native boundary for catalog /OpenAction safety review. PDF viewers may
+     * run these actions when the document opens; WordPress imports should
+     * surface them as metadata only.
+     *
+     * @return list<array{action_type: string, safety: string, page: int|null, destination: string|null, uri: string|null, file: string|null, operation: string|null, new_window: bool|null, is_safe_uri: bool|null, executes_on_import: bool}>
+     */
+    public function getOpenActionReviewActions(string $pdfBytes): array
+    {
+        $objects = $this->parsedObjectValues($pdfBytes);
+        $catalog = $this->catalogDictionary($objects);
+        if ($catalog === null || !array_key_exists('OpenAction', $catalog)) {
+            return [];
+        }
+
+        $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
+        $pageIndexes = [];
+        foreach ($pageObjectNumbers as $index => $objectNumber) {
+            $pageIndexes[$objectNumber] = $index;
+        }
+
+        $action = $this->openActionReviewAction(
+            $catalog['OpenAction'],
+            $objects,
+            $pageIndexes,
+            $this->destinationMap($catalog, $objects)
+        );
+
+        return $action === null ? [] : [$action];
+    }
+
+    /**
      * @return array<int, mixed>
      */
     private function parsedObjectValues(string $pdfBytes): array
@@ -355,6 +386,16 @@ final class PdfOutlineExtractor
             return null;
         }
 
+        return $this->remoteGoToTargetFromAction($action, $objects);
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @param array<int, mixed> $objects
+     * @return array{file: string, destination: string|null, page: int|null, new_window: bool|null}|null
+     */
+    private function remoteGoToTargetFromAction(array $action, array $objects): ?array
+    {
         $file = $this->fileSpecValue($action['F'] ?? null, $objects);
         if ($file === null || !array_key_exists('D', $action)) {
             return null;
@@ -370,6 +411,147 @@ final class PdfOutlineExtractor
             'destination' => $destination['destination'],
             'page' => $destination['page'],
             'new_window' => is_bool($action['NewWindow'] ?? null) ? $action['NewWindow'] : null,
+        ];
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     * @param array<string, mixed> $destinations
+     * @return array{action_type: string, safety: string, page: int|null, destination: string|null, uri: string|null, file: string|null, operation: string|null, new_window: bool|null, is_safe_uri: bool|null, executes_on_import: bool}|null
+     */
+    private function openActionReviewAction(mixed $value, array $objects, array $pageIndexes, array $destinations): ?array
+    {
+        $resolved = $this->resolveValue($value, $objects);
+        $action = $this->dictionaryItems($resolved);
+        if ($action === null || !array_key_exists('S', $action)) {
+            return $this->localOpenDestinationReview($value, $objects, $pageIndexes, $destinations);
+        }
+
+        $type = $this->nameValue($action['S'] ?? null);
+        if ($type === 'GoTo' && array_key_exists('D', $action)) {
+            return $this->localOpenDestinationReview($action['D'], $objects, $pageIndexes, $destinations);
+        }
+
+        if ($type === 'GoToR') {
+            $target = $this->remoteGoToTargetFromAction($action, $objects);
+            if ($target === null) {
+                return null;
+            }
+
+            return $this->reviewAction(
+                'GoToR',
+                'remote-document-review',
+                $target['page'],
+                $target['destination'],
+                null,
+                $target['file'],
+                null,
+                $target['new_window'],
+                null
+            );
+        }
+
+        if ($type === 'URI') {
+            $uri = $this->stringOrNameValue($this->resolveValue($action['URI'] ?? null, $objects));
+            if ($uri === null || trim($uri) === '') {
+                return null;
+            }
+
+            $isSafeUri = $this->isSafeUri($uri);
+
+            return $this->reviewAction(
+                'URI',
+                $isSafeUri ? 'review-uri' : 'blocked-unsafe-uri',
+                null,
+                null,
+                $uri,
+                null,
+                null,
+                null,
+                $isSafeUri
+            );
+        }
+
+        if ($type === 'Launch') {
+            $file = $this->fileSpecValue($action['F'] ?? null, $objects);
+            $win = $this->resolveDictionary($action['Win'] ?? null, $objects);
+            if ($file === null && $win !== null) {
+                $file = $this->fileSpecValue($win['F'] ?? null, $objects);
+            }
+            if ($file === null || trim($file) === '') {
+                return null;
+            }
+
+            $operation = $win === null ? null : $this->stringOrNameValue($this->resolveValue($win['O'] ?? null, $objects));
+
+            return $this->reviewAction(
+                'Launch',
+                'blocked-launch',
+                null,
+                null,
+                null,
+                $file,
+                $operation,
+                is_bool($action['NewWindow'] ?? null) ? $action['NewWindow'] : null,
+                null
+            );
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     * @param array<string, mixed> $destinations
+     * @return array{action_type: string, safety: string, page: int|null, destination: string|null, uri: string|null, file: string|null, operation: string|null, new_window: bool|null, is_safe_uri: bool|null, executes_on_import: bool}|null
+     */
+    private function localOpenDestinationReview(mixed $destination, array $objects, array $pageIndexes, array $destinations): ?array
+    {
+        $page = $this->destinationPageIndex($destination, $objects, $pageIndexes, $destinations);
+        if ($page === null) {
+            return null;
+        }
+
+        return $this->reviewAction(
+            'GoTo',
+            'local-destination',
+            $page,
+            $this->stringOrNameValue($this->resolveValue($destination, $objects)),
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+    }
+
+    /**
+     * @return array{action_type: string, safety: string, page: int|null, destination: string|null, uri: string|null, file: string|null, operation: string|null, new_window: bool|null, is_safe_uri: bool|null, executes_on_import: bool}
+     */
+    private function reviewAction(
+        string $type,
+        string $safety,
+        ?int $page,
+        ?string $destination,
+        ?string $uri,
+        ?string $file,
+        ?string $operation,
+        ?bool $newWindow,
+        ?bool $isSafeUri
+    ): array {
+        return [
+            'action_type' => $type,
+            'safety' => $safety,
+            'page' => $page,
+            'destination' => $destination,
+            'uri' => $uri,
+            'file' => $file,
+            'operation' => $operation,
+            'new_window' => $newWindow,
+            'is_safe_uri' => $isSafeUri,
+            'executes_on_import' => false,
         ];
     }
 
@@ -793,6 +975,20 @@ final class PdfOutlineExtractor
         return preg_replace_callback('/#([\da-fA-F]{2})/', static function (array $match): string {
             return chr(hexdec($match[1]));
         }, $name) ?? $name;
+    }
+
+    private function isSafeUri(string $uri): bool
+    {
+        $trimmed = trim($uri);
+        if ($trimmed === '') {
+            return false;
+        }
+
+        if (preg_match('/^[a-z][a-z0-9+.-]*:/i', $trimmed, $match) === 1) {
+            return in_array(strtolower(rtrim($match[0], ':')), ['http', 'https', 'mailto', 'ftp'], true);
+        }
+
+        return str_starts_with($trimmed, '#') || str_starts_with($trimmed, '/') || str_starts_with($trimmed, './') || str_starts_with($trimmed, '../');
     }
 
     private function decodeLiteralString(string $token): string

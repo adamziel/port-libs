@@ -48,6 +48,17 @@ $remoteGoToPdf = static function (): string {
         . "%%EOF";
 };
 
+$openActionPdf = static function (string $openAction, string $extraObjects = ''): string {
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /OpenAction {$openAction} /Names << /Dests 8 0 R >> >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Names [(Import Start) [3 0 R /Fit] (Review Page) [4 0 R /FitH 640]] >>\nendobj\n"
+        . $extraObjects
+        . "%%EOF";
+};
+
 return [
     'resolves PDF outline named destinations before WordPress TOC import' => static function (TestRunner $t) use ($namedDestinationPdf): void {
         $toc = (new PdfOutlineExtractor())->getPdfToc($namedDestinationPdf());
@@ -126,5 +137,78 @@ return [
         $t->same([['title' => 'Local Only', 'level' => 1, 'page' => 0, 'destination' => null]], $extractor->getPdfToc($remoteGoToPdf()));
         $t->same(['Appendix PDF', 'Legacy Remote'], array_column($extractor->getRemoteGoToActions($remoteGoToPdf(), 1), 'title'));
         $t->same([], $extractor->getRemoteGoToActions('%PDF-1.4 no catalog here'));
+    },
+    'extracts local catalog OpenAction destinations as non-executing review metadata' => static function (TestRunner $t) use ($openActionPdf): void {
+        $extractor = new PdfOutlineExtractor();
+
+        $direct = $extractor->getOpenActionReviewActions($openActionPdf('[4 0 R /FitH 640]'));
+        $named = $extractor->getOpenActionReviewActions($openActionPdf('<< /S /GoTo /D (Import Start) >>'));
+
+        $t->same(
+            [[
+                'action_type' => 'GoTo',
+                'safety' => 'local-destination',
+                'page' => 1,
+                'destination' => null,
+                'uri' => null,
+                'file' => null,
+                'operation' => null,
+                'new_window' => null,
+                'is_safe_uri' => null,
+                'executes_on_import' => false,
+            ]],
+            $direct
+        );
+        $t->same('Import Start', $named[0]['destination']);
+        $t->same(0, $named[0]['page']);
+        $t->same(false, $named[0]['executes_on_import']);
+    },
+    'classifies catalog OpenAction URI and Launch actions for WordPress safety review' => static function (TestRunner $t) use ($openActionPdf): void {
+        $extractor = new PdfOutlineExtractor();
+
+        $safeUri = $extractor->getOpenActionReviewActions($openActionPdf('<< /S /URI /URI (https://example.com/import-checklist) >>'));
+        $unsafeUri = $extractor->getOpenActionReviewActions($openActionPdf('<< /S /URI /URI (javascript:alert\\(1\\)) >>'));
+        $launch = $extractor->getOpenActionReviewActions($openActionPdf('9 0 R', "9 0 obj\n<< /S /Launch /F (installer.exe) /Win << /F (setup.exe) /O (open) /P (/silent) >> /NewWindow true >>\nendobj\n"));
+
+        $t->same('URI', $safeUri[0]['action_type']);
+        $t->same('https://example.com/import-checklist', $safeUri[0]['uri']);
+        $t->same('review-uri', $safeUri[0]['safety']);
+        $t->true($safeUri[0]['is_safe_uri']);
+        $t->same(false, $safeUri[0]['executes_on_import']);
+
+        $t->same('javascript:alert(1)', $unsafeUri[0]['uri']);
+        $t->same('blocked-unsafe-uri', $unsafeUri[0]['safety']);
+        $t->same(false, $unsafeUri[0]['is_safe_uri']);
+
+        $t->same('Launch', $launch[0]['action_type']);
+        $t->same('installer.exe', $launch[0]['file']);
+        $t->same('open', $launch[0]['operation']);
+        $t->same('blocked-launch', $launch[0]['safety']);
+        $t->same(true, $launch[0]['new_window']);
+        $t->same(false, $launch[0]['executes_on_import']);
+    },
+    'keeps catalog OpenAction remote GoToR out of same-document outline rows' => static function (TestRunner $t) use ($openActionPdf): void {
+        $extractor = new PdfOutlineExtractor();
+        $pdf = $openActionPdf('<< /S /GoToR /F << /UF <FEFF00650078007400650072006E0061006C002E007000640066> >> /D [3 /Fit] /NewWindow false >>');
+
+        $review = $extractor->getOpenActionReviewActions($pdf);
+
+        $t->same(
+            [[
+                'action_type' => 'GoToR',
+                'safety' => 'remote-document-review',
+                'page' => 3,
+                'destination' => null,
+                'uri' => null,
+                'file' => 'external.pdf',
+                'operation' => null,
+                'new_window' => false,
+                'is_safe_uri' => null,
+                'executes_on_import' => false,
+            ]],
+            $review
+        );
+        $t->same([], $extractor->getPdfToc($pdf));
+        $t->same([], $extractor->getRemoteGoToActions($pdf));
     },
 ];
