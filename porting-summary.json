@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 13:32:17 UTC",
-    "sourceCommit": "a4afab92d1c4aa0b35f47c16b2fe984609d8c630",
-    "sourceCommitShort": "a4afab92d1c4",
+    "generated": "2026-06-02 13:41:11 UTC",
+    "sourceCommit": "3a4f4fa8885cdde7a1edb265669f0448c0e3af22",
+    "sourceCommitShort": "3a4f4fa8885c",
     "sourceBranch": "main",
-    "dashboardCommit": "a4afab92d1c4aa0b35f47c16b2fe984609d8c630",
-    "dashboardCommitShort": "a4afab92d1c4",
+    "dashboardCommit": "3a4f4fa8885cdde7a1edb265669f0448c0e3af22",
+    "dashboardCommitShort": "3a4f4fa8885c",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "357",
-            "coverage": "357 / 78 (457.7%)",
-            "mapPercent": "457.7%",
+            "mapped": "358",
+            "coverage": "358 / 78 (459.0%)",
+            "mapPercent": "459.0%",
             "unmapped": "0",
-            "php": "509 pass / 0 fail",
+            "php": "510 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "Outline action-chain navigation review metadata is integrated and full-lane green; co...",
+            "currentWork": "Current-page Widget annotation link promotion is integrated and full-lane green; cont...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "a4afab9"
+            "commit": "3a4f4fa"
         },
         {
             "lane": "readability",
