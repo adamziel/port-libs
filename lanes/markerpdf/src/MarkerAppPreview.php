@@ -257,9 +257,9 @@ final class MarkerAppPreview
             $inherited['crop_box_source'] = $source;
         }
 
-        $rotation = $this->integerValue($body, 'Rotate', $objects);
+        $rotation = $this->rotationValue($body, $objects);
         if ($rotation !== null) {
-            $inherited['rotation'] = $this->normalizedRotation($rotation);
+            $inherited['rotation'] = $rotation;
             $inherited['rotation_source'] = $source;
         }
 
@@ -292,13 +292,12 @@ final class MarkerAppPreview
             $cropBoxSource = $inherited['crop_box_source'] ?? 'media_box';
         }
 
-        $rotation = $this->integerValue($pageBody, 'Rotate', $objects);
+        $rotation = $this->rotationValue($pageBody, $objects);
         $rotationSource = $source;
         if ($rotation === null) {
             $rotation = $inherited['rotation'] ?? 0;
             $rotationSource = $inherited['rotation_source'] ?? 'default';
         }
-        $rotation = $this->normalizedRotation($rotation);
 
         $userUnit = $this->numberValue($pageBody, 'UserUnit', $objects);
         $userUnitSource = 'page';
@@ -409,6 +408,24 @@ final class MarkerAppPreview
         $value = $this->numberValue($body, $name, $objects);
 
         return $value === null ? null : (int) round($value);
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     */
+    private function rotationValue(string $body, array $objects): ?int
+    {
+        $value = $this->numberValue($body, 'Rotate', $objects);
+        if ($value === null || abs($value - round($value)) > 0.000001) {
+            return null;
+        }
+
+        $rotation = (int) round($value);
+        if ($rotation % 90 !== 0) {
+            return null;
+        }
+
+        return $this->normalizedRotation($rotation);
     }
 
     /**

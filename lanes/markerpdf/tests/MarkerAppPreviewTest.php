@@ -110,6 +110,35 @@ return [
         $t->same(['width' => 400.0, 'height' => 250.0], $plan['display_page_size']);
         $t->same(['width' => 600, 'height' => 375], $plan['rendered_image_size']);
     },
+    'keeps inherited page boxes through invalid page rotation and page-local UserUnit rules' => static function (TestRunner $t): void {
+        $pdf = "%PDF-1.6\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 200 400] /CropBox 5 0 R /Rotate 90 /UserUnit 5 /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Rotate 45 >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Page /Parent 2 0 R /CropBox [20 30 180 370] /UserUnit 2 >>\nendobj\n"
+            . "5 0 obj\n[10 20 190 380]\nendobj\n"
+            . "%%EOF\n";
+
+        $preview = new MarkerAppPreview();
+        $summary = $preview->openPdfSummary($pdf);
+        $first = $summary['pages'][0];
+        $second = $summary['pages'][1];
+        $secondPlan = $preview->getPageImagePlan($pdf, 2, 72.0);
+
+        $t->same([10.0, 20.0, 190.0, 380.0], $first['crop_box']);
+        $t->same('pages', $first['crop_box_source']);
+        $t->same(90, $first['rotation']);
+        $t->same('pages', $first['rotation_source']);
+        $t->same(1.0, $first['user_unit']);
+        $t->same('default', $first['user_unit_source']);
+
+        $t->same([20.0, 30.0, 180.0, 370.0], $second['bbox']);
+        $t->same(90, $second['rotation']);
+        $t->same(2.0, $second['user_unit']);
+        $t->same(['width' => 340.0, 'height' => 160.0], $secondPlan['display_page_size']);
+        $t->same(['width' => 680.0, 'height' => 320.0], $secondPlan['physical_page_size']);
+        $t->same(['width' => 680, 'height' => 320], $secondPlan['rendered_image_size']);
+    },
     'plans marker app get_page_image pypdfium page index scale annotations and rgb output' => static function (TestRunner $t) use ($pdfWithPagesTree): void {
         $plan = (new MarkerAppPreview())->getPageImagePlan($pdfWithPagesTree(), 2, 144.0);
 
