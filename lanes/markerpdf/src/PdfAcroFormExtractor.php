@@ -518,6 +518,12 @@ final class PdfAcroFormExtractor
         $password = $fieldType === 'Tx' && $this->hasFlagBit($flags, 14);
 
         $name = $currentNameParts === [] ? '#' . $objectNumber : implode('.', $currentNameParts);
+        $value = $password ? null : $this->valueFromEffective($effective, 'V', $objects);
+        $defaultValue = $password ? null : $this->valueFromEffective($effective, 'DV', $objects);
+        $options = $fieldType === 'Ch' ? $this->optionsFromEffective($effective, $objects) : [];
+        $widgets = $this->widgetsForField($widgetRefs, $objects, $defaultAppearance, $pageIndexes, $pageWidgets, $fieldNamesByObject);
+        $widgets = $this->widgetsWithCurrentValueState($widgets, $fieldType, $flags, $value);
+
         $field = [
             'object' => $objectNumber,
             'name' => $name,
@@ -527,16 +533,17 @@ final class PdfAcroFormExtractor
             'field_type_label' => $this->fieldTypeLabel($fieldType),
             'flags' => $flags,
             'flag_names' => $this->flagNames($flags, $fieldType),
-            'value' => $password ? null : $this->valueFromEffective($effective, 'V', $objects),
+            'value' => $value,
             'value_redacted' => $password,
-            'default_value' => $password ? null : $this->valueFromEffective($effective, 'DV', $objects),
+            'default_value' => $defaultValue,
+            'value_state' => $this->fieldValueState($fieldType, $flags, $effective, $password, $value, $defaultValue, $options, $widgets),
             'default_appearance' => $defaultAppearance,
             'actions' => $this->actionsFromDictionary($body, $objects, $fieldNamesByObject, 'field', $objectNumber),
-            'widgets' => $this->widgetsForField($widgetRefs, $objects, $defaultAppearance, $pageIndexes, $pageWidgets, $fieldNamesByObject),
+            'widgets' => $widgets,
         ];
 
         if ($fieldType === 'Ch') {
-            $field['options'] = $this->optionsFromEffective($effective, $objects);
+            $field['options'] = $options;
         }
         if ($fieldType === 'Sig') {
             $field['signature'] = isset($effective['V'])
@@ -796,7 +803,7 @@ final class PdfAcroFormExtractor
     private function mergeFieldAttributes(string $body, array $inherited, int $objectNumber): array
     {
         $effective = $inherited;
-        foreach (['FT', 'Ff', 'V', 'DV', 'DA', 'Q', 'Opt'] as $name) {
+        foreach (['FT', 'Ff', 'V', 'DV', 'DA', 'Q', 'Opt', 'I'] as $name) {
             $value = $this->valueAfterName($body, $name);
             if ($value === null) {
                 continue;
@@ -883,6 +890,354 @@ final class PdfAcroFormExtractor
         }
 
         return $this->pdfValueToPhpValue($effective[$name]['value'], $objects);
+    }
+
+    /**
+     * @param array<string, array{value: string, source: string, source_object: int|null}> $effective
+     * @param list<array{export: string, label: string}> $options
+     * @param list<array<string, mixed>> $widgets
+     * @return array<string, mixed>
+     */
+    private function fieldValueState(
+        ?string $fieldType,
+        int $flags,
+        array $effective,
+        bool $password,
+        mixed $value,
+        mixed $defaultValue,
+        array $options,
+        array $widgets
+    ): array {
+        $hasCurrent = isset($effective['V']);
+        $hasDefault = isset($effective['DV']);
+        $state = [
+            'source' => 'acroform_current_value_state',
+            'field_type' => $fieldType,
+            'value_redacted' => $password,
+            'has_current_value' => $hasCurrent,
+            'has_default_value' => $hasDefault,
+            'current' => $password ? null : $value,
+            'default' => $password ? null : $defaultValue,
+            'display_value' => $password ? '[redacted]' : $this->displayValue($value),
+            'current_source' => $effective['V']['source'] ?? null,
+            'current_source_object' => $effective['V']['source_object'] ?? null,
+            'default_source' => $effective['DV']['source'] ?? null,
+            'default_source_object' => $effective['DV']['source_object'] ?? null,
+            'changed_from_default' => $password || !$hasDefault ? null : !$this->valuesMatch($value, $defaultValue),
+        ];
+
+        if ($fieldType === 'Ch') {
+            $explicitIndices = $this->integerArrayFromEffective($effective, 'I');
+            $selectedIndices = $this->selectedChoiceIndices($value, $options, $explicitIndices);
+            $state += [
+                'choice_values' => $password ? [] : $this->valueList($value),
+                'default_choice_values' => $password ? [] : $this->valueList($defaultValue),
+                'selected_indices' => $selectedIndices,
+                'selected_indices_source' => $explicitIndices === [] ? ($selectedIndices === [] ? null : 'inferred_from_value') : 'field',
+                'selected_options' => $this->selectedChoiceOptions($value, $options, $selectedIndices),
+                'unmatched_values' => $this->unmatchedChoiceValues($value, $options),
+            ];
+        }
+
+        if ($fieldType === 'Btn') {
+            $checkedWidgets = array_values(array_filter(
+                $widgets,
+                static fn (array $widget): bool => ($widget['checked'] ?? false) === true
+            ));
+            $appearanceValues = [];
+            foreach ($checkedWidgets as $widget) {
+                $exportValue = $widget['export_value'] ?? $widget['appearance_state'] ?? null;
+                if (is_string($exportValue) && $exportValue !== '' && !in_array($exportValue, $appearanceValues, true)) {
+                    $appearanceValues[] = $exportValue;
+                }
+            }
+
+            $effectiveCurrent = $value;
+            $stateSource = $hasCurrent ? 'field_value' : 'missing_or_off';
+            if (!$hasCurrent && $appearanceValues !== []) {
+                $effectiveCurrent = count($appearanceValues) === 1 ? $appearanceValues[0] : $appearanceValues;
+                $stateSource = 'widget_appearance_state';
+            }
+
+            $state += [
+                'button_kind' => $this->buttonKind($flags),
+                'current_state' => $password ? null : $value,
+                'default_state' => $password ? null : $defaultValue,
+                'effective_current_state' => $password ? null : $effectiveCurrent,
+                'state_source' => $stateSource,
+                'on_values' => $this->buttonOnValues($widgets),
+                'checked_widget_count' => count($checkedWidgets),
+                'widget_state_consistent' => $this->widgetsConsistentWithFieldValue($widgets),
+            ];
+        }
+
+        if ($password) {
+            $state['state_source'] = 'redacted_password';
+        }
+
+        return $state;
+    }
+
+    private function buttonKind(int $flags): string
+    {
+        if ($this->hasFlagBit($flags, 17)) {
+            return 'push_button';
+        }
+
+        return $this->hasFlagBit($flags, 16) ? 'radio' : 'checkbox';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $widgets
+     * @return list<string>
+     */
+    private function buttonOnValues(array $widgets): array
+    {
+        $values = [];
+        foreach ($widgets as $widget) {
+            foreach ($widget['appearance_states'] ?? [] as $state) {
+                if (!is_string($state) || $state === 'Off' || in_array($state, $values, true)) {
+                    continue;
+                }
+
+                $values[] = $state;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $widgets
+     */
+    private function widgetsConsistentWithFieldValue(array $widgets): ?bool
+    {
+        $sawComparison = false;
+        foreach ($widgets as $widget) {
+            $matches = $widget['state_matches_field_value'] ?? null;
+            if ($matches === null) {
+                continue;
+            }
+
+            $sawComparison = true;
+            if ($matches !== true) {
+                return false;
+            }
+        }
+
+        return $sawComparison ? true : null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $widgets
+     * @return list<array<string, mixed>>
+     */
+    private function widgetsWithCurrentValueState(array $widgets, ?string $fieldType, int $flags, mixed $fieldValue): array
+    {
+        if ($fieldType !== 'Btn' || $this->hasFlagBit($flags, 17)) {
+            return $widgets;
+        }
+
+        $fieldValues = $this->valueList($fieldValue);
+        foreach ($widgets as $index => $widget) {
+            $appearanceState = $widget['appearance_state'] ?? null;
+            $checked = is_string($appearanceState) && $appearanceState !== '' && $appearanceState !== 'Off';
+            $exportValue = $this->widgetExportValue($widget);
+            $selectedByField = $exportValue !== null && in_array($exportValue, $fieldValues, true);
+            $widgets[$index]['checked'] = $checked;
+            $widgets[$index]['export_value'] = $exportValue;
+            $widgets[$index]['selected_by_field_value'] = $selectedByField;
+            $widgets[$index]['state_matches_field_value'] = $fieldValue === null || $exportValue === null
+                ? null
+                : ($checked ? $selectedByField : !$selectedByField);
+        }
+
+        return $widgets;
+    }
+
+    /**
+     * @param array<string, mixed> $widget
+     */
+    private function widgetExportValue(array $widget): ?string
+    {
+        $appearanceState = $widget['appearance_state'] ?? null;
+        $states = array_values(array_filter(
+            $widget['appearance_states'] ?? [],
+            static fn (mixed $state): bool => is_string($state) && $state !== 'Off'
+        ));
+
+        if (is_string($appearanceState) && $appearanceState !== 'Off' && in_array($appearanceState, $states, true)) {
+            return $appearanceState;
+        }
+
+        if ($states !== []) {
+            return $states[0];
+        }
+
+        return is_string($appearanceState) && $appearanceState !== 'Off' ? $appearanceState : null;
+    }
+
+    /**
+     * @param array<string, array{value: string, source: string, source_object: int|null}> $effective
+     * @return list<int>
+     */
+    private function integerArrayFromEffective(array $effective, string $name): array
+    {
+        if (!isset($effective[$name])) {
+            return [];
+        }
+
+        $value = trim($effective[$name]['value']);
+        if (!str_starts_with($value, '[')) {
+            return [];
+        }
+
+        $body = $this->arrayBodyFromValue($value);
+        if ($body === null || preg_match_all('/[+-]?\d+/', $body, $matches) === false) {
+            return [];
+        }
+
+        return array_map('intval', $matches[0]);
+    }
+
+    /**
+     * @param list<array{export: string, label: string}> $options
+     * @param list<int> $explicitIndices
+     * @return list<int>
+     */
+    private function selectedChoiceIndices(mixed $value, array $options, array $explicitIndices): array
+    {
+        if ($explicitIndices !== []) {
+            return array_values(array_filter($explicitIndices, static fn (int $index): bool => $index >= 0));
+        }
+
+        $indices = [];
+        foreach ($this->valueList($value) as $selectedValue) {
+            foreach ($options as $index => $option) {
+                if (($option['export'] === $selectedValue || $option['label'] === $selectedValue) && !in_array($index, $indices, true)) {
+                    $indices[] = $index;
+                    break;
+                }
+            }
+        }
+
+        return $indices;
+    }
+
+    /**
+     * @param list<array{export: string, label: string}> $options
+     * @param list<int> $selectedIndices
+     * @return list<array{index: int, export: string, label: string}>
+     */
+    private function selectedChoiceOptions(mixed $value, array $options, array $selectedIndices): array
+    {
+        $selected = [];
+        $seen = [];
+        foreach ($this->valueList($value) as $selectedValue) {
+            foreach ($options as $index => $option) {
+                if ($option['export'] !== $selectedValue && $option['label'] !== $selectedValue) {
+                    continue;
+                }
+
+                $this->appendSelectedChoiceOption($selected, $seen, $index, $option);
+                break;
+            }
+        }
+
+        foreach ($selectedIndices as $index) {
+            if (isset($options[$index])) {
+                $this->appendSelectedChoiceOption($selected, $seen, $index, $options[$index]);
+            }
+        }
+
+        return $selected;
+    }
+
+    /**
+     * @param list<array{index: int, export: string, label: string}> $selected
+     * @param array<string, true> $seen
+     * @param array{export: string, label: string} $option
+     */
+    private function appendSelectedChoiceOption(array &$selected, array &$seen, int $index, array $option): void
+    {
+        $key = (string) $index . "\0" . $option['export'] . "\0" . $option['label'];
+        if (isset($seen[$key])) {
+            return;
+        }
+
+        $seen[$key] = true;
+        $selected[] = [
+            'index' => $index,
+            'export' => $option['export'],
+            'label' => $option['label'],
+        ];
+    }
+
+    /**
+     * @param list<array{export: string, label: string}> $options
+     * @return list<string>
+     */
+    private function unmatchedChoiceValues(mixed $value, array $options): array
+    {
+        $unmatched = [];
+        foreach ($this->valueList($value) as $selectedValue) {
+            $matched = false;
+            foreach ($options as $option) {
+                if ($option['export'] === $selectedValue || $option['label'] === $selectedValue) {
+                    $matched = true;
+                    break;
+                }
+            }
+
+            if (!$matched) {
+                $unmatched[] = $selectedValue;
+            }
+        }
+
+        return $unmatched;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function valueList(mixed $value): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        if (!is_array($value)) {
+            return [(string) $value];
+        }
+
+        $values = [];
+        foreach ($value as $item) {
+            if ($item === null) {
+                continue;
+            }
+
+            $values[] = (string) $item;
+        }
+
+        return $values;
+    }
+
+    private function displayValue(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return is_array($value) ? implode(', ', $this->valueList($value)) : (string) $value;
+    }
+
+    private function valuesMatch(mixed $left, mixed $right): bool
+    {
+        if (is_array($left) || is_array($right)) {
+            return $this->valueList($left) === $this->valueList($right);
+        }
+
+        return $left === $right;
     }
 
     /**

@@ -135,6 +135,25 @@ $calculationFormatActionPdf = static function (): array {
     return [$pdf, $keystrokeScript, $formatScript, $validateScript, $calculateScript];
 };
 
+$currentValueStatePdf = static function (): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R 12 0 R 16 0 R 18 0 R 22 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 10 0 R 14 0 R 20 0 R] >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (article.title) /V (Final import title) /DV (Draft import title) /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 320 664] /P 3 0 R /F 4 >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Ch /T (article.topics) /Ff 2097152 /V [(plugin) (themes)] /DV (blocks) /I [1 0] /Opt [[(themes) (Themes)] [(plugin) (Plugins)] [(blocks) (Blocks)]] /Kids [12 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 600 320 624] /P 3 0 R /F 4 >>\nendobj\n"
+        . "14 0 obj\n<< /FT /Btn /T (delivery.method) /Ff 49152 /V /Online /DV /Pickup /Kids [16 0 R 18 0 R] >>\nendobj\n"
+        . "16 0 obj\n<< /Subtype /Widget /Parent 14 0 R /Rect [72 560 90 578] /P 3 0 R /F 4 /AS /Online /AP << /N << /Online 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
+        . "18 0 obj\n<< /Subtype /Widget /Parent 14 0 R /Rect [108 560 126 578] /P 3 0 R /F 4 /AS /Off /AP << /N << /Pickup 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
+        . "20 0 obj\n<< /FT /Btn /T (review.consent) /Kids [22 0 R] >>\nendobj\n"
+        . "22 0 obj\n<< /Subtype /Widget /Parent 20 0 R /Rect [72 520 90 538] /P 3 0 R /F 4 /AS /Yes /AP << /N << /Yes 30 0 R /Off 30 0 R >> >> >>\nendobj\n"
+        . "30 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'extracts inherited field flags and field default appearance strings' => static function (TestRunner $t) use ($acroFormPdf, $fieldsByName): void {
         $form = (new PdfAcroFormExtractor())->extractForm($acroFormPdf());
@@ -352,6 +371,64 @@ return [
         $t->same(['registration.email'], $reset['field_names']);
         $t->true($reset['reset_to_default']);
         $t->same(false, $reset['executes_action']);
+    },
+    'extracts AcroForm current value state from V DV I Opt and widget appearance states' => static function (TestRunner $t) use ($currentValueStatePdf, $fieldsByName): void {
+        $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($currentValueStatePdf()));
+
+        $titleState = $fields['article.title']['value_state'];
+        $t->same('acroform_current_value_state', $titleState['source']);
+        $t->same('Final import title', $titleState['current']);
+        $t->same('Draft import title', $titleState['default']);
+        $t->same('Final import title', $titleState['display_value']);
+        $t->true($titleState['has_current_value']);
+        $t->true($titleState['has_default_value']);
+        $t->true($titleState['changed_from_default']);
+        $t->same('field', $titleState['current_source']);
+        $t->same(6, $titleState['current_source_object']);
+
+        $topicState = $fields['article.topics']['value_state'];
+        $t->same(['plugin', 'themes'], $topicState['choice_values']);
+        $t->same(['blocks'], $topicState['default_choice_values']);
+        $t->same([1, 0], $topicState['selected_indices']);
+        $t->same('field', $topicState['selected_indices_source']);
+        $t->same([
+            ['index' => 1, 'export' => 'plugin', 'label' => 'Plugins'],
+            ['index' => 0, 'export' => 'themes', 'label' => 'Themes'],
+        ], $topicState['selected_options']);
+        $t->same([], $topicState['unmatched_values']);
+        $t->true($topicState['changed_from_default']);
+
+        $delivery = $fields['delivery.method'];
+        $deliveryState = $delivery['value_state'];
+        $t->same('radio', $deliveryState['button_kind']);
+        $t->same('Online', $deliveryState['current_state']);
+        $t->same('Pickup', $deliveryState['default_state']);
+        $t->same('Online', $deliveryState['effective_current_state']);
+        $t->same('field_value', $deliveryState['state_source']);
+        $t->same(['Online', 'Pickup'], $deliveryState['on_values']);
+        $t->same(1, $deliveryState['checked_widget_count']);
+        $t->true($deliveryState['widget_state_consistent']);
+        $t->true($delivery['widgets'][0]['checked']);
+        $t->same('Online', $delivery['widgets'][0]['export_value']);
+        $t->true($delivery['widgets'][0]['selected_by_field_value']);
+        $t->true($delivery['widgets'][0]['state_matches_field_value']);
+        $t->same(false, $delivery['widgets'][1]['checked']);
+        $t->same('Pickup', $delivery['widgets'][1]['export_value']);
+        $t->same(false, $delivery['widgets'][1]['selected_by_field_value']);
+        $t->true($delivery['widgets'][1]['state_matches_field_value']);
+
+        $consent = $fields['review.consent'];
+        $consentState = $consent['value_state'];
+        $t->same('checkbox', $consentState['button_kind']);
+        $t->same(null, $consentState['current_state']);
+        $t->same('Yes', $consentState['effective_current_state']);
+        $t->same('widget_appearance_state', $consentState['state_source']);
+        $t->same(['Yes'], $consentState['on_values']);
+        $t->same(1, $consentState['checked_widget_count']);
+        $t->same(null, $consentState['widget_state_consistent']);
+        $t->true($consent['widgets'][0]['checked']);
+        $t->same('Yes', $consent['widgets'][0]['export_value']);
+        $t->same(null, $consent['widgets'][0]['state_matches_field_value']);
     },
     'extracts calculation format keystroke and validation action review metadata without executing scripts' => static function (TestRunner $t) use ($calculationFormatActionPdf, $fieldsByName): void {
         [$pdf, $keystrokeScript, $formatScript, $validateScript, $calculateScript] = $calculationFormatActionPdf();
