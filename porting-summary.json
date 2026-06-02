@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 15:34:20 UTC",
-    "sourceCommit": "e3679c74abc866e9a78992b37a49085dd00f8c64",
-    "sourceCommitShort": "e3679c74abc8",
+    "generated": "2026-06-02 15:40:00 UTC",
+    "sourceCommit": "2394410090d30146ebd86abc251c33c4907d6ce9",
+    "sourceCommitShort": "2394410090d3",
     "sourceBranch": "main",
-    "dashboardCommit": "e3679c74abc866e9a78992b37a49085dd00f8c64",
-    "dashboardCommitShort": "e3679c74abc8",
+    "dashboardCommit": "2394410090d30146ebd86abc251c33c4907d6ce9",
+    "dashboardCommitShort": "2394410090d3",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "376",
-            "coverage": "376 / 78 (482.1%)",
-            "mapPercent": "482.1%",
+            "mapped": "377",
+            "coverage": "377 / 78 (483.3%)",
+            "mapPercent": "483.3%",
             "unmapped": "0",
-            "php": "529 pass / 0 fail",
+            "php": "530 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit e3679c74; full m...",
-            "currentWork": "PdfTextExtractor now uses the nearest page-resource dictionary for font ToUnicode/CID...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit 23944100; full m...",
+            "currentWork": "PdfTextExtractor now resolves horizontal CIDFont /W arrays through indirect objects s...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded font, xref/object s...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "e3679c7"
+            "commit": "2394410"
         },
         {
             "lane": "readability",
