@@ -1658,8 +1658,9 @@ final class PdfTextExtractor
         ?array $initialTransformationMatrix = null,
         ?array $formBoundingBox = null
     ): array {
-        $shouldTransformTextPositions = $initialTransformationMatrix !== null
-            && !$this->pdfMatrixIsIdentity($initialTransformationMatrix);
+        $contentMayTransformTextPositions = $this->contentMayTransformTextPositions($content);
+        $shouldTransformTextPositions = $contentMayTransformTextPositions
+            || ($initialTransformationMatrix !== null && !$this->pdfMatrixIsIdentity($initialTransformationMatrix));
         if (
             !str_contains($content, 'Do')
             && !$shouldTransformTextPositions
@@ -1825,6 +1826,11 @@ final class PdfTextExtractor
             'stream' => implode(' ', array_values(array_filter($expanded, static fn (string $segment): bool => trim($segment) !== ''))),
             'fontToUnicodeMaps' => $expandedFontToUnicodeMaps,
         ];
+    }
+
+    private function contentMayTransformTextPositions(string $content): bool
+    {
+        return preg_match('/(?:^|[\s\[\]()<>{}])cm(?:$|[\s\[\]()<>{}])/', $content) === 1;
     }
 
     /**

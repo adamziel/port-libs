@@ -2333,6 +2333,24 @@ return [
         $t->same(['Data Import Tool'], $lines);
         $t->true(!str_contains($plainText, 'ImportTool'));
     },
+    'applies page graphics-state cm before text operator line boundaries' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf q 1 0 0 1 0 100 cm 72 620 Td (Translated ) Tj '
+            . '1 0 0 1 140 620 Tm (Line) Tj Q 1 0 0 1 180 720 Tm (Restored) Tj '
+            . '1 0 0 1 72 620 Tm (Untranslated) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Translated Line Restored', 'Untranslated'], $extractor->extractTextLines($pdf));
+        $t->same("Translated Line Restored\nUntranslated", $plainText);
+        $t->same("Translated Line Restored\nUntranslated\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, "Translated Line\nRestored"));
+    },
     'skips invisible and clipping-only text rendering modes before WordPress extraction' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = 'BT /F1 12 Tf 1 0 0 1 72 720 Tm (Visible Before) Tj '
             . '3 Tr 1 0 0 1 72 704 Tm (Invisible OCR Noise) Tj '
