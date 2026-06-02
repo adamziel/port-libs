@@ -316,6 +316,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-object-generation-free-entry-import.php` maps object-generation free-entry reuse into a WordPress paragraph import path. It keeps the current direct page text while excluding a stale object-stream member whose object number is reserved by a current xref free entry.
 
+`examples/wordpress-pdf-cmap-comment-import.php` maps ToUnicode CMap PDF/PostScript line-comment handling into a WordPress paragraph import path. It strips `%` comments before CMapName/usecmap/codespace/bfchar/bfrange parsing so commented fake glyph mappings such as `Noise` and `XY` do not override the real `ACleanDE` paragraph, without loading Python, pdftext, pypdfium, Poppler, Ghostscript, models, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

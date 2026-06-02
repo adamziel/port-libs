@@ -5574,6 +5574,7 @@ final class PdfTextExtractor
 
     private function cMapName(string $cmap): ?string
     {
+        $cmap = $this->stripPdfLineComments($cmap);
         if (preg_match('/\/CMapName\s+\/([^\s\[\]()<>{}\/%]+)\s+def\b/s', $cmap, $match) !== 1) {
             return null;
         }
@@ -5600,6 +5601,7 @@ final class PdfTextExtractor
      */
     private function parseToUnicodeCMap(string $cmap, array $namedCMapBodies = [], array $seenCMaps = []): array
     {
+        $cmap = $this->stripPdfLineComments($cmap);
         $map = [];
         $codeSpaceRanges = [];
         $writingMode = null;
@@ -5664,6 +5666,40 @@ final class PdfTextExtractor
         }
 
         return $result;
+    }
+
+    private function stripPdfLineComments(string $source): string
+    {
+        $stripped = '';
+        $length = strlen($source);
+        for ($index = 0; $index < $length; $index++) {
+            $char = $source[$index];
+            if ($char === '(') {
+                $stripped .= $this->readLiteralToken($source, $index);
+                $index--;
+                continue;
+            }
+
+            if ($char === '<' && ($index + 1 >= $length || $source[$index + 1] !== '<')) {
+                $stripped .= $this->readHexToken($source, $index);
+                $index--;
+                continue;
+            }
+
+            if ($char === '%') {
+                while ($index < $length && !in_array($source[$index], ["\n", "\r"], true)) {
+                    $index++;
+                }
+                if ($index < $length) {
+                    $stripped .= $source[$index];
+                }
+                continue;
+            }
+
+            $stripped .= $char;
+        }
+
+        return $stripped;
     }
 
     /**

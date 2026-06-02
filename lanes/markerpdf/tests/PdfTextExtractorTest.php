@@ -1363,6 +1363,39 @@ return [
         $t->same(['Import Blocks! OK'], $extractor->extractTextRuns($pdf));
         $t->true(!str_contains($extractor->extractPlainText($pdf), 'Import Blocks!A'));
     },
+    'ignores ToUnicode CMap comments before WordPress text extraction' => static function (TestRunner $t): void {
+        $content = 'BT /Fcid 12 Tf 72 720 Td <41425051> Tj ET';
+        $cmap = "/CIDInit /ProcSet findresource begin\n"
+            . "12 dict begin\n"
+            . "begincmap\n"
+            . "1 begincodespacerange\n"
+            . "<00> <FF>\n"
+            . "endcodespacerange\n"
+            . "2 beginbfchar\n"
+            . "<41> <0041>\n"
+            . "% <41> <004E006F006900730065>\n"
+            . "<42> <0043006C00650061006E>\n"
+            . "endbfchar\n"
+            . "1 beginbfrange\n"
+            . "<50> <51> <0044>\n"
+            . "% <50> <51> <0058>\n"
+            . "endbfrange\n"
+            . "endcmap\n"
+            . "CMapName currentdict /CMap defineresource pop\n"
+            . "end\n"
+            . "end\n";
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /CommentedCMapSubset /Encoding /Identity-H /ToUnicode 3 0 R >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+
+        $t->same('ACleanDE', $extractor->extractPlainText($pdf));
+        $t->same(['ACleanDE'], $extractor->extractTextRuns($pdf));
+        $t->true(!str_contains($extractor->extractPlainText($pdf), 'Noise'));
+        $t->true(!str_contains($extractor->extractPlainText($pdf), 'XY'));
+    },
     'decodes escaped PDF resource names before ToUnicode WordPress text lookup' => static function (TestRunner $t): void {
         $content = 'BT /F#31 12 Tf 72 720 Td <4142> Tj ET';
         $cmap = "/CIDInit /ProcSet findresource begin\n"
