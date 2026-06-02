@@ -1081,6 +1081,10 @@ final class PdfTextExtractor
         $currentFontToUnicodeMaps = $fontToUnicodeMaps;
 
         foreach ($this->annotationBodiesForPage($pageBody, $objects) as $annotation) {
+            if (!$this->annotationAppearanceContributesText($annotation['body'])) {
+                continue;
+            }
+
             if (!$this->optionalContentObjectVisible($annotation['body'], $objects, $optionalContentStates)) {
                 continue;
             }
@@ -1106,6 +1110,16 @@ final class PdfTextExtractor
         }
 
         return $appearances;
+    }
+
+    private function annotationAppearanceContributesText(string $annotationBody): bool
+    {
+        $subtype = $this->pdfNameValueAfterName($annotationBody, 'Subtype');
+        if ($subtype === null) {
+            return false;
+        }
+
+        return !in_array($subtype, ['3D', 'FileAttachment', 'Movie', 'RichMedia', 'Screen', 'Sound'], true);
     }
 
     /**

@@ -66,6 +66,7 @@ final class PdfAcroFormExtractor
         $xfaPackets = $this->xfaPacketsFromAcroForm($acroForm, $objects);
         $fields = [];
         $fieldRefs = $this->fieldReferencesFromAcroForm($acroForm);
+        $fieldNamesByObject = $this->fieldNamesByObject($fieldRefs, $objects);
 
         foreach ($fieldRefs as $fieldRef) {
             foreach ($this->fieldsFromObject(
@@ -75,7 +76,8 @@ final class PdfAcroFormExtractor
                 [],
                 [],
                 $pageIndexes,
-                $pageWidgets
+                $pageWidgets,
+                $fieldNamesByObject
             ) as $field) {
                 $fields[] = $field;
             }
@@ -436,6 +438,7 @@ final class PdfAcroFormExtractor
      * @param array<int, true> $seen
      * @param array<int, int> $pageIndexes
      * @param array<int, array{page_index: int, page_object: int}> $pageWidgets
+     * @param array<int, string> $fieldNamesByObject
      */
     private function fieldsFromObject(
         int $objectNumber,
@@ -444,7 +447,8 @@ final class PdfAcroFormExtractor
         array $nameParts,
         array $seen,
         array $pageIndexes,
-        array $pageWidgets
+        array $pageWidgets,
+        array $fieldNamesByObject
     ): array {
         if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
             return [];
@@ -487,7 +491,8 @@ final class PdfAcroFormExtractor
                     $currentNameParts,
                     $seen,
                     $pageIndexes,
-                    $pageWidgets
+                    $pageWidgets,
+                    $fieldNamesByObject
                 ) as $field) {
                     $fields[] = $field;
                 }
@@ -523,7 +528,8 @@ final class PdfAcroFormExtractor
             'value_redacted' => $password,
             'default_value' => $password ? null : $this->valueFromEffective($effective, 'DV', $objects),
             'default_appearance' => $defaultAppearance,
-            'widgets' => $this->widgetsForField($widgetRefs, $objects, $defaultAppearance, $pageIndexes, $pageWidgets),
+            'actions' => $this->actionsFromDictionary($body, $objects, $fieldNamesByObject, 'field', $objectNumber),
+            'widgets' => $this->widgetsForField($widgetRefs, $objects, $defaultAppearance, $pageIndexes, $pageWidgets, $fieldNamesByObject),
         ];
 
         if ($fieldType === 'Ch') {
@@ -986,6 +992,7 @@ final class PdfAcroFormExtractor
      * @param array<string, mixed>|null $fieldDefaultAppearance
      * @param array<int, int> $pageIndexes
      * @param array<int, array{page_index: int, page_object: int}> $pageWidgets
+     * @param array<int, string> $fieldNamesByObject
      * @return list<array<string, mixed>>
      */
     private function widgetsForField(
@@ -993,7 +1000,8 @@ final class PdfAcroFormExtractor
         array $objects,
         ?array $fieldDefaultAppearance,
         array $pageIndexes,
-        array $pageWidgets
+        array $pageWidgets,
+        array $fieldNamesByObject
     ): array {
         $widgets = [];
         $seen = [];
@@ -1021,10 +1029,385 @@ final class PdfAcroFormExtractor
                 'appearance_state' => $this->pdfNameValueAfterName($body, 'AS'),
                 'appearance_states' => $this->normalAppearanceStates($body),
                 'default_appearance' => $widgetAppearance,
+                'actions' => $this->actionsFromDictionary($body, $objects, $fieldNamesByObject, 'widget', $widgetRef),
             ];
         }
 
         return $widgets;
+    }
+
+    /**
+     * @param list<int> $fieldRefs
+     * @param array<int, string> $objects
+     * @return array<int, string>
+     */
+    private function fieldNamesByObject(array $fieldRefs, array $objects): array
+    {
+        $names = [];
+        foreach ($fieldRefs as $fieldRef) {
+            $this->collectFieldNamesByObject($fieldRef, $objects, [], $names, []);
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string> $nameParts
+     * @param array<int, string> $names
+     * @param array<int, true> $seen
+     */
+    private function collectFieldNamesByObject(
+        int $objectNumber,
+        array $objects,
+        array $nameParts,
+        array &$names,
+        array $seen
+    ): void {
+        if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+            return;
+        }
+
+        $seen[$objectNumber] = true;
+        $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
+        $partialName = $this->pdfStringValueAfterName($body, 'T', $objects);
+        $currentNameParts = $nameParts;
+        if ($partialName !== null && $partialName !== '') {
+            $currentNameParts[] = $partialName;
+        }
+
+        $fieldName = $currentNameParts === [] ? '#' . $objectNumber : implode('.', $currentNameParts);
+        if (
+            $partialName !== null
+            || $this->pdfStringValueAfterName($body, 'TM', $objects) !== null
+            || $this->valueAfterName($body, 'FT') !== null
+            || $this->valueAfterName($body, 'Kids') !== null
+            || $this->isWidget($body)
+        ) {
+            $names[$objectNumber] = $fieldName;
+        }
+
+        foreach ($this->kidReferences($body) as $kidRef) {
+            if (!isset($objects[$kidRef])) {
+                continue;
+            }
+
+            $kidBody = $this->dictionaryObjectBody($objects[$kidRef]) ?? trim($objects[$kidRef]);
+            if ($this->isPureWidget($kidBody)) {
+                $names[$kidRef] = $fieldName;
+                continue;
+            }
+
+            $this->collectFieldNamesByObject($kidRef, $objects, $currentNameParts, $names, $seen);
+        }
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, string> $fieldNamesByObject
+     * @return list<array<string, mixed>>
+     */
+    private function actionsFromDictionary(
+        string $body,
+        array $objects,
+        array $fieldNamesByObject,
+        string $source,
+        int $sourceObject
+    ): array {
+        $actions = [];
+        $activation = $this->valueAfterName($body, 'A');
+        if ($activation !== null) {
+            foreach ($this->actionMetadataFromValue($activation, $objects, $fieldNamesByObject, 'activation', $source, $sourceObject) as $action) {
+                $actions[] = $action;
+            }
+        }
+
+        $additionalActions = $this->valueAfterName($body, 'AA');
+        $additionalActionsDictionary = $additionalActions === null ? null : $this->resolvedDictionaryFromValue($additionalActions, $objects);
+        if ($additionalActionsDictionary === null) {
+            return $actions;
+        }
+
+        foreach (['E', 'X', 'D', 'U', 'Fo', 'Bl', 'K', 'F', 'V', 'C'] as $trigger) {
+            $value = $this->valueAfterName($additionalActionsDictionary['body'], $trigger);
+            if ($value === null) {
+                continue;
+            }
+
+            foreach ($this->actionMetadataFromValue($value, $objects, $fieldNamesByObject, $trigger, $source, $sourceObject) as $action) {
+                $actions[] = $action;
+            }
+        }
+
+        return $actions;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, string> $fieldNamesByObject
+     * @param array<int, true> $seenActionObjects
+     * @return list<array<string, mixed>>
+     */
+    private function actionMetadataFromValue(
+        string $value,
+        array $objects,
+        array $fieldNamesByObject,
+        string $trigger,
+        string $source,
+        int $sourceObject,
+        array $seenActionObjects = []
+    ): array {
+        $action = $this->resolvedDictionaryFromValue($value, $objects);
+        if ($action === null) {
+            return [];
+        }
+
+        $actionObject = $action['object'];
+        if ($actionObject !== null) {
+            if (isset($seenActionObjects[$actionObject])) {
+                return [];
+            }
+            $seenActionObjects[$actionObject] = true;
+        }
+
+        $actions = [];
+        $metadata = $this->actionMetadataFromBody(
+            $action['body'],
+            $objects,
+            $fieldNamesByObject,
+            $trigger,
+            $source,
+            $sourceObject,
+            $actionObject
+        );
+        if ($metadata !== null) {
+            $actions[] = $metadata;
+        }
+
+        $next = $this->valueAfterName($action['body'], 'Next');
+        if ($next === null) {
+            return $actions;
+        }
+
+        $nextValue = trim($next);
+        if (str_starts_with($nextValue, '[')) {
+            $arrayBody = $this->arrayBodyFromValue($nextValue);
+            if ($arrayBody === null) {
+                return $actions;
+            }
+
+            foreach ($this->dictionaryValuesFromArrayBody($arrayBody, $objects) as $nextDictionary) {
+                $nextMetadata = $this->actionMetadataFromBody(
+                    $nextDictionary['body'],
+                    $objects,
+                    $fieldNamesByObject,
+                    $trigger,
+                    $source,
+                    $sourceObject,
+                    $nextDictionary['object']
+                );
+                if ($nextMetadata !== null) {
+                    $nextMetadata['chained'] = true;
+                    $actions[] = $nextMetadata;
+                }
+            }
+
+            return $actions;
+        }
+
+        foreach ($this->actionMetadataFromValue($nextValue, $objects, $fieldNamesByObject, $trigger, $source, $sourceObject, $seenActionObjects) as $nextAction) {
+            $nextAction['chained'] = true;
+            $actions[] = $nextAction;
+        }
+
+        return $actions;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, string> $fieldNamesByObject
+     * @return array<string, mixed>|null
+     */
+    private function actionMetadataFromBody(
+        string $actionBody,
+        array $objects,
+        array $fieldNamesByObject,
+        string $trigger,
+        string $source,
+        int $sourceObject,
+        ?int $actionObject
+    ): ?array {
+        $actionType = $this->pdfNameValueAfterName($actionBody, 'S');
+        if (!in_array($actionType, ['SubmitForm', 'ResetForm'], true)) {
+            return null;
+        }
+
+        $flags = $this->numberValueAfterName($actionBody, 'Flags') ?? 0;
+        $selection = $this->fieldSelectionFromAction($actionBody, $objects, $fieldNamesByObject, $actionType, $flags);
+        $metadata = [
+            'action_type' => $actionType,
+            'trigger' => $trigger,
+            'trigger_label' => $this->actionTriggerLabel($trigger),
+            'source' => $source,
+            'source_object' => $sourceObject,
+            'action_object' => $actionObject,
+            'flags' => $flags,
+            'flag_names' => $this->actionFlagNames($actionType, $flags),
+            'fields_mode' => $selection['fields_mode'],
+            'field_objects' => $selection['field_objects'],
+            'field_names' => $selection['field_names'],
+            'unresolved_field_objects' => $selection['unresolved_field_objects'],
+            'executes_action' => false,
+        ];
+
+        if ($actionType === 'SubmitForm') {
+            $targetValue = $this->valueAfterName($actionBody, 'F');
+            $target = $targetValue === null ? null : $this->fileSpecificationFromValue($targetValue, $objects);
+            $metadata += [
+                'target' => $target,
+                'target_scheme' => $target === null ? null : $this->uriScheme($target),
+                'submit_format' => $this->hasFlagBit($flags, 3) ? 'html' : 'fdf',
+                'include_no_value_fields' => $this->hasFlagBit($flags, 2),
+                'default_excludes_no_export' => true,
+            ];
+        } else {
+            $metadata['reset_to_default'] = true;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, string> $fieldNamesByObject
+     * @return array{fields_mode: string, field_objects: list<int>, field_names: list<string>, unresolved_field_objects: list<int>}
+     */
+    private function fieldSelectionFromAction(
+        string $actionBody,
+        array $objects,
+        array $fieldNamesByObject,
+        string $actionType,
+        int $flags
+    ): array {
+        $fields = $this->valueAfterName($actionBody, 'Fields');
+        if ($fields === null || !str_starts_with(trim($fields), '[')) {
+            return [
+                'fields_mode' => $actionType === 'SubmitForm' ? 'all_exportable' : 'all',
+                'field_objects' => [],
+                'field_names' => [],
+                'unresolved_field_objects' => [],
+            ];
+        }
+
+        $arrayBody = $this->arrayBodyFromValue($fields);
+        if ($arrayBody === null) {
+            return [
+                'fields_mode' => $this->hasFlagBit($flags, 1) ? 'exclude' : 'include',
+                'field_objects' => [],
+                'field_names' => [],
+                'unresolved_field_objects' => [],
+            ];
+        }
+
+        $fieldObjects = array_values(array_unique($this->objectReferences($arrayBody)));
+        $fieldNames = [];
+        $unresolved = [];
+        foreach ($fieldObjects as $fieldObject) {
+            if (isset($fieldNamesByObject[$fieldObject])) {
+                $fieldNames[] = $fieldNamesByObject[$fieldObject];
+                continue;
+            }
+
+            $unresolved[] = $fieldObject;
+        }
+
+        foreach ($this->scalarValuesFromArrayBody($arrayBody, $objects) as $fieldName) {
+            if (!in_array($fieldName, $fieldNames, true)) {
+                $fieldNames[] = $fieldName;
+            }
+        }
+
+        return [
+            'fields_mode' => $this->hasFlagBit($flags, 1) ? 'exclude' : 'include',
+            'field_objects' => $fieldObjects,
+            'field_names' => $fieldNames,
+            'unresolved_field_objects' => $unresolved,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function actionFlagNames(string $actionType, int $flags): array
+    {
+        $names = [];
+        if ($this->hasFlagBit($flags, 1)) {
+            $names[] = 'exclude_list';
+        }
+
+        if ($actionType === 'SubmitForm') {
+            if ($this->hasFlagBit($flags, 2)) {
+                $names[] = 'include_no_value_fields';
+            }
+            if ($this->hasFlagBit($flags, 3)) {
+                $names[] = 'html_format';
+            }
+        }
+
+        return $names;
+    }
+
+    private function actionTriggerLabel(string $trigger): string
+    {
+        return match ($trigger) {
+            'activation' => 'activation',
+            'E' => 'cursor_enter',
+            'X' => 'cursor_exit',
+            'D' => 'mouse_down',
+            'U' => 'mouse_up',
+            'Fo' => 'focus',
+            'Bl' => 'blur',
+            'K' => 'keystroke',
+            'F' => 'format',
+            'V' => 'validate',
+            'C' => 'calculate',
+            default => 'unknown',
+        };
+    }
+
+    private function fileSpecificationFromValue(string $value, array $objects): ?string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        $dictionary = $this->resolvedDictionaryFromValue($value, $objects);
+        if ($dictionary !== null) {
+            foreach (['UF', 'F', 'DOS', 'Mac', 'Unix'] as $name) {
+                $file = $this->pdfStringValueAfterName($dictionary['body'], $name, $objects);
+                if ($file !== null && $file !== '') {
+                    return $file;
+                }
+            }
+
+            return null;
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1 && isset($objects[(int) $match[1]])) {
+            return $this->pdfValueToString(trim($objects[(int) $match[1]]), $objects);
+        }
+
+        return $this->pdfValueToString($value, $objects);
+    }
+
+    private function uriScheme(string $target): ?string
+    {
+        if (preg_match('/^([A-Za-z][A-Za-z0-9+.\-]*):/', $target, $match) !== 1) {
+            return null;
+        }
+
+        return strtolower($match[1]);
     }
 
     /**

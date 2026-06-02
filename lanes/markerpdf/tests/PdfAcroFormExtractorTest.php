@@ -86,6 +86,26 @@ XML;
     return [$pdf, hash('sha256', $templateXml), hash('sha256', $datasetsXml), hash('sha256', $configXml)];
 };
 
+$submitResetActionPdf = static function (): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R 10 0 R 12 0 R 14 0 R 16 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 9 0 R 11 0 R 13 0 R 15 0 R] /NeedAppearances false >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (registration.email) /V (editor@example.com) /DV (pending@example.com) /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 620 320 644] /P 3 0 R /F 4 >>\nendobj\n"
+        . "9 0 obj\n<< /FT /Tx /T (registration.notes) /DV (Default reviewer note) /Kids [10 0 R] >>\nendobj\n"
+        . "10 0 obj\n<< /Subtype /Widget /Parent 9 0 R /Rect [72 580 320 604] /P 3 0 R /F 4 >>\nendobj\n"
+        . "11 0 obj\n<< /FT /Tx /T (registration.internal) /Ff 4 /V (Do not export) /Kids [12 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Subtype /Widget /Parent 11 0 R /Rect [72 540 320 564] /P 3 0 R /F 4 >>\nendobj\n"
+        . "13 0 obj\n<< /FT /Btn /T (actions.submit) /Ff 65536 /Kids [14 0 R] >>\nendobj\n"
+        . "14 0 obj\n<< /Subtype /Widget /Parent 13 0 R /Rect [72 500 180 524] /P 3 0 R /F 4 /A << /S /SubmitForm /F 20 0 R /Fields [6 0 R 9 0 R] /Flags 6 >> >>\nendobj\n"
+        . "15 0 obj\n<< /FT /Btn /T (actions.reset) /Ff 65536 /Kids [16 0 R] /AA << /U << /S /ResetForm /Fields [6 0 R] /Flags 1 >> >> >>\nendobj\n"
+        . "16 0 obj\n<< /Subtype /Widget /Parent 15 0 R /Rect [192 500 300 524] /P 3 0 R /F 4 >>\nendobj\n"
+        . "20 0 obj\n<< /Type /Filespec /F (https://example.test/marker-import) >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'extracts inherited field flags and field default appearance strings' => static function (TestRunner $t) use ($acroFormPdf, $fieldsByName): void {
         $form = (new PdfAcroFormExtractor())->extractForm($acroFormPdf());
@@ -268,5 +288,40 @@ return [
         $t->same([], $config['field_names']);
         $t->same([], $config['data_node_names']);
         $t->same('pdf', $config['text_preview']);
+    },
+    'extracts SubmitForm and ResetForm action review metadata without executing actions' => static function (TestRunner $t) use ($submitResetActionPdf, $fieldsByName): void {
+        $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($submitResetActionPdf()));
+        $submitWidget = $fields['actions.submit']['widgets'][0];
+        $submit = $submitWidget['actions'][0];
+        $reset = $fields['actions.reset']['actions'][0];
+
+        $t->same('SubmitForm', $submit['action_type']);
+        $t->same('activation', $submit['trigger']);
+        $t->same('widget', $submit['source']);
+        $t->same(14, $submit['source_object']);
+        $t->same('https://example.test/marker-import', $submit['target']);
+        $t->same('https', $submit['target_scheme']);
+        $t->same(6, $submit['flags']);
+        $t->same(['include_no_value_fields', 'html_format'], $submit['flag_names']);
+        $t->same('include', $submit['fields_mode']);
+        $t->same([6, 9], $submit['field_objects']);
+        $t->same(['registration.email', 'registration.notes'], $submit['field_names']);
+        $t->same('html', $submit['submit_format']);
+        $t->true($submit['include_no_value_fields']);
+        $t->true($submit['default_excludes_no_export']);
+        $t->same(false, $submit['executes_action']);
+
+        $t->same('ResetForm', $reset['action_type']);
+        $t->same('U', $reset['trigger']);
+        $t->same('mouse_up', $reset['trigger_label']);
+        $t->same('field', $reset['source']);
+        $t->same(15, $reset['source_object']);
+        $t->same(1, $reset['flags']);
+        $t->same(['exclude_list'], $reset['flag_names']);
+        $t->same('exclude', $reset['fields_mode']);
+        $t->same([6], $reset['field_objects']);
+        $t->same(['registration.email'], $reset['field_names']);
+        $t->true($reset['reset_to_default']);
+        $t->same(false, $reset['executes_action']);
     },
 ];
