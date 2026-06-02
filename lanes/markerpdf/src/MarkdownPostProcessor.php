@@ -101,6 +101,11 @@ final class MarkdownPostProcessor
                             }
                         }
 
+                        $linkUri = $this->spanLinkUri($span);
+                        if ($linkUri !== null && trim($spanText) !== '') {
+                            $spanText = $this->markdownLink($spanText, $linkUri);
+                        }
+
                         $lineText .= $spanText;
                     }
 
@@ -464,6 +469,30 @@ final class MarkdownPostProcessor
         preg_match('/(\s*)$/', $text, $trailing);
 
         return ($leading[1] ?? '') . $marker . trim($text) . $marker . ($trailing[1] ?? '');
+    }
+
+    /**
+     * @param array<string, mixed> $span
+     */
+    private function spanLinkUri(array $span): ?string
+    {
+        $uri = $span['link_uri'] ?? $span['url'] ?? $span['href'] ?? null;
+        if (!is_string($uri) || trim($uri) === '') {
+            return null;
+        }
+
+        return $uri;
+    }
+
+    private function markdownLink(string $text, string $uri): string
+    {
+        preg_match('/^(\s*)/', $text, $leading);
+        preg_match('/(\s*)$/', $text, $trailing);
+        $label = trim($text);
+        $label = str_replace(['\\', '[', ']'], ['\\\\', '\\[', '\\]'], $label);
+        $target = str_replace(['\\', ')'], ['\\\\', '\\)'], trim($uri));
+
+        return ($leading[1] ?? '') . '[' . $label . '](' . $target . ')' . ($trailing[1] ?? '');
     }
 
     /**
