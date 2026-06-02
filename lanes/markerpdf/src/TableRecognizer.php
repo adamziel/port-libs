@@ -491,6 +491,9 @@ final class TableRecognizer
         $rowBboxes = $this->bboxesById($rows, 'row_id');
         $colBboxes = $this->bboxesById($cols, 'col_id');
         $rotated = $rows !== [] && $cols !== [] && $this->isRotated($rows, $cols);
+        $spanningReview = $this->spanningGridReview($assignedCells, $rows, $cols);
+        $gridCellsByPosition = $this->gridReviewCellsByPosition($spanningReview['grid_cells'] ?? []);
+        $renderCells = $spanningReview['render_cells'] ?? [];
         $review = [];
 
         foreach ($conflicts as $conflict) {
@@ -501,6 +504,7 @@ final class TableRecognizer
             $entry = $conflict;
             $candidateIndexes = $this->integerList($conflict['candidate_cell_indexes'] ?? []);
             $candidateGridCells = [];
+            $candidateGridRenderCells = [];
             $candidateAnchors = [];
             foreach ($candidateIndexes as $cellIndex) {
                 if (!isset($assignedCells[$cellIndex])) {
@@ -537,6 +541,10 @@ final class TableRecognizer
                     $candidateGridCell['grid_cell_bboxes'] = $this->gridCellBboxesForSpan($rowIds, $colIds, $rowBboxes, $colBboxes, $rotated);
                 }
                 $candidateGridCells[] = $candidateGridCell;
+                $candidateGridRenderCell = $this->assignedCellGridRenderReview($cellIndex, $cell, $gridCellsByPosition, $renderCells);
+                if ($candidateGridRenderCell !== null) {
+                    $candidateGridRenderCells[] = $candidateGridRenderCell;
+                }
             }
 
             if ($candidateGridCells !== []) {
@@ -546,6 +554,9 @@ final class TableRecognizer
                 $entry['candidate_col_ids'] = $this->uniqueGridIds($candidateGridCells, 'col_ids');
                 $entry['grid_border_axes'] = $this->gridBorderAxes($entry['candidate_row_ids'], $entry['candidate_col_ids']);
                 $entry['grid_border_axis'] = $this->headerAxisForAxes($entry['grid_border_axes']);
+            }
+            if ($candidateGridRenderCells !== []) {
+                $entry['candidate_grid_render_cells'] = $candidateGridRenderCells;
             }
 
             $assignedIndex = $this->nullableInteger($conflict['assigned_cell_index'] ?? null);
@@ -569,12 +580,214 @@ final class TableRecognizer
                     }
                     $entry['assigned_grid_cell'] = $assignedGridCell;
                 }
+
+                $assignedGridRenderCell = $this->assignedCellGridRenderReview($assignedIndex, $cell, $gridCellsByPosition, $renderCells);
+                if ($assignedGridRenderCell !== null) {
+                    $entry['assigned_grid_render_cell'] = $assignedGridRenderCell;
+                }
             }
 
             $review[] = $entry;
         }
 
         return $review;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $gridCells
+     * @return array<string, array<string, mixed>>
+     */
+    private function gridReviewCellsByPosition(array $gridCells): array
+    {
+        $byPosition = [];
+        foreach ($gridCells as $gridCell) {
+            if (!is_array($gridCell)) {
+                continue;
+            }
+
+            $rowId = $this->nullableInteger($gridCell['row_id'] ?? null);
+            $colId = $this->nullableInteger($gridCell['col_id'] ?? null);
+            if ($rowId === null || $colId === null) {
+                continue;
+            }
+
+            $byPosition[$rowId . ':' . $colId] = $gridCell;
+        }
+
+        return $byPosition;
+    }
+
+    /**
+     * @param array{bbox: list<float>, text: string, row_ids: list<int|null>, col_ids: list<int|null>, order?: int} $cell
+     * @param array<string, array<string, mixed>> $gridCellsByPosition
+     * @param list<array<string, mixed>> $renderCells
+     * @return array<string, mixed>|null
+     */
+    private function assignedCellGridRenderReview(int $cellIndex, array $cell, array $gridCellsByPosition, array $renderCells): ?array
+    {
+        $rowIds = $this->nonNullSortedIds($cell['row_ids']);
+        $colIds = $this->nonNullSortedIds($cell['col_ids']);
+        if ($rowIds === [] || $colIds === []) {
+            return null;
+        }
+
+        $gridCellReviews = [];
+        $renderIndexes = [];
+        foreach ($this->gridCellsForSpan($rowIds, $colIds) as $gridPosition) {
+            $key = $gridPosition['row_id'] . ':' . $gridPosition['col_id'];
+            $gridCell = $gridCellsByPosition[$key] ?? null;
+            if ($gridCell === null) {
+                continue;
+            }
+
+            $renderIndex = $this->gridReviewRenderIndex($gridCell);
+            if ($renderIndex !== null && !in_array($renderIndex, $renderIndexes, true)) {
+                $renderIndexes[] = $renderIndex;
+            }
+
+            $gridCellReviews[] = $this->gridCellReviewSummary($gridCell, $renderIndex);
+        }
+
+        if ($gridCellReviews === []) {
+            return null;
+        }
+
+        $review = [
+            'cell_index' => $cellIndex,
+            'row_ids' => $rowIds,
+            'col_ids' => $colIds,
+            'anchor' => [
+                'row_id' => $rowIds[0],
+                'col_id' => $colIds[0],
+            ],
+            'grid_cells' => $gridCellReviews,
+            'render_cell_indexes' => $renderIndexes,
+        ];
+
+        if (count($renderIndexes) === 1) {
+            $renderIndex = $renderIndexes[0];
+            $review['render_cell_index'] = $renderIndex;
+            if (isset($renderCells[$renderIndex])) {
+                $review['render_cell'] = $this->renderCellReviewSummary($renderCells[$renderIndex]);
+            }
+        } elseif ($renderIndexes !== []) {
+            $review['render_cells'] = [];
+            foreach ($renderIndexes as $renderIndex) {
+                if (isset($renderCells[$renderIndex])) {
+                    $review['render_cells'][] = $this->renderCellReviewSummary($renderCells[$renderIndex]);
+                }
+            }
+        }
+
+        return $review;
+    }
+
+    /**
+     * @param array<string, mixed> $gridCell
+     * @return array<string, mixed>
+     */
+    private function gridCellReviewSummary(array $gridCell, ?int $renderIndex): array
+    {
+        $summary = [
+            'row_id' => (int) ($gridCell['row_id'] ?? 0),
+            'col_id' => (int) ($gridCell['col_id'] ?? 0),
+            'state' => (string) ($gridCell['state'] ?? 'unknown'),
+        ];
+        if ($renderIndex !== null) {
+            $summary['render_cell_index'] = $renderIndex;
+        }
+
+        foreach ([
+            'grid_bbox',
+            'text',
+            'tag',
+            'scope',
+            'header',
+            'header_role',
+            'header_axis',
+            'header_axes',
+            'rowspan',
+            'colspan',
+            'header_id',
+            'headers',
+            'column_header_ids',
+            'row_header_ids',
+            'header_texts',
+            'header_text',
+            'covered_by',
+        ] as $field) {
+            if (array_key_exists($field, $gridCell)) {
+                $summary[$field] = $gridCell[$field];
+            }
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $gridCell
+     */
+    private function gridReviewRenderIndex(array $gridCell): ?int
+    {
+        $directIndex = $this->nullableInteger($gridCell['render_cell_index'] ?? null);
+        if ($directIndex !== null) {
+            return $directIndex;
+        }
+
+        $coveredBy = $gridCell['covered_by'] ?? null;
+        if (is_array($coveredBy)) {
+            return $this->nullableInteger($coveredBy['render_cell_index'] ?? null);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $renderCell
+     * @return array<string, mixed>
+     */
+    private function renderCellReviewSummary(array $renderCell): array
+    {
+        $summary = [];
+        foreach ([
+            'text',
+            'row_ids',
+            'col_ids',
+            'anchor',
+            'grid_cells',
+            'cell_bbox',
+            'grid_bbox',
+            'grid_cell_bboxes',
+            'tag',
+            'scope',
+            'header',
+            'header_role',
+            'header_axis',
+            'header_axes',
+            'rotated',
+            'orientation',
+            'row_axis',
+            'col_axis',
+            'rowspan',
+            'colspan',
+            'source_cell_count',
+            'text_parts',
+            'anchor_cell_bbox',
+            'continuation_count',
+            'continuation_cells',
+            'header_id',
+            'headers',
+            'column_header_ids',
+            'row_header_ids',
+            'header_texts',
+            'header_text',
+        ] as $field) {
+            if (array_key_exists($field, $renderCell)) {
+                $summary[$field] = $renderCell[$field];
+            }
+        }
+
+        return $summary;
     }
 
     /**

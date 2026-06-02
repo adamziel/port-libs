@@ -1030,6 +1030,76 @@ return [
         $t->same([0.0, 0.0, 300.0, 32.0], $review[0]['assigned_grid_cell']['grid_bbox']);
         $t->same(3, count($review[0]['assigned_grid_cell']['grid_cell_bboxes']));
     },
+    'links OCR border conflicts to spanning-grid render cells' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $rows = [
+            ['row_id' => 0, 'bbox' => [0.0, 0.0, 300.0, 28.0]],
+            ['row_id' => 1, 'bbox' => [0.0, 32.0, 300.0, 60.0]],
+            ['row_id' => 2, 'bbox' => [0.0, 70.0, 300.0, 100.0]],
+            ['row_id' => 3, 'bbox' => [0.0, 110.0, 300.0, 140.0]],
+        ];
+        $cols = [
+            ['col_id' => 0, 'bbox' => [0.0, 0.0, 90.0, 140.0]],
+            ['col_id' => 1, 'bbox' => [100.0, 0.0, 190.0, 140.0]],
+            ['col_id' => 2, 'bbox' => [200.0, 0.0, 300.0, 140.0]],
+        ];
+        $recognized = $recognizer->recognizeTables(
+            [[
+                ['bbox' => [5.0, 5.0, 185.0, 56.0], 'text' => ''],
+                ['bbox' => [110.0, 8.0, 180.0, 20.0], 'text' => ''],
+                ['bbox' => [205.0, 5.0, 295.0, 24.0], 'text' => ''],
+                ['bbox' => [5.0, 74.0, 85.0, 136.0], 'text' => ''],
+                ['bbox' => [110.0, 74.0, 180.0, 94.0], 'text' => ''],
+                ['bbox' => [205.0, 74.0, 295.0, 94.0], 'text' => ''],
+                ['bbox' => [110.0, 114.0, 180.0, 134.0], 'text' => ''],
+                ['bbox' => [205.0, 114.0, 295.0, 134.0], 'text' => ''],
+            ]],
+            [true],
+            [[
+                'rows' => $rows,
+                'cols' => $cols,
+            ]],
+            [[
+                'lines' => [
+                    ['text' => 'Inventory', 'bbox' => [5.0, 5.0, 185.0, 20.0]],
+                    ['text' => 'axis', 'bbox' => [5.0, 5.0, 185.0, 20.0]],
+                    ['text' => 'Status', 'bbox' => [205.0, 5.0, 295.0, 24.0]],
+                    ['text' => 'Media group', 'bbox' => [5.0, 74.0, 85.0, 136.0]],
+                    ['text' => 'Images', 'bbox' => [110.0, 74.0, 295.0, 94.0]],
+                    ['text' => '12', 'bbox' => [205.0, 74.0, 295.0, 94.0]],
+                    ['text' => 'State', 'bbox' => [110.0, 114.0, 180.0, 134.0]],
+                    ['text' => 'Needs review', 'bbox' => [205.0, 114.0, 295.0, 134.0]],
+                ],
+            ]]
+        );
+        $formatted = $recognizer->formatRecognizedTables($recognized, [['width' => 300, 'height' => 140]]);
+        $review = $recognizer->gridBorderConflictReview(
+            $recognized[0]['ocr_grid_border_conflicts'] ?? [],
+            $formatted['assigned_cells'][0],
+            $rows,
+            $cols
+        );
+        $byAssigned = [];
+        foreach ($review as $conflict) {
+            $byAssigned[(int) $conflict['assigned_cell_index']] = $conflict;
+        }
+
+        $t->same('source_order_grid_border', $recognized[0]['ocr_text_assignment'] ?? null);
+        $t->same(['Inventory', 'axis', 'Status', 'Media group', 'Images', '12', 'State', 'Needs review'], array_column($recognized[0]['cells'], 'text'));
+        $t->same(3, count($review));
+        $t->same('h-r0-c0', $byAssigned[0]['assigned_grid_render_cell']['render_cell']['header_id']);
+        $t->same('anchor', $byAssigned[0]['assigned_grid_render_cell']['grid_cells'][0]['state']);
+        $t->same('Inventory axis', $byAssigned[0]['assigned_grid_render_cell']['render_cell']['text']);
+        $t->same('covered', $byAssigned[1]['assigned_grid_render_cell']['grid_cells'][0]['state']);
+        $t->same(['row_id' => 0, 'col_id' => 0, 'render_cell_index' => 0], $byAssigned[1]['assigned_grid_render_cell']['grid_cells'][0]['covered_by']);
+        $t->same('Inventory axis', $byAssigned[1]['assigned_grid_render_cell']['render_cell']['text']);
+        $t->same(['column', 'row'], $byAssigned[1]['assigned_grid_render_cell']['render_cell']['header_axes']);
+        $t->same(['h-r0-c0', 'h-r2-c0'], $byAssigned[4]['assigned_grid_render_cell']['render_cell']['headers']);
+        $t->same(['Inventory axis', 'Media group'], $byAssigned[4]['assigned_grid_render_cell']['render_cell']['header_texts']);
+        $t->same('Images', $byAssigned[4]['assigned_grid_render_cell']['render_cell']['text']);
+        $t->same('td', $byAssigned[4]['assigned_grid_render_cell']['render_cell']['tag']);
+        $t->same('h-r0-c0', $byAssigned[0]['candidate_grid_render_cells'][0]['render_cell']['header_id']);
+    },
     'falls back to heuristic row layout when model rows and columns leave most cells unassigned' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $assigned = $recognizer->assignRowsColumns(

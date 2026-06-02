@@ -1108,6 +1108,7 @@ final class PdfPagePropertyExtractor
         }
 
         $propertiesByPage = [];
+        $this->collectPageParentTreeUserProperties($catalog, $structTreeRoot['body'], $objects, $propertiesByPage);
         $this->collectStructureUserProperties(
             $this->dictionaryRawValue($structTreeRoot['body'], 'K'),
             $objects,
@@ -1115,6 +1116,97 @@ final class PdfPagePropertyExtractor
             [],
             null
         );
+
+        return $this->deduplicateUserPropertiesByPageObject($propertiesByPage);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array<string, mixed>>> $propertiesByPage
+     */
+    private function collectPageParentTreeUserProperties(
+        string $catalog,
+        string $structTreeRoot,
+        array $objects,
+        array &$propertiesByPage
+    ): void {
+        $roleMap = $this->structureRoleMap($structTreeRoot, $objects);
+        $parentTreeArrays = $this->structureParentTreeArrays($structTreeRoot, $objects);
+        if ($parentTreeArrays === []) {
+            return;
+        }
+
+        foreach ($this->orderedPageObjectNumbers($catalog, $objects) as $pageObjectNumber) {
+            $pageBody = $this->dictionaryObjectBody($objects[$pageObjectNumber] ?? '');
+            if ($pageBody === null) {
+                continue;
+            }
+
+            $structParents = $this->dictionaryIntegerValue($pageBody, 'StructParents');
+            if ($structParents === null || !isset($parentTreeArrays[$structParents])) {
+                continue;
+            }
+
+            foreach ($this->arrayItemsFromValue($parentTreeArrays[$structParents], $objects) as $mcid => $parentValue) {
+                $parent = $this->resolveDictionaryFromValue($parentValue, $objects);
+                if ($parent === null) {
+                    continue;
+                }
+
+                $body = $parent['body'];
+                $rawRole = $this->dictionaryNameValue($body, 'S', $objects);
+                $role = ($rawRole !== null && $rawRole !== '') ? ($roleMap[$rawRole] ?? $rawRole) : null;
+                $context = [
+                    'source' => 'page_structparents_user_properties',
+                    'struct_parents' => $structParents,
+                    'mcid' => $mcid,
+                    'struct_object' => $parent['object'],
+                    'raw_role' => $rawRole,
+                    'role' => $role,
+                    'role_mapped' => $role !== null && $rawRole !== null && $role !== $rawRole,
+                ];
+
+                foreach ($this->userPropertiesFromAttributeValue(
+                    $this->dictionaryRawValue($body, 'A'),
+                    $objects,
+                    $rawRole,
+                    $this->dictionaryStringValue($body, 'T', $objects),
+                    $context
+                ) as $property) {
+                    $propertiesByPage[$pageObjectNumber][] = $property;
+                }
+            }
+        }
+    }
+
+    /**
+     * @param array<int, list<array<string, mixed>>> $propertiesByPage
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private function deduplicateUserPropertiesByPageObject(array $propertiesByPage): array
+    {
+        foreach ($propertiesByPage as $pageObject => $properties) {
+            $seen = [];
+            $deduplicated = [];
+            foreach ($properties as $property) {
+                $key = implode("\0", [
+                    (string) ($property['attribute_object'] ?? ''),
+                    (string) ($property['name'] ?? ''),
+                    json_encode($property['value'] ?? null, JSON_UNESCAPED_SLASHES) ?: 'null',
+                    (string) ($property['formatted_value'] ?? ''),
+                    (string) ($property['struct_type'] ?? ''),
+                    (string) ($property['title'] ?? ''),
+                ]);
+                if (isset($seen[$key])) {
+                    continue;
+                }
+
+                $seen[$key] = true;
+                $deduplicated[] = $property;
+            }
+
+            $propertiesByPage[$pageObject] = $deduplicated;
+        }
 
         return $propertiesByPage;
     }
@@ -1184,8 +1276,13 @@ final class PdfPagePropertyExtractor
      * @param array<int, string> $objects
      * @return list<array<string, mixed>>
      */
-    private function userPropertiesFromAttributeValue(?string $attributeValue, array $objects, ?string $structType, ?string $title): array
-    {
+    private function userPropertiesFromAttributeValue(
+        ?string $attributeValue,
+        array $objects,
+        ?string $structType,
+        ?string $title,
+        array $context = []
+    ): array {
         $properties = [];
         foreach ($this->dictionariesFromValue($attributeValue, $objects) as $attribute) {
             $body = $attribute['body'];
@@ -1200,11 +1297,22 @@ final class PdfPagePropertyExtractor
                 }
 
                 $property = [
-                    'source' => 'structure_user_properties',
+                    'source' => is_string($context['source'] ?? null)
+                        ? $context['source']
+                        : 'structure_user_properties',
                     'name' => $name,
                     'hidden' => $this->reviewValueFromRaw($this->dictionaryRawValue($propertyDictionary['body'], 'H'), $objects) === true,
                 ];
 
+                foreach ($context as $key => $contextValue) {
+                    if (
+                        $key !== 'source'
+                        && $contextValue !== null
+                        && $contextValue !== ''
+                    ) {
+                        $property[$key] = $contextValue;
+                    }
+                }
                 if ($attribute['object'] !== null) {
                     $property['attribute_object'] = $attribute['object'];
                 }

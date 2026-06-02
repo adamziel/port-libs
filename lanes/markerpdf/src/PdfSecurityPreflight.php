@@ -20,7 +20,9 @@ final class PdfSecurityPreflight
         $documentSecurityStore = (new PdfDocumentSecurityStoreExtractor())->extract($pdfBytes);
         $encryption = is_array($metadata['encryption'] ?? null) ? $metadata['encryption'] : null;
         $signatures = $this->signatureReviews($form['fields'] ?? [], $pdfBytes, $documentSecurityStore);
-        $documentSecurityStoreSignatureReview = $this->documentSecurityStoreSignatureReview($documentSecurityStore, $signatures);
+        $objectSpans = $this->pdfObjectByteSpans($pdfBytes);
+        $signatureByteRangeRevisionReview = $this->signatureByteRangeRevisionReview($signatures);
+        $documentSecurityStoreSignatureReview = $this->documentSecurityStoreSignatureReview($documentSecurityStore, $signatures, $objectSpans);
         $documentActionReview = $this->documentActionSecurityReview(
             $pdfBytes,
             $signatures,
@@ -81,6 +83,12 @@ final class PdfSecurityPreflight
             'signature_byte_range_count' => $signatureByteRangeCount,
             'valid_signature_byte_range_count' => $validSignatureByteRangeCount,
             'invalid_signature_byte_range_count' => $invalidByteRangeCount,
+            'signature_byte_range_revision_review_count' => (int) $signatureByteRangeRevisionReview['byte_range_count'],
+            'signature_prior_revision_count' => (int) $signatureByteRangeRevisionReview['prior_revision_signature_count'],
+            'signature_current_revision_count' => (int) $signatureByteRangeRevisionReview['current_revision_signature_count'],
+            'signature_invalid_revision_boundary_count' => (int) $signatureByteRangeRevisionReview['invalid_revision_boundary_count'],
+            'signature_byte_range_revision_statuses' => $signatureByteRangeRevisionReview['revision_statuses'],
+            'signature_byte_range_revision_review' => $signatureByteRangeRevisionReview,
             'signature_reference_transform_count' => $referenceTransformCount,
             'signature_reference_transform_methods' => $this->referenceTransformMethods($signatures),
             'locked_field_names' => $lockedFieldNames,
@@ -91,6 +99,9 @@ final class PdfSecurityPreflight
             'document_security_store_signature_review' => $documentSecurityStoreSignatureReview,
             'document_security_store_signature_match_count' => (int) $documentSecurityStoreSignatureReview['signature_vri_match_count'],
             'document_security_store_unmatched_vri_count' => (int) $documentSecurityStoreSignatureReview['unmatched_vri_count'],
+            'document_security_store_vri_revision_review_count' => (int) $documentSecurityStoreSignatureReview['vri_revision_review_count'],
+            'document_security_store_vri_after_signed_revision_count' => (int) $documentSecurityStoreSignatureReview['vri_after_signed_revision_count'],
+            'document_security_store_vri_revision_statuses' => $documentSecurityStoreSignatureReview['vri_revision_statuses'],
             'signatures' => $signatures,
             'signature_security_review_count' => count($signatures),
             'signature_security_reviews' => $this->signatureSecurityReviews($signatures),
@@ -392,6 +403,71 @@ final class PdfSecurityPreflight
             static fn (array $signature): bool => ($signature['byte_range']['present'] ?? false) === true
                 && ($signature['byte_range']['valid'] ?? false) === true
         ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $signatures
+     * @return array<string, mixed>
+     */
+    private function signatureByteRangeRevisionReview(array $signatures): array
+    {
+        $rows = [];
+        foreach ($signatures as $signature) {
+            $byteRange = is_array($signature['byte_range'] ?? null) ? $signature['byte_range'] : [];
+            if (($byteRange['present'] ?? false) !== true) {
+                continue;
+            }
+
+            $rows[] = [
+                'source' => 'signature_byte_range_revision_row',
+                'field_name' => is_string($signature['field_name'] ?? null) ? $signature['field_name'] : null,
+                'field_object' => is_int($signature['field_object'] ?? null) ? $signature['field_object'] : null,
+                'signature_object' => is_int($signature['signature_object'] ?? null) ? $signature['signature_object'] : null,
+                'signed' => ($signature['signed'] ?? false) === true,
+                'byte_range_status' => is_string($byteRange['status'] ?? null) ? $byteRange['status'] : null,
+                'revision_status' => is_string($byteRange['revision_status'] ?? null) ? $byteRange['revision_status'] : null,
+                'signed_revision_valid' => ($byteRange['signed_revision_valid'] ?? false) === true,
+                'covers_current_revision' => ($byteRange['covers_current_revision'] ?? false) === true,
+                'signed_revision_end' => is_int($byteRange['signed_revision_end'] ?? null) ? $byteRange['signed_revision_end'] : null,
+                'signed_revision_length' => is_int($byteRange['signed_revision_length'] ?? null) ? $byteRange['signed_revision_length'] : null,
+                'current_file_bytes' => is_int($byteRange['file_bytes'] ?? null) ? $byteRange['file_bytes'] : null,
+                'current_revision_tail_bytes' => is_int($byteRange['current_revision_tail_bytes'] ?? null) ? $byteRange['current_revision_tail_bytes'] : null,
+                'signature_contents_gap_count' => (int) ($byteRange['gap_count'] ?? 0),
+                'signature_contents_gap_present' => ($byteRange['has_signature_contents_gap'] ?? false) === true,
+                'review_only' => true,
+                'revision_tail_imported_as_signed' => false,
+                'cryptographic_signature_validated' => false,
+                'executes_signature_validation' => false,
+                'executes_signing' => false,
+            ];
+        }
+
+        $currentRevisionCount = count(array_filter(
+            $rows,
+            static fn (array $row): bool => ($row['signed_revision_valid'] ?? false) === true
+                && ($row['covers_current_revision'] ?? false) === true
+        ));
+        $priorRevisionCount = count(array_filter(
+            $rows,
+            static fn (array $row): bool => ($row['signed_revision_valid'] ?? false) === true
+                && ($row['covers_current_revision'] ?? false) !== true
+        ));
+
+        return [
+            'source' => 'signature_byte_range_revision_review',
+            'present' => $rows !== [],
+            'signature_count' => count($signatures),
+            'byte_range_count' => count($rows),
+            'current_revision_signature_count' => $currentRevisionCount,
+            'prior_revision_signature_count' => $priorRevisionCount,
+            'invalid_revision_boundary_count' => count($rows) - $currentRevisionCount - $priorRevisionCount,
+            'revision_statuses' => $this->uniqueStringColumn($rows, 'revision_status'),
+            'field_names' => $this->uniqueStringColumn($rows, 'field_name'),
+            'review_only' => true,
+            'executes_signature_validation' => false,
+            'executes_signing' => false,
+            'rows' => $rows,
+        ];
     }
 
     /**
@@ -1805,9 +1881,10 @@ final class PdfSecurityPreflight
     /**
      * @param array<string, mixed> $documentSecurityStore
      * @param list<array<string, mixed>> $signatures
+     * @param array<int, array{offset: int, end: int, length: int, generation: int}> $objectSpans
      * @return array<string, mixed>
      */
-    private function documentSecurityStoreSignatureReview(array $documentSecurityStore, array $signatures): array
+    private function documentSecurityStoreSignatureReview(array $documentSecurityStore, array $signatures, array $objectSpans): array
     {
         $present = ($documentSecurityStore['present'] ?? false) === true;
         $vriRows = array_values(array_filter(
@@ -1829,6 +1906,8 @@ final class PdfSecurityPreflight
                     ? 'matched_signature_contents_sha256'
                     : 'matched_signature_contents_sha1';
             }
+            $revisionReviews = $this->dssVriRevisionCoverageReviews($vri, $matches, $objectSpans);
+            $revisionStatus = $this->dssVriRevisionStatus($revisionReviews, $matches);
 
             $rows[] = [
                 'source' => 'dss_vri_signature_digest_review',
@@ -1840,6 +1919,11 @@ final class PdfSecurityPreflight
                 'matched_signature_count' => count($matches),
                 'matched_signature_objects' => $this->signatureMatchIntegers($matches, 'signature_object'),
                 'matched_field_names' => $this->signatureMatchStrings($matches, 'field_name'),
+                'vri_revision_status' => $revisionStatus,
+                'vri_in_signed_revision' => $revisionStatus === 'vri_covered_by_signed_revision',
+                'vri_after_signed_revision' => $revisionStatus === 'vri_after_signed_revision',
+                'revision_coverage_review_count' => count($revisionReviews),
+                'revision_coverage_reviews' => $revisionReviews,
                 'validation_stream_count' => $this->dssVriValidationStreamCount($vri),
                 'validation_hashes' => $this->dssVriValidationHashes($vri),
                 'timestamp_update' => is_string($vri['timestamp_update'] ?? null) ? $vri['timestamp_update'] : null,
@@ -1881,6 +1965,19 @@ final class PdfSecurityPreflight
             'matched_field_names' => $this->uniqueStringsFromRows($matchedRows, 'matched_field_names'),
             'unmatched_vri_keys' => $this->uniqueStringColumn($unmatchedRows, 'key'),
             'vri_match_statuses' => $this->uniqueStringColumn($rows, 'match_status'),
+            'vri_revision_review_count' => count(array_filter(
+                $rows,
+                static fn (array $row): bool => (int) ($row['revision_coverage_review_count'] ?? 0) > 0
+            )),
+            'vri_after_signed_revision_count' => count(array_filter(
+                $rows,
+                static fn (array $row): bool => ($row['vri_after_signed_revision'] ?? false) === true
+            )),
+            'vri_in_signed_revision_count' => count(array_filter(
+                $rows,
+                static fn (array $row): bool => ($row['vri_in_signed_revision'] ?? false) === true
+            )),
+            'vri_revision_statuses' => $this->uniqueStringColumn($rows, 'vri_revision_status'),
             'vri_signature_rows' => $rows,
             'review_only' => true,
             'executes_signature_validation' => false,
@@ -1889,6 +1986,81 @@ final class PdfSecurityPreflight
             'raw_signature_contents_exposed' => false,
             'raw_validation_bytes_exposed' => false,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $vri
+     * @param list<array<string, mixed>> $matches
+     * @param array<int, array{offset: int, end: int, length: int, generation: int}> $objectSpans
+     * @return list<array<string, mixed>>
+     */
+    private function dssVriRevisionCoverageReviews(array $vri, array $matches, array $objectSpans): array
+    {
+        $vriObject = is_int($vri['object_number'] ?? null) ? $vri['object_number'] : null;
+        $span = $vriObject === null ? null : ($objectSpans[$vriObject] ?? null);
+        $reviews = [];
+        foreach ($matches as $match) {
+            $byteRange = is_array($match['byte_range'] ?? null) ? $match['byte_range'] : [];
+            $coverage = $span === null
+                ? ['status' => 'vri_object_span_unresolved', 'covered' => false]
+                : $this->signatureByteRangeSpanCoverage($span, $byteRange);
+
+            $reviews[] = [
+                'source' => 'dss_vri_signed_revision_coverage_review',
+                'vri_key' => is_string($vri['key'] ?? null) ? $vri['key'] : null,
+                'vri_object_number' => $vriObject,
+                'vri_object_span' => $span,
+                'field_name' => is_string($match['field_name'] ?? null) ? $match['field_name'] : null,
+                'signature_object' => is_int($match['signature_object'] ?? null) ? $match['signature_object'] : null,
+                'signature_digest_algorithm' => is_string($match['digest_algorithm'] ?? null) ? $match['digest_algorithm'] : null,
+                'byte_range_status' => is_string($byteRange['status'] ?? null) ? $byteRange['status'] : null,
+                'byte_range_revision_status' => is_string($byteRange['revision_status'] ?? null) ? $byteRange['revision_status'] : null,
+                'signed_revision_valid' => ($byteRange['signed_revision_valid'] ?? false) === true,
+                'signed_revision_end' => is_int($byteRange['signed_revision_end'] ?? null) ? $byteRange['signed_revision_end'] : null,
+                'current_revision_tail_bytes' => is_int($byteRange['current_revision_tail_bytes'] ?? null) ? $byteRange['current_revision_tail_bytes'] : null,
+                'coverage_status' => $coverage['status'],
+                'covered_by_signed_revision' => ($coverage['covered'] ?? false) === true,
+                'outside_signed_revision' => ($coverage['status'] ?? null) === 'outside_signed_revision',
+                'inside_signature_contents_gap' => ($coverage['status'] ?? null) === 'inside_unsigned_gap',
+                'review_only' => true,
+                'executes_signature_validation' => false,
+                'executes_revocation_check' => false,
+                'executes_trust_chain_validation' => false,
+            ];
+        }
+
+        return $reviews;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $revisionReviews
+     * @param list<array<string, mixed>> $matches
+     */
+    private function dssVriRevisionStatus(array $revisionReviews, array $matches): string
+    {
+        if ($matches === []) {
+            return 'no_matching_signature_contents_digest';
+        }
+        if ($revisionReviews === []) {
+            return 'vri_revision_unreviewed';
+        }
+        foreach ($revisionReviews as $review) {
+            if (($review['coverage_status'] ?? null) === 'outside_signed_revision') {
+                return 'vri_after_signed_revision';
+            }
+        }
+        foreach ($revisionReviews as $review) {
+            if (($review['coverage_status'] ?? null) === 'inside_unsigned_gap') {
+                return 'vri_inside_signature_contents_gap';
+            }
+        }
+        foreach ($revisionReviews as $review) {
+            if (($review['covered_by_signed_revision'] ?? false) === true) {
+                return 'vri_covered_by_signed_revision';
+            }
+        }
+
+        return 'vri_not_covered_by_signed_revision';
     }
 
     /**
@@ -1910,6 +2082,7 @@ final class PdfSecurityPreflight
                     'digest_algorithm' => $algorithm,
                     'field_name' => $signature['field_name'] ?? null,
                     'signature_object' => $signature['signature_object'] ?? null,
+                    'byte_range' => is_array($signature['byte_range'] ?? null) ? $signature['byte_range'] : [],
                 ];
             }
         }
@@ -2084,6 +2257,13 @@ final class PdfSecurityPreflight
             'gap_count' => 0,
             'gaps' => [],
             'has_signature_contents_gap' => false,
+            'signed_revision_valid' => false,
+            'revision_status' => is_array($byteRange) ? 'invalid_shape' : 'missing',
+            'signed_revision_end' => null,
+            'signed_revision_length' => null,
+            'covers_current_revision' => false,
+            'current_revision_tail_bytes' => null,
+            'revision_tail_review_only' => true,
             'valid' => false,
             'status' => is_array($byteRange) ? 'invalid_shape' : 'missing',
             'cryptographic_signature_validated' => false,
@@ -2147,8 +2327,10 @@ final class PdfSecurityPreflight
 
         $startsAtZero = ($segments[0]['offset'] ?? null) === 0;
         $last = $segments[count($segments) - 1] ?? null;
+        $signedRevisionEnd = is_array($last) && is_int($last['end'] ?? null) ? (int) $last['end'] : null;
         $endsAtFileEnd = is_array($last) && ($last['end'] ?? null) === $fileBytes;
         $hasSignatureContentsGap = $this->hasSignatureContentsGap($pdfBytes, $gaps);
+        $signedRevisionValid = $nonNegative && $withinFile && $sorted && $startsAtZero && count($gaps) === 1 && $hasSignatureContentsGap;
         $valid = $nonNegative && $withinFile && $sorted && $startsAtZero && $endsAtFileEnd && count($gaps) === 1 && $hasSignatureContentsGap;
 
         $base['segments'] = $segments;
@@ -2160,10 +2342,54 @@ final class PdfSecurityPreflight
         $base['gap_count'] = count($gaps);
         $base['gaps'] = $gaps;
         $base['has_signature_contents_gap'] = $hasSignatureContentsGap;
+        $base['signed_revision_valid'] = $signedRevisionValid;
+        $base['revision_status'] = $this->byteRangeRevisionStatus($signedRevisionValid, $endsAtFileEnd, $nonNegative, $withinFile, $sorted, $startsAtZero, $gaps, $hasSignatureContentsGap);
+        $base['signed_revision_end'] = $signedRevisionEnd;
+        $base['signed_revision_length'] = $signedRevisionEnd;
+        $base['covers_current_revision'] = $signedRevisionValid && $endsAtFileEnd;
+        $base['current_revision_tail_bytes'] = $signedRevisionEnd === null ? null : max(0, $fileBytes - $signedRevisionEnd);
         $base['valid'] = $valid;
         $base['status'] = $this->byteRangeStatus($valid, $nonNegative, $withinFile, $sorted, $startsAtZero, $endsAtFileEnd, $gaps, $hasSignatureContentsGap);
 
         return $base;
+    }
+
+    /**
+     * @param list<array{offset: int, length: int, end: int}> $gaps
+     */
+    private function byteRangeRevisionStatus(
+        bool $signedRevisionValid,
+        bool $endsAtFileEnd,
+        bool $nonNegative,
+        bool $withinFile,
+        bool $sorted,
+        bool $startsAtZero,
+        array $gaps,
+        bool $hasSignatureContentsGap
+    ): string {
+        if ($signedRevisionValid && $endsAtFileEnd) {
+            return 'covers_current_revision_except_signature_contents';
+        }
+        if ($signedRevisionValid) {
+            return 'covers_prior_revision_except_signature_contents';
+        }
+        if (!$nonNegative) {
+            return 'invalid_negative';
+        }
+        if (!$withinFile) {
+            return 'invalid_out_of_bounds';
+        }
+        if (!$sorted) {
+            return 'invalid_overlap';
+        }
+        if (!$startsAtZero) {
+            return 'incomplete_initial_revision_coverage';
+        }
+        if (count($gaps) !== 1 || !$hasSignatureContentsGap) {
+            return 'review_required_non_signature_gap';
+        }
+
+        return 'invalid_shape';
     }
 
     /**
