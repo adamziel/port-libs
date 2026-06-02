@@ -157,16 +157,119 @@ return [
             $t->same(true, $result['runtime']['profile_memory']);
             $t->same('model_load.pickle', $result['runtime']['model_load_snapshot']);
             $t->same(false, $result['runtime']['executes_external_tools']);
+            $t->same(true, $result['runtime']['callback_sandbox']['enabled']);
+            $t->same(['pdf', 'reference', 'markdown_output_folder'], $result['runtime']['callback_sandbox']['watched_inputs']);
+            $t->same(true, $result['runtime']['callback_sandbox']['runner_writes_markdown_after_callback']);
             $t->same(2, count($result['runtime']['conversion_snapshots']));
             $t->same('marker_memory_0.pickle', $result['runtime']['conversion_snapshots'][0]['snapshot']);
             $t->same('marker_memory_1.pickle', $result['runtime']['conversion_snapshots'][1]['snapshot']);
             $t->same('marker', $contexts[0]['method']);
             $t->same('marker_memory_0.pickle', $contexts[0]['memory_snapshot']);
+            $t->same(true, $contexts[0]['callback_sandbox']);
             $t->same(3, $contexts[0]['batch_multiplier']);
             $t->same('nougat', $contexts[1]['method']);
             $t->same(2, $contexts[1]['batch_size']);
             $t->true(!array_key_exists('memory_snapshot', $contexts[1]));
             $t->same(['marker_multicolcnn.md', 'nougat_multicolcnn.md', 'marker_switch_trans.md', 'nougat_switch_trans.md'], array_map('basename', $result['written_markdown']));
+        } finally {
+            $removeTree($pdfFolder);
+            $removeTree($referenceFolder);
+            $removeTree($markdownFolder);
+        }
+    },
+    'sandboxes supplied benchmark callbacks from mutating staged WordPress benchmark files' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $prepareCiFolders): void {
+        $caseFactories = [
+            'page counter tampers with pdf bytes' => static fn (string $referenceFolder, string $markdownFolder): array => [
+                'converter' => static fn (): string => 'safe output',
+                'pageCounter' => static function (string $pdfPath): int {
+                    file_put_contents($pdfPath, "%PDF-1.4\n% tampered by page counter\n%%EOF");
+
+                    return 1;
+                },
+            ],
+            'converter tampers with pdf bytes' => static fn (string $referenceFolder, string $markdownFolder): array => [
+                'converter' => static function (string $pdfPath): string {
+                    file_put_contents($pdfPath, "%PDF-1.4\n% tampered by converter\n%%EOF");
+
+                    return 'unsafe output';
+                },
+                'pageCounter' => static fn (): int => 1,
+            ],
+            'converter tampers with reference markdown' => static fn (string $referenceFolder, string $markdownFolder): array => [
+                'converter' => static function (string $pdfPath, string $document, string $reference, array $context) use ($referenceFolder): string {
+                    file_put_contents($referenceFolder . DIRECTORY_SEPARATOR . preg_replace('/\.[^.]*$/', '.md', $document), 'changed reference');
+
+                    return 'unsafe output';
+                },
+                'pageCounter' => static fn (): int => 1,
+            ],
+            'converter writes rogue markdown before runner output' => static fn (string $referenceFolder, string $markdownFolder): array => [
+                'converter' => static function () use ($markdownFolder): string {
+                    file_put_contents($markdownFolder . DIRECTORY_SEPARATOR . 'rogue.md', 'callback artifact');
+
+                    return 'unsafe output';
+                },
+                'pageCounter' => static fn (): int => 1,
+            ],
+        ];
+
+        foreach ($caseFactories as $caseFactory) {
+            $pdfFolder = $makeTempDir();
+            $referenceFolder = $makeTempDir();
+            $markdownFolder = $makeTempDir();
+            try {
+                $prepareCiFolders($pdfFolder, $referenceFolder);
+                $case = $caseFactory($referenceFolder, $markdownFolder);
+
+                $t->throws(
+                    RuntimeException::class,
+                    static fn (): array => (new BenchmarkRunner())->run(
+                        $pdfFolder,
+                        $referenceFolder,
+                        ['marker' => $case['converter']],
+                        $case['pageCounter'],
+                        $markdownFolder
+                    )
+                );
+            } finally {
+                $removeTree($pdfFolder);
+                $removeTree($referenceFolder);
+                $removeTree($markdownFolder);
+            }
+        }
+    },
+    'allows explicit benchmark callback sandbox opt out for diagnostic fixtures' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $prepareCiFolders): void {
+        $pdfFolder = $makeTempDir();
+        $referenceFolder = $makeTempDir();
+        $markdownFolder = $makeTempDir();
+        try {
+            $pairsByDocument = $prepareCiFolders($pdfFolder, $referenceFolder);
+
+            $result = (new BenchmarkRunner())->run(
+                $pdfFolder,
+                $referenceFolder,
+                [
+                    'marker' => static function (string $pdfPath, string $document) use ($pairsByDocument, $markdownFolder): string {
+                        file_put_contents($markdownFolder . DIRECTORY_SEPARATOR . 'diagnostic-' . $document . '.txt', 'unsafe diagnostic');
+
+                        return $pairsByDocument[$document]['markerExcerpt'];
+                    },
+                ],
+                static fn (): int => 1,
+                $markdownFolder,
+                array_map(static fn (array $pair): int => $pair['chunkLength'], $pairsByDocument),
+                null,
+                ['sandbox_callbacks' => false]
+            );
+
+            $t->same(false, $result['runtime']['callback_sandbox']['enabled']);
+            $t->same(['diagnostic-multicolcnn.pdf.txt', 'diagnostic-switch_trans.pdf.txt'], array_values(array_filter(
+                array_map(
+                    static fn (string $path): string => basename($path),
+                    glob($markdownFolder . DIRECTORY_SEPARATOR . 'diagnostic-*.txt') ?: []
+                )
+            )));
+            $t->same(['marker_multicolcnn.md', 'marker_switch_trans.md'], array_map('basename', $result['written_markdown']));
         } finally {
             $removeTree($pdfFolder);
             $removeTree($referenceFolder);

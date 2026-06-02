@@ -6346,7 +6346,7 @@ final class PdfTextExtractor
      */
     private function descendantFontBodies(string $fontBody, array $objects): array
     {
-        $descendantFonts = $this->pdfArrayValueAfterName($fontBody, 'DescendantFonts');
+        $descendantFonts = $this->pdfArrayValueAfterNameResolvingObjects($fontBody, 'DescendantFonts', $objects);
         if ($descendantFonts === null) {
             return [];
         }

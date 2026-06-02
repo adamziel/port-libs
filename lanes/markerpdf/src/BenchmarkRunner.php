@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PortLibs\MarkerPDF;
 
 use InvalidArgumentException;
+use RuntimeException;
 use Throwable;
 
 final class BenchmarkRunner
@@ -84,6 +85,13 @@ final class BenchmarkRunner
             'model_load_snapshot' => $runtime['profile_memory'] ? 'model_load.pickle' : null,
             'conversion_snapshots' => [],
             'executes_external_tools' => false,
+            'callback_sandbox' => [
+                'enabled' => $runtime['callback_sandbox'],
+                'watched_inputs' => $markdownOutputFolder === null
+                    ? ['pdf', 'reference']
+                    : ['pdf', 'reference', 'markdown_output_folder'],
+                'runner_writes_markdown_after_callback' => $markdownOutputFolder !== null,
+            ],
         ];
 
         foreach ($benchmarkFiles as $documentIndex => $pdfFilename) {
@@ -95,7 +103,13 @@ final class BenchmarkRunner
                 throw new InvalidArgumentException('Benchmark reference markdown is not readable: ' . $referencePath);
             }
 
+            $pageCounterSnapshot = $runtime['callback_sandbox'] && $pageCounter !== null
+                ? $this->sandboxSnapshot($pdfPath, $referencePath, $markdownOutputFolder)
+                : null;
             $pages = $pageCounter === null ? 1 : (int) $pageCounter($pdfPath);
+            if ($pageCounterSnapshot !== null) {
+                $this->assertSandboxUnchanged($pageCounterSnapshot, "page counter for {$pdfFilename}");
+            }
             if ($pages < 1) {
                 throw new InvalidArgumentException('Benchmark page counter must return a positive integer for ' . $pdfFilename);
             }
@@ -103,8 +117,14 @@ final class BenchmarkRunner
             foreach ($methodOrder as $method) {
                 $converter = $methodConverters[$method];
                 $context = $this->conversionContext($runtime, $method, $pdfFilename, $documentIndex);
+                $converterSnapshot = $runtime['callback_sandbox']
+                    ? $this->sandboxSnapshot($pdfPath, $referencePath, $markdownOutputFolder)
+                    : null;
                 $start = microtime(true);
                 $conversion = $this->normalizeConversion($converter($pdfPath, $pdfFilename, $reference, $context));
+                if ($converterSnapshot !== null) {
+                    $this->assertSandboxUnchanged($converterSnapshot, "{$method}/{$pdfFilename}");
+                }
                 $elapsed = microtime(true) - $start;
 
                 $runs[] = [
@@ -238,7 +258,8 @@ final class BenchmarkRunner
      *     methods: list<string>|null,
      *     marker_batch_multiplier: int,
      *     nougat_batch_size: int,
-     *     profile_memory: bool
+     *     profile_memory: bool,
+     *     callback_sandbox: bool
      * }
      */
     private function normalizeRuntimeOptions(array $runtimeOptions): array
@@ -255,6 +276,7 @@ final class BenchmarkRunner
             'marker_batch_multiplier' => $this->positiveIntOption($runtimeOptions['marker_batch_multiplier'] ?? $runtimeOptions['markerBatchMultiplier'] ?? 1, 'marker_batch_multiplier'),
             'nougat_batch_size' => $this->positiveIntOption($runtimeOptions['nougat_batch_size'] ?? $runtimeOptions['nougatBatchSize'] ?? 1, 'nougat_batch_size'),
             'profile_memory' => $this->boolOption($runtimeOptions['profile_memory'] ?? $runtimeOptions['profileMemory'] ?? false),
+            'callback_sandbox' => $this->boolOption($runtimeOptions['sandbox_callbacks'] ?? $runtimeOptions['sandboxCallbacks'] ?? true),
         ];
     }
 
@@ -320,7 +342,7 @@ final class BenchmarkRunner
     }
 
     /**
-     * @param array{marker_batch_multiplier: int, nougat_batch_size: int, profile_memory: bool} $runtime
+     * @param array{marker_batch_multiplier: int, nougat_batch_size: int, profile_memory: bool, callback_sandbox: bool} $runtime
      * @return array<string, mixed>
      */
     private function conversionContext(array $runtime, string $method, string $document, int $documentIndex): array
@@ -330,6 +352,7 @@ final class BenchmarkRunner
             'document' => $document,
             'benchmark_index' => $documentIndex,
             'profile_memory' => $runtime['profile_memory'],
+            'callback_sandbox' => $runtime['callback_sandbox'],
             'executes_external_tools' => false,
         ];
 
@@ -344,5 +367,136 @@ final class BenchmarkRunner
         }
 
         return $context;
+    }
+
+    /**
+     * @return array{
+     *     pdf_path: string,
+     *     reference_path: string,
+     *     markdown_output_folder: string|null,
+     *     pdf: array<string, mixed>,
+     *     reference: array<string, mixed>,
+     *     markdown_output: array<string, array<string, mixed>>|null
+     * }
+     */
+    private function sandboxSnapshot(string $pdfPath, string $referencePath, ?string $markdownOutputFolder): array
+    {
+        return [
+            'pdf_path' => $pdfPath,
+            'reference_path' => $referencePath,
+            'markdown_output_folder' => $markdownOutputFolder,
+            'pdf' => $this->fileFingerprint($pdfPath),
+            'reference' => $this->fileFingerprint($referencePath),
+            'markdown_output' => $markdownOutputFolder === null
+                ? null
+                : $this->directoryFingerprint($markdownOutputFolder),
+        ];
+    }
+
+    /**
+     * @param array{
+     *     pdf_path: string,
+     *     reference_path: string,
+     *     markdown_output_folder: string|null,
+     *     pdf: array<string, mixed>,
+     *     reference: array<string, mixed>,
+     *     markdown_output: array<string, array<string, mixed>>|null
+     * } $before
+     */
+    private function assertSandboxUnchanged(array $before, string $label): void
+    {
+        $after = $this->sandboxSnapshot(
+            $before['pdf_path'],
+            $before['reference_path'],
+            $before['markdown_output_folder']
+        );
+
+        $violations = [];
+        if ($before['pdf'] !== $after['pdf']) {
+            $violations[] = 'pdf';
+        }
+        if ($before['reference'] !== $after['reference']) {
+            $violations[] = 'reference';
+        }
+        if ($before['markdown_output'] !== $after['markdown_output']) {
+            $violations[] = 'markdown_output_folder';
+        }
+
+        if ($violations !== []) {
+            throw new RuntimeException(
+                'Benchmark callback sandbox violation for ' . $label . ': modified ' . implode(', ', $violations) . '.'
+            );
+        }
+    }
+
+    /**
+     * @return array{exists: bool, size?: int, sha256?: string}
+     */
+    private function fileFingerprint(string $path): array
+    {
+        clearstatcache(true, $path);
+        if (!is_file($path)) {
+            return ['exists' => false];
+        }
+
+        $hash = hash_file('sha256', $path);
+        if (!is_string($hash)) {
+            throw new RuntimeException('Unable to fingerprint benchmark sandbox file: ' . $path);
+        }
+
+        return [
+            'exists' => true,
+            'size' => filesize($path) ?: 0,
+            'sha256' => $hash,
+        ];
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function directoryFingerprint(string $path): array
+    {
+        clearstatcache(true, $path);
+        if (!is_dir($path)) {
+            return [];
+        }
+
+        $entries = [];
+        $this->appendDirectoryFingerprints($entries, $path, $path);
+        ksort($entries, SORT_STRING);
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $entries
+     */
+    private function appendDirectoryFingerprints(array &$entries, string $root, string $directory): void
+    {
+        foreach (scandir($directory) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
+            $path = $directory . DIRECTORY_SEPARATOR . $entry;
+            $relative = str_replace(DIRECTORY_SEPARATOR, '/', substr($path, strlen($root) + 1));
+            clearstatcache(true, $path);
+            if (is_dir($path)) {
+                $entries[$relative] = ['type' => 'dir'];
+                $this->appendDirectoryFingerprints($entries, $root, $path);
+                continue;
+            }
+            if (is_file($path)) {
+                $hash = hash_file('sha256', $path);
+                if (!is_string($hash)) {
+                    throw new RuntimeException('Unable to fingerprint benchmark sandbox output file: ' . $path);
+                }
+                $entries[$relative] = [
+                    'type' => 'file',
+                    'size' => filesize($path) ?: 0,
+                    'sha256' => $hash,
+                ];
+            }
+        }
     }
 }

@@ -1172,6 +1172,10 @@ final class PdfOutlineExtractor
             return true;
         }
 
+        if (($action['action_type'] ?? null) === 'Launch' && ($action['safety'] ?? null) === 'blocked-launch') {
+            return true;
+        }
+
         return ($action['action_type'] ?? null) === 'GoTo'
             && ($action['safety'] ?? null) === 'local-destination';
     }
