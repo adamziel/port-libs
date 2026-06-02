@@ -2911,7 +2911,7 @@ final class PdfTextExtractor
         $decodeParms = $this->streamDecodeParms($dict, $objects);
         foreach ($filters as $index => $filter) {
             $filterDecodeParms = $decodeParms[$index] ?? null;
-            if (!$this->canApplyDecodeParms($filter, $filterDecodeParms)) {
+            if (!$this->canApplyDecodeParms($filter, $filterDecodeParms, $objects)) {
                 return null;
             }
 
@@ -2919,8 +2919,8 @@ final class PdfTextExtractor
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
                 'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
-                'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $filterDecodeParms),
-                'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $filterDecodeParms),
+                'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $filterDecodeParms, $objects),
+                'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $filterDecodeParms, $objects),
                 'DCTDecode', 'DCT' => null,
                 'CCITTFaxDecode', 'CCF' => null,
                 'JPXDecode', 'JBIG2Decode' => null,
@@ -3100,24 +3100,29 @@ final class PdfTextExtractor
         return $value;
     }
 
-    private function canApplyDecodeParms(string $filter, ?string $decodeParms): bool
+    /**
+     * @param array<int, string> $objects
+     */
+    private function canApplyDecodeParms(string $filter, ?string $decodeParms, array $objects): bool
     {
         if ($decodeParms === null || trim($decodeParms) === '') {
             return true;
         }
 
+        $predictor = $this->decodeParmsInt($decodeParms, 'Predictor', $objects);
         if (
-            preg_match('/\/Predictor\s+(\d+)/', $decodeParms, $match) === 1
-            && (int) $match[1] !== 1
+            $predictor !== null
+            && $predictor !== 1
             && !in_array($filter, ['FlateDecode', 'Fl', 'LZWDecode', 'LZW'], true)
         ) {
             return false;
         }
 
+        $earlyChange = $this->decodeParmsInt($decodeParms, 'EarlyChange', $objects);
         if (
             in_array($filter, ['LZWDecode', 'LZW'], true)
-            && preg_match('/\/EarlyChange\s+(-?\d+)/', $decodeParms, $match) === 1
-            && !in_array((int) $match[1], [0, 1], true)
+            && $earlyChange !== null
+            && !in_array($earlyChange, [0, 1], true)
         ) {
             return false;
         }
@@ -3218,7 +3223,10 @@ final class PdfTextExtractor
         return substr($bytes, 0, $bytesToReturn);
     }
 
-    private function decodeFlateStream(string $stream, ?string $decodeParms = null): ?string
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodeFlateStream(string $stream, ?string $decodeParms = null, array $objects = []): ?string
     {
         $inflated = @gzuncompress($stream);
         if ($inflated === false) {
@@ -3232,12 +3240,15 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->applyDecodeParmsPredictor($inflated, $decodeParms);
+        return $this->applyDecodeParmsPredictor($inflated, $decodeParms, $objects);
     }
 
-    private function decodeLzwStream(string $stream, ?string $decodeParms = null): ?string
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodeLzwStream(string $stream, ?string $decodeParms = null, array $objects = []): ?string
     {
-        $earlyChange = ($this->decodeParmsInt($decodeParms, 'EarlyChange') ?? 1) === 0 ? 0 : 1;
+        $earlyChange = ($this->decodeParmsInt($decodeParms, 'EarlyChange', $objects) ?? 1) === 0 ? 0 : 1;
         $bitOffset = 0;
         $dictionary = [];
         $nextCode = 258;
@@ -3263,7 +3274,7 @@ final class PdfTextExtractor
             }
 
             if ($code === 257) {
-                return $this->applyDecodeParmsPredictor($out, $decodeParms);
+                return $this->applyDecodeParmsPredictor($out, $decodeParms, $objects);
             }
 
             if (isset($dictionary[$code])) {
@@ -3307,16 +3318,19 @@ final class PdfTextExtractor
         return $code;
     }
 
-    private function applyDecodeParmsPredictor(string $bytes, ?string $decodeParms): ?string
+    /**
+     * @param array<int, string> $objects
+     */
+    private function applyDecodeParmsPredictor(string $bytes, ?string $decodeParms, array $objects = []): ?string
     {
-        $predictor = $this->decodeParmsInt($decodeParms, 'Predictor') ?? 1;
+        $predictor = $this->decodeParmsInt($decodeParms, 'Predictor', $objects) ?? 1;
         if ($predictor === 1) {
             return $bytes;
         }
 
-        $colors = max(1, $this->decodeParmsInt($decodeParms, 'Colors') ?? 1);
-        $bitsPerComponent = max(1, $this->decodeParmsInt($decodeParms, 'BitsPerComponent') ?? 8);
-        $columns = max(1, $this->decodeParmsInt($decodeParms, 'Columns') ?? 1);
+        $colors = max(1, $this->decodeParmsInt($decodeParms, 'Colors', $objects) ?? 1);
+        $bitsPerComponent = max(1, $this->decodeParmsInt($decodeParms, 'BitsPerComponent', $objects) ?? 8);
+        $columns = max(1, $this->decodeParmsInt($decodeParms, 'Columns', $objects) ?? 1);
         $rowLength = intdiv(($colors * $columns * $bitsPerComponent) + 7, 8);
         $bytesPerPixel = max(1, intdiv(($colors * $bitsPerComponent) + 7, 8));
 
@@ -3331,13 +3345,41 @@ final class PdfTextExtractor
         return $this->applyPngPredictor($bytes, $rowLength, $bytesPerPixel);
     }
 
-    private function decodeParmsInt(?string $decodeParms, string $name): ?int
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodeParmsInt(?string $decodeParms, string $name, array $objects = []): ?int
     {
-        if ($decodeParms === null || preg_match('/\/' . preg_quote($name, '/') . '\s+(-?\d+)/', $decodeParms, $match) !== 1) {
+        if ($decodeParms === null) {
             return null;
         }
 
-        return (int) $match[1];
+        $offset = $this->nameValueOffset($decodeParms, $name);
+        return $offset === null ? null : $this->decodeParmsIntegerTokenAt($decodeParms, $offset, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     */
+    private function decodeParmsIntegerTokenAt(string $value, int $offset, array $objects, array $seen = []): ?int
+    {
+        $offset = $this->skipPdfWhitespace($value, $offset);
+        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $value, $match, 0, $offset) === 1) {
+            $objectNumber = (int) $match[1];
+            if ($objectNumber <= 0 || isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+                return null;
+            }
+
+            $seen[$objectNumber] = true;
+            return $this->decodeParmsIntegerTokenAt(trim($objects[$objectNumber]), 0, $objects, $seen);
+        }
+
+        if (preg_match('/\G([+-]?\d+)/s', $value, $match, 0, $offset) === 1) {
+            return (int) $match[1];
+        }
+
+        return null;
     }
 
     private function applyTiffPredictor(string $bytes, int $rowLength, int $bytesPerPixel): ?string

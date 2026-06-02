@@ -213,6 +213,30 @@ $pngPredictorEncode = static function (string $bytes, int $columns): string {
     return $encoded;
 };
 
+$pngUpPredictorEncode = static function (array $rows): string {
+    $encoded = '';
+    $rowLength = null;
+    $previous = null;
+    foreach ($rows as $row) {
+        if (!is_string($row)) {
+            throw new RuntimeException('PNG Up predictor rows must be strings.');
+        }
+        $rowLength ??= strlen($row);
+        if (strlen($row) !== $rowLength) {
+            throw new RuntimeException('PNG Up predictor rows must be fixed-width.');
+        }
+
+        $previous ??= str_repeat("\0", $rowLength);
+        $encoded .= "\x02";
+        for ($index = 0; $index < $rowLength; $index++) {
+            $encoded .= chr((ord($row[$index]) - ord($previous[$index])) & 0xff);
+        }
+        $previous = $row;
+    }
+
+    return $encoded;
+};
+
 $tiffPredictorEncode = static function (string $bytes, int $columns): string {
     $encoded = '';
     for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += $columns) {
@@ -869,6 +893,45 @@ return [
         $t->same("Chained Params Import\nCurrent Filter Base", $extractor->extractPlainText($pdf));
         $t->same(['Chained Params Import', 'Current Filter Base'], $extractor->extractTextRuns($pdf));
         $t->same("Chained Params Import\nCurrent Filter Base\n", $extractor->naiveGetText($pdf));
+    },
+    'resolves indirect numeric DecodeParms values for predictor filters' => static function (TestRunner $t) use ($pngUpPredictorEncode, $lzwLiteralEncode): void {
+        $rowOne = 'BT /F1 12 Tf 72 720 Td (Indirect Predictor Params) Tj T* ';
+        if (strlen($rowOne) % 2 !== 0) {
+            $rowOne .= ' ';
+        }
+        $rowTwo = str_pad('(PNG Width Objects) Tj ET', strlen($rowOne));
+        $columns = intdiv(strlen($rowOne), 2);
+        $predicted = $pngUpPredictorEncode([$rowOne, $rowTwo]);
+        $compressed = gzcompress($predicted);
+        $t->true(is_string($compressed), 'Indirect predictor fixture should compress.');
+        $flatePdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Predictor 2 0 R /Columns 3 0 R /Colors 4 0 R /BitsPerComponent 5 0 R >> /Length " . strlen($compressed) . " >>\nstream\n{$compressed}\nendstream\nendobj\n"
+            . "2 0 obj\n12\nendobj\n"
+            . "3 0 obj\n{$columns}\nendobj\n"
+            . "4 0 obj\n1\nendobj\n"
+            . "5 0 obj\n16\nendobj\n"
+            . "%%EOF";
+
+        $longText = str_repeat('Boundary ', 36) . 'EarlyChange Object';
+        $earlyChangeContent = 'BT /F1 12 Tf 72 720 Td (' . $longText . ') Tj ET';
+        $earlyChangeEncoded = $lzwLiteralEncode($earlyChangeContent, 0);
+        $lzwPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Filter /LZWDecode /DecodeParms << /EarlyChange 2 0 R >> /Length " . strlen($earlyChangeEncoded) . " >>\nstream\n{$earlyChangeEncoded}\nendstream\nendobj\n"
+            . "2 0 obj\n0\nendobj\n"
+            . "%%EOF";
+
+        $invalidContent = 'BT /F1 12 Tf 72 720 Td (Invalid Indirect EarlyChange Leak) Tj ET';
+        $invalidEncoded = $lzwLiteralEncode($invalidContent);
+        $invalidPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Filter /LZWDecode /DecodeParms << /EarlyChange 2 0 R >> /Length " . strlen($invalidEncoded) . " >>\nstream\n{$invalidEncoded}\nendstream\nendobj\n"
+            . "2 0 obj\n2\nendobj\n"
+            . "%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $t->same("Indirect Predictor Params\nPNG Width Objects", $extractor->extractPlainText($flatePdf));
+        $t->same(['Indirect Predictor Params', 'PNG Width Objects'], $extractor->extractTextRuns($flatePdf));
+        $t->same($longText, $extractor->extractPlainText($lzwPdf));
+        $t->same('', $extractor->extractPlainText($invalidPdf));
     },
     'uses ToUnicode CMap codespacerange widths for variable-length WordPress text' => static function (TestRunner $t): void {
         $content = 'BT /Fcid 12 Tf 72 720 Td <8141208142> Tj ET';
