@@ -74,6 +74,11 @@ final class PdfTextExtractor
     ];
 
     /**
+     * @var array<int, array{generation: int, body: string}>
+     */
+    private array $currentObjectReferenceOwners = [];
+
+    /**
      * @return list<string>
      */
     public function extractTextRuns(string $pdfBytes): array
@@ -4595,14 +4600,21 @@ final class PdfTextExtractor
     private function streamLengthValueAt(string $value, int $offset, array $objects, array $seen = []): ?int
     {
         $offset = $this->skipPdfWhitespace($value, $offset);
-        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $value, $match, 0, $offset) === 1) {
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) === 1) {
             $objectNumber = (int) $match[1];
-            if ($objectNumber <= 0 || isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+            $generation = (int) $match[2];
+            $objectKey = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || isset($seen[$objectKey])) {
                 return null;
             }
 
-            $seen[$objectNumber] = true;
-            return $this->streamLengthValueAt(trim($objects[$objectNumber]), 0, $objects, $seen);
+            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            if ($body === null) {
+                return null;
+            }
+
+            $seen[$objectKey] = true;
+            return $this->streamLengthValueAt(trim($body), 0, $objects, $seen);
         }
 
         if (preg_match('/\G([+-]?\d+)/s', $value, $match, 0, $offset) === 1) {
@@ -4849,11 +4861,13 @@ final class PdfTextExtractor
             return [];
         }
 
-        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $dict, $match, 0, $offset) === 1) {
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $dict, $match, 0, $offset) === 1) {
             $objectNumber = (int) $match[1];
-            return $objectNumber > 0 && isset($objects[$objectNumber])
-                ? $this->filterNamesFromValue(trim($objects[$objectNumber]), $objects, [$objectNumber => true])
-                : null;
+            $generation = (int) $match[2];
+            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            return $body === null
+                ? null
+                : $this->filterNamesFromValue(trim($body), $objects, [$objectNumber . ':' . $generation => true]);
         }
 
         return null;
@@ -4924,15 +4938,22 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $value, $match, 0, $offset) === 1) {
+            if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) === 1) {
                 $objectNumber = (int) $match[1];
-                if ($objectNumber <= 0 || isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
+                $generation = (int) $match[2];
+                $objectKey = $objectNumber . ':' . $generation;
+                if ($objectNumber <= 0 || isset($seenObjects[$objectKey])) {
+                    return null;
+                }
+
+                $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+                if ($body === null) {
                     return null;
                 }
 
                 $nextSeen = $seenObjects;
-                $nextSeen[$objectNumber] = true;
-                $nested = $this->filterNamesFromValue(trim($objects[$objectNumber]), $objects, $nextSeen, $allowArrayValue && $filters === []);
+                $nextSeen[$objectKey] = true;
+                $nested = $this->filterNamesFromValue(trim($body), $objects, $nextSeen, $allowArrayValue && $filters === []);
                 if ($nested === null) {
                     return null;
                 }
@@ -4990,14 +5011,21 @@ final class PdfTextExtractor
             return [null];
         }
 
-        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $value, $match, 0, $offset) === 1) {
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) === 1) {
             $objectNumber = (int) $match[1];
-            if ($objectNumber <= 0 || isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+            $generation = (int) $match[2];
+            $objectKey = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || isset($seen[$objectKey])) {
                 return null;
             }
 
-            $seen[$objectNumber] = true;
-            return $this->decodeParmsValueList(trim($objects[$objectNumber]), 0, $objects, $seen);
+            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            if ($body === null) {
+                return null;
+            }
+
+            $seen[$objectKey] = true;
+            return $this->decodeParmsValueList(trim($body), 0, $objects, $seen);
         }
 
         return null;
@@ -5040,15 +5068,22 @@ final class PdfTextExtractor
                 return null;
             }
 
-            if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $arrayBody, $match, 0, $offset) === 1) {
+            if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $arrayBody, $match, 0, $offset) === 1) {
                 $objectNumber = (int) $match[1];
-                if ($objectNumber <= 0 || isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+                $generation = (int) $match[2];
+                $objectKey = $objectNumber . ':' . $generation;
+                if ($objectNumber <= 0 || isset($seen[$objectKey])) {
+                    return null;
+                }
+
+                $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+                if ($body === null) {
                     return null;
                 }
 
                 $nextSeen = $seen;
-                $nextSeen[$objectNumber] = true;
-                $resolved = $this->decodeParmsValueList(trim($objects[$objectNumber]), 0, $objects, $nextSeen);
+                $nextSeen[$objectKey] = true;
+                $resolved = $this->decodeParmsValueList(trim($body), 0, $objects, $nextSeen);
                 if ($resolved === null || count($resolved) !== 1) {
                     return null;
                 }
@@ -5350,14 +5385,21 @@ final class PdfTextExtractor
     private function decodeParmsIntegerTokenAt(string $value, int $offset, array $objects, array $seen = []): ?int
     {
         $offset = $this->skipPdfWhitespace($value, $offset);
-        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $value, $match, 0, $offset) === 1) {
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) === 1) {
             $objectNumber = (int) $match[1];
-            if ($objectNumber <= 0 || isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+            $generation = (int) $match[2];
+            $objectKey = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || isset($seen[$objectKey])) {
                 return null;
             }
 
-            $seen[$objectNumber] = true;
-            return $this->decodeParmsIntegerTokenAt(trim($objects[$objectNumber]), 0, $objects, $seen);
+            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            if ($body === null) {
+                return null;
+            }
+
+            $seen[$objectKey] = true;
+            return $this->decodeParmsIntegerTokenAt(trim($body), 0, $objects, $seen);
         }
 
         if (preg_match('/\G([+-]?\d+)/s', $value, $match, 0, $offset) === 1) {
@@ -6830,14 +6872,21 @@ final class PdfTextExtractor
     private function pdfNumberValueAt(string $value, int $offset, array $objects, array $seen = []): ?float
     {
         $offset = $this->skipPdfWhitespace($value, $offset);
-        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $value, $match, 0, $offset) === 1) {
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) === 1) {
             $objectNumber = (int) $match[1];
-            if ($objectNumber <= 0 || isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+            $generation = (int) $match[2];
+            $objectKey = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || isset($seen[$objectKey])) {
                 return null;
             }
 
-            $seen[$objectNumber] = true;
-            return $this->pdfNumberValueAt(trim($objects[$objectNumber]), 0, $objects, $seen);
+            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            if ($body === null) {
+                return null;
+            }
+
+            $seen[$objectKey] = true;
+            return $this->pdfNumberValueAt(trim($body), 0, $objects, $seen);
         }
 
         if (preg_match('/\G([+-]?(?:\d+(?:\.\d*)?|\.\d+))/s', $value, $match, 0, $offset) !== 1) {
@@ -6914,14 +6963,21 @@ final class PdfTextExtractor
     private function pdfNameValueAt(string $value, int $offset, array $objects, array $seen = []): ?string
     {
         $offset = $this->skipPdfWhitespace($value, $offset);
-        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $value, $match, 0, $offset) === 1) {
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) === 1) {
             $objectNumber = (int) $match[1];
-            if ($objectNumber <= 0 || isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+            $generation = (int) $match[2];
+            $objectKey = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || isset($seen[$objectKey])) {
                 return null;
             }
 
-            $seen[$objectNumber] = true;
-            return $this->pdfNameValueAt(trim($objects[$objectNumber]), 0, $objects, $seen);
+            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            if ($body === null) {
+                return null;
+            }
+
+            $seen[$objectKey] = true;
+            return $this->pdfNameValueAt(trim($body), 0, $objects, $seen);
         }
 
         if (($value[$offset] ?? '') !== '/') {
@@ -7218,11 +7274,13 @@ final class PdfTextExtractor
             return $bytes === null ? null : $this->decodePdfStringBytes($bytes);
         }
 
-        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $body, $match, 0, $offset) === 1) {
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $body, $match, 0, $offset) === 1) {
             $objectNumber = (int) $match[1];
-            return isset($objects[$objectNumber])
-                ? $this->pdfStringTokenAt(trim($objects[$objectNumber]), 0, $objects)
-                : null;
+            $generation = (int) $match[2];
+            $objectBody = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            return $objectBody === null
+                ? null
+                : $this->pdfStringTokenAt(trim($objectBody), 0, $objects);
         }
 
         if ($char === '/') {
@@ -8004,6 +8062,7 @@ final class PdfTextExtractor
      */
     private function pdfObjects(string $pdfBytes): array
     {
+        $this->currentObjectReferenceOwners = [];
         if ($this->hasEncryptedTrailer($pdfBytes)) {
             return [];
         }
@@ -8017,6 +8076,7 @@ final class PdfTextExtractor
         $xrefEntries = $this->xrefEntries($pdfBytes, $preliminaryObjects, $definitions);
         $objects = $this->liveDirectObjects($definitions, $xrefEntries);
         $objects = $this->withReferencedDirectGenerationObjects($objects, $definitions, $xrefEntries);
+        $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
         $linearizedHintRanges = $this->linearizedHintTableRanges($pdfBytes);
         $linearizedHintObjectStreamMemberNumbers = $this->linearizedHintTableObjectStreamMemberNumbers(
             $objects,
@@ -8026,6 +8086,7 @@ final class PdfTextExtractor
         foreach ($this->linearizedHintTableObjectNumbers($pdfBytes, $definitions, $linearizedHintRanges, $objects) as $objectNumber) {
             unset($objects[$objectNumber]);
         }
+        $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
 
         $objects = $this->withObjectStreamObjects($objects, $xrefEntries);
         foreach ($linearizedHintObjectStreamMemberNumbers as $objectNumber) {
@@ -8033,6 +8094,7 @@ final class PdfTextExtractor
         }
         $objects = $this->withRepairedDirectStreamObjects($pdfBytes, $objects, $definitions, $xrefEntries);
         ksort($objects, SORT_NUMERIC);
+        $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
 
         $rootObjectNumber = $this->trailerRootObjectNumberFromStartxrefChain($pdfBytes, $definitions);
         if ($rootObjectNumber !== null && isset($objects[$rootObjectNumber])) {
@@ -9025,6 +9087,69 @@ final class PdfTextExtractor
         }
 
         return $this->latestDirectObjectDefinition($candidates);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
+     * @return array<int, array{generation: int, body: string}>
+     */
+    private function objectReferenceOwners(array $objects, array $definitions, array $xrefEntries): array
+    {
+        $owners = [];
+        foreach ($objects as $objectNumber => $body) {
+            $definition = $this->directObjectDefinitionForBody($definitions[$objectNumber] ?? [], $body);
+            if ($definition !== null) {
+                $owners[$objectNumber] = [
+                    'generation' => $definition['generation'],
+                    'body' => $definition['body'],
+                ];
+                continue;
+            }
+
+            if (($xrefEntries[$objectNumber]['type'] ?? null) === 2) {
+                $owners[$objectNumber] = [
+                    'generation' => 0,
+                    'body' => $body,
+                ];
+            }
+        }
+
+        return $owners;
+    }
+
+    /**
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function directObjectDefinitionForBody(array $definitions, string $body): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if ($definition['body'] === $body) {
+                $candidates[] = $definition;
+            }
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function indirectObjectBodyForReference(array $objects, int $objectNumber, int $generation): ?string
+    {
+        if ($objectNumber <= 0 || $generation < 0 || !isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        $owner = $this->currentObjectReferenceOwners[$objectNumber] ?? null;
+        if ($owner !== null && $objects[$objectNumber] === $owner['body']) {
+            return $owner['generation'] === $generation ? $owner['body'] : null;
+        }
+
+        return $objects[$objectNumber];
     }
 
     /**
