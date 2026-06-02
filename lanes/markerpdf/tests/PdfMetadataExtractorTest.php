@@ -8,6 +8,9 @@ use PortLibs\MarkerPDF\PdfTextExtractor;
 $xmpPacket = static function (array $overrides = []): string {
     $title = $overrides['title'] ?? 'WordPress Import Handbook';
     $description = $overrides['description'] ?? 'Native XMP metadata for editorial review';
+    $createDate = $overrides['create_date'] ?? '2024-05-01T10:20:30Z';
+    $modifyDate = $overrides['modify_date'] ?? '2024-05-02T11:21:31Z';
+    $metadataDate = $overrides['metadata_date'] ?? null;
 
     return '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
         . '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
@@ -22,8 +25,9 @@ $xmpPacket = static function (array $overrides = []): string {
         . '<dc:subject><rdf:Bag><rdf:li>wordpress</rdf:li><rdf:li>pdf import</rdf:li><rdf:li>xmp</rdf:li></rdf:Bag></dc:subject>'
         . '<pdf:Producer>LibreOffice PDF</pdf:Producer>'
         . '<xmp:CreatorTool>WordPress Exporter</xmp:CreatorTool>'
-        . '<xmp:CreateDate>2024-05-01T10:20:30Z</xmp:CreateDate>'
-        . '<xmp:ModifyDate>2024-05-02T11:21:31Z</xmp:ModifyDate>'
+        . '<xmp:CreateDate>' . htmlspecialchars($createDate, ENT_XML1) . '</xmp:CreateDate>'
+        . '<xmp:ModifyDate>' . htmlspecialchars($modifyDate, ENT_XML1) . '</xmp:ModifyDate>'
+        . ($metadataDate === null ? '' : '<xmp:MetadataDate>' . htmlspecialchars((string) $metadataDate, ENT_XML1) . '</xmp:MetadataDate>')
         . '</rdf:Description>'
         . '</rdf:RDF>'
         . '</x:xmpmeta>'
@@ -101,6 +105,48 @@ return [
         $t->same('Visible PDF Body', (new PdfTextExtractor())->extractPlainText($pdf));
         $t->true(!str_contains((new PdfTextExtractor())->extractPlainText($pdf), 'WordPress Import Handbook'));
     },
+    'normalizes XMP and Info date timezones for WordPress metadata review' => static function (TestRunner $t) use ($xmpPacket, $pdfWithMetadata): void {
+        $info = '<< /Title (Legacy Date Title) /CreationDate (D:20240602112233-03\'15\') /ModDate (D:20240602112233+05\'45\') >>';
+        $pdf = $pdfWithMetadata($xmpPacket([
+            'create_date' => '2024-05-01T10:20:30-07:30',
+            'modify_date' => '2024-05-02T11:21:31+05:45',
+            'metadata_date' => '2024-05-03T00:00:00Z',
+        ]), $info);
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+
+        $t->same(['xmp', 'info'], $metadata['source']);
+        $t->same('2024-05-01T10:20:30-07:30', $metadata['created_at']);
+        $t->same('2024-05-01T17:50:30Z', $metadata['created_at_utc']);
+        $t->same('2024-05-02T11:21:31+05:45', $metadata['modified_at']);
+        $t->same('2024-05-02T05:36:31Z', $metadata['modified_at_utc']);
+        $t->same('2024-05-03T00:00:00Z', $metadata['metadata_date']);
+        $t->same('2024-05-03T00:00:00Z', $metadata['metadata_date_utc']);
+
+        $infoOnlyPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
+            . "6 0 obj\n{$info}\nendobj\n"
+            . "trailer\n<< /Root 1 0 R /Info 6 0 R >>\n%%EOF";
+        $infoOnly = (new PdfMetadataExtractor())->extractDocumentMetadata($infoOnlyPdf);
+
+        $t->same(['info'], $infoOnly['source']);
+        $t->same('D:20240602112233-03\'15\'', $infoOnly['created_at']);
+        $t->same('2024-06-02T14:37:33Z', $infoOnly['created_at_utc']);
+        $t->same('D:20240602112233+05\'45\'', $infoOnly['modified_at']);
+        $t->same('2024-06-02T05:37:33Z', $infoOnly['modified_at_utc']);
+
+        $timezoneFreePdf = $pdfWithMetadata($xmpPacket([
+            'create_date' => '2024-05-01T10:20:30',
+            'modify_date' => '2024-05-02T11:21:31',
+        ]), '<< /Title (Timezone Free) /CreationDate (D:20240602112233) >>');
+        $timezoneFree = (new PdfMetadataExtractor())->extractDocumentMetadata($timezoneFreePdf);
+
+        $t->same('2024-05-01T10:20:30', $timezoneFree['created_at']);
+        $t->true(!array_key_exists('created_at_utc', $timezoneFree));
+        $t->same('2024-05-02T11:21:31', $timezoneFree['modified_at']);
+        $t->true(!array_key_exists('modified_at_utc', $timezoneFree));
+    },
     'uses trailer Info dictionary when XMP metadata is absent' => static function (TestRunner $t): void {
         $subject = strtoupper(bin2hex("\xfe\xff\x00E\x00d\x00i\x00t\x00o\x00r\x00i\x00a\x00l\x00 \x00s\x00u\x00m\x00m\x00a\x00r\x00y"));
         $info = "<< /Title (Editor's \\(PDF\\) import\\040metadata) /Author (Site Owner; Migration Team) /Subject <{$subject}> /Keywords (wordpress, pdf;metadata) /Creator /Native#20Importer /Producer (Fixture Writer) /CreationDate (D:20240602112233Z) >>";
@@ -120,6 +166,7 @@ return [
         $t->same('Native Importer', $metadata['creator_tool']);
         $t->same('Fixture Writer', $metadata['producer']);
         $t->same('D:20240602112233Z', $metadata['created_at']);
+        $t->same('2024-06-02T11:22:33Z', $metadata['created_at_utc']);
     },
     'extracts trailer ID array as document fingerprint metadata' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Fingerprint Body) Tj ET';

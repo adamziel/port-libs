@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace PortLibs\MarkerPDF;
 
+use DateTimeImmutable;
+use DateTimeZone;
 use DOMDocument;
 use DOMElement;
+use Exception;
 
 final class PdfMetadataExtractor
 {
@@ -48,8 +51,11 @@ final class PdfMetadataExtractor
      *     creator_tool?: string,
      *     producer?: string,
      *     created_at?: string,
+     *     created_at_utc?: string,
      *     modified_at?: string,
+     *     modified_at_utc?: string,
      *     metadata_date?: string,
+     *     metadata_date_utc?: string,
      *     language?: string,
      *     page_layout?: string,
      *     page_mode?: string,
@@ -752,6 +758,12 @@ final class PdfMetadataExtractor
             $value = $xmp[$field] ?? $this->infoField($info, $field);
             if (is_string($value) && $value !== '') {
                 $result[$field] = $value;
+                if (in_array($field, ['created_at', 'modified_at', 'metadata_date'], true)) {
+                    $normalized = $this->normalizedDateTimeUtc($value);
+                    if ($normalized !== null) {
+                        $result[$field . '_utc'] = $normalized;
+                    }
+                }
             }
         }
 
@@ -941,6 +953,75 @@ final class PdfMetadataExtractor
         }
 
         return [];
+    }
+
+    private function normalizedDateTimeUtc(string $value): ?string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match("/^D:(\d{4})(\d{2})?(\d{2})?(\d{2})?(\d{2})?(\d{2})?(?:(Z)|([+\-])(\d{2})'?(?:(\d{2})'?)?)?$/", $value, $match) === 1) {
+            return $this->normalizedPdfDateTimeUtc($match);
+        }
+
+        if (preg_match('/(?:Z|[+\-]\d{2}:\d{2})$/', $value) !== 1) {
+            return null;
+        }
+
+        try {
+            return (new DateTimeImmutable($value))
+                ->setTimezone(new DateTimeZone('UTC'))
+                ->format('Y-m-d\TH:i:s\Z');
+        } catch (Exception) {
+            return null;
+        }
+    }
+
+    /**
+     * @param array<int, string> $match
+     */
+    private function normalizedPdfDateTimeUtc(array $match): ?string
+    {
+        if (($match[7] ?? '') === '' && ($match[8] ?? '') === '') {
+            return null;
+        }
+
+        $year = (int) $match[1];
+        $month = ($match[2] ?? '') === '' ? 1 : (int) $match[2];
+        $day = ($match[3] ?? '') === '' ? 1 : (int) $match[3];
+        $hour = ($match[4] ?? '') === '' ? 0 : (int) $match[4];
+        $minute = ($match[5] ?? '') === '' ? 0 : (int) $match[5];
+        $second = ($match[6] ?? '') === '' ? 0 : (int) $match[6];
+
+        if (
+            !checkdate($month, $day, $year)
+            || $hour < 0 || $hour > 23
+            || $minute < 0 || $minute > 59
+            || $second < 0 || $second > 59
+        ) {
+            return null;
+        }
+
+        $date = new DateTimeImmutable(
+            sprintf('%04d-%02d-%02d %02d:%02d:%02d', $year, $month, $day, $hour, $minute, $second),
+            new DateTimeZone('UTC')
+        );
+
+        $sign = $match[8] ?? '';
+        if ($sign !== '') {
+            $offsetHours = (int) ($match[9] ?? 0);
+            $offsetMinutes = ($match[10] ?? '') === '' ? 0 : (int) $match[10];
+            if ($offsetHours > 23 || $offsetMinutes > 59) {
+                return null;
+            }
+
+            $offsetSeconds = ($offsetHours * 3600) + ($offsetMinutes * 60);
+            $date = $date->modify(($sign === '+' ? '-' : '+') . $offsetSeconds . ' seconds');
+        }
+
+        return $date->format('Y-m-d\TH:i:s\Z');
     }
 
     private function preferredAltText(DOMElement $element): ?string

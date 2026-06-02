@@ -330,6 +330,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-embedded-files-import.php` now also maps embedded-file `/Params /CheckSum` into attachment review metadata. It exposes declared checksum, computed MD5, and match state so WordPress import workflows can flag stale embedded payloads without dropping the file or executing external PDF tooling.
 
+`examples/wordpress-pdf-xmp-metadata-import.php` now also maps XMP and trailer `/Info` timezone-bearing dates into WordPress review metadata. It preserves raw source date strings and adds UTC-normalized fields only when the PDF supplies an explicit timezone, avoiding false precision for timezone-free metadata.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

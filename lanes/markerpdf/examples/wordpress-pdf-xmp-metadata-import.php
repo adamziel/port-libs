@@ -20,7 +20,8 @@ $xmp = '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
     . '<dc:subject><rdf:Bag><rdf:li>wordpress</rdf:li><rdf:li>pdf import</rdf:li><rdf:li>xmp</rdf:li></rdf:Bag></dc:subject>'
     . '<pdf:Producer>LibreOffice PDF</pdf:Producer>'
     . '<xmp:CreatorTool>WordPress Exporter</xmp:CreatorTool>'
-    . '<xmp:CreateDate>2024-05-01T10:20:30Z</xmp:CreateDate>'
+    . '<xmp:CreateDate>2024-05-01T10:20:30-07:30</xmp:CreateDate>'
+    . '<xmp:ModifyDate>2024-05-02T11:21:31+05:45</xmp:ModifyDate>'
     . '</rdf:Description>'
     . '</rdf:RDF>'
     . '</x:xmpmeta>'
@@ -37,7 +38,7 @@ $pdf = "%PDF-1.4\n"
     . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
     . "5 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($compressedXmp) . " >>\nstream\n{$compressedXmp}\nendstream\nendobj\n"
-    . "6 0 obj\n<< /Title (Legacy Title) /Author (Legacy Author) >>\nendobj\n"
+    . "6 0 obj\n<< /Title (Legacy Title) /Author (Legacy Author) /CreationDate (D:20240501102030Z) >>\nendobj\n"
     . "trailer\n<< /Root 1 0 R /Info 6 0 R >>\n%%EOF";
 
 $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
@@ -49,6 +50,7 @@ echo '<!-- markerpdf-xmp-metadata-smoke ' . htmlspecialchars(json_encode([
     'native_boundary' => 'PDF Catalog /Metadata XMP stream plus trailer /Info fallback before WordPress import review',
     'source' => $metadata['source'],
     'xmp_preferred_over_info' => ($metadata['title'] ?? null) === 'WordPress Import Handbook',
+    'timezone_normalized_to_utc' => ($metadata['created_at_utc'] ?? null) === '2024-05-01T17:50:30Z',
     'metadata_stream_excluded_from_text' => !str_contains($plainText, 'WordPress Import Handbook'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
@@ -63,6 +65,9 @@ echo '<!-- markerpdf:document-metadata ' . htmlspecialchars(json_encode([
     'creator_tool' => $metadata['creator_tool'] ?? null,
     'producer' => $metadata['producer'] ?? null,
     'created_at' => $metadata['created_at'] ?? null,
+    'created_at_utc' => $metadata['created_at_utc'] ?? null,
+    'modified_at' => $metadata['modified_at'] ?? null,
+    'modified_at_utc' => $metadata['modified_at_utc'] ?? null,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n\n";
 
 echo "<!-- wp:paragraph -->\n";
