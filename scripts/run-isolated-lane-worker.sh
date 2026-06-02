@@ -102,6 +102,7 @@ printf 'Log: %s\n\n' "$LOG_FILE"
 
 "$AGENT_BIN" \
   -m "$AGENT_FAST_MODEL" \
+  --disable image_generation \
   -c "model_service_tier=\"$AGENT_FAST_SERVICE_TIER\"" \
   -c "model_reasoning_effort=\"$AGENT_FAST_REASONING\"" \
   -a never exec -C "$WORKTREE" -s danger-full-access - < "$PROMPT_FILE" > "$LOG_FILE" 2>&1
