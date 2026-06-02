@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 21:52:09 UTC",
-    "sourceCommit": "140abda163d21d31ced978fa6dd4d9d51e442a96",
-    "sourceCommitShort": "140abda163d2",
+    "generated": "2026-06-02 21:55:50 UTC",
+    "sourceCommit": "3d8c4138077b5120a3f4ac7d290fe407d1bdbbcd",
+    "sourceCommitShort": "3d8c4138077b",
     "sourceBranch": "unknown",
-    "dashboardCommit": "140abda163d21d31ced978fa6dd4d9d51e442a96",
-    "dashboardCommitShort": "140abda163d2",
+    "dashboardCommit": "3d8c4138077b5120a3f4ac7d290fe407d1bdbbcd",
+    "dashboardCommitShort": "3d8c4138077b",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "620",
-            "coverage": "620 / 78 (794.9%)",
-            "mapPercent": "794.9%",
+            "mapped": "621",
+            "coverage": "621 / 78 (796.2%)",
+            "mapPercent": "796.2%",
             "unmapped": "0",
-            "php": "879 pass / 0 fail",
+            "php": "880 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor outline/page/xref/runtime/form/parser integ...",
-            "currentWork": "MarkerPDF now maps marker-server upload error roundtrips into benchmark output artifa...",
-            "nextTarget": "Keep 10-11 worker lanes active, score newest current-base han...",
+            "audit": "2026-06-02 UTC supervisor metadata/PDF-A associated outline integrati...",
+            "currentWork": "MarkerPDF now also maps current catalog associated FileSpec /AF review metadata with...",
+            "nextTarget": "Keep 10-11 markerPDF lanes active, but switch the next wave t...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "140abda"
+            "commit": "3d8c413"
         },
         {
             "lane": "readability",
