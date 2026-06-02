@@ -603,6 +603,7 @@ final class PdfTextExtractor
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
                 'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $filterDecodeParms),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $filterDecodeParms),
+                'DCTDecode', 'DCT' => null,
                 default => $stream,
             };
 

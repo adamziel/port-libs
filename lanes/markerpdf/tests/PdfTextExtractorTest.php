@@ -312,6 +312,33 @@ return [
         $t->same('LZW Flate Import', $extractor->extractPlainText($stackedPdf));
         $t->same('', $extractor->extractPlainText("%PDF-1.4\n1 0 obj\n<< /Filter /LZWDecode >>\nstream\n\x80\nendstream\nendobj\n%%EOF"));
     },
+    'skips DCTDecode JPEG streams before WordPress text extraction' => static function (TestRunner $t): void {
+        $visibleContent = 'BT /F1 12 Tf 72 720 Td (DCT Boundary Import) Tj T* (Clean Text Stream) Tj ET';
+        $jpegLikeNoise = "\xff\xd8\xff\xe0JFIF\0BT /F1 12 Tf 72 720 Td (Raster JPEG Noise) Tj ET\xff\xd9";
+        $fallbackPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Length " . strlen($visibleContent) . " >>\nstream\n{$visibleContent}\nendstream\nendobj\n"
+            . "2 0 obj\n<< /Filter /DCTDecode /ColorSpace /DeviceRGB /BitsPerComponent 8 /Width 1 /Height 1 /Length " . strlen($jpegLikeNoise) . " >>\nstream\n{$jpegLikeNoise}\nendstream\nendobj\n"
+            . "%%EOF";
+
+        $pagePdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 6 0 R >> >> /Contents [4 0 R 5 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($visibleContent) . " >>\nstream\n{$visibleContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Filter /DCT /ColorSpace /DeviceRGB /BitsPerComponent 8 /Width 1 /Height 1 /Length " . strlen($jpegLikeNoise) . " >>\nstream\n{$jpegLikeNoise}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $fallbackText = $extractor->extractPlainText($fallbackPdf);
+        $pageText = $extractor->extractPlainText($pagePdf);
+
+        $t->same("DCT Boundary Import\nClean Text Stream", $fallbackText);
+        $t->same(['DCT Boundary Import', 'Clean Text Stream'], $extractor->extractTextRuns($fallbackPdf));
+        $t->same("DCT Boundary Import\nClean Text Stream", $pageText);
+        $t->same("DCT Boundary Import\nClean Text Stream\n", $extractor->naiveGetText($pagePdf));
+        $t->true(!str_contains($fallbackText, 'Raster JPEG Noise'));
+        $t->true(!str_contains($pageText, 'Raster JPEG Noise'));
+    },
     'resolves indirect stream filters and benign DecodeParms for WordPress extraction' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Indirect Filter Import) Tj T* (DecodeParms Predictor One) Tj ET';
         $compressed = gzcompress($content);
