@@ -296,6 +296,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-highlight-review-import.php` maps text-markup annotation `/QuadPoints` into an editorial review path. It applies review metadata to overlapping supplied pdftext spans and emits `<mark>` markup for Gutenberg paragraph review without executing external PDF tooling.
 
+`examples/wordpress-pdf-highlight-review-import.php` now also maps annotation border and popup metadata into the same editorial review path. It preserves `/Border` dash arrays, `/BS` border-style dictionaries, and linked `/Popup` review contents as `data-markerpdf-*` attributes on highlighted Gutenberg text without rendering annotations, executing actions, or loading Python/pdftext/pypdfium.
+
 `examples/wordpress-pdf-acroform-submit-reset-actions.php` maps AcroForm `/SubmitForm` and `/ResetForm` actions into a review-only WordPress form path. It reports submit targets, reset modes, and field lists without submitting data, resetting state, or executing PDF actions.
 
 `examples/wordpress-pdf-associated-files-import.php` maps catalog `/AF` associated Filespec arrays into a WordPress import review path. It emits source and alternative file rows with `/AFRelationship`, description, MIME, size, and declared-size metadata while keeping payload bytes out of visible paragraph extraction.
