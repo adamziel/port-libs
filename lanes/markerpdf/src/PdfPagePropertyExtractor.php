@@ -209,6 +209,8 @@ final class PdfPagePropertyExtractor
                             'classes' => 'classes',
                             'revision' => 'revision',
                             'namespace' => 'namespace',
+                            'associated_file_count' => 'associated_file_count',
+                            'associated_files' => 'associated_files',
                         ] as $sourceKey => $targetKey) {
                             if (array_key_exists($sourceKey, $element)) {
                                 $row[$targetKey] = $element[$sourceKey];

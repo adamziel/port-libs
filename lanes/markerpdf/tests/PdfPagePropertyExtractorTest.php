@@ -399,4 +399,95 @@ return [
         $t->same(false, str_contains($plainText, 'Body glyph noise'));
         $t->same(false, str_contains($plainText, 'deck-3'));
     },
+    'keeps StructTree associated files attached to page MCID review rows without payload leakage' => static function (TestRunner $t): void {
+        $catalogPayload = '<wp-export><post id="catalog"/></wp-export>';
+        $pagePayload = '{"page":"preview"}';
+        $structurePayload = '<wp-export><post id="struct"/></wp-export>';
+        $supplementPayload = '<caption>Alternative figure caption data</caption>';
+        $structureXmp = '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
+            . '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+            . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+            . '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+            . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Struct Associated XMP Title</rdf:li></rdf:Alt></dc:title>'
+            . '</rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>';
+        $structureProfile = 'Struct associated ICC bytes stay review only';
+        $compressedXmp = gzcompress($structureXmp);
+        $compressedProfile = gzcompress($structureProfile);
+        if (!is_string($compressedXmp) || !is_string($compressedProfile)) {
+            throw new RuntimeException('Unable to compress structure-associated fixture streams.');
+        }
+
+        $catalogChecksum = strtoupper(hash('md5', $catalogPayload));
+        $structureChecksum = strtoupper(hash('md5', $structurePayload));
+        $pageContent = 'BT /F1 12 Tf /Figure << /MCID 0 >> BDC 72 720 Td (Struct AF Visible Figure) Tj EMC ET';
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /MarkInfo << /Marked true >> /StructTreeRoot 40 0 R /AF [8 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /AF [10 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Type /Filespec /F (catalog-source.xml) /Desc (Catalog source export) /AFRelationship /Source /EF << /F 9 0 R >> >>\nendobj\n"
+            . "9 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($catalogPayload) . " /CheckSum <{$catalogChecksum}> >> /Length " . strlen($catalogPayload) . " >>\nstream\n{$catalogPayload}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (page-preview.json) /Desc (Page preview payload) /AFRelationship /Alternative /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fjson /Params << /Size " . strlen($pagePayload) . " >> /Length " . strlen($pagePayload) . " >>\nstream\n{$pagePayload}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Type /Filespec /F (figure-source.xml) /Desc (Structure element source export) /AFRelationship /Source /Metadata 30 0 R /OutputIntents [32 0 R] /EF << /F 21 0 R >> >>\nendobj\n"
+            . "21 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($structurePayload) . " /CheckSum <{$structureChecksum}> /ModDate (D:20260602173100Z) >> /Length " . strlen($structurePayload) . " >>\nstream\n{$structurePayload}\nendstream\nendobj\n"
+            . "22 0 obj\n<< /Type /Filespec /F (figure-caption.xml) /Desc (Accessible figure caption supplement) /AFRelationship /Supplement /EF << /F 23 0 R >> >>\nendobj\n"
+            . "23 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fxml /Params << /Size " . strlen($supplementPayload) . " >> /Length " . strlen($supplementPayload) . " >>\nstream\n{$supplementPayload}\nendstream\nendobj\n"
+            . "30 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($compressedXmp) . " >>\nstream\n{$compressedXmp}\nendstream\nendobj\n"
+            . "31 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($compressedProfile) . " >>\nstream\n{$compressedProfile}\nendstream\nendobj\n"
+            . "32 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Struct Associated sRGB) /Info (Attachment-local structure PDF/A) /DestOutputProfile 31 0 R >>\nendobj\n"
+            . "40 0 obj\n<< /Type /StructTreeRoot /RoleMap << /Figure /Figure >> /K 41 0 R >>\nendobj\n"
+            . "41 0 obj\n<< /Type /StructElem /S /Figure /Pg 3 0 R /T (Figure structure with associated files) /Alt (Figure alternate review) /AF [20 0 R 22 0 R] /K << /Type /MCR /Pg 3 0 R /MCID 0 >> >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $metadata = (new \PortLibs\MarkerPDF\PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $pages = (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+
+        $t->same(1, count($metadata['associated_files'] ?? []));
+        $t->same('catalog-source.xml', $metadata['associated_files'][0]['filename'] ?? null);
+        $t->same(2, $metadata['structure_tree']['elements'][0]['associated_file_count'] ?? null);
+        $t->same(['Source', 'Supplement'], array_column($metadata['structure_tree']['elements'][0]['associated_files'] ?? [], 'relationship'));
+
+        $t->same(1, count($pages));
+        $page = $pages[0];
+        $t->same(1, count($page['page_associated_files'] ?? []));
+        $t->same('page-preview.json', $page['page_associated_files'][0]['filename'] ?? null);
+        $t->same('Alternative', $page['page_associated_files'][0]['relationship'] ?? null);
+        $t->same(false, array_key_exists('content', $page['page_associated_files'][0]));
+
+        $mcrRows = $page['structure_marked_content'] ?? [];
+        $t->same(1, count($mcrRows));
+        $mcr = $mcrRows[0];
+        $t->same(0, $mcr['mcid']);
+        $t->same(41, $mcr['struct_object']);
+        $t->same('Figure', $mcr['role']);
+        $t->same(2, $mcr['associated_file_count']);
+
+        $structureFiles = $mcr['associated_files'] ?? [];
+        $t->same(2, count($structureFiles));
+        $t->same(['figure-source.xml', 'figure-caption.xml'], array_column($structureFiles, 'filename'));
+        $t->same(['Source', 'Supplement'], array_column($structureFiles, 'relationship'));
+        $t->same(['structure_element_associated_files', 'structure_element_associated_files'], array_column($structureFiles, 'source'));
+        $t->same('original_source', $structureFiles[0]['provenance_review']['relationship_role'] ?? null);
+        $t->same('supplemental_representation', $structureFiles[1]['provenance_review']['relationship_role'] ?? null);
+        $t->same(['Struct Associated sRGB'], $structureFiles[0]['provenance_review']['pdfa_output_intents']['output_condition_identifiers'] ?? []);
+        $t->same(hash('sha256', $structurePayload), $structureFiles[0]['content_sha256']);
+        $t->same(strtolower($structureChecksum), $structureFiles[0]['checksum']);
+        $t->same(hash('md5', $structurePayload), $structureFiles[0]['computed_checksum']);
+        $t->same(true, $structureFiles[0]['checksum_matches']);
+        $t->same('D:20260602173100Z', $structureFiles[0]['modified_at']);
+        $t->same(false, array_key_exists('content', $structureFiles[0]));
+        $t->same(false, array_key_exists('content', $structureFiles[1]));
+
+        $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $t->contains('Struct AF Visible Figure', $plainText);
+        $t->same(false, str_contains($plainText, '<wp-export>'));
+        $t->same(false, str_contains($plainText, '<caption>'));
+        $t->same(false, str_contains($plainText, 'Struct Associated XMP Title'));
+        $t->same(false, is_string($encodedMetadata) && str_contains($encodedMetadata, $structurePayload));
+        $t->same(false, is_string($encodedMetadata) && str_contains($encodedMetadata, $supplementPayload));
+        $t->same(false, is_string($encodedMetadata) && str_contains($encodedMetadata, $structureXmp));
+        $t->same(false, is_string($encodedMetadata) && str_contains($encodedMetadata, $structureProfile));
+    },
 ];
