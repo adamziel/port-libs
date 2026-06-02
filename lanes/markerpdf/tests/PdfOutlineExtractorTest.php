@@ -267,6 +267,31 @@ return [
         $t->same(true, $launch[0]['new_window']);
         $t->same(false, $launch[0]['executes_on_import']);
     },
+    'reviews catalog OpenAction chained actions without executing hidden followups' => static function (TestRunner $t) use ($openActionPdf): void {
+        $extractor = new PdfOutlineExtractor();
+        $pdf = $openActionPdf(
+            '5 0 R',
+            "5 0 obj\n<< /S /URI /URI (https://example.com/start) /Next [6 0 R 7 0 R 7 0 R] >>\nendobj\n"
+                . "6 0 obj\n<< /S /Launch /F (post-import-helper.exe) /Win << /O (open) >> >>\nendobj\n"
+                . "7 0 obj\n<< /S /GoTo /D (Review Page) >>\nendobj\n"
+        );
+
+        $actions = $extractor->getOpenActionReviewActions($pdf);
+
+        $t->same(3, count($actions), 'catalog OpenAction /Next rows are reviewed once.');
+        $t->same(['URI', 'Launch', 'GoTo'], array_column($actions, 'action_type'));
+        $t->same(['review-uri', 'blocked-launch', 'local-destination'], array_column($actions, 'safety'));
+        $t->same([5, 6, 7], array_column($actions, 'action_object'));
+        $t->same([null, true, true], [
+            $actions[0]['chained'] ?? null,
+            $actions[1]['chained'] ?? null,
+            $actions[2]['chained'] ?? null,
+        ]);
+        $t->same('post-import-helper.exe', $actions[1]['file']);
+        $t->same(1, $actions[2]['page']);
+        $t->same('Review Page', $actions[2]['destination']);
+        $t->same([false, false, false], array_column($actions, 'executes_on_import'));
+    },
     'keeps catalog OpenAction remote GoToR out of same-document outline rows' => static function (TestRunner $t) use ($openActionPdf): void {
         $extractor = new PdfOutlineExtractor();
         $pdf = $openActionPdf('<< /S /GoToR /F << /UF <FEFF00650078007400650072006E0061006C002E007000640066> >> /D [3 /Fit] /NewWindow false >>');

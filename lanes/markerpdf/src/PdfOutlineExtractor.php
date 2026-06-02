@@ -77,7 +77,7 @@ final class PdfOutlineExtractor
      * run these actions when the document opens; WordPress imports should
      * surface them as metadata only.
      *
-     * @return list<array{action_type: string, safety: string, page: int|null, destination: string|null, uri: string|null, file: string|null, operation: string|null, new_window: bool|null, is_safe_uri: bool|null, executes_on_import: bool}>
+     * @return list<array<string, mixed>>
      */
     public function getOpenActionReviewActions(string $pdfBytes): array
     {
@@ -91,6 +91,20 @@ final class PdfOutlineExtractor
         $pageIndexes = [];
         foreach ($pageObjectNumbers as $index => $objectNumber) {
             $pageIndexes[$objectNumber] = $index;
+        }
+
+        $resolved = $this->resolveValue($catalog['OpenAction'], $objects);
+        $dict = $this->dictionaryItems($resolved);
+        if ($dict !== null && array_key_exists('S', $dict)) {
+            $seen = [];
+
+            return $this->reviewActionsFromValue(
+                $catalog['OpenAction'],
+                $objects,
+                $pageIndexes,
+                $this->destinationMap($catalog, $objects),
+                $seen
+            );
         }
 
         $action = $this->openActionReviewAction(
