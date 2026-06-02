@@ -371,7 +371,7 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
-     * @param array<int, true> $seenFormObjectNumbers
+     * @param array<int, true> $activeFormObjectNumbers
      * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>}
      */
     private function expandFormXObjectInvocations(
@@ -380,7 +380,7 @@ final class PdfTextExtractor
         array $objects,
         array $fontObjectMaps,
         array $fontToUnicodeMaps,
-        array $seenFormObjectNumbers = []
+        array $activeFormObjectNumbers = []
     ): array {
         if (!str_contains($content, 'Do')) {
             return [
@@ -405,30 +405,35 @@ final class PdfTextExtractor
                 $xObjectName = $this->xObjectNameOperand($operands);
                 if ($xObjectName !== null && isset($xObjectMap[$xObjectName])) {
                     $objectNumber = $xObjectMap[$xObjectName];
-                    if (!isset($seenFormObjectNumbers[$objectNumber])) {
-                        $form = $this->decodedFormXObject($objects, $objectNumber);
-                        if ($form !== null) {
-                            $nextSeen = $seenFormObjectNumbers;
-                            $nextSeen[$objectNumber] = true;
-                            $formFontMaps = $this->fontResourceMapsForResourceOwnerBody($form['body'], $objects, $fontObjectMaps);
-                            $fontAliases = [];
-                            foreach ($formFontMaps as $name => $map) {
-                                $alias = $this->formFontResourceAlias($objectNumber, $name);
-                                $fontAliases[$name] = $alias;
-                                $expandedFontToUnicodeMaps[$alias] = $map;
-                            }
+                    // Cyclic form resources should not turn page text extraction into
+                    // an unbounded resource walk; later sibling Do calls still expand.
+                    if (isset($activeFormObjectNumbers[$objectNumber])) {
+                        $operands = [];
+                        continue;
+                    }
 
-                            $expandedForm = $this->expandFormXObjectInvocations(
-                                $this->rewriteFontResourceOperands($form['stream'], $fontAliases),
-                                $form['body'],
-                                $objects,
-                                $fontObjectMaps,
-                                $expandedFontToUnicodeMaps,
-                                $nextSeen
-                            );
-                            $expanded[] = $expandedForm['stream'];
-                            $expandedFontToUnicodeMaps = $expandedForm['fontToUnicodeMaps'];
+                    $form = $this->decodedFormXObject($objects, $objectNumber);
+                    if ($form !== null) {
+                        $nextActiveForms = $activeFormObjectNumbers;
+                        $nextActiveForms[$objectNumber] = true;
+                        $formFontMaps = $this->fontResourceMapsForResourceOwnerBody($form['body'], $objects, $fontObjectMaps);
+                        $fontAliases = [];
+                        foreach ($formFontMaps as $name => $map) {
+                            $alias = $this->formFontResourceAlias($objectNumber, $name);
+                            $fontAliases[$name] = $alias;
+                            $expandedFontToUnicodeMaps[$alias] = $map;
                         }
+
+                        $expandedForm = $this->expandFormXObjectInvocations(
+                            $this->rewriteFontResourceOperands($form['stream'], $fontAliases),
+                            $form['body'],
+                            $objects,
+                            $fontObjectMaps,
+                            $expandedFontToUnicodeMaps,
+                            $nextActiveForms
+                        );
+                        $expanded[] = $expandedForm['stream'];
+                        $expandedFontToUnicodeMaps = $expandedForm['fontToUnicodeMaps'];
                     }
                     $operands = [];
                     continue;
@@ -1644,13 +1649,14 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{widths: array<int, float>, defaultWidth: float|null}
+     * @return array{widths: array<int, float>, defaultWidth: float|null, cidSet: array<int, true>|null}
      * @param array<int, string> $objects
      */
     private function fontWidthMetrics(string $fontBody, array $objects): array
     {
         $widths = [];
         $defaultWidth = null;
+        $cidSet = null;
         $hasWidthArray = false;
 
         foreach ([$fontBody, ...$this->descendantFontBodies($fontBody, $objects)] as $body) {
@@ -1666,15 +1672,21 @@ final class PdfTextExtractor
             if ($bodyDefaultWidth !== null) {
                 $defaultWidth = $bodyDefaultWidth;
             }
+
+            $bodyCidSet = $this->cidSetFromCidFontBody($body, $objects);
+            if ($bodyCidSet !== null) {
+                $cidSet = $cidSet === null ? $bodyCidSet : ($cidSet + $bodyCidSet);
+            }
         }
 
-        if ($hasWidthArray && $defaultWidth === null) {
+        if (($hasWidthArray || $cidSet !== null) && $defaultWidth === null) {
             $defaultWidth = 1000.0;
         }
 
         return [
             'widths' => $widths,
             'defaultWidth' => $defaultWidth,
+            'cidSet' => $cidSet,
         ];
     }
 
@@ -1761,6 +1773,77 @@ final class PdfTextExtractor
         return $widths;
     }
 
+    /**
+     * @return array<int, true>|null
+     * @param array<int, string> $objects
+     */
+    private function cidSetFromCidFontBody(string $fontBody, array $objects): ?array
+    {
+        if (preg_match('/\/Subtype\s*\/CIDFontType[02]\b/s', $fontBody) !== 1) {
+            return null;
+        }
+
+        $descriptor = $this->fontDescriptorBody($fontBody, $objects);
+        if ($descriptor === null) {
+            return null;
+        }
+
+        $cidSetObjectNumber = $this->objectReferenceValueAfterName($descriptor, 'CIDSet');
+        if ($cidSetObjectNumber === null || !isset($objects[$cidSetObjectNumber])) {
+            return null;
+        }
+
+        $decoded = $this->decodeStreamObject($objects[$cidSetObjectNumber], $objects);
+        if ($decoded === null || $decoded === '') {
+            return null;
+        }
+
+        return $this->cidSetBits($decoded);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function fontDescriptorBody(string $fontBody, array $objects): ?string
+    {
+        $descriptorObjectNumber = $this->objectReferenceValueAfterName($fontBody, 'FontDescriptor');
+        if ($descriptorObjectNumber !== null) {
+            return $objects[$descriptorObjectNumber] ?? null;
+        }
+
+        if (preg_match('/\/FontDescriptor\s*<</s', $fontBody, $match, PREG_OFFSET_CAPTURE) !== 1) {
+            return null;
+        }
+
+        $offset = strpos($fontBody, '<<', $match[0][1]);
+        return $offset === false ? null : $this->readPdfDictionaryAt($fontBody, $offset);
+    }
+
+    /**
+     * @return array<int, true>|null
+     */
+    private function cidSetBits(string $bytes): ?array
+    {
+        $cids = [];
+        for ($byteIndex = 0, $length = strlen($bytes); $byteIndex < $length; $byteIndex++) {
+            $byte = ord($bytes[$byteIndex]);
+            for ($bit = 0; $bit < 8; $bit++) {
+                if (($byte & (1 << (7 - $bit))) === 0) {
+                    continue;
+                }
+
+                $cid = ($byteIndex * 8) + $bit;
+                if ($cid > 0xffff) {
+                    break 2;
+                }
+
+                $cids[$cid] = true;
+            }
+        }
+
+        return $cids === [] ? null : $cids;
+    }
+
     private function integerToken(string $token): ?int
     {
         if (preg_match('/^[+-]?\d+$/', $token) !== 1) {
@@ -1772,17 +1855,20 @@ final class PdfTextExtractor
 
     /**
      * @param array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>} $map
-     * @param array{widths: array<int, float>, defaultWidth: float|null} $metrics
+     * @param array{widths: array<int, float>, defaultWidth: float|null, cidSet: array<int, true>|null} $metrics
      * @return array<string, mixed>
      */
     private function withFontWidthMetrics(array $map, array $metrics): array
     {
-        if ($metrics['widths'] === [] && $metrics['defaultWidth'] === null) {
+        if ($metrics['widths'] === [] && $metrics['defaultWidth'] === null && $metrics['cidSet'] === null) {
             return $map;
         }
 
         $map['cidWidths'] = $metrics['widths'];
         $map['cidDefaultWidth'] = $metrics['defaultWidth'];
+        if ($metrics['cidSet'] !== null) {
+            $map['cidSet'] = $metrics['cidSet'];
+        }
 
         return $map;
     }
@@ -3661,7 +3747,8 @@ final class PdfTextExtractor
 
         $cidWidths = $toUnicodeMap['cidWidths'] ?? [];
         $defaultWidth = $toUnicodeMap['cidDefaultWidth'] ?? null;
-        if ((!is_array($cidWidths) || $cidWidths === []) && $defaultWidth === null) {
+        $cidSet = $toUnicodeMap['cidSet'] ?? null;
+        if ((!is_array($cidWidths) || $cidWidths === []) && $defaultWidth === null && !is_array($cidSet)) {
             return null;
         }
 
@@ -3675,6 +3762,10 @@ final class PdfTextExtractor
             $cid = hexdec($key);
             if (is_array($cidWidths) && array_key_exists($cid, $cidWidths)) {
                 $widths[] = (float) $cidWidths[$cid];
+                continue;
+            }
+            if (is_array($cidSet) && !isset($cidSet[$cid])) {
+                $widths[] = 500.0;
                 continue;
             }
             $widths[] = (float) ($defaultWidth ?? 500.0);

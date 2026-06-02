@@ -602,6 +602,49 @@ return [
         $t->true(!str_contains($plainText, 'Wide Block'));
         $t->true(!str_contains($plainText, 'ThinText'));
     },
+    'uses CIDSet subset glyphs for default CIDFont widths before WordPress text' => static function (TestRunner $t): void {
+        $cmap = "/CIDInit /ProcSet findresource begin\n"
+            . "12 dict begin\n"
+            . "begincmap\n"
+            . "1 begincodespacerange\n"
+            . "<0000> <FFFF>\n"
+            . "endcodespacerange\n"
+            . "9 beginbfchar\n"
+            . "<0001> <0057>\n"
+            . "<0002> <0069>\n"
+            . "<0003> <0064>\n"
+            . "<0004> <0065>\n"
+            . "<0005> <0042>\n"
+            . "<0006> <006C>\n"
+            . "<0007> <006F>\n"
+            . "<0008> <0063>\n"
+            . "<0009> <006B>\n"
+            . "endbfchar\n"
+            . "endcmap\n"
+            . "CMapName currentdict /CMap defineresource pop\n"
+            . "end\n"
+            . "end\n";
+        $content = 'BT /Fcid 12 Tf 1 0 0 1 72 720 Tm <0001000200030004> Tj 1 0 0 1 118 720 Tm <00050006000700080009> Tj ET';
+        $cidSet = "\xff\xc0";
+        $compressedCidSet = gzcompress($cidSet);
+        $t->true(is_string($compressedCidSet), 'CIDSet stream fixture should compress.');
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /CIDSetSubset /Encoding /Identity-H /DescendantFonts [4 0 R] /ToUnicode 3 0 R >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /CIDSetSubset /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor 6 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /FontDescriptor /FontName /CIDSetSubset /Flags 4 /CIDSet 7 0 R >>\nendobj\n"
+            . "7 0 obj\n<< /Filter /FlateDecode /Length " . strlen($compressedCidSet) . " >>\nstream\n{$compressedCidSet}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['WideBlock'], $extractor->extractTextLines($pdf));
+        $t->same(['Wide', 'Block'], $extractor->extractTextRuns($pdf));
+        $t->same('WideBlock', $plainText);
+        $t->true(!str_contains($plainText, 'Wide Block'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
     'falls back to font Encoding when malformed ToUnicode CMap filters are ignored' => static function (TestRunner $t): void {
         $badCMap = 'not valid flate cmap bytes';
         $identityContent = 'BT /Fcid 12 Tf 72 720 Td <0057005000200049006D0070006F00720074> Tj ET';
@@ -971,6 +1014,52 @@ return [
         $t->same("Page Before Nested Form\nParent Form\nChild Form\nPage After Nested Form\n", $extractor->naiveGetText($pdf));
         $t->true(!str_contains($plainText, "\nA\n"));
         $t->true(!str_contains($plainText, "\nB\n"));
+    },
+    'skips cyclic Form XObject resource re-entry before WordPress text extraction' => static function (TestRunner $t) use ($toUnicodeCMap): void {
+        $parentCMap = $toUnicodeCMap(['41' => 'Parent Cycle']);
+        $childCMap = $toUnicodeCMap(['42' => 'Child Cycle']);
+        $selfCMap = $toUnicodeCMap(['43' => 'Self Cycle']);
+        $pageContent = 'BT /F1 12 Tf 72 720 Td (Page Cycle Start) Tj ET q /Parent Do Q q /Parent Do Q q /Self Do Q BT /F1 12 Tf 72 672 Td (Page Cycle End) Tj ET';
+        $parentFormContent = 'BT /F1 12 Tf 12 24 Td <41> Tj ET q /Child Do Q';
+        $childFormContent = 'BT /F1 12 Tf 12 12 Td <42> Tj ET q /Parent Do Q';
+        $selfFormContent = 'BT /F1 12 Tf 12 8 Td <43> Tj ET q /Self Do Q';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> /XObject << /Parent 5 0 R /Self 6 0 R >> >> /Contents 13 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 8 0 R >> /XObject << /Child 7 0 R >> >> /Length " . strlen($parentFormContent) . " >>\nstream\n{$parentFormContent}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 12 0 R >> /XObject << /Self 6 0 R >> >> /Length " . strlen($selfFormContent) . " >>\nstream\n{$selfFormContent}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 10 0 R >> /XObject << /Parent 5 0 R >> >> /Length " . strlen($childFormContent) . " >>\nstream\n{$childFormContent}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /ParentCycleSubset /Encoding /Identity-H /ToUnicode 9 0 R >>\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($parentCMap) . " >>\nstream\n{$parentCMap}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /ChildCycleSubset /Encoding /Identity-H /ToUnicode 11 0 R >>\nendobj\n"
+            . "11 0 obj\n<< /Length " . strlen($childCMap) . " >>\nstream\n{$childCMap}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /SelfCycleSubset /Encoding /Identity-H /ToUnicode 14 0 R >>\nendobj\n"
+            . "13 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "14 0 obj\n<< /Length " . strlen($selfCMap) . " >>\nstream\n{$selfCMap}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Page Cycle Start',
+            'Parent Cycle',
+            'Child Cycle',
+            'Parent Cycle',
+            'Child Cycle',
+            'Self Cycle',
+            'Page Cycle End',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(2, substr_count($plainText, 'Parent Cycle'));
+        $t->same(2, substr_count($plainText, 'Child Cycle'));
+        $t->same(1, substr_count($plainText, 'Self Cycle'));
+        $t->true(!str_contains($plainText, "\nA\n"));
+        $t->true(!str_contains($plainText, "\nB\n"));
+        $t->true(!str_contains($plainText, "\nC\n"));
     },
     'skips Image XObject streams in fallback before WordPress text extraction' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Visible Text) Tj ET';
