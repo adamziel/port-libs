@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 21:43:04 UTC",
-    "sourceCommit": "72873ac022f222e31c8ba16a7b71634c04a80562",
-    "sourceCommitShort": "72873ac022f2",
+    "generated": "2026-06-02 21:45:36 UTC",
+    "sourceCommit": "65adb9f4ef608f30f7089cd5a28b6005ed30f0ce",
+    "sourceCommitShort": "65adb9f4ef60",
     "sourceBranch": "unknown",
-    "dashboardCommit": "72873ac022f222e31c8ba16a7b71634c04a80562",
-    "dashboardCommitShort": "72873ac022f2",
+    "dashboardCommit": "65adb9f4ef608f30f7089cd5a28b6005ed30f0ce",
+    "dashboardCommitShort": "65adb9f4ef60",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "610",
-            "coverage": "610 / 78 (782.1%)",
-            "mapPercent": "782.1%",
+            "mapped": "611",
+            "coverage": "611 / 78 (783.3%)",
+            "mapPercent": "783.3%",
             "unmapped": "0",
-            "php": "864 pass / 0 fail",
+            "php": "866 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor metadata/outline/xref/page/runtime integrat...",
-            "currentWork": "MarkerPDF now maps XMP language and catalog MarkInfo review, direct named-destination...",
-            "nextTarget": "Keep 10-11 worker lanes active, score fresh current-base hand...",
+            "audit": "2026-06-02 UTC supervisor output/runtime preview integration: accepte...",
+            "currentWork": "MarkerPDF now maps runtime-only output artifact previews that expose saved artifact m...",
+            "nextTarget": "Keep 10-11 worker lanes active, score newest current-base han...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "72873ac"
+            "commit": "65adb9f"
         },
         {
             "lane": "readability",
