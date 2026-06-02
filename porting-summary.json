@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 00:05:46 UTC",
-    "sourceCommit": "4485bb65dd390a5799733561461da95e7a76687f",
-    "sourceCommitShort": "4485bb65dd39",
+    "generated": "2026-06-02 00:07:35 UTC",
+    "sourceCommit": "0e5b108efaf0a0706761b3d16611327c2fa2e4cf",
+    "sourceCommitShort": "0e5b108efaf0",
     "sourceBranch": "main",
-    "dashboardCommit": "4485bb65dd390a5799733561461da95e7a76687f",
-    "dashboardCommitShort": "4485bb65dd39",
+    "dashboardCommit": "0e5b108efaf0a0706761b3d16611327c2fa2e4cf",
+    "dashboardCommitShort": "0e5b108efaf0",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "177",
-            "coverage": "177 / 78 (226.9%)",
-            "mapPercent": "226.9%",
+            "mapped": "178",
+            "coverage": "178 / 78 (228.2%)",
+            "mapPercent": "228.2%",
             "unmapped": "0",
-            "php": "293 pass / 0 fail",
+            "php": "294 pass / 0 fail",
             "phase": "cloned inventory + inspected CI benchmark archive + locked tabled hel...",
-            "audit": "isolated lane worker 2026-05-25: reduced markerPDF simple-font WinAns...",
-            "currentWork": "Reduced simple-font WinAnsiEncoding handoff.",
+            "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
+            "currentWork": "Reduced page /Contents stream handoff.",
             "nextTarget": "Choose the next bounded markerPDF text extraction gap, likely...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "cd2e8a0"
+            "commit": "0e5b108"
         },
         {
             "lane": "readability",
