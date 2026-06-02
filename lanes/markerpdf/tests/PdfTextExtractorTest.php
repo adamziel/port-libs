@@ -2248,6 +2248,36 @@ return [
         $t->same("Page Before Form\nReusable Form Block\nImported Once\nPage After Form\n", $extractor->naiveGetText($pdf));
         $t->true(!str_contains($extractor->extractPlainText($pdf), 'Dormant Form Text'));
     },
+    'applies Form XObject matrix and BBox clipping before WordPress text extraction' => static function (TestRunner $t): void {
+        $pageContent = 'BT /F1 12 Tf 72 720 Td (Page Before Matrix Form) Tj ET q 1 0 0 1 24 0 cm /FmScaled Do Q BT /F1 12 Tf 72 672 Td (Page After Matrix Form) Tj ET';
+        $formContent = 'BT /F1 12 Tf (Origin Hidden) Tj 1 0 0 1 0 24 Tm (Data) Tj 1 0 0 1 34 24 Tm (base) Tj 1 0 0 1 10 90 Tm (BBox Noise) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 6 0 R >> /XObject << /FmScaled 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Form /BBox [-5 1 80 50] /Matrix [2 0 0 1 0 0] /Resources << /Font << /F1 6 0 R >> >> /Length " . strlen($formContent) . " >>\nstream\n{$formContent}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same([
+            'Page Before Matrix Form',
+            'Data base',
+            'Page After Matrix Form',
+        ], $extractor->extractTextLines($pdf));
+        $t->same([
+            'Page Before Matrix Form',
+            'Data',
+            'base',
+            'Page After Matrix Form',
+        ], $extractor->extractTextRuns($pdf));
+        $t->same("Page Before Matrix Form\nData base\nPage After Matrix Form", $plainText);
+        $t->same("Page Before Matrix Form\nData base\nPage After Matrix Form\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Database'));
+        $t->true(!str_contains($plainText, 'Origin Hidden'));
+        $t->true(!str_contains($plainText, 'BBox Noise'));
+    },
     'keeps nested Form XObject resource fonts scoped before WordPress text extraction' => static function (TestRunner $t) use ($toUnicodeCMap): void {
         $parentCMap = $toUnicodeCMap(['41' => 'Parent Form']);
         $childCMap = $toUnicodeCMap(['42' => 'Child Form']);

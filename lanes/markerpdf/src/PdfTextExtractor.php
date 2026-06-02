@@ -1643,6 +1643,8 @@ final class PdfTextExtractor
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
      * @param array<int, true> $activeFormObjectNumbers
      * @param array<int, bool> $optionalContentStates
+     * @param list<float>|null $initialTransformationMatrix
+     * @param list<float>|null $formBoundingBox
      * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>}
      */
     private function expandFormXObjectInvocations(
@@ -1652,9 +1654,17 @@ final class PdfTextExtractor
         array $fontObjectMaps,
         array $fontToUnicodeMaps,
         array $optionalContentStates = [],
-        array $activeFormObjectNumbers = []
+        array $activeFormObjectNumbers = [],
+        ?array $initialTransformationMatrix = null,
+        ?array $formBoundingBox = null
     ): array {
-        if (!str_contains($content, 'Do')) {
+        $shouldTransformTextPositions = $initialTransformationMatrix !== null
+            && !$this->pdfMatrixIsIdentity($initialTransformationMatrix);
+        if (
+            !str_contains($content, 'Do')
+            && !$shouldTransformTextPositions
+            && $formBoundingBox === null
+        ) {
             return [
                 'stream' => $content,
                 'fontToUnicodeMaps' => $fontToUnicodeMaps,
@@ -1662,7 +1672,11 @@ final class PdfTextExtractor
         }
 
         $xObjectMap = $this->xObjectResourceObjectNumbers($resourceOwnerBody, $objects);
-        if ($xObjectMap === []) {
+        if (
+            $xObjectMap === []
+            && !$shouldTransformTextPositions
+            && $formBoundingBox === null
+        ) {
             return [
                 'stream' => $content,
                 'fontToUnicodeMaps' => $fontToUnicodeMaps,
@@ -1672,7 +1686,20 @@ final class PdfTextExtractor
         $expanded = [];
         $expandedFontToUnicodeMaps = $fontToUnicodeMaps;
         $operands = [];
+        $currentTransformationMatrix = $initialTransformationMatrix ?? [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+        $graphicsStateStack = [];
+        $textPositionState = [
+            'x' => null,
+            'y' => null,
+            'leading' => null,
+            'insideBBox' => true,
+        ];
         foreach ($this->contentTokens($content) as $token) {
+            if (!$this->isOperator($token)) {
+                $operands[] = $token;
+                continue;
+            }
+
             if ($token === 'Do') {
                 $xObjectName = $this->xObjectNameOperand($operands);
                 if ($xObjectName !== null && isset($xObjectMap[$xObjectName])) {
@@ -1716,7 +1743,12 @@ final class PdfTextExtractor
                             $fontObjectMaps,
                             $expandedFontToUnicodeMaps,
                             $optionalContentStates,
-                            $nextActiveForms
+                            $nextActiveForms,
+                            $this->pdfMatrixMultiply(
+                                $currentTransformationMatrix,
+                                $this->pdfMatrixValueAfterName($form['body'], 'Matrix', $objects) ?? [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+                            ),
+                            $this->pdfRectangleValueAfterName($form['body'], 'BBox', $objects)
                         );
                         $expanded[] = $expandedForm['stream'];
                         $expandedFontToUnicodeMaps = $expandedForm['fontToUnicodeMaps'];
@@ -1725,23 +1757,213 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                $expanded[] = $token;
+                $this->appendContentOperator($expanded, $operands, $token);
                 $operands = [];
                 continue;
             }
 
-            $expanded[] = $token;
-            if ($this->isOperator($token)) {
+            if ($token === 'q') {
+                $graphicsStateStack[] = $currentTransformationMatrix;
+                $this->appendContentOperator($expanded, $operands, $token);
                 $operands = [];
                 continue;
             }
 
-            $operands[] = $token;
+            if ($token === 'Q') {
+                $restoredMatrix = array_pop($graphicsStateStack);
+                if (is_array($restoredMatrix)) {
+                    $currentTransformationMatrix = $restoredMatrix;
+                }
+                $this->appendContentOperator($expanded, $operands, $token);
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'cm') {
+                $matrix = $this->contentMatrixOperand($operands);
+                if ($matrix !== null) {
+                    $currentTransformationMatrix = $this->pdfMatrixMultiply($currentTransformationMatrix, $matrix);
+                }
+                $this->appendContentOperator($expanded, $operands, $token);
+                $operands = [];
+                continue;
+            }
+
+            $transformed = $this->transformedTextPositionOperatorTokens(
+                $token,
+                $operands,
+                $currentTransformationMatrix,
+                $formBoundingBox,
+                $textPositionState
+            );
+            if ($transformed !== null) {
+                foreach ($transformed as $transformedToken) {
+                    $expanded[] = $transformedToken;
+                }
+                $operands = [];
+                continue;
+            }
+
+            if (
+                $formBoundingBox !== null
+                && $this->isTextShowingOperator($token)
+                && $textPositionState['insideBBox'] === false
+            ) {
+                $operands = [];
+                continue;
+            }
+
+            $this->appendContentOperator($expanded, $operands, $token);
+            $operands = [];
+        }
+
+        foreach ($operands as $operand) {
+            $expanded[] = $operand;
         }
 
         return [
             'stream' => implode(' ', array_values(array_filter($expanded, static fn (string $segment): bool => trim($segment) !== ''))),
             'fontToUnicodeMaps' => $expandedFontToUnicodeMaps,
+        ];
+    }
+
+    /**
+     * @param list<string> $expanded
+     * @param list<string> $operands
+     */
+    private function appendContentOperator(array &$expanded, array $operands, string $operator): void
+    {
+        foreach ($operands as $operand) {
+            $expanded[] = $operand;
+        }
+        $expanded[] = $operator;
+    }
+
+    /**
+     * @param list<string> $operands
+     * @return list<float>|null
+     */
+    private function contentMatrixOperand(array $operands): ?array
+    {
+        if (count($operands) < 6) {
+            return null;
+        }
+
+        $matrix = [];
+        foreach (array_slice($operands, -6) as $operand) {
+            $number = $this->numericOperand($operand);
+            if ($number === null) {
+                return null;
+            }
+            $matrix[] = $number;
+        }
+
+        return $matrix;
+    }
+
+    /**
+     * @param list<float> $matrix
+     * @param list<float>|null $formBoundingBox
+     * @param array{x: float|null, y: float|null, leading: float|null, insideBBox: bool} $textPositionState
+     * @return list<string>|null
+     */
+    private function transformedTextPositionOperatorTokens(
+        string $operator,
+        array $operands,
+        array $matrix,
+        ?array $formBoundingBox,
+        array &$textPositionState
+    ): ?array {
+        if ($operator === 'BT') {
+            $textPositionState = [
+                'x' => 0.0,
+                'y' => 0.0,
+                'leading' => null,
+                'insideBBox' => $formBoundingBox === null
+                    || $this->pdfPointInsideRectangle(0.0, 0.0, $formBoundingBox),
+            ];
+            if ($this->pdfMatrixIsIdentity($matrix) && $formBoundingBox === null) {
+                return null;
+            }
+            $transformed = $this->pdfMatrixMultiply($matrix, [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
+
+            return [
+                'BT',
+                $this->formatPdfNumber($transformed[0]),
+                $this->formatPdfNumber($transformed[1]),
+                $this->formatPdfNumber($transformed[2]),
+                $this->formatPdfNumber($transformed[3]),
+                $this->formatPdfNumber($transformed[4]),
+                $this->formatPdfNumber($transformed[5]),
+                'Tm',
+            ];
+        }
+
+        if ($operator === 'TL') {
+            $leading = $this->numericOperand($operands[count($operands) - 1] ?? '');
+            if ($leading !== null) {
+                $textPositionState['leading'] = $leading;
+            }
+            return null;
+        }
+
+        if (!in_array($operator, ['Td', 'TD', 'Tm', 'T*'], true)) {
+            return null;
+        }
+
+        if ($operator === 'T*') {
+            if ($textPositionState['x'] === null || $textPositionState['y'] === null || $textPositionState['leading'] === null) {
+                return null;
+            }
+            $textPositionState['y'] -= $textPositionState['leading'];
+        } elseif ($operator === 'Tm') {
+            if (count($operands) < 6) {
+                return null;
+            }
+            $textMatrix = $this->contentMatrixOperand($operands);
+            if ($textMatrix === null) {
+                return null;
+            }
+            $textPositionState['x'] = $textMatrix[4];
+            $textPositionState['y'] = $textMatrix[5];
+        } else {
+            if (count($operands) < 2) {
+                return null;
+            }
+            $moveX = $this->numericOperand($operands[count($operands) - 2]);
+            $moveY = $this->numericOperand($operands[count($operands) - 1]);
+            if ($moveX === null || $moveY === null) {
+                return null;
+            }
+            if ($operator === 'TD') {
+                $textPositionState['leading'] = -$moveY;
+            }
+            $textPositionState['x'] = ($textPositionState['x'] ?? 0.0) + $moveX;
+            $textPositionState['y'] = ($textPositionState['y'] ?? 0.0) + $moveY;
+        }
+
+        $localX = $textPositionState['x'] ?? 0.0;
+        $localY = $textPositionState['y'] ?? 0.0;
+        $textPositionState['insideBBox'] = $formBoundingBox === null
+            || $this->pdfPointInsideRectangle($localX, $localY, $formBoundingBox);
+
+        if ($this->pdfMatrixIsIdentity($matrix) && $formBoundingBox === null) {
+            return null;
+        }
+
+        $textMatrix = $operator === 'Tm' && isset($textMatrix)
+            ? $textMatrix
+            : [1.0, 0.0, 0.0, 1.0, $localX, $localY];
+        $transformed = $this->pdfMatrixMultiply($matrix, $textMatrix);
+
+        return [
+            $this->formatPdfNumber($transformed[0]),
+            $this->formatPdfNumber($transformed[1]),
+            $this->formatPdfNumber($transformed[2]),
+            $this->formatPdfNumber($transformed[3]),
+            $this->formatPdfNumber($transformed[4]),
+            $this->formatPdfNumber($transformed[5]),
+            'Tm',
         ];
     }
 
@@ -5574,6 +5796,91 @@ final class PdfTextExtractor
         }
 
         return $this->pdfArrayAtStart(trim($objects[$objectNumber]));
+    }
+
+    /**
+     * @return list<float>|null
+     * @param array<int, string> $objects
+     */
+    private function pdfMatrixValueAfterName(string $body, string $name, array $objects): ?array
+    {
+        $arrayBody = $this->pdfArrayValueAfterNameResolvingObjects($body, $name, $objects);
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        $numbers = $this->numbersFromPdfArray($arrayBody);
+        if (count($numbers) < 6) {
+            return null;
+        }
+
+        return array_slice($numbers, 0, 6);
+    }
+
+    /**
+     * @return list<float>|null
+     * @param array<int, string> $objects
+     */
+    private function pdfRectangleValueAfterName(string $body, string $name, array $objects): ?array
+    {
+        $arrayBody = $this->pdfArrayValueAfterNameResolvingObjects($body, $name, $objects);
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        $numbers = $this->numbersFromPdfArray($arrayBody);
+        if (count($numbers) < 4) {
+            return null;
+        }
+
+        return [
+            min($numbers[0], $numbers[2]),
+            min($numbers[1], $numbers[3]),
+            max($numbers[0], $numbers[2]),
+            max($numbers[1], $numbers[3]),
+        ];
+    }
+
+    /**
+     * @param list<float> $left
+     * @param list<float> $right
+     * @return list<float>
+     */
+    private function pdfMatrixMultiply(array $left, array $right): array
+    {
+        return [
+            ($left[0] * $right[0]) + ($left[2] * $right[1]),
+            ($left[1] * $right[0]) + ($left[3] * $right[1]),
+            ($left[0] * $right[2]) + ($left[2] * $right[3]),
+            ($left[1] * $right[2]) + ($left[3] * $right[3]),
+            ($left[0] * $right[4]) + ($left[2] * $right[5]) + $left[4],
+            ($left[1] * $right[4]) + ($left[3] * $right[5]) + $left[5],
+        ];
+    }
+
+    /**
+     * @param list<float> $matrix
+     */
+    private function pdfMatrixIsIdentity(array $matrix): bool
+    {
+        return count($matrix) >= 6
+            && abs($matrix[0] - 1.0) < 0.000001
+            && abs($matrix[1]) < 0.000001
+            && abs($matrix[2]) < 0.000001
+            && abs($matrix[3] - 1.0) < 0.000001
+            && abs($matrix[4]) < 0.000001
+            && abs($matrix[5]) < 0.000001;
+    }
+
+    /**
+     * @param list<float> $rectangle
+     */
+    private function pdfPointInsideRectangle(float $x, float $y, array $rectangle): bool
+    {
+        return $x >= $rectangle[0] - 0.000001
+            && $x <= $rectangle[2] + 0.000001
+            && $y >= $rectangle[1] - 0.000001
+            && $y <= $rectangle[3] + 0.000001;
     }
 
     private function pdfNumberValueAfterName(string $body, string $name): ?float
