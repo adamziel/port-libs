@@ -352,6 +352,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-annotation-appearance-import.php` now also maps annotation appearance Form XObject resource boundaries into a WordPress import path. It imports only current page-referenced `/AP /N` appearance text, clips text outside the appearance `/BBox`, preserves nested appearance-local `/Resources /Font` scopes, and excludes stale/off/unreferenced appearance noise without loading Python, pdftext, pypdfium, Poppler, Ghostscript, rendering annotations, or executing PDF actions.
 
+`examples/wordpress-pdf-type0-encoding-cmap-boundary-import.php` maps Type0 font `/Encoding` CMap code-space and CID mapping boundaries into a WordPress paragraph import path when `/ToUnicode` is absent. It preserves mixed one-byte and two-byte source codes for descendant CIDFont width grouping, emitting `WideBlock` and `Thin Text` without NUL bytes, false spaces, Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

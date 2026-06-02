@@ -4748,6 +4748,16 @@ final class PdfTextExtractor
                 $cmap = $encodingFallback;
             }
 
+            if ($cmap === null && $cidEncodingMap !== null && ($cidEncodingMap['cidMap'] !== [] || $cidEncodingMap['codeSpaceRanges'] !== [])) {
+                $cmap = [
+                    'map' => [],
+                    'codeSpaceRanges' => $cidEncodingMap['codeSpaceRanges'],
+                ];
+                if (isset($cidEncodingMap['writingMode'])) {
+                    $cmap['writingMode'] = (int) $cidEncodingMap['writingMode'] === 1 ? 1 : 0;
+                }
+            }
+
             if ($cmap === null && $widthMetrics['widths'] !== [] && $this->isSimpleFontBody($body)) {
                 $cmap = [
                     'map' => [],
@@ -10049,7 +10059,7 @@ final class PdfTextExtractor
         }
 
         $widths = [];
-        foreach ($this->textOperandSourceKeys($hex, $toUnicodeMap) as $key) {
+        foreach ($this->textOperandSourceKeysForFontWidths($hex, $toUnicodeMap) as $key) {
             $cid = $this->cidForWidthSourceKey($key, $toUnicodeMap);
             if (is_array($cidWidths) && array_key_exists($cid, $cidWidths)) {
                 $widths[] = (float) $cidWidths[$cid];
@@ -10083,7 +10093,7 @@ final class PdfTextExtractor
         }
 
         $displacements = [];
-        foreach ($this->textOperandSourceKeys($hex, $toUnicodeMap) as $key) {
+        foreach ($this->textOperandSourceKeysForFontWidths($hex, $toUnicodeMap) as $key) {
             $cid = $this->cidForWidthSourceKey($key, $toUnicodeMap);
             $displacements[] = is_array($cidDisplacements) && array_key_exists($cid, $cidDisplacements)
                 ? (float) $cidDisplacements[$cid]
@@ -10115,6 +10125,25 @@ final class PdfTextExtractor
         }
 
         return '';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function textOperandSourceKeysForFontWidths(string $hex, array $toUnicodeMap): array
+    {
+        $widthMap = $toUnicodeMap;
+        $cidCodeSpaceRanges = $toUnicodeMap['cidCodeSpaceRanges'] ?? [];
+        if (is_array($cidCodeSpaceRanges) && $cidCodeSpaceRanges !== []) {
+            $widthMap['codeSpaceRanges'] = $cidCodeSpaceRanges;
+        }
+
+        $cidMap = $toUnicodeMap['cidMap'] ?? [];
+        if (is_array($cidMap) && $cidMap !== []) {
+            $widthMap['map'] = $cidMap;
+        }
+
+        return $this->textOperandSourceKeys($hex, $widthMap);
     }
 
     /**

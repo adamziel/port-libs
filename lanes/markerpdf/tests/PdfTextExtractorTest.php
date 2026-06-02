@@ -1574,6 +1574,41 @@ return [
         $t->true(!str_contains($plainText, 'Wide Block'));
         $t->true(!str_contains($plainText, 'ThinText'));
     },
+    'uses Type0 Encoding CMap code-space boundaries for fallback text widths' => static function (TestRunner $t): void {
+        $encodingCMap = "/CIDInit /ProcSet findresource begin\n"
+            . "12 dict begin\n"
+            . "begincmap\n"
+            . "/CMapName /WPMixedBoundary-H def\n"
+            . "2 begincodespacerange\n"
+            . "<20> <7F>\n"
+            . "<0000> <00FF>\n"
+            . "endcodespacerange\n"
+            . "2 begincidrange\n"
+            . "<0057> <0065> 200\n"
+            . "<42> <74> 300\n"
+            . "endcidrange\n"
+            . "endcmap\n"
+            . "CMapName currentdict /CMap defineresource pop\n"
+            . "end\n"
+            . "end\n";
+        $content = 'BT /Fcid 12 Tf 1 0 0 1 72 720 Tm <0057006900640065> Tj 1 0 0 1 118 720 Tm <426C6F636B> Tj '
+            . 'T* 1 0 0 1 72 704 Tm <5468696E> Tj 1 0 0 1 96 704 Tm <0054006500780074> Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /MixedBoundarySubset /Encoding 3 0 R /DescendantFonts [4 0 R] >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($encodingCMap) . " >>\nstream\n{$encodingCMap}\nendstream\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /MixedBoundarySubset /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 500 /W [84 120 250 200 214 1000 300 352 250] >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['WideBlock', 'Thin Text'], $extractor->extractTextLines($pdf));
+        $t->same(['Wide', 'Block', 'Thin', 'Text'], $extractor->extractTextRuns($pdf));
+        $t->same("WideBlock\nThin Text", $plainText);
+        $t->true(!str_contains($plainText, "\0"));
+        $t->true(!str_contains($plainText, 'Wide Block'));
+        $t->true(!str_contains($plainText, 'ThinText'));
+    },
     'uses CIDFont vertical W2 metrics for WordPress text advance boundaries' => static function (TestRunner $t): void {
         $cmap = "/CIDInit /ProcSet findresource begin\n"
             . "12 dict begin\n"
