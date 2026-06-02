@@ -96,6 +96,37 @@ $currentAnnotationActionBoundaryPdf = static function (): string {
         . "%%EOF";
 };
 
+$movieSoundRenditionPopupPdf = static function (): string {
+    $pageContent = 'BT /F1 12 Tf 72 720 Td (Article Body) Tj ET';
+    $movieAppearance = 'BT /F1 12 Tf 0 0 Td (Movie Popup Payload Noise) Tj ET';
+    $soundBytes = "WAVE bytes with (Sound Action Payload Noise) Tj ET";
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 40 0 R >> >> /Annots [5 0 R 6 0 R 7 0 R 8 0 R] /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Annot /Subtype /Movie /Rect [320 700 72 540] /T (Inline movie) /Contents (Movie annotation requires review) /Movie 20 0 R /A 21 0 R /AA << /U 30 0 R >> /Popup 23 0 R /AP << /N 24 0 R >> >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Annot /Subtype /Sound /Rect [72 500 180 535] /T (Narration) /Contents (Sound annotation requires review) /Name /Speaker /Sound 22 0 R /A 31 0 R >>\nendobj\n"
+        . "7 0 obj\n<< /Type /Annot /Subtype /Screen /Rect [72 420 360 500] /T (Rendition player) /Contents (Rendition requires review) /A 32 0 R /Popup << /Type /Annot /Subtype /Popup /Rect [210 420 390 500] /Open false /Contents (Screen rendition popup) >> >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Annot /Subtype /Popup /Parent 6 0 R /Rect [180 500 340 560] /Open true /Contents (Sound popup stays metadata) >>\nendobj\n"
+        . "20 0 obj\n<< /F 25 0 R /T (Movie dictionary title) /Aspect [1280 720] /Rotate 180 /Poster 26 0 R >>\nendobj\n"
+        . "21 0 obj\n<< /Start 2 /Duration 30 /Rate 1 /Volume 0.8 /ShowControls false /Mode /Palindrome /Synchronous true /FWScale [2 2] /FWPosition [0.25 0.75] >>\nendobj\n"
+        . "22 0 obj\n<< /R 22050 /C 1 /B 8 /E /Raw /Length " . strlen($soundBytes) . " >>\nstream\n{$soundBytes}\nendstream\nendobj\n"
+        . "23 0 obj\n<< /Type /Annot /Subtype /Popup /Parent 5 0 R /Rect [300 548 460 628] /Open true /Contents (Movie popup stays metadata) >>\nendobj\n"
+        . "24 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 40 0 R >> >> /Length " . strlen($movieAppearance) . " >>\nstream\n{$movieAppearance}\nendstream\nendobj\n"
+        . "25 0 obj\n<< /Type /Filespec /F (movie-action.mov) /UF <FEFF006D006F007600690065002D0061006300740069006F006E002E006D006F0076> >>\nendobj\n"
+        . "26 0 obj\n<< /Subtype /Image /Width 16 /Height 16 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "30 0 obj\n<< /S /Movie /Annotation 5 0 R /T (Inline movie action) /Operation /Play >>\nendobj\n"
+        . "31 0 obj\n<< /S /Sound /Sound 22 0 R /Volume .4 /Synchronous false /Repeat true /Mix false >>\nendobj\n"
+        . "32 0 obj\n<< /S /Rendition /OP 0 /AN 7 0 R /R 33 0 R >>\nendobj\n"
+        . "33 0 obj\n<< /S /MR /N (Training rendition) /C 34 0 R >>\nendobj\n"
+        . "34 0 obj\n<< /S /MCD /N (Training movie clip) /D 35 0 R /CT (video/mp4) /Alt [(en-US) (Training video)] >>\nendobj\n"
+        . "35 0 obj\n<< /Type /Filespec /F (training-rendition.mp4) /UF <FEFF0074007200610069006E0069006E0067002D00720065006E0064006900740069006F006E002E006D00700034> >>\nendobj\n"
+        . "40 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'extracts screen and rich media annotations as review-only metadata' => static function (TestRunner $t) use ($richMediaAnnotationPdf): void {
         $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($richMediaAnnotationPdf());
@@ -335,5 +366,60 @@ return [
         $t->true(!str_contains($plainText, 'Movie Poster Noise'));
         $t->true(!str_contains($plainText, 'Sound Icon Noise'));
         $t->true(!str_contains($plainText, 'Leaked Sound Text'));
+    },
+    'reviews movie sound and rendition action popup boundaries without executing media' => static function (TestRunner $t) use ($movieSoundRenditionPopupPdf): void {
+        $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($movieSoundRenditionPopupPdf());
+
+        $t->same(1, count($pages));
+        $t->same(['Movie', 'Sound', 'Screen'], array_column($pages[0]['annotations'], 'subtype'));
+
+        $movie = $pages[0]['annotations'][0];
+        $t->same([72.0, 540.0, 320.0, 700.0], $movie['rect'], 'Movie annotation rectangles are normalized before review output.');
+        $t->same(['Movie'], $movie['action_types']);
+        $t->same('stream', $movie['movie']['poster']);
+        $t->same('Movie popup stays metadata', $movie['popup']['contents']);
+        $t->same(5, $movie['actions'][0]['target_annotation_object']);
+        $t->same('Inline movie action', $movie['actions'][0]['title']);
+        $t->same('Play', $movie['actions'][0]['operation']);
+        $t->same('movie-action-review', $movie['actions'][0]['safety']);
+        $t->same('Movie dictionary title', $movie['actions'][0]['movie']['title']);
+        $t->same(['movie-action.mov'], $movie['actions'][0]['movie']['file_names']);
+
+        $sound = $pages[0]['annotations'][1];
+        $t->same('Sound popup stays metadata', $sound['popup']['contents']);
+        $t->same(['Sound'], $sound['action_types']);
+        $t->same('sound-action-review', $sound['actions'][0]['safety']);
+        $t->same(22, $sound['actions'][0]['sound']['stream_object']);
+        $t->same(22050.0, $sound['actions'][0]['sound']['sample_rate']);
+        $t->same(0.4, $sound['actions'][0]['volume']);
+        $t->same(false, $sound['actions'][0]['synchronous']);
+        $t->same(true, $sound['actions'][0]['repeat']);
+        $t->same(false, $sound['actions'][0]['mix']);
+
+        $screen = $pages[0]['annotations'][2];
+        $t->same('Rendition player', $screen['title']);
+        $t->same('Screen rendition popup', $screen['popup']['contents']);
+        $t->same(['Rendition'], $screen['action_types']);
+        $t->same('media-rendition-review', $screen['actions'][0]['safety']);
+        $t->same(7, $screen['actions'][0]['target_annotation_object']);
+        $t->same(0, $screen['actions'][0]['operation']);
+        $t->same('play', $screen['actions'][0]['operation_label']);
+        $t->same(33, $screen['actions'][0]['rendition']['dictionary_object']);
+        $t->same('MR', $screen['actions'][0]['rendition']['subtype']);
+        $t->same('Training rendition', $screen['actions'][0]['rendition']['name']);
+        $t->same(['training-rendition.mp4'], $screen['actions'][0]['rendition']['file_names']);
+        $t->same(34, $screen['actions'][0]['rendition']['media_clip']['dictionary_object']);
+        $t->same('MCD', $screen['actions'][0]['rendition']['media_clip']['subtype']);
+        $t->same('video/mp4', $screen['actions'][0]['rendition']['media_clip']['content_type']);
+        $t->same('training-rendition.mp4', $screen['actions'][0]['rendition']['media_clip']['file']);
+        $t->same(['en-US', 'Training video'], $screen['actions'][0]['rendition']['media_clip']['alternate_text']);
+        $t->same(['training-rendition.mp4'], $screen['actions'][0]['file_names']);
+
+        $plainText = (new PdfTextExtractor())->extractPlainText($movieSoundRenditionPopupPdf());
+        $t->same(['Article Body'], (new PdfTextExtractor())->extractTextLines($movieSoundRenditionPopupPdf()));
+        $t->true(!str_contains($plainText, 'Movie Popup Payload Noise'));
+        $t->true(!str_contains($plainText, 'Sound Action Payload Noise'));
+        $t->true(!str_contains($plainText, 'Movie popup stays metadata'));
+        $t->true(!str_contains($plainText, 'Sound popup stays metadata'));
     },
 ];

@@ -617,13 +617,70 @@ final class PdfRichMediaAnnotationExtractor
             }
         }
 
+        if ($actionType === 'Movie') {
+            $targetAnnotation = $this->objectReferenceValueAfterName($actionBody, 'Annotation')
+                ?? $this->objectReferenceValueAfterName($actionBody, 'AN');
+            if ($targetAnnotation !== null) {
+                $row['target_annotation_object'] = $targetAnnotation;
+                $targetBody = isset($objects[$targetAnnotation]) ? $this->dictionaryObjectBody($objects[$targetAnnotation]) : null;
+                if ($targetBody !== null) {
+                    $movie = $this->movieDetailsFromAnnotation($targetBody, $objects);
+                    if ($movie !== null) {
+                        $row['movie'] = $movie;
+                    }
+                }
+            }
+
+            $title = $this->topLevelStringOrNameValueAfterName($actionBody, 'T', $objects);
+            if ($title !== null) {
+                $row['title'] = $title;
+            }
+
+            $operation = $this->topLevelStringOrNameValueAfterName($actionBody, 'Operation', $objects);
+            if ($operation !== null) {
+                $row['operation'] = $operation;
+                $row['operation_label'] = strtolower($operation);
+            }
+        }
+
+        if ($actionType === 'Sound') {
+            $soundValue = $this->topLevelValueAfterName($actionBody, 'Sound');
+            if ($soundValue !== null) {
+                $sound = $this->soundDetailsFromValue($soundValue, $objects);
+                if ($sound !== null) {
+                    $row['sound'] = $sound;
+                }
+            }
+
+            $volume = $this->topLevelNumberValueAfterName($actionBody, 'Volume', $objects);
+            if ($volume !== null) {
+                $row['volume'] = $volume;
+            }
+
+            foreach (['Synchronous' => 'synchronous', 'Repeat' => 'repeat', 'Mix' => 'mix'] as $pdfName => $rowName) {
+                $flag = $this->topLevelBoolValueAfterName($actionBody, $pdfName, $objects);
+                if ($flag !== null) {
+                    $row[$rowName] = $flag;
+                }
+            }
+        }
+
         if ($actionType === 'Rendition') {
             $operation = $this->topLevelNumberValueAfterName($actionBody, 'OP', $objects);
             if ($operation !== null) {
-                $row['operation'] = (int) $operation;
+                $operation = (int) $operation;
+                $row['operation'] = $operation;
+                $row['operation_label'] = $this->renditionOperationLabel($operation);
             }
+
+            $targetAnnotation = $this->objectReferenceValueAfterName($actionBody, 'AN');
+            if ($targetAnnotation !== null) {
+                $row['target_annotation_object'] = $targetAnnotation;
+            }
+
             $rendition = $this->dictionaryFromTopLevelValue($actionBody, 'R', $objects);
             if ($rendition !== null) {
+                $row['rendition'] = $this->renditionDetailsFromRecord($rendition, $objects);
                 $bodies = $this->dedupeStrings(array_merge(
                     [$rendition['body']],
                     $this->referencedDictionaryBodies($rendition['body'], $objects, 2)
@@ -717,6 +774,17 @@ final class PdfRichMediaAnnotationExtractor
         }
 
         return ['preview' => substr($normalized, 0, $limit) . '...', 'truncated' => true];
+    }
+
+    private function renditionOperationLabel(int $operation): string
+    {
+        return match ($operation) {
+            0 => 'play',
+            1 => 'stop',
+            2 => 'pause',
+            3 => 'resume',
+            default => 'unknown',
+        };
     }
 
     private function isSafeUri(string $uri): bool
@@ -829,6 +897,15 @@ final class PdfRichMediaAnnotationExtractor
             return null;
         }
 
+        return $this->soundDetailsFromValue($soundValue, $objects, $this->nameValueAfterName($annotationBody, 'Name'));
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function soundDetailsFromValue(string $soundValue, array $objects, ?string $iconName = null): ?array
+    {
         $sound = $this->resolvedDictionaryFromValue($soundValue, $objects);
         if ($sound === null) {
             return null;
@@ -836,7 +913,7 @@ final class PdfRichMediaAnnotationExtractor
 
         return [
             'stream_object' => $sound['object'],
-            'icon_name' => $this->nameValueAfterName($annotationBody, 'Name'),
+            'icon_name' => $iconName,
             'sample_rate' => $this->numberValueAfterName($sound['body'], 'R', $objects),
             'channels' => $this->intValueAfterName($sound['body'], 'C', $objects) ?? 1,
             'bits_per_sample' => $this->intValueAfterName($sound['body'], 'B', $objects) ?? 8,
@@ -844,6 +921,60 @@ final class PdfRichMediaAnnotationExtractor
             'compression' => $this->nameValueAfterName($sound['body'], 'CO'),
             'payload_length' => $this->intValueAfterName($sound['body'], 'Length', $objects),
         ];
+    }
+
+    /**
+     * @param array{body: string, object: int|null} $rendition
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function renditionDetailsFromRecord(array $rendition, array $objects): array
+    {
+        $bodies = $this->dedupeStrings(array_merge(
+            [$rendition['body']],
+            $this->referencedDictionaryBodies($rendition['body'], $objects, 2)
+        ));
+        $clip = $this->dictionaryFromTopLevelValue($rendition['body'], 'C', $objects);
+
+        return [
+            'dictionary_object' => $rendition['object'],
+            'subtype' => $this->topLevelNameValueAfterName($rendition['body'], 'S'),
+            'name' => $this->topLevelStringValueAfterName($rendition['body'], 'N', $objects),
+            'file_names' => $this->fileNamesFromBodies($bodies),
+            'media_clip' => $clip === null ? null : $this->mediaClipDetailsFromRecord($clip, $objects),
+        ];
+    }
+
+    /**
+     * @param array{body: string, object: int|null} $clip
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function mediaClipDetailsFromRecord(array $clip, array $objects): array
+    {
+        return [
+            'dictionary_object' => $clip['object'],
+            'subtype' => $this->topLevelNameValueAfterName($clip['body'], 'S'),
+            'name' => $this->topLevelStringValueAfterName($clip['body'], 'N', $objects),
+            'content_type' => $this->topLevelStringValueAfterName($clip['body'], 'CT', $objects),
+            'file' => $this->fileSpecValueFromTopLevel($clip['body'], 'D', $objects),
+            'alternate_text' => $this->stringArrayValueAfterName($clip['body'], 'Alt', $objects),
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function stringArrayValueAfterName(string $body, string $name, array $objects): array
+    {
+        $value = $this->topLevelValueAfterName($body, $name) ?? $this->valueAfterName($body, $name);
+        if ($value === null) {
+            return [];
+        }
+
+        $arrayBody = $this->arrayBodyFromPdfValue($value, $objects);
+        return $arrayBody === null ? [] : $this->stringsInValue($arrayBody);
     }
 
     /**
