@@ -3192,6 +3192,10 @@ final class PdfTextExtractor
         $defaultVerticalDisplacement = null;
         $hasVerticalWidthArray = false;
 
+        foreach ($this->type3CharProcWidths($fontBody, $objects) as $code => $width) {
+            $widths[$code] = $width;
+        }
+
         foreach ([$fontBody, ...$this->descendantFontBodies($fontBody, $objects)] as $body) {
             $widthArray = $this->pdfArrayValueAfterName($body, 'W');
             if ($widthArray !== null) {
@@ -3242,6 +3246,144 @@ final class PdfTextExtractor
             'verticalDisplacements' => $verticalDisplacements,
             'defaultVerticalDisplacement' => $defaultVerticalDisplacement,
         ];
+    }
+
+    /**
+     * @return array<int, float>
+     * @param array<int, string> $objects
+     */
+    private function type3CharProcWidths(string $fontBody, array $objects): array
+    {
+        if (preg_match('/\/Subtype\s*\/Type3\b/', $fontBody) !== 1) {
+            return [];
+        }
+
+        $glyphNamesByCode = $this->encodingDifferencesGlyphNames($fontBody);
+        $charProcObjectNumbers = $this->charProcObjectNumbers($fontBody, $objects);
+        if ($glyphNamesByCode === [] || $charProcObjectNumbers === []) {
+            return [];
+        }
+
+        $widths = [];
+        foreach ($glyphNamesByCode as $code => $glyphName) {
+            $objectNumber = $charProcObjectNumbers[$glyphName] ?? null;
+            if ($objectNumber === null || !isset($objects[$objectNumber])) {
+                continue;
+            }
+
+            $width = $this->type3CharProcDeclaredWidth($objects[$objectNumber], $objects);
+            if ($width !== null) {
+                $widths[$code] = $width;
+            }
+        }
+
+        return $widths;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function encodingDifferencesGlyphNames(string $fontBody): array
+    {
+        if (preg_match('/\/Differences\s*\[(.*?)\]/s', $fontBody, $match) !== 1) {
+            return [];
+        }
+
+        preg_match_all('/\/[^\s\[\]()<>{}\/%]+|[+-]?\d+/', $match[1], $tokens);
+        $glyphNames = [];
+        $code = null;
+        foreach ($tokens[0] ?? [] as $token) {
+            if (preg_match('/^[+-]?\d+$/', $token) === 1) {
+                $code = max(0, min(255, (int) $token));
+                continue;
+            }
+
+            if ($code === null || !str_starts_with($token, '/')) {
+                continue;
+            }
+
+            $glyphNames[$code] = $this->decodePdfName(substr($token, 1));
+            $code++;
+        }
+
+        return $glyphNames;
+    }
+
+    /**
+     * @return array<string, int>
+     * @param array<int, string> $objects
+     */
+    private function charProcObjectNumbers(string $fontBody, array $objects): array
+    {
+        $dictionary = $this->charProcsDictionaryBody($fontBody, $objects);
+        if ($dictionary === null) {
+            return [];
+        }
+
+        if (!preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+\d+\s+R\b/', $dictionary, $matches, PREG_SET_ORDER)) {
+            return [];
+        }
+
+        $objectNumbers = [];
+        foreach ($matches as $match) {
+            $objectNumbers[$this->decodePdfName($match[1])] = (int) $match[2];
+        }
+
+        return $objectNumbers;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function charProcsDictionaryBody(string $fontBody, array $objects): ?string
+    {
+        if (!preg_match('/\/CharProcs\s*(?:(\d+)\s+\d+\s+R|<<)/s', $fontBody, $match, PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+
+        if (($match[1][0] ?? '') !== '') {
+            $objectNumber = (int) $match[1][0];
+            return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
+        }
+
+        $offset = strpos($fontBody, '<<', $match[0][1]);
+        return $offset === false ? null : $this->readPdfDictionaryAt($fontBody, $offset);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function type3CharProcDeclaredWidth(string $objectBody, array $objects): ?float
+    {
+        $charProc = $this->decodeStreamObject($objectBody, $objects) ?? trim($objectBody);
+        $operands = [];
+
+        foreach ($this->contentTokens($charProc) as $token) {
+            if ($token === 'd0') {
+                if (count($operands) < 2) {
+                    return null;
+                }
+
+                return $this->numericOperand($operands[count($operands) - 2]);
+            }
+
+            if ($token === 'd1') {
+                if (count($operands) < 6) {
+                    return null;
+                }
+
+                return $this->numericOperand($operands[count($operands) - 6]);
+            }
+
+            if ($this->isOperator($token)) {
+                $operands = [];
+                continue;
+            }
+
+            $operands[] = $token;
+        }
+
+        return null;
     }
 
     /**
