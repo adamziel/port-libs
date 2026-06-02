@@ -132,6 +132,9 @@ final class PdfMarkupAnnotationExtractor
                     'name' => $markup['name'],
                     'color' => $markup['color'],
                     'opacity' => $markup['opacity'],
+                    'border' => $markup['border'],
+                    'border_style' => $markup['border_style'],
+                    'popup' => $markup['popup'],
                     'quad_index' => $quadIndex,
                     'quad_rect' => $quadRect,
                     'annotation_object' => $markup['annotation_object'],
@@ -152,7 +155,7 @@ final class PdfMarkupAnnotationExtractor
         $markups = [];
 
         foreach ($annotationBodies as $annotation) {
-            $markup = $this->markupFromAnnotationBody($annotation['body'], $annotation['object']);
+            $markup = $this->markupFromAnnotationBody($annotation['body'], $objects, $annotation['object']);
             if ($markup !== null) {
                 $markups[] = $markup;
             }
@@ -163,8 +166,9 @@ final class PdfMarkupAnnotationExtractor
 
     /**
      * @return array<string, mixed>|null
+     * @param array<int, string> $objects
      */
-    private function markupFromAnnotationBody(string $annotationBody, ?int $annotationObject): ?array
+    private function markupFromAnnotationBody(string $annotationBody, array $objects, ?int $annotationObject): ?array
     {
         if (preg_match('/\/Subtype\s*\/(' . implode('|', self::TEXT_MARKUP_SUBTYPES) . ')\b/', $annotationBody, $match) !== 1) {
             return null;
@@ -193,6 +197,9 @@ final class PdfMarkupAnnotationExtractor
             'name' => $this->stringAfterName($annotationBody, 'NM'),
             'color' => $this->floatArrayAfterName($annotationBody, 'C'),
             'opacity' => $this->numberAfterName($annotationBody, 'CA'),
+            'border' => $this->borderArrayFromAnnotation($annotationBody),
+            'border_style' => $this->borderStyleFromAnnotation($annotationBody, $objects),
+            'popup' => $this->popupFromAnnotation($annotationBody, $objects),
             'flags' => $this->integerAfterName($annotationBody, 'F'),
             'annotation_object' => $annotationObject,
         ];
@@ -326,6 +333,119 @@ final class PdfMarkupAnnotationExtractor
         }
 
         return $this->normalizeRect(array_slice($numbers, 0, 4));
+    }
+
+    /**
+     * @return array{horizontal_corner_radius: float, vertical_corner_radius: float, width: float, dash_pattern: list<float>, source: string}|null
+     */
+    private function borderArrayFromAnnotation(string $annotationBody): ?array
+    {
+        $value = $this->valueAfterName($annotationBody, 'Border');
+        if ($value === null || !str_starts_with(trim($value), '[')) {
+            return null;
+        }
+
+        $arrayBody = $this->arrayBodyFromValue($value);
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        $numbers = $this->numbersFromPdfArray($arrayBody);
+        if (count($numbers) < 3) {
+            return null;
+        }
+
+        $dashPattern = [];
+        if (preg_match('/\[[^\[\]]*\]\s*$/s', trim($arrayBody), $dashMatch) === 1) {
+            $dashPattern = $this->numbersFromPdfArray(trim($dashMatch[0], '[]'));
+        }
+
+        return [
+            'horizontal_corner_radius' => (float) $numbers[0],
+            'vertical_corner_radius' => (float) $numbers[1],
+            'width' => (float) $numbers[2],
+            'dash_pattern' => $dashPattern,
+            'source' => 'Border',
+        ];
+    }
+
+    /**
+     * @return array{width: float|null, style: string|null, style_name: string|null, dash_pattern: list<float>, source: string}|null
+     * @param array<int, string> $objects
+     */
+    private function borderStyleFromAnnotation(string $annotationBody, array $objects): ?array
+    {
+        $value = $this->valueAfterName($annotationBody, 'BS');
+        if ($value === null) {
+            $border = $this->borderArrayFromAnnotation($annotationBody);
+            if ($border === null) {
+                return null;
+            }
+
+            return [
+                'width' => $border['width'],
+                'style' => $border['dash_pattern'] === [] ? 'solid' : 'dashed',
+                'style_name' => $border['dash_pattern'] === [] ? 'S' : 'D',
+                'dash_pattern' => $border['dash_pattern'],
+                'source' => 'Border',
+            ];
+        }
+
+        $dictionary = $this->dictionaryFromValue($value, $objects);
+        if ($dictionary === null) {
+            return null;
+        }
+
+        $styleName = $this->nameValueAfterName($dictionary, 'S');
+        $style = match ($styleName) {
+            'D' => 'dashed',
+            'B' => 'beveled',
+            'I' => 'inset',
+            'U' => 'underline',
+            'S' => 'solid',
+            default => $styleName,
+        };
+
+        $dashPattern = [];
+        if (preg_match('/\/D\b\s*(\[[^\[\]]*\])/s', $dictionary, $dashMatch) === 1) {
+            $dashArray = $this->arrayBodyFromValue($dashMatch[1]);
+            $dashPattern = $dashArray === null ? [] : $this->numbersFromPdfArray($dashArray);
+        }
+
+        return [
+            'width' => $this->numberAfterName($dictionary, 'W'),
+            'style' => $style,
+            'style_name' => $styleName,
+            'dash_pattern' => $dashPattern,
+            'source' => 'BS',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     * @param array<int, string> $objects
+     */
+    private function popupFromAnnotation(string $annotationBody, array $objects): ?array
+    {
+        $value = $this->valueAfterName($annotationBody, 'Popup');
+        if ($value === null) {
+            return null;
+        }
+
+        $objectNumber = $this->indirectObjectNumberFromValue($value);
+        $dictionary = $this->dictionaryFromValue($value, $objects);
+        if ($dictionary === null || $this->nameValueAfterName($dictionary, 'Subtype') !== 'Popup') {
+            return null;
+        }
+
+        return [
+            'annotation_object' => $objectNumber,
+            'rect' => $this->rectFromAnnotation($dictionary),
+            'open' => $this->booleanAfterName($dictionary, 'Open'),
+            'contents' => $this->stringAfterName($dictionary, 'Contents'),
+            'modified_at' => $this->stringAfterName($dictionary, 'M'),
+            'parent_object' => $this->indirectObjectNumberFromValue($this->valueAfterName($dictionary, 'Parent') ?? ''),
+        ];
     }
 
     /**
@@ -500,6 +620,56 @@ final class PdfMarkupAnnotationExtractor
     {
         $number = $this->numberAfterName($body, $name);
         return $number === null ? null : (int) $number;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function dictionaryFromValue(string $value, array $objects): ?string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (str_starts_with($value, '<<')) {
+            return $this->readPdfDictionaryAt($value, 0);
+        }
+
+        $objectNumber = $this->indirectObjectNumberFromValue($value);
+        if ($objectNumber === null || !isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        return $this->dictionaryObjectBody($objects[$objectNumber]);
+    }
+
+    private function indirectObjectNumberFromValue(string $value): ?int
+    {
+        return preg_match('/^(\d+)\s+\d+\s+R\b/', trim($value), $match) === 1 ? (int) $match[1] : null;
+    }
+
+    private function nameValueAfterName(string $body, string $name): ?string
+    {
+        if (preg_match('/\/' . preg_quote($name, '/') . '\s*\/([^\s\[\]()<>{}\/%]+)/s', $body, $match) !== 1) {
+            return null;
+        }
+
+        return $this->decodePdfName($match[1]);
+    }
+
+    private function booleanAfterName(string $body, string $name): ?bool
+    {
+        $value = $this->valueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        return match (trim($value)) {
+            'true' => true,
+            'false' => false,
+            default => null,
+        };
     }
 
     /**
@@ -818,5 +988,10 @@ final class PdfMarkupAnnotationExtractor
                 default => preg_match('/^[0-7]+$/', $match[1]) === 1 ? chr(octdec($match[1]) & 0xff) : $match[1],
             };
         }, $value) ?? $value;
+    }
+
+    private function decodePdfName(string $name): string
+    {
+        return preg_replace_callback('/#([0-9A-Fa-f]{2})/', static fn (array $match): string => chr(hexdec($match[1])), $name) ?? $name;
     }
 }

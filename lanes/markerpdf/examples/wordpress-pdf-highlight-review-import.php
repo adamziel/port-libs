@@ -12,7 +12,9 @@ $pdf = "%PDF-1.7\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
     . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [5 0 R << /Type /Annot /Subtype /Text /Rect [72 660 180 678] /Contents (sticky note only) >>] /Contents 4 0 R >>\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
-    . "5 0 obj\n<< /Type /Annot /Subtype /Highlight /Rect [72 700 250 718] /QuadPoints [72 718 160 718 72 700 160 700 170 718 250 718 170 700 250 700] /Contents (Confirm plugin compatibility before publishing) /T (Editorial QA) /Subj (Highlight) /M (D:20260602033700Z) /C [1 0.92 0] /CA 0.45 >>\nendobj\n"
+    . "5 0 obj\n<< /Type /Annot /Subtype /Highlight /Rect [72 700 250 718] /QuadPoints [72 718 160 718 72 700 160 700 170 718 250 718 170 700 250 700] /Contents (Confirm plugin compatibility before publishing) /T (Editorial QA) /Subj (Highlight) /M (D:20260602033700Z) /C [1 0.92 0] /CA 0.45 /Border [0 0 2 [3 1]] /BS 6 0 R /Popup 7 0 R >>\nendobj\n"
+    . "6 0 obj\n<< /Type /BorderStyle /S /D /W 1.5 /D [4 2] >>\nendobj\n"
+    . "7 0 obj\n<< /Type /Annot /Subtype /Popup /Rect [260 700 420 760] /Open true /Parent 5 0 R /Contents (Expanded reviewer popup) >>\nendobj\n"
     . "%%EOF";
 
 $pages = [[
@@ -47,6 +49,10 @@ echo '<!-- markerpdf-pdf-highlight-review-smoke ' . htmlspecialchars(json_encode
     'markup_count' => count($markups),
     'annotated_spans' => $annotatedSpans,
     'review_contents' => $markups[0]['contents'] ?? null,
+    'border_style' => $markups[0]['border_style']['style'] ?? null,
+    'border_width' => $markups[0]['border_style']['width'] ?? null,
+    'popup_open' => $markups[0]['popup']['open'] ?? null,
+    'popup_contents' => $markups[0]['popup']['contents'] ?? null,
     'quad_rects' => $markups[0]['quad_rects'] ?? [],
     'excluded_text_annotation' => count($markups) === 1,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
@@ -59,7 +65,9 @@ foreach ($markedPages[0]['blocks'][0]['lines'][0]['spans'] as $span) {
         $review = $reviews[0];
         $label = htmlspecialchars((string) ($review['contents'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $author = htmlspecialchars((string) ($review['author'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        echo '<mark data-markerpdf-review="' . $label . '" data-markerpdf-review-author="' . $author . '">' . $text . '</mark>';
+        $borderStyle = htmlspecialchars((string) ($review['border_style']['style'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $popup = htmlspecialchars((string) ($review['popup']['contents'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        echo '<mark data-markerpdf-review="' . $label . '" data-markerpdf-review-author="' . $author . '" data-markerpdf-border-style="' . $borderStyle . '" data-markerpdf-popup="' . $popup . '">' . $text . '</mark>';
         continue;
     }
 
