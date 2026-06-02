@@ -585,6 +585,10 @@ final class PdfEmbeddedFileExtractor
             $metadata['filters'] = $stream['filters'];
         }
 
+        foreach ($this->embeddedFileParams($stream['dictionary'], $objects, $stream['content']) as $key => $metadataValue) {
+            $metadata[$key] = $metadataValue;
+        }
+
         return $metadata;
     }
 

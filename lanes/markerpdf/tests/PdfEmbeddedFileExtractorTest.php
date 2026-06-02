@@ -285,6 +285,89 @@ return [
         $t->same(hash('md5', $previewJson), $preview['computed_checksum']);
         $t->same(false, $preview['checksum_matches']);
     },
+    'reports associated Filespec PieceInfo private stream checksum boundaries' => static function (TestRunner $t): void {
+        $sourceXml = '<wp-export><post id="137"/></wp-export>';
+        $previewPayload = 'BT /F1 12 Tf 72 720 Td (Associated EF Payload Leak) Tj ET';
+        $verifiedPrivate = '{"piece":"verified","checksum":"current"}';
+        $stalePrivate = 'BT /F1 12 Tf 72 720 Td (PieceInfo Private Checksum Leak) Tj ET';
+        $compressedVerifiedPrivate = gzcompress($verifiedPrivate);
+        if (!is_string($compressedVerifiedPrivate)) {
+            throw new RuntimeException('Unable to compress PieceInfo checksum fixture.');
+        }
+
+        $sourceChecksum = strtoupper(hash('md5', $sourceXml));
+        $verifiedPrivateChecksum = strtoupper(hash('md5', $verifiedPrivate));
+        $stalePrivateChecksum = str_repeat('7f', 16);
+        $pageContent = 'BT /F1 12 Tf 72 720 Td (Associated PieceInfo Review) Tj ET';
+
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AF [10 0 R << /Type /Filespec /F (preview.pdf) /Desc (Generated preview) /AFRelationship /Alternative /PieceInfo << /WPPreview << /LastModified (D:20260602102200Z) /Private 41 0 R >> >> /EF << /F 21 0 R >> >>] >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (source.xml) /Desc (Original WordPress export) /AFRelationship /Source /PieceInfo 30 0 R /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourceXml) . " /CheckSum <{$sourceChecksum}> >> /Length " . strlen($sourceXml) . " >>\nstream\n{$sourceXml}\nendstream\nendobj\n"
+            . "21 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fpdf /Length " . strlen($previewPayload) . " >>\nstream\n{$previewPayload}\nendstream\nendobj\n"
+            . "30 0 obj\n<< /WPImport << /LastModified (D:20260602102100Z) /Private 31 0 R >> >>\nendobj\n"
+            . "31 0 obj\n<< /Type /Metadata /Subtype /application#2Fjson /Filter /FlateDecode /Params << /Size " . strlen($verifiedPrivate) . " /CheckSum <{$verifiedPrivateChecksum}> /ModDate (D:20260602102130Z) >> /Length " . strlen($compressedVerifiedPrivate) . " >>\nstream\n{$compressedVerifiedPrivate}\nendstream\nendobj\n"
+            . "41 0 obj\n<< /Type /Metadata /Subtype /text#2Fplain /Params << /Size " . strlen($stalePrivate) . " /CheckSum <{$stalePrivateChecksum}> /CreationDate (D:20260602102000Z) >> /Length " . strlen($stalePrivate) . " >>\nstream\n{$stalePrivate}\nendstream\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $text = (new PdfTextExtractor())->extractPlainText($pdf);
+
+        $t->same(2, count($files));
+
+        $source = $files[0];
+        $t->same('catalog_associated_files', $source['source']);
+        $t->same(true, $source['associated_file']);
+        $t->same(0, $source['associated_file_index']);
+        $t->same('source.xml', $source['filename']);
+        $t->same('Source', $source['relationship']);
+        $t->same(strtolower($sourceChecksum), $source['checksum']);
+        $t->same(hash('md5', $sourceXml), $source['computed_checksum']);
+        $t->same(true, $source['checksum_matches']);
+        $t->same('D:20260602102100Z', $source['piece_info']['WPImport']['last_modified']);
+
+        $sourcePrivate = $source['piece_info']['WPImport']['private_stream'];
+        $t->same(31, $sourcePrivate['object']);
+        $t->same(strlen($compressedVerifiedPrivate), $sourcePrivate['declared_length']);
+        $t->same(strlen($verifiedPrivate), $sourcePrivate['declared_size']);
+        $t->same('application/json', $sourcePrivate['mime_type']);
+        $t->same(['FlateDecode'], $sourcePrivate['filters']);
+        $t->same(hash('sha256', $verifiedPrivate), $sourcePrivate['content_sha256']);
+        $t->same(strtolower($verifiedPrivateChecksum), $sourcePrivate['checksum']);
+        $t->same('md5', $sourcePrivate['checksum_algorithm']);
+        $t->same(hash('md5', $verifiedPrivate), $sourcePrivate['computed_checksum']);
+        $t->same(true, $sourcePrivate['checksum_matches']);
+        $t->same('D:20260602102130Z', $sourcePrivate['modified_at']);
+        $t->same(false, array_key_exists('content', $sourcePrivate));
+
+        $preview = $files[1];
+        $t->same(true, $preview['associated_file']);
+        $t->same(1, $preview['associated_file_index']);
+        $t->same('preview.pdf', $preview['filename']);
+        $t->same('Alternative', $preview['relationship']);
+        $t->same(null, $preview['file_spec_object']);
+        $t->same('D:20260602102200Z', $preview['piece_info']['WPPreview']['last_modified']);
+
+        $previewPrivate = $preview['piece_info']['WPPreview']['private_stream'];
+        $t->same(41, $previewPrivate['object']);
+        $t->same(strlen($stalePrivate), $previewPrivate['declared_length']);
+        $t->same(strlen($stalePrivate), $previewPrivate['declared_size']);
+        $t->same('text/plain', $previewPrivate['mime_type']);
+        $t->same($stalePrivateChecksum, $previewPrivate['checksum']);
+        $t->same(hash('md5', $stalePrivate), $previewPrivate['computed_checksum']);
+        $t->same(false, $previewPrivate['checksum_matches']);
+        $t->same('D:20260602102000Z', $previewPrivate['created_at']);
+        $t->same(false, array_key_exists('content', $previewPrivate));
+
+        $t->contains('Associated PieceInfo Review', $text);
+        $t->same(false, str_contains($text, '<wp-export>'));
+        $t->same(false, str_contains($text, 'Associated EF Payload Leak'));
+        $t->same(false, str_contains($text, 'PieceInfo Private Checksum Leak'));
+        $t->same(false, str_contains($text, 'verified'));
+    },
     'extracts PDF portfolio collection item and PieceInfo metadata from EmbeddedFiles name trees' => static function (TestRunner $t): void {
         $exportXml = '<wp-export><post id="42"/></wp-export>';
         $notes = 'Portfolio review notes';
