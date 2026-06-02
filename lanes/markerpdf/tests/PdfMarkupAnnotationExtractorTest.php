@@ -107,6 +107,42 @@ $rotatedSuppliedPages = static function (): array {
     ];
 };
 
+$markupActionDestinationPdf = static function (): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /Dests 11 0 R >> >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [7 0 R 8 0 R << /Type /Annot /Subtype /Text /Rect [220 680 280 698] /Contents (sticky action target only) /A 9 0 R >>] >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "7 0 obj\n<< /Type /Annot /Subtype /Highlight /Rect [72 700 188 718] /QuadPoints [72 718 188 718 72 700 188 700] /Contents (Jump review) /T (Editorial QA) /A << /S /GoTo /D (review-target) /Next << /S /URI /URI (https://example.com/followup) >> >> /AA << /E << /S /URI /URI (https://example.com/hover) >> /D 12 0 R >> >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Annot /Subtype /Underline /Rect [72 680 180 698] /QuadPoints [72 698 180 698 72 680 180 680] /Contents (Unsafe only) /A << /S /URI /URI (javascript:alert\\(1\\)) >> >>\nendobj\n"
+        . "9 0 obj\n<< /Type /Annot /Subtype /Highlight /Rect [72 640 180 658] /QuadPoints [72 658 180 658 72 640 180 640] /Contents (stale action target) /AA << /E << /S /JavaScript /JS (staleHover\\(\\)) >> >> >>\nendobj\n"
+        . "10 0 obj\n[4 0 R /FitR 10 20 300 740]\nendobj\n"
+        . "11 0 obj\n<< /Names [(review-target) 10 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /S /JavaScript /JS (downReview\\(\\)) >>\nendobj\n"
+        . "%%EOF";
+};
+
+$markupActionDestinationPages = static function (): array {
+    return [[
+        'pnum' => 0,
+        'blocks' => [[
+            'type' => 'Text',
+            'bbox' => [72.0, 680.0, 188.0, 718.0],
+            'lines' => [[
+                'bbox' => [72.0, 700.0, 188.0, 718.0],
+                'spans' => [
+                    ['text' => 'Jump review', 'bbox' => [72.0, 700.0, 188.0, 718.0], 'font' => 'Helvetica'],
+                ],
+            ], [
+                'bbox' => [72.0, 680.0, 180.0, 698.0],
+                'spans' => [
+                    ['text' => 'Unsafe only', 'bbox' => [72.0, 680.0, 180.0, 698.0], 'font' => 'Helvetica'],
+                ],
+            ]],
+        ]],
+    ]];
+};
+
 return [
     'extracts text-markup annotation QuadPoints and review metadata' => static function (TestRunner $t) use ($markupPdf): void {
         $pages = (new PdfMarkupAnnotationExtractor())->extractPageMarkups($markupPdf());
@@ -253,5 +289,37 @@ return [
 
         $t->same([], (new PdfMarkupAnnotationExtractor())->extractPageMarkups($pdf));
         $t->same($pages, $marked);
+    },
+    'reviews text-markup link destinations and additional actions without execution' => static function (TestRunner $t) use ($markupActionDestinationPdf, $markupActionDestinationPages): void {
+        $extractor = new PdfMarkupAnnotationExtractor();
+        $markups = $extractor->extractPageMarkups($markupActionDestinationPdf());
+
+        $t->same(1, count($markups), 'stale unreferenced markup action target is excluded from current page annotations.');
+        $t->same(2, count($markups[0]['markups']));
+
+        $highlight = $markups[0]['markups'][0];
+        $t->same('Highlight', $highlight['subtype']);
+        $t->same(false, $highlight['executes_actions_on_import']);
+        $t->same(['local-destination', 'review-uri'], array_column($highlight['actions'], 'safety'));
+        $t->same('review-target', $highlight['actions'][0]['destination']);
+        $t->same(1, $highlight['actions'][0]['page']);
+        $t->same('FitR', $highlight['actions'][0]['view_mode']);
+        $t->same(['left' => 10.0, 'bottom' => 20.0, 'right' => 300.0, 'top' => 740.0], $highlight['actions'][0]['view_parameters']);
+        $t->same(true, $highlight['actions'][1]['chained']);
+        $t->same(['E', 'D'], array_column($highlight['additional_actions'], 'event'));
+        $t->same(['review-uri', 'blocked-javascript'], array_column($highlight['additional_actions'], 'safety'));
+
+        $unsafe = $markups[0]['markups'][1];
+        $t->same('Underline', $unsafe['subtype']);
+        $t->same(['blocked-unsafe-uri'], array_column($unsafe['actions'], 'safety'));
+        $t->same(false, $unsafe['executes_actions_on_import']);
+
+        $pages = $extractor->applyMarkupsToPages($markupActionDestinationPages(), $markupActionDestinationPdf());
+        $review = $pages[0]['blocks'][0]['lines'][0]['spans'][0]['review_annotations'][0];
+        $t->same('review-target', $review['actions'][0]['destination']);
+        $t->same('FitR', $review['actions'][0]['view_mode']);
+        $t->same('D', $review['additional_actions'][1]['event']);
+        $t->same(false, $review['executes_actions_on_import']);
+        $t->same('blocked-unsafe-uri', $pages[0]['blocks'][0]['lines'][1]['spans'][0]['review_annotations'][0]['actions'][0]['safety']);
     },
 ];

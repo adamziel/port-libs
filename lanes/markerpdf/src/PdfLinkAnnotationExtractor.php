@@ -14,6 +14,7 @@ final class PdfLinkAnnotationExtractor
     public function extractPageLinks(string $pdfBytes): array
     {
         $objects = $this->pdfObjects($pdfBytes);
+        $actionReviewer = new PdfActionReviewExtractor($pdfBytes);
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
         $pages = [];
 
@@ -22,7 +23,7 @@ final class PdfLinkAnnotationExtractor
                 continue;
             }
 
-            $links = $this->linksFromPageObject($objects[$pageObjectNumber], $objects);
+            $links = $this->linksFromPageObject($objects[$pageObjectNumber], $objects, $actionReviewer);
             if ($links === []) {
                 continue;
             }
@@ -83,9 +84,33 @@ final class PdfLinkAnnotationExtractor
                             continue;
                         }
 
-                        $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_uri'] = $link['uri'];
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_rect'] = $link['rect'];
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_annotation_object'] = $link['annotation_object'];
+                        $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_action_type'] = $link['action_type'];
+                        $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_safety'] = $link['safety'];
+                        $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_executes_on_import'] = false;
+                        $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_actions_review'] = $link['actions'];
+                        $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_additional_actions_review'] = $link['additional_actions'];
+
+                        if (is_string($link['uri'] ?? null) && ($link['is_safe_uri'] ?? false) === true) {
+                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_uri'] = $link['uri'];
+                        }
+
+                        if (array_key_exists('destination', $link)) {
+                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_destination'] = $link['destination'];
+                        }
+                        if (array_key_exists('destination_page', $link)) {
+                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_destination_page'] = $link['destination_page'];
+                        }
+                        if (array_key_exists('view_mode', $link)) {
+                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_view_mode'] = $link['view_mode'];
+                        }
+                        if (array_key_exists('view_position', $link)) {
+                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_view_position'] = $link['view_position'];
+                        }
+                        if (array_key_exists('view_parameters', $link)) {
+                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_view_parameters'] = $link['view_parameters'];
+                        }
                     }
                 }
             }
@@ -98,8 +123,8 @@ final class PdfLinkAnnotationExtractor
 
     /**
      * @param array<string, mixed> $span
-     * @param list<array{uri: string, rect: list<float>, annotation_object: int|null}> $links
-     * @return array{uri: string, rect: list<float>, annotation_object: int|null}|null
+     * @param list<array<string, mixed>> $links
+     * @return array<string, mixed>|null
      */
     private function linkForSpan(array $span, array $links): ?array
     {
@@ -119,15 +144,15 @@ final class PdfLinkAnnotationExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return list<array{uri: string, rect: list<float>, annotation_object: int|null}>
+     * @return list<array<string, mixed>>
      */
-    private function linksFromPageObject(string $pageBody, array $objects): array
+    private function linksFromPageObject(string $pageBody, array $objects, PdfActionReviewExtractor $actionReviewer): array
     {
         $annotationBodies = $this->annotationBodiesForPage($pageBody, $objects);
         $links = [];
 
         foreach ($annotationBodies as $annotation) {
-            $link = $this->linkFromAnnotationBody($annotation['body'], $objects, $annotation['object']);
+            $link = $this->linkFromAnnotationBody($annotation['body'], $actionReviewer, $annotation['object']);
             if ($link !== null) {
                 $links[] = $link;
             }
@@ -199,27 +224,55 @@ final class PdfLinkAnnotationExtractor
         }
 
         $annotations = [];
-        foreach ($this->objectReferences($arrayBody) as $objectNumber) {
-            if (isset($objects[$objectNumber])) {
-                $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+        $offset = 0;
+        $length = strlen($arrayBody);
+
+        while ($offset < $length) {
+            $this->skipWhitespace($arrayBody, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (substr($arrayBody, $offset, 2) === '<<') {
+                $endOffset = null;
+                $dictionary = $this->readPdfDictionaryAt($arrayBody, $offset, $endOffset);
+                if ($dictionary === null || $endOffset === null) {
+                    $offset++;
+                    continue;
+                }
+
+                $annotations[] = ['body' => $dictionary, 'object' => null];
+                $offset = $endOffset;
+                continue;
+            }
+
+            if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $arrayBody, $match, 0, $offset) === 1) {
+                $objectNumber = (int) $match[1];
+                $dictionary = $this->dictionaryObjectBody($objects[$objectNumber] ?? '');
                 if ($dictionary !== null) {
                     $annotations[] = ['body' => $dictionary, 'object' => $objectNumber];
                 }
+                $offset += strlen($match[0]);
+                continue;
             }
-        }
 
-        foreach ($this->directDictionaries($arrayBody) as $dictionary) {
-            $annotations[] = ['body' => $dictionary, 'object' => null];
+            $offset++;
         }
 
         return $annotations;
     }
 
+    private function skipWhitespace(string $value, int &$offset): void
+    {
+        while ($offset < strlen($value) && ctype_space($value[$offset])) {
+            $offset++;
+        }
+    }
+
     /**
-     * @param array<int, string> $objects
-     * @return array{uri: string, rect: list<float>, annotation_object: int|null}|null
+     * @return array<string, mixed>|null
      */
-    private function linkFromAnnotationBody(string $annotationBody, array $objects, ?int $annotationObject): ?array
+    private function linkFromAnnotationBody(string $annotationBody, PdfActionReviewExtractor $actionReviewer, ?int $annotationObject): ?array
     {
         if (preg_match('/\/Subtype\s*\/Link\b/', $annotationBody) !== 1) {
             return null;
@@ -230,21 +283,38 @@ final class PdfLinkAnnotationExtractor
             return null;
         }
 
-        $action = $this->actionDictionaryBody($annotationBody, $objects);
-        if ($action === null || preg_match('/\/S\s*\/URI\b/', $action) !== 1) {
+        $review = $actionReviewer->reviewAnnotationActions($annotationBody);
+        $primary = $this->primaryLinkAction($review['actions']);
+        if ($primary === null) {
             return null;
         }
 
-        $uri = $this->stringAfterName($action, 'URI');
-        if ($uri === null || !$this->isSafeUri($uri)) {
-            return null;
-        }
-
-        return [
-            'uri' => $uri,
+        return $primary + [
             'rect' => $rect,
             'annotation_object' => $annotationObject,
+            'actions' => $review['actions'],
+            'additional_actions' => $review['additional_actions'],
+            'executes_on_import' => false,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @return array<string, mixed>|null
+     */
+    private function primaryLinkAction(array $actions): ?array
+    {
+        foreach ($actions as $action) {
+            if (
+                ($action['safety'] ?? null) === 'review-uri'
+                || ($action['safety'] ?? null) === 'local-destination'
+                || ($action['safety'] ?? null) === 'remote-document-review'
+            ) {
+                return $action;
+            }
+        }
+
+        return null;
     }
 
     /**

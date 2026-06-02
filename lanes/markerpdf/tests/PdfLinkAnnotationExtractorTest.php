@@ -56,6 +56,59 @@ $suppliedPages = static function (): array {
     ];
 };
 
+$destinationBoundaryPdf = static function (): string {
+    $pageOneContent = 'BT /F1 12 Tf 72 720 Td (Review jump and docs link) Tj ET';
+    $pageTwoContent = 'BT /F1 12 Tf 72 720 Td (Destination page) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /Dests 13 0 R >> >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [7 0 R 8 0 R << /Type /Annot /Subtype /Text /Rect [250 700 320 718] /Contents (sticky only) >>] /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [9 0 R] /Contents 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($pageOneContent) . " >>\nstream\n{$pageOneContent}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($pageTwoContent) . " >>\nstream\n{$pageTwoContent}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /Annot /Subtype /Link /Rect [72 700 155 718] /Dest [4 0 R /FitH 720] /AA << /E << /S /URI /URI (https://example.com/hover) >> /D 12 0 R >> >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Annot /Subtype /Link /Rect [160 700 238 718] /A << /S /URI /URI (https://example.com/docs) /Next << /S /GoTo /D (named-review) >> >> >>\nendobj\n"
+        . "9 0 obj\n<< /Type /Annot /Subtype /Link /Rect [72 700 180 718] /A << /S /GoTo /D (named-review) >> >>\nendobj\n"
+        . "10 0 obj\n<< /Type /Annot /Subtype /Link /Rect [72 640 180 658] /Dest [3 0 R /Fit] /AA << /E << /S /JavaScript /JS (staleHover\\(\\)) >> >> >>\nendobj\n"
+        . "11 0 obj\n[4 0 R /XYZ 36 700 0]\nendobj\n"
+        . "12 0 obj\n<< /S /JavaScript /JS (linkDownReview\\(\\)) >>\nendobj\n"
+        . "13 0 obj\n<< /Names [(named-review) 11 0 R] >>\nendobj\n"
+        . "%%EOF";
+};
+
+$destinationBoundaryPages = static function (): array {
+    return [
+        [
+            'pnum' => 0,
+            'blocks' => [[
+                'type' => 'Text',
+                'bbox' => [72.0, 700.0, 238.0, 718.0],
+                'lines' => [[
+                    'bbox' => [72.0, 700.0, 238.0, 718.0],
+                    'spans' => [
+                        ['text' => 'Review jump', 'bbox' => [72.0, 700.0, 155.0, 718.0], 'font' => 'Helvetica'],
+                        ['text' => ' docs link', 'bbox' => [160.0, 700.0, 238.0, 718.0], 'font' => 'Helvetica'],
+                    ],
+                ]],
+            ]],
+        ],
+        [
+            'pnum' => 1,
+            'blocks' => [[
+                'type' => 'Text',
+                'bbox' => [72.0, 700.0, 180.0, 718.0],
+                'lines' => [[
+                    'bbox' => [72.0, 700.0, 180.0, 718.0],
+                    'spans' => [
+                        ['text' => 'Destination page', 'bbox' => [72.0, 700.0, 180.0, 718.0], 'font' => 'Helvetica'],
+                    ],
+                ]],
+            ]],
+        ],
+    ];
+};
+
 return [
     'extracts page link URI annotations at the native PDF page boundary' => static function (TestRunner $t) use ($linkPdf): void {
         $links = (new PdfLinkAnnotationExtractor())->extractPageLinks($linkPdf());
@@ -69,7 +122,9 @@ return [
         $t->same(1, $links[1]['pnum']);
         $t->same('mailto:import@example.com', $links[1]['links'][0]['uri']);
         $t->same(1, count($links[0]['links']), 'non-link, unsafe, and unreferenced annotations are excluded.');
-        $t->same(1, count($links[1]['links']), 'GoTo destination annotations are excluded from URI links.');
+        $t->same(2, count($links[1]['links']), 'GoTo destination annotations are retained as review-only local link metadata.');
+        $t->same('local-destination', $links[1]['links'][1]['safety']);
+        $t->same(1, $links[1]['links'][1]['destination_page']);
     },
     'applies URI annotations only to overlapping supplied pdftext spans' => static function (TestRunner $t) use ($linkPdf, $suppliedPages): void {
         $pages = (new PdfLinkAnnotationExtractor())->applyLinksToPages($suppliedPages(), $linkPdf());
@@ -79,7 +134,7 @@ return [
         $t->true(!isset($pages[0]['blocks'][0]['lines'][0]['spans'][1]['link_uri']));
         $t->same('mailto:import@example.com', $pages[1]['blocks'][0]['lines'][0]['spans'][0]['link_uri']);
         $t->same(1, count($pages[0]['links']));
-        $t->same(1, count($pages[1]['links']));
+        $t->same(2, count($pages[1]['links']));
     },
     'renders linked spans as Markdown links before WordPress block conversion' => static function (TestRunner $t) use ($linkPdf, $suppliedPages): void {
         $linked = (new PdfLinkAnnotationExtractor())->applyLinksToPages($suppliedPages(), $linkPdf());
@@ -105,5 +160,46 @@ return [
         $linked = (new PdfLinkAnnotationExtractor())->applyLinksToPages($pages, $pdf);
 
         $t->same($pages, $linked);
+    },
+    'reviews link destinations and annotation additional actions without executing them' => static function (TestRunner $t) use ($destinationBoundaryPdf, $destinationBoundaryPages): void {
+        $extractor = new PdfLinkAnnotationExtractor();
+        $links = $extractor->extractPageLinks($destinationBoundaryPdf());
+
+        $t->same(2, count($links));
+        $t->same(2, count($links[0]['links']));
+        $t->same(1, count($links[1]['links']));
+
+        $local = $links[0]['links'][0];
+        $t->same('GoTo', $local['action_type']);
+        $t->same('local-destination', $local['safety']);
+        $t->same(1, $local['destination_page']);
+        $t->same('FitH', $local['view_mode']);
+        $t->same(['top' => 720.0], $local['view_parameters']);
+        $t->same(null, $local['uri']);
+        $t->same(false, $local['executes_on_import']);
+        $t->same(['E', 'D'], array_column($local['additional_actions'], 'event'));
+        $t->same(['review-uri', 'blocked-javascript'], array_column($local['additional_actions'], 'safety'));
+
+        $uri = $links[0]['links'][1];
+        $t->same('https://example.com/docs', $uri['uri']);
+        $t->same(['review-uri', 'local-destination'], array_column($uri['actions'], 'safety'));
+        $t->same(true, $uri['actions'][1]['chained']);
+        $t->same('named-review', $uri['actions'][1]['destination']);
+        $t->same('XYZ', $uri['actions'][1]['view_mode']);
+        $t->same(['left' => 36.0, 'top' => 700.0, 'zoom' => null], $uri['actions'][1]['view_parameters']);
+
+        $named = $links[1]['links'][0];
+        $t->same('named-review', $named['destination']);
+        $t->same(1, $named['destination_page']);
+        $t->same('XYZ', $named['view_mode']);
+
+        $pages = $extractor->applyLinksToPages($destinationBoundaryPages(), $destinationBoundaryPdf());
+        $t->same(1, $pages[0]['blocks'][0]['lines'][0]['spans'][0]['link_destination_page']);
+        $t->same('FitH', $pages[0]['blocks'][0]['lines'][0]['spans'][0]['link_view_mode']);
+        $t->true(!isset($pages[0]['blocks'][0]['lines'][0]['spans'][0]['link_uri']));
+        $t->same('https://example.com/docs', $pages[0]['blocks'][0]['lines'][0]['spans'][1]['link_uri']);
+        $t->same('named-review', $pages[0]['blocks'][0]['lines'][0]['spans'][1]['link_actions_review'][1]['destination']);
+        $t->same('named-review', $pages[1]['blocks'][0]['lines'][0]['spans'][0]['link_destination']);
+        $t->same(3, array_sum(array_map(static fn (array $page): int => count($page['links'] ?? []), $pages)), 'unreferenced stale destination annotation is excluded.');
     },
 ];

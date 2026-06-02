@@ -17,6 +17,7 @@ final class PdfMarkupAnnotationExtractor
     public function extractPageMarkups(string $pdfBytes): array
     {
         $objects = $this->pdfObjects($pdfBytes);
+        $actionReviewer = new PdfActionReviewExtractor($pdfBytes);
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
         $pages = [];
 
@@ -26,7 +27,7 @@ final class PdfMarkupAnnotationExtractor
             }
 
             $pageGeometry = $this->pageGeometry($pageObjectNumber, $objects);
-            $markups = $this->markupsFromPageObject($objects[$pageObjectNumber], $objects, $pageGeometry);
+            $markups = $this->markupsFromPageObject($objects[$pageObjectNumber], $objects, $pageGeometry, $actionReviewer);
             if ($markups === []) {
                 continue;
             }
@@ -139,6 +140,9 @@ final class PdfMarkupAnnotationExtractor
                     'border' => $markup['border'],
                     'border_style' => $markup['border_style'],
                     'popup' => $markup['popup'],
+                    'actions' => $markup['actions'],
+                    'additional_actions' => $markup['additional_actions'],
+                    'executes_actions_on_import' => $markup['executes_actions_on_import'],
                     'quad_index' => $candidate['index'],
                     'quad_rect' => $quadRect,
                     'quad_rect_coordinate_space' => $candidate['coordinate_space'],
@@ -157,13 +161,17 @@ final class PdfMarkupAnnotationExtractor
      * @param array{bbox: list<float>, rotation: int, display_bbox: list<float>} $pageGeometry
      * @return list<array<string, mixed>>
      */
-    private function markupsFromPageObject(string $pageBody, array $objects, array $pageGeometry): array
-    {
+    private function markupsFromPageObject(
+        string $pageBody,
+        array $objects,
+        array $pageGeometry,
+        PdfActionReviewExtractor $actionReviewer
+    ): array {
         $annotationBodies = $this->annotationBodiesForPage($pageBody, $objects);
         $markups = [];
 
         foreach ($annotationBodies as $annotation) {
-            $markup = $this->markupFromAnnotationBody($annotation['body'], $objects, $annotation['object'], $pageGeometry);
+            $markup = $this->markupFromAnnotationBody($annotation['body'], $objects, $annotation['object'], $pageGeometry, $actionReviewer);
             if ($markup !== null) {
                 $markups[] = $markup;
             }
@@ -177,8 +185,13 @@ final class PdfMarkupAnnotationExtractor
      * @param array<int, string> $objects
      * @param array{bbox: list<float>, rotation: int, display_bbox: list<float>} $pageGeometry
      */
-    private function markupFromAnnotationBody(string $annotationBody, array $objects, ?int $annotationObject, array $pageGeometry): ?array
-    {
+    private function markupFromAnnotationBody(
+        string $annotationBody,
+        array $objects,
+        ?int $annotationObject,
+        array $pageGeometry,
+        PdfActionReviewExtractor $actionReviewer
+    ): ?array {
         if (preg_match('/\/Subtype\s*\/(' . implode('|', self::TEXT_MARKUP_SUBTYPES) . ')\b/', $annotationBody, $match) !== 1) {
             return null;
         }
@@ -194,6 +207,8 @@ final class PdfMarkupAnnotationExtractor
         if ($rect === null) {
             return null;
         }
+
+        $actionReview = $actionReviewer->reviewAnnotationActions($annotationBody);
 
         return [
             'subtype' => $match[1],
@@ -216,6 +231,9 @@ final class PdfMarkupAnnotationExtractor
             'border_style' => $this->borderStyleFromAnnotation($annotationBody, $objects),
             'popup' => $this->popupFromAnnotation($annotationBody, $objects),
             'flags' => $this->integerAfterName($annotationBody, 'F'),
+            'actions' => $actionReview['actions'],
+            'additional_actions' => $actionReview['additional_actions'],
+            'executes_actions_on_import' => $actionReview['executes_actions_on_import'],
             'annotation_object' => $annotationObject,
         ];
     }
@@ -283,20 +301,49 @@ final class PdfMarkupAnnotationExtractor
         }
 
         $annotations = [];
-        foreach ($this->objectReferences($arrayBody) as $objectNumber) {
-            if (isset($objects[$objectNumber])) {
-                $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+        $offset = 0;
+        $length = strlen($arrayBody);
+
+        while ($offset < $length) {
+            $this->skipWhitespace($arrayBody, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (substr($arrayBody, $offset, 2) === '<<') {
+                $endOffset = null;
+                $dictionary = $this->readPdfDictionaryAt($arrayBody, $offset, $endOffset);
+                if ($dictionary === null || $endOffset === null) {
+                    $offset++;
+                    continue;
+                }
+
+                $annotations[] = ['body' => $dictionary, 'object' => null];
+                $offset = $endOffset;
+                continue;
+            }
+
+            if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $arrayBody, $match, 0, $offset) === 1) {
+                $objectNumber = (int) $match[1];
+                $dictionary = $this->dictionaryObjectBody($objects[$objectNumber] ?? '');
                 if ($dictionary !== null) {
                     $annotations[] = ['body' => $dictionary, 'object' => $objectNumber];
                 }
+                $offset += strlen($match[0]);
+                continue;
             }
-        }
 
-        foreach ($this->directDictionaries($arrayBody) as $dictionary) {
-            $annotations[] = ['body' => $dictionary, 'object' => null];
+            $offset++;
         }
 
         return $annotations;
+    }
+
+    private function skipWhitespace(string $value, int &$offset): void
+    {
+        while ($offset < strlen($value) && ctype_space($value[$offset])) {
+            $offset++;
+        }
     }
 
     /**
