@@ -9442,7 +9442,7 @@ final class PdfTextExtractor
                 }
             }
 
-            $previousOffset = $this->pdfIntegerValueAfterName($tableSection['trailer'], 'Prev');
+            $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $tableSection['trailer']);
             if ($previousOffset !== null && $previousOffset >= 0) {
                 $previous = $this->trailerEncryptValueFromOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
                 return $previous['parsed'] ? $previous : ['parsed' => true, 'value' => null];
@@ -9461,7 +9461,7 @@ final class PdfTextExtractor
             return ['parsed' => true, 'value' => $value];
         }
 
-        $previousOffset = $this->pdfIntegerValueAfterName($streamSection['body'], 'Prev');
+        $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $streamSection['body']);
         if ($previousOffset !== null && $previousOffset >= 0) {
             $previous = $this->trailerEncryptValueFromOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
             return $previous['parsed'] ? $previous : ['parsed' => true, 'value' => null];
@@ -10703,7 +10703,7 @@ final class PdfTextExtractor
                 }
             }
 
-            $previousOffset = $this->pdfIntegerValueAfterName($trailer, 'Prev');
+            $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $trailer);
             if ($previousOffset !== null && $previousOffset >= 0) {
                 $entries = array_merge(
                     $entries,
@@ -10725,7 +10725,7 @@ final class PdfTextExtractor
             return [];
         }
 
-        $previousOffset = $this->pdfIntegerValueAfterName($streamSection['body'], 'Prev');
+        $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $streamSection['body']);
         return $previousOffset === null || $previousOffset < 0
             ? []
             : $this->xrefHybridSuppressedObjectStreamEntriesFromOffsetChain(
@@ -10813,7 +10813,7 @@ final class PdfTextExtractor
                 }
             }
 
-            $previousOffset = $this->pdfIntegerValueAfterName($tableSection['trailer'], 'Prev');
+            $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $tableSection['trailer']);
             return $previousOffset === null
                 ? null
                 : $this->trailerRootReferenceFromOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
@@ -10829,7 +10829,7 @@ final class PdfTextExtractor
             return $root;
         }
 
-        $previousOffset = $this->pdfIntegerValueAfterName($streamSection['body'], 'Prev');
+        $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $streamSection['body']);
         return $previousOffset === null
             ? null
             : $this->trailerRootReferenceFromOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
@@ -10844,13 +10844,19 @@ final class PdfTextExtractor
             return null;
         }
 
+        $linearizedHintRanges = $this->linearizedHintTableRanges($pdfBytes);
         for ($index = count($matches) - 1; $index >= 0; $index--) {
             $match = $matches[$index];
             $tokenOffset = $match[0][1] ?? null;
             if (
-                $definitions !== null
-                && is_int($tokenOffset)
-                && $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
+                is_int($tokenOffset)
+                && (
+                    (
+                        $definitions !== null
+                        && $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
+                    )
+                    || $this->offsetInPdfByteRanges($tokenOffset, $linearizedHintRanges)
+                )
             ) {
                 continue;
             }
@@ -10859,6 +10865,18 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    private function previousXrefOffsetFromSectionBody(string $pdfBytes, string $sectionBody): ?int
+    {
+        $previousOffset = $this->pdfIntegerValueAfterName($sectionBody, 'Prev');
+        if ($previousOffset === null || $previousOffset < 0) {
+            return $previousOffset;
+        }
+
+        return $this->offsetInPdfByteRanges($previousOffset, $this->linearizedHintTableRanges($pdfBytes))
+            ? null
+            : $previousOffset;
     }
 
     /**
@@ -10889,7 +10907,7 @@ final class PdfTextExtractor
                 }
             }
 
-            $previousOffset = $this->pdfIntegerValueAfterName($trailer, 'Prev');
+            $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $trailer);
             if ($previousOffset !== null && $previousOffset >= 0) {
                 $previousEntries = $this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
                 foreach ($previousEntries as $objectNumber => $entry) {
@@ -10918,7 +10936,7 @@ final class PdfTextExtractor
         }
 
         $entries = $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions);
-        $previousOffset = $this->pdfIntegerValueAfterName($streamSection['body'], 'Prev');
+        $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $streamSection['body']);
         if ($previousOffset !== null && $previousOffset >= 0) {
             $previousEntries = $this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
             foreach ($previousEntries as $objectNumber => $entry) {
@@ -11053,7 +11071,7 @@ final class PdfTextExtractor
                 'source' => 'xref_table',
                 'offset' => $offset,
                 'entries' => $entries,
-                'previousOffset' => $this->pdfIntegerValueAfterName($trailer, 'Prev'),
+                'previousOffset' => $this->previousXrefOffsetFromSectionBody($pdfBytes, $trailer),
             ];
         }
 
@@ -11066,7 +11084,7 @@ final class PdfTextExtractor
             'source' => 'xref_stream',
             'offset' => $offset,
             'entries' => $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions),
-            'previousOffset' => $this->pdfIntegerValueAfterName($streamSection['body'], 'Prev'),
+            'previousOffset' => $this->previousXrefOffsetFromSectionBody($pdfBytes, $streamSection['body']),
         ];
     }
 

@@ -2163,6 +2163,7 @@ final class PdfImageRenderer
         }
 
         $alternate = $plan['alternate_color_space'];
+        $softMaskDecodeReview = $this->softMaskDecodeReviewMetadata($plan);
 
         if (!$imageStreamDecoded) {
             return [
@@ -2183,6 +2184,7 @@ final class PdfImageRenderer
                 'soft_mask' => $softMask,
                 'soft_mask_group' => $softMaskGroup,
                 'soft_mask_filter_boundary' => $plan['soft_mask_filter_boundary'],
+                'soft_mask_decode_review' => $softMaskDecodeReview,
                 'alternate_color_space' => is_array($alternate) ? ($alternate['alternate_color_space'] ?? null) : null,
                 'alternate_components' => is_array($alternate) ? ($alternate['alternate_components'] ?? null) : null,
                 'alternate_uses_icc_profile' => is_array($alternate) && ($alternate['alternate_uses_icc_profile'] ?? false) === true,
@@ -2252,6 +2254,7 @@ final class PdfImageRenderer
             'soft_mask' => $softMask,
             'soft_mask_group' => $softMaskGroup,
             'soft_mask_filter_boundary' => $plan['soft_mask_filter_boundary'],
+            'soft_mask_decode_review' => $softMaskDecodeReview,
             'alternate_color_space' => is_array($alternate) ? ($alternate['alternate_color_space'] ?? null) : null,
             'alternate_components' => is_array($alternate) ? ($alternate['alternate_components'] ?? null) : null,
             'alternate_uses_icc_profile' => is_array($alternate) && ($alternate['alternate_uses_icc_profile'] ?? false) === true,
@@ -4135,6 +4138,30 @@ final class PdfImageRenderer
             'component_count' => $componentCount,
             'expected_components' => $expectedComponents,
             'matches_image_components' => is_int($expectedComponents) && $componentCount === $expectedComponents,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $imagePlan
+     * @return array{present: bool, source_object: int|null, uses_current_object_map: bool|null, decoded_with_current_filters: bool|null, decode_source: string|null, opacity_for_zero: float|null, opacity_for_max: float|null, inverted: bool, component_mismatch: bool, applied_before_rgb: bool}
+     */
+    private function softMaskDecodeReviewMetadata(array $imagePlan): array
+    {
+        $softMask = is_array($imagePlan['soft_mask'] ?? null) ? $imagePlan['soft_mask'] : null;
+        $boundary = is_array($imagePlan['soft_mask_filter_boundary'] ?? null) ? $imagePlan['soft_mask_filter_boundary'] : null;
+        $decode = is_array($softMask['decode'] ?? null) ? $softMask['decode'] : null;
+
+        return [
+            'present' => $softMask !== null && ($softMask['present'] ?? false) === true,
+            'source_object' => $boundary['source_object'] ?? null,
+            'uses_current_object_map' => $boundary['uses_current_object_map'] ?? null,
+            'decoded_with_current_filters' => $boundary['decoded_with_current_filters'] ?? null,
+            'decode_source' => $decode['source'] ?? null,
+            'opacity_for_zero' => $softMask['opacity_for_zero'] ?? null,
+            'opacity_for_max' => $softMask['opacity_for_max'] ?? null,
+            'inverted' => ($softMask['decode_inverted'] ?? false) === true,
+            'component_mismatch' => ($softMask['decode_component_mismatch'] ?? false) === true,
+            'applied_before_rgb' => ($imagePlan['soft_mask_decode_applied_before_rgb'] ?? false) === true,
         ];
     }
 

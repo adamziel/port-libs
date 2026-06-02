@@ -230,6 +230,34 @@ $screenRenditionActionCurrentBasePdf = static function (): string {
         . "%%EOF";
 };
 
+$screenSelectorRenditionReviewCurrentBasePdf = static function (): string {
+    $pageContent = 'BT /F1 12 Tf 72 720 Td (Article Body) Tj ET';
+    $screenAppearance = 'BT /F1 12 Tf 0 0 Td (Selector Rendition Appearance Noise) Tj ET';
+    $primaryMediaBytes = "MP4 bytes with (Selector Primary Payload Leak) Tj ET";
+    $primaryChecksum = strtoupper(hash('md5', $primaryMediaBytes));
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 90 0 R >> >> /Annots [5 0 R] /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Annot /Subtype /Screen /Rect [72 500 360 650] /T (Selector rendition screen) /Contents (Selector rendition alternatives require review) /A 10 0 R /AP << /N 6 0 R >> >>\nendobj\n"
+        . "6 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 90 0 R >> >> /Length " . strlen($screenAppearance) . " >>\nstream\n{$screenAppearance}\nendstream\nendobj\n"
+        . "10 0 obj\n<< /S /Rendition /OP 0 /AN 5 0 R /R 20 0 R >>\nendobj\n"
+        . "20 0 obj\n<< /S /SR /N (Adaptive selector) /R [21 0 R 30 0 R] /MH 40 0 R /BE << /Lang (en-US) /V 0.5 /D [640 360] >> >>\nendobj\n"
+        . "21 0 obj\n<< /S /MR /N (Primary HD rendition) /C 22 0 R /MH << /Lang (en-US) /D [1920 1080] /C true >> >>\nendobj\n"
+        . "22 0 obj\n<< /S /MCD /N (Primary media clip) /D 23 0 R /CT (video/mp4) /Alt [(en-US) (HD training video)] >>\nendobj\n"
+        . "23 0 obj\n<< /Type /Filespec /F (hd-training.mp4) /Desc (Primary training clip) /AFRelationship /Data /EF << /F 24 0 R >> >>\nendobj\n"
+        . "24 0 obj\n<< /Type /EmbeddedFile /Subtype /video#2Fmp4 /Params << /Size " . strlen($primaryMediaBytes) . " /CheckSum <{$primaryChecksum}> /CreationDate (D:20260602211500Z) /ModDate (D:20260602211600Z) >> /Length " . strlen($primaryMediaBytes) . " >>\nstream\n{$primaryMediaBytes}\nendstream\nendobj\n"
+        . "30 0 obj\n<< /S /MR /N (Fallback caption rendition) /C 31 0 R /BE 32 0 R >>\nendobj\n"
+        . "31 0 obj\n<< /S /MCD /N (Fallback media clip) /D (fallback-captions.webm) /CT (video/webm) /Alt [(en-GB) (Captioned fallback)] >>\nendobj\n"
+        . "32 0 obj\n<< /Type /MediaCriteria /Lang (en-GB) /V 0.2 /D [640 360] /C false >>\nendobj\n"
+        . "40 0 obj\n<< /Type /MediaCriteria /A true /Lang (en-US) /P /Speaker >>\nendobj\n"
+        . "60 0 obj\n<< /Type /Filespec /F (stale-selector-media.mp4) >>\nendobj\n"
+        . "90 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 $richMediaEmbeddedActionMediaPdf = static function (): string {
     $pageContent = 'BT /F1 12 Tf 72 720 Td (Article Body) Tj ET';
     $appearanceText = 'BT /F1 12 Tf 0 0 Td (Embedded Action Appearance Noise) Tj ET';
@@ -797,6 +825,105 @@ return [
         $t->true(!str_contains($plainText, 'Current Rendition Appearance Noise'));
         $t->true(!str_contains($plainText, 'Current Rendition Payload Leak'));
         $t->true(!str_contains($plainText, 'player.playOrResume'));
+    },
+    'reviews screen selector rendition criteria alternatives and embedded media clips without execution' => static function (TestRunner $t) use ($screenSelectorRenditionReviewCurrentBasePdf): void {
+        $pdf = $screenSelectorRenditionReviewCurrentBasePdf();
+        $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($pdf);
+
+        $t->same(1, count($pages));
+        $t->same(0, $pages[0]['pnum']);
+        $t->same(3, $pages[0]['page_object']);
+        $t->same(1, count($pages[0]['annotations']));
+
+        $screen = $pages[0]['annotations'][0];
+        $t->same('Screen', $screen['subtype']);
+        $t->same(5, $screen['annotation_object']);
+        $t->same('Selector rendition screen', $screen['title']);
+        $t->same('Selector rendition alternatives require review', $screen['contents']);
+        $t->same(['Rendition'], $screen['action_types']);
+        $t->same(['hd-training.mp4', 'fallback-captions.webm'], $screen['file_names']);
+        $t->true(!in_array('stale-selector-media.mp4', $screen['file_names'], true));
+        $t->same(false, $screen['executes_media']);
+        $t->same(false, $screen['executes_javascript']);
+
+        $action = $screen['actions'][0];
+        $t->same('Rendition', $action['action_type']);
+        $t->same('media-rendition-review', $action['safety']);
+        $t->same(0, $action['operation']);
+        $t->same('play', $action['operation_label']);
+        $t->same(5, $action['target_annotation_object']);
+        $t->same(true, $action['target_annotation_is_page_annotation']);
+        $t->same(['hd-training.mp4', 'fallback-captions.webm'], $action['file_names']);
+
+        $selector = $action['rendition'];
+        $t->same(20, $selector['dictionary_object']);
+        $t->same('SR', $selector['subtype']);
+        $t->same('Adaptive selector', $selector['name']);
+        $t->same(['hd-training.mp4', 'fallback-captions.webm'], $selector['file_names']);
+        $t->same(40, $selector['must_honor']['dictionary_object']);
+        $t->same(['Type', 'A', 'Lang', 'P'], $selector['must_honor']['keys']);
+        $t->same(['Type' => 'MediaCriteria', 'P' => 'Speaker'], $selector['must_honor']['names']);
+        $t->same(['A' => true], $selector['must_honor']['booleans']);
+        $t->same(['Lang' => 'en-US'], $selector['must_honor']['strings']);
+        $t->same(null, $selector['best_effort']['dictionary_object']);
+        $t->same(['Lang' => 'en-US'], $selector['best_effort']['strings']);
+        $t->same(['V' => 0.5], $selector['best_effort']['numbers']);
+        $t->same(['D' => [640.0, 360.0]], $selector['best_effort']['number_arrays']);
+        $t->same(2, count($selector['renditions']));
+
+        $primary = $selector['renditions'][0];
+        $t->same(21, $primary['dictionary_object']);
+        $t->same('MR', $primary['subtype']);
+        $t->same('Primary HD rendition', $primary['name']);
+        $t->same(['hd-training.mp4'], $primary['file_names']);
+        $t->same(null, $primary['must_honor']['dictionary_object']);
+        $t->same(['Lang', 'D', 'C'], $primary['must_honor']['keys']);
+        $t->same(['Lang' => 'en-US'], $primary['must_honor']['strings']);
+        $t->same(['D' => [1920.0, 1080.0]], $primary['must_honor']['number_arrays']);
+        $t->same(['C' => true], $primary['must_honor']['booleans']);
+        $t->same(22, $primary['media_clip']['dictionary_object']);
+        $t->same('video/mp4', $primary['media_clip']['content_type']);
+        $t->same('hd-training.mp4', $primary['media_clip']['file']);
+        $t->same(['en-US', 'HD training video'], $primary['media_clip']['alternate_text']);
+        $t->same('hd-training.mp4', $primary['media_clip']['file_spec']['filename']);
+        $t->same('Primary training clip', $primary['media_clip']['file_spec']['description']);
+        $t->same('Data', $primary['media_clip']['file_spec']['relationship']);
+        $t->same(true, $primary['media_clip']['file_spec']['has_embedded_file']);
+        $t->same([24], $primary['media_clip']['file_spec']['embedded_file_objects']);
+        $t->same(['video/mp4'], $primary['media_clip']['file_spec']['mime_types']);
+        $primaryStream = $primary['media_clip']['file_spec']['embedded_file_streams'][0];
+        $primaryMediaBytes = "MP4 bytes with (Selector Primary Payload Leak) Tj ET";
+        $t->same(24, $primaryStream['object']);
+        $t->same('video/mp4', $primaryStream['mime_type']);
+        $t->same(strlen($primaryMediaBytes), $primaryStream['size']);
+        $t->same(hash('sha256', $primaryMediaBytes), $primaryStream['content_sha256']);
+        $t->same(hash('md5', $primaryMediaBytes), $primaryStream['checksum']);
+        $t->same(hash('md5', $primaryMediaBytes), $primaryStream['computed_checksum']);
+        $t->same(true, $primaryStream['checksum_matches']);
+        $t->same('D:20260602211500Z', $primaryStream['created_at']);
+        $t->same('D:20260602211600Z', $primaryStream['modified_at']);
+
+        $fallback = $selector['renditions'][1];
+        $t->same(30, $fallback['dictionary_object']);
+        $t->same('MR', $fallback['subtype']);
+        $t->same('Fallback caption rendition', $fallback['name']);
+        $t->same(['fallback-captions.webm'], $fallback['file_names']);
+        $t->same('video/webm', $fallback['media_clip']['content_type']);
+        $t->same('fallback-captions.webm', $fallback['media_clip']['file']);
+        $t->same(false, $fallback['media_clip']['file_spec']['has_embedded_file']);
+        $t->same(32, $fallback['best_effort']['dictionary_object']);
+        $t->same(['Type' => 'MediaCriteria'], $fallback['best_effort']['names']);
+        $t->same(['Lang' => 'en-GB'], $fallback['best_effort']['strings']);
+        $t->same(['V' => 0.2], $fallback['best_effort']['numbers']);
+        $t->same(['D' => [640.0, 360.0]], $fallback['best_effort']['number_arrays']);
+        $t->same(['C' => false], $fallback['best_effort']['booleans']);
+
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $t->same(['Article Body'], (new PdfTextExtractor())->extractTextLines($pdf));
+        $t->true(!str_contains($plainText, 'Selector Rendition Appearance Noise'));
+        $t->true(!str_contains($plainText, 'Selector Primary Payload Leak'));
+        $t->true(!str_contains($plainText, 'stale-selector-media.mp4'));
+        $t->true(!str_contains($plainText, 'HD training video'));
     },
     'reviews rich media execute target instances command arguments and embedded media without execution' => static function (TestRunner $t) use ($richMediaEmbeddedActionMediaPdf): void {
         $pages = (new PdfRichMediaAnnotationExtractor())->extractReviewAnnotations($richMediaEmbeddedActionMediaPdf());

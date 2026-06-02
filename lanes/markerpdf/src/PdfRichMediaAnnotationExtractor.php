@@ -245,7 +245,10 @@ final class PdfRichMediaAnnotationExtractor
             static fn (?string $value): bool => $value !== null && $value !== ''
         )));
         $assetNames = $this->assetNamesFromBodies($contextBodies);
-        $fileNames = $this->fileNamesFromBodies($contextBodies);
+        $fileNames = $this->dedupeStrings(array_merge(
+            $this->fileNamesFromBodies($contextBodies),
+            $this->fileNamesFromActionRows($actions)
+        ));
 
         return [
             'subtype' => $subtype,
@@ -810,7 +813,10 @@ final class PdfRichMediaAnnotationExtractor
                     [$rendition['body']],
                     $this->referencedDictionaryBodies($rendition['body'], $objects, 2)
                 ));
-                $row['file_names'] = $this->fileNamesFromBodies($bodies);
+                $row['file_names'] = $this->dedupeStrings(array_merge(
+                    $this->fileNamesFromBodies($bodies),
+                    $this->fileNamesFromRenditionDetails($row['rendition'])
+                ));
             } elseif (isset($row['operation']) && in_array($row['operation'], [1, 2, 3], true)) {
                 $row['rendition_scope'] = 'current-associated-rendition';
                 $row['uses_current_rendition'] = true;
@@ -1094,23 +1100,84 @@ final class PdfRichMediaAnnotationExtractor
      * @param array<int, string> $objects
      * @return array<string, mixed>
      */
-    private function renditionDetailsFromRecord(array $rendition, array $objects): array
+    private function renditionDetailsFromRecord(array $rendition, array $objects, int $depth = 2, array $seen = []): array
     {
+        $visitKey = $rendition['object'] === null
+            ? 'inline:' . hash('sha256', $rendition['body'])
+            : 'object:' . $rendition['object'];
+        $seen[$visitKey] = true;
         $bodies = $this->dedupeStrings(array_merge(
             [$rendition['body']],
             $this->referencedDictionaryBodies($rendition['body'], $objects, 2)
         ));
         $clip = $this->dictionaryFromTopLevelValue($rendition['body'], 'C', $objects);
+        $clipDetails = $clip === null ? null : $this->mediaClipDetailsFromRecord($clip, $objects);
+        $selectorRenditions = $this->renditionsFromSelectorValue(
+            $this->topLevelValueAfterName($rendition['body'], 'R'),
+            $objects,
+            $depth - 1,
+            $seen
+        );
 
-        return [
+        $details = [
             'dictionary_object' => $rendition['object'],
             'subtype' => $this->topLevelNameValueAfterName($rendition['body'], 'S'),
             'name' => $this->topLevelStringValueAfterName($rendition['body'], 'N', $objects),
             'file_names' => $this->fileNamesFromBodies($bodies),
-            'media_clip' => $clip === null ? null : $this->mediaClipDetailsFromRecord($clip, $objects),
+            'media_clip' => $clipDetails,
             'play_parameters' => $this->mediaParametersFromTopLevelValue($rendition['body'], 'P', $objects),
             'screen_parameters' => $this->mediaParametersFromTopLevelValue($rendition['body'], 'SP', $objects),
         ];
+
+        $mustHonor = $this->mediaReviewDictionaryFromTopLevel($rendition['body'], 'MH', $objects);
+        if ($mustHonor !== null) {
+            $details['must_honor'] = $mustHonor;
+        }
+
+        $bestEffort = $this->mediaReviewDictionaryFromTopLevel($rendition['body'], 'BE', $objects);
+        if ($bestEffort !== null) {
+            $details['best_effort'] = $bestEffort;
+        }
+
+        if ($selectorRenditions !== []) {
+            $details['renditions'] = $selectorRenditions;
+        }
+
+        $details['file_names'] = $this->fileNamesFromRenditionDetails($details);
+
+        return $details;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     * @return list<array<string, mixed>>
+     */
+    private function renditionsFromSelectorValue(?string $value, array $objects, int $depth, array $seen): array
+    {
+        if ($value === null || $depth < 0) {
+            return [];
+        }
+
+        $values = $this->arrayValuesFromPdfValue($value, $objects) ?? [$value];
+        $renditions = [];
+        foreach ($values as $item) {
+            $record = $this->resolvedDictionaryFromValue($item, $objects);
+            if ($record === null) {
+                continue;
+            }
+
+            $visitKey = $record['object'] === null
+                ? 'inline:' . hash('sha256', $record['body'])
+                : 'object:' . $record['object'];
+            if (isset($seen[$visitKey])) {
+                continue;
+            }
+
+            $renditions[] = $this->renditionDetailsFromRecord($record, $objects, $depth, $seen);
+        }
+
+        return $renditions;
     }
 
     /**
@@ -1233,7 +1300,7 @@ final class PdfRichMediaAnnotationExtractor
      */
     private function mediaClipDetailsFromRecord(array $clip, array $objects): array
     {
-        return [
+        $details = [
             'dictionary_object' => $clip['object'],
             'subtype' => $this->topLevelNameValueAfterName($clip['body'], 'S'),
             'name' => $this->topLevelStringValueAfterName($clip['body'], 'N', $objects),
@@ -1241,6 +1308,13 @@ final class PdfRichMediaAnnotationExtractor
             'file' => $this->fileSpecValueFromTopLevel($clip['body'], 'D', $objects),
             'alternate_text' => $this->stringArrayValueAfterName($clip['body'], 'Alt', $objects),
         ];
+
+        $fileSpec = $this->fileSpecDetailsFromTopLevel($clip['body'], 'D', $objects);
+        if ($fileSpec !== null) {
+            $details['file_spec'] = $fileSpec;
+        }
+
+        return $details;
     }
 
     /**
@@ -2193,6 +2267,75 @@ final class PdfRichMediaAnnotationExtractor
         foreach ($bodies as $body) {
             array_push($names, ...$this->stringsAfterName($body, 'F'));
             array_push($names, ...$this->stringsAfterName($body, 'UF'));
+        }
+
+        return $this->dedupeStrings($names);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @return list<string>
+     */
+    private function fileNamesFromActionRows(array $actions): array
+    {
+        $names = [];
+        foreach ($actions as $action) {
+            if (isset($action['file_names']) && is_array($action['file_names'])) {
+                foreach ($action['file_names'] as $fileName) {
+                    if (is_string($fileName) && $fileName !== '') {
+                        $names[] = $fileName;
+                    }
+                }
+            }
+
+            foreach (['file' => $action['file'] ?? null, 'attachment_file' => $action['attachment']['filename'] ?? null] as $fileName) {
+                if (is_string($fileName) && $fileName !== '') {
+                    $names[] = $fileName;
+                }
+            }
+
+            if (isset($action['rendition']) && is_array($action['rendition'])) {
+                array_push($names, ...$this->fileNamesFromRenditionDetails($action['rendition']));
+            }
+
+            if (isset($action['target_instance']['asset']['filename']) && is_string($action['target_instance']['asset']['filename'])) {
+                $names[] = $action['target_instance']['asset']['filename'];
+            }
+        }
+
+        return $this->dedupeStrings($names);
+    }
+
+    /**
+     * @param array<string, mixed> $rendition
+     * @return list<string>
+     */
+    private function fileNamesFromRenditionDetails(array $rendition): array
+    {
+        $names = [];
+        if (isset($rendition['file_names']) && is_array($rendition['file_names'])) {
+            foreach ($rendition['file_names'] as $fileName) {
+                if (is_string($fileName) && $fileName !== '') {
+                    $names[] = $fileName;
+                }
+            }
+        }
+
+        foreach ([
+            $rendition['media_clip']['file'] ?? null,
+            $rendition['media_clip']['file_spec']['filename'] ?? null,
+        ] as $fileName) {
+            if (is_string($fileName) && $fileName !== '') {
+                $names[] = $fileName;
+            }
+        }
+
+        if (isset($rendition['renditions']) && is_array($rendition['renditions'])) {
+            foreach ($rendition['renditions'] as $alternate) {
+                if (is_array($alternate)) {
+                    array_push($names, ...$this->fileNamesFromRenditionDetails($alternate));
+                }
+            }
         }
 
         return $this->dedupeStrings($names);

@@ -558,7 +558,7 @@ final class PdfMetadataExtractor
         }
 
         $metadata = [];
-        $language = $this->dictionaryStringValue($catalog, 'Lang');
+        $language = $this->dictionaryTopLevelStringValue($catalog, 'Lang', $objects);
         if ($language !== null) {
             $metadata['language'] = $language;
         }
@@ -567,7 +567,7 @@ final class PdfMetadataExtractor
             'PageLayout' => 'page_layout',
             'PageMode' => 'page_mode',
         ] as $pdfName => $key) {
-            $value = $this->dictionaryStringValue($catalog, $pdfName);
+            $value = $this->dictionaryTopLevelStringValue($catalog, $pdfName, $objects);
             if ($value !== null) {
                 $metadata[$key] = $value;
             }
@@ -985,6 +985,11 @@ final class PdfMetadataExtractor
             $file['output_intents_review'] = $outputIntentReview;
         }
 
+        $pieceInfo = $this->pieceInfoMetadata($this->dictionaryTopLevelRawValue($body, 'PieceInfo'), $objects);
+        if ($pieceInfo !== []) {
+            $file['piece_info'] = $pieceInfo;
+        }
+
         $relatedFiles = $this->relatedFileReviewRows($this->dictionaryTopLevelRawValue($body, 'RF'), $objects);
         if ($relatedFiles !== []) {
             $file['related_file_count'] = count($relatedFiles);
@@ -1279,7 +1284,7 @@ final class PdfMetadataExtractor
             $pageIndexes[$pageObjectNumber] = $pageIndex;
         }
 
-        $catalogLanguage = $this->dictionaryStringValue($catalog, 'Lang');
+        $catalogLanguage = $this->dictionaryTopLevelStringValue($catalog, 'Lang', $objects);
         $rootLanguage = $this->reviewStringFromRaw($this->dictionaryTopLevelRawValue($rootBody, 'Lang'), $objects)
             ?? $catalogLanguage;
 
@@ -2643,9 +2648,20 @@ final class PdfMetadataExtractor
                 $entry['last_modified'] = $lastModified;
             }
 
-            $private = $this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($piece['body'], 'Private'), $objects);
-            if ($private !== null && $private !== '' && (!is_array($private) || $private !== [])) {
-                $entry['private'] = $private;
+            $privateValue = $this->dictionaryTopLevelRawValue($piece['body'], 'Private');
+            $privateStream = $this->pieceInfoPrivateStreamReviewMetadata($privateValue, $objects);
+            if ($privateStream !== null && $this->pieceInfoPrivateStreamHasChecksumReview($privateStream)) {
+                $entry['private_stream'] = $privateStream;
+            } else {
+                $private = $this->reviewValueFromRaw($privateValue, $objects);
+                if ($private !== null && $private !== '' && (!is_array($private) || $private !== [])) {
+                    $entry['private'] = $private;
+                }
+            }
+
+            $privateStreams = $this->pieceInfoPrivateStreamReviewRows($privateValue, $objects);
+            if ($privateStreams !== []) {
+                $entry['private_streams'] = $privateStreams;
             }
 
             if ($entry !== []) {
@@ -2654,6 +2670,98 @@ final class PdfMetadataExtractor
         }
 
         return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function pieceInfoPrivateStreamReviewRows(?string $privateValue, array $objects): array
+    {
+        if ($privateValue === null) {
+            return [];
+        }
+
+        $stream = $this->pieceInfoPrivateStreamReviewMetadata($privateValue, $objects);
+        if ($stream !== null && $this->pieceInfoPrivateStreamHasChecksumReview($stream)) {
+            return [['key' => 'Private'] + $stream];
+        }
+
+        $private = $this->resolveDictionaryFromValue($privateValue, $objects);
+        if ($private === null) {
+            return [];
+        }
+
+        $rows = [];
+        foreach ($this->dictionaryTopLevelEntries($private['body']) as $key => $value) {
+            $stream = $this->pieceInfoPrivateStreamReviewMetadata($value, $objects);
+            if ($stream !== null && $this->pieceInfoPrivateStreamHasChecksumReview($stream)) {
+                $rows[] = ['key' => $key] + $stream;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function pieceInfoPrivateStreamReviewMetadata(?string $value, array $objects): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $objectNumber = $this->objectNumberFromReference($value);
+        $body = $objectNumber === null
+            ? trim($this->resolvePdfValue($value, $objects) ?? $value)
+            : ($objects[$objectNumber] ?? null);
+        if ($body === null || $body === '') {
+            return null;
+        }
+
+        $stream = $this->decodeStreamEntryObject($body, $objects);
+        if ($stream === null) {
+            return null;
+        }
+
+        $metadata = [
+            'object' => $objectNumber,
+            'size' => strlen($stream['content']),
+            'content_sha256' => hash('sha256', $stream['content']),
+        ];
+
+        $declaredLength = $this->dictionaryIntegerValue($stream['dictionary'], 'Length', $objects);
+        if ($declaredLength !== null) {
+            $metadata['declared_length'] = $declaredLength;
+        }
+
+        $mimeType = $this->dictionaryNameValue($stream['dictionary'], 'Subtype', $objects);
+        if ($mimeType !== null && $mimeType !== '') {
+            $metadata['mime_type'] = $mimeType;
+        }
+
+        $filters = $this->streamFilters($stream['dictionary'], $objects);
+        if ($filters !== []) {
+            $metadata['filters'] = $filters;
+        }
+
+        foreach ($this->embeddedFileParamsMetadata($stream['dictionary'], $objects, $stream['content']) as $key => $metadataValue) {
+            $metadata[$key] = $metadataValue;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, mixed> $stream
+     */
+    private function pieceInfoPrivateStreamHasChecksumReview(array $stream): bool
+    {
+        return array_key_exists('checksum', $stream)
+            || array_key_exists('computed_checksum', $stream)
+            || array_key_exists('checksum_matches', $stream);
     }
 
     /**
@@ -5947,6 +6055,15 @@ final class PdfMetadataExtractor
             $sources[] = 'filespec_pieceinfo_metadata_stream';
         }
 
+        $pieceInfoPrivateStreams = $this->associatedFilePieceInfoPrivateStreamProvenance(
+            $this->dictionaryTopLevelRawValue($fileSpecBody, 'PieceInfo'),
+            $objects
+        );
+        if ($pieceInfoPrivateStreams !== []) {
+            $metadata['piece_info_private_streams'] = $pieceInfoPrivateStreams;
+            $sources[] = 'filespec_pieceinfo_private_streams';
+        }
+
         $outputIntents = $this->associatedFileOutputIntentProvenance(
             $this->dictionaryTopLevelRawValue($fileSpecBody, 'OutputIntents'),
             $objects
@@ -6187,6 +6304,59 @@ final class PdfMetadataExtractor
                 $rows
             )),
             'metadata_streams' => $rows,
+        ];
+    }
+
+    /**
+     * FileSpec /PieceInfo private streams can carry producer-specific
+     * attachment state. Hash and checksum-review those streams without
+     * surfacing their bytes in document metadata or visible text.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function associatedFilePieceInfoPrivateStreamProvenance(?string $pieceInfoValue, array $objects): array
+    {
+        $pieceInfo = $this->resolveDictionaryFromValue($pieceInfoValue, $objects);
+        if ($pieceInfo === null) {
+            return [];
+        }
+
+        $rows = [];
+        foreach ($this->dictionaryTopLevelEntries($pieceInfo['body']) as $application => $pieceValue) {
+            $piece = $this->resolveDictionaryFromValue($pieceValue, $objects);
+            if ($piece === null) {
+                continue;
+            }
+
+            $lastModified = $this->reviewStringFromRaw($this->dictionaryTopLevelRawValue($piece['body'], 'LastModified'), $objects);
+            foreach ($this->pieceInfoPrivateStreamReviewRows($this->dictionaryTopLevelRawValue($piece['body'], 'Private'), $objects) as $stream) {
+                $row = [
+                    'application' => $application,
+                ] + $stream;
+
+                if ($lastModified !== null) {
+                    $row['last_modified'] = $lastModified;
+                }
+
+                $rows[] = $row;
+            }
+        }
+
+        if ($rows === []) {
+            return [];
+        }
+
+        return [
+            'source' => 'filespec_pieceinfo_private_streams',
+            'review_only' => true,
+            'payload_included' => false,
+            'count' => count($rows),
+            'applications' => $this->uniqueStrings(array_map(
+                static fn (array $row): string => (string) $row['application'],
+                $rows
+            )),
+            'streams' => $rows,
         ];
     }
 
@@ -6608,7 +6778,7 @@ final class PdfMetadataExtractor
      */
     private function viewerPreferencesDictionary(string $catalog, array $objects): ?string
     {
-        $value = $this->dictionaryRawValue($catalog, 'ViewerPreferences');
+        $value = $this->dictionaryTopLevelRawValue($catalog, 'ViewerPreferences');
         if ($value === null) {
             return null;
         }
@@ -7111,7 +7281,7 @@ final class PdfMetadataExtractor
      */
     private function resolvedDictionaryRawValue(string $dictionary, string $key, ?array $objects): ?string
     {
-        $value = $this->dictionaryRawValue($dictionary, $key);
+        $value = $this->dictionaryTopLevelRawValue($dictionary, $key);
         if ($value === null || $objects === null) {
             return $value;
         }
@@ -7156,6 +7326,14 @@ final class PdfMetadataExtractor
     {
         $offset = strpos($objectBody, '<<');
         return $offset === false ? null : $this->readPdfDictionaryAt($objectBody, $offset);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function dictionaryTopLevelStringValue(string $dictionary, string $key, array $objects): ?string
+    {
+        return $this->reviewStringFromRaw($this->dictionaryTopLevelRawValue($dictionary, $key), $objects);
     }
 
     private function readPdfDictionaryAt(string $value, int $offset): ?string

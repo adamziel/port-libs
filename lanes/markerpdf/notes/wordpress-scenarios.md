@@ -398,6 +398,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-table-ocr-rowspan-caption-accessibility-currentbase.php` maps a forced-OCR rowspanned table with surrounding section and caption blocks into WordPress table HTML. It emits stable `id`, `aria-describedby`, `aria-labelledby`, `<caption id>`, row/column header IDs, and body-cell `headers` attributes while proving stale pdftext table lines stay excluded without Python, tabled-pdf execution, models, OCR engines, or external PDF tools.
 
+`examples/wordpress-pdf-metadata-trailer-id-lang-viewer-preference-currentbase.php` maps a current xref-stream trailer `/ID` plus top-level catalog `/Lang`, `/PageLayout`, `/PageMode`, and indirect `/ViewerPreferences` into WordPress review metadata. It proves nested catalog review dictionaries and stale appended objects cannot override the document language, viewer preferences, fingerprint source, or visible Gutenberg paragraph without Python, pdftext, pypdfium, Poppler, Ghostscript, models, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
