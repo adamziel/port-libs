@@ -1256,6 +1256,125 @@ return [
             )
         );
     },
+    'maps decoded Indexed image stream rows and keeps JPX soft-mask streams review-only before RGB preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $imageBytes = "\x1c";
+        $maskBytes = "\x00\x80\xff";
+        $compressedImage = gzcompress($imageBytes);
+        $compressedMask = gzcompress($maskBytes);
+        if (!is_string($compressedImage) || !is_string($compressedMask)) {
+            throw new RuntimeException('Unable to compress Indexed stream fixtures.');
+        }
+
+        $palette = '<000000FF000000FF000000FF>';
+        $maskHex = strtoupper(bin2hex($compressedMask)) . '>';
+        $objects = [
+            81 => $palette,
+            82 => "<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter [/ASCIIHexDecode /FlateDecode] /Decode [1 0] /Length " . strlen($maskHex) . " >>\nstream\n{$maskHex}\nendstream",
+        ];
+
+        $imageObject = "<< /Subtype /Image /Width 3 /Height 1 /ColorSpace [/Indexed /DeviceRGB 3 81 0 R] /BitsPerComponent 2 /Filter /FlateDecode /SMask 82 0 R /Length " . strlen($compressedImage) . " >>\nstream\n{$compressedImage}\nendstream";
+        $preview = $renderer->indexedImageStreamPreviewRows($imageObject, $objects, 3);
+
+        $t->same('Indexed', $preview['source_color_space']);
+        $t->same(3, $preview['width']);
+        $t->same(1, $preview['height']);
+        $t->same(1, $preview['components_per_pixel']);
+        $t->same(2, $preview['bits_per_component']);
+        $t->same(3, $preview['expected_pixel_count']);
+        $t->same(3, $preview['preview_pixel_count']);
+        $t->same(false, $preview['review_only_image_stream']);
+        $t->same(true, $preview['complete_image_sample_data']);
+        $t->same(true, $preview['complete_soft_mask_sample_data']);
+        $t->same([
+            'filters' => ['FlateDecode'],
+            'preview_only_filters' => [],
+            'unsupported_filters' => [],
+            'raw_length' => strlen($compressedImage),
+            'decoded_length' => 1,
+            'decoded_sha256' => hash('sha256', $imageBytes),
+            'decoded_preview_hex' => '1C',
+            'decoded_with_current_filters' => true,
+            'decode_failed' => false,
+        ], $preview['image_stream']);
+        $t->same([
+            'filters' => ['ASCIIHexDecode', 'FlateDecode'],
+            'preview_only_filters' => [],
+            'unsupported_filters' => [],
+            'raw_length' => strlen($maskHex),
+            'decoded_length' => 3,
+            'decoded_sha256' => hash('sha256', $maskBytes),
+            'decoded_preview_hex' => '0080FF',
+            'decoded_with_current_filters' => true,
+            'decode_failed' => false,
+        ], $preview['soft_mask_stream']);
+        $t->same([
+            'indexed_image_stream_filters_decoded_before_rgb_conversion',
+            'soft_mask_stream_filters_decoded_before_rgb_conversion',
+        ], $preview['stream_notes']);
+
+        $first = $preview['pixels'][0];
+        $t->same(0, $first['pixel_index']);
+        $t->same(0, $first['x']);
+        $t->same(0, $first['y']);
+        $t->same(0.0, $first['raw_sample']);
+        $t->same(0, $first['palette_index']);
+        $t->same(false, $first['clamped_to_hival']);
+        $t->same([0.0, 0.0, 0.0], $first['base_components']);
+        $t->same(0.0, $first['soft_mask_sample']);
+        $t->same(1.0, $first['soft_mask_alpha']);
+
+        $second = $preview['pixels'][1];
+        $t->same(1.0, $second['raw_sample']);
+        $t->same(1.0, $second['decoded_index']);
+        $t->same(1, $second['palette_index']);
+        $t->same([1.0, 0.0, 0.0], $second['base_components']);
+        $t->same(128.0, $second['soft_mask_sample']);
+        $t->true(abs((float) $second['soft_mask_alpha'] - (1.0 - (128 / 255))) < 0.000001);
+
+        $third = $preview['pixels'][2];
+        $t->same(3.0, $third['raw_sample']);
+        $t->same(3, $third['palette_index']);
+        $t->same([0.0, 0.0, 1.0], $third['base_components']);
+        $t->same(255.0, $third['soft_mask_sample']);
+        $t->same(0.0, $third['soft_mask_alpha']);
+
+        $jpxPayload = "\xff\x4fJPX indexed bytes with palette samples hidden from native PHP\xff\xd9";
+        $jpxObject = "<< /Subtype /Image /Filter /JPXDecode /Width 3 /Height 1 /ColorSpace [/Indexed /DeviceRGB 3 81 0 R] /BitsPerComponent 2 /Decode [0 3] /SMask 82 0 R /Length " . strlen($jpxPayload) . " >>\nstream\n{$jpxPayload}\nendstream";
+        $reviewOnly = $renderer->indexedImageStreamPreviewRows($jpxObject, $objects, 3);
+
+        $t->same(true, $reviewOnly['review_only_image_stream']);
+        $t->same(0, $reviewOnly['preview_pixel_count']);
+        $t->same(false, $reviewOnly['complete_image_sample_data']);
+        $t->same(true, $reviewOnly['complete_soft_mask_sample_data']);
+        $t->same([
+            'filters' => ['JPXDecode'],
+            'preview_only_filters' => ['JPXDecode'],
+            'unsupported_filters' => ['JPXDecode'],
+            'raw_length' => strlen($jpxPayload),
+            'decoded_length' => null,
+            'decoded_sha256' => null,
+            'decoded_preview_hex' => null,
+            'decoded_with_current_filters' => false,
+            'decode_failed' => false,
+        ], $reviewOnly['image_stream']);
+        $t->same([], $reviewOnly['pixels']);
+        $t->same('explicit', $reviewOnly['image_decode']['source']);
+        $t->same(3, $reviewOnly['indexed_color_space']['high_value']);
+        $t->same([
+            'indexed_image_stream_preview_only_before_rgb_conversion',
+            'soft_mask_stream_filters_decoded_before_rgb_conversion',
+        ], $reviewOnly['stream_notes']);
+        $t->contains('jpx_image_filter_review_only', implode(',', $reviewOnly['notes']));
+        $t->contains('soft_mask_stream_filters_decoded_before_rgb_conversion', implode(',', $reviewOnly['notes']));
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->indexedImageStreamPreviewRows(
+                "<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Length 1 >>\nstream\nX\nendstream",
+                $objects
+            )
+        );
+    },
     'maps calibrated image color spaces and soft-mask alpha before RGB preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $objects = [

@@ -1279,6 +1279,161 @@ return [
         $t->true(!str_contains($text, 'Stale Associated Metadata Body'));
         $t->true(!str_contains($text, '<wp-export>'));
     },
+    'reviews current xref-selected catalog associated FileSpec PieceInfo metadata and OutputIntent provenance' => static function (TestRunner $t) use ($xmpPacket): void {
+        $rootProfile = 'Current PieceInfo root ICC bytes';
+        $associatedProfile = 'Current PieceInfo associated ICC bytes';
+        $sourcePayload = '<wp-export><post id="181449"/></wp-export>';
+        $privatePayload = 'BT /F1 12 Tf 72 720 Td (PieceInfo Metadata Private Leak) Tj ET';
+        $staleRootProfile = 'Stale PieceInfo root ICC bytes';
+        $staleAssociatedProfile = 'Stale PieceInfo associated ICC bytes';
+        $staleSourcePayload = '<wp-export><post id="stale-pieceinfo"/></wp-export>';
+        $stalePrivatePayload = 'BT /F1 12 Tf 72 720 Td (Stale PieceInfo Private Leak) Tj ET';
+        $sourceChecksum = strtoupper(hash('md5', $sourcePayload));
+
+        $fileXmp = gzcompress($xmpPacket([
+            'title' => 'Current PieceInfo Associated XMP Title',
+            'description' => 'Current FileSpec-local XMP stays review-only',
+        ]));
+        $privateXmp = gzcompress($xmpPacket([
+            'title' => 'Current PieceInfo Private XMP Title',
+            'description' => 'Current application-private XMP stays review-only',
+        ]));
+        $rootProfileStream = gzcompress($rootProfile);
+        $associatedProfileStream = gzcompress($associatedProfile);
+        $privateStream = gzcompress($privatePayload);
+        $staleFileXmp = gzcompress($xmpPacket([
+            'title' => 'Stale PieceInfo Associated XMP Title',
+            'description' => 'Stale FileSpec XMP must not win',
+        ]));
+        $stalePrivateXmp = gzcompress($xmpPacket([
+            'title' => 'Stale PieceInfo Private XMP Title',
+            'description' => 'Stale application-private XMP must not win',
+        ]));
+        $staleRootProfileStream = gzcompress($staleRootProfile);
+        $staleAssociatedProfileStream = gzcompress($staleAssociatedProfile);
+        $stalePrivateStream = gzcompress($stalePrivatePayload);
+        if (
+            !is_string($fileXmp)
+            || !is_string($privateXmp)
+            || !is_string($rootProfileStream)
+            || !is_string($associatedProfileStream)
+            || !is_string($privateStream)
+            || !is_string($staleFileXmp)
+            || !is_string($stalePrivateXmp)
+            || !is_string($staleRootProfileStream)
+            || !is_string($staleAssociatedProfileStream)
+            || !is_string($stalePrivateStream)
+        ) {
+            throw new RuntimeException('Unable to compress current-base PieceInfo metadata fixture streams.');
+        }
+
+        $content = 'BT /F1 12 Tf 72 720 Td (Current PieceInfo Associated Body) Tj ET';
+        $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale PieceInfo Associated Body) Tj ET';
+        $pdf = "%PDF-2.0\n";
+        $offsets = [];
+        $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): void {
+            $offsets[$objectNumber] = strlen($pdf);
+            $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+        };
+
+        $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /OutputIntents [9 0 R] /AF [10 0 R] >>');
+        $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+        $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>');
+        $addObject(4, 0, "<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream");
+        $addObject(5, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($fileXmp) . " >>\nstream\n{$fileXmp}\nendstream");
+        $addObject(6, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($privateXmp) . " >>\nstream\n{$privateXmp}\nendstream");
+        $addObject(7, 0, '<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length ' . strlen($rootProfileStream) . " >>\nstream\n{$rootProfileStream}\nendstream");
+        $addObject(8, 0, '<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length ' . strlen($associatedProfileStream) . " >>\nstream\n{$associatedProfileStream}\nendstream");
+        $addObject(9, 0, '<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Current PieceInfo Root sRGB) /Info (Current root PDF/A profile) /DestOutputProfile 7 0 R >>');
+        $addObject(10, 0, '<< /Type /Filespec /F (legacy-piece-source.xml) /UF (piece-source.xml) /Desc (Current PieceInfo WordPress source) /AFRelationship /Source /Lang (en-US) /Metadata 5 0 R /OutputIntents [13 0 R] /PieceInfo << /WPImport << /LastModified (D:20260602181449Z) /Private << /ManifestId (piece-181449) /Metadata 6 0 R /OutputIntents [13 0 R] /PrivateStream 16 0 R >> >> >> /EF << /F 11 0 R >> >>');
+        $addObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size ' . strlen($sourcePayload) . ' /CheckSum <' . $sourceChecksum . "> /ModDate (D:20260602181500Z) >> /Length " . strlen($sourcePayload) . " >>\nstream\n{$sourcePayload}\nendstream");
+        $addObject(13, 0, '<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Current PieceInfo Associated sRGB) /Info (Current associated PDF/A profile) /DestOutputProfile 8 0 R >>');
+        $addObject(16, 0, '<< /Type /Metadata /Subtype /text#2Fplain /Filter /FlateDecode /Length ' . strlen($privateStream) . " >>\nstream\n{$privateStream}\nendstream");
+
+        $xrefOffset = strlen($pdf);
+        $rows = '';
+        for ($objectNumber = 0; $objectNumber < 18; $objectNumber++) {
+            if ($objectNumber === 0 || (!isset($offsets[$objectNumber]) && $objectNumber !== 17)) {
+                $rows .= pack('CNn', 0, 0, $objectNumber === 0 ? 65535 : 0);
+                continue;
+            }
+
+            $rows .= pack('CNn', 1, $objectNumber === 17 ? $xrefOffset : $offsets[$objectNumber], 0);
+        }
+        $compressedXref = gzcompress($rows);
+        if (!is_string($compressedXref)) {
+            throw new RuntimeException('Unable to compress current-base PieceInfo xref stream.');
+        }
+
+        $pdf .= "17 0 obj\n"
+            . '<< /Type /XRef /Size 18 /Root 1 0 R /W [1 4 2] /Filter /FlateDecode /Length ' . strlen($compressedXref) . " >>\n"
+            . "stream\n{$compressedXref}\nendstream\nendobj\n"
+            . "startxref\n{$xrefOffset}\n%%EOF\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /OutputIntents [9 0 R] /AF [10 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($staleFileXmp) . " >>\nstream\n{$staleFileXmp}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($stalePrivateXmp) . " >>\nstream\n{$stalePrivateXmp}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($staleRootProfileStream) . " >>\nstream\n{$staleRootProfileStream}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /N 3 /Alternate /DeviceRGB /Filter /FlateDecode /Length " . strlen($staleAssociatedProfileStream) . " >>\nstream\n{$staleAssociatedProfileStream}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Stale PieceInfo Root sRGB) /Info (Stale root PDF/A profile) /DestOutputProfile 7 0 R >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (stale-piece-source.xml) /Desc (Stale PieceInfo source) /AFRelationship /Source /Metadata 5 0 R /OutputIntents [13 0 R] /PieceInfo << /WPImport << /LastModified (D:20260602190000Z) /Private << /ManifestId (stale-piece) /Metadata 6 0 R /OutputIntents [13 0 R] /PrivateStream 16 0 R >> >> >> /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length " . strlen($staleSourcePayload) . " >>\nstream\n{$staleSourcePayload}\nendstream\nendobj\n"
+            . "13 0 obj\n<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (Stale PieceInfo Associated sRGB) /Info (Stale associated PDF/A profile) /DestOutputProfile 8 0 R >>\nendobj\n"
+            . "16 0 obj\n<< /Type /Metadata /Subtype /text#2Fplain /Filter /FlateDecode /Length " . strlen($stalePrivateStream) . " >>\nstream\n{$stalePrivateStream}\nendstream\nendobj\n";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $text = (new PdfTextExtractor())->extractPlainText($pdf);
+        $associatedFiles = $metadata['associated_files'] ?? [];
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['catalog', 'output_intents'], $metadata['source']);
+        $t->same('en-US', $metadata['language']);
+        $t->same(['Current PieceInfo Root sRGB'], $metadata['pdfa']['output_condition_identifiers']);
+        $t->same([hash('sha256', $rootProfile)], $metadata['pdfa']['profile_sha256']);
+        $t->same(1, count($associatedFiles));
+
+        $file = $associatedFiles[0];
+        $t->same('catalog_associated_files', $file['source']);
+        $t->same('piece-source.xml', $file['filename']);
+        $t->same('legacy-piece-source.xml', $file['platform_filename']);
+        $t->same('Current PieceInfo WordPress source', $file['description']);
+        $t->same('Source', $file['relationship']);
+        $t->same('text/xml', $file['mime_type']);
+        $t->same(true, $file['checksum_matches']);
+        $t->same(hash('sha256', $sourcePayload), $file['content_sha256']);
+        $t->same('Current PieceInfo Associated sRGB', $file['output_intents_review'][0]['OutputConditionIdentifier']);
+        $t->same('D:20260602181449Z', $file['piece_info']['WPImport']['last_modified']);
+        $t->same('piece-181449', $file['piece_info']['WPImport']['private']['ManifestId']);
+        $t->same('Metadata', $file['piece_info']['WPImport']['private']['Metadata']['Type']);
+        $t->same('Current PieceInfo Associated sRGB', $file['piece_info']['WPImport']['private']['OutputIntents'][0]['OutputConditionIdentifier']);
+        $t->same('Metadata', $file['piece_info']['WPImport']['private']['PrivateStream']['Type']);
+
+        $provenance = $file['provenance_review'];
+        $t->same(['filespec_afrelationship', 'embedded_file_payload_hash', 'embedded_file_params_checksum', 'filespec_metadata_stream', 'filespec_output_intents'], $provenance['sources']);
+        $t->same('original_source', $provenance['relationship_role']);
+        $t->same(false, $provenance['payload_included']);
+        $t->same('piece-source.xml', $provenance['payload']['filename']);
+        $t->same(true, $provenance['payload']['size_matches_declared']);
+        $t->same(5, $provenance['xmp_metadata']['object_number']);
+        $t->same(hash('sha256', gzuncompress($fileXmp) ?: ''), $provenance['xmp_metadata']['sha256']);
+        $t->same(['Current PieceInfo Associated sRGB'], $provenance['pdfa_output_intents']['output_condition_identifiers']);
+        $t->same([hash('sha256', $associatedProfile)], $provenance['pdfa_output_intents']['profile_sha256']);
+        $t->true(!array_key_exists('content', $file));
+
+        $t->same('Current PieceInfo Associated Body', $text);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Current PieceInfo Associated XMP Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Current PieceInfo Private XMP Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, $sourcePayload));
+        $t->true(is_string($encoded) && !str_contains($encoded, $privatePayload));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Stale PieceInfo'));
+        $t->true(is_string($encoded) && !str_contains($encoded, $staleSourcePayload));
+        $t->true(is_string($encoded) && !str_contains($encoded, $stalePrivatePayload));
+        $t->true(is_string($encoded) && !str_contains($encoded, $staleRootProfile));
+        $t->true(is_string($encoded) && !str_contains($encoded, $staleAssociatedProfile));
+        $t->true(!str_contains($text, 'Stale PieceInfo Associated Body'));
+        $t->true(!str_contains($text, '<wp-export>'));
+        $t->true(!str_contains($text, 'PieceInfo Metadata Private Leak'));
+    },
     'extracts catalog language and indirect viewer preferences for WordPress review' => static function (TestRunner $t) use ($pdfWithCatalogReview): void {
         $lang = strtoupper(bin2hex("\xfe\xff\x00e\x00s\x00-\x00M\x00X"));
         $viewerPreferences = "7 0 obj\n"

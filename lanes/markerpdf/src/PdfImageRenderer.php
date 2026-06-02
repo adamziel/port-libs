@@ -844,6 +844,163 @@ final class PdfImageRenderer
     }
 
     /**
+     * Decodes bounded Indexed image stream rows when the filter chain is native,
+     * while keeping JPX/JBIG2/CCITT raster streams as review-only boundaries.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    public function indexedImageStreamPreviewRows(string $imageObject, array $objects = [], int $maxPixels = 16): array
+    {
+        if ($maxPixels < 1) {
+            throw new InvalidArgumentException('Indexed image stream preview requires at least one preview pixel.');
+        }
+
+        $dictionary = $this->streamDictionaryFromValue($imageObject) ?? trim($imageObject);
+        $plan = $this->imageColorSpaceSoftMaskPlan($dictionary, $objects);
+        if (($plan['uses_indexed_color_space'] ?? false) !== true) {
+            throw new InvalidArgumentException('Indexed image stream preview requires an Indexed color-space image.');
+        }
+
+        $width = $this->integerNameValue($dictionary, 'Width');
+        $height = $this->integerNameValue($dictionary, 'Height');
+        $bitsPerComponent = max(1, (int) ($plan['bits_per_component'] ?? 8));
+        if (!is_int($width) || !is_int($height) || $width < 1 || $height < 1) {
+            throw new InvalidArgumentException('Indexed image stream preview requires positive image Width and Height.');
+        }
+
+        $expectedPixelCount = $width * $height;
+        $imageStream = $this->decodedImageStreamPreviewBoundary($dictionary, $imageObject, $objects);
+        $imageStreamMeta = $this->streamBoundaryPublicMetadata($imageStream);
+
+        $softMaskStream = null;
+        $softMaskStreamMeta = null;
+        $softMaskSamples = null;
+        $softMask = $plan['soft_mask'] ?? null;
+        $softMaskPresent = is_array($softMask) && ($softMask['present'] ?? false) === true;
+        if ($softMaskPresent) {
+            if (($plan['soft_mask_applied_before_rgb'] ?? false) !== true) {
+                throw new InvalidArgumentException('Indexed image stream preview requires a grayscale soft-mask image.');
+            }
+            if (is_int($softMask['width'] ?? null) && $softMask['width'] !== $width) {
+                throw new InvalidArgumentException('Indexed soft-mask width must match the image width.');
+            }
+            if (is_int($softMask['height'] ?? null) && $softMask['height'] !== $height) {
+                throw new InvalidArgumentException('Indexed soft-mask height must match the image height.');
+            }
+
+            $softMaskStream = $this->decodedSoftMaskStreamPreviewBoundary($dictionary, $objects);
+            $softMaskStreamMeta = is_array($softMaskStream) ? $this->streamBoundaryPublicMetadata($softMaskStream) : null;
+            if (is_array($softMaskStream) && ($softMaskStream['decoded_with_current_filters'] ?? false) === true && is_string($softMaskStream['decoded_bytes'] ?? null)) {
+                $softMaskSamples = $this->packedImagePixelSamples(
+                    $softMaskStream['decoded_bytes'],
+                    1,
+                    max(1, (int) ($softMask['bits_per_component'] ?? 8)),
+                    $expectedPixelCount
+                );
+            }
+        }
+
+        $streamNotes = [
+            $imageStreamMeta['filters'] === []
+                ? 'indexed_image_stream_unfiltered_samples_before_rgb_conversion'
+                : 'indexed_image_stream_filters_decoded_before_rgb_conversion',
+        ];
+        if (!$imageStreamMeta['decoded_with_current_filters'] && $imageStreamMeta['preview_only_filters'] !== []) {
+            $streamNotes[0] = 'indexed_image_stream_preview_only_before_rgb_conversion';
+        }
+        if ($softMaskStreamMeta !== null) {
+            $streamNotes[] = $softMaskStreamMeta['filters'] === []
+                ? 'soft_mask_stream_unfiltered_samples_before_rgb_conversion'
+                : 'soft_mask_stream_filters_decoded_before_rgb_conversion';
+        }
+
+        if (($imageStream['decoded_with_current_filters'] ?? false) !== true || !is_string($imageStream['decoded_bytes'] ?? null)) {
+            if ($imageStreamMeta['preview_only_filters'] === []) {
+                throw new InvalidArgumentException('Indexed image stream filters must be natively decoded before sample preview.');
+            }
+
+            return [
+                'source_color_space' => (string) $plan['source_color_space'],
+                'width' => $width,
+                'height' => $height,
+                'components_per_pixel' => 1,
+                'bits_per_component' => $bitsPerComponent,
+                'expected_pixel_count' => $expectedPixelCount,
+                'preview_pixel_count' => 0,
+                'review_only_image_stream' => true,
+                'complete_image_sample_data' => false,
+                'complete_soft_mask_sample_data' => $softMaskSamples === null ? null : $softMaskSamples['complete'],
+                'image_stream' => $imageStreamMeta,
+                'soft_mask_stream' => $softMaskStreamMeta,
+                'indexed_color_space' => $plan['indexed_color_space'],
+                'image_decode' => $plan['image_decode'],
+                'pixels' => [],
+                'stream_notes' => $streamNotes,
+                'notes' => array_values(array_unique(array_merge($plan['notes'] ?? [], $streamNotes))),
+                'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
+            ];
+        }
+
+        $imageSamples = $this->packedImagePixelSamples(
+            $imageStream['decoded_bytes'],
+            1,
+            $bitsPerComponent,
+            $expectedPixelCount
+        );
+        if (!$imageSamples['complete']) {
+            throw new InvalidArgumentException('Indexed image stream does not contain complete image sample data.');
+        }
+        if ($softMaskPresent && $softMaskSamples === null) {
+            throw new InvalidArgumentException('Indexed image soft-mask stream filters must be natively decoded before RGB preview.');
+        }
+        if (is_array($softMaskSamples) && !$softMaskSamples['complete']) {
+            throw new InvalidArgumentException('Indexed image soft-mask stream does not contain complete alpha sample data.');
+        }
+
+        $limit = min($maxPixels, $expectedPixelCount);
+        $pixels = [];
+        for ($index = 0; $index < $limit; $index++) {
+            $rawSample = $imageSamples['pixels'][$index][0];
+            $softMaskSample = is_array($softMaskSamples) ? $softMaskSamples['pixels'][$index][0] : null;
+            $preview = $this->indexedSamplePreview($rawSample, $plan, $softMaskSample);
+            $pixels[] = [
+                'pixel_index' => $index,
+                'x' => $index % $width,
+                'y' => intdiv($index, $width),
+                'raw_sample' => $rawSample,
+                'decoded_index' => $preview['decoded_index'],
+                'palette_index' => $preview['palette_index'],
+                'clamped_to_hival' => $preview['clamped_to_hival'],
+                'base_components' => $preview['base_components'],
+                'soft_mask_sample' => $softMaskSample,
+                'soft_mask_alpha' => $preview['soft_mask_alpha'],
+            ];
+        }
+
+        return [
+            'source_color_space' => (string) $plan['source_color_space'],
+            'width' => $width,
+            'height' => $height,
+            'components_per_pixel' => 1,
+            'bits_per_component' => $bitsPerComponent,
+            'expected_pixel_count' => $expectedPixelCount,
+            'preview_pixel_count' => count($pixels),
+            'review_only_image_stream' => false,
+            'complete_image_sample_data' => $imageSamples['complete'],
+            'complete_soft_mask_sample_data' => $softMaskSamples === null ? null : $softMaskSamples['complete'],
+            'image_stream' => $imageStreamMeta,
+            'soft_mask_stream' => $softMaskStreamMeta,
+            'indexed_color_space' => $plan['indexed_color_space'],
+            'image_decode' => $plan['image_decode'],
+            'pixels' => $pixels,
+            'stream_notes' => $streamNotes,
+            'notes' => array_values(array_unique(array_merge($plan['notes'] ?? [], $streamNotes))),
+            'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
+        ];
+    }
+
+    /**
      * Applies a color-key `/Mask` array to raw image samples before any image
      * `/Decode` mapping, then exposes the Decode-adjusted components that a
      * future RGB preview compositor would receive for non-transparent pixels.

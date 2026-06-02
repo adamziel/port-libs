@@ -81,6 +81,8 @@ final class PdfSecurityPreflight
             'unsafe_document_action_count' => (int) $documentActionReview['unsafe_action_count'],
             'launch_action_count' => (int) $documentActionReview['launch_action_count'],
             'unsafe_uri_action_count' => (int) $documentActionReview['unsafe_uri_action_count'],
+            'post_signature_action_count' => (int) $documentActionReview['post_signature_action_count'],
+            'unsigned_action_byte_range_count' => (int) $documentActionReview['unsigned_action_byte_range_count'],
             'raw_owner_user_keys_exposed' => false,
             'recipient_bytes_exposed' => false,
             'raw_signature_validation_bytes_exposed' => false,
@@ -421,6 +423,14 @@ final class PdfSecurityPreflight
             }
         }
 
+        $actions = $this->annotateDocumentActionByteRangeReviews(
+            $actions,
+            $signatures,
+            $this->pdfObjectByteSpans($pdfBytes)
+        );
+        $postSignatureActionObjects = $this->postSignatureActionObjects($actions);
+        $postSignatureActionCount = $this->postSignatureActionCount($actions);
+
         return [
             'source' => 'pdf_document_action_security_review',
             'present' => $actions !== [],
@@ -441,6 +451,19 @@ final class PdfSecurityPreflight
                     && ($action['safety'] ?? null) === 'blocked-unsafe-uri'
             )),
             'unsafe_action_count' => count(array_filter($actions, fn (array $action): bool => $this->isUnsafeDocumentAction($action))),
+            'action_byte_range_review_count' => count(array_filter(
+                $actions,
+                static fn (array $action): bool => is_array($action['signature_byte_range_reviews'] ?? null)
+                    && $action['signature_byte_range_reviews'] !== []
+            )),
+            'post_signature_action_count' => $postSignatureActionCount,
+            'unsigned_action_byte_range_count' => count(array_filter(
+                $actions,
+                static fn (array $action): bool => ($action['outside_any_signature_byte_range'] ?? false) === true
+            )),
+            'post_signature_action_objects' => $postSignatureActionObjects,
+            'action_byte_range_statuses' => $this->uniqueStringColumn($actions, 'signature_byte_range_coverage_status'),
+            'has_post_signature_actions' => $postSignatureActionCount > 0,
             'action_types' => $this->uniqueStringColumn($actions, 'action_type'),
             'safety_labels' => $this->uniqueStringColumn($actions, 'safety'),
             'certifying_signature_count' => count(array_filter(
@@ -492,6 +515,269 @@ final class PdfSecurityPreflight
         ];
 
         $actions[] = $row;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @param list<array<string, mixed>> $signatures
+     * @param array<int, array{offset: int, end: int, length: int, generation: int}> $objectSpans
+     * @return list<array<string, mixed>>
+     */
+    private function annotateDocumentActionByteRangeReviews(array $actions, array $signatures, array $objectSpans): array
+    {
+        foreach ($actions as $index => $action) {
+            $review = $this->documentActionByteRangeReview($action, $signatures, $objectSpans);
+            $actions[$index]['action_object_span'] = $review['action_object_span'];
+            $actions[$index]['signature_byte_range_coverage_status'] = $review['status'];
+            $actions[$index]['covered_by_all_signature_byte_ranges'] = $review['covered_by_all_signature_byte_ranges'];
+            $actions[$index]['outside_any_signature_byte_range'] = $review['outside_any_signature_byte_range'];
+            $actions[$index]['signature_byte_range_signed_coverage_count'] = $review['signed_coverage_count'];
+            $actions[$index]['signature_byte_range_unsigned_coverage_count'] = $review['unsigned_coverage_count'];
+            $actions[$index]['signature_byte_range_reviews'] = $review['signature_reviews'];
+        }
+
+        return $actions;
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @param list<array<string, mixed>> $signatures
+     * @param array<int, array{offset: int, end: int, length: int, generation: int}> $objectSpans
+     * @return array{
+     *     action_object_span: array{offset: int, end: int, length: int, generation: int}|null,
+     *     status: string,
+     *     covered_by_all_signature_byte_ranges: bool,
+     *     outside_any_signature_byte_range: bool,
+     *     signed_coverage_count: int,
+     *     unsigned_coverage_count: int,
+     *     signature_reviews: list<array<string, mixed>>
+     * }
+     */
+    private function documentActionByteRangeReview(array $action, array $signatures, array $objectSpans): array
+    {
+        $actionObject = is_int($action['action_object'] ?? null) ? $action['action_object'] : null;
+        if ($actionObject === null) {
+            return [
+                'action_object_span' => null,
+                'status' => 'action_object_unresolved',
+                'covered_by_all_signature_byte_ranges' => false,
+                'outside_any_signature_byte_range' => false,
+                'signed_coverage_count' => 0,
+                'unsigned_coverage_count' => 0,
+                'signature_reviews' => [],
+            ];
+        }
+
+        $span = $objectSpans[$actionObject] ?? null;
+        if ($span === null) {
+            return [
+                'action_object_span' => null,
+                'status' => 'action_object_span_unresolved',
+                'covered_by_all_signature_byte_ranges' => false,
+                'outside_any_signature_byte_range' => false,
+                'signed_coverage_count' => 0,
+                'unsigned_coverage_count' => 0,
+                'signature_reviews' => [],
+            ];
+        }
+
+        $signatureReviews = [];
+        $signedCoverageCount = 0;
+        $unsignedCoverageCount = 0;
+        foreach ($signatures as $signature) {
+            $byteRange = is_array($signature['byte_range'] ?? null) ? $signature['byte_range'] : [];
+            if (($byteRange['present'] ?? false) !== true) {
+                continue;
+            }
+
+            $coverage = $this->signatureByteRangeSpanCoverage($span, $byteRange);
+            if ($coverage['covered']) {
+                $signedCoverageCount++;
+            } else {
+                $unsignedCoverageCount++;
+            }
+
+            $signatureReviews[] = [
+                'field_name' => $signature['field_name'] ?? null,
+                'signature_object' => $signature['signature_object'] ?? null,
+                'byte_range_status' => $byteRange['status'] ?? null,
+                'byte_range_valid' => (bool) ($byteRange['valid'] ?? false),
+                'coverage_status' => $coverage['status'],
+                'covered' => $coverage['covered'],
+                'outside_signed_revision' => $coverage['status'] === 'outside_signed_revision',
+            ];
+        }
+
+        $reviewCount = count($signatureReviews);
+        if ($reviewCount === 0) {
+            $status = 'no_signature_byte_range';
+        } elseif ($signedCoverageCount === $reviewCount) {
+            $status = 'covered_by_all_signature_byte_ranges';
+        } elseif ($signedCoverageCount > 0) {
+            $status = 'covered_by_some_signature_byte_ranges';
+        } else {
+            $status = 'outside_all_signature_byte_ranges';
+        }
+
+        return [
+            'action_object_span' => $span,
+            'status' => $status,
+            'covered_by_all_signature_byte_ranges' => $reviewCount > 0 && $signedCoverageCount === $reviewCount,
+            'outside_any_signature_byte_range' => $unsignedCoverageCount > 0,
+            'signed_coverage_count' => $signedCoverageCount,
+            'unsigned_coverage_count' => $unsignedCoverageCount,
+            'signature_reviews' => $signatureReviews,
+        ];
+    }
+
+    /**
+     * @param array{offset: int, end: int, length: int, generation: int} $span
+     * @param array<string, mixed> $byteRange
+     * @return array{status: string, covered: bool}
+     */
+    private function signatureByteRangeSpanCoverage(array $span, array $byteRange): array
+    {
+        $segments = array_values(array_filter(
+            $byteRange['segments'] ?? [],
+            static fn (mixed $segment): bool => is_array($segment)
+                && is_int($segment['offset'] ?? null)
+                && is_int($segment['end'] ?? null)
+        ));
+        if ($segments === []) {
+            return ['status' => 'signature_byte_range_unresolved', 'covered' => false];
+        }
+
+        if ($this->spanCoveredByByteRangeSegments($span, $segments)) {
+            return ['status' => 'covered_by_signed_segments', 'covered' => true];
+        }
+
+        $lastEnd = max(array_map(static fn (array $segment): int => (int) $segment['end'], $segments));
+        if ($span['offset'] >= $lastEnd) {
+            return ['status' => 'outside_signed_revision', 'covered' => false];
+        }
+
+        foreach ($byteRange['gaps'] ?? [] as $gap) {
+            if (
+                is_array($gap)
+                && is_int($gap['offset'] ?? null)
+                && is_int($gap['end'] ?? null)
+                && $span['offset'] >= $gap['offset']
+                && $span['end'] <= $gap['end']
+            ) {
+                return ['status' => 'inside_unsigned_gap', 'covered' => false];
+            }
+            if (
+                is_array($gap)
+                && is_int($gap['offset'] ?? null)
+                && is_int($gap['end'] ?? null)
+                && $span['offset'] < $gap['end']
+                && $span['end'] > $gap['offset']
+            ) {
+                return ['status' => 'crosses_unsigned_gap', 'covered' => false];
+            }
+        }
+
+        foreach ($segments as $segment) {
+            if ($span['offset'] < $segment['end'] && $span['end'] > $segment['offset']) {
+                return ['status' => 'partially_covered_by_signed_segments', 'covered' => false];
+            }
+        }
+
+        return ['status' => 'outside_signed_segments', 'covered' => false];
+    }
+
+    /**
+     * @param array{offset: int, end: int, length: int, generation: int} $span
+     * @param list<array<string, mixed>> $segments
+     */
+    private function spanCoveredByByteRangeSegments(array $span, array $segments): bool
+    {
+        $cursor = $span['offset'];
+        foreach ($segments as $segment) {
+            $start = (int) $segment['offset'];
+            $end = (int) $segment['end'];
+            if ($cursor < $start) {
+                return false;
+            }
+            if ($cursor >= $start && $cursor < $end) {
+                $cursor = max($cursor, min($span['end'], $end));
+                if ($cursor >= $span['end']) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @return list<int>
+     */
+    private function postSignatureActionObjects(array $actions): array
+    {
+        $objects = [];
+        foreach ($actions as $action) {
+            if (!$this->actionIsOutsideSignedRevision($action) || !is_int($action['action_object'] ?? null)) {
+                continue;
+            }
+            if (!in_array($action['action_object'], $objects, true)) {
+                $objects[] = $action['action_object'];
+            }
+        }
+
+        return $objects;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     */
+    private function postSignatureActionCount(array $actions): int
+    {
+        return count(array_filter(
+            $actions,
+            fn (array $action): bool => $this->actionIsOutsideSignedRevision($action)
+        ));
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     */
+    private function actionIsOutsideSignedRevision(array $action): bool
+    {
+        foreach ($action['signature_byte_range_reviews'] ?? [] as $review) {
+            if (is_array($review) && ($review['coverage_status'] ?? null) === 'outside_signed_revision') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array<int, array{offset: int, end: int, length: int, generation: int}>
+     */
+    private function pdfObjectByteSpans(string $pdfBytes): array
+    {
+        $matchCount = preg_match_all('/(\d+)\s+(\d+)\s+obj\b.*?\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
+        if ($matchCount === false || $matchCount === 0) {
+            return [];
+        }
+
+        $spans = [];
+        foreach ($matches as $match) {
+            $object = (int) $match[1][0];
+            $offset = $match[0][1];
+            $length = strlen($match[0][0]);
+            $spans[$object] = [
+                'offset' => $offset,
+                'end' => $offset + $length,
+                'length' => $length,
+                'generation' => (int) $match[2][0],
+            ];
+        }
+
+        return $spans;
     }
 
     /**
@@ -1215,6 +1501,9 @@ final class PdfSecurityPreflight
         }
         if ((int) ($documentActionReview['unsafe_uri_action_count'] ?? 0) > 0) {
             $reasons[] = 'unsafe_uri_actions_present';
+        }
+        if ((int) ($documentActionReview['post_signature_action_count'] ?? 0) > 0) {
+            $reasons[] = 'post_signature_pdf_actions_present';
         }
 
         return $reasons;

@@ -61,6 +61,24 @@ final class PdfAcroFormExtractor
         10 => 'locked_contents',
     ];
 
+    private const WIDGET_HIGHLIGHT_MODE_LABELS = [
+        'N' => 'none',
+        'I' => 'invert',
+        'O' => 'outline',
+        'P' => 'push',
+        'T' => 'toggle',
+    ];
+
+    private const WIDGET_TEXT_POSITION_LABELS = [
+        0 => 'caption_only',
+        1 => 'caption_above_icon',
+        2 => 'caption_below_icon',
+        3 => 'caption_right_of_icon',
+        4 => 'caption_left_of_icon',
+        5 => 'caption_overlaid_icon',
+        6 => 'icon_only',
+    ];
+
     private const MAX_ACTION_CHAIN_DEPTH = 8;
 
     /**
@@ -3686,6 +3704,8 @@ final class PdfAcroFormExtractor
             $normalAppearance = $this->normalAppearanceReview($body, $objects, $appearanceState);
             $rolloverAppearance = $this->interactiveAppearanceReview($body, $objects, $appearanceState, 'R', 'rollover');
             $downAppearance = $this->interactiveAppearanceReview($body, $objects, $appearanceState, 'D', 'down');
+            $highlightMode = $this->pdfNameValueAfterName($body, 'H') ?? 'I';
+            $appearanceCharacteristics = $this->widgetAppearanceCharacteristics($body, $objects);
 
             $actionReview = $this->actionsWithReviewFromDictionary($body, $objects, $fieldNamesByObject, 'widget', $widgetRef);
 
@@ -3703,11 +3723,14 @@ final class PdfAcroFormExtractor
                 'visible' => !$this->annotationFlagsHideWidget($annotationFlags ?? 0),
                 'printable' => $this->hasFlagBit($annotationFlags ?? 0, 3),
                 'no_view' => $this->hasFlagBit($annotationFlags ?? 0, 6),
+                'highlight_mode' => $highlightMode,
+                'highlight_mode_label' => self::WIDGET_HIGHLIGHT_MODE_LABELS[$highlightMode] ?? 'unknown',
                 'appearance_state' => $appearanceState,
                 'appearance_states' => is_array($normalAppearance) ? $normalAppearance['available_states'] : [],
                 'normal_appearance' => $normalAppearance,
                 'rollover_appearance' => $rolloverAppearance,
                 'down_appearance' => $downAppearance,
+                'appearance_characteristics' => $appearanceCharacteristics,
                 'default_appearance' => $widgetAppearance,
                 'actions' => $actionReview['actions'],
                 'action_review' => $actionReview['review'],
@@ -5377,6 +5400,187 @@ final class PdfAcroFormExtractor
             'font_names' => array_keys($this->fontResourcesFromDefaultResourceDictionary($resources['body'], $objects)),
             'xobject_names' => $this->xobjectResourceNamesFromResourceDictionary($resources['body'], $objects),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     * @param array<int, string> $objects
+     */
+    private function widgetAppearanceCharacteristics(string $widgetBody, array $objects): ?array
+    {
+        $mkValue = $this->valueAfterName($widgetBody, 'MK');
+        if ($mkValue === null) {
+            return null;
+        }
+
+        $mk = $this->resolvedDictionaryFromValue($mkValue, $objects);
+        if ($mk === null) {
+            return null;
+        }
+
+        $textPosition = $this->numberValueAfterName($mk['body'], 'TP');
+
+        return array_filter([
+            'source' => 'acroform_widget_mk_appearance_characteristics',
+            'dictionary_object' => $mk['object'],
+            'rotation' => $this->numberValueAfterName($mk['body'], 'R'),
+            'border_color' => $this->colorValueAfterName($mk['body'], 'BC'),
+            'background_color' => $this->colorValueAfterName($mk['body'], 'BG'),
+            'normal_caption' => $this->pdfStringValueAfterName($mk['body'], 'CA', $objects),
+            'rollover_caption' => $this->pdfStringValueAfterName($mk['body'], 'RC', $objects),
+            'alternate_caption' => $this->pdfStringValueAfterName($mk['body'], 'AC', $objects),
+            'text_position' => $textPosition,
+            'text_position_label' => $textPosition === null ? null : (self::WIDGET_TEXT_POSITION_LABELS[$textPosition] ?? 'unknown'),
+            'icon_object' => $this->objectReferenceValueAfterName($mk['body'], 'I'),
+            'rollover_icon_object' => $this->objectReferenceValueAfterName($mk['body'], 'RI'),
+            'alternate_icon_object' => $this->objectReferenceValueAfterName($mk['body'], 'IX'),
+            'icon_fit' => $this->widgetIconFitFromAppearanceCharacteristics($mk['body'], $objects),
+            'appearance_value_used_for_import' => false,
+            'caption_text_used_for_import' => false,
+            'icon_payload_text_exposed' => false,
+            'renders_appearance' => false,
+            'executes_action' => false,
+        ], static fn (mixed $value): bool => $value !== null);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     * @param array<int, string> $objects
+     */
+    private function widgetIconFitFromAppearanceCharacteristics(string $mkBody, array $objects): ?array
+    {
+        $value = $this->valueAfterName($mkBody, 'IF');
+        if ($value === null) {
+            return null;
+        }
+
+        $iconFit = $this->resolvedDictionaryFromValue($value, $objects);
+        if ($iconFit === null) {
+            return null;
+        }
+
+        $entries = $this->dictionaryNameValueMap($iconFit['body']);
+
+        return array_filter([
+            'scale_when' => $this->pdfNameFromValue($entries['SW'] ?? null),
+            'scale_type' => $this->pdfNameFromValue($entries['S'] ?? null),
+            'position' => $this->numericArrayFromValue($entries['A'] ?? null),
+            'fit_bounds' => $this->boolFromValue($entries['FB'] ?? null),
+            'renders_icon' => false,
+        ], static fn (mixed $value): bool => $value !== null);
+    }
+
+    private function pdfNameFromValue(?string $value): ?string
+    {
+        if ($value === null || !str_starts_with(trim($value), '/')) {
+            return null;
+        }
+
+        return $this->decodePdfName($value);
+    }
+
+    private function boolFromValue(?string $value): ?bool
+    {
+        return match (trim((string) $value)) {
+            'true' => true,
+            'false' => false,
+            default => null,
+        };
+    }
+
+    /**
+     * @return list<float>|null
+     */
+    private function numericArrayFromValue(?string $value): ?array
+    {
+        if ($value === null || !str_starts_with(trim($value), '[')) {
+            return null;
+        }
+
+        $arrayBody = $this->arrayBodyFromValue($value);
+        if ($arrayBody === null) {
+            return [];
+        }
+
+        return $this->numbersFromPdfArray($arrayBody);
+    }
+
+    /**
+     * @return array{space: string, components: list<float>, hex: string|null}|null
+     */
+    private function colorValueAfterName(string $body, string $name): ?array
+    {
+        $components = $this->numericArrayValueAfterName($body, $name);
+        if ($components === null) {
+            return null;
+        }
+
+        $components = array_map(fn (float $component): float => $this->clamp($component), $components);
+        $count = count($components);
+        if ($count === 0) {
+            return [
+                'space' => 'transparent',
+                'components' => [],
+                'hex' => null,
+            ];
+        }
+
+        if ($count === 1) {
+            $rgb = [$components[0], $components[0], $components[0]];
+
+            return [
+                'space' => 'DeviceGray',
+                'components' => $components,
+                'hex' => $this->rgbHex($rgb),
+            ];
+        }
+
+        if ($count === 3) {
+            return [
+                'space' => 'DeviceRGB',
+                'components' => $components,
+                'hex' => $this->rgbHex($components),
+            ];
+        }
+
+        if ($count === 4) {
+            [$c, $m, $y, $k] = $components;
+            $rgb = [
+                (1.0 - $c) * (1.0 - $k),
+                (1.0 - $m) * (1.0 - $k),
+                (1.0 - $y) * (1.0 - $k),
+            ];
+
+            return [
+                'space' => 'DeviceCMYK',
+                'components' => $components,
+                'hex' => $this->rgbHex($rgb),
+            ];
+        }
+
+        return [
+            'space' => 'DeviceN',
+            'components' => $components,
+            'hex' => null,
+        ];
+    }
+
+    /**
+     * @param list<float> $components
+     */
+    private function rgbHex(array $components): string
+    {
+        $parts = [];
+        foreach (array_slice($components, 0, 3) as $component) {
+            $parts[] = str_pad(dechex((int) round($this->clamp($component) * 255)), 2, '0', STR_PAD_LEFT);
+        }
+
+        return '#' . implode('', $parts);
+    }
+
+    private function clamp(float $value): float
+    {
+        return max(0.0, min(1.0, $value));
     }
 
     /**

@@ -817,6 +817,16 @@ final class PdfMetadataExtractor
             $file['output_intents_review'] = $outputIntentReview;
         }
 
+        $pieceInfo = $this->pieceInfoMetadata($this->dictionaryTopLevelRawValue($body, 'PieceInfo'), $objects);
+        if ($pieceInfo !== []) {
+            $file['piece_info'] = $pieceInfo;
+        }
+
+        $provenanceReview = $this->associatedFileProvenanceReview($file, $body, $objects);
+        if ($provenanceReview !== []) {
+            $file['provenance_review'] = $provenanceReview;
+        }
+
         return $file;
     }
 
