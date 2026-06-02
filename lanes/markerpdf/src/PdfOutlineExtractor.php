@@ -520,6 +520,39 @@ final class PdfOutlineExtractor
                         $items[] = $row;
                     }
                 }
+            } elseif ($title !== null) {
+                $destination = $this->outlineDestination($dict, $objects);
+                $destinationAction = $this->destinationActionReviewValue($destination['value'], $objects, $destinations, $destination['name']);
+                if ($destinationAction !== null) {
+                    $seenActions = [];
+                    $actions = $this->reviewActionsFromValue($destinationAction['value'], $objects, $pageIndexes, $destinations, $seenActions);
+                    if ($this->shouldSurfaceOutlineActionRows($actions)) {
+                        foreach ($actions as $action) {
+                            if (
+                                ($action['action_type'] ?? null) === 'GoTo'
+                                && ($action['safety'] ?? null) === 'local-destination'
+                                && ($action['destination'] ?? null) === null
+                                && $destinationAction['destination_name'] !== null
+                            ) {
+                                $action['destination'] = $destinationAction['destination_name'];
+                            }
+
+                            $row = [
+                                'outline_title' => $title,
+                                'outline_level' => $level,
+                                'outline_object' => $current,
+                            ] + $action;
+
+                            $page = $row['page'] ?? null;
+                            if (is_int($page)) {
+                                $row['page_label'] = $this->pageLabelForIndex($page, $pageLabels);
+                                $row = $this->withTargetPagePresentation($row, $pagePresentationsByPage);
+                            }
+
+                            $items[] = $row;
+                        }
+                    }
+                }
             }
 
             if ($level < $maxDepth) {
@@ -563,6 +596,50 @@ final class PdfOutlineExtractor
         }
 
         return false;
+    }
+
+    /**
+     * Some PDF producers place a GoTo action dictionary behind a name-tree
+     * destination. PDF engines still resolve the `/D` target for outlines, but
+     * WordPress import review must not drop any `/Next` followups attached to
+     * that action dictionary.
+     *
+     * @param array<int, mixed> $objects
+     * @param array<string, mixed> $destinations
+     * @param array<string, true> $seenNames
+     * @return array{value: mixed, destination_name: string|null}|null
+     */
+    private function destinationActionReviewValue(
+        mixed $destination,
+        array $objects,
+        array $destinations,
+        ?string $destinationName = null,
+        array $seenNames = []
+    ): ?array {
+        $resolved = $this->resolveValue($destination, $objects);
+        $name = $this->stringOrNameValue($resolved);
+        if ($name !== null) {
+            if (isset($seenNames[$name]) || !array_key_exists($name, $destinations)) {
+                return null;
+            }
+            $seenNames[$name] = true;
+
+            return $this->destinationActionReviewValue($destinations[$name], $objects, $destinations, $name, $seenNames);
+        }
+
+        $dict = $this->dictionaryItems($resolved);
+        if ($dict === null) {
+            return null;
+        }
+
+        if (array_key_exists('S', $dict) || array_key_exists('Next', $dict)) {
+            return [
+                'value' => $destination,
+                'destination_name' => $destinationName,
+            ];
+        }
+
+        return null;
     }
 
     /**

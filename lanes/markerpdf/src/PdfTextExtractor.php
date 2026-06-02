@@ -5283,23 +5283,47 @@ final class PdfTextExtractor
             return null;
         }
 
+        if (preg_match('/\/Encoding\s+\/([^\s\[\]()<>{}\/%]+)/s', $fontBody, $nameMatch) === 1) {
+            return $this->cidEncodingMapFromNamedCMap($this->decodePdfName($nameMatch[1]), $namedCMapBodies);
+        }
+
         if (preg_match('/\/Encoding\s+(\d+)\s+\d+\s+R\b/s', $fontBody, $match) !== 1) {
             return null;
         }
 
         $encodingObjectNumber = (int) $match[1];
-        if (!isset($objects[$encodingObjectNumber])) {
+        $encodingObject = $objects[$encodingObjectNumber] ?? null;
+        if ($encodingObject === null) {
             return null;
         }
 
-        $decoded = $this->decodedCMapBody($objects[$encodingObjectNumber], $objects);
+        $decoded = $this->decodedCMapBody($encodingObject, $objects);
         if ($decoded === null) {
+            $encodingObject = trim($encodingObject);
+            if (preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $encodingObject, $nameMatch) === 1) {
+                return $this->cidEncodingMapFromNamedCMap($this->decodePdfName($nameMatch[1]), $namedCMapBodies);
+            }
+
             return null;
         }
 
         $currentName = $this->cMapName($decoded);
 
         return $this->parseCidCMap($decoded, $namedCMapBodies, $currentName === null ? [] : [$currentName]);
+    }
+
+    /**
+     * @return array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, writingMode?: int}|null
+     * @param array<string, string> $namedCMapBodies
+     */
+    private function cidEncodingMapFromNamedCMap(string $encodingName, array $namedCMapBodies): ?array
+    {
+        $cmap = $namedCMapBodies[$encodingName] ?? null;
+        if ($cmap === null) {
+            return null;
+        }
+
+        return $this->parseCidCMap($cmap, $namedCMapBodies, [$encodingName]);
     }
 
     /**
@@ -8211,10 +8235,17 @@ final class PdfTextExtractor
 
             $previousOffset = $this->pdfIntegerValueAfterName($trailer, 'Prev');
             if ($previousOffset !== null && $previousOffset >= 0) {
-                foreach ($this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets) as $objectNumber => $entry) {
-                    if (!isset($entries[$objectNumber])) {
-                        $entries[$objectNumber] = $entry;
+                $previousEntries = $this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
+                foreach ($previousEntries as $objectNumber => $entry) {
+                    if (isset($entries[$objectNumber])) {
+                        continue;
                     }
+
+                    if ($this->previousCompressedEntryUsesUpdatedObjectStream($entry, $entries, $previousEntries)) {
+                        continue;
+                    }
+
+                    $entries[$objectNumber] = $entry;
                 }
             }
 
@@ -8229,14 +8260,64 @@ final class PdfTextExtractor
         $entries = $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects);
         $previousOffset = $this->pdfIntegerValueAfterName($streamSection['body'], 'Prev');
         if ($previousOffset !== null && $previousOffset >= 0) {
-            foreach ($this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets) as $objectNumber => $entry) {
-                if (!isset($entries[$objectNumber])) {
-                    $entries[$objectNumber] = $entry;
+            $previousEntries = $this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
+            foreach ($previousEntries as $objectNumber => $entry) {
+                if (isset($entries[$objectNumber])) {
+                    continue;
                 }
+
+                if ($this->previousCompressedEntryUsesUpdatedObjectStream($entry, $entries, $previousEntries)) {
+                    continue;
+                }
+
+                $entries[$objectNumber] = $entry;
             }
         }
 
         return $entries;
+    }
+
+    /**
+     * A type-2 row from a previous xref section is owned by that section's
+     * object-stream carrier. If the current section replaces that carrier,
+     * do not let the stale compressed-object row bind to the current carrier.
+     *
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $entry
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $currentEntries
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $previousEntries
+     */
+    private function previousCompressedEntryUsesUpdatedObjectStream(array $entry, array $currentEntries, array $previousEntries): bool
+    {
+        if (($entry['type'] ?? null) !== 2 || !isset($entry['objectStream'])) {
+            return false;
+        }
+
+        $objectStreamNumber = $entry['objectStream'];
+        if (!isset($currentEntries[$objectStreamNumber])) {
+            return false;
+        }
+
+        $previousObjectStreamEntry = $previousEntries[$objectStreamNumber] ?? null;
+        if ($previousObjectStreamEntry === null) {
+            return true;
+        }
+
+        return !$this->xrefEntriesSelectSameStorage($currentEntries[$objectStreamNumber], $previousObjectStreamEntry);
+    }
+
+    /**
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $left
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $right
+     */
+    private function xrefEntriesSelectSameStorage(array $left, array $right): bool
+    {
+        foreach (['type', 'generation', 'offset', 'objectStream', 'index'] as $field) {
+            if (($left[$field] ?? null) !== ($right[$field] ?? null)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

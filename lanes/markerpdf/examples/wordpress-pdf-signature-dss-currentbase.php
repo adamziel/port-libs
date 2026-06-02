@@ -10,10 +10,18 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 $content = 'BT /F1 12 Tf 72 720 Td (Signed DSS review content) Tj ET';
 $signatureContentsHex = str_repeat('B', 96);
 $signatureContentsToken = '<' . $signatureContentsHex . '>';
-$certBytes = 'SIGNER_CERTIFICATE_DER_BYTES_SHOULD_NOT_LEAK';
-$ocspBytes = 'OCSP_RESPONSE_DER_BYTES_SHOULD_NOT_LEAK';
-$crlBytes = 'CRL_BYTES_SHOULD_NOT_LEAK';
-$timestampBytes = 'TIMESTAMP_TOKEN_BYTES_SHOULD_NOT_LEAK';
+$certPayload = 'SIGNER_CERTIFICATE_DER_BYTES_SHOULD_NOT_LEAK';
+$ocspPayload = 'OCSP_RESPONSE_DER_BYTES_SHOULD_NOT_LEAK';
+$crlPayload = 'CRL_BYTES_SHOULD_NOT_LEAK';
+$timestampPayload = 'TIMESTAMP_TOKEN_BYTES_SHOULD_NOT_LEAK';
+$certBytes = gzcompress($certPayload);
+$crlCompressed = gzcompress($crlPayload);
+if ($certBytes === false || $crlCompressed === false) {
+    throw new RuntimeException('Unable to compress DSS validation fixture streams.');
+}
+$ocspBytes = strtoupper(bin2hex($ocspPayload)) . '>';
+$crlBytes = strtoupper(bin2hex($crlCompressed)) . '>';
+$timestampBytes = strtoupper(bin2hex($timestampPayload)) . '>';
 
 $pdf = "%PDF-1.7\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R /DSS 60 0 R >>\nendobj\n"
@@ -26,10 +34,13 @@ $pdf = "%PDF-1.7\n"
     . "30 0 obj\n<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Name (DSS Reviewer) /M (D:20260602133500Z) /ByteRange [0 AAAAAAAAAA BBBBBBBBBB CCCCCCCCCC] /Contents {$signatureContentsToken} >>\nendobj\n"
     . "60 0 obj\n<< /Type /DSS /Certs [70 0 R] /OCSPs [71 0 R] /CRLs [72 0 R] /VRI << /ABCDEF1234 61 0 R >> >>\nendobj\n"
     . "61 0 obj\n<< /Type /VRI /Cert [70 0 R] /OCSP [71 0 R] /CRL [72 0 R] /TU (D:20260602133500Z) /TS 73 0 R >>\nendobj\n"
-    . "70 0 obj\n<< /Length " . strlen($certBytes) . " /Subtype /application#2Fpkix-cert >>\nstream\n{$certBytes}\nendstream\nendobj\n"
-    . "71 0 obj\n<< /Length " . strlen($ocspBytes) . " /Subtype /application#2Focsp-response >>\nstream\n{$ocspBytes}\nendstream\nendobj\n"
-    . "72 0 obj\n<< /Length " . strlen($crlBytes) . " /Subtype /application#2Fpkix-crl >>\nstream\n{$crlBytes}\nendstream\nendobj\n"
-    . "73 0 obj\n<< /Length " . strlen($timestampBytes) . " /Subtype /application#2Ftst-info >>\nstream\n{$timestampBytes}\nendstream\nendobj\n"
+    . "70 0 obj\n<< /Length " . strlen($certBytes) . " /Filter 90 0 R /Subtype /application#2Fpkix-cert >>\nstream\n{$certBytes}\nendstream\nendobj\n"
+    . "71 0 obj\n<< /Length " . strlen($ocspBytes) . " /Filter [91 0 R null] /Subtype /application#2Focsp-response >>\nstream\n{$ocspBytes}\nendstream\nendobj\n"
+    . "72 0 obj\n<< /Length " . strlen($crlBytes) . " /Filter 92 0 R /Subtype /application#2Fpkix-crl >>\nstream\n{$crlBytes}\nendstream\nendobj\n"
+    . "73 0 obj\n<< /Length " . strlen($timestampBytes) . " /Filter 91 0 R /Subtype /application#2Ftst-info >>\nstream\n{$timestampBytes}\nendstream\nendobj\n"
+    . "90 0 obj\n/FlateDecode\nendobj\n"
+    . "91 0 obj\n/ASCIIHexDecode\nendobj\n"
+    . "92 0 obj\n[91 0 R 90 0 R null]\nendobj\n"
     . "%%EOF";
 
 $gapStart = strpos($pdf, $signatureContentsToken);
@@ -59,6 +70,16 @@ echo '<!-- markerpdf-signature-dss-currentbase-smoke ' . htmlspecialchars(json_e
     'validation_stream_count' => $dss['total_validation_stream_count'],
     'vri_keys' => $dss['vri_keys'],
     'vri_timestamp_update' => $vri['timestamp_update'] ?? null,
+    'indirect_filter_decoded' => ($dss['global_certificates'][0]['sha256'] ?? null) === hash('sha256', $certPayload)
+        && ($dss['global_ocsps'][0]['sha256'] ?? null) === hash('sha256', $ocspPayload)
+        && ($dss['global_crls'][0]['sha256'] ?? null) === hash('sha256', $crlPayload)
+        && ($vri['timestamp_token']['sha256'] ?? null) === hash('sha256', $timestampPayload),
+    'validation_filters' => [
+        $dss['global_certificates'][0]['filters'] ?? [],
+        $dss['global_ocsps'][0]['filters'] ?? [],
+        $dss['global_crls'][0]['filters'] ?? [],
+        $vri['timestamp_token']['filters'] ?? [],
+    ],
     'raw_validation_bytes_exposed' => $dss['raw_validation_bytes_exposed'],
     'raw_signature_contents_exposed' => false,
     'executes_signature_validation' => false,

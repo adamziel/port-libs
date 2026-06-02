@@ -561,19 +561,47 @@ final class PdfDocumentSecurityStoreExtractor
             return [];
         }
 
-        preg_match_all('/\/([^\s\[\]()<>{}\/%]+)|(\d+)\s+\d+\s+R\b/', $filter, $matches, PREG_SET_ORDER);
-        $filters = [];
-        foreach ($matches as $match) {
-            if (($match[1] ?? '') !== '') {
-                $filters[] = $this->decodePdfName($match[1]);
-                continue;
+        return $this->filterNamesFromValue($filter, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seenObjects
+     * @return list<string>
+     */
+    private function filterNamesFromValue(string $value, array $objects, array $seenObjects = []): array
+    {
+        $value = trim($value);
+        if ($value === '' || $value === 'null') {
+            return [];
+        }
+
+        $objectNumber = $this->objectNumberFromReference($value);
+        if ($objectNumber !== null) {
+            if (isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
+                return [];
             }
 
-            $objectNumber = isset($match[2]) ? (int) $match[2] : 0;
-            if ($objectNumber > 0 && isset($objects[$objectNumber])) {
-                foreach ($this->streamFilters($objects[$objectNumber], $objects) as $nested) {
-                    $filters[] = $nested;
-                }
+            $seenObjects[$objectNumber] = true;
+
+            return $this->filterNamesFromValue($objects[$objectNumber], $objects, $seenObjects);
+        }
+
+        if ($value[0] === '/') {
+            $end = $this->skipPdfName($value, 0);
+
+            return [$this->decodePdfName(substr($value, 1, $end - 1))];
+        }
+
+        if ($value[0] !== '[') {
+            return [];
+        }
+
+        $items = $this->arrayItemsFromValue($value, $objects);
+        $filters = [];
+        foreach ($items as $item) {
+            foreach ($this->filterNamesFromValue($item, $objects, $seenObjects) as $nested) {
+                $filters[] = $nested;
             }
         }
 

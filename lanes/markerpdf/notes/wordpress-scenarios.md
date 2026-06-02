@@ -372,9 +372,11 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-signature-reference-transform-review.php` maps PDF signature `/Reference` transform dictionaries into a WordPress security-review path. It exposes FieldMDP and UR3 usage-rights metadata, field locks, digest presence, and allowed right categories while suppressing digest/signature bytes and without executing signature validation, signing, rights enforcement, Python, models, or external PDF tools.
 
-`examples/wordpress-pdf-signature-dss-currentbase.php` maps catalog `/DSS` long-term-validation material into a WordPress security-review path. It exposes Cert/OCSP/CRL/VRI/timestamp-token counts and hashes while importing visible signed text natively, suppressing raw validation/signature bytes, and avoiding signature validation, revocation checks, trust-chain validation, signing, Python, models, or external PDF tools.
+`examples/wordpress-pdf-signature-dss-currentbase.php` maps catalog `/DSS` long-term-validation material into a WordPress security-review path. It exposes Cert/OCSP/CRL/VRI/timestamp-token counts, decoded validation hashes, and indirect `/Filter` operand metadata while importing visible signed text natively, suppressing raw validation/signature bytes, and avoiding signature validation, revocation checks, trust-chain validation, signing, Python, models, or external PDF tools.
 
 `examples/wordpress-pdf-cidfont-indirect-w2-vertical-import.php` maps indirect CIDFont `/DW2` and `/W2` vertical metrics into a WordPress paragraph import path. It resolves the metric arrays before writing-mode 1 text advance grouping, emitting `VertImport` and `DataFlow` without inserting false spaces and without loading Python, pdftext, pypdfium, Poppler, Ghostscript, models, or external PDF tools.
+
+`examples/wordpress-pdf-outline-destination-action-transition-currentbase.php` maps outline `/Dest` entries that resolve to GoTo action dictionaries into WordPress navigation review rows. It preserves local destination labels, target page transition metadata, and page-open action review rows while surfacing chained URI/JavaScript followups as non-executing metadata and keeping action operands out of visible Gutenberg paragraphs.
 
 ## Next Task
 
