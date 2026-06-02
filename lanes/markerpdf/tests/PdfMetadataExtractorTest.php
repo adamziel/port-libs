@@ -168,6 +168,30 @@ return [
         $t->same('D:20240602112233Z', $metadata['created_at']);
         $t->same('2024-06-02T11:22:33Z', $metadata['created_at_utc']);
     },
+    'decodes PDFDocEncoding Info strings for WordPress metadata review' => static function (TestRunner $t): void {
+        $title = 'WordPress' . chr(0x80) . ' PDF ' . chr(0x93) . chr(0x94) . ' Import ' . chr(0xa0);
+        $author = chr(0x95) . 'ukasz Editor; Data' . chr(0x92) . 'Team';
+        $subject = strtoupper(bin2hex('Review ' . chr(0x8d) . 'quotes' . chr(0x8e) . ' ' . chr(0x8a) . ' minus'));
+        $keywords = 'wp' . chr(0x8b) . 'percent, caf' . chr(0xe9) . '; ' . chr(0x9b) . 'odz';
+        $creator = 'Native' . chr(0x81) . 'Metadata';
+        $producer = 'Fixture' . chr(0x85) . 'Writer';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
+            . "6 0 obj\n<< /Title ({$title}) /Author ({$author}) /Subject <{$subject}> /Keywords ({$keywords}) /Creator ({$creator}) /Producer ({$producer}) >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R /Info 6 0 R >>\n%%EOF";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+
+        $t->same(['info'], $metadata['source']);
+        $t->same('WordPress• PDF ﬁﬂ Import €', $metadata['title']);
+        $t->same(['Łukasz Editor', 'Data™Team'], $metadata['authors']);
+        $t->same('Review “quotes” − minus', $metadata['description']);
+        $t->same(['wp‰percent', 'café', 'łodz'], $metadata['keywords']);
+        $t->same('Native†Metadata', $metadata['creator_tool']);
+        $t->same('Fixture–Writer', $metadata['producer']);
+        $t->same('WordPress• PDF ﬁﬂ Import €', $metadata['info']['Title']);
+    },
     'extracts trailer ID array as document fingerprint metadata' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Fingerprint Body) Tj ET';
         $permanentId = "WP PDF\x00ID-A";
