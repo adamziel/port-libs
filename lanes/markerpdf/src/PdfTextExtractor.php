@@ -7116,7 +7116,8 @@ final class PdfTextExtractor
         $preliminaryObjects = $this->latestDirectObjects($definitions);
         $xrefEntries = $this->xrefEntries($pdfBytes, $preliminaryObjects, $definitions);
         $objects = $this->liveDirectObjects($definitions, $xrefEntries);
-        foreach ($this->linearizedHintTableObjectNumbers($definitions, $this->linearizedHintTableRanges($pdfBytes)) as $objectNumber) {
+        $linearizedHintRanges = $this->linearizedHintTableRanges($pdfBytes);
+        foreach ($this->linearizedHintTableObjectNumbers($pdfBytes, $definitions, $linearizedHintRanges) as $objectNumber) {
             unset($objects[$objectNumber]);
         }
 
@@ -7314,8 +7315,9 @@ final class PdfTextExtractor
      */
     private function linearizedHintTableRanges(string $pdfBytes): array
     {
+        $definitions = $this->directObjectDefinitions($pdfBytes);
         $firstDefinition = null;
-        foreach ($this->directObjectDefinitions($pdfBytes) as $entries) {
+        foreach ($definitions as $entries) {
             foreach ($entries as $definition) {
                 if ($firstDefinition === null || $definition['offset'] < $firstDefinition['offset']) {
                     $firstDefinition = $definition;
@@ -7331,7 +7333,10 @@ final class PdfTextExtractor
             return [];
         }
 
-        $values = $this->integersFromPdfArray($match[1]);
+        $values = $this->integerValuesFromPdfArrayResolvingObjects(
+            $match[1],
+            $this->latestDirectObjects($definitions)
+        );
         $ranges = [];
         for ($index = 0, $count = count($values); $index + 1 < $count; $index += 2) {
             $start = max(0, $values[$index]);
@@ -7350,27 +7355,53 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param array<int, string> $objects
+     * @return list<int>
+     */
+    private function integerValuesFromPdfArrayResolvingObjects(string $arrayBody, array $objects): array
+    {
+        $values = [];
+        foreach ($this->pdfArrayItems($arrayBody) as $item) {
+            $value = $this->streamLengthValueAt($item, 0, $objects);
+            if ($value !== null) {
+                $values[] = $value;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @param list<array{start: int, end: int}> $ranges
      * @return list<int>
      */
-    private function linearizedHintTableObjectNumbers(array $definitions, array $ranges): array
+    private function linearizedHintTableObjectNumbers(string $pdfBytes, array $definitions, array $ranges): array
     {
         if ($ranges === []) {
             return [];
         }
 
         $objectNumbers = [];
+        foreach ($ranges as $range) {
+            foreach ([$range['start'], max($range['start'], $range['end'] - 1)] as $offset) {
+                $objectNumber = $this->directObjectNumberAtOffset($pdfBytes, $offset);
+                if ($objectNumber !== null) {
+                    $objectNumbers[$objectNumber] = true;
+                }
+            }
+        }
+
         foreach ($definitions as $objectNumber => $entries) {
             foreach ($entries as $definition) {
                 if ($this->offsetInPdfByteRanges($definition['offset'], $ranges)) {
-                    $objectNumbers[] = $objectNumber;
+                    $objectNumbers[$objectNumber] = true;
                     break;
                 }
             }
         }
 
-        return $objectNumbers;
+        return array_keys($objectNumbers);
     }
 
     /**

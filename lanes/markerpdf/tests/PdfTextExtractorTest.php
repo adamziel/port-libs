@@ -691,6 +691,61 @@ $linearizedHintTableFallbackPdf = static function (): string {
     ]);
 };
 
+$linearizedIncrementalIndirectHintObjectPdf = static function (): string {
+    $hintContent = 'BT /F1 12 Tf 72 720 Td (Linearized indirect hint object leak) Tj ET';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Incremental current page) Tj T* (Hint object boundary) Tj ET';
+
+    $pdf = "%PDF-1.5\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): void {
+        $offsets[$objectNumber] = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+    };
+    $xrefRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+
+    $addObject(1, 0, '<< /Linearized 1 /L LLLLLLLLLL /H [20 0 R 21 0 R] /O 5 /E EEEEEEEEEE /N 1 /T TTTTTTTTTT >>');
+    $addObject(2, 0, "<< /Length " . strlen($hintContent) . " >>\nstream\n{$hintContent}\nendstream");
+    $addObject(20, 0, 'HHHHHHHHHA');
+    $addObject(21, 0, 'HHHHHHHHHB');
+
+    $previousXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 3\n"
+        . $xrefRow(0, 65535, 'f')
+        . $xrefRow($offsets[1])
+        . $xrefRow($offsets[2])
+        . "20 2\n"
+        . $xrefRow($offsets[20])
+        . $xrefRow($offsets[21])
+        . "trailer\n<< /Size 22 >>\n"
+        . "startxref\n{$previousXrefOffset}\n%%EOF\n";
+
+    $addObject(3, 0, '<< /Type /Catalog /Pages 4 0 R >>');
+    $addObject(4, 0, '<< /Type /Pages /Kids [5 0 R] /Count 1 >>');
+    $addObject(5, 0, '<< /Type /Page /Parent 4 0 R /Resources << /Font << /F1 7 0 R >> >> /Contents [2 0 R 6 0 R] >>');
+    $addObject(6, 0, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+    $addObject(7, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+
+    $latestXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "3 5\n"
+        . $xrefRow($offsets[3])
+        . $xrefRow($offsets[4])
+        . $xrefRow($offsets[5])
+        . $xrefRow($offsets[6])
+        . $xrefRow($offsets[7])
+        . "trailer\n<< /Size 22 /Root 3 0 R /Prev {$previousXrefOffset} >>\n"
+        . "startxref\n{$latestXrefOffset}\n%%EOF";
+
+    return strtr($pdf, [
+        'LLLLLLLLLL' => sprintf('%010d', strlen($pdf)),
+        'HHHHHHHHHA' => sprintf('%010d', $offsets[2]),
+        'HHHHHHHHHB' => sprintf('%010d', $offsets[20] - $offsets[2]),
+        'EEEEEEEEEE' => sprintf('%010d', $offsets[20]),
+        'TTTTTTTTTT' => sprintf('%010d', $latestXrefOffset),
+    ]);
+};
+
 $encryptedPreflightPdf = static function (): string {
     $content = 'BT /F1 12 Tf 72 720 Td (Encrypted cleartext leak) Tj ET';
 
@@ -3081,6 +3136,19 @@ return [
         $t->same("Linearized current fallback\nHint table boundary\n", $extractor->naiveGetText($pdf));
         $t->true(!str_contains($text, 'Linearized hint stale leak'));
         $t->same(0, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+    },
+    'resolves indirect linearized hint ranges before incremental current-base text extraction' => static function (TestRunner $t) use ($linearizedIncrementalIndirectHintObjectPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $linearizedIncrementalIndirectHintObjectPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $t->same(['Incremental current page', 'Hint object boundary'], $extractor->extractTextLines($pdf));
+        $t->same(['Incremental current page', 'Hint object boundary'], $extractor->extractTextRuns($pdf));
+        $t->same("Incremental current page\nHint object boundary", $text);
+        $t->same("Incremental current page\nHint object boundary\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($text, 'Linearized indirect hint object leak'));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
         $t->same(['1'], $extractor->extractPageLabels($pdf));
     },
     'extracts native PDF outline and Info metadata before WordPress import' => static function (TestRunner $t): void {
