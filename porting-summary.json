@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 19:52:20 UTC",
-    "sourceCommit": "49f032ed1f5d5842958e46342b20a6a8aff1b196",
-    "sourceCommitShort": "49f032ed1f5d",
+    "generated": "2026-06-02 19:55:40 UTC",
+    "sourceCommit": "57caf1ec2e4dbdd3096a4a06ea024194c965fd9b",
+    "sourceCommitShort": "57caf1ec2e4d",
     "sourceBranch": "unknown",
-    "dashboardCommit": "49f032ed1f5d5842958e46342b20a6a8aff1b196",
-    "dashboardCommitShort": "49f032ed1f5d",
+    "dashboardCommit": "57caf1ec2e4dbdd3096a4a06ea024194c965fd9b",
+    "dashboardCommitShort": "57caf1ec2e4d",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "532",
-            "coverage": "532 / 78 (682.1%)",
-            "mapPercent": "682.1%",
+            "mapped": "535",
+            "coverage": "535 / 78 (685.9%)",
+            "mapPercent": "685.9%",
             "unmapped": "0",
-            "php": "745 pass / 0 fail",
+            "php": "749 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: accepted form41/parser42/page4...",
-            "currentWork": "MarkerPDF now applies AcroForm submit/reset rich-text resource review, nested parser...",
-            "nextTarget": "Rebase deferred security43/table42 handoffs if still valuable...",
+            "audit": "2026-06-02 UTC supervisor integration: accepted meta43/image47/xref42...",
+            "currentWork": "MarkerPDF now preserves portfolio FileSpec provenance, Indexed DeviceN soft-mask tran...",
+            "nextTarget": "Rebase deferred font44/security43/table42/xref41 handoffs if...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "49f032e"
+            "commit": "57caf1e"
         },
         {
             "lane": "readability",
