@@ -362,6 +362,53 @@ $xrefHybridPrevFreeGenerationPdf = static function (): string {
     return $pdf;
 };
 
+$xrefStreamIndexWidthCurrentBasePdf = static function (): string {
+    $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale xref stream page) Tj ET';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current xref stream page) Tj T* (Width default import) Tj ET';
+
+    $pdf = "%PDF-1.5\n";
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf): int {
+        $offset = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+        return $offset;
+    };
+
+    $staleCatalogOffset = $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R >>');
+    $stalePagesOffset = $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $stalePageOffset = $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>');
+    $fontOffset = $addObject(4, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+    $staleContentOffset = $addObject(5, 0, "<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream");
+
+    $staleRows = pack('N', $staleCatalogOffset)
+        . pack('N', $stalePagesOffset)
+        . pack('N', $stalePageOffset)
+        . pack('N', $fontOffset)
+        . pack('N', $staleContentOffset);
+    $staleCompressed = gzcompress($staleRows);
+    $addObject(20, 0, '<< /Type /XRef /Size 21 /Index [1 5] /W [0 4 0] /Filter /FlateDecode /Length ' . strlen($staleCompressed) . " >>\nstream\n{$staleCompressed}\nendstream");
+
+    $currentCatalogOffset = $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R >>');
+    $currentPagesOffset = $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $currentPageOffset = $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>');
+    $currentContentOffset = $addObject(5, 0, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+
+    $currentRows = ''
+        . pack('N', 0)
+        . pack('N', $currentCatalogOffset)
+        . pack('N', $currentPagesOffset)
+        . pack('N', $currentPageOffset)
+        . pack('N', $fontOffset)
+        . pack('N', $currentContentOffset);
+    $currentCompressed = gzcompress($currentRows);
+    $currentXrefOffset = strlen($pdf);
+    $pdf .= "6 0 obj\n"
+        . '<< /Type /XRef /Size 6 /Root 1 0 R /W [0 4 0] /Filter /FlateDecode /Length ' . strlen($currentCompressed) . " >>\n"
+        . "stream\n{$currentCompressed}\nendstream\nendobj\n"
+        . "startxref\n{$currentXrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
 $encryptedPreflightPdf = static function (): string {
     $content = 'BT /F1 12 Tf 72 720 Td (Encrypted cleartext leak) Tj ET';
 
@@ -1189,6 +1236,52 @@ return [
         $t->same('Import Blocks', $extractor->extractPlainText($pdf));
         $t->same(['Import Blocks'], $extractor->extractTextRuns($pdf));
     },
+    'guards cyclic ToUnicode usecmap inheritance and codespace counts before WordPress text extraction' => static function (TestRunner $t): void {
+        $content = 'BT /Fcid 12 Tf 72 720 Td <202122230041> Tj ET';
+        $derivedCMap = "/CIDInit /ProcSet findresource begin\n"
+            . "12 dict begin\n"
+            . "begincmap\n"
+            . "/BaseCycleGuardCMap usecmap\n"
+            . "1 begincodespacerange\n"
+            . "<00> <FF>\n"
+            . "<0000> <00FF>\n"
+            . "endcodespacerange\n"
+            . "4 beginbfchar\n"
+            . "<20> <0049006D0070006F00720074>\n"
+            . "<23> <0021>\n"
+            . "<00> <0020>\n"
+            . "<41> <004F004B>\n"
+            . "endbfchar\n"
+            . "endcmap\n"
+            . "CMapName currentdict /DerivedCycleGuardCMap defineresource pop\n"
+            . "/CMapName /DerivedCycleGuardCMap def\n"
+            . "end\n"
+            . "end\n";
+        $baseCMap = "/CIDInit /ProcSet findresource begin\n"
+            . "12 dict begin\n"
+            . "begincmap\n"
+            . "/DerivedCycleGuardCMap usecmap\n"
+            . "2 beginbfchar\n"
+            . "<21> <0020>\n"
+            . "<22> <0042006C006F0063006B0073>\n"
+            . "endbfchar\n"
+            . "endcmap\n"
+            . "CMapName currentdict /BaseCycleGuardCMap defineresource pop\n"
+            . "/CMapName /BaseCycleGuardCMap def\n"
+            . "end\n"
+            . "end\n";
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /CycleGuardSubset /Encoding /Identity-H /ToUnicode 3 0 R >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($derivedCMap) . " >>\nstream\n{$derivedCMap}\nendstream\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($baseCMap) . " >>\nstream\n{$baseCMap}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+
+        $t->same('Import Blocks! OK', $extractor->extractPlainText($pdf));
+        $t->same(['Import Blocks! OK'], $extractor->extractTextRuns($pdf));
+        $t->true(!str_contains($extractor->extractPlainText($pdf), 'Import Blocks!A'));
+    },
     'decodes escaped PDF resource names before ToUnicode WordPress text lookup' => static function (TestRunner $t): void {
         $content = 'BT /F#31 12 Tf 72 720 Td <4142> Tj ET';
         $cmap = "/CIDInit /ProcSet findresource begin\n"
@@ -1766,6 +1859,20 @@ return [
             'document_info' => [],
             'pages' => 0,
         ], $extractor->extractOutlineMetadata($encrypted));
+    },
+    'honors current xref stream Index and zero-width W defaults before WordPress text extraction' => static function (TestRunner $t) use ($xrefStreamIndexWidthCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $xrefStreamIndexWidthCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $t->same(['Current xref stream page', 'Width default import'], $extractor->extractTextLines($pdf));
+        $t->same(['Current xref stream page', 'Width default import'], $extractor->extractTextRuns($pdf));
+        $t->same("Current xref stream page\nWidth default import", $text);
+        $t->same("Current xref stream page\nWidth default import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Stale xref stream page'));
+        $t->true(!str_contains($text, "\0"));
     },
     'extracts native PDF outline and Info metadata before WordPress import' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n"

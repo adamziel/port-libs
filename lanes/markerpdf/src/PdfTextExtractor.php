@@ -4646,7 +4646,7 @@ final class PdfTextExtractor
         }
 
         $preliminaryObjects = $this->latestDirectObjects($definitions);
-        $xrefEntries = $this->xrefEntries($pdfBytes, $preliminaryObjects);
+        $xrefEntries = $this->xrefEntries($pdfBytes, $preliminaryObjects, $definitions);
         $objects = $this->liveDirectObjects($definitions, $xrefEntries);
 
         foreach ($this->objectsFromObjectStreams($objects, $xrefEntries) as $objectNumber => $body) {
@@ -4821,12 +4821,13 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @return array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int}>
      */
-    private function xrefEntries(string $pdfBytes, array $objects): array
+    private function xrefEntries(string $pdfBytes, array $objects, array $definitions): array
     {
         $entries = $this->xrefTableEntries($pdfBytes);
-        foreach ($this->xrefStreamEntries($objects) as $objectNumber => $entry) {
+        foreach ($this->xrefStreamEntries($objects, $definitions) as $objectNumber => $entry) {
             $entries[$objectNumber] = $entry;
         }
 
@@ -4963,15 +4964,13 @@ final class PdfTextExtractor
     /**
      * @return array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int}>
      * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      */
-    private function xrefStreamEntries(array $objects): array
+    private function xrefStreamEntries(array $objects, array $definitions): array
     {
         $entries = [];
-        foreach ($objects as $body) {
-            if (preg_match('/\/Type\s*\/XRef\b/', $body) !== 1) {
-                continue;
-            }
-
+        foreach ($this->xrefStreamDefinitionsInFileOrder($definitions) as $definition) {
+            $body = $definition['body'];
             if (preg_match('/\/W\s*\[(.*?)\]/s', $body, $widthMatch) !== 1) {
                 continue;
             }
@@ -5030,6 +5029,29 @@ final class PdfTextExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @return list<array{generation: int, offset: int, body: string}>
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     */
+    private function xrefStreamDefinitionsInFileOrder(array $definitions): array
+    {
+        $xrefStreams = [];
+        foreach ($definitions as $entries) {
+            foreach ($entries as $definition) {
+                if (preg_match('/\/Type\s*\/XRef\b/', $definition['body']) === 1) {
+                    $xrefStreams[] = $definition;
+                }
+            }
+        }
+
+        usort(
+            $xrefStreams,
+            static fn (array $left, array $right): int => $left['offset'] <=> $right['offset']
+        );
+
+        return $xrefStreams;
     }
 
     /**
@@ -5098,11 +5120,12 @@ final class PdfTextExtractor
         $named = [];
         foreach ($objects as $body) {
             $cmap = $this->decodedCMapBody($body, $objects);
-            if ($cmap === null || !preg_match('/\/CMapName\s+\/([^\s\[\]()<>{}\/%]+)\s+def\b/s', $cmap, $match)) {
+            $name = is_string($cmap) ? $this->cMapName($cmap) : null;
+            if ($cmap === null || $name === null) {
                 continue;
             }
 
-            $named[$this->decodePdfName($match[1])] = $cmap;
+            $named[$name] = $cmap;
         }
 
         return $named;
@@ -5120,7 +5143,18 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->parseToUnicodeCMap($decoded, $namedCMapBodies);
+        $currentName = $this->cMapName($decoded);
+
+        return $this->parseToUnicodeCMap($decoded, $namedCMapBodies, $currentName === null ? [] : [$currentName]);
+    }
+
+    private function cMapName(string $cmap): ?string
+    {
+        if (preg_match('/\/CMapName\s+\/([^\s\[\]()<>{}\/%]+)\s+def\b/s', $cmap, $match) !== 1) {
+            return null;
+        }
+
+        return $this->decodePdfName($match[1]);
     }
 
     /**
@@ -5273,13 +5307,18 @@ final class PdfTextExtractor
     private function parseCMapCodeSpaceRanges(string $cmap): array
     {
         $ranges = [];
-        if (!preg_match_all('/begincodespacerange(.*?)endcodespacerange/s', $cmap, $blocks)) {
+        if (!preg_match_all('/(?:(\d+)\s+)?begincodespacerange(.*?)endcodespacerange/s', $cmap, $blocks, PREG_SET_ORDER)) {
             return [];
         }
 
-        foreach ($blocks[1] as $block) {
+        foreach ($blocks as $blockMatch) {
+            $block = $blockMatch[2];
             if (!preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>/s', $block, $entries, PREG_SET_ORDER)) {
                 continue;
+            }
+
+            if (($blockMatch[1] ?? '') !== '') {
+                $entries = array_slice($entries, 0, max(0, (int) $blockMatch[1]));
             }
 
             foreach ($entries as $entry) {
