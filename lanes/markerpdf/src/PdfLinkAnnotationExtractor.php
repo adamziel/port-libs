@@ -9,7 +9,7 @@ final class PdfLinkAnnotationExtractor
     /**
      * Native boundary for PDF page /Annots link actions.
      *
-     * @return list<array{pnum: int, page_object: int, links: list<array{uri: string, rect: list<float>, annotation_object: int|null}>}>
+     * @return list<array{pnum: int, page_object: int, links: list<array<string, mixed>>}>
      */
     public function extractPageLinks(string $pdfBytes): array
     {
@@ -86,6 +86,8 @@ final class PdfLinkAnnotationExtractor
 
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_rect'] = $link['rect'];
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_annotation_object'] = $link['annotation_object'];
+                        $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_annotation_subtype'] = $link['annotation_subtype'];
+                        $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_widget_annotation'] = $link['widget_annotation'];
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_action_type'] = $link['action_type'];
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_safety'] = $link['safety'];
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_executes_on_import'] = false;
@@ -274,7 +276,12 @@ final class PdfLinkAnnotationExtractor
      */
     private function linkFromAnnotationBody(string $annotationBody, PdfActionReviewExtractor $actionReviewer, ?int $annotationObject): ?array
     {
-        if (preg_match('/\/Subtype\s*\/Link\b/', $annotationBody) !== 1) {
+        $subtype = $this->annotationSubtype($annotationBody);
+        if (!in_array($subtype, ['Link', 'Widget'], true)) {
+            return null;
+        }
+
+        if ($subtype === 'Widget' && $this->annotationHiddenFromLinkImport($annotationBody)) {
             return null;
         }
 
@@ -292,10 +299,28 @@ final class PdfLinkAnnotationExtractor
         return $primary + [
             'rect' => $rect,
             'annotation_object' => $annotationObject,
+            'annotation_subtype' => $subtype,
+            'widget_annotation' => $subtype === 'Widget',
             'actions' => $review['actions'],
             'additional_actions' => $review['additional_actions'],
             'executes_on_import' => false,
         ];
+    }
+
+    private function annotationSubtype(string $annotationBody): ?string
+    {
+        return preg_match('/\/Subtype\s*\/([A-Za-z0-9_.-]+)\b/', $annotationBody, $match) === 1
+            ? $match[1]
+            : null;
+    }
+
+    private function annotationHiddenFromLinkImport(string $annotationBody): bool
+    {
+        $flags = $this->integerAfterName($annotationBody, 'F') ?? 0;
+
+        return ($flags & 1) !== 0
+            || ($flags & 2) !== 0
+            || ($flags & 32) !== 0;
     }
 
     /**
@@ -464,6 +489,16 @@ final class PdfLinkAnnotationExtractor
         }
 
         return null;
+    }
+
+    private function integerAfterName(string $body, string $name): ?int
+    {
+        $value = $this->valueAfterName($body, $name);
+        if ($value === null || preg_match('/^[+-]?\d+/', trim($value), $match) !== 1) {
+            return null;
+        }
+
+        return (int) $match[0];
     }
 
     private function isSafeUri(string $uri): bool
