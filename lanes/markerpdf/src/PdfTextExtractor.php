@@ -1788,20 +1788,37 @@ final class PdfTextExtractor
             return $states;
         }
 
+        $configIntents = $this->optionalContentIntentNames($defaultConfig, $objects, ['View']);
+        $intentMatches = [];
+        foreach (array_keys($states) as $objectNumber) {
+            $intentMatches[$objectNumber] = $this->optionalContentReferenceMatchesIntent(
+                $objectNumber,
+                $objects,
+                $configIntents
+            );
+        }
+
         $baseState = $this->pdfNameValueAfterName($defaultConfig, 'BaseState') ?? 'ON';
         $baseVisible = $baseState !== 'OFF';
         foreach (array_keys($states) as $objectNumber) {
-            $states[$objectNumber] = $baseVisible;
+            $states[$objectNumber] = $baseVisible && ($intentMatches[$objectNumber] ?? true);
         }
 
         foreach ($this->optionalContentObjectNumbersAfterName($defaultConfig, 'ON', $objects) as $objectNumber) {
-            if (array_key_exists($objectNumber, $states)) {
+            if (array_key_exists($objectNumber, $states) && ($intentMatches[$objectNumber] ?? true)) {
                 $states[$objectNumber] = true;
             }
         }
 
         foreach ($this->optionalContentObjectNumbersAfterName($defaultConfig, 'OFF', $objects) as $objectNumber) {
             if (array_key_exists($objectNumber, $states)) {
+                $states[$objectNumber] = false;
+            }
+        }
+
+        $states = $this->optionalContentUsageApplicationStates($defaultConfig, $objects, $states, $configIntents);
+        foreach ($intentMatches as $objectNumber => $matches) {
+            if (!$matches) {
                 $states[$objectNumber] = false;
             }
         }
@@ -1831,6 +1848,235 @@ final class PdfTextExtractor
     {
         $arrayBody = $this->pdfArrayValueAfterNameResolved($dictionary, $name, $objects);
         return $arrayBody === null ? [] : $this->objectReferences($arrayBody);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, bool> $states
+     * @param list<string> $configIntents
+     * @return array<int, bool>
+     */
+    private function optionalContentUsageApplicationStates(
+        string $defaultConfig,
+        array $objects,
+        array $states,
+        array $configIntents
+    ): array {
+        $applicationArray = $this->pdfArrayValueAfterNameResolved($defaultConfig, 'AS', $objects);
+        if ($applicationArray === null) {
+            return $states;
+        }
+
+        foreach ($this->pdfArrayItems($applicationArray) as $applicationValue) {
+            $application = $this->pdfDictionaryFromValue($applicationValue, $objects);
+            if ($application === null) {
+                continue;
+            }
+
+            $event = $this->pdfNameValueAfterName($application, 'Event');
+            if ($event !== null && $event !== 'View') {
+                continue;
+            }
+
+            $categories = $this->optionalContentNameListValueAfterName($application, 'Category', $objects, []);
+            if ($categories === []) {
+                continue;
+            }
+
+            $ocgValue = $this->pdfValueAfterName($application, 'OCGs');
+            if ($ocgValue === null) {
+                continue;
+            }
+
+            foreach ($this->optionalContentObjectNumbersFromValue($ocgValue, $objects) as $objectNumber) {
+                if (!array_key_exists($objectNumber, $states) || !isset($objects[$objectNumber])) {
+                    continue;
+                }
+
+                $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+                if (
+                    $dictionary === null
+                    || !$this->optionalContentDictionaryMatchesIntent($dictionary, $objects, $configIntents)
+                ) {
+                    continue;
+                }
+
+                $usageState = $this->optionalContentUsageStateForCategories($dictionary, $categories, $objects);
+                if ($usageState !== null) {
+                    $states[$objectNumber] = $usageState;
+                }
+            }
+        }
+
+        return $states;
+    }
+
+    /**
+     * @return list<int>
+     * @param array<int, string> $objects
+     */
+    private function optionalContentObjectNumbersFromValue(string $value, array $objects): array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return [];
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            $arrayBody = $this->pdfArrayFromValue($value, $objects);
+            return $arrayBody === null ? [$objectNumber] : $this->objectReferences($arrayBody);
+        }
+
+        $arrayBody = $this->pdfArrayFromValue($value, $objects);
+        return $arrayBody === null ? [] : $this->objectReferences($arrayBody);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string> $configIntents
+     */
+    private function optionalContentReferenceMatchesIntent(int $objectNumber, array $objects, array $configIntents): bool
+    {
+        if (!isset($objects[$objectNumber])) {
+            return true;
+        }
+
+        $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+        return $dictionary === null
+            || $this->optionalContentDictionaryMatchesIntent($dictionary, $objects, $configIntents);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string> $configIntents
+     */
+    private function optionalContentDictionaryMatchesIntent(string $dictionary, array $objects, array $configIntents): bool
+    {
+        $type = $this->pdfNameValueAfterName($dictionary, 'Type') ?? 'OCG';
+        if ($type !== 'OCG') {
+            return true;
+        }
+
+        $groupIntents = $this->optionalContentIntentNames($dictionary, $objects, ['View']);
+        return $this->optionalContentIntentsIntersect($configIntents, $groupIntents);
+    }
+
+    /**
+     * @return list<string>
+     * @param array<int, string> $objects
+     * @param list<string> $default
+     */
+    private function optionalContentIntentNames(string $dictionary, array $objects, array $default): array
+    {
+        return $this->optionalContentNameListValueAfterName($dictionary, 'Intent', $objects, $default);
+    }
+
+    /**
+     * @return list<string>
+     * @param array<int, string> $objects
+     * @param list<string> $default
+     */
+    private function optionalContentNameListValueAfterName(
+        string $dictionary,
+        string $name,
+        array $objects,
+        array $default
+    ): array {
+        $value = $this->pdfValueAfterName($dictionary, $name);
+        if ($value === null) {
+            return $default;
+        }
+
+        $names = $this->optionalContentNameListFromValue($value, $objects);
+        return $names === [] ? $default : $names;
+    }
+
+    /**
+     * @return list<string>
+     * @param array<int, string> $objects
+     */
+    private function optionalContentNameListFromValue(string $value, array $objects): array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return [];
+        }
+
+        if (str_starts_with($value, '/')) {
+            return [$this->decodePdfName(substr($value, 1))];
+        }
+
+        $arrayBody = $this->pdfArrayFromValue($value, $objects);
+        if ($arrayBody === null) {
+            return [];
+        }
+
+        $names = [];
+        foreach ($this->pdfArrayItems($arrayBody) as $item) {
+            $item = trim($item);
+            if (str_starts_with($item, '/')) {
+                $names[] = $this->decodePdfName(substr($item, 1));
+            }
+        }
+
+        return array_values(array_unique($names));
+    }
+
+    /**
+     * @param list<string> $configIntents
+     * @param list<string> $groupIntents
+     */
+    private function optionalContentIntentsIntersect(array $configIntents, array $groupIntents): bool
+    {
+        if (in_array('All', $configIntents, true) || in_array('All', $groupIntents, true)) {
+            return true;
+        }
+
+        foreach ($groupIntents as $intent) {
+            if (in_array($intent, $configIntents, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $categories
+     * @param array<int, string> $objects
+     */
+    private function optionalContentUsageStateForCategories(
+        string $dictionary,
+        array $categories,
+        array $objects
+    ): ?bool {
+        $usage = $this->pdfDictionaryValueAfterNameResolved($dictionary, 'Usage', $objects);
+        if ($usage === null) {
+            return null;
+        }
+
+        foreach ($categories as $category) {
+            $categoryUsage = $this->pdfDictionaryValueAfterNameResolved($usage, $category, $objects);
+            if ($categoryUsage === null) {
+                continue;
+            }
+
+            $stateName = match ($category) {
+                'Print' => 'PrintState',
+                'Export' => 'ExportState',
+                default => $category . 'State',
+            };
+            $state = $this->pdfNameValueAfterName($categoryUsage, $stateName);
+            if ($state === 'ON') {
+                return true;
+            }
+            if ($state === 'OFF') {
+                return false;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -2108,19 +2354,15 @@ final class PdfTextExtractor
             return true;
         }
 
-        $usage = $this->pdfDictionaryValueAfterNameResolved($dictionary, 'Usage', $objects);
-        $view = $usage === null ? null : $this->pdfDictionaryValueAfterNameResolved($usage, 'View', $objects);
-        $viewState = $view === null ? null : $this->pdfNameValueAfterName($view, 'ViewState');
-        if ($viewState === 'OFF') {
-            return false;
-        }
-        if ($viewState === 'ON') {
-            return true;
+        if ($objectNumber !== null && array_key_exists($objectNumber, $optionalContentStates)) {
+            return $optionalContentStates[$objectNumber];
         }
 
-        return $objectNumber === null || !array_key_exists($objectNumber, $optionalContentStates)
-            ? true
-            : $optionalContentStates[$objectNumber];
+        if (!$this->optionalContentDictionaryMatchesIntent($dictionary, $objects, ['View'])) {
+            return false;
+        }
+
+        return $this->optionalContentUsageStateForCategories($dictionary, ['View'], $objects) ?? true;
     }
 
     /**

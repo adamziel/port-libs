@@ -1966,6 +1966,56 @@ return [
         $t->true(!str_contains($plainText, 'Hidden Form Text'));
         $t->true(!str_contains($plainText, 'Hidden Annotation Text'));
     },
+    'applies optional content usage application and intent state before WordPress text extraction' => static function (TestRunner $t): void {
+        $pageContent = 'BT /F1 12 Tf 72 720 Td (Base Current View) Tj ET '
+            . '/OC /DesignOnly BDC BT /F1 12 Tf 72 704 Td (Design Layer Noise) Tj ET EMC '
+            . '/OC /ViewUsageOff BDC BT /F1 12 Tf 72 688 Td (Usage Hidden Text) Tj ET EMC '
+            . '/OC /ViewUsageOn BDC BT /F1 12 Tf 72 672 Td (Usage View Visible) Tj ET q /VisibleUsageForm Do Q EMC '
+            . '/OC /ConfigOff BDC BT /F1 12 Tf 72 656 Td (Off Array Usage Ignored) Tj ET EMC '
+            . '/OC /MixedIntent BDC BT /F1 12 Tf 72 640 Td (Mixed Intent Visible) Tj ET EMC '
+            . '/OC /AllOnMembership BDC BT /F1 12 Tf 72 624 Td (Membership Hidden Text) Tj ET EMC';
+        $visibleForm = 'BT /F1 12 Tf 12 24 Td (Visible Usage Form) Tj ET';
+        $hiddenForm = 'BT /F1 12 Tf 12 24 Td (Hidden Usage Form) Tj ET';
+        $visibleAnnotation = 'BT /F1 12 Tf 0 0 Td (Visible Usage Annotation) Tj ET';
+        $hiddenAnnotation = 'BT /F1 12 Tf 0 0 Td (Hidden Usage Annotation) Tj ET';
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [20 0 R 21 0 R 22 0 R 24 0 R 25 0 R] /D << /Intent /View /BaseState /ON /OFF [24 0 R] /AS [<< /Event /View /Category [/View] /OCGs [21 0 R 22 0 R] >> << /Event /Print /Category [/View] /OCGs [20 0 R] >>] >> >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> /Properties << /DesignOnly 20 0 R /ViewUsageOff 21 0 R /ViewUsageOn 22 0 R /ConfigOff 24 0 R /MixedIntent 25 0 R /AllOnMembership << /Type /OCMD /OCGs [20 0 R 22 0 R] /P /AllOn >> >> /XObject << /VisibleUsageForm 8 0 R /HiddenUsageForm 9 0 R >> >> /Annots [10 0 R 11 0 R] /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Type /XObject /Subtype /Form /OC 22 0 R /Resources << /Font << /F1 4 0 R >> >> /Length " . strlen($visibleForm) . " >>\nstream\n{$visibleForm}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Type /XObject /Subtype /Form /OC 21 0 R /Resources << /Font << /F1 4 0 R >> >> /Length " . strlen($hiddenForm) . " >>\nstream\n{$hiddenForm}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Annot /Subtype /Widget /OC 22 0 R /AP << /N 12 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /Annot /Subtype /Widget /OC 21 0 R /AP << /N 13 0 R >> >>\nendobj\n"
+            . "12 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 4 0 R >> >> /Length " . strlen($visibleAnnotation) . " >>\nstream\n{$visibleAnnotation}\nendstream\nendobj\n"
+            . "13 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 4 0 R >> >> /Length " . strlen($hiddenAnnotation) . " >>\nstream\n{$hiddenAnnotation}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Type /OCG /Name (Design Only Layer) /Intent /Design /Usage << /View << /ViewState /ON >> >> >>\nendobj\n"
+            . "21 0 obj\n<< /Type /OCG /Name (View Usage Hidden) /Intent /View /Usage << /View << /ViewState /OFF >> >> >>\nendobj\n"
+            . "22 0 obj\n<< /Type /OCG /Name (View Usage Visible) /Intent /View /Usage << /View << /ViewState /ON >> >> >>\nendobj\n"
+            . "24 0 obj\n<< /Type /OCG /Name (Config Off Layer) /Intent /View /Usage << /View << /ViewState /ON >> >> >>\nendobj\n"
+            . "25 0 obj\n<< /Type /OCG /Name (Mixed Intent Layer) /Intent [/Design /View] >>\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Base Current View',
+            'Usage View Visible',
+            'Visible Usage Form',
+            'Mixed Intent Visible',
+            'Visible Usage Annotation',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Design Layer Noise'));
+        $t->true(!str_contains($plainText, 'Usage Hidden Text'));
+        $t->true(!str_contains($plainText, 'Off Array Usage Ignored'));
+        $t->true(!str_contains($plainText, 'Membership Hidden Text'));
+        $t->true(!str_contains($plainText, 'Hidden Usage Form'));
+        $t->true(!str_contains($plainText, 'Hidden Usage Annotation'));
+    },
     'skips Image XObject streams in fallback before WordPress text extraction' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Visible Text) Tj ET';
         $imageBytes = 'BT /F1 12 Tf 72 720 Td (Raster Image Noise) Tj ET';
