@@ -324,6 +324,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-object-generation-free-entry-import.php` maps object-generation free-entry reuse into a WordPress paragraph import path. It keeps the current direct page text while excluding a stale object-stream member whose object number is reserved by a current xref free entry.
 
+`examples/wordpress-pdf-object-stream-nested-token-boundary-import.php` maps unfiltered PDF 1.5 object-stream parser boundaries into a WordPress paragraph import path. It recovers the catalog, page tree, and font resource from xref-selected compressed members whose nested dictionaries and literal strings contain fake `obj`, `endobj`, and `stream` tokens, while excluding unrelated fallback streams and unlisted compressed catalogs without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
 `examples/wordpress-pdf-cmap-comment-import.php` maps ToUnicode CMap PDF/PostScript line-comment handling into a WordPress paragraph import path. It strips `%` comments before CMapName/usecmap/codespace/bfchar/bfrange parsing so commented fake glyph mappings such as `Noise` and `XY` do not override the real `ACleanDE` paragraph, without loading Python, pdftext, pypdfium, Poppler, Ghostscript, models, or external PDF tools.
 
 `examples/wordpress-pdf-indirect-nametree-destinations-import.php` maps indirect `/Names /Dests` string keys and destination dictionaries into a WordPress navigation review path. It emits Gutenberg list items with resolved `data-marker-destination-name` attributes, `/FitBH` and `/FitR` view metadata, and non-executing catalog OpenAction review metadata without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
