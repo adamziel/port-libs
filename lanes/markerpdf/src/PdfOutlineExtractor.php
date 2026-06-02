@@ -1164,10 +1164,10 @@ final class PdfOutlineExtractor
             return null;
         }
 
-        $viewMode = $this->nameValue($array[1] ?? null);
+        $viewMode = $this->nameValue($this->resolveValue($array[1] ?? null, $objects));
         $viewPosition = [];
         for ($index = 2, $count = count($array); $index < $count; $index++) {
-            $viewPosition[] = $this->numericOrNullValue($array[$index]);
+            $viewPosition[] = $this->numericOrNullValue($this->resolveValue($array[$index], $objects));
         }
 
         if ($viewMode === 'XYZ' && array_key_exists(2, $viewPosition) && $viewPosition[2] === 0.0) {

@@ -15,12 +15,21 @@ $pdf = "%PDF-1.4\n"
     . "6 0 obj\n<< /Title (Full Document) /Parent 5 0 R /Dest [3 0 R /Fit] /Next 7 0 R >>\nendobj\n"
     . "7 0 obj\n<< /Title (Review Start) /Parent 5 0 R /Dest /review-start /Next 9 0 R >>\nendobj\n"
     . "8 0 obj\n<< /Names [(review-start) [4 0 R /XYZ 144 640 0]] >>\nendobj\n"
-    . "9 0 obj\n<< /Title (Width Fit) /Parent 5 0 R /A << /S /GoTo /D [4 0 R /FitH 700] >> >>\nendobj\n"
+    . "9 0 obj\n<< /Title (Width Fit) /Parent 5 0 R /A << /S /GoTo /D [4 0 R 12 0 R 13 0 R] >> >>\nendobj\n"
+    . "12 0 obj\n/FitH\nendobj\n"
+    . "13 0 obj\n700\nendobj\n"
     . "%%EOF";
 
 $extractor = new PdfOutlineExtractor();
 $catalogView = $extractor->getCatalogPageViewMetadata($pdf);
 $toc = $extractor->getPdfTocWithDestinationViews($pdf);
+$widthFit = null;
+foreach ($toc as $item) {
+    if ($item['title'] === 'Width Fit') {
+        $widthFit = $item;
+        break;
+    }
+}
 
 echo '<!-- markerpdf-pdf-destination-view ' . htmlspecialchars(json_encode([
     'support_component' => 'native-pdf-destination-view-parser',
@@ -30,6 +39,7 @@ echo '<!-- markerpdf-pdf-destination-view ' . htmlspecialchars(json_encode([
     'page_mode' => $catalogView['page_mode'] ?? null,
     'page_layout' => $catalogView['page_layout'] ?? null,
     'open_action' => $catalogView['open_action'] ?? null,
+    'indirect_view_operands_resolved' => $widthFit !== null && $widthFit['view_mode'] === 'FitH' && $widthFit['view_position'] === [700.0],
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
 echo "<!-- wp:list -->\n<ul>\n";

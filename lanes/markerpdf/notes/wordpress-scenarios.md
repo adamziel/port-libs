@@ -290,7 +290,7 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-asciihex-runlength-filter-import.php` maps a length-bounded native PDF stream-filter edge into a WordPress import path. It decodes an `/ASCIIHexDecode` to `/RunLengthDecode` filter chain after slicing the stream by direct or indirect `/Length`, then emits `ASCIIHex RunLength Import` and `Block Ready Content` without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
-`examples/wordpress-pdf-destination-view-import.php` maps catalog and outline destination page-view metadata into a WordPress navigation review path. It exposes `/PageMode`, `/PageLayout`, `/OpenAction`, and outline `/Fit`/`/FitH`/`/XYZ` view fields while preserving the existing basic TOC rows.
+`examples/wordpress-pdf-destination-view-import.php` maps catalog and outline destination page-view metadata into a WordPress navigation review path. It exposes `/PageMode`, `/PageLayout`, `/OpenAction`, and outline `/Fit`/`/FitH`/`/XYZ` view fields, including indirect view-mode and coordinate operands, while preserving the existing basic TOC rows.
 
 `examples/wordpress-pdf-xfa-form-packet-import.php` maps catalog `/AcroForm /XFA` packet arrays into a review-only WordPress form path. It reports packet names, field hints, and data-node names without merging dynamic XFA XML into static AcroForm fields or executing external tooling.
 

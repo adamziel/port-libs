@@ -75,6 +75,32 @@ $destinationViewPdf = static function (): string {
         . "%%EOF";
 };
 
+$indirectDestinationViewOperandPdf = static function (): string {
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R /Names << /Dests 8 0 R >> /OpenAction 18 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Outlines /First 6 0 R /Count 3 >>\nendobj\n"
+        . "6 0 obj\n<< /Title (Indirect Zoom) /Parent 5 0 R /Dest [3 0 R 12 0 R 13 0 R 14 0 R 15 0 R] /Next 7 0 R >>\nendobj\n"
+        . "7 0 obj\n<< /Title (Indirect Left Fit) /Parent 5 0 R /Dest /fit-left /Next 9 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Names [(fit-left) << /D [4 0 R 16 0 R 17 0 R] >>] >>\nendobj\n"
+        . "9 0 obj\n<< /Title (Indirect Rectangle) /Parent 5 0 R /A << /S /GoTo /D 18 0 R >> >>\nendobj\n"
+        . "12 0 obj\n/XYZ\nendobj\n"
+        . "13 0 obj\n72\nendobj\n"
+        . "14 0 obj\n620\nendobj\n"
+        . "15 0 obj\n0\nendobj\n"
+        . "16 0 obj\n/FitV\nendobj\n"
+        . "17 0 obj\n222\nendobj\n"
+        . "18 0 obj\n[4 0 R 19 0 R 20 0 R 21 0 R 22 0 R 23 0 R]\nendobj\n"
+        . "19 0 obj\n/FitR\nendobj\n"
+        . "20 0 obj\n10\nendobj\n"
+        . "21 0 obj\n20\nendobj\n"
+        . "22 0 obj\n300\nendobj\n"
+        . "23 0 obj\n740\nendobj\n"
+        . "%%EOF";
+};
+
 $indirectNameTreeDestinationPdf = static function (): string {
     return "%PDF-1.4\n"
         . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R /Names << /Dests 8 0 R >> /OpenAction 16 0 R >>\nendobj\n"
@@ -309,6 +335,35 @@ return [
         $t->same([], $toc[3]['view_position']);
         $t->same([], $toc[3]['view_parameters']);
         $t->same([], $extractor->getPdfTocWithDestinationViews('%PDF-1.4 no catalog here'));
+    },
+    'resolves indirect destination view mode and coordinate operands' => static function (TestRunner $t) use ($indirectDestinationViewOperandPdf): void {
+        $extractor = new PdfOutlineExtractor();
+        $pdf = $indirectDestinationViewOperandPdf();
+        $toc = $extractor->getPdfTocWithDestinationViews($pdf);
+
+        $t->same(
+            [
+                ['title' => 'Indirect Zoom', 'level' => 1, 'page' => 0, 'destination' => null],
+                ['title' => 'Indirect Left Fit', 'level' => 1, 'page' => 1, 'destination' => 'fit-left'],
+                ['title' => 'Indirect Rectangle', 'level' => 1, 'page' => 1, 'destination' => null],
+            ],
+            $extractor->getPdfToc($pdf)
+        );
+        $t->same('XYZ', $toc[0]['view_mode']);
+        $t->same([72.0, 620.0, null], $toc[0]['view_position']);
+        $t->same(['left' => 72.0, 'top' => 620.0, 'zoom' => null], $toc[0]['view_parameters']);
+        $t->same('FitV', $toc[1]['view_mode']);
+        $t->same([222.0], $toc[1]['view_position']);
+        $t->same(['left' => 222.0], $toc[1]['view_parameters']);
+        $t->same('FitR', $toc[2]['view_mode']);
+        $t->same([10.0, 20.0, 300.0, 740.0], $toc[2]['view_position']);
+        $t->same(['left' => 10.0, 'bottom' => 20.0, 'right' => 300.0, 'top' => 740.0], $toc[2]['view_parameters']);
+
+        $metadata = $extractor->getCatalogPageViewMetadata($pdf);
+        $t->same(['open_action'], $metadata['source']);
+        $t->same(1, $metadata['open_action']['page']);
+        $t->same('FitR', $metadata['open_action']['view_mode']);
+        $t->same([10.0, 20.0, 300.0, 740.0], $metadata['open_action']['view_position']);
     },
     'resolves indirect name-tree strings and destination dictionaries' => static function (TestRunner $t) use ($indirectNameTreeDestinationPdf): void {
         $extractor = new PdfOutlineExtractor();
