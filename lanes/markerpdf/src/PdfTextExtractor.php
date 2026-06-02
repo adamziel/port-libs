@@ -7315,6 +7315,7 @@ final class PdfTextExtractor
         $preliminaryObjects = $this->latestDirectObjects($definitions);
         $xrefEntries = $this->xrefEntries($pdfBytes, $preliminaryObjects, $definitions);
         $objects = $this->liveDirectObjects($definitions, $xrefEntries);
+        $objects = $this->withReferencedDirectGenerationObjects($objects, $definitions, $xrefEntries);
         $linearizedHintRanges = $this->linearizedHintTableRanges($pdfBytes);
         foreach ($this->linearizedHintTableObjectNumbers($pdfBytes, $definitions, $linearizedHintRanges) as $objectNumber) {
             unset($objects[$objectNumber]);
@@ -7685,6 +7686,87 @@ final class PdfTextExtractor
 
         $selected = end($definitions);
         return is_array($selected) ? $selected : null;
+    }
+
+    /**
+     * Object streams can only carry generation-zero objects. If the current
+     * trailer-selected graph references a higher generation directly, recover
+     * that direct object before expanding any conflicting compressed member.
+     *
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
+     * @return array<int, string>
+     */
+    private function withReferencedDirectGenerationObjects(array $objects, array $definitions, array $xrefEntries): array
+    {
+        $repaired = $objects;
+
+        for ($pass = 0; $pass < 8; $pass++) {
+            $added = false;
+            foreach ($this->nonZeroGenerationObjectReferences($repaired) as $objectNumber => $generations) {
+                if (isset($repaired[$objectNumber]) || ($xrefEntries[$objectNumber]['type'] ?? null) !== 2) {
+                    continue;
+                }
+
+                krsort($generations, SORT_NUMERIC);
+                foreach (array_keys($generations) as $generation) {
+                    $definition = $this->directObjectDefinitionForGeneration($definitions[$objectNumber] ?? [], (int) $generation);
+                    if ($definition === null) {
+                        continue;
+                    }
+
+                    $repaired[$objectNumber] = $definition['body'];
+                    $added = true;
+                    break;
+                }
+            }
+
+            if (!$added) {
+                break;
+            }
+        }
+
+        ksort($repaired, SORT_NUMERIC);
+
+        return $repaired;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<int, array<int, true>>
+     */
+    private function nonZeroGenerationObjectReferences(array $objects): array
+    {
+        $references = [];
+        foreach ($objects as $body) {
+            $source = $this->dictionaryObjectBody($body) ?? $body;
+            if (!preg_match_all('/\b(\d+)\s+([1-9]\d*)\s+R\b/s', $source, $matches, PREG_SET_ORDER)) {
+                continue;
+            }
+
+            foreach ($matches as $match) {
+                $references[(int) $match[1]][(int) $match[2]] = true;
+            }
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function directObjectDefinitionForGeneration(array $definitions, int $generation): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if ($definition['generation'] === $generation) {
+                $candidates[] = $definition;
+            }
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
     }
 
     /**
@@ -8060,6 +8142,10 @@ final class PdfTextExtractor
                 $offset = (int) $pair[2];
                 $xrefEntry = $xrefEntries[$objectNumber] ?? null;
                 if ($xrefEntry !== null) {
+                    if (isset($objects[$objectNumber]) && ($xrefEntry['type'] ?? null) === 2) {
+                        continue;
+                    }
+
                     if (
                         ($xrefEntry['type'] ?? null) !== 2
                         || ($xrefEntry['objectStream'] ?? null) !== $objectStreamNumber
