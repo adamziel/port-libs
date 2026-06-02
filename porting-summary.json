@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 14:42:34 UTC",
-    "sourceCommit": "db83be2f37d6d386e98ea6c61ec69974cd9286df",
-    "sourceCommitShort": "db83be2f37d6",
+    "generated": "2026-06-02 14:49:23 UTC",
+    "sourceCommit": "8675e205555d5d5ee6347334926b801f469defa4",
+    "sourceCommitShort": "8675e205555d",
     "sourceBranch": "main",
-    "dashboardCommit": "db83be2f37d6d386e98ea6c61ec69974cd9286df",
-    "dashboardCommitShort": "db83be2f37d6",
+    "dashboardCommit": "8675e205555d5d5ee6347334926b801f469defa4",
+    "dashboardCommitShort": "8675e205555d",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "369",
-            "coverage": "369 / 78 (473.1%)",
-            "mapPercent": "473.1%",
+            "mapped": "370",
+            "coverage": "370 / 78 (474.4%)",
+            "mapPercent": "474.4%",
             "unmapped": "0",
-            "php": "521 pass / 0 fail",
+            "php": "522 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit db83be2; full ma...",
-            "currentWork": "RichMedia target-instance asset FileSpecs now expose review-only embedded-file stream...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit 8675e20; full ma...",
+            "currentWork": "Xref-stream type-2 rows now cannot hide the current direct /ObjStm base object; expli...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded font, xref/object s...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "db83be2"
+            "commit": "8675e20"
         },
         {
             "lane": "readability",
