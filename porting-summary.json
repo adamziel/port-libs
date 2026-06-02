@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 19:20:19 UTC",
-    "sourceCommit": "04449533a996e2e7b4bb914dd5d3f19cf9e2c529",
-    "sourceCommitShort": "04449533a996",
+    "generated": "2026-06-02 19:24:37 UTC",
+    "sourceCommit": "034bff8f8f8d0bbfc6bcb34355bfe35dcdcbb351",
+    "sourceCommitShort": "034bff8f8f8d",
     "sourceBranch": "unknown",
-    "dashboardCommit": "04449533a996e2e7b4bb914dd5d3f19cf9e2c529",
-    "dashboardCommitShort": "04449533a996",
+    "dashboardCommit": "034bff8f8f8d0bbfc6bcb34355bfe35dcdcbb351",
+    "dashboardCommitShort": "034bff8f8f8d",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "508",
-            "coverage": "508 / 78 (651.3%)",
-            "mapPercent": "651.3%",
+            "mapped": "513",
+            "coverage": "513 / 78 (657.7%)",
+            "mapPercent": "657.7%",
             "unmapped": "0",
-            "php": "705 pass / 0 fail",
+            "php": "711 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: accepted runtime40/image44/sec...",
-            "currentWork": "MarkerPDF now carries convert.py error capture and benchmark memory-error review, JPX...",
+            "audit": "2026-06-02 UTC supervisor integration: accepted parser40/form39/meta4...",
+            "currentWork": "MarkerPDF now carries stale stream-length startxref recovery, AcroForm widget appeara...",
             "nextTarget": "Resolve or reject the deferred outline38 and table39 source c...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "0444953"
+            "commit": "034bff8"
         },
         {
             "lane": "readability",
