@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 17:17:04 UTC",
-    "sourceCommit": "58f888bdb182532fb397c249b62fdf96928b3814",
-    "sourceCommitShort": "58f888bdb182",
+    "generated": "2026-06-02 17:29:04 UTC",
+    "sourceCommit": "70c8f082dace9d1a8b6e61d98d31819a3a97cab6",
+    "sourceCommitShort": "70c8f082dace",
     "sourceBranch": "unknown",
-    "dashboardCommit": "58f888bdb182532fb397c249b62fdf96928b3814",
-    "dashboardCommitShort": "58f888bdb182",
+    "dashboardCommit": "70c8f082dace9d1a8b6e61d98d31819a3a97cab6",
+    "dashboardCommitShort": "70c8f082dace",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "428",
-            "coverage": "428 / 78 (548.7%)",
-            "mapPercent": "548.7%",
+            "mapped": "438",
+            "coverage": "438 / 78 (561.5%)",
+            "mapPercent": "561.5%",
             "unmapped": "0",
-            "php": "593 pass / 0 fail",
+            "php": "604 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: source commit 58f888bd; accept...",
-            "currentWork": "MarkerPDF now adds rotated-rowspan table header review, encrypted/signature permissio...",
-            "nextTarget": "Score the newest current-base markerPDF handoffs (image33, me...",
+            "audit": "2026-06-02 UTC supervisor integration: source commit 70c8f082; accept...",
+            "currentWork": "MarkerPDF now adds AcroForm widget appearance calculation-order review, Type3 encodin...",
+            "nextTarget": "Manually score the remaining conflicted current-base markerPD...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "58f888b"
+            "commit": "70c8f08"
         },
         {
             "lane": "readability",
