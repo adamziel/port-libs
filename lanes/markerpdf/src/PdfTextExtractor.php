@@ -3210,7 +3210,11 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if ($this->isImageStreamDictionary($entry['dict'], $objects) || $this->isEmbeddedFileStreamDictionary($entry['dict'])) {
+            if (
+                $this->isObjectStreamDictionary($entry['dict'], $objects)
+                || $this->isImageStreamDictionary($entry['dict'], $objects)
+                || $this->isEmbeddedFileStreamDictionary($entry['dict'])
+            ) {
                 continue;
             }
 
@@ -4247,6 +4251,19 @@ final class PdfTextExtractor
     private function isEmbeddedFileStreamDictionary(string $dict): bool
     {
         return preg_match('/\/Type\s*\/EmbeddedFile\b/', $dict) === 1;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function isObjectStreamDictionary(string $dict, array $objects): bool
+    {
+        $offset = $this->topLevelNameValueOffset($dict, 'Type');
+        if ($offset === null) {
+            return false;
+        }
+
+        return $this->pdfNameValueAt($dict, $offset, $objects) === 'ObjStm';
     }
 
     /**
