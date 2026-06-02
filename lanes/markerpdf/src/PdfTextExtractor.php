@@ -6327,14 +6327,14 @@ final class PdfTextExtractor
             $verticalWidthArray = $this->pdfArrayValueAfterNameResolvingObjects($body, 'W2', $objects);
             if ($verticalWidthArray !== null) {
                 $hasVerticalWidthArray = true;
-                foreach ($this->cidVerticalDisplacementsFromW2Array($verticalWidthArray) as $cid => $displacement) {
+                foreach ($this->cidVerticalDisplacementsFromW2Array($verticalWidthArray, $objects) as $cid => $displacement) {
                     $verticalDisplacements[$cid] = $displacement;
                 }
             }
 
             $verticalDefaultMetrics = $this->pdfArrayValueAfterNameResolvingObjects($body, 'DW2', $objects);
             if ($verticalDefaultMetrics !== null) {
-                $metrics = $this->numbersFromPdfArray($verticalDefaultMetrics);
+                $metrics = $this->numbersFromPdfArrayResolvingObjects($verticalDefaultMetrics, $objects);
                 if (count($metrics) >= 2) {
                     $defaultVerticalDisplacement = (float) $metrics[1];
                 }
@@ -6740,14 +6740,15 @@ final class PdfTextExtractor
 
     /**
      * @return array<int, float>
+     * @param array<int, string> $objects
      */
-    private function cidVerticalDisplacementsFromW2Array(string $arrayBody): array
+    private function cidVerticalDisplacementsFromW2Array(string $arrayBody, array $objects): array
     {
-        $tokens = $this->contentTokens($arrayBody);
+        $tokens = $this->pdfArrayItems($arrayBody);
         $displacements = [];
 
         for ($index = 0, $count = count($tokens); $index < $count;) {
-            $firstCid = $this->integerToken($tokens[$index] ?? '');
+            $firstCid = $this->cidWidthArrayInteger($tokens[$index] ?? '', $objects);
             if ($firstCid === null) {
                 $index++;
                 continue;
@@ -6760,7 +6761,7 @@ final class PdfTextExtractor
             }
 
             if (str_starts_with(trim($next), '[')) {
-                $metrics = $this->numbersFromPdfArray(substr(trim($next), 1, -1));
+                $metrics = $this->numbersFromPdfArrayResolvingObjects(substr(trim($next), 1, -1), $objects);
                 for ($offset = 0, $metricCount = count($metrics); $offset + 2 < $metricCount; $offset += 3) {
                     $cid = $firstCid + intdiv($offset, 3);
                     if ($cid >= 0 && $cid <= 0xffff) {
@@ -6771,10 +6772,10 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $lastCid = $this->integerToken($next);
-            $verticalDisplacement = $this->numericOperand($tokens[$index + 1] ?? '');
-            $positionX = $this->numericOperand($tokens[$index + 2] ?? '');
-            $positionY = $this->numericOperand($tokens[$index + 3] ?? '');
+            $lastCid = $this->cidWidthArrayInteger($next, $objects);
+            $verticalDisplacement = $this->pdfNumberValueAt($tokens[$index + 1] ?? '', 0, $objects);
+            $positionX = $this->pdfNumberValueAt($tokens[$index + 2] ?? '', 0, $objects);
+            $positionY = $this->pdfNumberValueAt($tokens[$index + 3] ?? '', 0, $objects);
             if ($lastCid === null || $verticalDisplacement === null || $positionX === null || $positionY === null) {
                 $index++;
                 continue;

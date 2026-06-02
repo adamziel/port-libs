@@ -533,6 +533,11 @@ final class PdfImageRenderer
         if ($jpxSoftMaskInData !== null) {
             if (($jpxSoftMaskInData['ignored_without_jpx'] ?? false) === true) {
                 $notes[] = 'smask_in_data_ignored_without_jpx';
+                if (($jpxSoftMaskInData['valid_value'] ?? true) === false) {
+                    $notes[] = 'jpx_smaskindata_value_out_of_range_review_only';
+                }
+            } elseif (($jpxSoftMaskInData['valid_value'] ?? true) === false) {
+                $notes[] = 'jpx_smaskindata_value_out_of_range_review_only';
             } elseif (($jpxSoftMaskInData['uses_embedded_soft_mask'] ?? false) === true) {
                 $notes[] = 'jpx_embedded_soft_mask_review_before_rgb_conversion';
                 if (($jpxSoftMaskInData['preblended_with_matte'] ?? false) === true) {
@@ -540,9 +545,6 @@ final class PdfImageRenderer
                 }
                 if (($jpxSoftMaskInData['external_soft_mask_ignored'] ?? false) === true) {
                     $notes[] = 'jpx_smaskindata_ignores_external_smask';
-                }
-                if (($jpxSoftMaskInData['valid_value'] ?? true) === false) {
-                    $notes[] = 'jpx_smaskindata_value_out_of_range_review_only';
                 }
             } else {
                 $notes[] = 'jpx_smaskindata_zero_ignores_embedded_soft_mask';
@@ -2349,15 +2351,16 @@ final class PdfImageRenderer
         }
 
         $integer = $this->integerFromPdfValue($value, $objects);
+        $validValue = is_int($integer) && in_array($integer, [0, 1, 2], true);
         $filterIsJpx = in_array('JPXDecode', $filters, true);
-        $usesEmbeddedSoftMask = $filterIsJpx && is_int($integer) && $integer !== 0;
+        $usesEmbeddedSoftMask = $filterIsJpx && $validValue && $integer !== 0;
         $softMaskValue = $this->extractPdfNameValue($dictionary, 'SMask');
         $externalSoftMaskPresent = $softMaskValue !== null && $this->pdfNameValue($softMaskValue) !== 'None';
 
         return [
             'present' => true,
             'value' => $integer,
-            'valid_value' => is_int($integer) && in_array($integer, [0, 1, 2], true),
+            'valid_value' => $validValue,
             'filter_is_jpx' => $filterIsJpx,
             'uses_embedded_soft_mask' => $usesEmbeddedSoftMask,
             'encoded_soft_mask_values' => $usesEmbeddedSoftMask && $integer === 1,
@@ -2365,7 +2368,7 @@ final class PdfImageRenderer
             'external_soft_mask_present' => $externalSoftMaskPresent,
             'external_soft_mask_ignored' => $usesEmbeddedSoftMask && $externalSoftMaskPresent,
             'ignored_without_jpx' => !$filterIsJpx,
-            'review_only' => $usesEmbeddedSoftMask,
+            'review_only' => $usesEmbeddedSoftMask || ($filterIsJpx && !$validValue),
         ];
     }
 

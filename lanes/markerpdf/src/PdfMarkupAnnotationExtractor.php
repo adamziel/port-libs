@@ -51,9 +51,18 @@ final class PdfMarkupAnnotationExtractor
      */
     public function applyMarkupsToPages(array $pages, string $pdfBytes): array
     {
+        $reviewContextByPage = $this->markupReviewContextByPage($pdfBytes);
         $markupsByPage = [];
         foreach ($this->extractPageMarkups($pdfBytes) as $pageMarkups) {
-            $markupsByPage[$pageMarkups['pnum']] = $pageMarkups['markups'];
+            $markups = [];
+            foreach ($pageMarkups['markups'] as $markup) {
+                $markups[] = $this->markupWithReviewContext(
+                    $markup,
+                    $reviewContextByPage[$pageMarkups['pnum']] ?? null
+                );
+            }
+
+            $markupsByPage[$pageMarkups['pnum']] = $markups;
         }
 
         $out = [];
@@ -150,11 +159,167 @@ final class PdfMarkupAnnotationExtractor
                     'pdftext_quad_rect' => $markup['pdftext_quad_rects'][$candidate['index']] ?? null,
                     'annotation_object' => $markup['annotation_object'],
                     'struct_parent' => $markup['struct_parent'],
+                    'structure_parent' => $markup['structure_parent'] ?? null,
+                    'page_structparent_context' => $markup['page_structparent_context'] ?? null,
                 ];
             }
         }
 
         return $annotations;
+    }
+
+    /**
+     * @return array<int, array{page_context: array<string, mixed>, markups_by_object: array<int, array<string, mixed>>, markups_by_struct_parent: array<int, array<string, mixed>>}>
+     */
+    private function markupReviewContextByPage(string $pdfBytes): array
+    {
+        $contexts = [];
+        foreach ((new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdfBytes) as $pageReview) {
+            if (!is_array($pageReview)) {
+                continue;
+            }
+
+            $pnum = $pageReview['pnum'] ?? null;
+            if (!is_int($pnum)) {
+                continue;
+            }
+
+            $pageContext = [
+                'source' => 'page_structparent_markup_annotation_context',
+                'pnum' => $pnum,
+                'page' => $pnum,
+                'page_number' => $pageReview['page_number'] ?? ($pnum + 1),
+                'page_label' => $pageReview['page_label'] ?? (string) ($pnum + 1),
+                'page_object' => $pageReview['page_object'] ?? null,
+                'struct_parents' => $pageReview['struct_parents'] ?? null,
+                'parent_tree' => $pageReview['parent_tree'] ?? null,
+                'review_only' => true,
+                'visible_text_source' => false,
+            ];
+
+            $contexts[$pnum] = [
+                'page_context' => $this->compactContextRow($pageContext),
+                'markups_by_object' => [],
+                'markups_by_struct_parent' => [],
+            ];
+
+            $markupRows = $pageReview['text_markup_annotations'] ?? [];
+            if (!is_array($markupRows)) {
+                continue;
+            }
+
+            foreach ($markupRows as $markupRow) {
+                if (!is_array($markupRow)) {
+                    continue;
+                }
+
+                $structureParent = $this->structureParentContextFromMarkupReview($markupRow);
+                if ($structureParent === []) {
+                    continue;
+                }
+
+                $annotationObject = $markupRow['annotation_object'] ?? null;
+                if (is_int($annotationObject)) {
+                    $contexts[$pnum]['markups_by_object'][$annotationObject] = $structureParent;
+                }
+
+                $structParent = $markupRow['struct_parent'] ?? null;
+                if (is_int($structParent)) {
+                    $contexts[$pnum]['markups_by_struct_parent'][$structParent] = $structureParent;
+                }
+            }
+        }
+
+        return $contexts;
+    }
+
+    /**
+     * @param array<string, mixed> $markup
+     * @param array{page_context: array<string, mixed>, markups_by_object: array<int, array<string, mixed>>, markups_by_struct_parent: array<int, array<string, mixed>>}|null $pageContext
+     * @return array<string, mixed>
+     */
+    private function markupWithReviewContext(array $markup, ?array $pageContext): array
+    {
+        if ($pageContext === null) {
+            return $markup;
+        }
+
+        if (($pageContext['page_context'] ?? []) !== []) {
+            $markup['page_structparent_context'] = $pageContext['page_context'];
+        }
+
+        $annotationObject = $markup['annotation_object'] ?? null;
+        $structParent = $markup['struct_parent'] ?? null;
+        $structureParent = null;
+        if (is_int($annotationObject)) {
+            $structureParent = $pageContext['markups_by_object'][$annotationObject] ?? null;
+        }
+        if ($structureParent === null && is_int($structParent)) {
+            $structureParent = $pageContext['markups_by_struct_parent'][$structParent] ?? null;
+        }
+
+        if (is_array($structureParent) && $structureParent !== []) {
+            $markup['structure_parent'] = $structureParent;
+        }
+
+        return $markup;
+    }
+
+    /**
+     * @param array<string, mixed> $markupRow
+     * @return array<string, mixed>
+     */
+    private function structureParentContextFromMarkupReview(array $markupRow): array
+    {
+        $structParent = $markupRow['struct_parent'] ?? null;
+        if (!is_int($structParent)) {
+            return [];
+        }
+
+        $parentTree = is_array($markupRow['parent_tree'] ?? null) ? $markupRow['parent_tree'] : [];
+        $row = [
+            'source' => 'page_text_markup_annotation_struct_parent_context',
+            'key' => $structParent,
+            'annotation_object' => $markupRow['annotation_object'] ?? null,
+            'current_page_annotation' => true,
+            'review_only' => true,
+            'visible_text_source' => false,
+            'parent_tree' => $parentTree,
+        ];
+
+        foreach ([
+            'struct_object',
+            'raw_role',
+            'role',
+            'role_mapped',
+            'title',
+            'language',
+            'language_inherited',
+            'alternate_text',
+            'actual_text',
+            'expansion_text',
+            'id',
+            'classes',
+            'revision',
+            'namespace',
+            'associated_file_count',
+            'associated_files',
+        ] as $key) {
+            if (array_key_exists($key, $markupRow)) {
+                $row[$key] = $markupRow[$key];
+            }
+        }
+
+        return $this->compactContextRow($row);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function compactContextRow(array $row): array
+    {
+        return array_filter($row, static fn (mixed $value): bool => $value !== null && $value !== []);
     }
 
     /**

@@ -140,4 +140,142 @@ return [
         $t->same(false, $plan['soft_mask_applied_before_rgb']);
         $t->same(false, $plan['image_filter_boundary']['native_raster_decode']);
     },
+    'keeps invalid JPX SMaskInData from suppressing ColorKey masks' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $objects = [
+            94 => '9',
+        ];
+
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Filter /JPXDecode /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Mask [0 0 120 140 200 255] /SMaskInData 94 0 R >>',
+            $objects
+        );
+        $transparent = $renderer->colorKeyMaskSamplePreview([0, 128, 240], $plan);
+        $opaque = $renderer->colorKeyMaskSamplePreview([1, 128, 240], $plan);
+
+        $t->same([
+            'present' => true,
+            'value' => 9,
+            'valid_value' => false,
+            'filter_is_jpx' => true,
+            'uses_embedded_soft_mask' => false,
+            'encoded_soft_mask_values' => false,
+            'preblended_with_matte' => false,
+            'external_soft_mask_present' => false,
+            'external_soft_mask_ignored' => false,
+            'ignored_without_jpx' => false,
+            'review_only' => true,
+        ], $plan['jpx_soft_mask_in_data']);
+        $t->same([
+            'present' => true,
+            'ranges' => [
+                ['min' => 0, 'max' => 0],
+                ['min' => 120, 'max' => 140],
+                ['min' => 200, 'max' => 255],
+            ],
+            'component_count' => 3,
+            'expected_components' => 3,
+            'valid_for_components' => true,
+            'source' => 'explicit',
+            'compares_before_decode' => true,
+            'transparent_when_all_components_match' => true,
+        ], $plan['color_key_mask']);
+        $t->same(true, $plan['color_key_mask_applied_before_rgb']);
+        $t->same(false, $plan['color_key_mask_suppressed_by_soft_mask']);
+        $t->same(false, $plan['soft_mask_applied_before_rgb']);
+        $t->same('color_key_mask_composited_to_rgb_preview', $plan['alpha_output_mode']);
+        $t->same(true, $transparent['matches_color_key']);
+        $t->same(0.0, $transparent['alpha']);
+        $t->same(false, $opaque['matches_color_key']);
+        $t->same(1.0, $opaque['alpha']);
+
+        $notes = implode(',', $plan['notes']);
+        $t->contains('jpx_smaskindata_value_out_of_range_review_only', $notes);
+        $t->contains('color_key_mask_applied_before_rgb_conversion', $notes);
+        $t->true(!str_contains($notes, 'jpx_embedded_soft_mask_review_before_rgb_conversion'));
+        $t->true(!str_contains($notes, 'jpx_embedded_soft_mask_overrides_color_key_mask'));
+    },
+    'keeps external SMask authoritative when JPX SMaskInData is invalid' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $objects = [
+            95 => '9',
+            96 => "<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Decode [1 0] /Length 1 >>\nstream\nM\nendstream",
+        ];
+
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Filter /JPXDecode /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Mask [0 0 120 140 200 255] /SMask 96 0 R /SMaskInData 95 0 R >>',
+            $objects
+        );
+
+        $t->same([
+            'present' => true,
+            'value' => 9,
+            'valid_value' => false,
+            'filter_is_jpx' => true,
+            'uses_embedded_soft_mask' => false,
+            'encoded_soft_mask_values' => false,
+            'preblended_with_matte' => false,
+            'external_soft_mask_present' => true,
+            'external_soft_mask_ignored' => false,
+            'ignored_without_jpx' => false,
+            'review_only' => true,
+        ], $plan['jpx_soft_mask_in_data']);
+        $t->same([
+            'present' => true,
+            'subtype' => 'Image',
+            'width' => 1,
+            'height' => 1,
+            'color_space' => 'DeviceGray',
+            'components' => 1,
+            'bits_per_component' => 8,
+            'decode' => [
+                'ranges' => [
+                    ['min' => 1.0, 'max' => 0.0],
+                ],
+                'component_count' => 1,
+                'expected_components' => 1,
+                'valid_for_components' => true,
+                'identity' => false,
+                'inverted_components' => [0],
+                'source' => 'explicit',
+            ],
+            'opacity_for_zero' => 1.0,
+            'opacity_for_max' => 0.0,
+            'decode_inverted' => true,
+            'decode_component_mismatch' => false,
+            'matte' => null,
+            'interpolate' => null,
+        ], $plan['soft_mask']);
+        $t->same([
+            'present' => true,
+            'source_object' => 96,
+            'filters' => [],
+            'preview_only_filters' => [],
+            'unsupported_filters' => [],
+            'raw_length' => 1,
+            'decoded_length' => 1,
+            'decoded_sha256' => hash('sha256', 'M'),
+            'decoded_preview_hex' => '4D',
+            'decoded_sample_bytes' => [77],
+            'decoded_with_current_filters' => true,
+            'decode_failed' => false,
+            'uses_current_object_map' => true,
+        ], $plan['soft_mask_filter_boundary']);
+        $t->same(false, $plan['color_key_mask_applied_before_rgb']);
+        $t->same(true, $plan['color_key_mask_suppressed_by_soft_mask']);
+        $t->same(true, $plan['soft_mask_applied_before_rgb']);
+        $t->same(true, $plan['soft_mask_decode_applied_before_rgb']);
+        $t->same('soft_mask_composited_to_rgb_preview', $plan['alpha_output_mode']);
+        $t->same(1.0, $renderer->softMaskSampleOpacity(0, $plan['soft_mask']));
+        $t->same(0.0, $renderer->softMaskSampleOpacity(255, $plan['soft_mask']));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->colorKeyMaskSamplePreview([0, 128, 240], $plan));
+
+        $notes = implode(',', $plan['notes']);
+        $t->contains('jpx_smaskindata_value_out_of_range_review_only', $notes);
+        $t->contains('soft_mask_applied_before_rgb_conversion', $notes);
+        $t->contains('soft_mask_decode_applied_before_rgb_conversion', $notes);
+        $t->contains('color_key_mask_suppressed_by_soft_mask', $notes);
+        $t->true(!str_contains($notes, 'jpx_smaskindata_ignores_external_smask'));
+        $t->true(!str_contains($notes, 'jpx_embedded_soft_mask_overrides_color_key_mask'));
+    },
 ];

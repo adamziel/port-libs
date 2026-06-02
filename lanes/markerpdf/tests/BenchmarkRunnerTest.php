@@ -325,6 +325,76 @@ return [
         $t->same(false, $report['executes_cuda_memory_history']);
         $t->same(true, $report['review_only']);
     },
+    'records benchmark method and page-counter failures as review-only runtime telemetry' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $prepareCiFolders): void {
+        $pdfFolder = $makeTempDir();
+        $referenceFolder = $makeTempDir();
+        $markdownFolder = $makeTempDir();
+        try {
+            $pairsByDocument = $prepareCiFolders($pdfFolder, $referenceFolder);
+
+            $methodFailure = (new BenchmarkRunner())->runWithErrorTelemetry(
+                $pdfFolder,
+                $referenceFolder,
+                [
+                    'marker' => static function (string $pdfPath, string $document, string $reference, array $context) use ($pairsByDocument): string {
+                        if ($document === 'switch_trans.pdf') {
+                            throw new RuntimeException('surya model boundary unavailable');
+                        }
+
+                        return $pairsByDocument[$document]['markerExcerpt'];
+                    },
+                ],
+                static fn (): int => 2,
+                $markdownFolder,
+                array_map(static fn (array $pair): int => $pair['chunkLength'], $pairsByDocument),
+                null,
+                ['profile_memory' => true]
+            );
+
+            $t->same(false, $methodFailure['success']);
+            $t->same(null, $methodFailure['result']);
+            $telemetry = $methodFailure['telemetry'];
+            $t->same('converter', $telemetry['phase']);
+            $t->same('marker', $telemetry['method']);
+            $t->same('switch_trans.pdf', $telemetry['document']);
+            $t->same(1, $telemetry['benchmark_index']);
+            $t->same('marker_memory_1.pickle', $telemetry['memory_snapshot']);
+            $t->same(true, $telemetry['callback_sandbox']);
+            $t->contains('Benchmark method marker failed for switch_trans.pdf: surya model boundary unavailable', $telemetry['message_line']);
+            $t->contains('RuntimeException: surya model boundary unavailable', $telemetry['traceback']);
+            $t->same(true, $telemetry['default_runner_fails_fast']);
+            $t->same(false, $telemetry['continues_after_failure']);
+            $t->same(false, $telemetry['writes_markdown_after_failure']);
+            $t->same(false, $telemetry['executes_external_tools']);
+            $t->same(false, $telemetry['executes_python_or_models']);
+            $t->same(true, $telemetry['review_only']);
+            $t->true(is_file($markdownFolder . DIRECTORY_SEPARATOR . 'marker_multicolcnn.md'));
+            $t->same(false, is_file($markdownFolder . DIRECTORY_SEPARATOR . 'marker_switch_trans.md'));
+
+            $pageCounterFailure = (new BenchmarkRunner())->runWithErrorTelemetry(
+                $pdfFolder,
+                $referenceFolder,
+                [
+                    'marker' => static fn (): string => 'unused',
+                ],
+                static fn (): int => throw new RuntimeException('PDFium page count unavailable'),
+                $markdownFolder
+            );
+
+            $t->same(false, $pageCounterFailure['success']);
+            $t->same('page_counter', $pageCounterFailure['telemetry']['phase']);
+            $t->same(null, $pageCounterFailure['telemetry']['method']);
+            $t->same('multicolcnn.pdf', $pageCounterFailure['telemetry']['document']);
+            $t->same(null, $pageCounterFailure['telemetry']['memory_snapshot']);
+            $t->same(true, $pageCounterFailure['telemetry']['callback_sandbox']);
+            $t->contains('Benchmark page counter failed for multicolcnn.pdf: PDFium page count unavailable', $pageCounterFailure['telemetry']['message_line']);
+            $t->same(false, $pageCounterFailure['telemetry']['continues_after_failure']);
+        } finally {
+            $removeTree($pdfFolder);
+            $removeTree($referenceFolder);
+            $removeTree($markdownFolder);
+        }
+    },
     'rejects malformed benchmark runner supplied boundaries' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $pdfFolder = $makeTempDir();
         $referenceFolder = $makeTempDir();

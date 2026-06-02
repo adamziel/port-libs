@@ -12,9 +12,83 @@ final class BenchmarkRunner
 {
     private BenchmarkReportBuilder $reportBuilder;
 
+    /** @var array<string, mixed>|null */
+    private ?array $activeRuntimeFailureContext = null;
+
     public function __construct(?BenchmarkReportBuilder $reportBuilder = null)
     {
         $this->reportBuilder = $reportBuilder ?? new BenchmarkReportBuilder();
+    }
+
+    /**
+     * WordPress-safe wrapper for benchmarks/overall.py runtime failures.
+     *
+     * Upstream fails fast when PDFium page counting or a conversion method
+     * raises. This wrapper preserves that default while exposing the active
+     * method/document phase as review-only telemetry for import queues.
+     *
+     * @param array<string, callable(string, string, string, array<string, mixed>): mixed> $methodConverters
+     * @param callable(string): int|null $pageCounter
+     * @param array<string, int> $chunkLengths
+     * @return array{
+     *     success: bool,
+     *     result: array<string, mixed>|null,
+     *     error: string|null,
+     *     telemetry: array<string, mixed>|null,
+     *     executes_external_tools: false,
+     *     executes_python_or_models: false
+     * }
+     */
+    public function runWithErrorTelemetry(
+        string $inputFolder,
+        string $referenceFolder,
+        array $methodConverters,
+        ?callable $pageCounter = null,
+        ?string $markdownOutputFolder = null,
+        array $chunkLengths = [],
+        ?string $reportOutputFile = null,
+        array $runtimeOptions = []
+    ): array {
+        $this->activeRuntimeFailureContext = [
+            'phase' => 'preflight',
+            'input_folder' => $inputFolder,
+            'reference_folder' => $referenceFolder,
+            'markdown_output_folder' => $markdownOutputFolder,
+            'report_output' => $reportOutputFile,
+        ];
+
+        try {
+            $result = $this->run(
+                $inputFolder,
+                $referenceFolder,
+                $methodConverters,
+                $pageCounter,
+                $markdownOutputFolder,
+                $chunkLengths,
+                $reportOutputFile,
+                $runtimeOptions
+            );
+
+            return [
+                'success' => true,
+                'result' => $result,
+                'error' => null,
+                'telemetry' => null,
+                'executes_external_tools' => false,
+                'executes_python_or_models' => false,
+            ];
+        } catch (Throwable $throwable) {
+            return [
+                'success' => false,
+                'result' => null,
+                'error' => $throwable->getMessage(),
+                'telemetry' => $this->runtimeFailureTelemetry($throwable, $this->activeRuntimeFailureContext ?? []),
+                'executes_external_tools' => false,
+                'executes_python_or_models' => false,
+            ];
+        } finally {
+            $this->activeRuntimeFailureContext = null;
+        }
     }
 
     /**
@@ -98,6 +172,17 @@ final class BenchmarkRunner
             $pdfPath = $inputFolder . DIRECTORY_SEPARATOR . $pdfFilename;
             $mdFilename = $this->markdownFilename($pdfFilename);
             $referencePath = $referenceFolder . DIRECTORY_SEPARATOR . $mdFilename;
+            $this->activeRuntimeFailureContext = $this->runtimeFailureContext(
+                'reference_read',
+                null,
+                $pdfFilename,
+                $pdfPath,
+                $referencePath,
+                $documentIndex,
+                ['callback_sandbox' => $runtime['callback_sandbox']],
+                $markdownOutputFolder,
+                $reportOutputFile
+            );
             $reference = @file_get_contents($referencePath);
             if (!is_string($reference)) {
                 throw new InvalidArgumentException('Benchmark reference markdown is not readable: ' . $referencePath);
@@ -106,7 +191,25 @@ final class BenchmarkRunner
             $pageCounterSnapshot = $runtime['callback_sandbox'] && $pageCounter !== null
                 ? $this->sandboxSnapshot($pdfPath, $referencePath, $markdownOutputFolder)
                 : null;
-            $pages = $pageCounter === null ? 1 : (int) $pageCounter($pdfPath);
+            $this->activeRuntimeFailureContext = $this->runtimeFailureContext(
+                'page_counter',
+                null,
+                $pdfFilename,
+                $pdfPath,
+                $referencePath,
+                $documentIndex,
+                ['callback_sandbox' => $runtime['callback_sandbox']],
+                $markdownOutputFolder,
+                $reportOutputFile
+            );
+            try {
+                $pages = $pageCounter === null ? 1 : (int) $pageCounter($pdfPath);
+            } catch (Throwable $throwable) {
+                if ($pageCounterSnapshot !== null) {
+                    $this->assertSandboxUnchanged($pageCounterSnapshot, "page counter for {$pdfFilename}");
+                }
+                throw $throwable;
+            }
             if ($pageCounterSnapshot !== null) {
                 $this->assertSandboxUnchanged($pageCounterSnapshot, "page counter for {$pdfFilename}");
             }
@@ -121,7 +224,25 @@ final class BenchmarkRunner
                     ? $this->sandboxSnapshot($pdfPath, $referencePath, $markdownOutputFolder)
                     : null;
                 $start = microtime(true);
-                $conversion = $this->normalizeConversion($converter($pdfPath, $pdfFilename, $reference, $context));
+                $this->activeRuntimeFailureContext = $this->runtimeFailureContext(
+                    'converter',
+                    $method,
+                    $pdfFilename,
+                    $pdfPath,
+                    $referencePath,
+                    $documentIndex,
+                    $context,
+                    $markdownOutputFolder,
+                    $reportOutputFile
+                );
+                try {
+                    $conversion = $this->normalizeConversion($converter($pdfPath, $pdfFilename, $reference, $context));
+                } catch (Throwable $throwable) {
+                    if ($converterSnapshot !== null) {
+                        $this->assertSandboxUnchanged($converterSnapshot, "{$method}/{$pdfFilename}");
+                    }
+                    throw $throwable;
+                }
                 if ($converterSnapshot !== null) {
                     $this->assertSandboxUnchanged($converterSnapshot, "{$method}/{$pdfFilename}");
                 }
@@ -147,6 +268,17 @@ final class BenchmarkRunner
 
                 if ($markdownOutputFolder !== null) {
                     $outPath = $markdownOutputFolder . DIRECTORY_SEPARATOR . $method . '_' . $mdFilename;
+                    $this->activeRuntimeFailureContext = $this->runtimeFailureContext(
+                        'markdown_write',
+                        $method,
+                        $pdfFilename,
+                        $pdfPath,
+                        $referencePath,
+                        $documentIndex,
+                        $context + ['markdown_output' => $outPath],
+                        $markdownOutputFolder,
+                        $reportOutputFile
+                    );
                     if (file_put_contents($outPath, $conversion['text']) === false) {
                         throw new InvalidArgumentException('Benchmark markdown output is not writable: ' . $outPath);
                     }
@@ -158,6 +290,11 @@ final class BenchmarkRunner
         $report = $this->reportBuilder->build($runs);
         $outputTables = $this->reportBuilder->outputTables($report);
         if ($reportOutputFile !== null) {
+            $this->activeRuntimeFailureContext = [
+                'phase' => 'report_write',
+                'report_output' => $reportOutputFile,
+                'markdown_output_folder' => $markdownOutputFolder,
+            ];
             $this->reportBuilder->writeJsonReport($reportOutputFile, $report);
         }
 
@@ -198,6 +335,110 @@ final class BenchmarkRunner
             'executes_cuda_memory_history' => false,
             'review_only' => true,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    private function runtimeFailureTelemetry(Throwable $throwable, array $context): array
+    {
+        $phase = isset($context['phase']) && is_string($context['phase'])
+            ? $context['phase']
+            : 'preflight';
+        $method = isset($context['method']) && is_string($context['method'])
+            ? $context['method']
+            : null;
+        $document = isset($context['document']) && is_string($context['document'])
+            ? $context['document']
+            : null;
+
+        $trace = $throwable->getTraceAsString();
+        $traceback = get_class($throwable) . ': ' . $throwable->getMessage();
+        if ($trace !== '') {
+            $traceback .= "\n" . $trace;
+        }
+
+        return [
+            'phase' => $phase,
+            'method' => $method,
+            'document' => $document,
+            'benchmark_index' => $context['benchmark_index'] ?? null,
+            'input_folder' => $context['input_folder'] ?? null,
+            'reference_folder' => $context['reference_folder'] ?? null,
+            'pdf_path' => $context['pdf_path'] ?? null,
+            'reference_path' => $context['reference_path'] ?? null,
+            'markdown_output_folder' => $context['markdown_output_folder'] ?? null,
+            'markdown_output' => $context['markdown_output'] ?? null,
+            'report_output' => $context['report_output'] ?? null,
+            'memory_snapshot' => $context['memory_snapshot'] ?? null,
+            'callback_sandbox' => $context['callback_sandbox'] ?? null,
+            'error' => $throwable->getMessage(),
+            'message_line' => $this->runtimeFailureMessageLine($phase, $method, $document, $throwable),
+            'traceback' => $traceback,
+            'traceback_available' => $traceback !== '',
+            'default_runner_fails_fast' => true,
+            'continues_after_failure' => false,
+            'writes_markdown_after_failure' => false,
+            'executes_external_tools' => false,
+            'executes_python_or_models' => false,
+            'review_only' => true,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $context
+     * @return array<string, mixed>
+     */
+    private function runtimeFailureContext(
+        string $phase,
+        ?string $method,
+        string $document,
+        string $pdfPath,
+        string $referencePath,
+        int $documentIndex,
+        ?array $context,
+        ?string $markdownOutputFolder,
+        ?string $reportOutputFile
+    ): array {
+        return [
+            'phase' => $phase,
+            'method' => $method,
+            'document' => $document,
+            'benchmark_index' => $documentIndex,
+            'pdf_path' => $pdfPath,
+            'reference_path' => $referencePath,
+            'markdown_output_folder' => $markdownOutputFolder,
+            'markdown_output' => $context['markdown_output'] ?? null,
+            'report_output' => $reportOutputFile,
+            'memory_snapshot' => $context['memory_snapshot'] ?? null,
+            'callback_sandbox' => $context['callback_sandbox'] ?? null,
+        ];
+    }
+
+    private function runtimeFailureMessageLine(
+        string $phase,
+        ?string $method,
+        ?string $document,
+        Throwable $throwable
+    ): string {
+        if ($phase === 'converter' && $method !== null && $document !== null) {
+            return "Benchmark method {$method} failed for {$document}: " . $throwable->getMessage();
+        }
+        if ($phase === 'page_counter' && $document !== null) {
+            return "Benchmark page counter failed for {$document}: " . $throwable->getMessage();
+        }
+        if ($phase === 'reference_read' && $document !== null) {
+            return "Benchmark reference read failed for {$document}: " . $throwable->getMessage();
+        }
+        if ($phase === 'markdown_write' && $method !== null && $document !== null) {
+            return "Benchmark markdown write failed for {$method}/{$document}: " . $throwable->getMessage();
+        }
+        if ($phase === 'report_write') {
+            return 'Benchmark report write failed: ' . $throwable->getMessage();
+        }
+
+        return 'Benchmark runner failed during ' . $phase . ': ' . $throwable->getMessage();
     }
 
     /**

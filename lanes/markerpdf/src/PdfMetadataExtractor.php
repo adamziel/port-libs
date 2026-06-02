@@ -61,6 +61,10 @@ final class PdfMetadataExtractor
         'Schema' => 'schema_definition',
         'Unspecified' => 'unspecified',
     ];
+    private const SPECIALIZED_CATALOG_NAME_TREE_KEYS = [
+        'Dests' => true,
+        'EmbeddedFiles' => true,
+    ];
 
     private const NS_DC = 'http://purl.org/dc/elements/1.1/';
     private const NS_PDF = 'http://ns.adobe.com/pdf/1.3/';
@@ -120,7 +124,7 @@ final class PdfMetadataExtractor
      * @return array{
      *     source: list<string>,
      *     xmp: array<string, mixed>,
-     *     info: array<string, string>,
+     *     info: array<string, mixed>,
      *     catalog?: array<string, mixed>,
      *     output_intents: list<array<string, mixed>>,
      *     encryption?: array<string, mixed>,
@@ -146,6 +150,7 @@ final class PdfMetadataExtractor
      *     collection?: array<string, mixed>,
      *     associated_files?: list<array<string, mixed>>,
      *     embedded_files?: list<array<string, mixed>>,
+     *     document_name_trees?: array<string, mixed>,
      *     structure_tree?: array<string, mixed>,
      *     document_destinations?: array<string, mixed>,
      *     document_security_store?: array<string, mixed>,
@@ -291,25 +296,21 @@ final class PdfMetadataExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array<string, string>
+     * @return array<string, mixed>
      */
     private function extractInfoMetadata(string $pdfBytes, array $objects): array
     {
         $trailer = $this->trailerDictionaryBody($pdfBytes);
-        if ($trailer === null || preg_match('/\/Info\s+(\d+)\s+\d+\s+R\b/s', $trailer, $match) !== 1) {
+        if ($trailer === null) {
             return [];
         }
 
-        $objectNumber = (int) $match[1];
-        if (!isset($objects[$objectNumber])) {
+        $infoDictionary = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($trailer, 'Info'), $objects);
+        if ($infoDictionary === null) {
             return [];
         }
 
-        $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
-        if ($dictionary === null) {
-            return [];
-        }
-
+        $dictionary = $infoDictionary['body'];
         $fields = [];
         foreach (['Title', 'Author', 'Subject', 'Keywords', 'Creator', 'Producer', 'CreationDate', 'ModDate'] as $key) {
             $value = $this->dictionaryStringValue($dictionary, $key);
@@ -318,7 +319,35 @@ final class PdfMetadataExtractor
             }
         }
 
+        $review = $this->trailerInfoReviewMetadata($dictionary, $objects);
+        if ($review !== []) {
+            $fields['review'] = $review;
+        }
+
         return $fields;
+    }
+
+    /**
+     * Trailer /Info dictionaries may carry standard extension keys such as
+     * /Trapped plus producer-specific scalars. Keep them typed and review-only
+     * instead of promoting them into title/author fallbacks.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function trailerInfoReviewMetadata(string $dictionary, array $objects): array
+    {
+        $review = [];
+        foreach ($this->dictionaryTopLevelEntries($dictionary) as $key => $value) {
+            $reviewValue = $this->reviewValueFromRaw($value, $objects);
+            if ($reviewValue === null || $reviewValue === '' || (is_array($reviewValue) && $reviewValue === [])) {
+                continue;
+            }
+
+            $review[$key] = $reviewValue;
+        }
+
+        return $review;
     }
 
     /**
@@ -585,6 +614,11 @@ final class PdfMetadataExtractor
         $documentDestinations = $this->documentDestinationMetadata($catalog, $objects);
         if ($documentDestinations !== []) {
             $metadata['document_destinations'] = $documentDestinations;
+        }
+
+        $documentNameTrees = $this->catalogNameTreeReviewMetadata($catalog, $objects);
+        if ($documentNameTrees !== []) {
+            $metadata['document_name_trees'] = $documentNameTrees;
         }
 
         $documentSecurityStore = (new PdfDocumentSecurityStoreExtractor())->extract($pdfBytes);
@@ -2022,6 +2056,255 @@ final class PdfMetadataExtractor
                 $this->collectDestinationNameTreeEntries($child, $objects, $entries, $seenObjects, $depth + 1, $entryLimits);
             }
         }
+    }
+
+    /**
+     * Catalog /Names may include document-level name trees beyond embedded
+     * files and destinations. Summarize those rows as review-only metadata so
+     * JavaScript, URL, rendition, or presentation operands do not become
+     * visible WordPress text or document title fallbacks.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function catalogNameTreeReviewMetadata(string $catalog, array $objects): array
+    {
+        $names = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Names'), $objects);
+        if ($names === null) {
+            return [];
+        }
+
+        $trees = [];
+        foreach ($this->dictionaryTopLevelEntries($names['body']) as $treeName => $treeValue) {
+            if (isset(self::SPECIALIZED_CATALOG_NAME_TREE_KEYS[$treeName])) {
+                continue;
+            }
+
+            $treeRoot = $this->resolveDictionaryFromValue($treeValue, $objects);
+            if ($treeRoot === null) {
+                continue;
+            }
+
+            $entries = [];
+            $seenObjects = [];
+            $this->collectCatalogNameTreeReviewRows($treeName, $treeRoot, $objects, $entries, $seenObjects);
+            if ($entries === []) {
+                continue;
+            }
+
+            $trees[$treeName] = [
+                'source' => 'catalog_names_' . strtolower($treeName),
+                'review_only' => true,
+                'payload_included' => false,
+                'count' => count($entries),
+                'names' => array_values(array_map(static fn (array $entry): string => $entry['name'], $entries)),
+                'entries' => $entries,
+            ];
+        }
+
+        if ($trees === []) {
+            return [];
+        }
+
+        return [
+            'source' => 'catalog_names_review',
+            'review_only' => true,
+            'payload_included' => false,
+            'tree_count' => count($trees),
+            'tree_names' => array_keys($trees),
+            'trees' => $trees,
+        ];
+    }
+
+    /**
+     * @param array{body: string, object: int|null} $node
+     * @param array<int, string> $objects
+     * @param list<array<string, mixed>> $entries
+     * @param array<int, true> $seenObjects
+     * @param array{lower: string, upper: string}|null $inheritedLimits
+     */
+    private function collectCatalogNameTreeReviewRows(
+        string $treeName,
+        array $node,
+        array $objects,
+        array &$entries,
+        array &$seenObjects,
+        int $depth = 0,
+        ?array $inheritedLimits = null
+    ): void {
+        if ($depth > 20) {
+            return;
+        }
+
+        $objectNumber = $node['object'];
+        if ($objectNumber !== null) {
+            if (isset($seenObjects[$objectNumber])) {
+                return;
+            }
+            $seenObjects[$objectNumber] = true;
+        }
+
+        $limits = $this->nameTreeEffectiveLimits($node, $objects, $inheritedLimits);
+        $names = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Names') ?? '', $objects);
+        $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $limits)
+            ? $limits
+            : $inheritedLimits;
+        for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
+            $name = $this->destinationNameFromRaw($names[$index], $objects);
+            if ($name === null || $name === '' || !$this->nameTreeNameWithinLimits($name, $entryLimits)) {
+                continue;
+            }
+
+            $entries[] = [
+                'tree' => $treeName,
+                'name' => $name,
+                'index' => count($entries),
+            ] + $this->catalogNameTreeEntryReview($names[$index + 1], $objects);
+        }
+
+        $kids = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Kids') ?? '', $objects);
+        foreach ($kids as $kid) {
+            $child = $this->resolveDictionaryFromValue($kid, $objects);
+            if ($child !== null) {
+                $this->collectCatalogNameTreeReviewRows($treeName, $child, $objects, $entries, $seenObjects, $depth + 1, $entryLimits);
+            }
+        }
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function catalogNameTreeEntryReview(string $value, array $objects): array
+    {
+        $review = [
+            'review_only' => true,
+            'payload_included' => false,
+            'executes_action' => false,
+        ];
+
+        $objectNumber = $this->objectNumberFromReference($value);
+        if ($objectNumber !== null) {
+            $review['value_object'] = $objectNumber;
+        }
+
+        $dictionary = $this->resolveDictionaryFromValue($value, $objects);
+        if ($dictionary !== null) {
+            return $review + $this->catalogNameTreeDictionaryReview($dictionary['body'], $dictionary['object'], $objects);
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        if ($resolved === '') {
+            return $review + ['value_type' => 'unresolved'];
+        }
+
+        if (str_starts_with($resolved, '[')) {
+            return $review + [
+                'value_type' => 'array',
+                'item_count' => count($this->arrayItemsFromValue($resolved, $objects)),
+            ];
+        }
+
+        $stringValue = $this->stringValueFromRaw($resolved);
+        if ($stringValue !== null) {
+            return $review + [
+                'value_type' => 'scalar',
+                'scalar_type' => str_starts_with($resolved, '/') ? 'name' : 'string',
+                'value_bytes' => strlen($stringValue),
+                'value_sha256' => hash('sha256', $stringValue),
+            ];
+        }
+
+        if (preg_match('/^-?\d+$/', $resolved) === 1) {
+            return $review + ['value_type' => 'integer'];
+        }
+
+        if (preg_match('/^-?(?:\d+\.\d*|\d*\.\d+)$/', $resolved) === 1) {
+            return $review + ['value_type' => 'number'];
+        }
+
+        return $review + ['value_type' => 'unknown'];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function catalogNameTreeDictionaryReview(string $dictionary, ?int $objectNumber, array $objects): array
+    {
+        $entries = $this->dictionaryTopLevelEntries($dictionary);
+        $review = [
+            'value_type' => 'dictionary',
+            'dictionary_keys' => array_keys($entries),
+        ];
+
+        if ($objectNumber !== null) {
+            $review['dictionary_object'] = $objectNumber;
+        }
+
+        foreach ([
+            'type' => $this->dictionaryNameValue($dictionary, 'Type', $objects),
+            'subtype' => $this->dictionaryNameValue($dictionary, 'Subtype', $objects),
+        ] as $key => $metadataValue) {
+            if (is_string($metadataValue) && $metadataValue !== '') {
+                $review[$key] = $metadataValue;
+            }
+        }
+
+        $actionType = $this->dictionaryNameValue($dictionary, 'S', $objects);
+        if ($actionType !== null && $actionType !== '') {
+            $review['action_type'] = $actionType;
+            $review['action_review_only'] = true;
+            $review['executes_action'] = false;
+            if ($actionType === 'JavaScript') {
+                $review['has_javascript'] = true;
+                $review['javascript_payload_included'] = false;
+                if (isset($entries['JS'])) {
+                    $review['javascript_source'] = $this->catalogNameTreePayloadSourceReview($entries['JS'], $objects);
+                }
+            }
+            if ($actionType === 'URI') {
+                $review['uri_payload_included'] = false;
+                if (isset($entries['URI'])) {
+                    $review['uri_source'] = $this->catalogNameTreePayloadSourceReview($entries['URI'], $objects);
+                }
+            }
+        }
+
+        return $review;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function catalogNameTreePayloadSourceReview(string $value, array $objects): array
+    {
+        $objectNumber = $this->objectNumberFromReference($value);
+        if ($objectNumber !== null) {
+            $stream = isset($objects[$objectNumber]) ? $this->decodeStreamEntryObject($objects[$objectNumber], $objects) : null;
+            return [
+                'source_type' => $stream === null ? 'object' : 'stream',
+                'object' => $objectNumber,
+                'payload_included' => false,
+            ];
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        $scalar = $this->stringValueFromRaw($resolved);
+        if ($scalar !== null) {
+            return [
+                'source_type' => 'string',
+                'bytes' => strlen($scalar),
+                'sha256' => hash('sha256', $scalar),
+                'payload_included' => false,
+            ];
+        }
+
+        return [
+            'source_type' => 'unknown',
+            'payload_included' => false,
+        ];
     }
 
     /**
@@ -3476,6 +3759,11 @@ final class PdfMetadataExtractor
             }
         }
 
+        $infoReview = $info['review'] ?? null;
+        if (is_array($infoReview) && $infoReview !== []) {
+            $result['trailer_info_review'] = $infoReview;
+        }
+
         $authors = $xmp['authors'] ?? $this->authorsFromInfo($info);
         if (is_array($authors) && $authors !== []) {
             $result['authors'] = array_values($authors);
@@ -3486,7 +3774,7 @@ final class PdfMetadataExtractor
             $result['keywords'] = array_values($keywords);
         }
 
-        foreach (['language', 'page_layout', 'page_mode', 'viewer_preferences', 'collection', 'associated_files', 'embedded_files', 'structure_tree', 'document_destinations', 'document_security_store'] as $field) {
+        foreach (['language', 'page_layout', 'page_mode', 'viewer_preferences', 'collection', 'associated_files', 'embedded_files', 'document_name_trees', 'structure_tree', 'document_destinations', 'document_security_store'] as $field) {
             if (array_key_exists($field, $catalog)) {
                 $result[$field] = $catalog[$field];
             }
