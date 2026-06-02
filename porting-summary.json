@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 20:05:14 UTC",
-    "sourceCommit": "83e33e45e28a0506a15d715151dafedec863b0ff",
-    "sourceCommitShort": "83e33e45e28a",
+    "generated": "2026-06-02 20:11:02 UTC",
+    "sourceCommit": "2e4c13c35c7458a7dd16d1f7d5ce1b66ac279889",
+    "sourceCommitShort": "2e4c13c35c74",
     "sourceBranch": "unknown",
-    "dashboardCommit": "83e33e45e28a0506a15d715151dafedec863b0ff",
-    "dashboardCommitShort": "83e33e45e28a",
+    "dashboardCommit": "2e4c13c35c7458a7dd16d1f7d5ce1b66ac279889",
+    "dashboardCommitShort": "2e4c13c35c74",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "540",
-            "coverage": "540 / 78 (692.3%)",
-            "mapPercent": "692.3%",
+            "mapped": "546",
+            "coverage": "546 / 78 (700.0%)",
+            "mapPercent": "700.0%",
             "unmapped": "0",
-            "php": "758 pass / 0 fail",
+            "php": "768 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor integration: accepted security44/page44/tab...",
-            "currentWork": "MarkerPDF now reviews signature ByteRange revision boundaries and DSS VRI placement,...",
-            "nextTarget": "Score active markerPDF parser/meta/image/xref/page/form/table...",
+            "audit": "2026-06-02 UTC supervisor integration: accepted parser43/image48/meta...",
+            "currentWork": "MarkerPDF now covers parser filter-array dictionary fail-closed behavior, DeviceN JPX...",
+            "nextTarget": "Score the newest active markerPDF worker outputs as they comp...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "83e33e4"
+            "commit": "2e4c13c"
         },
         {
             "lane": "readability",
