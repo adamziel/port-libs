@@ -2271,13 +2271,22 @@ final class PdfTextExtractor
             return $streams;
         }
 
+        $linearizedHintRanges = $this->linearizedHintTableRanges($pdfBytes);
         foreach ($matches as $match) {
             $dict = $match[1][0];
+            $dictOffset = $match[1][1] - 2;
+            $streamStart = $match[0][1] + strlen($match[0][0]);
+            if (
+                $this->offsetInPdfByteRanges($dictOffset, $linearizedHintRanges)
+                || $this->offsetInPdfByteRanges($streamStart, $linearizedHintRanges)
+            ) {
+                continue;
+            }
+
             if ($this->isImageStreamDictionary($dict, $objects) || $this->isEmbeddedFileStreamDictionary($dict)) {
                 continue;
             }
 
-            $streamStart = $match[0][1] + strlen($match[0][0]);
             $stream = $this->streamPayloadAt($pdfBytes, $streamStart, $dict, $objects);
             if ($stream === null) {
                 continue;
@@ -5113,6 +5122,9 @@ final class PdfTextExtractor
         $preliminaryObjects = $this->latestDirectObjects($definitions);
         $xrefEntries = $this->xrefEntries($pdfBytes, $preliminaryObjects, $definitions);
         $objects = $this->liveDirectObjects($definitions, $xrefEntries);
+        foreach ($this->linearizedHintTableObjectNumbers($definitions, $this->linearizedHintTableRanges($pdfBytes)) as $objectNumber) {
+            unset($objects[$objectNumber]);
+        }
 
         foreach ($this->objectsFromObjectStreams($objects, $xrefEntries) as $objectNumber => $body) {
             $objects[$objectNumber] = $body;
@@ -5196,6 +5208,84 @@ final class PdfTextExtractor
         ksort($definitions, SORT_NUMERIC);
 
         return $definitions;
+    }
+
+    /**
+     * @return list<array{start: int, end: int}>
+     */
+    private function linearizedHintTableRanges(string $pdfBytes): array
+    {
+        $firstDefinition = null;
+        foreach ($this->directObjectDefinitions($pdfBytes) as $entries) {
+            foreach ($entries as $definition) {
+                if ($firstDefinition === null || $definition['offset'] < $firstDefinition['offset']) {
+                    $firstDefinition = $definition;
+                }
+            }
+        }
+
+        if (
+            $firstDefinition === null
+            || preg_match('/\/Linearized\b/', $firstDefinition['body']) !== 1
+            || preg_match('/\/H\s*\[(.*?)\]/s', $firstDefinition['body'], $match) !== 1
+        ) {
+            return [];
+        }
+
+        $values = $this->integersFromPdfArray($match[1]);
+        $ranges = [];
+        for ($index = 0, $count = count($values); $index + 1 < $count; $index += 2) {
+            $start = max(0, $values[$index]);
+            $length = max(0, $values[$index + 1]);
+            if ($length === 0) {
+                continue;
+            }
+
+            $ranges[] = [
+                'start' => $start,
+                'end' => $start + $length,
+            ];
+        }
+
+        return $ranges;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param list<array{start: int, end: int}> $ranges
+     * @return list<int>
+     */
+    private function linearizedHintTableObjectNumbers(array $definitions, array $ranges): array
+    {
+        if ($ranges === []) {
+            return [];
+        }
+
+        $objectNumbers = [];
+        foreach ($definitions as $objectNumber => $entries) {
+            foreach ($entries as $definition) {
+                if ($this->offsetInPdfByteRanges($definition['offset'], $ranges)) {
+                    $objectNumbers[] = $objectNumber;
+                    break;
+                }
+            }
+        }
+
+        return $objectNumbers;
+    }
+
+    /**
+     * @param list<array{start: int, end: int}> $ranges
+     */
+    private function offsetInPdfByteRanges(int $offset, array $ranges): bool
+    {
+        foreach ($ranges as $range) {
+            if ($offset >= $range['start'] && $offset < $range['end']) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
