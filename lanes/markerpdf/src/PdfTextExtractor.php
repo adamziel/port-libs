@@ -2413,7 +2413,10 @@ final class PdfTextExtractor
             $objects,
             $fontObjectMaps,
             $expandedFontToUnicodeMaps,
-            $optionalContentStates
+            $optionalContentStates,
+            [],
+            $this->pdfMatrixValueAfterName($objects[$appearanceObjectNumber], 'Matrix', $objects),
+            $this->pdfRectangleValueAfterName($objects[$appearanceObjectNumber], 'BBox', $objects)
         );
     }
 

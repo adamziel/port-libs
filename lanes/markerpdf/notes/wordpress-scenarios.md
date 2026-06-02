@@ -350,6 +350,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-image-decode-stencil-preview.php` maps base image `/Decode` arrays and `/ImageMask` stencil decode arrays into a WordPress media-review path. It records decoded RGB component values, inverted stencil opacity, and RGB preview intent without loading Python, pypdfium, PIL, Poppler, Ghostscript, or external PDF tools.
 
+`examples/wordpress-pdf-annotation-appearance-import.php` now also maps annotation appearance Form XObject resource boundaries into a WordPress import path. It imports only current page-referenced `/AP /N` appearance text, clips text outside the appearance `/BBox`, preserves nested appearance-local `/Resources /Font` scopes, and excludes stale/off/unreferenced appearance noise without loading Python, pdftext, pypdfium, Poppler, Ghostscript, rendering annotations, or executing PDF actions.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

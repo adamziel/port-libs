@@ -1782,6 +1782,41 @@ return [
         $t->true(!str_contains($plainText, 'Unreferenced Appearance Noise'));
         $t->true(!str_contains($plainText, 'review note only'));
     },
+    'clips annotation appearance Form XObject BBox while preserving scoped resources' => static function (TestRunner $t) use ($toUnicodeCMap): void {
+        $pageCMap = $toUnicodeCMap(['41' => 'Page Body']);
+        $appearanceCMap = $toUnicodeCMap([
+            '41' => 'Visible Appearance',
+            '42' => 'BBox Noise',
+        ]);
+        $nestedCMap = $toUnicodeCMap(['43' => 'Nested Resource']);
+        $pageContent = 'BT /F1 12 Tf 72 720 Td <41> Tj ET';
+        $appearanceContent = 'BT /F1 12 Tf 0 25 Td <41> Tj 0 75 Td <42> Tj ET q /Nested Do Q';
+        $nestedAppearanceContent = 'BT /F1 12 Tf 12 30 Td <43> Tj ET';
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Annots [5 0 R] /Contents 6 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /PageSubset /Encoding /Identity-H /ToUnicode 7 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Type /Annot /Subtype /FreeText /Rect [72 640 220 704] /AP << /N 8 0 R >> >>\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Length " . strlen($pageCMap) . " >>\nstream\n{$pageCMap}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 120 60] /Matrix [1 0 0 1 72 640] /Resources << /Font << /F1 9 0 R >> /XObject << /Nested 10 0 R >> >> /Length " . strlen($appearanceContent) . " >>\nstream\n{$appearanceContent}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /AppearanceSubset /Encoding /Identity-H /ToUnicode 11 0 R >>\nendobj\n"
+            . "10 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 80 50] /Resources << /Font << /F1 12 0 R >> >> /Length " . strlen($nestedAppearanceContent) . " >>\nstream\n{$nestedAppearanceContent}\nendstream\nendobj\n"
+            . "11 0 obj\n<< /Length " . strlen($appearanceCMap) . " >>\nstream\n{$appearanceCMap}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /NestedAppearanceSubset /Encoding /Identity-H /ToUnicode 13 0 R >>\nendobj\n"
+            . "13 0 obj\n<< /Length " . strlen($nestedCMap) . " >>\nstream\n{$nestedCMap}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = ['Page Body', 'Visible Appearance', 'Nested Resource'];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'BBox Noise'));
+        $t->true(!str_contains($plainText, 'Page Body Visible Appearance'), 'appearance text remains a separate review/import boundary.');
+    },
     'falls back to font Encoding when malformed ToUnicode CMap filters are ignored' => static function (TestRunner $t): void {
         $badCMap = 'not valid flate cmap bytes';
         $identityContent = 'BT /Fcid 12 Tf 72 720 Td <0057005000200049006D0070006F00720074> Tj ET';

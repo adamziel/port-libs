@@ -33,12 +33,17 @@ $toUnicodeCMap = static function (array $entries): string {
 
 $pageCMap = $toUnicodeCMap(['41' => 'Page Import Body']);
 $checkedCMap = $toUnicodeCMap(['41' => 'Approved by Editor']);
-$noteCMap = $toUnicodeCMap(['42' => 'Visible Review Note']);
+$noteCMap = $toUnicodeCMap([
+    '42' => 'Visible Review Note',
+    '43' => 'BBox Noise',
+]);
+$nestedCMap = $toUnicodeCMap(['44' => 'Nested Appearance Resource']);
 $offCMap = $toUnicodeCMap(['41' => 'Unchecked Appearance Noise']);
 $unusedCMap = $toUnicodeCMap(['41' => 'Unreferenced Appearance Noise']);
 $pageContent = 'BT /F1 12 Tf 72 720 Td <41> Tj ET';
 $checkedAppearance = 'BT /F1 12 Tf 0 0 Td <41> Tj ET';
-$noteAppearance = 'BT /F1 12 Tf 0 0 Td <42> Tj ET';
+$noteAppearance = 'BT /F1 12 Tf 0 25 Td <42> Tj 0 75 Td <43> Tj ET q /Nested Do Q';
+$nestedAppearance = 'BT /F1 12 Tf 12 30 Td <44> Tj ET';
 $offAppearance = 'BT /F1 12 Tf 0 0 Td <41> Tj ET';
 $unusedAppearance = 'BT /F1 12 Tf 0 0 Td <41> Tj ET';
 
@@ -53,7 +58,7 @@ $pdf = "%PDF-1.4\n"
     . "8 0 obj\n<< /Length " . strlen($pageCMap) . " >>\nstream\n{$pageCMap}\nendstream\nendobj\n"
     . "9 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 12 0 R >> >> /Length " . strlen($checkedAppearance) . " >>\nstream\n{$checkedAppearance}\nendstream\nendobj\n"
     . "10 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 13 0 R >> >> /Length " . strlen($offAppearance) . " >>\nstream\n{$offAppearance}\nendstream\nendobj\n"
-    . "11 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 14 0 R >> >> /Length " . strlen($noteAppearance) . " >>\nstream\n{$noteAppearance}\nendstream\nendobj\n"
+    . "11 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 120 60] /Matrix [1 0 0 1 72 648] /Resources << /Font << /F1 14 0 R >> /XObject << /Nested 22 0 R >> >> /Length " . strlen($noteAppearance) . " >>\nstream\n{$noteAppearance}\nendstream\nendobj\n"
     . "12 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /CheckedSubset /Encoding /Identity-H /ToUnicode 15 0 R >>\nendobj\n"
     . "13 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /OffSubset /Encoding /Identity-H /ToUnicode 16 0 R >>\nendobj\n"
     . "14 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /NoteSubset /Encoding /Identity-H /ToUnicode 17 0 R >>\nendobj\n"
@@ -63,7 +68,10 @@ $pdf = "%PDF-1.4\n"
     . "18 0 obj\n<< /Type /Annot /Subtype /Widget /Rect [72 616 220 640] /AP << /N 19 0 R >> >>\nendobj\n"
     . "19 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /F1 20 0 R >> >> /Length " . strlen($unusedAppearance) . " >>\nstream\n{$unusedAppearance}\nendstream\nendobj\n"
     . "20 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /UnusedSubset /Encoding /Identity-H /ToUnicode 21 0 R >>\nendobj\n"
-    . "21 0 obj\n<< /Length " . strlen($unusedCMap) . " >>\nstream\n{$unusedCMap}\nendstream\nendobj\n%%EOF";
+    . "21 0 obj\n<< /Length " . strlen($unusedCMap) . " >>\nstream\n{$unusedCMap}\nendstream\nendobj\n"
+    . "22 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 80 50] /Resources << /Font << /F1 23 0 R >> >> /Length " . strlen($nestedAppearance) . " >>\nstream\n{$nestedAppearance}\nendstream\nendobj\n"
+    . "23 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /NestedAppearanceSubset /Encoding /Identity-H /ToUnicode 24 0 R >>\nendobj\n"
+    . "24 0 obj\n<< /Length " . strlen($nestedCMap) . " >>\nstream\n{$nestedCMap}\nendstream\nendobj\n%%EOF";
 
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
@@ -75,6 +83,8 @@ echo '<!-- markerpdf-pdf-annotation-appearance-smoke ' . htmlspecialchars(json_e
     'native_boundary' => 'page-referenced /Annots /AP /N appearance Form XObjects appended to native page text extraction',
     'current_appearance_imported' => str_contains($plainText, 'Approved by Editor'),
     'direct_normal_appearance_imported' => str_contains($plainText, 'Visible Review Note'),
+    'nested_appearance_resource_imported' => str_contains($plainText, 'Nested Appearance Resource'),
+    'appearance_bbox_clipped_noise' => !str_contains($plainText, 'BBox Noise'),
     'stale_appearances_excluded' => !str_contains($plainText, 'Unchecked Appearance Noise') && !str_contains($plainText, 'Unreferenced Appearance Noise'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
