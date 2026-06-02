@@ -23,6 +23,11 @@ final class DocumentStructureBoundary
         $layout = $page['layout'] ?? [];
         $layoutImageBbox = is_array($layout) ? $this->bbox($layout['image_bbox'] ?? null) : null;
         $pageBbox = $this->bbox($page['bbox'] ?? null);
+
+        if ($labels === ['Table']) {
+            return $this->tableLayoutRegions($page, $layoutImageBbox, $pageBbox);
+        }
+
         $regions = [];
 
         foreach ($this->layoutBoxes($page) as $box) {
@@ -42,6 +47,97 @@ final class DocumentStructureBoundary
         }
 
         return $regions;
+    }
+
+    /**
+     * @param list<float>|null $layoutImageBbox
+     * @param list<float>|null $pageBbox
+     * @return list<list<float>>
+     */
+    private function tableLayoutRegions(array $page, ?array $layoutImageBbox, ?array $pageBbox): array
+    {
+        $tableBoxes = [];
+        foreach ($this->layoutBoxes($page) as $box) {
+            if (($box['label'] ?? '') !== 'Table') {
+                continue;
+            }
+
+            $bbox = $this->bbox($box['bbox'] ?? null);
+            if ($bbox !== null) {
+                $tableBoxes[] = $bbox;
+            }
+        }
+
+        $regions = [];
+        foreach ($this->mergedTableBoxes($tableBoxes) as $bbox) {
+            if (($bbox[3] - $bbox[1]) <= 10.0 || ($bbox[2] - $bbox[0]) <= 10.0) {
+                continue;
+            }
+
+            $regions[] = $layoutImageBbox !== null && $pageBbox !== null
+                ? $this->layout->rescaleBbox($layoutImageBbox, $pageBbox, $bbox)
+                : $bbox;
+        }
+
+        return $regions;
+    }
+
+    /**
+     * Mirrors tabled.inference.detection::merge_tables before downstream
+     * formula/image arbitration uses table regions as protected boundaries.
+     *
+     * @param list<list<float>> $tableBoxes
+     * @return list<list<float>>
+     */
+    private function mergedTableBoxes(array $tableBoxes): array
+    {
+        $expansionFactor = 1.02;
+        $shrinkFactor = 0.98;
+        $ignored = [];
+
+        for ($i = 0; $i < count($tableBoxes); $i++) {
+            if (isset($ignored[$i])) {
+                continue;
+            }
+
+            for ($j = $i + 1; $j < count($tableBoxes); $j++) {
+                if (isset($ignored[$j])) {
+                    continue;
+                }
+
+                $expandedLeft = [
+                    $tableBoxes[$i][0] * $shrinkFactor,
+                    $tableBoxes[$i][1],
+                    $tableBoxes[$i][2] * $expansionFactor,
+                    $tableBoxes[$i][3],
+                ];
+                $expandedRight = [
+                    $tableBoxes[$j][0] * $shrinkFactor,
+                    $tableBoxes[$j][1],
+                    $tableBoxes[$j][2] * $expansionFactor,
+                    $tableBoxes[$j][3],
+                ];
+
+                if ($this->layout->intersectionPct($expandedLeft, $expandedRight) > 0.0) {
+                    $tableBoxes[$i] = [
+                        min($tableBoxes[$i][0], $tableBoxes[$j][0]),
+                        min($tableBoxes[$i][1], $tableBoxes[$j][1]),
+                        max($tableBoxes[$i][2], $tableBoxes[$j][2]),
+                        max($tableBoxes[$i][3], $tableBoxes[$j][3]),
+                    ];
+                    $ignored[$j] = true;
+                }
+            }
+        }
+
+        $merged = [];
+        foreach ($tableBoxes as $index => $bbox) {
+            if (!isset($ignored[$index])) {
+                $merged[] = $bbox;
+            }
+        }
+
+        return $merged;
     }
 
     /**

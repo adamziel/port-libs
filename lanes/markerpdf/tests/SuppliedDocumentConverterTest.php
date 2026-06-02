@@ -477,6 +477,75 @@ return [
             unlink($path);
         }
     },
+    'uses merged supplied table boundaries before seam equation and image regions' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-merged-table-structure-boundary-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% merged table structure boundary supplied fixture\n%%EOF");
+
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'Merged structure import', 'bbox' => [72.0, 60.0, 420.0, 78.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'Raw merged table formula image seam text', 'bbox' => [72.0, 160.0, 420.0, 178.0]],
+                ['text' => 'After merged structure.', 'bbox' => [72.0, 260.0, 420.0, 278.0]],
+            ]);
+            $layout = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Title', 'bbox' => [72.0, 60.0, 420.0, 78.0]],
+                    ['label' => 'Table', 'bbox' => [72.0, 150.0, 250.0, 210.0]],
+                    ['label' => 'Table', 'bbox' => [258.0, 150.0, 420.0, 210.0]],
+                    ['label' => 'Formula', 'bbox' => [252.0, 160.0, 257.0, 182.0]],
+                    ['label' => 'Picture', 'bbox' => [252.0, 184.0, 257.0, 205.0]],
+                    ['label' => 'Text', 'bbox' => [72.0, 260.0, 420.0, 278.0]],
+                ],
+            ];
+            $recognizedTable = [
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 300.0, 30.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 30.0, 300.0, 60.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 150.0, 60.0]],
+                    ['col_id' => 1, 'bbox' => [150.0, 0.0, 300.0, 60.0]],
+                ],
+                'cells' => [
+                    ['bbox' => [0.0, 0.0, 140.0, 25.0], 'text' => 'Metric'],
+                    ['bbox' => [150.0, 0.0, 290.0, 25.0], 'text' => 'Value'],
+                    ['bbox' => [0.0, 30.0, 140.0, 55.0], 'text' => 'Seam'],
+                    ['bbox' => [150.0, 30.0, 290.0, 55.0], 'text' => 'Protected'],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [$layout],
+                    'recognized_tables' => [$recognizedTable],
+                    'table_text_lines' => [['blocks' => []]],
+                    'equation_predictions' => ['$$E=mc^2$$'],
+                    'image_payloads' => [['PNG-SEAM-BYTES']],
+                ]
+            );
+
+            $t->contains('# Merged Structure Import', $result['text']);
+            $t->contains('| Metric | Value     |', $result['text']);
+            $t->contains('| Seam   | Protected |', $result['text']);
+            $t->contains('After merged structure.', $result['text']);
+            $t->true(!str_contains($result['text'], '$$E=mc^2$$'));
+            $t->true(!str_contains($result['text'], '![0_image_0.png](0_image_0.png)'));
+            $t->true(!str_contains($result['text'], 'Raw merged table formula image seam text'));
+            $t->same([], $result['images']);
+            $t->same(['layout', 'table-recognition', 'table-formatting', 'equation-recognition', 'image-extraction'], $result['metadata']['supplied_boundaries']);
+            $t->same([1], $result['metadata']['table_plan']['table_counts']);
+            $t->same([[192.0, 400.0, 1120.0, 560.0]], $result['metadata']['table_plan']['table_bboxes']);
+            $t->same(1, $result['metadata']['block_stats']['table']);
+            $t->same(['successful_ocr' => 0, 'unsuccessful_ocr' => 0, 'equations' => 0], $result['metadata']['block_stats']['equations']);
+            $t->same(0, $result['metadata']['block_stats']['images']);
+        } finally {
+            unlink($path);
+        }
+    },
     'short-circuits supplied documents with no extracted blocks like convert_single_pdf' => static function (TestRunner $t): void {
         $path = sys_get_temp_dir() . '/markerpdf-empty-supplied-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% empty supplied dictionary fixture\n%%EOF");
