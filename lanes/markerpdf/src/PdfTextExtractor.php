@@ -5818,11 +5818,9 @@ final class PdfTextExtractor
     {
         if (preg_match('/\/Encoding\s+\/([^\s\[\]()<>{}\/%]+)/', $fontBody, $match)) {
             $encodingName = $this->decodePdfName($match[1]);
-            if ($encodingName === 'Identity-V') {
-                return 1;
-            }
-            if ($encodingName === 'Identity-H') {
-                return 0;
+            $writingMode = $this->cMapNameWritingMode($encodingName);
+            if ($writingMode !== null) {
+                return $writingMode;
             }
         }
 
@@ -5831,6 +5829,19 @@ final class PdfTextExtractor
         }
 
         return $this->mapWritingMode($cmap);
+    }
+
+    private function cMapNameWritingMode(string $encodingName): ?int
+    {
+        if ($encodingName === 'Identity-V' || str_ends_with($encodingName, '-V')) {
+            return 1;
+        }
+
+        if ($encodingName === 'Identity-H' || str_ends_with($encodingName, '-H')) {
+            return 0;
+        }
+
+        return null;
     }
 
     /**
