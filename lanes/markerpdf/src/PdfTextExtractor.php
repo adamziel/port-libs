@@ -4568,7 +4568,19 @@ final class PdfTextExtractor
         if ($length !== null) {
             $declaredEnd = $streamStart + $length;
             if ($length >= 0 && $declaredEnd <= strlen($value)) {
-                if ($this->streamLengthEndsAtTerminator($value, $declaredEnd)) {
+                $declaredTerminator = $this->streamLengthTerminatorOffset($value, $declaredEnd);
+                if ($declaredTerminator !== null) {
+                    $recoveredTerminator = $this->startxrefRecoveredStreamTerminatorOffset(
+                        $value,
+                        $streamStart,
+                        $dict,
+                        $objects,
+                        $declaredTerminator
+                    );
+                    if ($recoveredTerminator !== null) {
+                        return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $recoveredTerminator - $streamStart));
+                    }
+
                     return substr($value, $streamStart, $length);
                 }
 
@@ -4645,9 +4657,52 @@ final class PdfTextExtractor
         return null;
     }
 
-    private function streamLengthEndsAtTerminator(string $value, int $declaredEnd): bool
-    {
-        return $this->streamLengthTerminatorOffset($value, $declaredEnd) !== null;
+    /**
+     * @param array<int, string> $objects
+     */
+    private function startxrefRecoveredStreamTerminatorOffset(
+        string $value,
+        int $streamStart,
+        string $dict,
+        array $objects,
+        int $declaredTerminator
+    ): ?int {
+        $filteredTerminator = $this->filteredEndstreamTerminatorOffset($value, $streamStart, $dict, $objects);
+        if (
+            $filteredTerminator !== null
+            && $filteredTerminator > $declaredTerminator
+            && $this->streamTerminatorGapContainsStartxref($value, $declaredTerminator, $filteredTerminator)
+        ) {
+            return $filteredTerminator;
+        }
+
+        $contentTerminator = $this->contentStreamEndstreamTerminatorOffset($value, $streamStart, $dict);
+        if (
+            $contentTerminator !== null
+            && $contentTerminator > $declaredTerminator
+            && $this->streamTerminatorGapContainsStartxref($value, $declaredTerminator, $contentTerminator)
+        ) {
+            return $contentTerminator;
+        }
+
+        return null;
+    }
+
+    private function streamTerminatorGapContainsStartxref(
+        string $value,
+        int $declaredTerminator,
+        int $recoveredTerminator
+    ): bool {
+        if ($recoveredTerminator <= $declaredTerminator) {
+            return false;
+        }
+
+        $gapStart = $declaredTerminator + strlen('endstream');
+        if ($gapStart >= $recoveredTerminator) {
+            return false;
+        }
+
+        return preg_match('/\bstartxref\s+\d+\b/s', substr($value, $gapStart, $recoveredTerminator - $gapStart)) === 1;
     }
 
     private function streamLengthTerminatorOffset(string $value, int $declaredEnd): ?int
@@ -8596,6 +8651,18 @@ final class PdfTextExtractor
                 $declaredEnd = $this->directObjectStreamDeclaredEnd($pdfBytes, $objectBodyStart, $index, $streamStart);
                 if ($declaredEnd !== null) {
                     $streamEnd = $this->streamLengthTerminatorOffset($pdfBytes, $declaredEnd);
+                    if ($streamEnd !== null && $dict !== null) {
+                        $recoveredTerminator = $this->startxrefRecoveredStreamTerminatorOffset(
+                            $pdfBytes,
+                            $streamStart,
+                            $dict,
+                            $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart),
+                            $streamEnd
+                        );
+                        if ($recoveredTerminator !== null) {
+                            $streamEnd = $recoveredTerminator;
+                        }
+                    }
                     $streamEnd ??= $dict === null
                         ? $this->endstreamTerminatorOffset($pdfBytes, $streamStart, $declaredEnd)
                         : (

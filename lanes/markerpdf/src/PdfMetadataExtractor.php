@@ -5008,6 +5008,15 @@ final class PdfMetadataExtractor
             $sources[] = 'filespec_metadata_stream';
         }
 
+        $pieceInfoXmpMetadata = $this->associatedFilePieceInfoXmpMetadataProvenance(
+            $this->dictionaryTopLevelRawValue($fileSpecBody, 'PieceInfo'),
+            $objects
+        );
+        if ($pieceInfoXmpMetadata !== []) {
+            $metadata['piece_info_xmp_metadata'] = $pieceInfoXmpMetadata;
+            $sources[] = 'filespec_pieceinfo_metadata_stream';
+        }
+
         $outputIntents = $this->associatedFileOutputIntentProvenance(
             $this->dictionaryTopLevelRawValue($fileSpecBody, 'OutputIntents'),
             $objects
@@ -5176,7 +5185,144 @@ final class PdfMetadataExtractor
             $metadata['filters'] = $filters;
         }
 
+        $xmpSummary = $this->xmpPacketReviewSummary($stream['content']);
+        if ($xmpSummary !== []) {
+            $metadata['xmp_summary'] = $xmpSummary;
+        }
+
         return $metadata;
+    }
+
+    /**
+     * FileSpec /PieceInfo application dictionaries can include private
+     * Metadata streams. Summarize those XMP packets without promoting titles,
+     * descriptions, authors, keywords, or payload bytes into document metadata.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function associatedFilePieceInfoXmpMetadataProvenance(?string $pieceInfoValue, array $objects): array
+    {
+        $pieceInfo = $this->resolveDictionaryFromValue($pieceInfoValue, $objects);
+        if ($pieceInfo === null) {
+            return [];
+        }
+
+        $rows = [];
+        foreach ($this->dictionaryTopLevelEntries($pieceInfo['body']) as $application => $pieceValue) {
+            $piece = $this->resolveDictionaryFromValue($pieceValue, $objects);
+            if ($piece === null) {
+                continue;
+            }
+
+            $private = $this->resolveDictionaryFromValue(
+                $this->dictionaryTopLevelRawValue($piece['body'], 'Private'),
+                $objects
+            );
+            if ($private === null) {
+                continue;
+            }
+
+            $metadata = $this->associatedFileMetadataStreamProvenance(
+                $this->dictionaryTopLevelRawValue($private['body'], 'Metadata'),
+                $objects
+            );
+            if ($metadata === []) {
+                continue;
+            }
+
+            $row = [
+                'application' => $application,
+            ] + $metadata;
+
+            $lastModified = $this->reviewStringFromRaw($this->dictionaryTopLevelRawValue($piece['body'], 'LastModified'), $objects);
+            if ($lastModified !== null) {
+                $row['last_modified'] = $lastModified;
+            }
+
+            $rows[] = $row;
+        }
+
+        if ($rows === []) {
+            return [];
+        }
+
+        return [
+            'source' => 'filespec_pieceinfo_metadata_stream',
+            'review_only' => true,
+            'payload_included' => false,
+            'count' => count($rows),
+            'applications' => $this->uniqueStrings(array_map(
+                static fn (array $row): string => (string) $row['application'],
+                $rows
+            )),
+            'metadata_streams' => $rows,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function xmpPacketReviewSummary(string $xml): array
+    {
+        $parsed = $this->parseXmpPacket($xml);
+        if ($parsed === []) {
+            return [];
+        }
+
+        $fieldNames = [];
+        foreach (['title', 'description', 'creator_tool', 'producer', 'created_at', 'modified_at', 'metadata_date'] as $field) {
+            if (isset($parsed[$field]) && is_string($parsed[$field]) && $parsed[$field] !== '') {
+                $fieldNames[] = $field;
+            }
+        }
+
+        $authors = is_array($parsed['authors'] ?? null) ? array_values($parsed['authors']) : [];
+        if ($authors !== []) {
+            $fieldNames[] = 'authors';
+        }
+
+        $keywords = is_array($parsed['keywords'] ?? null) ? array_values($parsed['keywords']) : [];
+        if ($keywords !== []) {
+            $fieldNames[] = 'keywords';
+        }
+
+        $datesUtc = [];
+        foreach (['created_at', 'modified_at', 'metadata_date'] as $field) {
+            $value = $parsed[$field] ?? null;
+            if (!is_string($value) || $value === '') {
+                continue;
+            }
+
+            $normalized = $this->normalizedDateTimeUtc($value);
+            if ($normalized !== null) {
+                $datesUtc[$field] = $normalized;
+            }
+        }
+
+        $summary = [
+            'source' => 'xmp_packet_review',
+            'field_names' => $fieldNames,
+            'field_count' => count($fieldNames),
+            'author_count' => count($authors),
+            'keyword_count' => count($keywords),
+            'packet_encoding' => $parsed['packet_encoding'] ?? 'unknown',
+            'payload_included' => false,
+            'text_values_redacted' => true,
+            'redacted_fields' => ['title', 'description', 'creator_tool', 'producer', 'authors', 'keywords'],
+        ];
+
+        if (($parsed['decoded_to_utf8'] ?? false) === true) {
+            $summary['decoded_to_utf8'] = true;
+        }
+        if (($parsed['encoding_fallback'] ?? false) === true) {
+            $summary['encoding_fallback'] = true;
+        }
+        if ($datesUtc !== []) {
+            $summary['dates_utc'] = $datesUtc;
+        }
+
+        return $summary;
     }
 
     /**

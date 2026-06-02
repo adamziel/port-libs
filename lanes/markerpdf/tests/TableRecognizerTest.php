@@ -574,6 +574,55 @@ return [
         $t->same('covered', $gridByPosition['2:0']['state']);
         $t->same('Needs review', $gridByPosition['2:2']['text']);
     },
+    'exports OCR span grid cell bboxes from row and column bands for WordPress review' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $rows = [
+            ['row_id' => 0, 'bbox' => [0.0, 0.0, 300.0, 32.0]],
+            ['row_id' => 1, 'bbox' => [0.0, 35.0, 300.0, 60.0]],
+            ['row_id' => 2, 'bbox' => [0.0, 85.0, 300.0, 110.0]],
+        ];
+        $cols = [
+            ['col_id' => 0, 'bbox' => [0.0, 0.0, 100.0, 120.0]],
+            ['col_id' => 1, 'bbox' => [105.0, 0.0, 195.0, 120.0]],
+            ['col_id' => 2, 'bbox' => [205.0, 0.0, 300.0, 120.0]],
+        ];
+        $assigned = [
+            ['bbox' => [5.0, 5.0, 295.0, 18.0], 'text' => 'Inventory', 'row_ids' => [0], 'col_ids' => [0, 1, 2]],
+            ['bbox' => [5.0, 40.0, 90.0, 108.0], 'text' => 'Media group', 'row_ids' => [1, 2], 'col_ids' => [0]],
+            ['bbox' => [120.0, 42.0, 180.0, 56.0], 'text' => 'Images', 'row_ids' => [1], 'col_ids' => [1]],
+            ['bbox' => [210.0, 90.0, 290.0, 106.0], 'text' => 'Needs review', 'row_ids' => [2], 'col_ids' => [2]],
+        ];
+
+        $review = $recognizer->spanningGridReview($assigned, $rows, $cols);
+        $gridByPosition = [];
+        foreach ($review['grid_cells'] as $gridCell) {
+            $gridByPosition[$gridCell['row_id'] . ':' . $gridCell['col_id']] = $gridCell;
+        }
+
+        $t->same([0.0, 0.0, 300.0, 32.0], $review['render_cells'][0]['grid_bbox']);
+        $t->same(
+            [
+                ['row_id' => 0, 'col_id' => 0, 'bbox' => [0.0, 0.0, 100.0, 32.0]],
+                ['row_id' => 0, 'col_id' => 1, 'bbox' => [105.0, 0.0, 195.0, 32.0]],
+                ['row_id' => 0, 'col_id' => 2, 'bbox' => [205.0, 0.0, 300.0, 32.0]],
+            ],
+            $review['render_cells'][0]['grid_cell_bboxes']
+        );
+        $t->same([0.0, 35.0, 100.0, 110.0], $review['render_cells'][1]['grid_bbox']);
+        $t->same(
+            [
+                ['row_id' => 1, 'col_id' => 0, 'bbox' => [0.0, 35.0, 100.0, 60.0]],
+                ['row_id' => 2, 'col_id' => 0, 'bbox' => [0.0, 85.0, 100.0, 110.0]],
+            ],
+            $review['render_cells'][1]['grid_cell_bboxes']
+        );
+        $t->same([105.0, 0.0, 195.0, 32.0], $gridByPosition['0:1']['grid_bbox']);
+        $t->same('covered', $gridByPosition['0:1']['state']);
+        $t->same([0.0, 85.0, 100.0, 110.0], $gridByPosition['2:0']['grid_bbox']);
+        $t->same('covered', $gridByPosition['2:0']['state']);
+        $t->same([205.0, 85.0, 300.0, 110.0], $gridByPosition['2:2']['grid_bbox']);
+        $t->same('Needs review', $gridByPosition['2:2']['text']);
+    },
     'marks OCR merged corner headers with both row and column axes for review' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $rows = [
@@ -878,6 +927,48 @@ return [
         $t->same('row', $reviewConflicts[2]['grid_border_axis']);
         $t->same([0, 1], $reviewConflicts[2]['candidate_row_ids']);
         $t->same([0], $reviewConflicts[2]['candidate_col_ids']);
+    },
+    'adds row column band geometry to OCR grid-border conflict review rows' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $rows = [
+            ['row_id' => 0, 'bbox' => [0.0, 0.0, 300.0, 32.0]],
+            ['row_id' => 1, 'bbox' => [0.0, 35.0, 300.0, 60.0]],
+        ];
+        $cols = [
+            ['col_id' => 0, 'bbox' => [0.0, 0.0, 100.0, 72.0]],
+            ['col_id' => 1, 'bbox' => [105.0, 0.0, 195.0, 72.0]],
+            ['col_id' => 2, 'bbox' => [205.0, 0.0, 300.0, 72.0]],
+        ];
+        $assigned = [
+            ['bbox' => [5.0, 5.0, 295.0, 18.0], 'text' => 'Inventory', 'row_ids' => [0], 'col_ids' => [0, 1, 2]],
+            ['bbox' => [120.0, 42.0, 180.0, 56.0], 'text' => 'Images', 'row_ids' => [1], 'col_ids' => [1]],
+        ];
+        $conflicts = [[
+            'ocr_index' => 0,
+            'text' => 'OCR span',
+            'bbox' => [0.0, 0.0, 300.0, 56.0],
+            'candidate_cell_indexes' => [0, 1],
+            'assigned_cell_index' => 0,
+            'spans_grid_border' => true,
+        ]];
+
+        $review = $recognizer->gridBorderConflictReview($conflicts, $assigned, $rows, $cols);
+
+        $t->same('both', $review[0]['grid_border_axis']);
+        $t->same([0, 1], $review[0]['candidate_row_ids']);
+        $t->same([0, 1, 2], $review[0]['candidate_col_ids']);
+        $t->same([0.0, 0.0, 300.0, 32.0], $review[0]['candidate_grid_cells'][0]['grid_bbox']);
+        $t->same(
+            [
+                ['row_id' => 0, 'col_id' => 0, 'bbox' => [0.0, 0.0, 100.0, 32.0]],
+                ['row_id' => 0, 'col_id' => 1, 'bbox' => [105.0, 0.0, 195.0, 32.0]],
+                ['row_id' => 0, 'col_id' => 2, 'bbox' => [205.0, 0.0, 300.0, 32.0]],
+            ],
+            $review[0]['candidate_grid_cells'][0]['grid_cell_bboxes']
+        );
+        $t->same([105.0, 35.0, 195.0, 60.0], $review[0]['candidate_grid_cells'][1]['grid_bbox']);
+        $t->same([0.0, 0.0, 300.0, 32.0], $review[0]['assigned_grid_cell']['grid_bbox']);
+        $t->same(3, count($review[0]['assigned_grid_cell']['grid_cell_bboxes']));
     },
     'falls back to heuristic row layout when model rows and columns leave most cells unassigned' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();

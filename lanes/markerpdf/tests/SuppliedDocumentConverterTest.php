@@ -961,7 +961,13 @@ return [
             $t->same([0, 1], $conflicts[0]['candidate_col_ids']);
             $t->same(['cell_index' => 0, 'row_id' => 0, 'col_id' => 0], $conflicts[0]['candidate_grid_anchors'][0]);
             $t->same(['cell_index' => 3, 'row_id' => 1, 'col_id' => 1], $conflicts[0]['candidate_grid_anchors'][3]);
-            $t->same(['cell_index' => 0, 'row_id' => 0, 'col_id' => 0, 'row_ids' => [0], 'col_ids' => [0], 'text' => 'Table-wide heading'], $conflicts[0]['assigned_grid_cell']);
+            $t->same(0, $conflicts[0]['assigned_grid_cell']['cell_index']);
+            $t->same([0], $conflicts[0]['assigned_grid_cell']['row_ids']);
+            $t->same([0], $conflicts[0]['assigned_grid_cell']['col_ids']);
+            $t->same('Table-wide heading', $conflicts[0]['assigned_grid_cell']['text']);
+            $t->same([0.0, 0.0, 96.0, 30.0], $conflicts[0]['assigned_grid_cell']['grid_bbox']);
+            $t->same([0.0, 0.0, 96.0, 30.0], $conflicts[0]['candidate_grid_cells'][0]['grid_bbox']);
+            $t->same([98.0, 38.0, 200.0, 70.0], $conflicts[0]['candidate_grid_cells'][3]['grid_bbox']);
             $t->same('column', $conflicts[1]['grid_border_axis']);
             $t->same('row', $conflicts[2]['grid_border_axis']);
         } finally {

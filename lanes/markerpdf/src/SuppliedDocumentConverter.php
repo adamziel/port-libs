@@ -369,7 +369,9 @@ final class SuppliedDocumentConverter
             $assignedCells = isset($assignedTables[$tableIndex]) && is_array($assignedTables[$tableIndex])
                 ? $assignedTables[$tableIndex]
                 : [];
-            $conflicts[] = $this->tableRecognizer->gridBorderConflictReview($tableConflicts, $assignedCells);
+            $rows = isset($table['rows']) && is_array($table['rows']) ? $table['rows'] : [];
+            $cols = isset($table['cols']) && is_array($table['cols']) ? $table['cols'] : [];
+            $conflicts[] = $this->tableRecognizer->gridBorderConflictReview($tableConflicts, $assignedCells, $rows, $cols);
         }
 
         $hasConflict = false;

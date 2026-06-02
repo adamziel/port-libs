@@ -1499,7 +1499,7 @@ return [
         $t->same('Metadata', $file['piece_info']['WPImport']['private']['PrivateStream']['Type']);
 
         $provenance = $file['provenance_review'];
-        $t->same(['filespec_afrelationship', 'embedded_file_payload_hash', 'embedded_file_params_checksum', 'filespec_metadata_stream', 'filespec_output_intents'], $provenance['sources']);
+        $t->same(['filespec_afrelationship', 'embedded_file_payload_hash', 'embedded_file_params_checksum', 'filespec_metadata_stream', 'filespec_pieceinfo_metadata_stream', 'filespec_output_intents'], $provenance['sources']);
         $t->same('original_source', $provenance['relationship_role']);
         $t->same(false, $provenance['payload_included']);
         $t->same('piece-source.xml', $provenance['payload']['filename']);

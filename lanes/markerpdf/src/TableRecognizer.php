@@ -391,6 +391,7 @@ final class TableRecognizer
             $gridBbox = $this->gridBboxForSpan($cellRowIds, $cellColIds, $rowBboxes, $colBboxes, $rotated);
             if ($gridBbox !== null) {
                 $entry['grid_bbox'] = $gridBbox;
+                $entry['grid_cell_bboxes'] = $this->gridCellBboxesForSpan($cellRowIds, $cellColIds, $rowBboxes, $colBboxes, $rotated);
             }
 
             $anchorKey = $anchor['row_id'] . ':' . $anchor['col_id'];
@@ -417,6 +418,10 @@ final class TableRecognizer
                     'row_id' => $rowId,
                     'col_id' => $colId,
                 ];
+                $gridBbox = $this->gridBboxForSpan([$rowId], [$colId], $rowBboxes, $colBboxes, $rotated);
+                if ($gridBbox !== null) {
+                    $cell['grid_bbox'] = $gridBbox;
+                }
                 if (isset($anchors[$key])) {
                     $renderCell = $renderCells[$anchors[$key]];
                     $cell += [
@@ -465,11 +470,18 @@ final class TableRecognizer
      *
      * @param list<array<string, mixed>> $conflicts Rows emitted by ocrGridBorderConflicts().
      * @param list<array<string, mixed>> $assignedCells Assigned cells from assignRowsColumns().
+     * @param list<array<string, mixed>> $rows Optional model row bands in table-image coordinates.
+     * @param list<array<string, mixed>> $cols Optional model column bands in table-image coordinates.
      * @return list<array<string, mixed>>
      */
-    public function gridBorderConflictReview(array $conflicts, array $assignedCells): array
+    public function gridBorderConflictReview(array $conflicts, array $assignedCells, array $rows = [], array $cols = []): array
     {
         $assignedCells = $this->normalizeAssignedCells($assignedCells);
+        $rows = $this->normalizeRowsOrCols($rows, 'row_id');
+        $cols = $this->normalizeRowsOrCols($cols, 'col_id');
+        $rowBboxes = $this->bboxesById($rows, 'row_id');
+        $colBboxes = $this->bboxesById($cols, 'col_id');
+        $rotated = $rows !== [] && $cols !== [] && $this->isRotated($rows, $cols);
         $review = [];
 
         foreach ($conflicts as $conflict) {
@@ -499,7 +511,7 @@ final class TableRecognizer
                     'col_id' => $colIds[0],
                 ];
                 $candidateAnchors[] = $anchor;
-                $candidateGridCells[] = [
+                $candidateGridCell = [
                     'cell_index' => $cellIndex,
                     'row_ids' => $rowIds,
                     'col_ids' => $colIds,
@@ -510,6 +522,12 @@ final class TableRecognizer
                     'text' => (string) $cell['text'],
                     'bbox' => $cell['bbox'],
                 ];
+                $gridBbox = $this->gridBboxForSpan($rowIds, $colIds, $rowBboxes, $colBboxes, $rotated);
+                if ($gridBbox !== null) {
+                    $candidateGridCell['grid_bbox'] = $gridBbox;
+                    $candidateGridCell['grid_cell_bboxes'] = $this->gridCellBboxesForSpan($rowIds, $colIds, $rowBboxes, $colBboxes, $rotated);
+                }
+                $candidateGridCells[] = $candidateGridCell;
             }
 
             if ($candidateGridCells !== []) {
@@ -527,7 +545,7 @@ final class TableRecognizer
                 $rowIds = $this->nonNullSortedIds($cell['row_ids']);
                 $colIds = $this->nonNullSortedIds($cell['col_ids']);
                 if ($rowIds !== [] && $colIds !== []) {
-                    $entry['assigned_grid_cell'] = [
+                    $assignedGridCell = [
                         'cell_index' => $assignedIndex,
                         'row_id' => $rowIds[0],
                         'col_id' => $colIds[0],
@@ -535,6 +553,12 @@ final class TableRecognizer
                         'col_ids' => $colIds,
                         'text' => (string) $cell['text'],
                     ];
+                    $gridBbox = $this->gridBboxForSpan($rowIds, $colIds, $rowBboxes, $colBboxes, $rotated);
+                    if ($gridBbox !== null) {
+                        $assignedGridCell['grid_bbox'] = $gridBbox;
+                        $assignedGridCell['grid_cell_bboxes'] = $this->gridCellBboxesForSpan($rowIds, $colIds, $rowBboxes, $colBboxes, $rotated);
+                    }
+                    $entry['assigned_grid_cell'] = $assignedGridCell;
                 }
             }
 
@@ -2095,6 +2119,33 @@ final class TableRecognizer
         }
 
         return [$colBand[0], $rowBand[1], $colBand[2], $rowBand[3]];
+    }
+
+    /**
+     * @param list<int> $rowIds
+     * @param list<int> $colIds
+     * @param array<int, list<float>> $rowBboxes
+     * @param array<int, list<float>> $colBboxes
+     * @return list<array{row_id: int, col_id: int, bbox: list<float>}>
+     */
+    private function gridCellBboxesForSpan(array $rowIds, array $colIds, array $rowBboxes, array $colBboxes, bool $rotated): array
+    {
+        $cells = [];
+        foreach ($rowIds as $rowId) {
+            foreach ($colIds as $colId) {
+                $bbox = $this->gridBboxForSpan([$rowId], [$colId], $rowBboxes, $colBboxes, $rotated);
+                if ($bbox === null) {
+                    continue;
+                }
+                $cells[] = [
+                    'row_id' => $rowId,
+                    'col_id' => $colId,
+                    'bbox' => $bbox,
+                ];
+            }
+        }
+
+        return $cells;
     }
 
     /**

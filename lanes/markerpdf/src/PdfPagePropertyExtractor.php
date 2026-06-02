@@ -50,6 +50,7 @@ final class PdfPagePropertyExtractor
         $pageBoundaryByObject = $this->pageBoundaryMetadataByPageObject($pdfBytes, $catalog, $objects);
         $articleBeadsByObject = $this->articleThreadBeadsByPageObject($pdfBytes);
         $structureMarkedContentByObject = $this->structureMarkedContentByPageObject($pdfBytes);
+        $textMarkupAnnotationsByObject = $this->textMarkupAnnotationsByPageObject($pdfBytes);
 
         $pages = [];
         foreach ($pageObjectNumbers as $pnum => $pageObjectNumber) {
@@ -70,12 +71,14 @@ final class PdfPagePropertyExtractor
             $userProperties = $userPropertiesByPage[$pageObjectNumber] ?? [];
             $articleBeads = $articleBeadsByObject[$pageObjectNumber] ?? [];
             $structureMarkedContent = $structureMarkedContentByObject[$pageObjectNumber] ?? [];
+            $textMarkupAnnotations = $textMarkupAnnotationsByObject[$pageObjectNumber] ?? [];
             if (
                 $pieceInfo === []
                 && $associatedFiles === []
                 && $userProperties === []
                 && $articleBeads === []
                 && $structureMarkedContent === []
+                && $textMarkupAnnotations === []
                 && $structParents === null
                 && $parentTree === null
             ) {
@@ -131,6 +134,10 @@ final class PdfPagePropertyExtractor
 
             if ($structureMarkedContent !== []) {
                 $page['structure_marked_content'] = $structureMarkedContent;
+            }
+
+            if ($textMarkupAnnotations !== []) {
+                $page['text_markup_annotations'] = $textMarkupAnnotations;
             }
 
             if ($userProperties !== []) {
@@ -198,6 +205,265 @@ final class PdfPagePropertyExtractor
         }
 
         return array_values($titles);
+    }
+
+    /**
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private function textMarkupAnnotationsByPageObject(string $pdfBytes): array
+    {
+        $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
+        $parentTreeEntries = $this->parentTreeObjectEntriesByStructParent($pdfBytes);
+        $elementsByObject = $this->structureElementsByObject($pdfBytes);
+        $rowsByPage = [];
+
+        foreach ((new PdfMarkupAnnotationExtractor())->extractPageMarkups($pdfBytes) as $pageMarkups) {
+            if (!is_array($pageMarkups)) {
+                continue;
+            }
+
+            $pageObject = $pageMarkups['page_object'] ?? null;
+            $pnum = $pageMarkups['pnum'] ?? null;
+            if (!is_int($pageObject) || !is_int($pnum)) {
+                continue;
+            }
+
+            $markups = $pageMarkups['markups'] ?? [];
+            if (!is_array($markups)) {
+                continue;
+            }
+
+            foreach ($markups as $markup) {
+                if (!is_array($markup)) {
+                    continue;
+                }
+
+                $row = [
+                    'source' => 'page_text_markup_annotation',
+                    'pnum' => $pnum,
+                    'page' => $pnum,
+                    'page_number' => $pnum + 1,
+                    'page_label' => $pageLabels[$pnum] ?? (string) ($pnum + 1),
+                    'page_object' => $pageObject,
+                    'annotation_object' => $markup['annotation_object'] ?? null,
+                    'subtype' => $markup['subtype'] ?? null,
+                    'rect' => $markup['rect'] ?? null,
+                    'quad_rects' => $markup['quad_rects'] ?? null,
+                    'pdftext_quad_rects' => $markup['pdftext_quad_rects'] ?? null,
+                    'contents' => $markup['contents'] ?? null,
+                    'author' => $markup['author'] ?? null,
+                    'subject' => $markup['subject'] ?? null,
+                    'name' => $markup['name'] ?? null,
+                    'modified_at' => $markup['modified_at'] ?? null,
+                    'color' => $markup['color'] ?? null,
+                    'opacity' => $markup['opacity'] ?? null,
+                    'flags' => $markup['flags'] ?? null,
+                    'actions' => $markup['actions'] ?? [],
+                    'additional_actions' => $markup['additional_actions'] ?? [],
+                    'executes_actions_on_import' => $markup['executes_actions_on_import'] ?? false,
+                    'review_only' => true,
+                    'visible_text_source' => false,
+                    'renders_markup_on_import' => false,
+                ];
+
+                $structParent = $markup['struct_parent'] ?? null;
+                if (is_int($structParent)) {
+                    $row['struct_parent'] = $structParent;
+                    $parentTreeEntry = $parentTreeEntries[$structParent] ?? null;
+                    if (is_array($parentTreeEntry)) {
+                        foreach (['struct_object', 'raw_role', 'role', 'role_mapped'] as $key) {
+                            if (array_key_exists($key, $parentTreeEntry)) {
+                                $row[$key] = $parentTreeEntry[$key];
+                            }
+                        }
+                        $row['parent_tree'] = $parentTreeEntry;
+
+                        $structObject = $parentTreeEntry['struct_object'] ?? null;
+                        if (is_int($structObject) && isset($elementsByObject[$structObject])) {
+                            $this->copyStructureElementReviewFields($row, $elementsByObject[$structObject]);
+                        }
+                    }
+                }
+
+                $rowsByPage[$pageObject][] = $this->compactReviewRow($row);
+            }
+        }
+
+        return $rowsByPage;
+    }
+
+    /**
+     * Annotation and XObject structure parents use singular /StructParent keys
+     * whose ParentTree values are direct StructElem dictionaries, unlike page
+     * /StructParents keys whose values are MCID arrays.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function parentTreeObjectEntriesByStructParent(string $pdfBytes): array
+    {
+        $objects = $this->pdfObjects($pdfBytes);
+        $catalog = $this->catalogObjectBody($pdfBytes, $objects);
+        if ($catalog === null) {
+            return [];
+        }
+
+        $structTreeRoot = $this->resolveDictionaryFromValue($this->dictionaryRawValue($catalog, 'StructTreeRoot'), $objects);
+        if ($structTreeRoot === null) {
+            return [];
+        }
+
+        $parentTree = $this->resolveDictionaryFromValue($this->dictionaryRawValue($structTreeRoot['body'], 'ParentTree'), $objects);
+        if ($parentTree === null) {
+            return [];
+        }
+
+        $entries = [];
+        $this->collectParentTreeObjectEntries(
+            $parentTree['body'],
+            $objects,
+            $this->structureRoleMap($structTreeRoot['body'], $objects),
+            $entries
+        );
+
+        return $entries;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, string> $roleMap
+     * @param array<int, array<string, mixed>> $entries
+     * @param array<int, true> $seenObjects
+     */
+    private function collectParentTreeObjectEntries(
+        string $dictionary,
+        array $objects,
+        array $roleMap,
+        array &$entries,
+        array $seenObjects = [],
+        int $depth = 0
+    ): void {
+        if ($depth > 20) {
+            return;
+        }
+
+        $nums = $this->dictionaryRawValue($dictionary, 'Nums');
+        if ($nums !== null) {
+            $items = $this->arrayItemsFromValue($nums, $objects);
+            for ($index = 0, $count = count($items); $index + 1 < $count; $index += 2) {
+                $key = trim($items[$index]);
+                if (preg_match('/^[+-]?\d+$/', $key) !== 1) {
+                    continue;
+                }
+
+                $rawValue = trim($this->resolveRawValue($items[$index + 1], $objects) ?? $items[$index + 1]);
+                if ($rawValue === '' || str_starts_with($rawValue, '[')) {
+                    continue;
+                }
+
+                $parent = $this->resolveDictionaryFromValue($items[$index + 1], $objects);
+                if ($parent === null) {
+                    continue;
+                }
+
+                $rawRole = $this->dictionaryNameValue($parent['body'], 'S', $objects);
+                if ($rawRole === null || $rawRole === '') {
+                    continue;
+                }
+
+                $role = $roleMap[$rawRole] ?? $rawRole;
+                $entries[(int) $key] = [
+                    'source' => 'struct_tree_parent_tree_object',
+                    'key' => (int) $key,
+                    'struct_object' => $parent['object'],
+                    'raw_role' => $rawRole,
+                    'role' => $role,
+                    'role_mapped' => $role !== $rawRole,
+                ];
+            }
+        }
+
+        $kids = $this->dictionaryRawValue($dictionary, 'Kids');
+        if ($kids === null) {
+            return;
+        }
+
+        foreach ($this->arrayItemsFromValue($kids, $objects) as $kidValue) {
+            $kidObjectNumber = $this->objectNumberFromReference($kidValue);
+            if ($kidObjectNumber === null || isset($seenObjects[$kidObjectNumber]) || !isset($objects[$kidObjectNumber])) {
+                continue;
+            }
+
+            $kidDictionary = $this->dictionaryObjectBody($objects[$kidObjectNumber]);
+            if ($kidDictionary === null) {
+                continue;
+            }
+
+            $nextSeen = $seenObjects;
+            $nextSeen[$kidObjectNumber] = true;
+            $this->collectParentTreeObjectEntries($kidDictionary, $objects, $roleMap, $entries, $nextSeen, $depth + 1);
+        }
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function structureElementsByObject(string $pdfBytes): array
+    {
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdfBytes);
+        $structureTree = $metadata['structure_tree'] ?? [];
+        $elements = is_array($structureTree) ? ($structureTree['elements'] ?? []) : [];
+        if (!is_array($elements)) {
+            return [];
+        }
+
+        $elementsByObject = [];
+        foreach ($elements as $element) {
+            if (!is_array($element)) {
+                continue;
+            }
+
+            $object = $element['object'] ?? null;
+            if (is_int($object)) {
+                $elementsByObject[$object] = $element;
+            }
+        }
+
+        return $elementsByObject;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param array<string, mixed> $element
+     */
+    private function copyStructureElementReviewFields(array &$row, array $element): void
+    {
+        foreach ([
+            'title',
+            'language',
+            'language_inherited',
+            'alternate_text',
+            'actual_text',
+            'expansion_text',
+            'id',
+            'classes',
+            'revision',
+            'namespace',
+            'associated_file_count',
+            'associated_files',
+        ] as $key) {
+            if (array_key_exists($key, $element) && !array_key_exists($key, $row)) {
+                $row[$key] = $element[$key];
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function compactReviewRow(array $row): array
+    {
+        return array_filter($row, static fn (mixed $value): bool => $value !== null && $value !== []);
     }
 
     /**

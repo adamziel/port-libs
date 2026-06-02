@@ -2323,6 +2323,9 @@ final class PdfAcroFormExtractor
         $fieldHierarchy = $this->fieldHierarchyBoundary($currentHierarchyPath, $effective, $inherited, $objectNumber, $password);
         $valueState = $this->fieldValueState($fieldType, $flags, $effective, $password, $value, $defaultValue, $options, $widgets, $objects);
         $valueState['hierarchy_boundary'] = $this->fieldHierarchyValueState($fieldHierarchy);
+        $widgetCurrentBaseReview = $fieldType === 'Btn'
+            ? $this->widgetCurrentBaseReviewForField($objectNumber, $name, $valueState, $widgets)
+            : null;
 
         $actionReview = $this->actionsWithReviewFromDictionary($body, $objects, $fieldNamesByObject, 'field', $objectNumber);
 
@@ -2346,6 +2349,9 @@ final class PdfAcroFormExtractor
             'widgets' => $widgets,
         ];
 
+        if ($widgetCurrentBaseReview !== null) {
+            $field['widget_current_base_review'] = $widgetCurrentBaseReview;
+        }
         if (isset($valueState['rich_text_review']) && is_array($valueState['rich_text_review'])) {
             $field['rich_text_review'] = $valueState['rich_text_review'];
         }
@@ -3342,6 +3348,7 @@ final class PdfAcroFormExtractor
                 $widgets,
                 static fn (array $widget): bool => ($widget['checked'] ?? false) === true
             ));
+            $currentBaseStates = $this->widgetCurrentBaseStateRows($widgets);
             $appearanceValues = [];
             foreach ($checkedWidgets as $widget) {
                 $exportValue = $widget['export_value'] ?? $widget['appearance_state'] ?? null;
@@ -3366,6 +3373,11 @@ final class PdfAcroFormExtractor
                 'on_values' => $this->buttonOnValues($widgets),
                 'checked_widget_count' => count($checkedWidgets),
                 'widget_state_consistent' => $this->widgetsConsistentWithFieldValue($widgets),
+                'widget_current_base_states' => $currentBaseStates,
+                'stale_widget_appearance_state_count' => count(array_filter(
+                    $currentBaseStates,
+                    static fn (array $state): bool => ($state['stale_appearance_state'] ?? false) === true
+                )),
             ];
             $state['display_value'] = $password ? '[redacted]' : $this->displayValue($effectiveCurrent);
             $state['changed_from_default'] = $password || !$hasDefault
@@ -3530,15 +3542,34 @@ final class PdfAcroFormExtractor
         $fieldValues = $this->valueList($fieldValue);
         foreach ($widgets as $index => $widget) {
             $appearanceState = $widget['appearance_state'] ?? null;
-            $checked = is_string($appearanceState) && $appearanceState !== '' && $appearanceState !== 'Off';
+            $onStates = $this->widgetOnAppearanceStates($widget);
+            $appearanceStateValid = $this->widgetAppearanceStateIsValid($widget, $appearanceState, $onStates);
+            $checked = is_string($appearanceState)
+                && $appearanceState !== ''
+                && $appearanceState !== 'Off'
+                && $appearanceStateValid === true;
             $exportValue = $this->widgetExportValue($widget);
             $selectedByField = $exportValue !== null && in_array($exportValue, $fieldValues, true);
+            $stateMatchesFieldValue = $fieldValue === null || $exportValue === null
+                ? ($appearanceStateValid === false ? false : null)
+                : ($appearanceStateValid === false ? false : ($checked ? $selectedByField : !$selectedByField));
             $widgets[$index]['checked'] = $checked;
             $widgets[$index]['export_value'] = $exportValue;
             $widgets[$index]['selected_by_field_value'] = $selectedByField;
-            $widgets[$index]['state_matches_field_value'] = $fieldValue === null || $exportValue === null
-                ? null
-                : ($checked ? $selectedByField : !$selectedByField);
+            $widgets[$index]['state_matches_field_value'] = $stateMatchesFieldValue;
+            $widgets[$index]['appearance_state_valid'] = $appearanceStateValid;
+            $widgets[$index]['current_base_state'] = $this->widgetAppearanceStateCurrentBaseReview(
+                $widget,
+                $fieldType,
+                $flags,
+                $fieldValue,
+                $exportValue,
+                $checked,
+                $selectedByField,
+                $stateMatchesFieldValue,
+                $appearanceStateValid,
+                $onStates
+            );
         }
 
         return $widgets;
@@ -3550,10 +3581,7 @@ final class PdfAcroFormExtractor
     private function widgetExportValue(array $widget): ?string
     {
         $appearanceState = $widget['appearance_state'] ?? null;
-        $states = array_values(array_filter(
-            $widget['appearance_states'] ?? [],
-            static fn (mixed $state): bool => is_string($state) && $state !== 'Off'
-        ));
+        $states = $this->widgetOnAppearanceStates($widget);
 
         if (is_string($appearanceState) && $appearanceState !== 'Off' && in_array($appearanceState, $states, true)) {
             return $appearanceState;
@@ -3564,6 +3592,153 @@ final class PdfAcroFormExtractor
         }
 
         return is_string($appearanceState) && $appearanceState !== 'Off' ? $appearanceState : null;
+    }
+
+    /**
+     * @param array<string, mixed> $widget
+     * @return list<string>
+     */
+    private function widgetOnAppearanceStates(array $widget): array
+    {
+        return array_values(array_filter(
+            $widget['appearance_states'] ?? [],
+            static fn (mixed $state): bool => is_string($state) && $state !== 'Off'
+        ));
+    }
+
+    /**
+     * @param array<string, mixed> $widget
+     * @param list<string> $onStates
+     */
+    private function widgetAppearanceStateIsValid(array $widget, mixed $appearanceState, array $onStates): ?bool
+    {
+        if (!is_string($appearanceState) || $appearanceState === '') {
+            return null;
+        }
+
+        if ($appearanceState === 'Off') {
+            return true;
+        }
+
+        if ($onStates === []) {
+            return true;
+        }
+
+        return in_array($appearanceState, $onStates, true);
+    }
+
+    /**
+     * @param array<string, mixed> $widget
+     * @param list<string> $onStates
+     * @return array<string, mixed>
+     */
+    private function widgetAppearanceStateCurrentBaseReview(
+        array $widget,
+        ?string $fieldType,
+        int $flags,
+        mixed $fieldValue,
+        ?string $exportValue,
+        bool $checked,
+        bool $selectedByField,
+        ?bool $stateMatchesFieldValue,
+        ?bool $appearanceStateValid,
+        array $onStates
+    ): array {
+        $appearanceState = $widget['appearance_state'] ?? null;
+        $normalAppearance = is_array($widget['normal_appearance'] ?? null) ? $widget['normal_appearance'] : null;
+        $staleAppearanceState = $appearanceStateValid === false
+            || ($normalAppearance !== null && ($normalAppearance['stale_appearance_state'] ?? false) === true);
+        $current = $fieldValue;
+        $currentSource = $fieldValue === null ? 'missing_or_off' : 'field_value';
+        if ($fieldValue === null && $checked && $exportValue !== null) {
+            $current = $exportValue;
+            $currentSource = 'widget_appearance_state';
+        }
+
+        return [
+            'source' => 'acroform_widget_appearance_state_currentbase',
+            'widget_object' => $widget['object'] ?? null,
+            'field_type' => $fieldType,
+            'button_kind' => $fieldType === 'Btn' ? $this->buttonKind($flags) : null,
+            'appearance_state' => is_string($appearanceState) ? $appearanceState : null,
+            'appearance_state_valid' => $appearanceStateValid,
+            'appearance_states' => array_values(array_filter(
+                $widget['appearance_states'] ?? [],
+                static fn (mixed $state): bool => is_string($state)
+            )),
+            'on_states' => $onStates,
+            'export_value' => $exportValue,
+            'checked_by_widget_appearance' => $checked,
+            'selected_by_field_value' => $selectedByField,
+            'state_matches_field_value' => $stateMatchesFieldValue,
+            'stale_appearance_state' => $staleAppearanceState,
+            'normal_appearance_type' => $normalAppearance['normal_appearance_type'] ?? null,
+            'selected_appearance_state' => $normalAppearance['selected_state'] ?? null,
+            'selected_appearance_object' => is_array($normalAppearance['selected_appearance'] ?? null)
+                ? ($normalAppearance['selected_appearance']['object'] ?? null)
+                : null,
+            'current' => $current,
+            'current_source' => $currentSource,
+            'field_value_authoritative' => $fieldValue !== null,
+            'appearance_value_used_for_import' => false,
+            'appearance_payload_text_exposed' => false,
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $widgets
+     * @return list<array<string, mixed>>
+     */
+    private function widgetCurrentBaseStateRows(array $widgets): array
+    {
+        $rows = [];
+        foreach ($widgets as $widget) {
+            if (is_array($widget['current_base_state'] ?? null)) {
+                $rows[] = $widget['current_base_state'];
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string, mixed> $valueState
+     * @param list<array<string, mixed>> $widgets
+     * @return array<string, mixed>
+     */
+    private function widgetCurrentBaseReviewForField(int $fieldObject, string $fieldName, array $valueState, array $widgets): array
+    {
+        $stateRows = $this->widgetCurrentBaseStateRows($widgets);
+
+        return [
+            'source' => 'acroform_widget_appearance_state_currentbase',
+            'field_object' => $fieldObject,
+            'field_name' => $fieldName,
+            'button_kind' => $valueState['button_kind'] ?? null,
+            'current' => $valueState['effective_current_state'] ?? ($valueState['current'] ?? null),
+            'current_source' => $valueState['state_source'] ?? ($valueState['current_source'] ?? null),
+            'default' => $valueState['default_state'] ?? ($valueState['default'] ?? null),
+            'changed_from_default' => $valueState['changed_from_default'] ?? null,
+            'widget_count' => count($stateRows),
+            'checked_widget_count' => $valueState['checked_widget_count'] ?? 0,
+            'state_consistent' => $valueState['widget_state_consistent'] ?? null,
+            'stale_appearance_state_count' => count(array_filter(
+                $stateRows,
+                static fn (array $state): bool => ($state['stale_appearance_state'] ?? false) === true
+            )),
+            'stale_appearance_widgets' => array_values(array_filter(array_map(
+                static fn (array $state): ?int => ($state['stale_appearance_state'] ?? false) === true
+                    ? (is_int($state['widget_object'] ?? null) ? $state['widget_object'] : null)
+                    : null,
+                $stateRows
+            ))),
+            'appearance_value_used_for_import' => false,
+            'appearance_payload_text_exposed' => false,
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
+        ];
     }
 
     /**

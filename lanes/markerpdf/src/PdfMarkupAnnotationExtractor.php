@@ -149,6 +149,7 @@ final class PdfMarkupAnnotationExtractor
                     'page_quad_rect' => $markup['quad_rects'][$candidate['index']] ?? null,
                     'pdftext_quad_rect' => $markup['pdftext_quad_rects'][$candidate['index']] ?? null,
                     'annotation_object' => $markup['annotation_object'],
+                    'struct_parent' => $markup['struct_parent'],
                 ];
             }
         }
@@ -232,6 +233,7 @@ final class PdfMarkupAnnotationExtractor
             'border_style' => $this->borderStyleFromAnnotation($annotationBody, $objects),
             'popup' => $this->popupFromAnnotation($annotationBody, $objects),
             'flags' => $this->integerAfterName($annotationBody, 'F'),
+            'struct_parent' => $this->integerAfterName($annotationBody, 'StructParent'),
             'actions' => $actionReview['actions'],
             'additional_actions' => $actionReview['additional_actions'],
             'executes_actions_on_import' => $actionReview['executes_actions_on_import'],
