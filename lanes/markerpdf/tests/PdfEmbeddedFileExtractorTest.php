@@ -285,6 +285,76 @@ return [
         $t->same(hash('md5', $previewJson), $preview['computed_checksum']);
         $t->same(false, $preview['checksum_matches']);
     },
+    'reviews schema typed portfolio collection field values from Filespec and CI entries' => static function (TestRunner $t): void {
+        $sourceXml = '<wp-export><post id="509"/></wp-export>';
+        $pageContent = 'BT /F1 12 Tf 72 720 Td (Portfolio Field Review) Tj ET';
+
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageMode /UseAttachments /Collection 5 0 R /AF [10 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Collection /View /T /D (source-unicode.xml) /Schema << /NameField << /Subtype /F /N (Filename) /O 1 >> /DescriptionField << /Subtype /Desc /N (Description) /O 2 /V true /E false >> /CreatedField << /Subtype /CreationDate /N (Created) /O 3 >> /ModifiedField << /Subtype /ModDate /N (Modified) /O 4 >> /BytesField << /Subtype /Size /N (Bytes) /O 5 >> /Subject << /Subtype /S /N (Subject) /O 6 >> /Priority << /Subtype /N /N (Priority) /O 7 >> /ReviewDate << /Subtype /D /N (Reviewed) /O 8 >> >> /Sort << /S [/Priority /ModifiedField] /A [true false] >> >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (legacy-source.xml) /UF (source-unicode.xml) /Desc (Original WordPress export) /AFRelationship /Source /CI 30 0 R /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourceXml) . " /CreationDate (D:20260602113600Z) /ModDate (D:20260602113700Z) >> /Length " . strlen($sourceXml) . " >>\nstream\n{$sourceXml}\nendstream\nendobj\n"
+            . "30 0 obj\n<< /Type /CollectionItem /Subject (Migration Packet) /Priority << /Type /CollectionSubitem /D 2 /P (Priority ) >> /ReviewDate (D:20260602113800Z) /Stale (not in schema) >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+
+        $t->same(1, count($files));
+
+        $file = $files[0];
+        $t->same('source-unicode.xml', $file['filename']);
+        $t->same('Source', $file['relationship']);
+        $t->same('Original WordPress export', $file['description']);
+        $t->same(strlen($sourceXml), $file['declared_size']);
+        $t->same('D:20260602113600Z', $file['created_at']);
+        $t->same('D:20260602113700Z', $file['modified_at']);
+        $t->same('Migration Packet', $file['portfolio_item']['Subject']);
+        $t->same(2, $file['portfolio_item']['Priority']['value']);
+        $t->same('Priority ', $file['portfolio_item']['Priority']['prefix']);
+
+        $fields = $file['portfolio_field_values'];
+        $t->same('source-unicode.xml', $fields['NameField']['value']);
+        $t->same('file_spec', $fields['NameField']['source']);
+        $t->same('F', $fields['NameField']['subtype']);
+        $t->same('Filename', $fields['NameField']['label']);
+        $t->same(1, $fields['NameField']['order']);
+        $t->same('text', $fields['NameField']['value_type']);
+        $t->same('source-unicode.xml', $fields['NameField']['display_value']);
+
+        $t->same('Original WordPress export', $fields['DescriptionField']['value']);
+        $t->same('file_spec', $fields['DescriptionField']['source']);
+        $t->same('text', $fields['DescriptionField']['value_type']);
+        $t->same(true, $fields['DescriptionField']['visible']);
+        $t->same(false, $fields['DescriptionField']['editable']);
+
+        $t->same('D:20260602113600Z', $fields['CreatedField']['value']);
+        $t->same('embedded_file_params', $fields['CreatedField']['source']);
+        $t->same('date', $fields['CreatedField']['value_type']);
+        $t->same('D:20260602113700Z', $fields['ModifiedField']['value']);
+        $t->same('embedded_file_params', $fields['ModifiedField']['source']);
+        $t->same('date', $fields['ModifiedField']['value_type']);
+        $t->same(strlen($sourceXml), $fields['BytesField']['value']);
+        $t->same('embedded_file_params', $fields['BytesField']['source']);
+        $t->same('number', $fields['BytesField']['value_type']);
+
+        $t->same('Migration Packet', $fields['Subject']['value']);
+        $t->same('collection_item', $fields['Subject']['source']);
+        $t->same('text', $fields['Subject']['value_type']);
+        $t->same(2, $fields['Priority']['value']);
+        $t->same('Priority ', $fields['Priority']['prefix']);
+        $t->same('Priority 2', $fields['Priority']['display_value']);
+        $t->same('collection_subitem', $fields['Priority']['source']);
+        $t->same('CollectionSubitem', $fields['Priority']['subitem_type']);
+        $t->same('Priority', $fields['Priority']['label']);
+        $t->same('number', $fields['Priority']['value_type']);
+        $t->same('D:20260602113800Z', $fields['ReviewDate']['value']);
+        $t->same('collection_item', $fields['ReviewDate']['source']);
+        $t->same('date', $fields['ReviewDate']['value_type']);
+        $t->same(false, array_key_exists('Stale', $fields));
+    },
     'reports associated Filespec PieceInfo private stream checksum boundaries' => static function (TestRunner $t): void {
         $sourceXml = '<wp-export><post id="137"/></wp-export>';
         $previewPayload = 'BT /F1 12 Tf 72 720 Td (Associated EF Payload Leak) Tj ET';
