@@ -3485,7 +3485,7 @@ final class PdfTextExtractor
 
     private function hasPdfNumberishName(string $dict, string $name): bool
     {
-        $offset = $this->nameValueOffset($dict, $name);
+        $offset = $this->topLevelNameValueOffset($dict, $name);
         if ($offset === null) {
             return false;
         }
@@ -3499,7 +3499,7 @@ final class PdfTextExtractor
     private function imageColorSpaceFamily(string $dict, array $objects): ?string
     {
         foreach (['ColorSpace', 'CS'] as $name) {
-            $offset = $this->nameValueOffset($dict, $name);
+            $offset = $this->topLevelNameValueOffset($dict, $name);
             if ($offset === null) {
                 continue;
             }
@@ -4135,7 +4135,7 @@ final class PdfTextExtractor
      */
     private function streamLength(string $dict, array $objects): ?int
     {
-        $offset = $this->nameValueOffset($dict, 'Length');
+        $offset = $this->topLevelNameValueOffset($dict, 'Length');
         if ($offset === null) {
             return null;
         }
@@ -4296,7 +4296,7 @@ final class PdfTextExtractor
      */
     private function streamFilters(string $dict, array $objects = []): ?array
     {
-        $offset = $this->nameValueOffset($dict, 'Filter');
+        $offset = $this->topLevelNameValueOffset($dict, 'Filter');
         if ($offset === null) {
             return [];
         }
@@ -4420,7 +4420,7 @@ final class PdfTextExtractor
      */
     private function streamDecodeParms(string $dict, array $objects): ?array
     {
-        $offset = $this->nameValueOffset($dict, 'DecodeParms');
+        $offset = $this->topLevelNameValueOffset($dict, 'DecodeParms');
         if ($offset === null) {
             return [];
         }
@@ -4576,7 +4576,7 @@ final class PdfTextExtractor
 
     private function decodeParmsHasName(?string $decodeParms, string $name): bool
     {
-        return $decodeParms !== null && $this->nameValueOffset($decodeParms, $name) !== null;
+        return $decodeParms !== null && $this->topLevelNameValueOffset($decodeParms, $name) !== null;
     }
 
     private function decodeAsciiHexStream(string $stream): ?string
@@ -4803,7 +4803,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $offset = $this->nameValueOffset($decodeParms, $name);
+        $offset = $this->topLevelNameValueOffset($decodeParms, $name);
         return $offset === null ? null : $this->decodeParmsIntegerTokenAt($decodeParms, $offset, $objects);
     }
 
@@ -6480,11 +6480,91 @@ final class PdfTextExtractor
 
     private function nameValueOffset(string $body, string $name): ?int
     {
-        if (preg_match('/\/' . preg_quote($name, '/') . '\b/s', $body, $match, PREG_OFFSET_CAPTURE) !== 1) {
-            return null;
+        return $this->pdfNameValueOffset($body, $name, false);
+    }
+
+    private function topLevelNameValueOffset(string $body, string $name): ?int
+    {
+        return $this->pdfNameValueOffset($body, $name, true);
+    }
+
+    private function pdfNameValueOffset(string $body, string $name, bool $topLevelOnly): ?int
+    {
+        $length = strlen($body);
+        $firstTokenOffset = 0;
+        $this->skipContentWhitespaceAndComments($body, $firstTokenOffset);
+        $targetDictionaryDepth = substr($body, $firstTokenOffset, 2) === '<<' ? 1 : 0;
+        $dictionaryDepth = 0;
+        $arrayDepth = 0;
+        $index = 0;
+
+        while ($index < $length) {
+            $char = $body[$index];
+
+            if ($char === '%') {
+                $this->skipPdfComment($body, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $this->readLiteralToken($body, $index);
+                continue;
+            }
+
+            if ($char === '<') {
+                if (($body[$index + 1] ?? '') === '<') {
+                    $dictionaryDepth++;
+                    $index += 2;
+                    continue;
+                }
+
+                $this->readHexToken($body, $index);
+                continue;
+            }
+
+            if ($char === '>' && ($body[$index + 1] ?? '') === '>') {
+                $dictionaryDepth = max(0, $dictionaryDepth - 1);
+                $index += 2;
+                continue;
+            }
+
+            if ($char === '[') {
+                $arrayDepth++;
+                $index++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $arrayDepth = max(0, $arrayDepth - 1);
+                $index++;
+                continue;
+            }
+
+            if ($char !== '/') {
+                $index++;
+                continue;
+            }
+
+            $nameStart = $index + 1;
+            $nameEnd = $nameStart;
+            while ($nameEnd < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $body[$nameEnd])) {
+                $nameEnd++;
+            }
+
+            if (
+                (!$topLevelOnly || ($arrayDepth === 0 && $dictionaryDepth === $targetDictionaryDepth))
+                && $nameEnd > $nameStart
+                && $this->decodePdfName(substr($body, $nameStart, $nameEnd - $nameStart)) === $name
+            ) {
+                $valueOffset = $nameEnd;
+                $this->skipContentWhitespaceAndComments($body, $valueOffset);
+                return $valueOffset;
+            }
+
+            $index = $nameEnd > $index ? $nameEnd : $index + 1;
         }
 
-        return $this->skipPdfWhitespace($body, $match[0][1] + strlen($match[0][0]));
+        return null;
     }
 
     private function skipPdfWhitespace(string $value, int $offset): int
