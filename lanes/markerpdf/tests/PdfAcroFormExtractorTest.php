@@ -48,6 +48,26 @@ $signatureDocMdpPdf = static function (string $transformParams): string {
         . "%%EOF";
 };
 
+$signatureSeedValueLockPdf = static function (): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R 13 0 R 14 0 R 15 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 9 0 R 10 0 R 11 0 R] /SigFlags 3 >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Sig /T (approval.signature) /Ff 1 /V 30 0 R /SV 31 0 R /Lock 32 0 R /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 300 684] /P 3 0 R /F 4 >>\nendobj\n"
+        . "9 0 obj\n<< /FT /Tx /T (registration.email) /V (editor@example.com) /Kids [13 0 R] >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Tx /T (invoice.total) /V (27.06) /Kids [14 0 R] >>\nendobj\n"
+        . "11 0 obj\n<< /FT /Tx /T (internal.notes) /V (still editable) /Kids [15 0 R] >>\nendobj\n"
+        . "13 0 obj\n<< /Subtype /Widget /Parent 9 0 R /Rect [72 600 300 624] /P 3 0 R /F 4 >>\nendobj\n"
+        . "14 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 560 300 584] /P 3 0 R /F 4 >>\nendobj\n"
+        . "15 0 obj\n<< /Subtype /Widget /Parent 11 0 R /Rect [72 520 300 544] /P 3 0 R /F 4 >>\nendobj\n"
+        . "30 0 obj\n<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Name (Editor Reviewer) /Reason (Approved for import) /M (D:20260602064500Z) /ByteRange [0 128 512 64] /Contents <0102030405> >>\nendobj\n"
+        . "31 0 obj\n<< /Type /SV /Ff 111 /Filter /Adobe.PPKLite /SubFilter [/adbe.pkcs7.detached /ETSI.CAdES.detached] /DigestMethod [/SHA256 /SHA512] /V 2.0 /Reasons [(Approved for import) (Final review)] /LegalAttestation [(I attest) <FEFF004F004B>] /AddRevInfo true /MDP << /P 2 >> /TimeStamp << /URL (https://timestamp.example.test/rfc3161) /Ff 1 >> >>\nendobj\n"
+        . "32 0 obj\n<< /Type /SigFieldLock /Action /Include /Fields [(registration.email) (invoice.total)] /P 2 >>\nendobj\n"
+        . "%%EOF";
+};
+
 $xfaPacketPdf = static function (): array {
     $templateXml = <<<'XML'
 <template xmlns="http://www.xfa.org/schema/xfa-template/3.3/">
@@ -290,6 +310,65 @@ return [
         $t->true($docMdp['permission_valid']);
         $t->same('form_fill_templates_signatures', $docMdp['permission_label']);
         $t->same(['fill_forms', 'instantiate_page_templates', 'sign'], $docMdp['allowed_changes']);
+    },
+    'extracts signature seed value constraints and lock dictionary review metadata' => static function (TestRunner $t) use ($signatureSeedValueLockPdf, $fieldsByName): void {
+        $form = (new PdfAcroFormExtractor())->extractForm($signatureSeedValueLockPdf());
+        $field = $fieldsByName($form['fields'])['approval.signature'];
+        $seed = $field['signature_seed_value'];
+        $lock = $field['signature_lock'];
+
+        $t->same('Sig', $field['field_type']);
+        $t->same('Editor Reviewer', $field['signature']['name']);
+        $t->same(31, $seed['object']);
+        $t->same('SV', $seed['type']);
+        $t->same(111, $seed['flags']);
+        $t->same([
+            'filter',
+            'subfilter',
+            'seed_value_parser_version',
+            'reason',
+            'add_revision_info',
+            'digest_method',
+        ], $seed['required_constraints']);
+        $t->same('Adobe.PPKLite', $seed['filter']);
+        $t->true($seed['filter_required']);
+        $t->same(['adbe.pkcs7.detached', 'ETSI.CAdES.detached'], $seed['subfilters']);
+        $t->true($seed['subfilter_required']);
+        $t->same(['SHA256', 'SHA512'], $seed['digest_methods']);
+        $t->true($seed['digest_method_required']);
+        $t->same(2.0, $seed['parser_version']);
+        $t->true($seed['parser_version_required']);
+        $t->same(['Approved for import', 'Final review'], $seed['reasons']);
+        $t->true($seed['reason_required']);
+        $t->same(['I attest', 'OK'], $seed['legal_attestations']);
+        $t->same(false, $seed['legal_attestation_required']);
+        $t->true($seed['add_revision_info']);
+        $t->true($seed['add_revision_info_required']);
+        $t->same(false, $seed['executes_signing']);
+        $t->same(false, $seed['executes_action']);
+
+        $t->same(2, $seed['mdp']['permission_level']);
+        $t->true($seed['mdp']['permission_valid']);
+        $t->same('certifying_signature', $seed['mdp']['signature_type']);
+        $t->same('form_fill_templates_signatures', $seed['mdp']['permission_label']);
+        $t->same(['fill_forms', 'instantiate_page_templates', 'sign'], $seed['mdp']['allowed_changes']);
+        $t->same('https://timestamp.example.test/rfc3161', $seed['timestamp']['url']);
+        $t->same(1, $seed['timestamp']['flags']);
+        $t->true($seed['timestamp']['required']);
+
+        $t->same(32, $lock['object']);
+        $t->same('SigFieldLock', $lock['type']);
+        $t->same('Include', $lock['action']);
+        $t->true($lock['action_valid']);
+        $t->same('lock_included_fields', $lock['action_label']);
+        $t->same(['registration.email', 'invoice.total'], $lock['field_names']);
+        $t->same(['registration.email', 'invoice.total'], $lock['included_fields']);
+        $t->same([], $lock['excluded_fields']);
+        $t->same(2, $lock['permission_level']);
+        $t->true($lock['permission_valid']);
+        $t->same('form_fill_templates_signatures', $lock['permission_label']);
+        $t->same(['fill_forms', 'instantiate_page_templates', 'sign'], $lock['allowed_changes']);
+        $t->same(false, $lock['executes_action']);
     },
     'extracts XFA packet array metadata without merging dynamic XML into AcroForm fields' => static function (TestRunner $t) use ($xfaPacketPdf, $fieldsByName): void {
         [$pdf, $templateHash, $datasetsHash, $configHash] = $xfaPacketPdf();

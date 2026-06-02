@@ -38,6 +38,16 @@ final class PdfAcroFormExtractor
         ],
     ];
 
+    private const SIGNATURE_SEED_REQUIRED_FLAGS = [
+        1 => 'filter',
+        2 => 'subfilter',
+        4 => 'seed_value_parser_version',
+        8 => 'reason',
+        16 => 'legal_attestation',
+        32 => 'add_revision_info',
+        64 => 'digest_method',
+    ];
+
     /**
      * Native boundary for PDF AcroForm field dictionaries.
      *
@@ -549,6 +559,8 @@ final class PdfAcroFormExtractor
             $field['signature'] = isset($effective['V'])
                 ? $this->signatureMetadataFromValue($effective['V']['value'], $objects)
                 : null;
+            $field['signature_seed_value'] = $this->signatureSeedValueFromField($body, $objects);
+            $field['signature_lock'] = $this->signatureLockFromField($body, $objects, $fieldNamesByObject);
             $field['certifying_signature'] = false;
         }
 
@@ -622,6 +634,217 @@ final class PdfAcroFormExtractor
         }
 
         return $fields;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function signatureSeedValueFromField(string $fieldBody, array $objects): ?array
+    {
+        $seedValue = $this->valueAfterName($fieldBody, 'SV');
+        $seed = $seedValue === null ? null : $this->resolvedDictionaryFromValue($seedValue, $objects);
+        if ($seed === null) {
+            return null;
+        }
+
+        $body = $seed['body'];
+        $flags = $this->numberValueAfterName($body, 'Ff') ?? 0;
+
+        return [
+            'object' => $seed['object'],
+            'type' => $this->pdfNameValueAfterName($body, 'Type'),
+            'source' => 'signature_field_seed_value_dictionary',
+            'flags' => $flags,
+            'required_constraints' => $this->signatureSeedRequiredConstraints($flags),
+            'filter' => $this->pdfNameValueAfterName($body, 'Filter'),
+            'filter_required' => $this->signatureSeedConstraintRequired($flags, 1),
+            'subfilters' => $this->scalarListValueAfterName($body, 'SubFilter', $objects),
+            'subfilter_required' => $this->signatureSeedConstraintRequired($flags, 2),
+            'parser_version' => $this->realValueAfterName($body, 'V'),
+            'parser_version_required' => $this->signatureSeedConstraintRequired($flags, 4),
+            'reasons' => $this->scalarListValueAfterName($body, 'Reasons', $objects),
+            'reason_required' => $this->signatureSeedConstraintRequired($flags, 8),
+            'legal_attestations' => $this->scalarListValueAfterName($body, 'LegalAttestation', $objects),
+            'legal_attestation_required' => $this->signatureSeedConstraintRequired($flags, 16),
+            'add_revision_info' => $this->boolValueAfterName($body, 'AddRevInfo'),
+            'add_revision_info_required' => $this->signatureSeedConstraintRequired($flags, 32),
+            'digest_methods' => $this->scalarListValueAfterName($body, 'DigestMethod', $objects),
+            'digest_method_required' => $this->signatureSeedConstraintRequired($flags, 64),
+            'mdp' => $this->signatureSeedMdp($body, $objects),
+            'timestamp' => $this->signatureSeedTimestamp($body, $objects),
+            'executes_signing' => false,
+            'executes_action' => false,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function signatureSeedRequiredConstraints(int $flags): array
+    {
+        $required = [];
+        foreach (self::SIGNATURE_SEED_REQUIRED_FLAGS as $bit => $name) {
+            if ($this->signatureSeedConstraintRequired($flags, $bit)) {
+                $required[] = $name;
+            }
+        }
+
+        return $required;
+    }
+
+    private function signatureSeedConstraintRequired(int $flags, int $bit): bool
+    {
+        return ($flags & $bit) !== 0;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function signatureSeedMdp(string $seedBody, array $objects): ?array
+    {
+        $value = $this->valueAfterName($seedBody, 'MDP');
+        $mdp = $value === null ? null : $this->resolvedDictionaryFromValue($value, $objects);
+        if ($mdp === null) {
+            return null;
+        }
+
+        $level = $this->numberValueAfterName($mdp['body'], 'P');
+
+        return [
+            'object' => $mdp['object'],
+            'permission_level' => $level,
+            'permission_valid' => in_array($level, [0, 1, 2, 3], true),
+            'signature_type' => match ($level) {
+                0 => 'ordinary_signature',
+                1, 2, 3 => 'certifying_signature',
+                default => 'unknown',
+            },
+            'permission_label' => $level === 0 ? 'ordinary_signature' : $this->docMdpPermissionLabel($level),
+            'allowed_changes' => in_array($level, [1, 2, 3], true) ? $this->docMdpAllowedChanges($level) : [],
+            'source' => 'signature_seed_value_mdp',
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function signatureSeedTimestamp(string $seedBody, array $objects): ?array
+    {
+        $value = $this->valueAfterName($seedBody, 'TimeStamp');
+        $timestamp = $value === null ? null : $this->resolvedDictionaryFromValue($value, $objects);
+        if ($timestamp === null) {
+            return null;
+        }
+
+        $flags = $this->numberValueAfterName($timestamp['body'], 'Ff') ?? 0;
+
+        return [
+            'object' => $timestamp['object'],
+            'url' => $this->pdfStringValueAfterName($timestamp['body'], 'URL', $objects),
+            'flags' => $flags,
+            'required' => ($flags & 1) !== 0,
+            'source' => 'signature_seed_value_timestamp',
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, string> $fieldNamesByObject
+     * @return array<string, mixed>|null
+     */
+    private function signatureLockFromField(string $fieldBody, array $objects, array $fieldNamesByObject): ?array
+    {
+        $lockValue = $this->valueAfterName($fieldBody, 'Lock');
+        $lock = $lockValue === null ? null : $this->resolvedDictionaryFromValue($lockValue, $objects);
+        if ($lock === null) {
+            return null;
+        }
+
+        $body = $lock['body'];
+        $action = $this->pdfNameValueAfterName($body, 'Action');
+        $fields = $this->signatureLockFieldNames($body, $objects, $fieldNamesByObject);
+        $permissionLevel = $this->numberValueAfterName($body, 'P');
+
+        return [
+            'object' => $lock['object'],
+            'type' => $this->pdfNameValueAfterName($body, 'Type'),
+            'source' => 'signature_field_lock_dictionary',
+            'action' => $action,
+            'action_valid' => in_array($action, ['All', 'Include', 'Exclude'], true),
+            'action_label' => $this->signatureLockActionLabel($action),
+            'field_names' => $fields,
+            'field_count' => count($fields),
+            'locks_all_fields' => $action === 'All',
+            'included_fields' => $action === 'Include' ? $fields : [],
+            'excluded_fields' => $action === 'Exclude' ? $fields : [],
+            'permission_level' => $permissionLevel,
+            'permission_valid' => $permissionLevel === null || in_array($permissionLevel, [1, 2, 3], true),
+            'permission_label' => $permissionLevel === null ? null : $this->docMdpPermissionLabel($permissionLevel),
+            'allowed_changes' => $permissionLevel === null ? [] : $this->docMdpAllowedChanges($permissionLevel),
+            'executes_action' => false,
+        ];
+    }
+
+    private function signatureLockActionLabel(?string $action): string
+    {
+        return match ($action) {
+            'All' => 'lock_all_fields',
+            'Include' => 'lock_included_fields',
+            'Exclude' => 'lock_all_except_excluded_fields',
+            default => 'unknown',
+        };
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, string> $fieldNamesByObject
+     * @return list<string>
+     */
+    private function signatureLockFieldNames(string $lockBody, array $objects, array $fieldNamesByObject): array
+    {
+        $value = $this->valueAfterName($lockBody, 'Fields');
+        if ($value === null || !str_starts_with(trim($value), '[')) {
+            return [];
+        }
+
+        $body = $this->arrayBodyFromValue($value);
+        if ($body === null) {
+            return [];
+        }
+
+        $names = [];
+        $offset = 0;
+        while ($offset < strlen($body)) {
+            $this->skipWhitespace($body, $offset);
+            if ($offset >= strlen($body)) {
+                break;
+            }
+
+            if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $body, $match, 0, $offset) === 1) {
+                $objectNumber = (int) $match[1];
+                if (isset($fieldNamesByObject[$objectNumber]) && !in_array($fieldNamesByObject[$objectNumber], $names, true)) {
+                    $names[] = $fieldNamesByObject[$objectNumber];
+                }
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $scalar = $this->readScalarAt($body, $offset, $objects);
+            if ($scalar !== null) {
+                if ($scalar['value'] !== '' && !in_array($scalar['value'], $names, true)) {
+                    $names[] = $scalar['value'];
+                }
+                $offset = $scalar['end'];
+                continue;
+            }
+
+            $offset++;
+        }
+
+        return $names;
     }
 
     /**
@@ -2298,6 +2521,27 @@ final class PdfAcroFormExtractor
     }
 
     /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function scalarListValueAfterName(string $body, string $name, array $objects): array
+    {
+        $value = $this->valueAfterName($body, $name);
+        if ($value === null) {
+            return [];
+        }
+
+        $value = trim($value);
+        if (str_starts_with($value, '[')) {
+            $arrayBody = $this->arrayBodyFromValue($value);
+            return $arrayBody === null ? [] : $this->scalarValuesFromArrayBody($arrayBody, $objects);
+        }
+
+        $scalar = $this->pdfValueToString($value, $objects);
+        return $scalar === null ? [] : [$scalar];
+    }
+
+    /**
      * @return list<int>|null
      */
     private function integerArrayValueAfterName(string $body, string $name): ?array
@@ -2323,6 +2567,16 @@ final class PdfAcroFormExtractor
         }
 
         return $this->decodePdfName($value);
+    }
+
+    private function realValueAfterName(string $body, string $name): ?float
+    {
+        $value = $this->valueAfterName($body, $name);
+        if ($value === null || preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)/', trim($value), $match) !== 1) {
+            return null;
+        }
+
+        return (float) $match[0];
     }
 
     private function numberValueAfterName(string $body, string $name): ?int
