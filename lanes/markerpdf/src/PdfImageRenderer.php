@@ -8,6 +8,31 @@ use InvalidArgumentException;
 
 final class PdfImageRenderer
 {
+    private const INLINE_IMAGE_KEY_ABBREVIATIONS = [
+        'BPC' => 'BitsPerComponent',
+        'CS' => 'ColorSpace',
+        'D' => 'Decode',
+        'DP' => 'DecodeParms',
+        'F' => 'Filter',
+        'H' => 'Height',
+        'I' => 'Interpolate',
+        'IM' => 'ImageMask',
+        'W' => 'Width',
+    ];
+    private const INLINE_IMAGE_VALUE_ABBREVIATIONS = [
+        'A85' => 'ASCII85Decode',
+        'AHx' => 'ASCIIHexDecode',
+        'CCF' => 'CCITTFaxDecode',
+        'CMYK' => 'DeviceCMYK',
+        'DCT' => 'DCTDecode',
+        'Fl' => 'FlateDecode',
+        'G' => 'DeviceGray',
+        'I' => 'Indexed',
+        'LZW' => 'LZWDecode',
+        'RGB' => 'DeviceRGB',
+        'RL' => 'RunLengthDecode',
+    ];
+
     private BboxGeometry $geometry;
 
     public function __construct(?BboxGeometry $geometry = null)
@@ -496,6 +521,49 @@ final class PdfImageRenderer
     }
 
     /**
+     * Native review boundary for PDF content-stream inline images.
+     *
+     * Inline images use short dictionary names and values, have no object
+     * number, and are image payloads inside page content streams. This returns
+     * the same RGB-preview metadata as image XObjects after expanding the
+     * inline abbreviations, while keeping raster filters such as JBIG2
+     * review-only.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    public function inlineImageReviewPlan(string $inlineImageDictionary, string $payload, array $objects = []): array
+    {
+        $canonical = $this->canonicalInlineImageDictionary($inlineImageDictionary);
+        $plan = $this->imageColorSpaceSoftMaskPlan($canonical, $objects);
+        $filters = $plan['image_filters'];
+        $previewOnlyFilters = $plan['image_filter_boundary']['preview_only_filters'];
+
+        $plan['inline_image'] = [
+            'present' => true,
+            'canonical_dictionary' => $canonical,
+            'payload_length' => strlen($payload),
+            'payload_sha256' => hash('sha256', $payload),
+            'payload_preview_hex' => strtoupper(bin2hex(substr($payload, 0, 16))),
+            'uses_abbreviations' => trim($canonical) !== trim($inlineImageDictionary),
+            'has_object_number' => false,
+            'excluded_from_visible_text' => true,
+            'review_only_filters' => $previewOnlyFilters,
+            'native_raster_decode' => $previewOnlyFilters === [],
+        ];
+        $plan['inline_image_abbreviations_expanded'] = $plan['inline_image']['uses_abbreviations'];
+        $plan['inline_image_payload_excluded_from_text'] = true;
+        $plan['inline_image_review_only'] = $previewOnlyFilters !== [];
+        $plan['notes'][] = 'inline_image_dictionary_abbreviations_expanded';
+        $plan['notes'][] = 'inline_image_payload_excluded_from_visible_text';
+        if (in_array('JBIG2Decode', $filters, true)) {
+            $plan['notes'][] = 'inline_jbig2_image_filter_review_only';
+        }
+
+        return $plan;
+    }
+
+    /**
      * Expands an Indexed color-space sample index into normalized base color
      * components. This mirrors the PDF parser side of the RGB preview boundary
      * without rasterizing pixels.
@@ -802,6 +870,73 @@ final class PdfImageRenderer
         }
 
         return [0.0, 0.0, (float) $width, (float) $height];
+    }
+
+    private function canonicalInlineImageDictionary(string $dictionary): string
+    {
+        $body = trim($dictionary);
+        if (str_starts_with($body, '<<') && str_ends_with($body, '>>')) {
+            $body = trim(substr($body, 2, -2));
+        }
+
+        $entries = [];
+        $offset = 0;
+        $length = strlen($body);
+        while ($offset < $length) {
+            $offset = $this->skipPdfWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $readKey = $this->readPdfValueWithOffset($body, $offset);
+            if ($readKey === null || !str_starts_with(trim($readKey['value']), '/')) {
+                break;
+            }
+
+            $readValue = $this->readPdfValueWithOffset($body, $readKey['next']);
+            if ($readValue === null) {
+                break;
+            }
+
+            $entries[] = $this->canonicalInlineImageKey($readKey['value'])
+                . ' '
+                . $this->canonicalInlineImageValue($readValue['value']);
+            $offset = $readValue['next'];
+        }
+
+        return '<< ' . implode(' ', $entries) . ' >>';
+    }
+
+    private function canonicalInlineImageKey(string $token): string
+    {
+        $name = $this->pdfNameValue($token);
+        if ($name === null) {
+            return $token;
+        }
+
+        return '/' . (self::INLINE_IMAGE_KEY_ABBREVIATIONS[$name] ?? $name);
+    }
+
+    private function canonicalInlineImageValue(string $token): string
+    {
+        $trimmed = trim($token);
+        if (str_starts_with($trimmed, '/')) {
+            $name = $this->pdfNameValue($trimmed);
+            return $name === null ? $trimmed : '/' . (self::INLINE_IMAGE_VALUE_ABBREVIATIONS[$name] ?? $name);
+        }
+
+        if (!str_starts_with($trimmed, '[')) {
+            return $trimmed;
+        }
+
+        return (string) preg_replace_callback(
+            '/\/([^\s\[\]()<>{}\/%]+)/',
+            function (array $match): string {
+                $name = $this->decodePdfName($match[1]);
+                return '/' . (self::INLINE_IMAGE_VALUE_ABBREVIATIONS[$name] ?? $name);
+            },
+            $trimmed
+        );
     }
 
     private function imageFilterName(string $dictionary): ?string

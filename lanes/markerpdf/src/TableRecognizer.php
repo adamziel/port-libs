@@ -108,7 +108,7 @@ final class TableRecognizer
      * @param list<list<array<string, mixed>>> $tableCells
      * @param list<bool> $needsOcr
      * @param list<array<string, mixed>> $suppliedTableResults
-     * @param array<int, list<string|array{text?: string}>|array{text_lines?: list<string|array{text?: string}>, lines?: list<string|array{text?: string}>}> $suppliedOcrTextLines
+     * @param array<int, list<string|array{text?: string, bbox?: list<int|float>}>|array{text_lines?: list<string|array{text?: string, bbox?: list<int|float>}>, lines?: list<string|array{text?: string, bbox?: list<int|float>}>}> $suppliedOcrTextLines
      * @return list<array{cells: list<array<string, mixed>>, rows: list<array<string, mixed>>, cols: list<array<string, mixed>>}>
      */
     public function recognizeTables(
@@ -456,24 +456,150 @@ final class TableRecognizer
 
     /**
      * @param list<array<string, mixed>> $cells
-     * @param list<string|array{text?: string}> $ocrTextLines
+     * @param list<string|array{text?: string, bbox?: list<int|float>}> $ocrTextLines
      * @return list<array<string, mixed>>
      */
     private function applyOcrText(array $cells, array $ocrTextLines): array
     {
-        foreach ($this->ocrTextLineItems($ocrTextLines) as $idx => $ocrLine) {
+        $ocrLines = $this->ocrTextLineItems($ocrTextLines);
+        if ($this->ocrTextLinesHaveBboxes($ocrLines)) {
+            return $this->applyOcrTextByBbox($cells, $ocrLines);
+        }
+
+        foreach ($ocrLines as $idx => $ocrLine) {
             if (!isset($cells[$idx])) {
                 break;
             }
-            $cells[$idx]['text'] = is_array($ocrLine) ? (string) ($ocrLine['text'] ?? '') : (string) $ocrLine;
+            $cells[$idx]['text'] = $this->ocrTextLineText($ocrLine);
         }
 
         return $cells;
     }
 
     /**
-     * @param list<string|array{text?: string}>|array{text_lines?: list<string|array{text?: string}>, lines?: list<string|array{text?: string}>} $ocrTextLines
-     * @return list<string|array{text?: string}>
+     * @param list<string|array{text?: string, bbox?: list<int|float>}> $ocrTextLines
+     * @return list<array<string, mixed>>
+     */
+    private function applyOcrTextByBbox(array $cells, array $ocrTextLines): array
+    {
+        $fragmentsByCell = array_fill(0, count($cells), []);
+        foreach ($ocrTextLines as $order => $ocrLine) {
+            if (!is_array($ocrLine)) {
+                continue;
+            }
+
+            $bbox = $this->nullableBbox($ocrLine['bbox'] ?? null);
+            if ($bbox === null) {
+                continue;
+            }
+
+            $cellIndex = $this->cellIndexForOcrLine($cells, $bbox);
+            if ($cellIndex === null) {
+                continue;
+            }
+
+            $fragmentsByCell[$cellIndex][] = [
+                'bbox' => $bbox,
+                'text' => $this->ocrTextLineText($ocrLine),
+                'order' => $order,
+            ];
+        }
+
+        foreach ($fragmentsByCell as $cellIndex => $fragments) {
+            if ($fragments === []) {
+                continue;
+            }
+
+            $fragments = $this->sortTextCells($fragments);
+            $parts = [];
+            foreach ($fragments as $fragment) {
+                $text = $this->normalizeOcrFragmentText((string) $fragment['text']);
+                if ($text !== '') {
+                    $parts[] = $text;
+                }
+            }
+
+            $cells[$cellIndex]['text'] = implode(' ', $parts);
+        }
+
+        return $cells;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $cells
+     * @param list<float> $bbox
+     */
+    private function cellIndexForOcrLine(array $cells, array $bbox, float $threshold = 0.5): ?int
+    {
+        $bestIndex = null;
+        $bestOverlap = 0.0;
+        foreach ($cells as $idx => $cell) {
+            $overlap = $this->intersectionPct($bbox, $cell['bbox']);
+            if ($overlap > $bestOverlap) {
+                $bestOverlap = $overlap;
+                $bestIndex = $idx;
+            }
+        }
+
+        if ($bestIndex !== null && $bestOverlap >= $threshold) {
+            return $bestIndex;
+        }
+
+        foreach ($cells as $idx => $cell) {
+            if ($this->bboxCenterInside($bbox, $cell['bbox'])) {
+                return $idx;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @param list<float> $cellBbox
+     */
+    private function bboxCenterInside(array $bbox, array $cellBbox): bool
+    {
+        $centerX = ($bbox[0] + $bbox[2]) / 2.0;
+        $centerY = ($bbox[1] + $bbox[3]) / 2.0;
+
+        return $centerX >= $cellBbox[0]
+            && $centerX <= $cellBbox[2]
+            && $centerY >= $cellBbox[1]
+            && $centerY <= $cellBbox[3];
+    }
+
+    /**
+     * @param list<string|array{text?: string, bbox?: list<int|float>}> $ocrTextLines
+     */
+    private function ocrTextLinesHaveBboxes(array $ocrTextLines): bool
+    {
+        if ($ocrTextLines === []) {
+            return false;
+        }
+
+        foreach ($ocrTextLines as $ocrLine) {
+            if (!is_array($ocrLine) || $this->nullableBbox($ocrLine['bbox'] ?? null) === null) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function ocrTextLineText(mixed $ocrLine): string
+    {
+        return is_array($ocrLine) ? (string) ($ocrLine['text'] ?? '') : (string) $ocrLine;
+    }
+
+    private function normalizeOcrFragmentText(string $text): string
+    {
+        return trim(preg_replace('/[\r\n]+/', ' ', $text) ?? $text);
+    }
+
+    /**
+     * @param list<string|array{text?: string, bbox?: list<int|float>}>|array{text_lines?: list<string|array{text?: string, bbox?: list<int|float>}>, lines?: list<string|array{text?: string, bbox?: list<int|float>}>} $ocrTextLines
+     * @return list<string|array{text?: string, bbox?: list<int|float>}>
      */
     private function ocrTextLineItems(array $ocrTextLines): array
     {

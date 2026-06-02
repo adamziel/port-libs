@@ -74,6 +74,28 @@ $encryptedPdfWithoutStandardPermissions = static function (): string {
         . "trailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF";
 };
 
+$encryptedPublicKeyRecipientPermissionsPdf = static function (): array {
+    $content = 'BT /F1 12 Tf 72 720 Td (Public-key recipient encrypted leak) Tj ET';
+    $recipientOne = 'CRYPT_FILTER_RECIPIENT_ONE_PERMISSION_BYTES_SHOULD_NOT_LEAK';
+    $recipientTwo = 'CRYPT_FILTER_RECIPIENT_TWO_PERMISSION_BYTES_SHOULD_NOT_LEAK';
+    $recipientOneHex = strtoupper(bin2hex($recipientOne));
+    $recipientTwoHex = strtoupper(bin2hex($recipientTwo));
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Filter /Adobe.PubSec /SubFilter /adbe.pkcs7.s5 /V 4 /Length 128"
+        . " /CF << /DefaultCryptFilter << /CFM /AESV2 /AuthEvent /DocOpen /Length 16 /Recipients 6 0 R >> >>"
+        . " /StmF /DefaultCryptFilter /StrF /DefaultCryptFilter /EncryptMetadata true >>\nendobj\n"
+        . "6 0 obj\n[<{$recipientOneHex}> 7 0 R]\nendobj\n"
+        . "7 0 obj\n<{$recipientTwoHex}>\nendobj\n"
+        . "trailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF";
+
+    return [$pdf, $recipientOne, $recipientTwo, $recipientOneHex, $recipientTwoHex];
+};
+
 $encryptedPdfWithMalformedStandardPermissions = static function (): string {
     $content = 'BT /F1 12 Tf 72 720 Td (Malformed permission encrypted leak) Tj ET';
 
@@ -354,6 +376,74 @@ return [
         $t->same(false, $report['executes_decryption']);
         $t->same(false, $report['executes_external_pdf_tools']);
         $t->true(is_string($encoded) && !str_contains($encoded, 'Unknown-permission encrypted leak'));
+    },
+    'reviews public-key recipient permissions as undecoded envelope metadata' => static function (TestRunner $t) use ($encryptedPublicKeyRecipientPermissionsPdf): void {
+        [$pdf, $recipientOne, $recipientTwo, $recipientOneHex, $recipientTwoHex] = $encryptedPublicKeyRecipientPermissionsPdf();
+        $report = (new PdfSecurityPreflight())->analyze($pdf);
+        $permission = $report['permission_preflight'];
+        $handler = $report['permission_handler_review'];
+        $recipientReview = $permission['public_key_recipient_review'];
+        $recipientList = $recipientReview['recipient_lists'][0];
+        $encoded = json_encode($report, JSON_UNESCAPED_SLASHES);
+
+        $t->same('', (new PdfTextExtractor())->extractPlainText($pdf));
+        $t->true($report['encrypted']);
+        $t->same(false, $report['content_extraction_allowed']);
+        $t->same('block_encrypted_content_review_security_metadata', $report['import_decision']);
+        $t->same(['encrypted_document', 'encrypted_text_extraction_blocked', 'public_key_recipient_permissions_undecoded'], $report['review_reasons']);
+        $t->same(['native_text_extraction', 'decryption'], $report['blocked_operations']);
+
+        $t->same('Adobe.PubSec', $report['encryption']['filter']);
+        $t->same('adbe.pkcs7.s5', $report['encryption']['subfilter']);
+        $t->same(2, $report['encryption']['public_key_recipient_count']);
+        $t->same('cms_pkcs7_permission_decode_unavailable', $report['encryption']['public_key_recipient_permission_decode_status']);
+        $t->same(false, $report['encryption']['recipient_bytes_exposed']);
+
+        $t->same('public_key_recipient_permissions', $permission['source']);
+        $t->same(true, $permission['permissions_declared']);
+        $t->same(false, $permission['standard_permissions_declared']);
+        $t->same(true, $permission['recipient_permissions_declared']);
+        $t->same(null, $permission['permission_hex']);
+        $t->same([], $permission['allowed']);
+        $t->same([], $permission['denied']);
+        $t->same(null, $permission['copy_or_extract_allowed']);
+        $t->same(null, $permission['accessibility_extract_allowed']);
+        $t->same(false, $permission['permission_bits_reliable']);
+        $t->same(null, $permission['permission_word_well_formed']);
+        $t->same('public_key_recipient_permissions_blocked_without_private_key', $permission['policy']);
+        $t->same('blocked_encrypted_public_key_recipient_permissions', $permission['content_extraction_boundary']);
+        $t->same(false, $permission['decryption_performed']);
+        $t->same(false, $permission['native_text_extraction_allowed_now']);
+        $t->same(false, $permission['recipient_bytes_exposed']);
+
+        $t->same('Adobe.PubSec', $handler['handler']);
+        $t->same(false, $handler['standard_handler']);
+        $t->same(true, $handler['recipient_permissions_declared']);
+        $t->same(false, $handler['handler_supported_for_native_permission_review']);
+        $t->same(null, $handler['permission_word_well_formed']);
+        $t->same('public_key_recipient_permissions_undecoded_review', $handler['status']);
+        $t->same(2, $handler['public_key_recipient_count']);
+        $t->same('cms_pkcs7_permission_decode_unavailable', $handler['public_key_recipient_permission_decode_status']);
+        $t->same('crypt_filter_recipients', $handler['public_key_recipient_source_policy']);
+        $t->same(false, $handler['executes_cms_parse']);
+        $t->same(false, $handler['executes_decryption']);
+        $t->same(false, $handler['executes_permission_enforcement']);
+
+        $t->same('public_key_security_handler', $recipientReview['source']);
+        $t->same('crypt_filter_recipients', $recipientReview['recipient_source_policy']);
+        $t->same(['DefaultCryptFilter'], $recipientReview['crypt_filter_recipient_filter_names']);
+        $t->same(2, $recipientReview['recipient_count']);
+        $t->same([hash('sha256', $recipientOne), hash('sha256', $recipientTwo)], $recipientReview['recipient_sha256']);
+        $t->same('DefaultCryptFilter', $recipientList['crypt_filter']);
+        $t->same(2, $recipientList['recipient_count']);
+        $t->same(false, $recipientList['recipient_bytes_exposed']);
+
+        $t->same(false, $report['executes_decryption']);
+        $t->same(false, $report['executes_external_pdf_tools']);
+        $t->same(false, $report['recipient_bytes_exposed']);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Public-key recipient encrypted leak'));
+        $t->true(is_string($encoded) && !str_contains($encoded, $recipientOne) && !str_contains($encoded, $recipientTwo));
+        $t->true(is_string($encoded) && !str_contains($encoded, $recipientOneHex) && !str_contains($encoded, $recipientTwoHex));
     },
     'flags malformed Standard permission reserved bits as review-only handler metadata' => static function (TestRunner $t) use ($encryptedPdfWithMalformedStandardPermissions): void {
         $pdf = $encryptedPdfWithMalformedStandardPermissions();

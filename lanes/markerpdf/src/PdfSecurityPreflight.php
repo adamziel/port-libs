@@ -70,6 +70,7 @@ final class PdfSecurityPreflight
             'document_security_store' => $documentSecurityStore,
             'signatures' => $signatures,
             'raw_owner_user_keys_exposed' => false,
+            'recipient_bytes_exposed' => false,
             'raw_signature_validation_bytes_exposed' => false,
             'executes_decryption' => false,
             'executes_signature_validation' => false,
@@ -115,13 +116,21 @@ final class PdfSecurityPreflight
         $handlerReview = $this->permissionHandlerReview($encryption, $permissions, $declared);
         $handlerSupported = ($handlerReview['handler_supported_for_native_permission_review'] ?? false) === true;
         $permissionWellFormed = $handlerReview['permission_word_well_formed'] ?? null;
+        $publicKeyRecipientReview = is_array($encryption['public_key_recipient_review'] ?? null)
+            ? $encryption['public_key_recipient_review']
+            : [];
+        $recipientPermissionsDeclared = (int) ($publicKeyRecipientReview['recipient_count'] ?? 0) > 0;
         $permissionBitsReliable = $handlerSupported && $permissionWellFormed === true;
         $copyAllowed = $declared && $handlerSupported ? in_array('copy_or_extract', $allowed, true) : null;
         $accessibilityAllowed = $declared && $handlerSupported ? in_array('extract_for_accessibility', $allowed, true) : null;
         $reviewAllowed = $handlerSupported ? $allowed : [];
         $reviewDenied = $handlerSupported ? $denied : [];
 
-        if (!$declared) {
+        if (!$declared && $recipientPermissionsDeclared) {
+            $policy = 'public_key_recipient_permissions_blocked_without_private_key';
+            $boundary = 'blocked_encrypted_public_key_recipient_permissions';
+            $source = 'public_key_recipient_permissions';
+        } elseif (!$declared) {
             $policy = 'permissions_unknown_blocked_without_decryption';
             $boundary = 'blocked_encrypted_permissions_unknown';
             $source = 'encryption_dictionary_without_standard_permissions';
@@ -148,7 +157,9 @@ final class PdfSecurityPreflight
             'encrypted' => true,
             'handler' => $encryption['filter'] ?? null,
             'revision_label' => $encryption['revision_label'] ?? null,
-            'permissions_declared' => $declared,
+            'permissions_declared' => $declared || $recipientPermissionsDeclared,
+            'standard_permissions_declared' => $declared,
+            'recipient_permissions_declared' => $recipientPermissionsDeclared,
             'permission_hex' => $permissions['hex'] ?? null,
             'allowed' => $reviewAllowed,
             'denied' => $reviewDenied,
@@ -158,6 +169,7 @@ final class PdfSecurityPreflight
             'permission_bits_reliable' => $permissionBitsReliable,
             'permission_word_well_formed' => $handlerSupported ? $permissionWellFormed : null,
             'permission_handler_review' => $handlerReview,
+            'public_key_recipient_review' => $publicKeyRecipientReview,
             'requires_password_for_content_extraction' => (bool) ($encryption['requires_password_for_content_extraction'] ?? true),
             'decryption_performed' => false,
             'native_text_extraction_allowed_now' => false,
@@ -165,6 +177,7 @@ final class PdfSecurityPreflight
             'content_extraction_boundary' => $boundary,
             'review_only' => true,
             'raw_key_material_exposed' => false,
+            'recipient_bytes_exposed' => false,
         ];
     }
 
@@ -181,8 +194,16 @@ final class PdfSecurityPreflight
             ? (bool) $permissions['reserved_bits_valid']
             : null;
         $reservedBits = is_array($permissions['reserved_bits'] ?? null) ? $permissions['reserved_bits'] : [];
+        $publicKeyRecipientReview = is_array($encryption['public_key_recipient_review'] ?? null)
+            ? $encryption['public_key_recipient_review']
+            : [];
+        $publicKeyRecipientCount = (int) ($publicKeyRecipientReview['recipient_count'] ?? 0);
+        $recipientPermissionsDeclared = $publicKeyRecipientCount > 0;
 
-        if (!$declared) {
+        if (!$declared && $recipientPermissionsDeclared) {
+            $status = 'public_key_recipient_permissions_undecoded_review';
+            $reviewWellFormed = null;
+        } elseif (!$declared) {
             $status = 'permissions_unavailable_review';
             $reviewWellFormed = null;
         } elseif (!$standardHandler) {
@@ -203,17 +224,24 @@ final class PdfSecurityPreflight
             'revision' => $encryption['revision'] ?? null,
             'revision_label' => $encryption['revision_label'] ?? null,
             'standard_handler' => $standardHandler,
-            'permissions_declared' => $declared,
+            'permissions_declared' => $declared || $recipientPermissionsDeclared,
+            'standard_permissions_declared' => $declared,
+            'recipient_permissions_declared' => $recipientPermissionsDeclared,
             'permission_hex' => $permissions['hex'] ?? null,
             'handler_supported_for_native_permission_review' => $standardHandler && $declared,
             'permission_word_well_formed' => $reviewWellFormed,
             'permission_word_status' => $permissions['permission_word_status'] ?? null,
             'reserved_bits' => $reservedBits,
+            'public_key_recipient_count' => $publicKeyRecipientCount,
+            'public_key_recipient_permission_decode_status' => $publicKeyRecipientReview['permission_decode_status'] ?? null,
+            'public_key_recipient_source_policy' => $publicKeyRecipientReview['recipient_source_policy'] ?? null,
             'status' => $status,
             'review_only' => true,
             'decryption_performed' => false,
             'executes_decryption' => false,
             'executes_permission_enforcement' => false,
+            'executes_cms_parse' => false,
+            'recipient_bytes_exposed' => false,
         ];
     }
 
@@ -536,6 +564,9 @@ final class PdfSecurityPreflight
         ));
         $reviewAllowed = $standardHandler ? $allowed : [];
         $reviewDenied = $standardHandler ? $denied : [];
+        $publicKeyRecipientReview = is_array($encryption['public_key_recipient_review'] ?? null)
+            ? $encryption['public_key_recipient_review']
+            : [];
 
         return [
             'is_encrypted' => true,
@@ -561,9 +592,13 @@ final class PdfSecurityPreflight
             'permission_bits_reliable' => $standardHandler && $permissions !== [] && $permissionWellFormed === true,
             'reserved_bit_violations' => $reservedViolations,
             'perms_hash_present' => isset($encryption['perms']['sha256']),
+            'public_key_recipient_count' => (int) ($publicKeyRecipientReview['recipient_count'] ?? 0),
+            'public_key_recipient_permission_decode_status' => $publicKeyRecipientReview['permission_decode_status'] ?? null,
+            'public_key_recipient_review' => $publicKeyRecipientReview,
             'requires_password_for_content_extraction' => (bool) ($encryption['requires_password_for_content_extraction'] ?? true),
             'review_only' => true,
             'raw_key_material_exposed' => false,
+            'recipient_bytes_exposed' => false,
         ];
     }
 
@@ -613,6 +648,8 @@ final class PdfSecurityPreflight
             }
             if ($permissionPolicy === 'copy_extract_allowed_after_decryption') {
                 $reasons[] = 'copy_or_extract_allowed_but_decryption_required';
+            } elseif ($permissionPolicy === 'public_key_recipient_permissions_blocked_without_private_key') {
+                $reasons[] = 'public_key_recipient_permissions_undecoded';
             } elseif ($permissionPolicy === 'permissions_unknown_blocked_without_decryption') {
                 $reasons[] = 'encryption_permissions_unknown';
             } elseif ($permissionPolicy === 'permissions_malformed_blocked_without_decryption') {

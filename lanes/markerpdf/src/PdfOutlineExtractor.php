@@ -313,6 +313,7 @@ final class PdfOutlineExtractor
      *     open_action_review_actions: list<array<string, mixed>>,
      *     outline_action_review_actions: list<array<string, mixed>>,
      *     page_presentations: list<array<string, mixed>>,
+     *     article_threads?: list<array<string, mixed>>,
      *     open_action_destination?: array<string, mixed>
      * }
      */
@@ -345,12 +346,13 @@ final class PdfOutlineExtractor
         $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
         $pagePresentations = $this->getPageTransitionActionMetadata($pdfBytes);
         $pagePresentationsByPage = $this->pagePresentationsByPageIndex($pagePresentations);
+        $articleThreads = $this->articleThreadNavigationMetadata($catalog, $objects, $pageIndexes, $pageLabels);
+        $articleBeadsByPage = $this->articleBeadsByPageIndex($articleThreads);
 
         $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
         if ($outlineRoot !== null) {
             foreach ($this->outlineItemsWithDestinationViews($outlineRoot['First'] ?? null, $objects, $pageIndexes, $destinations, 15) as $item) {
-                $item['page_label'] = $this->pageLabelForIndex($item['page'], $pageLabels);
-                $item = $this->withTargetPagePresentation($item, $pagePresentationsByPage);
+                $item = $this->withNavigationTargetMetadata($item, $pageLabels, $pagePresentationsByPage, $articleBeadsByPage);
                 $metadata['outline'][] = $item;
             }
             if ($metadata['outline'] !== []) {
@@ -364,6 +366,7 @@ final class PdfOutlineExtractor
                 $destinations,
                 $pageLabels,
                 $pagePresentationsByPage,
+                $articleBeadsByPage,
                 15
             );
             if ($outlineActionReviews !== []) {
@@ -376,7 +379,14 @@ final class PdfOutlineExtractor
             $openActionReviews = $this->getOpenActionReviewActions($pdfBytes);
             if ($openActionReviews !== []) {
                 $metadata['source'][] = 'open_action';
-                $metadata['open_action_review_actions'] = $openActionReviews;
+                foreach ($openActionReviews as $openActionReview) {
+                    $metadata['open_action_review_actions'][] = $this->withNavigationTargetMetadata(
+                        $openActionReview,
+                        $pageLabels,
+                        $pagePresentationsByPage,
+                        $articleBeadsByPage
+                    );
+                }
             }
         }
 
@@ -395,10 +405,14 @@ final class PdfOutlineExtractor
                 $openActionDestination['name']
             );
             if ($details !== null) {
-                $details['page_label'] = $this->pageLabelForIndex($details['page'], $pageLabels);
-                $details = $this->withTargetPagePresentation($details, $pagePresentationsByPage);
+                $details = $this->withNavigationTargetMetadata($details, $pageLabels, $pagePresentationsByPage, $articleBeadsByPage);
                 $metadata['open_action_destination'] = $details;
             }
+        }
+
+        if ($articleThreads !== []) {
+            $metadata['source'][] = 'article_threads';
+            $metadata['article_threads'] = $articleThreads;
         }
 
         return $metadata;
@@ -472,11 +486,263 @@ final class PdfOutlineExtractor
     }
 
     /**
+     * @param array<string, mixed> $item
+     * @param list<string> $pageLabels
+     * @param array<int, array<string, mixed>> $pagePresentationsByPage
+     * @param array<int, list<array<string, mixed>>> $articleBeadsByPage
+     * @return array<string, mixed>
+     */
+    private function withNavigationTargetMetadata(
+        array $item,
+        array $pageLabels,
+        array $pagePresentationsByPage,
+        array $articleBeadsByPage
+    ): array {
+        $pageIndex = $item['page'] ?? null;
+        if (!is_int($pageIndex)) {
+            return $item;
+        }
+
+        if (!array_key_exists('page_label', $item)) {
+            $item['page_label'] = $this->pageLabelForIndex($pageIndex, $pageLabels);
+        }
+
+        $item = $this->withTargetPagePresentation($item, $pagePresentationsByPage);
+
+        return $this->withTargetArticleBeads($item, $articleBeadsByPage);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<int, list<array<string, mixed>>> $articleBeadsByPage
+     * @return array<string, mixed>
+     */
+    private function withTargetArticleBeads(array $item, array $articleBeadsByPage): array
+    {
+        $pageIndex = $item['page'] ?? null;
+        if (!is_int($pageIndex) || !array_key_exists($pageIndex, $articleBeadsByPage)) {
+            return $item;
+        }
+
+        $item['target_article_beads'] = $articleBeadsByPage[$pageIndex];
+
+        $titles = [];
+        foreach ($articleBeadsByPage[$pageIndex] as $bead) {
+            $title = $bead['thread_title'] ?? null;
+            if (is_string($title) && $title !== '') {
+                $titles[$title] = $title;
+            }
+        }
+        if ($titles !== []) {
+            $item['target_article_thread_titles'] = array_values($titles);
+        }
+
+        return $item;
+    }
+
+    /**
+     * Native boundary for PDF catalog /Threads article navigation. markerPDF
+     * receives page text and navigation through pdfium/pdftext; this reduced
+     * path keeps article bead chains reviewable for WordPress import without
+     * executing a viewer action or promoting thread dictionaries into body text.
+     *
+     * @param array<string, mixed> $catalog
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     * @param list<string> $pageLabels
+     * @return list<array<string, mixed>>
+     */
+    private function articleThreadNavigationMetadata(array $catalog, array $objects, array $pageIndexes, array $pageLabels): array
+    {
+        if (!array_key_exists('Threads', $catalog)) {
+            return [];
+        }
+
+        $threadValues = $this->resolveArray($catalog['Threads'], $objects);
+        if ($threadValues === null) {
+            $threadValues = $this->resolveDictionary($catalog['Threads'], $objects) === null
+                ? []
+                : [$catalog['Threads']];
+        }
+
+        $threads = [];
+        foreach ($threadValues as $threadIndex => $threadValue) {
+            $thread = $this->resolveDictionary($threadValue, $objects);
+            if ($thread === null) {
+                continue;
+            }
+
+            $threadObject = $this->referenceObjectNumber($threadValue);
+            $title = $this->articleThreadTitle($thread, $objects);
+            $beads = $this->articleThreadBeads(
+                $thread,
+                $threadObject,
+                (int) $threadIndex,
+                $title,
+                $objects,
+                $pageIndexes,
+                $pageLabels
+            );
+            if ($beads === []) {
+                continue;
+            }
+
+            $threads[] = [
+                'thread_index' => (int) $threadIndex,
+                'thread_object' => $threadObject,
+                'title' => $title,
+                'bead_count' => count($beads),
+                'beads' => $beads,
+            ];
+        }
+
+        return $threads;
+    }
+
+    /**
+     * @param array<string, mixed> $thread
+     * @param array<int, mixed> $objects
+     */
+    private function articleThreadTitle(array $thread, array $objects): ?string
+    {
+        $info = $this->resolveDictionary($thread['I'] ?? null, $objects);
+        if ($info === null) {
+            return null;
+        }
+
+        $title = $this->stringOrNameValue($this->resolveValue($info['Title'] ?? null, $objects));
+
+        return $title === null || trim($title) === '' ? null : $title;
+    }
+
+    /**
+     * @param array<string, mixed> $thread
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     * @param list<string> $pageLabels
+     * @return list<array<string, mixed>>
+     */
+    private function articleThreadBeads(
+        array $thread,
+        ?int $threadObject,
+        int $threadIndex,
+        ?string $threadTitle,
+        array $objects,
+        array $pageIndexes,
+        array $pageLabels
+    ): array {
+        $firstBead = $this->referenceObjectNumber($thread['F'] ?? null);
+        if ($firstBead === null) {
+            return [];
+        }
+
+        $beads = [];
+        $seen = [];
+        $beadObject = $firstBead;
+        $beadIndex = 0;
+
+        while (array_key_exists($beadObject, $objects) && !isset($seen[$beadObject]) && count($seen) < 128) {
+            $seen[$beadObject] = true;
+            $bead = $this->resolveDictionary($this->refValue($beadObject), $objects);
+            if ($bead === null) {
+                break;
+            }
+
+            $nextBead = $this->referenceObjectNumber($bead['N'] ?? null);
+            $previousBead = $this->referenceObjectNumber($bead['V'] ?? null);
+            $pageObject = $this->referenceObjectNumber($bead['P'] ?? null);
+            $rectangle = $this->articleBeadRectangle($bead['R'] ?? null, $objects);
+            if ($pageObject !== null && isset($pageIndexes[$pageObject]) && $rectangle !== null) {
+                $pageIndex = $pageIndexes[$pageObject];
+                $beads[] = [
+                    'thread_index' => $threadIndex,
+                    'thread_object' => $threadObject,
+                    'thread_title' => $threadTitle,
+                    'bead_index' => $beadIndex,
+                    'bead_object' => $beadObject,
+                    'page' => $pageIndex,
+                    'page_number' => $pageIndex + 1,
+                    'page_object' => $pageObject,
+                    'page_label' => $this->pageLabelForIndex($pageIndex, $pageLabels),
+                    'rect' => $rectangle,
+                    'next_bead_object' => $nextBead,
+                    'previous_bead_object' => $previousBead,
+                ];
+            }
+
+            $beadIndex++;
+            if ($nextBead === null || $nextBead === $firstBead || isset($seen[$nextBead])) {
+                break;
+            }
+
+            $beadObject = $nextBead;
+        }
+
+        return $beads;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @return list<float>|null
+     */
+    private function articleBeadRectangle(mixed $value, array $objects): ?array
+    {
+        $array = $this->resolveArray($value, $objects);
+        if ($array === null || count($array) < 4) {
+            return null;
+        }
+
+        $numbers = [];
+        for ($index = 0; $index < 4; $index++) {
+            $number = $this->numericOrNullValue($this->resolveValue($array[$index], $objects));
+            if ($number === null) {
+                return null;
+            }
+            $numbers[] = $number;
+        }
+
+        $left = min($numbers[0], $numbers[2]);
+        $right = max($numbers[0], $numbers[2]);
+        $bottom = min($numbers[1], $numbers[3]);
+        $top = max($numbers[1], $numbers[3]);
+        if ($right <= $left || $top <= $bottom) {
+            return null;
+        }
+
+        return [$left, $bottom, $right, $top];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $articleThreads
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private function articleBeadsByPageIndex(array $articleThreads): array
+    {
+        $beadsByPage = [];
+        foreach ($articleThreads as $thread) {
+            $beads = $thread['beads'] ?? null;
+            if (!is_array($beads)) {
+                continue;
+            }
+
+            foreach ($beads as $bead) {
+                if (!is_array($bead) || !is_int($bead['page'] ?? null)) {
+                    continue;
+                }
+                $beadsByPage[$bead['page']][] = $bead;
+            }
+        }
+
+        return $beadsByPage;
+    }
+
+    /**
      * @param array<int, mixed> $objects
      * @param array<int, int> $pageIndexes
      * @param array<string, mixed> $destinations
      * @param list<string> $pageLabels
      * @param array<int, array<string, mixed>> $pagePresentationsByPage
+     * @param array<int, list<array<string, mixed>>> $articleBeadsByPage
      * @param array<int, true> $seen
      * @return list<array<string, mixed>>
      */
@@ -487,6 +753,7 @@ final class PdfOutlineExtractor
         array $destinations,
         array $pageLabels,
         array $pagePresentationsByPage,
+        array $articleBeadsByPage,
         int $maxDepth,
         int $level = 1,
         array $seen = []
@@ -518,8 +785,7 @@ final class PdfOutlineExtractor
 
                         $page = $row['page'] ?? null;
                         if (is_int($page)) {
-                            $row['page_label'] = $this->pageLabelForIndex($page, $pageLabels);
-                            $row = $this->withTargetPagePresentation($row, $pagePresentationsByPage);
+                            $row = $this->withNavigationTargetMetadata($row, $pageLabels, $pagePresentationsByPage, $articleBeadsByPage);
                         }
 
                         $items[] = $row;
@@ -550,8 +816,7 @@ final class PdfOutlineExtractor
 
                             $page = $row['page'] ?? null;
                             if (is_int($page)) {
-                                $row['page_label'] = $this->pageLabelForIndex($page, $pageLabels);
-                                $row = $this->withTargetPagePresentation($row, $pagePresentationsByPage);
+                                $row = $this->withNavigationTargetMetadata($row, $pageLabels, $pagePresentationsByPage, $articleBeadsByPage);
                             }
 
                             $items[] = $row;
@@ -568,6 +833,7 @@ final class PdfOutlineExtractor
                     $destinations,
                     $pageLabels,
                     $pagePresentationsByPage,
+                    $articleBeadsByPage,
                     $maxDepth,
                     $level + 1,
                     $seen
@@ -1802,6 +2068,11 @@ final class PdfOutlineExtractor
                     $index++;
                 }
                 $tokens[] = substr($value, $start, $index - $start);
+                continue;
+            }
+
+            if ($this->isDelimiter($char)) {
+                $index++;
                 continue;
             }
 

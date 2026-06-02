@@ -524,6 +524,62 @@ return [
         $t->same(['Metric', 'State', 'OCR table', 'Recovered'], array_column($recognized[0]['cells'], 'text'));
         $t->contains('| OCR table | Recovered |', $formatted['markdown_tables'][0]);
     },
+    'groups bboxed OCR fragments into detector cells before header grid review' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $recognized = $recognizer->recognizeTables(
+            [[
+                ['bbox' => [5.0, 5.0, 353.0, 26.0], 'text' => ''],
+                ['bbox' => [5.0, 36.0, 106.0, 108.0], 'text' => ''],
+                ['bbox' => [128.0, 39.0, 232.0, 56.0], 'text' => ''],
+                ['bbox' => [258.0, 39.0, 348.0, 56.0], 'text' => ''],
+                ['bbox' => [128.0, 89.0, 232.0, 106.0], 'text' => ''],
+                ['bbox' => [258.0, 89.0, 348.0, 106.0], 'text' => ''],
+            ]],
+            [true],
+            [[
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 358.0, 30.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 35.0, 358.0, 60.0]],
+                    ['row_id' => 2, 'bbox' => [0.0, 85.0, 358.0, 110.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 110.0, 110.0]],
+                    ['col_id' => 1, 'bbox' => [124.0, 0.0, 238.0, 110.0]],
+                    ['col_id' => 2, 'bbox' => [252.0, 0.0, 358.0, 110.0]],
+                ],
+            ]],
+            [[
+                'lines' => [
+                    ['text' => 'Inventory', 'bbox' => [8.0, 6.0, 148.0, 14.0]],
+                    ['text' => 'OCR summary', 'bbox' => [8.0, 16.0, 196.0, 24.0]],
+                    ['text' => 'Media group', 'bbox' => [8.0, 42.0, 102.0, 55.0]],
+                    ['text' => 'Image count', 'bbox' => [132.0, 42.0, 228.0, 55.0]],
+                    ['text' => '12', 'bbox' => [262.0, 42.0, 284.0, 55.0]],
+                    ['text' => 'Review state', 'bbox' => [132.0, 92.0, 228.0, 105.0]],
+                    ['text' => 'Needs review', 'bbox' => [262.0, 92.0, 344.0, 105.0]],
+                ],
+            ]]
+        );
+        $formatted = $recognizer->formatRecognizedTables($recognized, [['width' => 612, 'height' => 792]]);
+        $assigned = $formatted['assigned_cells'][0];
+        $review = $recognizer->spanningGridReview($assigned, $recognized[0]['rows'], $recognized[0]['cols']);
+        $gridByPosition = [];
+        foreach ($review['grid_cells'] as $gridCell) {
+            $gridByPosition[$gridCell['row_id'] . ':' . $gridCell['col_id']] = $gridCell;
+        }
+
+        $t->same(['Inventory OCR summary', 'Media group', 'Image count', '12', 'Review state', 'Needs review'], array_column($recognized[0]['cells'], 'text'));
+        $t->same('Inventory OCR summary', $assigned[0]['text']);
+        $t->same([0, 1, 2], $assigned[0]['col_ids']);
+        $t->same('th', $review['render_cells'][0]['tag']);
+        $t->same('colgroup', $review['render_cells'][0]['scope']);
+        $t->same('column_header', $review['render_cells'][0]['header_role']);
+        $t->same('Inventory OCR summary', $review['render_cells'][0]['text']);
+        $t->same('Media group', $review['render_cells'][1]['text']);
+        $t->same('rowgroup', $review['render_cells'][1]['scope']);
+        $t->same('covered', $gridByPosition['0:1']['state']);
+        $t->same('Needs review', $gridByPosition['2:2']['text']);
+    },
     'falls back to heuristic row layout when model rows and columns leave most cells unassigned' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $assigned = $recognizer->assignRowsColumns(

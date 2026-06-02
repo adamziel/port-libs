@@ -961,6 +961,51 @@ return [
         $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
         $t->true(is_string($encoded) && !str_contains($encoded, 'DEADBEEF') && !str_contains($encoded, 'CAFEFEED'));
     },
+    'summarizes public-key recipient envelopes without exposing recipient bytes' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf 72 720 Td (Public-key encrypted cleartext leak) Tj ET';
+        $recipientOne = 'CMS_RECIPIENT_ONE_PERMISSION_BYTES_SHOULD_NOT_LEAK';
+        $recipientTwo = 'CMS_RECIPIENT_TWO_PERMISSION_BYTES_SHOULD_NOT_LEAK';
+        $recipientOneHex = strtoupper(bin2hex($recipientOne));
+        $recipientTwoHex = strtoupper(bin2hex($recipientTwo));
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Filter /Adobe.PubSec /SubFilter /adbe.pkcs7.s4 /V 2 /Length 128 /Recipients [<{$recipientOneHex}> 6 0 R] /EncryptMetadata true >>\nendobj\n"
+            . "6 0 obj\n<{$recipientTwoHex}>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $encryption = $metadata['encryption'];
+        $review = $encryption['public_key_recipient_review'];
+        $list = $review['recipient_lists'][0];
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same('', (new PdfTextExtractor())->extractPlainText($pdf));
+        $t->same('Adobe.PubSec', $encryption['filter']);
+        $t->same('adbe.pkcs7.s4', $encryption['subfilter']);
+        $t->same('public_key_security_handler', $review['source']);
+        $t->same('encryption_dictionary_recipients', $review['recipient_source_policy']);
+        $t->same(2, $review['recipient_count']);
+        $t->same(strlen($recipientOne) + strlen($recipientTwo), $review['recipient_bytes']);
+        $t->same([hash('sha256', $recipientOne), hash('sha256', $recipientTwo)], $review['recipient_sha256']);
+        $t->same('encryption_dictionary_recipients', $list['source']);
+        $t->same(2, $list['recipient_count']);
+        $t->same(0, $list['unresolved_recipient_count']);
+        $t->same(strlen($recipientOne), $list['recipients'][0]['bytes']);
+        $t->same(hash('sha256', $recipientTwo), $list['recipients'][1]['sha256']);
+        $t->same('pkcs7_recipient_envelope', $list['recipients'][0]['permission_source']);
+        $t->same(false, $review['permissions_decoded']);
+        $t->same('cms_pkcs7_permission_decode_unavailable', $review['permission_decode_status']);
+        $t->same(true, $review['requires_private_key_for_permission_review']);
+        $t->same(false, $review['recipient_bytes_exposed']);
+        $t->same(false, $review['recipient_certificates_exposed']);
+        $t->same(false, $review['executes_cms_parse']);
+        $t->same(false, $review['executes_decryption']);
+        $t->true(is_string($encoded) && !str_contains($encoded, $recipientOne) && !str_contains($encoded, $recipientTwo));
+        $t->true(is_string($encoded) && !str_contains($encoded, $recipientOneHex) && !str_contains($encoded, $recipientTwoHex));
+    },
     'prioritizes encryption before XMP Info and OutputIntent metadata boundaries' => static function (TestRunner $t) use ($xmpPacket): void {
         $xmp = $xmpPacket([
             'title' => 'Encrypted XMP Review Title',

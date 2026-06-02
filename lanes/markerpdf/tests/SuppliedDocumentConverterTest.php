@@ -455,6 +455,95 @@ return [
             unlink($path);
         }
     },
+    'keeps multiline OCR table headers together in WordPress grid review' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-ocr-multiline-header-grid-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% OCR multiline header grid supplied pipeline\n%%EOF");
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'OCR multiline header review', 'bbox' => [72.0, 48.0, 390.0, 68.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'Stale multiline OCR header table text should be replaced.', 'bbox' => [72.0, 176.0, 460.0, 196.0]],
+                ['text' => 'Reviewer note after multiline table.', 'bbox' => [72.0, 306.0, 460.0, 324.0]],
+            ]);
+            $layout = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Title', 'bbox' => [72.0, 48.0, 390.0, 68.0]],
+                    ['label' => 'Table', 'bbox' => [72.0, 150.0, 430.0, 260.0]],
+                    ['label' => 'Text', 'bbox' => [72.0, 306.0, 460.0, 324.0]],
+                ],
+            ];
+            $recognizedTable = [
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 358.0, 30.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 35.0, 358.0, 60.0]],
+                    ['row_id' => 2, 'bbox' => [0.0, 85.0, 358.0, 110.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 110.0, 110.0]],
+                    ['col_id' => 1, 'bbox' => [124.0, 0.0, 238.0, 110.0]],
+                    ['col_id' => 2, 'bbox' => [252.0, 0.0, 358.0, 110.0]],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [$layout],
+                    'recognized_tables' => [$recognizedTable],
+                    'table_detector_cells' => [[
+                        ['bbox' => [5.0, 5.0, 353.0, 26.0], 'text' => null],
+                        ['bbox' => [5.0, 36.0, 106.0, 108.0], 'text' => null],
+                        ['bbox' => [128.0, 39.0, 232.0, 56.0], 'text' => null],
+                        ['bbox' => [258.0, 39.0, 348.0, 56.0], 'text' => null],
+                        ['bbox' => [128.0, 89.0, 232.0, 106.0], 'text' => null],
+                        ['bbox' => [258.0, 89.0, 348.0, 106.0], 'text' => null],
+                    ]],
+                    'table_ocr_text_lines' => [[
+                        'lines' => [
+                            ['text' => 'Inventory', 'bbox' => [8.0, 6.0, 148.0, 14.0]],
+                            ['text' => 'OCR summary', 'bbox' => [8.0, 16.0, 196.0, 24.0]],
+                            ['text' => 'Media group', 'bbox' => [8.0, 42.0, 102.0, 55.0]],
+                            ['text' => 'Image count', 'bbox' => [132.0, 42.0, 228.0, 55.0]],
+                            ['text' => '12', 'bbox' => [262.0, 42.0, 284.0, 55.0]],
+                            ['text' => 'Review state', 'bbox' => [132.0, 92.0, 228.0, 105.0]],
+                            ['text' => 'Needs review', 'bbox' => [262.0, 92.0, 344.0, 105.0]],
+                        ],
+                    ]],
+                    'table_rendered_image_sizes' => [['width' => 612, 'height' => 792]],
+                    'ocr_all_pages' => true,
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $gridReview = $result['metadata']['table_spanning_grid_review'][0] ?? [];
+            $gridByPosition = [];
+            foreach (($gridReview['grid_cells'] ?? []) as $gridCell) {
+                $gridByPosition[$gridCell['row_id'] . ':' . $gridCell['col_id']] = $gridCell;
+            }
+
+            $t->contains('# Ocr Multiline Header Review', $result['text']);
+            $t->contains('Reviewer note after multiline table.', $result['text']);
+            $t->true(!str_contains($result['text'], 'Stale multiline OCR header table text should be replaced.'));
+            $t->same(['layout', 'table-cell-routing', 'table-recognition', 'table-formatting'], $result['metadata']['supplied_boundaries']);
+            $t->same([true], $result['metadata']['table_needs_ocr']);
+            $t->same([6], $result['metadata']['table_cell_counts']);
+            $t->same('Inventory OCR summary', $result['metadata']['table_assigned_cells'][0][0]['text']);
+            $t->same('Needs review', $result['metadata']['table_assigned_cells'][0][5]['text']);
+            $t->same([0, 1, 2], $result['metadata']['table_assigned_cells'][0][0]['col_ids']);
+            $t->same('Inventory OCR summary', $gridReview['render_cells'][0]['text']);
+            $t->same('th', $gridReview['render_cells'][0]['tag']);
+            $t->same('colgroup', $gridReview['render_cells'][0]['scope']);
+            $t->same('column_header', $gridReview['render_cells'][0]['header_role']);
+            $t->same('Media group', $gridReview['render_cells'][1]['text']);
+            $t->same('rowgroup', $gridReview['render_cells'][1]['scope']);
+            $t->same('covered', $gridByPosition['0:1']['state']);
+            $t->same('Needs review', $gridByPosition['2:2']['text']);
+        } finally {
+            unlink($path);
+        }
+    },
     'routes upstream OCR prediction objects through forced table recognition' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-forced-ocr-table-prediction-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% forced OCR table prediction supplied pipeline\n%%EOF");

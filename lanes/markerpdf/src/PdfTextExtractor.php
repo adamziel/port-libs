@@ -178,6 +178,121 @@ final class PdfTextExtractor
     }
 
     /**
+     * Review xref-stream type-2 object-stream member indexes before WordPress
+     * text import. A zero-width third /W field has a strict default index of 0
+     * in PDFium, while this native fallback can recover by object number for
+     * current-base import. Expose that recovery instead of making it silent.
+     *
+     * @return array{
+     *     source: string,
+     *     review_only: true,
+     *     encrypted: bool,
+     *     compressed_entry_count: int,
+     *     zero_width_index_entry_count: int,
+     *     recovered_zero_width_member_count: int,
+     *     strict_dependency_rejection_count: int,
+     *     entries: list<array<string, mixed>>,
+     *     executes_python_or_models: false,
+     *     executes_external_pdf_tools: false
+     * }
+     */
+    public function extractXrefObjectStreamIndexReview(string $pdfBytes): array
+    {
+        $review = [
+            'source' => 'pdf_xref_object_stream_index_review',
+            'review_only' => true,
+            'encrypted' => $this->hasEncryptedTrailer($pdfBytes),
+            'compressed_entry_count' => 0,
+            'zero_width_index_entry_count' => 0,
+            'recovered_zero_width_member_count' => 0,
+            'strict_dependency_rejection_count' => 0,
+            'entries' => [],
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+
+        if ($review['encrypted']) {
+            return $review;
+        }
+
+        $definitions = $this->directObjectDefinitions($pdfBytes);
+        if ($definitions === []) {
+            return $review;
+        }
+
+        $preliminaryObjects = $this->latestDirectObjects($definitions);
+        $xrefEntries = $this->xrefEntries($pdfBytes, $preliminaryObjects, $definitions);
+        if ($xrefEntries === []) {
+            return $review;
+        }
+
+        $objects = $this->liveDirectObjects($definitions, $xrefEntries);
+        $objects = $this->withReferencedDirectGenerationObjects($objects, $definitions, $xrefEntries);
+        $objects = $this->withObjectStreamObjects($objects, $xrefEntries);
+
+        foreach ($xrefEntries as $objectNumber => $entry) {
+            if (($entry['type'] ?? null) !== 2 || !isset($entry['objectStream'])) {
+                continue;
+            }
+
+            $review['compressed_entry_count']++;
+            $indexIsExplicit = ($entry['indexIsExplicit'] ?? true) === true;
+            if (!$indexIsExplicit) {
+                $review['zero_width_index_entry_count']++;
+            }
+
+            $objectStreamNumber = (int) $entry['objectStream'];
+            $defaultMemberIndex = (int) ($entry['index'] ?? 0);
+            $memberTable = isset($objects[$objectStreamNumber])
+                ? $this->decodedObjectStreamMemberTable($objects[$objectStreamNumber], $objects)
+                : null;
+            $members = $memberTable['members'] ?? [];
+            $memberAtDefaultIndex = $members[$defaultMemberIndex] ?? null;
+            $memberByObjectNumber = null;
+            foreach ($members as $member) {
+                if ($member['objectNumber'] === $objectNumber) {
+                    $memberByObjectNumber = $member;
+                    break;
+                }
+            }
+
+            $strictMemberMatch = $memberAtDefaultIndex !== null
+                && $memberAtDefaultIndex['objectNumber'] === $objectNumber;
+            $recoveredByObjectNumber = !$indexIsExplicit
+                && !$strictMemberMatch
+                && $memberByObjectNumber !== null;
+            if ($recoveredByObjectNumber) {
+                $review['recovered_zero_width_member_count']++;
+            }
+            if (!$strictMemberMatch) {
+                $review['strict_dependency_rejection_count']++;
+            }
+
+            $review['entries'][] = [
+                'object_number' => $objectNumber,
+                'object_stream' => $objectStreamNumber,
+                'xref_member_index' => $defaultMemberIndex,
+                'index_is_explicit' => $indexIsExplicit,
+                'index_field_is_zero_width' => !$indexIsExplicit,
+                'strict_member_index' => $defaultMemberIndex,
+                'actual_member_index' => $memberByObjectNumber['index'] ?? null,
+                'object_stream_member_count' => count($members),
+                'strict_member_match' => $strictMemberMatch,
+                'recovered_by_object_number' => $recoveredByObjectNumber,
+                'strict_dependency_would_reject' => !$strictMemberMatch,
+                'selection_policy' => $this->objectStreamIndexSelectionPolicy(
+                    $indexIsExplicit,
+                    $strictMemberMatch,
+                    $memberByObjectNumber !== null
+                ),
+                'review_only' => true,
+            ];
+        }
+
+        return $review;
+    }
+
+    /**
      * @return list<array{page_index: int, page_number: int, page_label: string, text: string}>
      */
     public function extractLabeledPageTexts(string $pdfBytes): array
@@ -5270,12 +5385,14 @@ final class PdfTextExtractor
         }
 
         $baseEncoding = null;
-        if (preg_match('/\/BaseEncoding\s+\/([^\s\[\]()<>{}\/%]+)/', $fontBody, $match) === 1) {
-            $baseEncoding = $this->namedEncodingMap($this->decodePdfName($match[1]));
+        $baseEncodingName = $this->pdfNameValueAfterNameResolvingObjects($fontBody, 'BaseEncoding', $objects);
+        if ($baseEncodingName !== null) {
+            $baseEncoding = $this->namedEncodingMap($baseEncodingName);
         }
 
-        if (preg_match('/\/Differences\s*\[(.*?)\]/s', $fontBody, $match)) {
-            $differences = $this->encodingDifferencesMap($match[1]);
+        $differencesArray = $this->pdfArrayValueAfterNameResolvingObjects($fontBody, 'Differences', $objects);
+        if ($differencesArray !== null) {
+            $differences = $this->encodingDifferencesMap($differencesArray);
             if ($baseEncoding !== null) {
                 $baseEncoding['map'] = array_replace($baseEncoding['map'], $differences['map']);
                 return $baseEncoding;
@@ -5288,8 +5405,9 @@ final class PdfTextExtractor
             return $baseEncoding;
         }
 
-        if (preg_match('/\/Encoding\s+\/([^\s\[\]()<>{}\/%]+)/', $fontBody, $match)) {
-            return $this->namedEncodingMap($this->decodePdfName($match[1]));
+        $encodingName = $this->pdfNameValueAfterNameResolvingObjects($fontBody, 'Encoding', $objects);
+        if ($encodingName !== null) {
+            return $this->namedEncodingMap($encodingName);
         }
 
         return $this->implicitBaseFontEncodingMap($fontBody);
@@ -5695,7 +5813,7 @@ final class PdfTextExtractor
         }
 
         $widths = [];
-        foreach ($this->numbersFromPdfArray($widthArray) as $offset => $width) {
+        foreach ($this->numbersFromPdfArrayResolvingObjects($widthArray, $objects) as $offset => $width) {
             $code = (int) $firstChar + $offset;
             if ($code >= 0 && $code <= 255) {
                 $widths[$code] = $width;
@@ -5703,6 +5821,23 @@ final class PdfTextExtractor
         }
 
         return $widths;
+    }
+
+    /**
+     * @return list<float>
+     * @param array<int, string> $objects
+     */
+    private function numbersFromPdfArrayResolvingObjects(string $arrayBody, array $objects): array
+    {
+        $numbers = [];
+        foreach ($this->pdfArrayItems($arrayBody) as $item) {
+            $number = $this->pdfNumberValueAt($item, 0, $objects);
+            if ($number !== null) {
+                $numbers[] = $number;
+            }
+        }
+
+        return $numbers;
     }
 
     /**
@@ -7534,9 +7669,15 @@ final class PdfTextExtractor
 
     private function hasEncryptedTrailer(string $pdfBytes): bool
     {
+        $definitions = $this->directObjectDefinitions($pdfBytes);
+        $currentTrailerEncrypt = $this->trailerEncryptValueFromStartxrefChain($pdfBytes, $definitions);
+        if ($currentTrailerEncrypt['parsed']) {
+            return $this->pdfEncryptValueIsEncrypted($currentTrailerEncrypt['value']);
+        }
+
         foreach ($this->trailerDictionaryBodies($pdfBytes) as $trailer) {
             $value = $this->pdfValueAfterName($trailer, 'Encrypt');
-            if ($value !== null && trim($value) !== 'null') {
+            if ($this->pdfEncryptValueIsEncrypted($value)) {
                 return true;
             }
         }
@@ -7552,12 +7693,93 @@ final class PdfTextExtractor
             }
 
             $value = $this->pdfValueAfterName($body, 'Encrypt');
-            if ($value !== null && trim($value) !== 'null') {
+            if ($this->pdfEncryptValueIsEncrypted($value)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private function pdfEncryptValueIsEncrypted(?string $value): bool
+    {
+        return $value !== null && trim($value) !== 'null';
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     * @return array{parsed: bool, value: string|null}
+     */
+    private function trailerEncryptValueFromStartxrefChain(string $pdfBytes, array $definitions): array
+    {
+        $offset = $this->latestStartxrefOffset($pdfBytes);
+        if ($offset === null) {
+            return ['parsed' => false, 'value' => null];
+        }
+
+        return $this->trailerEncryptValueFromOffsetChain($pdfBytes, $offset, $definitions);
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     * @param array<int, bool> $seenOffsets
+     * @return array{parsed: bool, value: string|null}
+     */
+    private function trailerEncryptValueFromOffsetChain(
+        string $pdfBytes,
+        int $offset,
+        array $definitions,
+        array $seenOffsets = []
+    ): array {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return ['parsed' => false, 'value' => null];
+        }
+        $seenOffsets[$offset] = true;
+
+        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
+        if ($tableSection !== null) {
+            $value = $this->topLevelPdfValueAfterName($tableSection['trailer'], 'Encrypt');
+            if ($value !== null) {
+                return ['parsed' => true, 'value' => $value];
+            }
+
+            $hybridStreamOffset = $this->pdfIntegerValueAfterName($tableSection['trailer'], 'XRefStm');
+            if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
+                $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions);
+                if ($streamSection !== null) {
+                    $value = $this->topLevelPdfValueAfterName($streamSection['body'], 'Encrypt');
+                    if ($value !== null) {
+                        return ['parsed' => true, 'value' => $value];
+                    }
+                }
+            }
+
+            $previousOffset = $this->pdfIntegerValueAfterName($tableSection['trailer'], 'Prev');
+            if ($previousOffset !== null && $previousOffset >= 0) {
+                $previous = $this->trailerEncryptValueFromOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
+                return $previous['parsed'] ? $previous : ['parsed' => true, 'value' => null];
+            }
+
+            return ['parsed' => true, 'value' => null];
+        }
+
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
+        if ($streamSection === null) {
+            return ['parsed' => false, 'value' => null];
+        }
+
+        $value = $this->topLevelPdfValueAfterName($streamSection['body'], 'Encrypt');
+        if ($value !== null) {
+            return ['parsed' => true, 'value' => $value];
+        }
+
+        $previousOffset = $this->pdfIntegerValueAfterName($streamSection['body'], 'Prev');
+        if ($previousOffset !== null && $previousOffset >= 0) {
+            $previous = $this->trailerEncryptValueFromOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
+            return $previous['parsed'] ? $previous : ['parsed' => true, 'value' => null];
+        }
+
+        return ['parsed' => true, 'value' => null];
     }
 
     /**
@@ -8502,36 +8724,22 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $decoded = $this->decodeStreamObject($body, $objects);
-            if ($decoded === null) {
+            $memberTable = $this->decodedObjectStreamMemberTable($body, $objects);
+            if ($memberTable === null) {
                 continue;
             }
 
-            $count = $this->pdfIntegerValueAfterNameResolvingObjects($body, 'N', $objects);
-            $first = $this->pdfIntegerValueAfterNameResolvingObjects($body, 'First', $objects);
-            if ($count === null || $first === null) {
-                continue;
-            }
-
-            $count = max(0, $count);
-            if ($count === 0 || $first < 0 || $first >= strlen($decoded)) {
-                continue;
-            }
-
-            $header = substr($decoded, 0, $first);
-            if (!preg_match_all('/(\d+)\s+(\d+)/', $header, $pairs, PREG_SET_ORDER)) {
-                continue;
-            }
-
-            $pairs = array_slice($pairs, 0, $count);
+            $decoded = $memberTable['decoded'];
+            $first = $memberTable['first'];
+            $pairs = $memberTable['members'];
             $hasCompressedXrefEntriesForStream = $this->hasCompressedXrefEntriesForObjectStream($xrefEntries, $objectStreamNumber);
             if ($hasSelectedXrefEntries && !$hasCompressedXrefEntriesForStream) {
                 continue;
             }
 
             foreach ($pairs as $index => $pair) {
-                $objectNumber = (int) $pair[1];
-                $offset = (int) $pair[2];
+                $objectNumber = $pair['objectNumber'];
+                $offset = $pair['offset'];
                 $xrefEntry = $xrefEntries[$objectNumber] ?? null;
                 if ($xrefEntry !== null) {
                     if (isset($objects[$objectNumber]) && ($xrefEntry['type'] ?? null) === 2) {
@@ -8549,7 +8757,7 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                $nextOffset = isset($pairs[$index + 1]) ? (int) $pairs[$index + 1][2] : strlen($decoded) - $first;
+                $nextOffset = isset($pairs[$index + 1]) ? $pairs[$index + 1]['offset'] : strlen($decoded) - $first;
                 if ($offset < 0 || $nextOffset < $offset) {
                     continue;
                 }
@@ -8562,6 +8770,62 @@ final class PdfTextExtractor
         }
 
         return $expanded;
+    }
+
+    private function objectStreamIndexSelectionPolicy(bool $indexIsExplicit, bool $strictMemberMatch, bool $memberExists): string
+    {
+        if ($strictMemberMatch) {
+            return $indexIsExplicit ? 'explicit_member_index' : 'default_zero_member_index';
+        }
+
+        if (!$memberExists) {
+            return 'missing_object_stream_member';
+        }
+
+        return $indexIsExplicit ? 'explicit_member_index_mismatch' : 'recovered_by_header_object_number';
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{decoded: string, first: int, members: list<array{objectNumber: int, offset: int, index: int}>}|null
+     */
+    private function decodedObjectStreamMemberTable(string $body, array $objects): ?array
+    {
+        $decoded = $this->decodeStreamObject($body, $objects);
+        if ($decoded === null) {
+            return null;
+        }
+
+        $count = $this->pdfIntegerValueAfterNameResolvingObjects($body, 'N', $objects);
+        $first = $this->pdfIntegerValueAfterNameResolvingObjects($body, 'First', $objects);
+        if ($count === null || $first === null) {
+            return null;
+        }
+
+        $count = max(0, $count);
+        if ($count === 0 || $first < 0 || $first >= strlen($decoded)) {
+            return null;
+        }
+
+        $header = substr($decoded, 0, $first);
+        if (!preg_match_all('/(\d+)\s+(\d+)/', $header, $matches, PREG_SET_ORDER)) {
+            return null;
+        }
+
+        $members = [];
+        foreach (array_slice($matches, 0, $count) as $index => $match) {
+            $members[] = [
+                'objectNumber' => (int) $match[1],
+                'offset' => (int) $match[2],
+                'index' => $index,
+            ];
+        }
+
+        return [
+            'decoded' => $decoded,
+            'first' => $first,
+            'members' => $members,
+        ];
     }
 
     /**

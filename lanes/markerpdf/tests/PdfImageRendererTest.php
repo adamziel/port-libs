@@ -576,6 +576,99 @@ return [
         $t->same(null, $clampedHigh['soft_mask_alpha']);
         $t->throws(InvalidArgumentException::class, static fn (): array => $renderer->indexedSamplePreview(1, ['source_color_space' => 'DeviceRGB']));
     },
+    'plans inline Indexed JBIG2 image and ImageMask stencil review before WordPress text import' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $indexedPayload = "\x97JB2\r\n\x1a\nBT /F1 12 Tf 72 690 Td (Inline JBIG2 Noise) Tj ET";
+
+        $indexed = $renderer->inlineImageReviewPlan(
+            '/W 3 /H 1 /CS [/I /RGB 2 <00000080FF40010203>] /BPC 2 /F /JBIG2Decode /DP << /JBIG2Globals 24 0 R >> /D [0 2]',
+            $indexedPayload,
+            [24 => "<< /Length 4 >>\nstream\nGBLS\nendstream"]
+        );
+
+        $t->same(true, $indexed['inline_image']['present']);
+        $t->same(true, $indexed['inline_image_abbreviations_expanded']);
+        $t->same(true, $indexed['inline_image_payload_excluded_from_text']);
+        $t->same(true, $indexed['inline_image_review_only']);
+        $t->same('<< /Width 3 /Height 1 /ColorSpace [/Indexed /DeviceRGB 2 <00000080FF40010203>] /BitsPerComponent 2 /Filter /JBIG2Decode /DecodeParms << /JBIG2Globals 24 0 R >> /Decode [0 2] >>', $indexed['inline_image']['canonical_dictionary']);
+        $t->same(strlen($indexedPayload), $indexed['inline_image']['payload_length']);
+        $t->same(strtoupper(bin2hex(substr($indexedPayload, 0, 16))), $indexed['inline_image']['payload_preview_hex']);
+        $t->same(false, $indexed['inline_image']['has_object_number']);
+        $t->same(false, $indexed['inline_image']['native_raster_decode']);
+        $t->same(['JBIG2Decode'], $indexed['inline_image']['review_only_filters']);
+        $t->same('Indexed', $indexed['source_color_space']);
+        $t->same(true, $indexed['uses_indexed_color_space']);
+        $t->same([
+            'base_color_space' => 'DeviceRGB',
+            'base_components' => 3,
+            'base_uses_icc_profile' => false,
+            'base_icc_profile' => null,
+            'high_value' => 2,
+            'lookup_source' => 'hex_string',
+            'lookup_length' => 9,
+            'expected_lookup_length' => 9,
+            'lookup_length_matches' => true,
+            'lookup_entry_count' => 3,
+            'lookup_preview_hex' => '00000080FF40010203',
+            'lookup_bytes' => [0, 0, 0, 128, 255, 64, 1, 2, 3],
+        ], $indexed['indexed_color_space']);
+        $t->same([
+            'ranges' => [
+                ['min' => 0.0, 'max' => 2.0],
+            ],
+            'component_count' => 1,
+            'expected_components' => 1,
+            'valid_for_components' => true,
+            'identity' => false,
+            'inverted_components' => [],
+            'source' => 'explicit',
+        ], $indexed['image_decode']);
+        $t->same([
+            'preview_only_filters' => ['JBIG2Decode'],
+            'jbig2_globals_present' => true,
+            'native_raster_decode' => false,
+        ], $indexed['image_filter_boundary']);
+        $t->same([128 / 255, 1.0, 64 / 255], $renderer->indexedSamplePreview(2, $indexed)['base_components']);
+        $t->contains('inline_image_dictionary_abbreviations_expanded', implode(',', $indexed['notes']));
+        $t->contains('inline_image_payload_excluded_from_visible_text', implode(',', $indexed['notes']));
+        $t->contains('inline_jbig2_image_filter_review_only', implode(',', $indexed['notes']));
+
+        $stencil = $renderer->inlineImageReviewPlan(
+            '/W 2 /H 1 /IM true /D [1 0] /F /JBIG2Decode /DP << /JBIG2Globals 24 0 R >>',
+            "\xff\x00BT /F1 12 Tf 72 680 Td (Inline Mask Noise) Tj ET",
+            [24 => "<< /Length 4 >>\nstream\nGBLS\nendstream"]
+        );
+
+        $t->same('ImageMask', $stencil['source_color_space']);
+        $t->same(1, $stencil['components']);
+        $t->same(true, $stencil['image_mask_applied_before_rgb']);
+        $t->same([
+            'present' => true,
+            'width' => 2,
+            'height' => 1,
+            'bits_per_component' => 1,
+            'decode' => [
+                'ranges' => [
+                    ['min' => 1.0, 'max' => 0.0],
+                ],
+                'component_count' => 1,
+                'expected_components' => 1,
+                'valid_for_components' => true,
+                'identity' => false,
+                'inverted_components' => [0],
+                'source' => 'explicit',
+            ],
+            'opacity_for_zero' => 1.0,
+            'opacity_for_one' => 0.0,
+            'inverted' => true,
+        ], $stencil['image_mask']);
+        $t->same(1.0, $renderer->imageMaskSampleOpacity(0, $stencil['image_mask']));
+        $t->same(0.0, $renderer->imageMaskSampleOpacity(1, $stencil['image_mask']));
+        $t->same('image_mask_composited_to_rgb_preview', $stencil['alpha_output_mode']);
+        $t->same(true, $stencil['inline_image_review_only']);
+        $t->same(true, $stencil['inline_image_payload_excluded_from_text']);
+        $t->contains('image_mask_decode_inverts_stencil', implode(',', $stencil['notes']));
+    },
     'plans Separation and DeviceN alternate color spaces with CCITT preview filters before RGB preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $objects = [

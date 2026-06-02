@@ -1593,6 +1593,8 @@ final class PdfAcroFormExtractor
         $valueState = $this->fieldValueState($fieldType, $flags, $effective, $password, $value, $defaultValue, $options, $widgets);
         $valueState['hierarchy_boundary'] = $this->fieldHierarchyValueState($fieldHierarchy);
 
+        $actionReview = $this->actionsWithReviewFromDictionary($body, $objects, $fieldNamesByObject, 'field', $objectNumber);
+
         $field = [
             'object' => $objectNumber,
             'name' => $name,
@@ -1608,7 +1610,8 @@ final class PdfAcroFormExtractor
             'value_state' => $valueState,
             'field_hierarchy' => $fieldHierarchy,
             'default_appearance' => $defaultAppearance,
-            'actions' => $this->actionsFromDictionary($body, $objects, $fieldNamesByObject, 'field', $objectNumber),
+            'actions' => $actionReview['actions'],
+            'action_review' => $actionReview['review'],
             'widgets' => $widgets,
         ];
 
@@ -3170,6 +3173,8 @@ final class PdfAcroFormExtractor
             $appearanceState = $this->pdfNameValueAfterName($body, 'AS');
             $normalAppearance = $this->normalAppearanceReview($body, $objects, $appearanceState);
 
+            $actionReview = $this->actionsWithReviewFromDictionary($body, $objects, $fieldNamesByObject, 'widget', $widgetRef);
+
             $widgets[] = [
                 'object' => $widgetRef,
                 'page_index' => $pageIndex,
@@ -3188,7 +3193,8 @@ final class PdfAcroFormExtractor
                 'appearance_states' => is_array($normalAppearance) ? $normalAppearance['available_states'] : [],
                 'normal_appearance' => $normalAppearance,
                 'default_appearance' => $widgetAppearance,
-                'actions' => $this->actionsFromDictionary($body, $objects, $fieldNamesByObject, 'widget', $widgetRef),
+                'actions' => $actionReview['actions'],
+                'action_review' => $actionReview['review'],
             ];
         }
 
@@ -3303,9 +3309,9 @@ final class PdfAcroFormExtractor
     /**
      * @param array<int, string> $objects
      * @param array<int, string> $fieldNamesByObject
-     * @return list<array<string, mixed>>
+     * @return array{actions: list<array<string, mixed>>, review: array<string, mixed>}
      */
-    private function actionsFromDictionary(
+    private function actionsWithReviewFromDictionary(
         string $body,
         array $objects,
         array $fieldNamesByObject,
@@ -3313,9 +3319,10 @@ final class PdfAcroFormExtractor
         int $sourceObject
     ): array {
         $actions = [];
+        $chainSafety = $this->emptyActionChainSafety();
         $activation = $this->valueAfterName($body, 'A');
         if ($activation !== null) {
-            foreach ($this->actionMetadataFromValue($activation, $objects, $fieldNamesByObject, 'activation', $source, $sourceObject) as $action) {
+            foreach ($this->actionMetadataFromValue($activation, $objects, $fieldNamesByObject, 'activation', $source, $sourceObject, $chainSafety) as $action) {
                 $actions[] = $action;
             }
         }
@@ -3323,7 +3330,10 @@ final class PdfAcroFormExtractor
         $additionalActions = $this->valueAfterName($body, 'AA');
         $additionalActionsDictionary = $additionalActions === null ? null : $this->resolvedDictionaryFromValue($additionalActions, $objects);
         if ($additionalActionsDictionary === null) {
-            return $actions;
+            return [
+                'actions' => $actions,
+                'review' => $this->actionReviewSummary($source, $sourceObject, $actions, $chainSafety),
+            ];
         }
 
         foreach (['E', 'X', 'D', 'U', 'Fo', 'Bl', 'K', 'F', 'V', 'C'] as $trigger) {
@@ -3332,12 +3342,61 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            foreach ($this->actionMetadataFromValue($value, $objects, $fieldNamesByObject, $trigger, $source, $sourceObject) as $action) {
+            foreach ($this->actionMetadataFromValue($value, $objects, $fieldNamesByObject, $trigger, $source, $sourceObject, $chainSafety) as $action) {
                 $actions[] = $action;
             }
         }
 
-        return $actions;
+        return [
+            'actions' => $actions,
+            'review' => $this->actionReviewSummary($source, $sourceObject, $actions, $chainSafety),
+        ];
+    }
+
+    /**
+     * @return array{cycle_edges_blocked: int, max_depth_edges_blocked: int, blocked_cycle_action_objects: list<int>, blocked_max_depth_action_objects: list<int>}
+     */
+    private function emptyActionChainSafety(): array
+    {
+        return [
+            'cycle_edges_blocked' => 0,
+            'max_depth_edges_blocked' => 0,
+            'blocked_cycle_action_objects' => [],
+            'blocked_max_depth_action_objects' => [],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $actions
+     * @param array{cycle_edges_blocked: int, max_depth_edges_blocked: int, blocked_cycle_action_objects: list<int>, blocked_max_depth_action_objects: list<int>} $chainSafety
+     * @return array<string, mixed>
+     */
+    private function actionReviewSummary(string $source, int $sourceObject, array $actions, array $chainSafety): array
+    {
+        return [
+            'source' => 'acroform_action_chain_review_boundary',
+            'action_source' => $source,
+            'source_object' => $sourceObject,
+            'max_depth' => self::MAX_ACTION_CHAIN_DEPTH,
+            'action_count' => count($actions),
+            'chained_action_count' => count(array_filter(
+                $actions,
+                static fn (array $action): bool => ($action['chained'] ?? false) === true
+            )),
+            'cycle_edges_blocked' => $chainSafety['cycle_edges_blocked'],
+            'max_depth_edges_blocked' => $chainSafety['max_depth_edges_blocked'],
+            'blocked_cycle_action_objects' => $chainSafety['blocked_cycle_action_objects'],
+            'blocked_max_depth_action_objects' => $chainSafety['blocked_max_depth_action_objects'],
+            'has_blocked_cycle' => $chainSafety['cycle_edges_blocked'] > 0,
+            'has_blocked_depth_edge' => $chainSafety['max_depth_edges_blocked'] > 0,
+            'review_only' => true,
+            'appearance_value_used_for_import' => false,
+            'payload_text_exposed' => false,
+            'executes_action' => false,
+            'executes_javascript' => false,
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
+        ];
     }
 
     /**
@@ -3353,6 +3412,7 @@ final class PdfAcroFormExtractor
         string $trigger,
         string $source,
         int $sourceObject,
+        array &$chainSafety,
         array $seenActionObjects = [],
         int $depth = 0,
         bool $chained = false
@@ -3369,6 +3429,7 @@ final class PdfAcroFormExtractor
             $trigger,
             $source,
             $sourceObject,
+            $chainSafety,
             $seenActionObjects,
             $depth,
             $chained
@@ -3389,17 +3450,20 @@ final class PdfAcroFormExtractor
         string $trigger,
         string $source,
         int $sourceObject,
+        array &$chainSafety,
         array $seenActionObjects,
         int $depth,
         bool $chained
     ): array {
         if ($depth > self::MAX_ACTION_CHAIN_DEPTH) {
+            $this->recordMaxDepthBlockedAction($chainSafety, $action['object']);
             return [];
         }
 
         $actionObject = $action['object'];
         if ($actionObject !== null) {
             if (isset($seenActionObjects[$actionObject])) {
+                $this->recordCycleBlockedAction($chainSafety, $actionObject);
                 return [];
             }
             $seenActionObjects[$actionObject] = true;
@@ -3423,7 +3487,12 @@ final class PdfAcroFormExtractor
         }
 
         $next = $this->valueAfterName($action['body'], 'Next');
-        if ($next === null || $depth >= self::MAX_ACTION_CHAIN_DEPTH) {
+        if ($next === null) {
+            return $actions;
+        }
+
+        if ($depth >= self::MAX_ACTION_CHAIN_DEPTH) {
+            $this->recordMaxDepthBlockedActionsFromValue($chainSafety, $next);
             return $actions;
         }
 
@@ -3442,6 +3511,7 @@ final class PdfAcroFormExtractor
                     $trigger,
                     $source,
                     $sourceObject,
+                    $chainSafety,
                     $seenActionObjects,
                     $depth + 1,
                     true
@@ -3453,11 +3523,60 @@ final class PdfAcroFormExtractor
             return $actions;
         }
 
-        foreach ($this->actionMetadataFromValue($nextValue, $objects, $fieldNamesByObject, $trigger, $source, $sourceObject, $seenActionObjects, $depth + 1, true) as $nextAction) {
+        foreach ($this->actionMetadataFromValue($nextValue, $objects, $fieldNamesByObject, $trigger, $source, $sourceObject, $chainSafety, $seenActionObjects, $depth + 1, true) as $nextAction) {
             $actions[] = $nextAction;
         }
 
         return $actions;
+    }
+
+    private function recordCycleBlockedAction(array &$chainSafety, ?int $actionObject): void
+    {
+        $chainSafety['cycle_edges_blocked']++;
+        if ($actionObject !== null && !in_array($actionObject, $chainSafety['blocked_cycle_action_objects'], true)) {
+            $chainSafety['blocked_cycle_action_objects'][] = $actionObject;
+        }
+    }
+
+    private function recordMaxDepthBlockedAction(array &$chainSafety, ?int $actionObject): void
+    {
+        $chainSafety['max_depth_edges_blocked']++;
+        if ($actionObject !== null && !in_array($actionObject, $chainSafety['blocked_max_depth_action_objects'], true)) {
+            $chainSafety['blocked_max_depth_action_objects'][] = $actionObject;
+        }
+    }
+
+    private function recordMaxDepthBlockedActionsFromValue(array &$chainSafety, string $value): void
+    {
+        $objects = $this->actionObjectReferencesFromValue($value);
+        if ($objects === []) {
+            $this->recordMaxDepthBlockedAction($chainSafety, null);
+            return;
+        }
+
+        foreach ($objects as $object) {
+            $this->recordMaxDepthBlockedAction($chainSafety, $object);
+        }
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function actionObjectReferencesFromValue(string $value): array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return [];
+        }
+
+        if (str_starts_with($value, '[')) {
+            $body = $this->arrayBodyFromValue($value);
+            return $body === null ? [] : array_values(array_unique($this->objectReferences($body)));
+        }
+
+        return preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1
+            ? [(int) $match[1]]
+            : [];
     }
 
     /**

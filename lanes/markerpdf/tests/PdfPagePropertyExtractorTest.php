@@ -211,4 +211,64 @@ return [
         $t->same(false, str_contains($plainText, 'javascript:alert'));
         $t->same(false, str_contains($plainText, 'appendix.pdf'));
     },
+    'carries page associated checksum state with MarkInfo UserProperties and PieceInfo review metadata' => static function (TestRunner $t): void {
+        $sourcePayload = '<wp-export><post id="72"/></wp-export>';
+        $previewPayload = '{"preview":"edited-after-checksum"}';
+        $pageText = 'BT /F1 12 Tf 72 720 Td (Page Attachment Checksum Review) Tj ET';
+        $sourceChecksum = strtoupper(hash('md5', $sourcePayload));
+        $staleChecksum = str_repeat('0a', 16);
+
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true /UserProperties true /Suspects false >> /StructTreeRoot 20 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 30 0 R /PieceInfo << /WPImport << /LastModified (D:20260602162900Z) /Private << /BatchId (page-72) /NeedsReview true >> >> >> /AF [10 0 R 12 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (source.xml) /Desc (Original WordPress export) /AFRelationship /Source /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourcePayload) . " /CheckSum <{$sourceChecksum}> /CreationDate (D:20260602162800Z) /ModDate (D:20260602162930Z) >> /Length " . strlen($sourcePayload) . " >>\nstream\n{$sourcePayload}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Type /Filespec /UF (preview.json) /Desc (Generated page preview) /AFRelationship /Alternative /EF << /UF 13 0 R >> >>\nendobj\n"
+            . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fjson /Params << /Size " . strlen($previewPayload) . " /CheckSum <{$staleChecksum}> >> /Length " . strlen($previewPayload) . " >>\nstream\n{$previewPayload}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Type /StructTreeRoot /K 21 0 R >>\nendobj\n"
+            . "21 0 obj\n<< /Type /StructElem /S /Figure /T (Attachment figure) /Pg 3 0 R /A 22 0 R /K << /Type /MCR /Pg 3 0 R /MCID 0 >> >>\nendobj\n"
+            . "22 0 obj\n<< /O /UserProperties /P [<< /N (WP Block) /V (core/file) /F (File block) >> << /N (Needs Attachment Review) /V true /H true >>] >>\nendobj\n"
+            . "30 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $pages = (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+
+        $t->same(1, count($pages));
+        $page = $pages[0];
+        $t->same([
+            'source' => 'catalog_mark_info',
+            'marked' => true,
+            'user_properties' => true,
+            'suspects' => false,
+        ], $page['mark_info']);
+        $t->same('D:20260602162900Z', $page['piece_info']['WPImport']['last_modified']);
+        $t->same('page-72', $page['piece_info']['WPImport']['private']['BatchId']);
+        $t->same(true, $page['piece_info']['WPImport']['private']['NeedsReview']);
+        $t->same(true, $page['mark_info_user_properties']);
+        $t->same(['WP Block', 'Needs Attachment Review'], array_column($page['user_properties'], 'name'));
+        $t->same(['Source', 'Alternative'], array_column($page['page_associated_files'], 'relationship'));
+
+        $source = $page['page_associated_files'][0];
+        $t->same('source.xml', $source['filename']);
+        $t->same(strtolower($sourceChecksum), $source['checksum']);
+        $t->same('md5', $source['checksum_algorithm']);
+        $t->same(hash('md5', $sourcePayload), $source['computed_checksum']);
+        $t->same(true, $source['checksum_matches']);
+        $t->same('D:20260602162800Z', $source['created_at']);
+        $t->same('D:20260602162930Z', $source['modified_at']);
+        $t->same(false, array_key_exists('content', $source));
+
+        $preview = $page['page_associated_files'][1];
+        $t->same('preview.json', $preview['filename']);
+        $t->same($staleChecksum, $preview['checksum']);
+        $t->same(hash('md5', $previewPayload), $preview['computed_checksum']);
+        $t->same(false, $preview['checksum_matches']);
+        $t->same(false, array_key_exists('content', $preview));
+
+        $t->contains('Page Attachment Checksum Review', $plainText);
+        $t->same(false, str_contains($plainText, '<wp-export>'));
+        $t->same(false, str_contains($plainText, 'edited-after-checksum'));
+    },
 ];

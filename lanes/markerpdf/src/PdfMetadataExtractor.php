@@ -1568,6 +1568,11 @@ final class PdfMetadataExtractor
             $metadata['crypt_filters'] = $cryptFilters;
         }
 
+        $publicKeyRecipientReview = $this->publicKeyRecipientReview($dictionary, $objects, $cryptFilters);
+        if ($publicKeyRecipientReview !== []) {
+            $metadata['public_key_recipient_review'] = $publicKeyRecipientReview;
+        }
+
         $permissionValue = $this->dictionaryIntegerValue($dictionary, 'P');
         if ($permissionValue !== null) {
             $metadata['standard_permissions'] = $this->standardPermissionMetadata($permissionValue, $revision);
@@ -1594,9 +1599,15 @@ final class PdfMetadataExtractor
             $source = $trailerEntry['source'] === 'xref_stream_trailer'
                 ? 'xref_stream_trailer_encrypt'
                 : 'trailer_encrypt';
-            $entry = $value === null ? null : $this->resolvedEncryptionDictionary($value, $objects, $source);
-            if ($entry !== null) {
-                return $entry;
+            if ($value !== null) {
+                if (trim($value) === 'null') {
+                    return null;
+                }
+
+                $entry = $this->resolvedEncryptionDictionary($value, $objects, $source);
+                if ($entry !== null) {
+                    return $entry;
+                }
             }
         }
 
@@ -1827,6 +1838,16 @@ final class PdfMetadataExtractor
                 $metadata['key_length_bytes'] = $lengthBytes;
             }
 
+            $recipients = $this->recipientListMetadata(
+                $this->dictionaryTopLevelRawValue($filterBody, 'Recipients'),
+                $objects,
+                'crypt_filter_recipients',
+                $name
+            );
+            if ($recipients !== null) {
+                $metadata['recipients'] = $recipients;
+            }
+
             if ($metadata !== []) {
                 $filters[$name] = $metadata;
             }
@@ -1857,6 +1878,191 @@ final class PdfMetadataExtractor
             'bytes' => strlen($bytes),
             'sha256' => hash('sha256', $bytes),
         ];
+    }
+
+    /**
+     * Public-key security handlers place recipient-specific permissions inside
+     * PKCS#7 envelopes. This lane can inventory envelopes, but it does not parse
+     * CMS, expose certificate bytes, or decide recipient access rights.
+     *
+     * @param array<int, string> $objects
+     * @param array<string, array<string, mixed>> $cryptFilters
+     * @return array<string, mixed>
+     */
+    private function publicKeyRecipientReview(string $dictionary, array $objects, array $cryptFilters): array
+    {
+        $handler = $this->dictionaryStringValue($dictionary, 'Filter');
+        $subfilter = $this->dictionaryStringValue($dictionary, 'SubFilter');
+        $topLevelRecipients = $this->recipientListMetadata(
+            $this->dictionaryTopLevelRawValue($dictionary, 'Recipients'),
+            $objects,
+            'encryption_dictionary_recipients'
+        );
+
+        $recipientLists = [];
+        $cryptFilterRecipientNames = [];
+        if ($topLevelRecipients !== null) {
+            $recipientLists[] = $topLevelRecipients;
+        }
+
+        foreach ($cryptFilters as $name => $filter) {
+            $recipients = is_array($filter['recipients'] ?? null) ? $filter['recipients'] : null;
+            if ($recipients === null) {
+                continue;
+            }
+
+            $recipientLists[] = $recipients;
+            $cryptFilterRecipientNames[] = $name;
+        }
+
+        $hasPublicKeySubfilter = is_string($subfilter)
+            && in_array($subfilter, ['adbe.pkcs7.s3', 'adbe.pkcs7.s4', 'adbe.pkcs7.s5'], true);
+        $hasRecipientLists = $recipientLists !== [];
+        $isPublicKeyHandler = is_string($handler) && $handler !== 'Standard' && ($hasPublicKeySubfilter || $hasRecipientLists);
+        if (!$isPublicKeyHandler && !$hasRecipientLists) {
+            return [];
+        }
+
+        $recipientCount = 0;
+        $recipientBytes = 0;
+        $unresolvedCount = 0;
+        $recipientHashes = [];
+        foreach ($recipientLists as $list) {
+            $recipientCount += (int) ($list['recipient_count'] ?? 0);
+            $recipientBytes += (int) ($list['recipient_bytes'] ?? 0);
+            $unresolvedCount += (int) ($list['unresolved_recipient_count'] ?? 0);
+            foreach ($list['recipient_sha256'] ?? [] as $hash) {
+                if (is_string($hash) && !in_array($hash, $recipientHashes, true)) {
+                    $recipientHashes[] = $hash;
+                }
+            }
+        }
+
+        return [
+            'source' => 'public_key_security_handler',
+            'handler' => $handler,
+            'subfilter' => $subfilter,
+            'recipient_source_policy' => $this->publicKeyRecipientSourcePolicy($subfilter, $topLevelRecipients !== null, $cryptFilterRecipientNames !== []),
+            'recipient_count' => $recipientCount,
+            'recipient_bytes' => $recipientBytes,
+            'unresolved_recipient_count' => $unresolvedCount,
+            'recipient_sha256' => $recipientHashes,
+            'crypt_filter_recipient_filter_names' => $this->uniqueStrings($cryptFilterRecipientNames),
+            'recipient_lists' => $recipientLists,
+            'permissions_available_in_recipient_envelopes' => $recipientCount > 0,
+            'permissions_decoded' => false,
+            'permission_decode_status' => $recipientCount > 0
+                ? 'cms_pkcs7_permission_decode_unavailable'
+                : 'public_key_recipient_envelopes_missing',
+            'requires_private_key_for_permission_review' => true,
+            'recipient_bytes_exposed' => false,
+            'recipient_certificates_exposed' => false,
+            'executes_cms_parse' => false,
+            'executes_decryption' => false,
+            'review_only' => true,
+        ];
+    }
+
+    private function publicKeyRecipientSourcePolicy(?string $subfilter, bool $hasTopLevelRecipients, bool $hasCryptFilterRecipients): string
+    {
+        if ($subfilter === 'adbe.pkcs7.s5') {
+            if ($hasCryptFilterRecipients) {
+                return $hasTopLevelRecipients
+                    ? 'crypt_filter_recipients_with_legacy_encryption_dictionary_recipients'
+                    : 'crypt_filter_recipients';
+            }
+
+            return $hasTopLevelRecipients
+                ? 'legacy_encryption_dictionary_recipients_present_for_s5'
+                : 'crypt_filter_recipients_expected_but_missing';
+        }
+
+        if (in_array($subfilter, ['adbe.pkcs7.s3', 'adbe.pkcs7.s4'], true)) {
+            return $hasTopLevelRecipients
+                ? 'encryption_dictionary_recipients'
+                : 'encryption_dictionary_recipients_expected_but_missing';
+        }
+
+        if ($hasCryptFilterRecipients) {
+            return 'crypt_filter_recipients_without_pkcs7_s5_subfilter';
+        }
+
+        return $hasTopLevelRecipients ? 'encryption_dictionary_recipients' : 'recipient_arrays_missing';
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function recipientListMetadata(?string $value, array $objects, string $source, ?string $cryptFilter = null): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $items = $this->arrayItemsFromValue($value, $objects);
+        if ($items === []) {
+            $single = $this->pdfStringBytesFromValue($value, $objects);
+            if ($single === null) {
+                return [
+                    'source' => $source,
+                    'recipient_count' => 0,
+                    'unresolved_recipient_count' => 1,
+                    'recipient_bytes' => 0,
+                    'recipient_sha256' => [],
+                    'recipients' => [],
+                    'permissions_decoded' => false,
+                    'permission_decode_status' => 'recipient_bytes_unresolved',
+                    'recipient_bytes_exposed' => false,
+                ];
+            }
+
+            $items = [$value];
+        }
+
+        $recipients = [];
+        $hashes = [];
+        $bytesTotal = 0;
+        $unresolved = 0;
+        foreach (array_values($items) as $index => $item) {
+            $bytes = $this->pdfStringBytesFromValue($item, $objects);
+            if ($bytes === null) {
+                $unresolved++;
+                continue;
+            }
+
+            $hash = hash('sha256', $bytes);
+            $hashes[] = $hash;
+            $bytesTotal += strlen($bytes);
+            $recipients[] = [
+                'index' => $index,
+                'bytes' => strlen($bytes),
+                'sha256' => $hash,
+                'permissions_decoded' => false,
+                'permission_source' => 'pkcs7_recipient_envelope',
+                'recipient_bytes_exposed' => false,
+            ];
+        }
+
+        $metadata = [
+            'source' => $source,
+            'recipient_count' => count($recipients),
+            'unresolved_recipient_count' => $unresolved,
+            'recipient_bytes' => $bytesTotal,
+            'recipient_sha256' => $hashes,
+            'recipients' => $recipients,
+            'permissions_decoded' => false,
+            'permission_decode_status' => $recipients === []
+                ? 'recipient_bytes_unresolved'
+                : 'cms_pkcs7_permission_decode_unavailable',
+            'recipient_bytes_exposed' => false,
+        ];
+
+        if ($cryptFilter !== null) {
+            $metadata['crypt_filter'] = $cryptFilter;
+        }
+
+        return $metadata;
     }
 
     /**
