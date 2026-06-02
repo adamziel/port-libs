@@ -304,6 +304,12 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-base14-font-metrics-import.php` maps Base14 and explicit simple-font width metrics into a WordPress text extraction path. It uses native width evidence for same-line gap decisions, preserving expected output such as `Ill Word`, `WWWImport`, `iii Word`, and `CourierText`.
 
+`examples/wordpress-pdf-xref-stream-index-width-import.php` maps PDF 1.5 xref stream `/Index` ranges and zero-width `/W` defaults into a WordPress import path. It extracts only the current page text, excludes stale rebuilt page content, and avoids NUL-byte leakage without external PDF tooling.
+
+`examples/wordpress-pdf-cmap-usecmap-cycle-codespace-guard-import.php` maps cyclic ToUnicode `usecmap` inheritance and declared codespace counts into a WordPress text extraction path. It emits `Import Blocks! OK` while proving mutual CMap references do not loop and extra codespace rows do not corrupt source-width fallback.
+
+`examples/wordpress-pdf-annotation-border-color-popup-import.php` maps page annotation presentation metadata into a WordPress review path. It reports annotation subtype, colors, opacity, border style, and popup state without executing PDF actions, Python, models, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
