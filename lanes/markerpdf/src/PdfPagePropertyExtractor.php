@@ -51,6 +51,7 @@ final class PdfPagePropertyExtractor
         $articleBeadsByObject = $this->articleThreadBeadsByPageObject($pdfBytes);
         $structureMarkedContentByObject = $this->structureMarkedContentByPageObject($pdfBytes);
         $textMarkupAnnotationsByObject = $this->textMarkupAnnotationsByPageObject($pdfBytes);
+        $annotationStructureRowsByObject = $this->annotationStructureRowsByPageObject($pdfBytes);
 
         $pages = [];
         foreach ($pageObjectNumbers as $pnum => $pageObjectNumber) {
@@ -73,6 +74,12 @@ final class PdfPagePropertyExtractor
             $structureMarkedContent = $structureMarkedContentByObject[$pageObjectNumber] ?? [];
             $articleBeads = $this->articleBeadsWithStructureContext($articleBeads, $structureMarkedContent);
             $textMarkupAnnotations = $textMarkupAnnotationsByObject[$pageObjectNumber] ?? [];
+            $annotationStructureRows = $this->annotationStructureRowsWithPageContext(
+                $annotationStructureRowsByObject[$pageObjectNumber] ?? [],
+                $pieceInfo,
+                $structParents,
+                $parentTree
+            );
             if (
                 $pieceInfo === []
                 && $associatedFiles === []
@@ -80,6 +87,7 @@ final class PdfPagePropertyExtractor
                 && $articleBeads === []
                 && $structureMarkedContent === []
                 && $textMarkupAnnotations === []
+                && $annotationStructureRows === []
                 && $structParents === null
                 && $parentTree === null
             ) {
@@ -139,6 +147,10 @@ final class PdfPagePropertyExtractor
 
             if ($textMarkupAnnotations !== []) {
                 $page['text_markup_annotations'] = $textMarkupAnnotations;
+            }
+
+            if ($annotationStructureRows !== []) {
+                $page['annotation_structure_parent_rows'] = $annotationStructureRows;
             }
 
             if ($userProperties !== []) {
@@ -717,6 +729,116 @@ final class PdfPagePropertyExtractor
         unset($rows);
 
         return $rowsByPage;
+    }
+
+    /**
+     * Compose ordinary page annotations with their tagged-PDF StructParent
+     * rows so page-level review metadata can carry non-text annotations beside
+     * PieceInfo and ParentTree context without promoting annotation text.
+     *
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private function annotationStructureRowsByPageObject(string $pdfBytes): array
+    {
+        $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
+        $rowsByPage = [];
+
+        foreach ((new PdfAnnotationExtractor())->extractPageAnnotations($pdfBytes) as $pageAnnotations) {
+            if (!is_array($pageAnnotations)) {
+                continue;
+            }
+
+            $pageObject = $pageAnnotations['page_object'] ?? null;
+            $pnum = $pageAnnotations['pnum'] ?? null;
+            if (!is_int($pageObject) || !is_int($pnum)) {
+                continue;
+            }
+
+            $annotations = $pageAnnotations['annotations'] ?? [];
+            if (!is_array($annotations)) {
+                continue;
+            }
+
+            foreach (array_values($annotations) as $annotationIndex => $annotation) {
+                if (!is_array($annotation)) {
+                    continue;
+                }
+
+                $structureParent = $annotation['structure_parent'] ?? null;
+                if (
+                    !is_array($structureParent)
+                    || ($structureParent['current_annotation_object_ref_matched'] ?? false) !== true
+                ) {
+                    continue;
+                }
+
+                $row = [
+                    'source' => 'page_annotation_struct_parent_review',
+                    'pnum' => $pnum,
+                    'page' => $pnum,
+                    'page_number' => $pnum + 1,
+                    'page_label' => $pageLabels[$pnum] ?? (string) ($pnum + 1),
+                    'page_object' => $pageObject,
+                    'annotation_index' => $annotationIndex,
+                    'annotation_object' => $annotation['annotation_object'] ?? null,
+                    'subtype' => $annotation['subtype'] ?? null,
+                    'rect' => $annotation['rect'] ?? null,
+                    'contents' => $annotation['contents'] ?? null,
+                    'title' => $annotation['title'] ?? null,
+                    'name' => $annotation['name'] ?? null,
+                    'modified_at' => $annotation['modified_at'] ?? null,
+                    'struct_parent' => $annotation['struct_parent'] ?? null,
+                    'structure_parent' => $structureParent,
+                    'action_count' => count(is_array($annotation['actions'] ?? null) ? $annotation['actions'] : []),
+                    'additional_action_count' => count(is_array($annotation['additional_actions'] ?? null) ? $annotation['additional_actions'] : []),
+                    'executes_actions_on_import' => $annotation['executes_actions_on_import'] ?? false,
+                    'review_only' => true,
+                    'visible_text_source' => false,
+                    'renders_annotation_on_import' => false,
+                ];
+
+                $rowsByPage[$pageObject][] = $this->compactReviewRow($row);
+            }
+        }
+
+        return $rowsByPage;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @param array<string, array<string, mixed>> $pieceInfo
+     * @param array<string, mixed>|null $parentTree
+     * @return list<array<string, mixed>>
+     */
+    private function annotationStructureRowsWithPageContext(
+        array $rows,
+        array $pieceInfo,
+        ?int $structParents,
+        ?array $parentTree
+    ): array {
+        if ($rows === []) {
+            return [];
+        }
+
+        return array_map(
+            function (array $row) use ($pieceInfo, $structParents, $parentTree): array {
+                if ($structParents !== null) {
+                    $row['page_struct_parents'] = $structParents;
+                }
+
+                if ($parentTree !== null) {
+                    $row['page_parent_tree'] = $parentTree;
+                }
+
+                if ($pieceInfo !== []) {
+                    $row['page_piece_info'] = $pieceInfo;
+                    $row['page_piece_info_review_only'] = true;
+                }
+
+                return $this->compactReviewRow($row);
+            },
+            $rows
+        );
     }
 
     /**

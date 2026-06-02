@@ -202,8 +202,11 @@ final class PdfTextExtractor
      *     direct_xref_stream_owner_cycle_count: int,
      *     suppressed_hybrid_type2_entry_count: int,
      *     hybrid_table_free_owner_count: int,
+     *     xref_stream_free_entry_count: int,
+     *     xref_stream_free_owner_count: int,
      *     entries: list<array<string, mixed>>,
      *     suppressed_hybrid_entries: list<array<string, mixed>>,
+     *     free_entries: list<array<string, mixed>>,
      *     executes_python_or_models: false,
      *     executes_external_pdf_tools: false
      * }
@@ -224,8 +227,11 @@ final class PdfTextExtractor
             'direct_xref_stream_owner_cycle_count' => 0,
             'suppressed_hybrid_type2_entry_count' => 0,
             'hybrid_table_free_owner_count' => 0,
+            'xref_stream_free_entry_count' => 0,
+            'xref_stream_free_owner_count' => 0,
             'entries' => [],
             'suppressed_hybrid_entries' => [],
+            'free_entries' => [],
             'executes_python_or_models' => false,
             'executes_external_pdf_tools' => false,
         ];
@@ -254,6 +260,13 @@ final class PdfTextExtractor
         foreach ($review['suppressed_hybrid_entries'] as $suppressedEntry) {
             if (($suppressedEntry['owner_policy'] ?? null) === 'hybrid_table_free_entry_preserved') {
                 $review['hybrid_table_free_owner_count']++;
+            }
+        }
+        $review['free_entries'] = $this->xrefStreamFreeOwnerEntries($pdfBytes, $preliminaryObjects, $definitions);
+        $review['xref_stream_free_entry_count'] = count($review['free_entries']);
+        foreach ($review['free_entries'] as $freeEntry) {
+            if (($freeEntry['direct_object_suppressed'] ?? false) === true || ($freeEntry['previous_entry_suppressed'] ?? false) === true) {
+                $review['xref_stream_free_owner_count']++;
             }
         }
 
@@ -10453,23 +10466,62 @@ final class PdfTextExtractor
     private function xrefTableEntries(string $pdfBytes, ?array $definitions = null): array
     {
         $entries = [];
-        if (!preg_match_all('/(?:^|[\r\n])xref\s*(.*?)trailer\s*<</s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
-            return $entries;
-        }
-
-        foreach ($matches as $match) {
-            $xrefRelativeOffset = strpos($match[0][0], 'xref');
-            $xrefOffset = $match[0][1] + ($xrefRelativeOffset === false ? 0 : $xrefRelativeOffset);
+        foreach ($this->xrefTableKeywordOffsets($pdfBytes) as $xrefOffset) {
             if ($definitions !== null && $this->offsetOwnedByDirectObjectBody($xrefOffset, $definitions)) {
                 continue;
             }
 
-            foreach ($this->xrefTableRows($match[1][0]) as $objectNumber => $entry) {
+            $section = $this->xrefTableSectionAt($pdfBytes, $xrefOffset, $definitions);
+            if ($section === null) {
+                continue;
+            }
+
+            foreach ($section['entries'] as $objectNumber => $entry) {
                 $entries[$objectNumber] = $entry;
             }
         }
 
         return $entries;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function xrefTableKeywordOffsets(string $pdfBytes): array
+    {
+        $offsets = [];
+        $length = strlen($pdfBytes);
+        $index = 0;
+        while ($index < $length) {
+            $char = $pdfBytes[$index];
+
+            if ($char === '%') {
+                $this->skipPdfComment($pdfBytes, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $skipped = $this->skipPdfLiteralStringAt($pdfBytes, $index);
+                $index = $skipped === null ? $index + 1 : $skipped + 1;
+                continue;
+            }
+
+            if ($char === '<' && ($pdfBytes[$index + 1] ?? '') !== '<') {
+                $end = strpos($pdfBytes, '>', $index + 1);
+                $index = $end === false ? $length : $end + 1;
+                continue;
+            }
+
+            if ($this->pdfKeywordAt($pdfBytes, $index, 'xref')) {
+                $offsets[] = $index;
+                $index += strlen('xref');
+                continue;
+            }
+
+            $index++;
+        }
+
+        return $offsets;
     }
 
     /**
@@ -10485,6 +10537,121 @@ final class PdfTextExtractor
         }
 
         return $this->xrefHybridSuppressedObjectStreamEntriesFromOffsetChain($pdfBytes, $offset, $objects, $definitions);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return list<array<string, mixed>>
+     */
+    private function xrefStreamFreeOwnerEntries(string $pdfBytes, array $objects, array $definitions): array
+    {
+        $offset = $this->latestStartxrefOffset($pdfBytes, $definitions);
+        if ($offset === null) {
+            return [];
+        }
+
+        return $this->xrefStreamFreeOwnerEntriesFromOffsetChain($pdfBytes, $offset, $objects, $definitions);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, bool> $seenOffsets
+     * @return list<array<string, mixed>>
+     */
+    private function xrefStreamFreeOwnerEntriesFromOffsetChain(
+        string $pdfBytes,
+        int $offset,
+        array $objects,
+        array $definitions,
+        array $seenOffsets = []
+    ): array {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return [];
+        }
+        $seenOffsets[$offset] = true;
+
+        $section = $this->xrefSectionEntriesAndPreviousOffset($pdfBytes, $offset, $objects, $definitions, $seenOffsets);
+        if ($section === null) {
+            return [];
+        }
+
+        $previousOffset = $section['previousOffset'];
+        $previousEntries = $previousOffset !== null && $previousOffset >= 0
+            ? $this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets)
+            : [];
+
+        $entries = [];
+        if ($section['source'] === 'xref_stream') {
+            foreach ($section['entries'] as $objectNumber => $entry) {
+                if ($objectNumber === 0 || ($entry['type'] ?? null) !== 0) {
+                    continue;
+                }
+
+                $objectDefinitions = $definitions[$objectNumber] ?? [];
+                $selected = $this->liveDirectObjectDefinition($objectDefinitions, $entry);
+                $previousEntry = $previousEntries[$objectNumber] ?? null;
+                $directDefinitionCount = count($objectDefinitions);
+                if ($directDefinitionCount === 0 && $previousEntry === null) {
+                    continue;
+                }
+
+                $entries[] = [
+                    'object_number' => $objectNumber,
+                    'current_xref_offset' => $section['offset'],
+                    'free_generation' => $entry['generation'] ?? null,
+                    'next_free_object' => $entry['offset'] ?? null,
+                    'offset_field_is_explicit' => ($entry['offsetIsExplicit'] ?? true) === true,
+                    'direct_definition_count' => $directDefinitionCount,
+                    'direct_object_suppressed' => $directDefinitionCount > 0 && $selected === null,
+                    'previous_entry_suppressed' => $previousEntry !== null,
+                    'previous_entry_type' => $previousEntry['type'] ?? null,
+                    'previous_generation' => $previousEntry['generation'] ?? null,
+                    'previous_offset' => $previousEntry['offset'] ?? null,
+                    'previous_object_stream' => $previousEntry['objectStream'] ?? null,
+                    'previous_member_index' => $previousEntry['index'] ?? null,
+                    'suppressed_by_free_entry' => true,
+                    'owner_policy' => $this->xrefStreamFreeOwnerPolicy($directDefinitionCount, $previousEntry),
+                    'review_only' => true,
+                ];
+            }
+        }
+
+        if ($previousOffset !== null && $previousOffset >= 0) {
+            $entries = array_merge(
+                $entries,
+                $this->xrefStreamFreeOwnerEntriesFromOffsetChain(
+                    $pdfBytes,
+                    $previousOffset,
+                    $objects,
+                    $definitions,
+                    $seenOffsets
+                )
+            );
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}|null $previousEntry
+     */
+    private function xrefStreamFreeOwnerPolicy(int $directDefinitionCount, ?array $previousEntry): string
+    {
+        if (($previousEntry['type'] ?? null) === 2) {
+            return 'xref_stream_free_entry_suppressed_prev_compressed_object';
+        }
+
+        if ($previousEntry !== null) {
+            return 'xref_stream_free_entry_suppressed_prev_object';
+        }
+
+        if ($directDefinitionCount > 0) {
+            return 'xref_stream_free_entry_suppressed_scanned_direct_object';
+        }
+
+        return 'xref_stream_free_entry_preserved';
     }
 
     /**
@@ -11046,13 +11213,13 @@ final class PdfTextExtractor
         }
 
         $sectionBodyOffset = $offset + 4;
-        $trailerOffset = strpos($pdfBytes, 'trailer', $sectionBodyOffset);
-        if ($trailerOffset === false) {
+        $trailerOffset = $this->xrefTableTrailerKeywordOffset($pdfBytes, $sectionBodyOffset);
+        if ($trailerOffset === null) {
             return null;
         }
 
-        $dictionaryOffset = strpos($pdfBytes, '<<', $trailerOffset);
-        if ($dictionaryOffset === false) {
+        $dictionaryOffset = $this->skipPdfWhitespace($pdfBytes, $trailerOffset + strlen('trailer'));
+        if (substr($pdfBytes, $dictionaryOffset, 2) !== '<<') {
             return null;
         }
 
@@ -11065,6 +11232,43 @@ final class PdfTextExtractor
             'entries' => $this->xrefTableRows(substr($pdfBytes, $sectionBodyOffset, $trailerOffset - $sectionBodyOffset)),
             'trailer' => $trailer,
         ];
+    }
+
+    private function xrefTableTrailerKeywordOffset(string $pdfBytes, int $offset): ?int
+    {
+        $length = strlen($pdfBytes);
+        $index = $offset;
+        while ($index < $length) {
+            $char = $pdfBytes[$index];
+
+            if ($char === '%') {
+                $this->skipPdfComment($pdfBytes, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $skipped = $this->skipPdfLiteralStringAt($pdfBytes, $index);
+                $index = $skipped === null ? $index + 1 : $skipped + 1;
+                continue;
+            }
+
+            if ($char === '<' && ($pdfBytes[$index + 1] ?? '') !== '<') {
+                $end = strpos($pdfBytes, '>', $index + 1);
+                $index = $end === false ? $length : $end + 1;
+                continue;
+            }
+
+            if ($this->pdfKeywordAt($pdfBytes, $index, 'trailer')) {
+                $dictionaryOffset = $this->skipPdfWhitespace($pdfBytes, $index + strlen('trailer'));
+                if (substr($pdfBytes, $dictionaryOffset, 2) === '<<') {
+                    return $index;
+                }
+            }
+
+            $index++;
+        }
+
+        return null;
     }
 
     /**

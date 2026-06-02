@@ -702,6 +702,60 @@ final class PdfImageRenderer
     }
 
     /**
+     * Adds PDF/A OutputIntent color-management context to JPX image review.
+     *
+     * Upstream reaches this boundary through PDFium and PIL RGB conversion.
+     * The native port keeps JPX raster data review-only, while preserving the
+     * document PDF/A profile context that should govern device color spaces.
+     *
+     * @param array<int, string> $objects
+     * @param array<string, mixed> $documentMetadata Pass PdfMetadataExtractor output or its `pdfa` subarray.
+     * @return array<string, mixed>
+     */
+    public function jpxSoftMaskColorSpacePdfaReviewPlan(
+        string $imageObject,
+        array $objects = [],
+        array $documentMetadata = []
+    ): array {
+        $dictionary = $this->streamDictionaryFromValue($imageObject) ?? trim($imageObject);
+        $plan = $this->imageColorSpaceSoftMaskPlan($dictionary, $objects);
+        if (!in_array('JPXDecode', $plan['image_filters'], true)) {
+            throw new InvalidArgumentException('JPX PDF/A image review requires a JPXDecode image stream.');
+        }
+
+        $imageStream = $this->decodedImageStreamPreviewBoundary($dictionary, $imageObject, $objects);
+        $imageStreamMeta = $this->streamBoundaryPublicMetadata($imageStream);
+        $pdfa = $this->pdfaOutputIntentReviewMetadata($documentMetadata);
+        $colorManagement = $this->imagePdfaColorManagementReview($plan, $pdfa);
+        $notes = $plan['notes'] ?? [];
+        if ($pdfa['present']) {
+            $notes[] = 'pdfa_output_intent_review_before_rgb_conversion';
+            $notes[] = $colorManagement['pdfa_output_intent_applies_to_rgb_preview']
+                ? 'pdfa_output_intent_supplies_device_color_profile'
+                : 'pdfa_output_intent_preserved_as_document_color_context';
+            if ($colorManagement['profile_source'] === 'image_icc_profile') {
+                $notes[] = 'image_icc_profile_precedes_pdfa_output_intent_for_preview';
+            }
+            if (is_array($plan['jpx_soft_mask_in_data'] ?? null) && ($plan['jpx_soft_mask_in_data']['uses_embedded_soft_mask'] ?? false) === true) {
+                $notes[] = 'jpx_embedded_soft_mask_preserved_with_pdfa_output_intent';
+            } elseif (is_array($plan['soft_mask'] ?? null) && ($plan['soft_mask']['present'] ?? false) === true) {
+                $notes[] = 'external_soft_mask_preserved_with_pdfa_output_intent';
+            }
+        }
+        $notes[] = 'jpx_pdfa_image_stream_review_only_before_rgb_conversion';
+
+        $plan['image_stream'] = $imageStreamMeta;
+        $plan['review_only_image_stream'] = $imageStreamMeta['preview_only_filters'] !== [];
+        $plan['native_jpx_raster_decode'] = false;
+        $plan['pdfa_output_intent'] = $pdfa;
+        $plan['color_management'] = $colorManagement;
+        $plan['pdfa_output_intent_applies_before_rgb'] = $colorManagement['pdfa_output_intent_applies_to_rgb_preview'];
+        $plan['notes'] = array_values(array_unique($notes));
+
+        return $plan;
+    }
+
+    /**
      * Native review boundary for PDF content-stream inline images.
      *
      * Inline images use short dictionary names and values, have no object
@@ -2768,6 +2822,114 @@ final class PdfImageRenderer
             'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
             'alpha_output_mode' => (string) ($plan['alpha_output_mode'] ?? 'opaque_rgb_preview'),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $documentMetadata
+     * @return array{present: bool, source: string, output_condition_identifiers: list<string>, profile_sha256: list<string>, profile_count: int, review_only: true, payload_included: false}
+     */
+    private function pdfaOutputIntentReviewMetadata(array $documentMetadata): array
+    {
+        $pdfa = is_array($documentMetadata['pdfa'] ?? null)
+            ? $documentMetadata['pdfa']
+            : $documentMetadata;
+        $identifiers = array_values(array_unique(array_filter(
+            $pdfa['output_condition_identifiers'] ?? [],
+            static fn (mixed $value): bool => is_string($value) && $value !== ''
+        )));
+        $hashes = array_values(array_unique(array_filter(
+            $pdfa['profile_sha256'] ?? [],
+            static fn (mixed $value): bool => is_string($value) && $value !== ''
+        )));
+        $present = ($pdfa['has_output_intent'] ?? false) === true || $identifiers !== [] || $hashes !== [];
+
+        return [
+            'present' => $present,
+            'source' => $present ? 'document_metadata_pdfa_output_intents' : 'none',
+            'output_condition_identifiers' => $identifiers,
+            'profile_sha256' => $hashes,
+            'profile_count' => count($hashes),
+            'review_only' => true,
+            'payload_included' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $imagePlan
+     * @param array{present: bool, output_condition_identifiers: list<string>, profile_sha256: list<string>} $pdfa
+     * @return array{source_color_space: string, profile_source: string, pdfa_output_intent_present: bool, pdfa_output_intent_applies_to_rgb_preview: bool, image_uses_icc_profile: bool, image_uses_calibrated_color_space: bool, image_uses_alternate_color_space: bool, image_uses_indexed_color_space: bool, output_condition_identifiers: list<string>, profile_sha256: list<string>, review_only: true}
+     */
+    private function imagePdfaColorManagementReview(array $imagePlan, array $pdfa): array
+    {
+        $profileSource = $this->imagePdfaProfileSource($imagePlan, $pdfa);
+        $pdfaApplies = str_starts_with($profileSource, 'pdfa_output_intent');
+
+        return [
+            'source_color_space' => (string) ($imagePlan['source_color_space'] ?? 'DeviceRGB'),
+            'profile_source' => $profileSource,
+            'pdfa_output_intent_present' => $pdfa['present'],
+            'pdfa_output_intent_applies_to_rgb_preview' => $pdfaApplies,
+            'image_uses_icc_profile' => ($imagePlan['uses_icc_profile'] ?? false) === true,
+            'image_uses_calibrated_color_space' => ($imagePlan['uses_calibrated_color_space'] ?? false) === true,
+            'image_uses_alternate_color_space' => ($imagePlan['uses_alternate_color_space'] ?? false) === true,
+            'image_uses_indexed_color_space' => ($imagePlan['uses_indexed_color_space'] ?? false) === true,
+            'output_condition_identifiers' => $pdfa['output_condition_identifiers'],
+            'profile_sha256' => $pdfa['profile_sha256'],
+            'review_only' => true,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $imagePlan
+     * @param array{present: bool} $pdfa
+     */
+    private function imagePdfaProfileSource(array $imagePlan, array $pdfa): string
+    {
+        if (!$pdfa['present']) {
+            return 'image_color_space';
+        }
+
+        if (($imagePlan['uses_icc_profile'] ?? false) === true) {
+            if (($imagePlan['uses_indexed_color_space'] ?? false) === true) {
+                return 'image_indexed_base_icc_profile';
+            }
+            if (($imagePlan['uses_alternate_color_space'] ?? false) === true) {
+                return 'image_alternate_icc_profile';
+            }
+
+            return 'image_icc_profile';
+        }
+
+        if (($imagePlan['uses_calibrated_color_space'] ?? false) === true) {
+            return 'image_calibrated_color_space';
+        }
+
+        if (($imagePlan['uses_indexed_color_space'] ?? false) === true && is_array($imagePlan['indexed_color_space'] ?? null)) {
+            $base = $imagePlan['indexed_color_space']['base_color_space'] ?? null;
+
+            return is_string($base) && $this->pdfaOutputIntentCanProfileDeviceSpace($base)
+                ? 'pdfa_output_intent_for_indexed_base_color_space'
+                : 'image_indexed_color_space';
+        }
+
+        if (($imagePlan['uses_alternate_color_space'] ?? false) === true && is_array($imagePlan['alternate_color_space'] ?? null)) {
+            $alternate = $imagePlan['alternate_color_space']['alternate_color_space'] ?? null;
+
+            return is_string($alternate) && $this->pdfaOutputIntentCanProfileDeviceSpace($alternate)
+                ? 'pdfa_output_intent_for_alternate_color_space'
+                : 'image_alternate_color_space';
+        }
+
+        $source = (string) ($imagePlan['source_color_space'] ?? 'DeviceRGB');
+
+        return $this->pdfaOutputIntentCanProfileDeviceSpace($source)
+            ? 'pdfa_output_intent'
+            : 'image_color_space';
+    }
+
+    private function pdfaOutputIntentCanProfileDeviceSpace(string $colorSpace): bool
+    {
+        return in_array($colorSpace, ['DeviceGray', 'DeviceRGB', 'DeviceCMYK'], true);
     }
 
     /**
