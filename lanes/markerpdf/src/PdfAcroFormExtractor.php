@@ -64,7 +64,7 @@ final class PdfAcroFormExtractor
     /**
      * Native boundary for PDF AcroForm field dictionaries.
      *
-     * @return array{need_appearances: bool, permissions: array<string, mixed>, signature_flags: array<string, mixed>, xfa_overrides_page_content: bool, xfa_packets: list<array<string, mixed>>, calculation_order: list<array{object: int, field_name: string|null}>, fields: list<array<string, mixed>>}
+     * @return array{need_appearances: bool, default_resources: array<string, mixed>, permissions: array<string, mixed>, signature_flags: array<string, mixed>, xfa_overrides_page_content: bool, xfa_packets: list<array<string, mixed>>, calculation_order: list<array{object: int, field_name: string|null}>, fields: list<array<string, mixed>>}
      */
     public function extractForm(string $pdfBytes): array
     {
@@ -75,6 +75,7 @@ final class PdfAcroFormExtractor
         if ($acroForm === null) {
             return [
                 'need_appearances' => false,
+                'default_resources' => $this->emptyDefaultResources(),
                 'permissions' => $permissions,
                 'signature_flags' => $this->emptySignatureFlags(),
                 'xfa_overrides_page_content' => false,
@@ -88,6 +89,7 @@ final class PdfAcroFormExtractor
         $pageIndexes = array_flip($pageObjectNumbers);
         $pageWidgets = $this->pageWidgetMap($objects, $pageObjectNumbers);
         $formDefaults = $this->acroFormDefaults($acroForm);
+        $defaultResources = $this->defaultResourcesFromEffective($formDefaults, $objects);
         $xfaPackets = $this->xfaPacketsFromAcroForm($acroForm, $objects);
         $fields = [];
         $fieldRefs = $this->fieldReferencesFromAcroForm($acroForm);
@@ -115,6 +117,7 @@ final class PdfAcroFormExtractor
 
         return [
             'need_appearances' => $this->boolValueAfterName($acroForm, 'NeedAppearances') === true,
+            'default_resources' => $defaultResources,
             'permissions' => $permissions,
             'signature_flags' => $signatureFlags,
             'xfa_overrides_page_content' => $xfaPackets !== [],
@@ -974,14 +977,14 @@ final class PdfAcroFormExtractor
         }
 
         $flags = $this->integerFromEffective($effective, 'Ff', 0);
-        $defaultAppearance = $this->defaultAppearanceFromEffective($effective);
+        $defaultAppearance = $this->defaultAppearanceFromEffective($effective, $objects);
         $password = $fieldType === 'Tx' && $this->hasFlagBit($flags, 14);
 
         $name = $currentNameParts === [] ? '#' . $objectNumber : implode('.', $currentNameParts);
         $value = $password ? null : $this->valueFromEffective($effective, 'V', $objects);
         $defaultValue = $password ? null : $this->valueFromEffective($effective, 'DV', $objects);
         $options = $fieldType === 'Ch' ? $this->optionsFromEffective($effective, $objects) : [];
-        $widgets = $this->widgetsForField($widgetRefs, $objects, $defaultAppearance, $pageIndexes, $pageWidgets, $fieldNamesByObject);
+        $widgets = $this->widgetsForField($widgetRefs, $objects, $defaultAppearance, $effective, $pageIndexes, $pageWidgets, $fieldNamesByObject);
         $widgets = $this->widgetsWithCurrentValueState($widgets, $fieldType, $flags, $value);
 
         $field = [
@@ -1476,7 +1479,7 @@ final class PdfAcroFormExtractor
     private function mergeFieldAttributes(string $body, array $inherited, int $objectNumber): array
     {
         $effective = $inherited;
-        foreach (['FT', 'Ff', 'V', 'DV', 'DA', 'Q', 'Opt', 'I'] as $name) {
+        foreach (['FT', 'Ff', 'V', 'DV', 'DA', 'DR', 'Q', 'Opt', 'I'] as $name) {
             $value = $this->valueAfterName($body, $name);
             if ($value === null) {
                 continue;
@@ -1498,7 +1501,7 @@ final class PdfAcroFormExtractor
     private function acroFormDefaults(string $acroForm): array
     {
         $defaults = [];
-        foreach (['DA', 'Q'] as $name) {
+        foreach (['DA', 'DR', 'Q'] as $name) {
             $value = $this->valueAfterName($acroForm, $name);
             if ($value !== null) {
                 $defaults[$name] = [
@@ -1963,7 +1966,7 @@ final class PdfAcroFormExtractor
      * @param array<string, array{value: string, source: string, source_object: int|null}> $effective
      * @return array<string, mixed>|null
      */
-    private function defaultAppearanceFromEffective(array $effective): ?array
+    private function defaultAppearanceFromEffective(array $effective, array $objects): ?array
     {
         if (!isset($effective['DA'])) {
             return null;
@@ -1975,6 +1978,7 @@ final class PdfAcroFormExtractor
         }
 
         $appearance = $this->parseDefaultAppearance($raw);
+        $appearance = $this->defaultAppearanceWithResourceReview($appearance, $effective, $objects);
         $appearance['raw'] = $raw;
         $appearance['source'] = $effective['DA']['source'];
         $appearance['source_object'] = $effective['DA']['source_object'];
@@ -1992,6 +1996,17 @@ final class PdfAcroFormExtractor
             'font_resource' => null,
             'font_size' => null,
             'text_color' => null,
+            'font_resource_resolved' => false,
+            'font_resource_object' => null,
+            'font_resource_base_font' => null,
+            'font_resource_subtype' => null,
+            'font_resource_encoding' => null,
+            'font_descriptor_object' => null,
+            'font_descriptor_name' => null,
+            'font_descriptor_flags' => null,
+            'font_weight' => null,
+            'default_resource_source' => null,
+            'default_resource_source_object' => null,
         ];
 
         foreach ($tokens as $index => $token) {
@@ -2065,9 +2080,226 @@ final class PdfAcroFormExtractor
     }
 
     /**
+     * @param array<string, mixed> $appearance
+     * @param array<string, array{value: string, source: string, source_object: int|null}> $effective
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function defaultAppearanceWithResourceReview(array $appearance, array $effective, array $objects): array
+    {
+        $fontResource = $appearance['font_resource'] ?? null;
+        if (!is_string($fontResource) || $fontResource === '') {
+            return $appearance;
+        }
+
+        $resources = $this->defaultResourcesFromEffective($effective, $objects);
+        $fonts = is_array($resources['fonts'] ?? null) ? $resources['fonts'] : [];
+        $font = $fonts[$fontResource] ?? null;
+        $appearance['default_resource_source'] = $resources['source'] ?? null;
+        $appearance['default_resource_source_object'] = $resources['object'] ?? null;
+
+        if (!is_array($font)) {
+            return $appearance;
+        }
+
+        $descriptor = is_array($font['font_descriptor'] ?? null) ? $font['font_descriptor'] : [];
+        $appearance['font_resource_resolved'] = true;
+        $appearance['font_resource_object'] = $font['object'] ?? null;
+        $appearance['font_resource_base_font'] = $font['base_font'] ?? null;
+        $appearance['font_resource_subtype'] = $font['subtype'] ?? null;
+        $appearance['font_resource_encoding'] = $font['encoding'] ?? null;
+        $appearance['font_descriptor_object'] = $descriptor['object'] ?? null;
+        $appearance['font_descriptor_name'] = $descriptor['font_name'] ?? null;
+        $appearance['font_descriptor_flags'] = $descriptor['flags'] ?? null;
+        $appearance['font_weight'] = $descriptor['font_weight'] ?? null;
+
+        return $appearance;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyDefaultResources(): array
+    {
+        return [
+            'source' => null,
+            'object' => null,
+            'font_count' => 0,
+            'fonts' => [],
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, array{value: string, source: string, source_object: int|null}> $effective
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function defaultResourcesFromEffective(array $effective, array $objects): array
+    {
+        if (!isset($effective['DR'])) {
+            return $this->emptyDefaultResources();
+        }
+
+        $resources = $this->resolvedDictionaryFromValue($effective['DR']['value'], $objects);
+        if ($resources === null) {
+            return $this->emptyDefaultResources();
+        }
+
+        $fonts = $this->fontResourcesFromDefaultResourceDictionary($resources['body'], $objects);
+
+        return [
+            'source' => $effective['DR']['source'],
+            'object' => $resources['object'],
+            'font_count' => count($fonts),
+            'fonts' => $fonts,
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, array<string, mixed>>
+     */
+    private function fontResourcesFromDefaultResourceDictionary(string $resourceDictionary, array $objects): array
+    {
+        $fontValue = $this->valueAfterName($resourceDictionary, 'Font');
+        if ($fontValue === null) {
+            return [];
+        }
+
+        $fontDictionary = $this->resolvedDictionaryFromValue($fontValue, $objects);
+        if ($fontDictionary === null) {
+            return [];
+        }
+
+        $fonts = [];
+        $body = $fontDictionary['body'];
+        $offset = 0;
+        $length = strlen($body);
+        while ($offset < $length) {
+            $this->skipWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($body[$offset] !== '/') {
+                $offset++;
+                continue;
+            }
+
+            $nameEnd = $this->skipPdfName($body, $offset);
+            $resourceName = $this->decodePdfName(substr($body, $offset + 1, $nameEnd - $offset - 1));
+            $offset = $nameEnd;
+            $this->skipWhitespace($body, $offset);
+
+            $fontObject = null;
+            $fontBody = null;
+            if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $body, $match, 0, $offset) === 1) {
+                $fontObject = (int) $match[1];
+                $fontBody = $this->dictionaryObjectBody($objects[$fontObject] ?? '');
+                $offset += strlen($match[0]);
+            } elseif (substr($body, $offset, 2) === '<<') {
+                $endOffset = null;
+                $fontBody = $this->readPdfDictionaryAt($body, $offset, $endOffset);
+                $offset = $endOffset ?? ($offset + 2);
+            } else {
+                continue;
+            }
+
+            if ($fontBody === null) {
+                continue;
+            }
+
+            $fonts[$resourceName] = $this->fontResourceReview($resourceName, $fontObject, $fontBody, $objects);
+        }
+
+        return $fonts;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function fontResourceReview(string $resourceName, ?int $objectNumber, string $fontBody, array $objects): array
+    {
+        return [
+            'resource_name' => $resourceName,
+            'object' => $objectNumber,
+            'type' => $this->pdfNameValueAfterName($fontBody, 'Type'),
+            'subtype' => $this->pdfNameValueAfterName($fontBody, 'Subtype'),
+            'base_font' => $this->pdfNameValueAfterName($fontBody, 'BaseFont'),
+            'encoding' => $this->fontEncodingName($fontBody, $objects),
+            'font_descriptor' => $this->fontDescriptorReview($fontBody, $objects),
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function fontEncodingName(string $fontBody, array $objects): ?string
+    {
+        $value = $this->valueAfterName($fontBody, 'Encoding');
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+        if (str_starts_with($value, '/')) {
+            return $this->decodePdfName($value);
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1 && isset($objects[(int) $match[1]])) {
+            $object = trim($objects[(int) $match[1]]);
+            if (str_starts_with($object, '/')) {
+                return $this->decodePdfName($object);
+            }
+
+            $dictionary = $this->dictionaryObjectBody($object) ?? (str_starts_with($object, '<<') ? $this->readPdfDictionaryAt($object, 0) : null);
+            return $dictionary === null ? null : $this->pdfNameValueAfterName($dictionary, 'BaseEncoding');
+        }
+
+        $dictionary = str_starts_with($value, '<<') ? $this->readPdfDictionaryAt($value, 0) : null;
+        return $dictionary === null ? null : $this->pdfNameValueAfterName($dictionary, 'BaseEncoding');
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function fontDescriptorReview(string $fontBody, array $objects): ?array
+    {
+        $descriptorObject = $this->objectReferenceValueAfterName($fontBody, 'FontDescriptor');
+        if ($descriptorObject !== null) {
+            $descriptorBody = $this->dictionaryObjectBody($objects[$descriptorObject] ?? '');
+        } else {
+            $descriptorValue = $this->valueAfterName($fontBody, 'FontDescriptor');
+            $descriptorBody = $descriptorValue !== null && str_starts_with(trim($descriptorValue), '<<')
+                ? $this->readPdfDictionaryAt($descriptorValue, 0)
+                : null;
+        }
+
+        if ($descriptorBody === null) {
+            return null;
+        }
+
+        return [
+            'object' => $descriptorObject,
+            'font_name' => $this->pdfNameValueAfterName($descriptorBody, 'FontName'),
+            'flags' => $this->numberValueAfterName($descriptorBody, 'Flags'),
+            'font_weight' => $this->numberValueAfterName($descriptorBody, 'FontWeight'),
+        ];
+    }
+
+    /**
      * @param list<int> $widgetRefs
      * @param array<int, string> $objects
      * @param array<string, mixed>|null $fieldDefaultAppearance
+     * @param array<string, array{value: string, source: string, source_object: int|null}> $effective
      * @param array<int, int> $pageIndexes
      * @param array<int, array{page_index: int, page_object: int}> $pageWidgets
      * @param array<int, string> $fieldNamesByObject
@@ -2077,6 +2309,7 @@ final class PdfAcroFormExtractor
         array $widgetRefs,
         array $objects,
         ?array $fieldDefaultAppearance,
+        array $effective,
         array $pageIndexes,
         array $pageWidgets,
         array $fieldNamesByObject
@@ -2095,7 +2328,7 @@ final class PdfAcroFormExtractor
                 ? $pageIndexes[$pageObject]
                 : ($pageWidgets[$widgetRef]['page_index'] ?? null);
             $annotationFlags = $this->numberValueAfterName($body, 'F');
-            $widgetAppearance = $this->widgetDefaultAppearance($body, $fieldDefaultAppearance);
+            $widgetAppearance = $this->widgetDefaultAppearance($body, $fieldDefaultAppearance, $effective, $objects);
             $referencedFromPageAnnots = isset($pageWidgets[$widgetRef]);
 
             $widgets[] = [
@@ -2642,9 +2875,10 @@ final class PdfAcroFormExtractor
 
     /**
      * @param array<string, mixed>|null $fieldDefaultAppearance
+     * @param array<string, array{value: string, source: string, source_object: int|null}> $effective
      * @return array<string, mixed>|null
      */
-    private function widgetDefaultAppearance(string $widgetBody, ?array $fieldDefaultAppearance): ?array
+    private function widgetDefaultAppearance(string $widgetBody, ?array $fieldDefaultAppearance, array $effective, array $objects): ?array
     {
         $raw = $this->pdfStringValueAfterName($widgetBody, 'DA', []);
         if ($raw === null || $raw === '') {
@@ -2652,6 +2886,7 @@ final class PdfAcroFormExtractor
         }
 
         $appearance = $this->parseDefaultAppearance($raw);
+        $appearance = $this->defaultAppearanceWithResourceReview($appearance, $effective, $objects);
         $appearance['raw'] = $raw;
         $appearance['source'] = 'widget';
         $appearance['source_object'] = null;

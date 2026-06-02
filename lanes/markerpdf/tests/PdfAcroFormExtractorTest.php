@@ -301,6 +301,26 @@ $widgetDefaultStatePdf = static function (): string {
         . "%%EOF";
 };
 
+$appearanceDefaultResourcesPdf = static function (): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [8 0 R 12 0 R 16 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 10 0 R 14 0 R] /NeedAppearances true /DA (/Helv 9 Tf 0 0 1 rg) /DR 30 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (article.title) /V (Default resource title) /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 320 664] /P 3 0 R /F 4 >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Tx /T (article.body) /V (Body copy) /DA (/Body 11 Tf 0.1 0.2 0.3 rg) /Kids [12 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 600 320 624] /P 3 0 R /F 4 >>\nendobj\n"
+        . "14 0 obj\n<< /FT /Tx /T (article.teaser) /V (Widget override) /Kids [16 0 R] >>\nendobj\n"
+        . "16 0 obj\n<< /Subtype /Widget /Parent 14 0 R /Rect [72 560 320 584] /P 3 0 R /F 4 /DA (/Missing 10 Tf 0.5 g) >>\nendobj\n"
+        . "30 0 obj\n<< /Font << /Helv 31 0 R /Body 32 0 R /Inline << /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /MacRomanEncoding >> >> >>\nendobj\n"
+        . "31 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding 35 0 R >>\nendobj\n"
+        . "32 0 obj\n<< /Type /Font /Subtype /TrueType /BaseFont /ABCDEE+SourceSansPro /Encoding << /Type /Encoding /BaseEncoding /MacRomanEncoding >> /FontDescriptor 33 0 R >>\nendobj\n"
+        . "33 0 obj\n<< /Type /FontDescriptor /FontName /ABCDEE+SourceSansPro /Flags 32 /FontWeight 600 >>\nendobj\n"
+        . "35 0 obj\n<< /Type /Encoding /BaseEncoding /WinAnsiEncoding >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'extracts inherited field flags and field default appearance strings' => static function (TestRunner $t) use ($acroFormPdf, $fieldsByName): void {
         $form = (new PdfAcroFormExtractor())->extractForm($acroFormPdf());
@@ -437,6 +457,74 @@ return [
         $t->true($docMdp['permission_valid']);
         $t->same('form_fill_templates_signatures', $docMdp['permission_label']);
         $t->same(['fill_forms', 'instantiate_page_templates', 'sign'], $docMdp['allowed_changes']);
+    },
+    'resolves AcroForm default resource fonts for default appearance review metadata' => static function (TestRunner $t) use ($appearanceDefaultResourcesPdf, $fieldsByName): void {
+        $form = (new PdfAcroFormExtractor())->extractForm($appearanceDefaultResourcesPdf());
+        $fields = $fieldsByName($form['fields']);
+        $resources = $form['default_resources'];
+
+        $t->same('acroform', $resources['source']);
+        $t->same(30, $resources['object']);
+        $t->same(3, $resources['font_count']);
+        $t->same(false, $resources['executes_appearance_streams']);
+        $t->same(false, $resources['renders_appearances']);
+
+        $helv = $resources['fonts']['Helv'];
+        $t->same('Helv', $helv['resource_name']);
+        $t->same(31, $helv['object']);
+        $t->same('Font', $helv['type']);
+        $t->same('Type1', $helv['subtype']);
+        $t->same('Helvetica', $helv['base_font']);
+        $t->same('WinAnsiEncoding', $helv['encoding']);
+
+        $bodyResource = $resources['fonts']['Body'];
+        $t->same(32, $bodyResource['object']);
+        $t->same('TrueType', $bodyResource['subtype']);
+        $t->same('ABCDEE+SourceSansPro', $bodyResource['base_font']);
+        $t->same('MacRomanEncoding', $bodyResource['encoding']);
+        $t->same(33, $bodyResource['font_descriptor']['object']);
+        $t->same('ABCDEE+SourceSansPro', $bodyResource['font_descriptor']['font_name']);
+        $t->same(32, $bodyResource['font_descriptor']['flags']);
+        $t->same(600, $bodyResource['font_descriptor']['font_weight']);
+
+        $inlineResource = $resources['fonts']['Inline'];
+        $t->same(null, $inlineResource['object']);
+        $t->same('Courier', $inlineResource['base_font']);
+        $t->same('MacRomanEncoding', $inlineResource['encoding']);
+
+        $titleAppearance = $fields['article.title']['default_appearance'];
+        $t->same('acroform', $titleAppearance['source']);
+        $t->same('Helv', $titleAppearance['font_resource']);
+        $t->same(true, $titleAppearance['font_resource_resolved']);
+        $t->same(31, $titleAppearance['font_resource_object']);
+        $t->same('Helvetica', $titleAppearance['font_resource_base_font']);
+        $t->same('Type1', $titleAppearance['font_resource_subtype']);
+        $t->same('WinAnsiEncoding', $titleAppearance['font_resource_encoding']);
+        $t->same('acroform', $titleAppearance['default_resource_source']);
+        $t->same(30, $titleAppearance['default_resource_source_object']);
+
+        $bodyAppearance = $fields['article.body']['default_appearance'];
+        $t->same('field', $bodyAppearance['source']);
+        $t->same(10, $bodyAppearance['source_object']);
+        $t->same('Body', $bodyAppearance['font_resource']);
+        $t->same(true, $bodyAppearance['font_resource_resolved']);
+        $t->same(32, $bodyAppearance['font_resource_object']);
+        $t->same('ABCDEE+SourceSansPro', $bodyAppearance['font_resource_base_font']);
+        $t->same(33, $bodyAppearance['font_descriptor_object']);
+        $t->same('ABCDEE+SourceSansPro', $bodyAppearance['font_descriptor_name']);
+        $t->same(32, $bodyAppearance['font_descriptor_flags']);
+        $t->same(600, $bodyAppearance['font_weight']);
+        $t->same(['space' => 'DeviceRGB', 'components' => [0.1, 0.2, 0.3]], $bodyAppearance['text_color']);
+
+        $widgetAppearance = $fields['article.teaser']['widgets'][0]['default_appearance'];
+        $t->same('widget', $widgetAppearance['source']);
+        $t->same('Missing', $widgetAppearance['font_resource']);
+        $t->same(false, $widgetAppearance['font_resource_resolved']);
+        $t->same(null, $widgetAppearance['font_resource_object']);
+        $t->same(null, $widgetAppearance['font_resource_base_font']);
+        $t->same('acroform', $widgetAppearance['default_resource_source']);
+        $t->same(30, $widgetAppearance['default_resource_source_object']);
+        $t->same(['space' => 'DeviceGray', 'components' => [0.5]], $widgetAppearance['text_color']);
     },
     'extracts signature seed value constraints and lock dictionary review metadata' => static function (TestRunner $t) use ($signatureSeedValueLockPdf, $fieldsByName): void {
         $form = (new PdfAcroFormExtractor())->extractForm($signatureSeedValueLockPdf());
