@@ -1252,6 +1252,128 @@ final class PdfImageRenderer
     }
 
     /**
+     * Maps supplied decoded JPEG2000 inline-image samples through ColorKey
+     * transparency and Decode metadata without claiming native JPX raster
+     * support.
+     *
+     * Upstream reaches this boundary through PDFium, then Marker/PIL converts
+     * the page crop to RGB. The PHP port keeps the inline JPX payload
+     * review-only, but can still expose the output rows a future JPX backend
+     * or fixture oracle supplies after decoding the JPEG2000 codestream.
+     *
+     * @param list<list<int|float>> $suppliedSamples
+     * @param array<int|string, mixed> $objects
+     * @return array<string, mixed>
+     */
+    public function inlineJpxColorKeyOutputPreviewRows(
+        string $inlineImageDictionary,
+        string $payload,
+        array $suppliedSamples,
+        array $objects = [],
+        int $maxPixels = 16
+    ): array {
+        if ($maxPixels < 1) {
+            throw new InvalidArgumentException('Inline JPX ColorKey preview requires at least one preview pixel.');
+        }
+
+        $plan = $this->inlineImageReviewPlan($inlineImageDictionary, $payload, $objects);
+        if (!in_array('JPXDecode', $plan['image_filters'], true)) {
+            throw new InvalidArgumentException('Inline JPX ColorKey preview requires a JPXDecode inline image.');
+        }
+        if (($plan['source_color_space'] ?? null) !== 'DeviceRGB' || ($plan['components'] ?? null) !== 3) {
+            throw new InvalidArgumentException('Inline JPX ColorKey preview currently requires DeviceRGB samples.');
+        }
+        if (($plan['color_key_mask_applied_before_rgb'] ?? false) !== true) {
+            throw new InvalidArgumentException('Inline JPX ColorKey preview requires an unsuppressed valid /Mask array.');
+        }
+
+        $canonical = (string) $plan['inline_image']['canonical_dictionary'];
+        $width = $this->integerNameValue($canonical, 'Width');
+        $height = $this->integerNameValue($canonical, 'Height');
+        $components = (int) $plan['components'];
+        $bitsPerComponent = max(1, (int) ($plan['bits_per_component'] ?? 8));
+        if (!is_int($width) || !is_int($height) || $width < 1 || $height < 1) {
+            throw new InvalidArgumentException('Inline JPX ColorKey preview requires positive Width and Height.');
+        }
+
+        $expectedPixelCount = $width * $height;
+        $imageStream = $this->decodedInlineImageStreamPreviewBoundary($canonical, $payload, $objects);
+        $imageStreamMeta = $this->streamBoundaryPublicMetadata($imageStream);
+        $complete = count($suppliedSamples) >= $expectedPixelCount;
+        $limit = min($maxPixels, $expectedPixelCount, count($suppliedSamples));
+        $pixels = [];
+        for ($index = 0; $index < $limit; $index++) {
+            $sample = array_values($suppliedSamples[$index]);
+            if (count($sample) !== $components) {
+                throw new InvalidArgumentException('Inline JPX ColorKey supplied samples must match the image component count.');
+            }
+            foreach ($sample as $value) {
+                if (!is_int($value) && !is_float($value)) {
+                    throw new InvalidArgumentException('Inline JPX ColorKey supplied sample values must be numeric.');
+                }
+            }
+
+            $rawSample = array_map(static fn (int|float $value): float => (float) $value, $sample);
+            $colorKeyPreview = $this->colorKeyMaskSamplePreview($rawSample, $plan);
+            $decoded = array_values($colorKeyPreview['decoded_components']);
+            if (($colorKeyPreview['decode_applied_after_color_key'] ?? false) !== true) {
+                $decoded = $this->defaultRgbDecodeComponents($rawSample, $bitsPerComponent);
+            }
+
+            $pixels[] = [
+                'pixel_index' => $index,
+                'x' => $index % $width,
+                'y' => intdiv($index, $width),
+                'raw_sample' => $rawSample,
+                'matches_color_key' => $colorKeyPreview['matches_color_key'],
+                'color_key_alpha' => $colorKeyPreview['alpha'],
+                'color_key_mask_ranges' => $colorKeyPreview['mask_ranges'],
+                'decoded_components' => $decoded,
+                'decode_applied_after_color_key' => $colorKeyPreview['decode_applied_after_color_key'],
+                'output_rgba' => $this->rgbOutputPreviewComponents($decoded, (float) $colorKeyPreview['alpha']),
+            ];
+        }
+
+        $streamNotes = [
+            'inline_jpx_image_stream_review_only_before_rgb_conversion',
+            'inline_jpx_colorkey_supplied_samples_before_output_preview',
+        ];
+        if (!$complete) {
+            $streamNotes[] = 'inline_jpx_colorkey_supplied_sample_data_incomplete';
+        }
+
+        return [
+            'source_color_space' => 'DeviceRGB',
+            'width' => $width,
+            'height' => $height,
+            'components_per_pixel' => $components,
+            'bits_per_component' => $bitsPerComponent,
+            'expected_pixel_count' => $expectedPixelCount,
+            'preview_pixel_count' => count($pixels),
+            'review_only_image_stream' => true,
+            'native_jpx_raster_decode' => false,
+            'uses_supplied_jpx_samples' => true,
+            'complete_image_sample_data' => $complete,
+            'image_filter_boundary' => $plan['image_filter_boundary'],
+            'image_stream' => $imageStreamMeta,
+            'image_decode' => $plan['image_decode'],
+            'color_key_mask' => $plan['color_key_mask'],
+            'inline_image' => $plan['inline_image'],
+            'inline_image_abbreviations_expanded' => $plan['inline_image_abbreviations_expanded'],
+            'inline_image_payload_excluded_from_text' => true,
+            'pixels' => $pixels,
+            'stream_notes' => $streamNotes,
+            'notes' => array_values(array_unique(array_merge(
+                $plan['notes'] ?? [],
+                ['inline_jpx_colorkey_supplied_samples_previewed_without_raster_decode'],
+                $streamNotes
+            ))),
+            'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
+            'alpha_output_mode' => (string) ($plan['alpha_output_mode'] ?? 'color_key_mask_composited_to_rgb_preview'),
+        ];
+    }
+
+    /**
      * Expands an Indexed color-space sample index into normalized base color
      * components. This mirrors the PDF parser side of the RGB preview boundary
      * without rasterizing pixels.
@@ -1755,6 +1877,47 @@ final class PdfImageRenderer
             'palette_transfer_applied_after_color_key' => true,
             'output_color_mode' => $indexed['output_color_mode'],
         ];
+    }
+
+    /**
+     * @param list<float> $sample
+     * @return list<float>
+     */
+    private function defaultRgbDecodeComponents(array $sample, int $bitsPerComponent): array
+    {
+        if (count($sample) !== 3) {
+            throw new InvalidArgumentException('RGB default Decode requires exactly three components.');
+        }
+
+        $maxSample = (2 ** min(max(1, $bitsPerComponent), 30)) - 1;
+
+        return array_map(
+            static fn (float $value): float => max(0.0, min(1.0, $value / $maxSample)),
+            $sample
+        );
+    }
+
+    /**
+     * @param list<float> $decodedComponents
+     * @return array{red: int, green: int, blue: int, alpha: float}
+     */
+    private function rgbOutputPreviewComponents(array $decodedComponents, float $alpha): array
+    {
+        if (count($decodedComponents) !== 3) {
+            throw new InvalidArgumentException('RGB output preview requires exactly three decoded components.');
+        }
+
+        return [
+            'red' => $this->normalizedPreviewByte($decodedComponents[0]),
+            'green' => $this->normalizedPreviewByte($decodedComponents[1]),
+            'blue' => $this->normalizedPreviewByte($decodedComponents[2]),
+            'alpha' => max(0.0, min(1.0, $alpha)),
+        ];
+    }
+
+    private function normalizedPreviewByte(int|float $value): int
+    {
+        return (int) round(max(0.0, min(1.0, (float) $value)) * 255);
     }
 
     /**

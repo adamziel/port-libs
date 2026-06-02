@@ -941,6 +941,116 @@ return [
             unlink($path);
         }
     },
+    'binds forced OCR header grid captions to cellspan occupancy review' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-table-ocr-header-grid-caption-cellspan-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% table OCR header grid caption cellspan supplied pipeline\n%%EOF");
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'OCR captioned header grid import', 'bbox' => [72.0, 48.0, 460.0, 68.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'Stale captioned header grid table text should be replaced.', 'bbox' => [72.0, 176.0, 520.0, 196.0]],
+                ['text' => 'Table 9: Captioned OCR header-grid review.', 'bbox' => [72.0, 302.0, 456.0, 320.0]],
+                ['text' => 'Reviewer note after captioned header grid.', 'bbox' => [72.0, 346.0, 520.0, 364.0]],
+            ]);
+            $layout = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Section-header', 'bbox' => [72.0, 48.0, 460.0, 68.0]],
+                    ['label' => 'Table', 'bbox' => [72.0, 150.0, 430.0, 290.0]],
+                    ['label' => 'Caption', 'bbox' => [72.0, 302.0, 456.0, 320.0]],
+                    ['label' => 'Text', 'bbox' => [72.0, 346.0, 520.0, 364.0]],
+                ],
+            ];
+            $recognizedTable = [
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 300.0, 28.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 32.0, 300.0, 60.0]],
+                    ['row_id' => 2, 'bbox' => [0.0, 70.0, 300.0, 100.0]],
+                    ['row_id' => 3, 'bbox' => [0.0, 110.0, 300.0, 140.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 90.0, 140.0]],
+                    ['col_id' => 1, 'bbox' => [100.0, 0.0, 190.0, 140.0]],
+                    ['col_id' => 2, 'bbox' => [200.0, 0.0, 300.0, 140.0]],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [$layout],
+                    'recognized_tables' => [$recognizedTable],
+                    'table_detector_cells' => [[
+                        ['bbox' => [5.0, 5.0, 185.0, 56.0], 'text' => null],
+                        ['bbox' => [110.0, 8.0, 180.0, 20.0], 'text' => null],
+                        ['bbox' => [205.0, 5.0, 295.0, 24.0], 'text' => null],
+                        ['bbox' => [5.0, 74.0, 85.0, 136.0], 'text' => null],
+                        ['bbox' => [110.0, 74.0, 180.0, 94.0], 'text' => null],
+                        ['bbox' => [205.0, 74.0, 295.0, 94.0], 'text' => null],
+                        ['bbox' => [110.0, 114.0, 180.0, 134.0], 'text' => null],
+                        ['bbox' => [205.0, 114.0, 295.0, 134.0], 'text' => null],
+                    ]],
+                    'table_ocr_text_lines' => [[
+                        'lines' => [
+                            ['text' => 'Inventory'],
+                            ['text' => 'axis'],
+                            ['text' => 'Status'],
+                            ['text' => 'Media group'],
+                            ['text' => 'Images'],
+                            ['text' => '12'],
+                            ['text' => 'State'],
+                            ['text' => 'Needs review'],
+                        ],
+                    ]],
+                    'table_rendered_image_sizes' => [['width' => 612, 'height' => 792]],
+                    'ocr_all_pages' => true,
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $context = $result['metadata']['table_section_caption_review'][0] ?? [];
+            $accessibility = $context['accessibility'] ?? [];
+            $cellspanGrid = $accessibility['cellspan_header_grid'] ?? [];
+            $gridByPosition = [];
+            foreach (($cellspanGrid['grid_cells'] ?? []) as $gridCell) {
+                $gridByPosition[$gridCell['row_id'] . ':' . $gridCell['col_id']] = $gridCell;
+            }
+            $dataByText = [];
+            foreach (($cellspanGrid['data_cell_headers'] ?? []) as $dataCell) {
+                $dataByText[$dataCell['text']] = $dataCell;
+            }
+
+            $t->contains('## Ocr Captioned Header Grid Import', $result['text']);
+            $t->contains('Table 9: Captioned OCR header-grid review.', $result['text']);
+            $t->contains('Reviewer note after captioned header grid.', $result['text']);
+            $t->true(!str_contains($result['text'], 'Stale captioned header grid table text should be replaced.'));
+            $t->same('table_ocr_header_grid_caption_cellspan', $cellspanGrid['review_target']);
+            $t->same('markerpdf-table-0-caption', $cellspanGrid['caption_id']);
+            $t->same('markerpdf-table-0-section', $cellspanGrid['section_id']);
+            $t->same(true, $cellspanGrid['caption_bound']);
+            $t->same([0, 1, 2, 3], $cellspanGrid['rows']);
+            $t->same([0, 1, 2], $cellspanGrid['cols']);
+            $t->same(['h-r0-c0', 'h-r0-c2', 'h-r2-c0'], $cellspanGrid['header_ids']);
+            $t->same(2, $cellspanGrid['cellspan_count']);
+            $t->same(true, $cellspanGrid['has_rowspan']);
+            $t->same(true, $cellspanGrid['has_colspan']);
+            $t->same('Inventory axis', $cellspanGrid['render_cells'][0]['text']);
+            $t->same([2, 2], [$cellspanGrid['render_cells'][0]['rowspan'], $cellspanGrid['render_cells'][0]['colspan']]);
+            $t->same('h-r0-c0', $cellspanGrid['render_cells'][0]['header_id']);
+            $t->same('colgroup', $cellspanGrid['render_cells'][0]['scope']);
+            $t->same('markerpdf-table-0-caption', $cellspanGrid['render_cells'][0]['caption_id']);
+            $t->same('covered', $gridByPosition['1:1']['state']);
+            $t->same(['row_id' => 0, 'col_id' => 0, 'render_cell_index' => 0], $gridByPosition['1:1']['covered_by']);
+            $t->same('markerpdf-table-0-caption', $gridByPosition['1:1']['caption_id']);
+            $t->same(['h-r0-c0', 'h-r2-c0'], $dataByText['Images']['headers']);
+            $t->same('Inventory axis / Media group', $dataByText['Images']['header_text']);
+            $t->same('markerpdf-table-0-caption', $dataByText['Images']['caption_id']);
+            $t->same(['h-r0-c2', 'h-r2-c0'], $dataByText['Needs review']['headers']);
+        } finally {
+            unlink($path);
+        }
+    },
     'keeps multiline OCR table headers together in WordPress grid review' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-ocr-multiline-header-grid-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% OCR multiline header grid supplied pipeline\n%%EOF");

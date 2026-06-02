@@ -457,6 +457,7 @@ final class SuppliedDocumentConverter
             ? array_values(array_filter($gridReview['render_cells'], static fn (mixed $cell): bool => is_array($cell)))
             : [];
 
+        $cellspanHeaderGrid = $this->cellspanHeaderGridReview($gridReview, $tableIndex, $captionId, $sectionId);
         $rowspanCells = [];
         $colspanCells = [];
         foreach ($renderCells as $renderCell) {
@@ -516,6 +517,7 @@ final class SuppliedDocumentConverter
             'aria_labelledby' => $sectionId === null ? [] : [$sectionId],
             'header_ids' => $this->stringValues(array_map(static fn (array $cell): mixed => $cell['header_id'] ?? null, $headerCells)),
             'data_cell_headers' => $dataCellHeaders,
+            'cellspan_header_grid' => $cellspanHeaderGrid,
             'rowspan_cells' => $rowspanCells,
             'colspan_cells' => $colspanCells,
             'rowspan_cell_count' => count($rowspanCells),
@@ -523,6 +525,166 @@ final class SuppliedDocumentConverter
             'data_cell_count' => count($dataCellHeaders),
             'accessible_caption_bound' => $captionId !== null,
         ];
+    }
+
+    /**
+     * Keep the caption binding adjacent to the tabled span grid so WordPress
+     * importers do not need to rebuild covered cells from Markdown anchors.
+     *
+     * @param array<string, mixed> $gridReview
+     * @return array<string, mixed>
+     */
+    private function cellspanHeaderGridReview(array $gridReview, int $tableIndex, ?string $captionId, ?string $sectionId): array
+    {
+        $accessibilityGrid = isset($gridReview['accessibility_grid']) && is_array($gridReview['accessibility_grid'])
+            ? $gridReview['accessibility_grid']
+            : [];
+        $renderCells = isset($gridReview['render_cells']) && is_array($gridReview['render_cells'])
+            ? array_values(array_filter($gridReview['render_cells'], static fn (mixed $cell): bool => is_array($cell)))
+            : [];
+        $gridCells = isset($gridReview['grid_cells']) && is_array($gridReview['grid_cells'])
+            ? array_values(array_filter($gridReview['grid_cells'], static fn (mixed $cell): bool => is_array($cell)))
+            : [];
+        $dataCells = isset($gridReview['data_cells']) && is_array($gridReview['data_cells'])
+            ? array_values(array_filter($gridReview['data_cells'], static fn (mixed $cell): bool => is_array($cell)))
+            : [];
+
+        $spanCount = 0;
+        $renderCellReviews = [];
+        foreach ($renderCells as $renderIndex => $renderCell) {
+            $rowspan = (int) ($renderCell['rowspan'] ?? 1);
+            $colspan = (int) ($renderCell['colspan'] ?? 1);
+            if ($rowspan > 1 || $colspan > 1) {
+                $spanCount++;
+            }
+
+            $entry = [
+                'render_cell_index' => $renderIndex,
+                'text' => (string) ($renderCell['text'] ?? ''),
+                'row_ids' => $this->integerValues($renderCell['row_ids'] ?? []),
+                'col_ids' => $this->integerValues($renderCell['col_ids'] ?? []),
+                'anchor' => isset($renderCell['anchor']) && is_array($renderCell['anchor']) ? $renderCell['anchor'] : null,
+                'rowspan' => $rowspan,
+                'colspan' => $colspan,
+                'tag' => (string) ($renderCell['tag'] ?? 'td'),
+                'scope' => $renderCell['scope'] ?? null,
+                'header' => ($renderCell['header'] ?? false) === true,
+                'header_id' => isset($renderCell['header_id']) && is_scalar($renderCell['header_id']) ? (string) $renderCell['header_id'] : null,
+                'headers' => $this->stringValues($renderCell['headers'] ?? []),
+                'grid_cells' => $this->gridPositionValues($renderCell['grid_cells'] ?? []),
+                'caption_id' => $captionId,
+            ];
+            foreach (['header_role', 'header_axis', 'header_text', 'column_header_physical_axis', 'row_header_physical_axis'] as $field) {
+                if (isset($renderCell[$field]) && is_scalar($renderCell[$field])) {
+                    $entry[$field] = (string) $renderCell[$field];
+                }
+            }
+            foreach (['header_axes', 'column_header_ids', 'row_header_ids', 'header_texts'] as $field) {
+                if (isset($renderCell[$field])) {
+                    $entry[$field] = $this->stringValues($renderCell[$field]);
+                }
+            }
+            $renderCellReviews[] = $entry;
+        }
+
+        $gridCellReviews = [];
+        foreach ($gridCells as $gridCell) {
+            $entry = [
+                'row_id' => (int) ($gridCell['row_id'] ?? 0),
+                'col_id' => (int) ($gridCell['col_id'] ?? 0),
+                'state' => (string) ($gridCell['state'] ?? 'unknown'),
+                'caption_id' => $captionId,
+            ];
+            foreach (['render_cell_index', 'rowspan', 'colspan'] as $field) {
+                if (isset($gridCell[$field]) && (is_int($gridCell[$field]) || is_float($gridCell[$field]) || is_string($gridCell[$field]))) {
+                    $entry[$field] = (int) $gridCell[$field];
+                }
+            }
+            foreach (['text', 'tag', 'scope', 'header_role', 'header_axis', 'header_id', 'header_text'] as $field) {
+                if (isset($gridCell[$field]) && is_scalar($gridCell[$field])) {
+                    $entry[$field] = (string) $gridCell[$field];
+                }
+            }
+            foreach (['header_axes', 'headers', 'column_header_ids', 'row_header_ids', 'header_texts'] as $field) {
+                if (isset($gridCell[$field])) {
+                    $entry[$field] = $this->stringValues($gridCell[$field]);
+                }
+            }
+            if (isset($gridCell['covered_by']) && is_array($gridCell['covered_by'])) {
+                $entry['covered_by'] = [
+                    'row_id' => (int) ($gridCell['covered_by']['row_id'] ?? 0),
+                    'col_id' => (int) ($gridCell['covered_by']['col_id'] ?? 0),
+                    'render_cell_index' => (int) ($gridCell['covered_by']['render_cell_index'] ?? 0),
+                ];
+            }
+            $gridCellReviews[] = $entry;
+        }
+
+        $dataCellHeaders = [];
+        foreach ($dataCells as $dataCell) {
+            $dataCellHeaders[] = [
+                'render_cell_index' => (int) ($dataCell['render_cell_index'] ?? 0),
+                'text' => (string) ($dataCell['text'] ?? ''),
+                'row_ids' => $this->integerValues($dataCell['row_ids'] ?? []),
+                'col_ids' => $this->integerValues($dataCell['col_ids'] ?? []),
+                'anchor' => isset($dataCell['anchor']) && is_array($dataCell['anchor']) ? $dataCell['anchor'] : null,
+                'headers' => $this->stringValues($dataCell['headers'] ?? []),
+                'column_header_ids' => $this->stringValues($dataCell['column_header_ids'] ?? []),
+                'row_header_ids' => $this->stringValues($dataCell['row_header_ids'] ?? []),
+                'header_texts' => $this->stringValues($dataCell['header_texts'] ?? []),
+                'header_text' => (string) ($dataCell['header_text'] ?? ''),
+                'caption_id' => $captionId,
+            ];
+        }
+
+        return [
+            'review_target' => 'table_ocr_header_grid_caption_cellspan',
+            'table_index' => $tableIndex,
+            'caption_id' => $captionId,
+            'section_id' => $sectionId,
+            'caption_bound' => $captionId !== null,
+            'rows' => $this->integerValues($gridReview['rows'] ?? []),
+            'cols' => $this->integerValues($gridReview['cols'] ?? []),
+            'orientation' => (string) ($gridReview['orientation'] ?? 'normal'),
+            'row_axis' => (string) ($gridReview['row_axis'] ?? 'y'),
+            'col_axis' => (string) ($gridReview['col_axis'] ?? 'x'),
+            'header_ids' => $this->stringValues($accessibilityGrid['header_ids'] ?? []),
+            'column_header_grid' => isset($accessibilityGrid['column_header_grid']) && is_array($accessibilityGrid['column_header_grid'])
+                ? $accessibilityGrid['column_header_grid']
+                : [],
+            'row_header_grid' => isset($accessibilityGrid['row_header_grid']) && is_array($accessibilityGrid['row_header_grid'])
+                ? $accessibilityGrid['row_header_grid']
+                : [],
+            'render_cells' => $renderCellReviews,
+            'grid_cells' => $gridCellReviews,
+            'data_cell_headers' => $dataCellHeaders,
+            'cellspan_count' => $spanCount,
+            'has_rowspan' => count(array_filter($renderCellReviews, static fn (array $cell): bool => (int) ($cell['rowspan'] ?? 1) > 1)) > 0,
+            'has_colspan' => count(array_filter($renderCellReviews, static fn (array $cell): bool => (int) ($cell['colspan'] ?? 1) > 1)) > 0,
+        ];
+    }
+
+    /**
+     * @return list<array{row_id: int, col_id: int}>
+     */
+    private function gridPositionValues(mixed $values): array
+    {
+        if (!is_array($values)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($values as $value) {
+            if (!is_array($value)) {
+                continue;
+            }
+            $out[] = [
+                'row_id' => (int) ($value['row_id'] ?? 0),
+                'col_id' => (int) ($value['col_id'] ?? 0),
+            ];
+        }
+
+        return $out;
     }
 
     /**
