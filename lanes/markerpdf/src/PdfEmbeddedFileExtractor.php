@@ -7,7 +7,7 @@ namespace PortLibs\MarkerPDF;
 final class PdfEmbeddedFileExtractor
 {
     /**
-     * Native boundary for catalog /Names /EmbeddedFiles attachment lookup.
+     * Native boundary for catalog /Names /EmbeddedFiles and /AF attachment lookup.
      *
      * @return list<array<string, mixed>>
      */
@@ -19,18 +19,16 @@ final class PdfEmbeddedFileExtractor
             return [];
         }
 
-        $names = $this->resolveDictionaryFromValue($this->dictionaryRawValue($catalog, 'Names'), $objects);
-        if ($names === null) {
-            return [];
-        }
-
-        $embeddedFiles = $this->resolveDictionaryFromValue($this->dictionaryRawValue($names['body'], 'EmbeddedFiles'), $objects);
-        if ($embeddedFiles === null) {
-            return [];
-        }
-
         $files = [];
-        $this->collectNameTreeFiles($embeddedFiles['body'], $objects, $files);
+        $names = $this->resolveDictionaryFromValue($this->dictionaryRawValue($catalog, 'Names'), $objects);
+        if ($names !== null) {
+            $embeddedFiles = $this->resolveDictionaryFromValue($this->dictionaryRawValue($names['body'], 'EmbeddedFiles'), $objects);
+            if ($embeddedFiles !== null) {
+                $this->collectNameTreeFiles($embeddedFiles['body'], $objects, $files);
+            }
+        }
+
+        $this->collectAssociatedFiles($this->dictionaryRawValue($catalog, 'AF'), $objects, $files);
 
         return $this->dedupeEmbeddedFiles($files);
     }
@@ -81,9 +79,31 @@ final class PdfEmbeddedFileExtractor
 
     /**
      * @param array<int, string> $objects
+     * @param list<array<string, mixed>> $files
+     */
+    private function collectAssociatedFiles(?string $arrayValue, array $objects, array &$files): void
+    {
+        if ($arrayValue === null) {
+            return;
+        }
+
+        foreach ($this->arrayItemsFromValue($arrayValue, $objects) as $index => $fileSpecValue) {
+            $file = $this->embeddedFileFromFileSpecValue($fileSpecValue, null, $objects, 'catalog_associated_files');
+            if ($file === null) {
+                continue;
+            }
+
+            $file['associated_file'] = true;
+            $file['associated_file_index'] = $index;
+            $files[] = $file;
+        }
+    }
+
+    /**
+     * @param array<int, string> $objects
      * @return array<string, mixed>|null
      */
-    private function embeddedFileFromFileSpecValue(string $value, string $name, array $objects, string $source): ?array
+    private function embeddedFileFromFileSpecValue(string $value, ?string $name, array $objects, string $source): ?array
     {
         $fileSpec = $this->resolveDictionaryFromValue($value, $objects);
         if ($fileSpec === null) {
@@ -99,7 +119,9 @@ final class PdfEmbeddedFileExtractor
         $unicodeFilename = $this->dictionaryStringValue($body, 'UF', $objects);
         $filename = $unicodeFilename
             ?? $this->firstDictionaryString($body, ['F', 'DOS', 'Unix', 'Mac'], $objects)
-            ?? $name;
+            ?? $name
+            ?? 'embedded-file';
+        $attachmentName = ($name !== null && $name !== '') ? $name : $filename;
 
         foreach ($this->embeddedFileKeys($unicodeFilename !== null) as $efKey) {
             $streamValue = $this->dictionaryRawValue($ef['body'], $efKey);
@@ -114,7 +136,7 @@ final class PdfEmbeddedFileExtractor
 
             $file = [
                 'source' => $source,
-                'name' => $name,
+                'name' => $attachmentName,
                 'filename' => $filename,
                 'content' => $stream['content'],
                 'size' => strlen($stream['content']),

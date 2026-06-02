@@ -823,6 +823,43 @@ return [
         $t->same($expected, $extractor->extractPlainText($pdf));
         $t->same([$expected], $extractor->extractTextRuns($pdf));
     },
+    'uses Base14 simple font metrics before same-line Tm gap decisions' => static function (TestRunner $t): void {
+        $helveticaContent = 'BT /Fhelv 12 Tf 1 0 0 1 72 720 Tm (Ill) Tj 1 0 0 1 93 720 Tm (Word) Tj ET '
+            . 'BT /Fhelv 12 Tf 1 0 0 1 72 704 Tm (WWW) Tj 1 0 0 1 104 704 Tm (Import) Tj ET';
+        $timesContent = 'BT /Ftimes 12 Tf 1 0 0 1 72 688 Tm (iii) Tj 1 0 0 1 95 688 Tm (Word) Tj ET';
+        $courierContent = 'BT /Fcourier 12 Tf 1 0 0 1 72 672 Tm (Courier) Tj 1 0 0 1 126 672 Tm (Text) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fhelv 2 0 R /Ftimes 5 0 R /Fcourier 8 0 R >> >> /Contents [3 0 R 6 0 R 9 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($helveticaContent) . " >>\nstream\n{$helveticaContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman >>\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($timesContent) . " >>\nstream\n{$timesContent}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Courier-BoldOblique >>\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($courierContent) . " >>\nstream\n{$courierContent}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Ill Word', 'WWWImport', 'iii Word', 'CourierText'], $extractor->extractTextLines($pdf));
+        $t->same("Ill Word\nWWWImport\niii Word\nCourierText", $plainText);
+        $t->true(!str_contains($plainText, 'IllWord'));
+        $t->true(!str_contains($plainText, 'WWW Import'));
+        $t->true(!str_contains($plainText, 'Courier Text'));
+    },
+    'uses explicit simple font widths before Base14 fallback metrics' => static function (TestRunner $t): void {
+        $directContent = 'BT /Fdirect 12 Tf 1 0 0 1 72 720 Tm (AA) Tj 1 0 0 1 98 720 Tm (BB) Tj ET';
+        $indirectContent = 'BT /Findirect 12 Tf 1 0 0 1 72 704 Tm (CC) Tj 1 0 0 1 98 704 Tm (DD) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fdirect 2 0 R /Findirect 5 0 R >> >> /Contents [3 0 R 6 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /CustomDirect /FirstChar 65 /Widths [1000 200] >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($directContent) . " >>\nstream\n{$directContent}\nendstream\nendobj\n"
+            . "4 0 obj\n[1000 200]\nendobj\n"
+            . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /CustomIndirect /FirstChar 67 /Widths 4 0 R >>\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($indirectContent) . " >>\nstream\n{$indirectContent}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+
+        $t->same(['AABB', 'CCDD'], $extractor->extractTextLines($pdf));
+        $t->same("AABB\nCCDD", $extractor->extractPlainText($pdf));
+    },
     'uses Identity-H and Identity-V font CMap widths before WordPress fallback text extraction' => static function (TestRunner $t): void {
         $content = 'BT /Fcid 12 Tf 72 720 Td <0057005000200049006D0070006F00720074> Tj T* [<0042006C006F0063006B0073> -120 <0021>] TJ ET';
         $pdf = "%PDF-1.4\n"

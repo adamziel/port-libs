@@ -8,6 +8,46 @@ final class PdfTextExtractor
 {
     private const POSITIONED_TEXT_WORD_GAP = 12.0;
     private const SIMPLE_TEXT_ADVANCE_RATIO = 0.5;
+    private const BASE14_FONT_WIDTH_ALIASES = [
+        'Courier' => 'Courier',
+        'Courier-Bold' => 'Courier',
+        'Courier-Oblique' => 'Courier',
+        'Courier-BoldOblique' => 'Courier',
+        'NimbusMonoPS-Regular' => 'Courier',
+        'NimbusMonoPS-Bold' => 'Courier',
+        'NimbusMonoPS-Italic' => 'Courier',
+        'NimbusMonoPS-BoldItalic' => 'Courier',
+        'Helvetica' => 'Helvetica',
+        'Helvetica-Oblique' => 'Helvetica',
+        'NimbusSans-Regular' => 'Helvetica',
+        'NimbusSans-Italic' => 'Helvetica',
+        'Helvetica-Bold' => 'Helvetica-Bold',
+        'Helvetica-BoldOblique' => 'Helvetica-Bold',
+        'NimbusSans-Bold' => 'Helvetica-Bold',
+        'NimbusSans-BoldItalic' => 'Helvetica-Bold',
+        'Times-Roman' => 'Times-Roman',
+        'NimbusRoman-Regular' => 'Times-Roman',
+        'Times-Bold' => 'Times-Bold',
+        'NimbusRoman-Bold' => 'Times-Bold',
+        'Times-Italic' => 'Times-Italic',
+        'NimbusRoman-Italic' => 'Times-Italic',
+        'Times-BoldItalic' => 'Times-BoldItalic',
+        'NimbusRoman-BoldItalic' => 'Times-BoldItalic',
+        'Symbol' => 'Symbol',
+        'StandardSymbolsPS' => 'Symbol',
+        'ZapfDingbats' => 'ZapfDingbats',
+        'D050000L' => 'ZapfDingbats',
+    ];
+    private const BASE14_ASCII_WIDTHS = [
+        'Helvetica' => '278 278 355 556 556 889 667 222 333 333 389 584 278 333 278 278 556 556 556 556 556 556 556 556 556 556 278 278 584 584 584 556 1015 667 667 722 722 667 611 778 722 278 500 667 556 833 722 778 667 778 722 667 611 722 667 944 667 667 611 278 278 278 469 556 222 556 556 500 556 556 278 556 556 222 222 500 222 833 556 556 556 556 333 500 278 556 500 722 500 500 500 334 260 334 584',
+        'Helvetica-Bold' => '278 333 474 556 556 889 722 278 333 333 389 584 278 333 278 278 556 556 556 556 556 556 556 556 556 556 333 333 584 584 584 611 975 722 722 722 722 667 611 778 722 278 556 722 611 833 722 778 667 778 722 667 611 722 667 944 667 667 611 333 278 333 584 556 278 556 611 556 611 556 333 611 611 278 278 556 278 889 611 611 611 611 389 556 333 611 556 778 556 556 500 389 280 389 584',
+        'Times-Roman' => '250 333 408 500 500 833 778 333 333 333 500 564 250 333 250 278 500 500 500 500 500 500 500 500 500 500 278 278 564 564 564 444 921 722 667 667 722 611 556 722 722 333 389 722 611 889 722 722 556 722 667 556 611 722 722 944 722 722 611 333 278 333 469 500 333 444 500 444 500 444 333 500 500 278 278 500 278 778 500 500 500 500 333 389 278 500 500 722 500 500 444 480 200 480 541',
+        'Times-Bold' => '250 333 555 500 500 1000 833 333 333 333 500 570 250 333 250 278 500 500 500 500 500 500 500 500 500 500 333 333 570 570 570 500 930 722 667 722 722 667 611 778 778 389 500 778 667 944 722 778 611 778 722 556 667 722 722 1000 722 722 667 333 278 333 581 500 333 500 556 444 556 444 333 500 556 278 333 556 278 833 556 500 556 556 444 389 333 556 500 722 500 500 444 394 220 394 520',
+        'Times-Italic' => '250 333 420 500 500 833 778 333 333 333 500 675 250 333 250 278 500 500 500 500 500 500 500 500 500 500 333 333 675 675 675 500 920 611 611 667 722 611 611 722 722 333 444 667 556 833 667 722 611 722 611 500 556 722 611 833 611 556 556 389 278 389 422 500 333 500 500 444 500 444 278 500 500 278 278 444 278 722 500 500 500 500 389 389 278 500 444 667 444 444 389 400 275 400 541',
+        'Times-BoldItalic' => '250 389 555 500 500 833 778 333 333 333 500 570 250 333 250 278 500 500 500 500 500 500 500 500 500 500 333 333 570 570 570 500 832 667 667 667 722 667 667 722 778 389 500 667 611 889 722 722 611 722 667 556 611 722 667 889 667 611 611 333 278 333 570 500 333 500 500 444 500 444 333 500 556 278 278 500 278 778 556 500 500 500 389 389 278 556 444 667 500 444 389 348 220 348 570',
+        'Symbol' => '250 333 713 500 549 833 778 439 333 333 500 549 250 549 250 278 500 500 500 500 500 500 500 500 500 500 278 278 549 549 549 444 549 722 667 722 612 611 763 603 722 333 631 722 686 889 722 722 768 741 556 592 611 690 439 768 645 795 611 333 863 333 658 500 500 631 549 549 494 439 521 411 603 329 603 549 549 576 521 549 549 521 549 603 439 576 713 686 493 686 494 480 200 480 549',
+        'ZapfDingbats' => '278 974 961 974 980 719 789 790 791 690 960 939 549 855 911 933 911 945 974 755 846 762 761 571 677 763 760 759 754 494 552 537 577 692 786 788 788 790 793 794 816 823 789 841 823 833 816 831 923 744 723 749 790 792 695 776 768 792 759 707 708 682 701 826 815 789 789 707 687 696 689 786 787 713 791 785 791 873 761 762 762 759 759 892 892 788 784 438 138 277 415 392 392 668 668',
+    ];
 
     /**
      * @return list<string>
@@ -3119,6 +3159,15 @@ final class PdfTextExtractor
                 $cmap = $encodingFallback;
             }
 
+            if ($cmap === null && $widthMetrics['widths'] !== [] && $this->isSimpleFontBody($body)) {
+                $cmap = [
+                    'map' => [],
+                    'codeSpaceRanges' => [
+                        ['start' => 0, 'end' => 255, 'width' => 2],
+                    ],
+                ];
+            }
+
             if ($cmap !== null && ($cmap['map'] !== [] || $cmap['codeSpaceRanges'] !== [])) {
                 $cmap = $this->withFontWidthMetrics($cmap, $widthMetrics, $this->fontWritingMode($body, $cmap));
                 $fontObjectMaps[$objectNumber] = $cmap;
@@ -3318,6 +3367,10 @@ final class PdfTextExtractor
         }
 
         foreach ([$fontBody, ...$this->descendantFontBodies($fontBody, $objects)] as $body) {
+            foreach ($this->simpleFontWidthMetrics($body, $objects) as $code => $width) {
+                $widths[$code] = $width;
+            }
+
             $widthArray = $this->pdfArrayValueAfterName($body, 'W');
             if ($widthArray !== null) {
                 $hasWidthArray = true;
@@ -3537,6 +3590,105 @@ final class PdfTextExtractor
         }
 
         return $bodies;
+    }
+
+    /**
+     * @return array<int, float>
+     * @param array<int, string> $objects
+     */
+    private function simpleFontWidthMetrics(string $fontBody, array $objects): array
+    {
+        if (!$this->isSimpleFontBody($fontBody)) {
+            return [];
+        }
+
+        $explicitWidths = $this->simpleFontExplicitWidths($fontBody, $objects);
+        if ($explicitWidths !== []) {
+            return $explicitWidths;
+        }
+
+        return $this->base14FontWidthMetrics($fontBody);
+    }
+
+    private function isSimpleFontBody(string $fontBody): bool
+    {
+        if (preg_match('/\/Subtype\s*\/(?:Type0|CIDFontType[02])\b/s', $fontBody) === 1) {
+            return false;
+        }
+
+        if (preg_match('/\/Subtype\s*\/(?:Type1|MMType1|TrueType|Type3)\b/s', $fontBody) === 1) {
+            return true;
+        }
+
+        return $this->pdfNameValueAfterName($fontBody, 'BaseFont') !== null
+            && $this->pdfArrayValueAfterName($fontBody, 'DescendantFonts') === null;
+    }
+
+    /**
+     * @return array<int, float>
+     * @param array<int, string> $objects
+     */
+    private function simpleFontExplicitWidths(string $fontBody, array $objects): array
+    {
+        $firstChar = $this->pdfNumberValueAfterName($fontBody, 'FirstChar');
+        if ($firstChar === null) {
+            return [];
+        }
+
+        $widthArray = $this->pdfArrayValueAfterNameResolvingObjects($fontBody, 'Widths', $objects);
+        if ($widthArray === null) {
+            return [];
+        }
+
+        $widths = [];
+        foreach ($this->numbersFromPdfArray($widthArray) as $offset => $width) {
+            $code = (int) $firstChar + $offset;
+            if ($code >= 0 && $code <= 255) {
+                $widths[$code] = $width;
+            }
+        }
+
+        return $widths;
+    }
+
+    /**
+     * @return array<int, float>
+     */
+    private function base14FontWidthMetrics(string $fontBody): array
+    {
+        $baseFont = $this->pdfNameValueAfterName($fontBody, 'BaseFont');
+        if ($baseFont === null || $baseFont === '') {
+            return [];
+        }
+
+        if (preg_match('/^[A-Z]{6}\+(.+)$/', $baseFont, $match) === 1) {
+            $baseFont = $match[1];
+        }
+
+        $metricName = self::BASE14_FONT_WIDTH_ALIASES[$baseFont] ?? null;
+        if ($metricName === null) {
+            return [];
+        }
+
+        if ($metricName === 'Courier') {
+            return array_fill_keys(range(32, 126), 600.0);
+        }
+
+        $widthString = self::BASE14_ASCII_WIDTHS[$metricName] ?? null;
+        if ($widthString === null) {
+            return [];
+        }
+
+        $widths = [];
+        foreach (explode(' ', $widthString) as $offset => $width) {
+            $code = 32 + $offset;
+            if ($code > 126) {
+                break;
+            }
+            $widths[$code] = (float) $width;
+        }
+
+        return $widths;
     }
 
     /**
@@ -3879,6 +4031,24 @@ final class PdfTextExtractor
         }
 
         return $this->readPdfArrayAt($body, $offset);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pdfArrayValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?string
+    {
+        $direct = $this->pdfArrayValueAfterName($body, $name);
+        if ($direct !== null) {
+            return $direct;
+        }
+
+        $objectNumber = $this->objectReferenceValueAfterName($body, $name);
+        if ($objectNumber === null || !isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        return $this->pdfArrayAtStart(trim($objects[$objectNumber]));
     }
 
     private function pdfNumberValueAfterName(string $body, string $name): ?float

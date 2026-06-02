@@ -110,6 +110,48 @@ return [
         $t->same($payload, $files[0]['content']);
         $t->same('', $text);
     },
+    'extracts catalog associated Filespec entries with AFRelationship review metadata' => static function (TestRunner $t): void {
+        $sourceXml = '<wp-export><post id="7"/></wp-export>';
+        $previewText = 'Rendered preview notes';
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AF [10 0 R << /Type /Filespec /UF (preview.pdf) /Desc (Rendered preview) /AFRelationship /Alternative /EF << /UF 15 0 R >> >> 99 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (source.xml) /Desc (Original WordPress export) /AFRelationship /Source /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourceXml) . " >> /Length " . strlen($sourceXml) . " >>\nstream\n{$sourceXml}\nendstream\nendobj\n"
+            . "15 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fpdf /Length " . strlen($previewText) . " >>\nstream\n{$previewText}\nendstream\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+
+        $t->same(2, count($files));
+
+        $sourceFile = $files[0];
+        $t->same('catalog_associated_files', $sourceFile['source']);
+        $t->same(true, $sourceFile['associated_file']);
+        $t->same(0, $sourceFile['associated_file_index']);
+        $t->same('source.xml', $sourceFile['name']);
+        $t->same('source.xml', $sourceFile['filename']);
+        $t->same('Source', $sourceFile['relationship']);
+        $t->same('Original WordPress export', $sourceFile['description']);
+        $t->same('text/xml', $sourceFile['mime_type']);
+        $t->same(10, $sourceFile['file_spec_object']);
+        $t->same(11, $sourceFile['embedded_file_object']);
+        $t->same(strlen($sourceXml), $sourceFile['declared_size']);
+        $t->same($sourceXml, $sourceFile['content']);
+
+        $previewFile = $files[1];
+        $t->same('catalog_associated_files', $previewFile['source']);
+        $t->same(true, $previewFile['associated_file']);
+        $t->same(1, $previewFile['associated_file_index']);
+        $t->same('preview.pdf', $previewFile['name']);
+        $t->same('preview.pdf', $previewFile['filename']);
+        $t->same('Alternative', $previewFile['relationship']);
+        $t->same('Rendered preview', $previewFile['description']);
+        $t->same('application/pdf', $previewFile['mime_type']);
+        $t->same(null, $previewFile['file_spec_object']);
+        $t->same(15, $previewFile['embedded_file_object']);
+        $t->same($previewText, $previewFile['content']);
+    },
     'returns no attachment review rows when catalog EmbeddedFiles is absent' => static function (TestRunner $t): void {
         $t->same([], (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles('%PDF-1.4 no catalog'));
         $t->same([], (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles("%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n%%EOF"));
