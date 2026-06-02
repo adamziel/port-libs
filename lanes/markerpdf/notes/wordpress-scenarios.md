@@ -372,6 +372,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-signature-dss-currentbase.php` maps catalog `/DSS` long-term-validation material into a WordPress security-review path. It exposes Cert/OCSP/CRL/VRI/timestamp-token counts and hashes while importing visible signed text natively, suppressing raw validation/signature bytes, and avoiding signature validation, revocation checks, trust-chain validation, signing, Python, models, or external PDF tools.
 
+`examples/wordpress-pdf-cidfont-indirect-w2-vertical-import.php` maps indirect CIDFont `/DW2` and `/W2` vertical metrics into a WordPress paragraph import path. It resolves the metric arrays before writing-mode 1 text advance grouping, emitting `VertImport` and `DataFlow` without inserting false spaces and without loading Python, pdftext, pypdfium, Poppler, Ghostscript, models, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

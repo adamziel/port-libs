@@ -5361,7 +5361,7 @@ final class PdfTextExtractor
                 $defaultWidth = $bodyDefaultWidth;
             }
 
-            $verticalWidthArray = $this->pdfArrayValueAfterName($body, 'W2');
+            $verticalWidthArray = $this->pdfArrayValueAfterNameResolvingObjects($body, 'W2', $objects);
             if ($verticalWidthArray !== null) {
                 $hasVerticalWidthArray = true;
                 foreach ($this->cidVerticalDisplacementsFromW2Array($verticalWidthArray) as $cid => $displacement) {
@@ -5369,7 +5369,7 @@ final class PdfTextExtractor
                 }
             }
 
-            $verticalDefaultMetrics = $this->pdfArrayValueAfterName($body, 'DW2');
+            $verticalDefaultMetrics = $this->pdfArrayValueAfterNameResolvingObjects($body, 'DW2', $objects);
             if ($verticalDefaultMetrics !== null) {
                 $metrics = $this->numbersFromPdfArray($verticalDefaultMetrics);
                 if (count($metrics) >= 2) {
