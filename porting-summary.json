@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 11:06:32 UTC",
-    "sourceCommit": "b832f331ff1dff3df15dc27d930c86fc73590232",
-    "sourceCommitShort": "b832f331ff1d",
+    "generated": "2026-06-02 11:13:38 UTC",
+    "sourceCommit": "6748d15512a8ac4eda74db558a1882342fe20fc1",
+    "sourceCommitShort": "6748d15512a8",
     "sourceBranch": "unknown",
-    "dashboardCommit": "b832f331ff1dff3df15dc27d930c86fc73590232",
-    "dashboardCommitShort": "b832f331ff1d",
+    "dashboardCommit": "6748d15512a8ac4eda74db558a1882342fe20fc1",
+    "dashboardCommitShort": "6748d15512a8",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "328",
-            "coverage": "328 / 78 (420.5%)",
-            "mapPercent": "420.5%",
+            "mapped": "329",
+            "coverage": "329 / 78 (421.8%)",
+            "mapPercent": "421.8%",
             "unmapped": "0",
-            "php": "478 pass / 0 fail",
+            "php": "480 pass / 0 fail",
             "phase": "focused source integration accepted; full upstream runner parity rema...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "AcroForm widget appearances are now review metadata while field values and actions re...",
+            "currentWork": "Supplied OCR prediction table unwrapping is integrated and fully green; continue mark...",
             "nextTarget": "Keep markerPDF/PDF saturated with bounded parser, xref/object...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "b832f33"
+            "commit": "6748d15"
         },
         {
             "lane": "readability",
