@@ -397,6 +397,7 @@ final class PdfTextExtractor
     private function pageContentStreamsWithFontMaps(array $objects, array $pageObjectNumbers, array $fontObjectMaps): array
     {
         $pages = [];
+        $articleBeadsByPage = $this->articleThreadBeadsByPage($objects);
         $structureMcidOrderByPage = $this->structureTreeMcidOrderByPage($objects);
         $optionalContentStates = $this->optionalContentVisibilityStates($objects);
         foreach ($pageObjectNumbers as $pageObjectNumber) {
@@ -445,6 +446,11 @@ final class PdfTextExtractor
                 $expanded['fontToUnicodeMaps'] = $expandedForms['fontToUnicodeMaps'];
             }
 
+            $expanded['stream'] = $this->applyArticleThreadReadingOrder(
+                $expanded['stream'],
+                $articleBeadsByPage[$pageObjectNumber] ?? []
+            );
+
             $expanded['stream'] = $this->applyStructureTreeReadingOrder(
                 $expanded['stream'],
                 $objects[$pageObjectNumber],
@@ -477,6 +483,307 @@ final class PdfTextExtractor
         }
 
         return $pages;
+    }
+
+    /**
+     * Native boundary for PDF catalog /Threads article bead reading order.
+     *
+     * @return array<int, list<array{thread: int, bead: int, rect: list<float>}>>
+     * @param array<int, string> $objects
+     */
+    private function articleThreadBeadsByPage(array $objects): array
+    {
+        $catalog = $this->catalogObjectBody($objects);
+        if ($catalog === null) {
+            return [];
+        }
+
+        $threadsValue = $this->pdfValueAfterName($catalog, 'Threads');
+        if ($threadsValue === null) {
+            return [];
+        }
+
+        $threads = $this->pdfArrayFromValue($threadsValue, $objects);
+        if ($threads === null) {
+            return [];
+        }
+
+        $beadsByPage = [];
+        foreach ($this->pdfArrayItems($threads) as $threadIndex => $threadValue) {
+            $threadDictionary = $this->pdfDictionaryFromValue($threadValue, $objects);
+            if ($threadDictionary === null) {
+                continue;
+            }
+
+            $firstBeadObjectNumber = $this->objectReferenceValueAfterName($threadDictionary, 'F');
+            if ($firstBeadObjectNumber === null) {
+                continue;
+            }
+
+            $beadObjectNumber = $firstBeadObjectNumber;
+            $seenBeads = [];
+            while (isset($objects[$beadObjectNumber]) && !isset($seenBeads[$beadObjectNumber])) {
+                $seenBeads[$beadObjectNumber] = true;
+                $beadDictionary = $this->dictionaryObjectBody($objects[$beadObjectNumber]);
+                if ($beadDictionary === null) {
+                    break;
+                }
+
+                $pageObjectNumber = $this->objectReferenceValueAfterName($beadDictionary, 'P');
+                $rectangle = $this->articleBeadRectangle($beadDictionary);
+                if ($pageObjectNumber !== null && $rectangle !== null) {
+                    $beadsByPage[$pageObjectNumber][] = [
+                        'thread' => (int) $threadIndex,
+                        'bead' => $beadObjectNumber,
+                        'rect' => $rectangle,
+                    ];
+                }
+
+                $nextBeadObjectNumber = $this->objectReferenceValueAfterName($beadDictionary, 'N');
+                if ($nextBeadObjectNumber === null || $nextBeadObjectNumber === $firstBeadObjectNumber) {
+                    break;
+                }
+
+                $beadObjectNumber = $nextBeadObjectNumber;
+            }
+        }
+
+        return $beadsByPage;
+    }
+
+    /**
+     * @return list<float>|null
+     */
+    private function articleBeadRectangle(string $beadDictionary): ?array
+    {
+        $rectangle = $this->pdfArrayValueAfterName($beadDictionary, 'R');
+        if ($rectangle === null) {
+            return null;
+        }
+
+        $numbers = $this->numbersFromPdfArray($rectangle);
+        if (count($numbers) < 4) {
+            return null;
+        }
+
+        $left = min($numbers[0], $numbers[2]);
+        $right = max($numbers[0], $numbers[2]);
+        $bottom = min($numbers[1], $numbers[3]);
+        $top = max($numbers[1], $numbers[3]);
+        if ($right <= $left || $top <= $bottom) {
+            return null;
+        }
+
+        return [$left, $bottom, $right, $top];
+    }
+
+    /**
+     * @param list<array{thread: int, bead: int, rect: list<float>}> $beads
+     */
+    private function applyArticleThreadReadingOrder(string $stream, array $beads): string
+    {
+        if ($beads === [] || trim($stream) === '') {
+            return $stream;
+        }
+
+        $segments = $this->positionedTextSegments($stream);
+        if ($segments === []) {
+            return $stream;
+        }
+
+        $ordered = [];
+        $selected = [];
+        foreach ($beads as $bead) {
+            foreach ($segments as $index => $segment) {
+                if (isset($selected[$index]) || !$this->positionedTextSegmentInsideRectangle($segment, $bead['rect'])) {
+                    continue;
+                }
+
+                $ordered[] = $this->contentStreamForPositionedTextSegment($segment);
+                $selected[$index] = true;
+            }
+        }
+
+        if ($ordered === []) {
+            return $stream;
+        }
+
+        foreach ($segments as $index => $segment) {
+            if (!isset($selected[$index])) {
+                $ordered[] = $this->contentStreamForPositionedTextSegment($segment);
+            }
+        }
+
+        return implode("\n", $ordered);
+    }
+
+    /**
+     * @return list<array{x: float|null, y: float|null, tokens: list<string>}>
+     */
+    private function positionedTextSegments(string $stream): array
+    {
+        $segments = [];
+        $operands = [];
+        $currentFontToken = null;
+        $currentFontSizeToken = null;
+        $currentTextLeading = null;
+        $currentTextX = null;
+        $currentTextY = null;
+        $textStateStack = [];
+
+        foreach ($this->contentTokens($stream) as $token) {
+            if ($this->isTextShowingOperator($token)) {
+                if ($token === "'" || $token === '"') {
+                    $currentTextY = $this->advanceTextYByLeading($currentTextY, $currentTextLeading);
+                }
+
+                $operand = $this->textShowingOperand($token, $operands);
+                if ($operand !== null) {
+                    $segmentTokens = [];
+                    if ($currentFontToken !== null) {
+                        $segmentTokens[] = $currentFontToken;
+                        $segmentTokens[] = $currentFontSizeToken ?? '12';
+                        $segmentTokens[] = 'Tf';
+                    }
+                    if ($currentTextX !== null && $currentTextY !== null) {
+                        array_push(
+                            $segmentTokens,
+                            '1',
+                            '0',
+                            '0',
+                            '1',
+                            $this->formatPdfNumber($currentTextX),
+                            $this->formatPdfNumber($currentTextY),
+                            'Tm'
+                        );
+                    }
+
+                    $segmentTokens[] = $operand;
+                    $segmentTokens[] = $token === 'TJ' ? 'TJ' : 'Tj';
+                    $segments[] = [
+                        'x' => $currentTextX,
+                        'y' => $currentTextY,
+                        'tokens' => $segmentTokens,
+                    ];
+                }
+
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'q') {
+                $textStateStack[] = [
+                    'fontToken' => $currentFontToken,
+                    'fontSizeToken' => $currentFontSizeToken,
+                    'textLeading' => $currentTextLeading,
+                ];
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Q') {
+                $state = array_pop($textStateStack);
+                if (is_array($state)) {
+                    $currentFontToken = $state['fontToken'];
+                    $currentFontSizeToken = $state['fontSizeToken'];
+                    $currentTextLeading = $state['textLeading'];
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tf') {
+                if (count($operands) >= 2 && str_starts_with($operands[count($operands) - 2], '/')) {
+                    $currentFontToken = $operands[count($operands) - 2];
+                    $fontSize = $this->fontSizeOperand($operands);
+                    $currentFontSizeToken = $fontSize === null
+                        ? $operands[count($operands) - 1]
+                        : $this->formatPdfNumber($fontSize);
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'TL') {
+                $currentTextLeading = $this->textLeadingOperand($operands) ?? $currentTextLeading;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Td' || $token === 'TD') {
+                if ($token === 'TD') {
+                    $moveY = $this->textMoveOperandY($operands);
+                    if ($moveY !== null) {
+                        $currentTextLeading = -$moveY;
+                    }
+                }
+                $currentTextX = $this->textMoveX($operands, $currentTextX);
+                $currentTextY = $this->textMoveY($operands, $currentTextY);
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tm') {
+                $currentTextX = $this->textMatrixX($operands);
+                $currentTextY = $this->textMatrixY($operands);
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'T*') {
+                $currentTextY = $this->advanceTextYByLeading($currentTextY, $currentTextLeading);
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BT') {
+                $currentTextX = null;
+                $currentTextY = null;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'ET') {
+                $currentTextX = null;
+                $currentTextY = null;
+                $operands = [];
+                continue;
+            }
+
+            if ($this->isOperator($token)) {
+                $operands = [];
+                continue;
+            }
+
+            $operands[] = $token;
+        }
+
+        return $segments;
+    }
+
+    /**
+     * @param array{x: float|null, y: float|null, tokens: list<string>} $segment
+     * @param list<float> $rectangle
+     */
+    private function positionedTextSegmentInsideRectangle(array $segment, array $rectangle): bool
+    {
+        if ($segment['x'] === null || $segment['y'] === null || count($rectangle) < 4) {
+            return false;
+        }
+
+        $tolerance = 0.5;
+        return $segment['x'] >= $rectangle[0] - $tolerance
+            && $segment['x'] <= $rectangle[2] + $tolerance
+            && $segment['y'] >= $rectangle[1] - $tolerance
+            && $segment['y'] <= $rectangle[3] + $tolerance;
+    }
+
+    /**
+     * @param array{x: float|null, y: float|null, tokens: list<string>} $segment
+     */
+    private function contentStreamForPositionedTextSegment(array $segment): string
+    {
+        return 'BT ' . implode(' ', $segment['tokens']) . ' ET';
     }
 
     /**

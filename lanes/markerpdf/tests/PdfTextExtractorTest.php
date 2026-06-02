@@ -1825,6 +1825,36 @@ return [
         $t->same("Tagged heading first\nBody paragraph second\n", $extractor->naiveGetText($pdf));
         $t->true(!str_contains($plainText, 'Artifact footer noise'));
     },
+    'uses catalog Threads bead order before raw page content order' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf 72 720 Td (Article part one) Tj ET '
+            . 'BT /F1 12 Tf 320 720 Td (Article part three) Tj ET '
+            . 'BT /F1 12 Tf 72 640 Td (Article part two) Tj ET '
+            . 'BT /F1 12 Tf 320 640 Td (Article part four) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Threads [20 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Type /Thread /F 21 0 R /I << /Title (WordPress Article Thread) >> >>\nendobj\n"
+            . "21 0 obj\n<< /Type /Bead /T 20 0 R /P 3 0 R /R [60 620 250 740] /N 22 0 R /V 22 0 R >>\nendobj\n"
+            . "22 0 obj\n<< /Type /Bead /T 20 0 R /P 3 0 R /R [300 620 520 740] /N 21 0 R /V 21 0 R >>\nendobj\n"
+            . "%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Article part one',
+            'Article part two',
+            'Article part three',
+            'Article part four',
+        ];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, "Article part three\nArticle part two"));
+    },
     'parses object streams through xref stream entries before WordPress text extraction' => static function (TestRunner $t) use ($objectStreamXrefPdf): void {
         $pdf = $objectStreamXrefPdf();
         $extractor = new PdfTextExtractor();
