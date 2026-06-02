@@ -238,8 +238,14 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-object-stream-xref-import.php` maps a native PDF 1.5 object lookup edge into a WordPress import path. It expands compressed `/ObjStm` member dictionaries through an xref stream, ignores a stale unlisted compressed page, preserves an Identity-H font resource from a decoded page object, and emits only the live Gutenberg paragraphs without loading pdftext, pypdfium, Python models, or external PDF tools.
 
+`examples/wordpress-pdf-cmap-source-width-fallback-import.php` maps a native ToUnicode CMap extraction edge into a WordPress import path. It chooses exact mapped source-key widths when a minimal CMap omits `begincodespacerange`, so adjacent one-byte mappings and two-byte mappings emit `Import Blocks` without loading pdftext, pypdfium, Python models, or external PDF tools.
+
+`examples/wordpress-pdf-malformed-cmap-filter-import.php` maps a native malformed CMap extraction boundary into a WordPress import path. It ignores an unusable `/ToUnicode` CMap stream after its `/FlateDecode` filter fails, falls back to `/Encoding /Identity-H`, and emits a clean Gutenberg paragraph without raw NUL bytes, pdftext, pypdfium, Python models, or external PDF tools.
+
+`examples/wordpress-pdf-image-xobject-boundary-import.php` maps a native stream fallback safety boundary into a WordPress import path. It skips `/Subtype /Image` XObject payloads before text-token parsing, so raster bytes that happen to contain PDF text syntax cannot leak into Gutenberg paragraphs.
+
 `examples/wordpress-structure-boundary-import.php` maps Marker's supplied-document stage priority into a WordPress import path. It demonstrates a Table layout region containing nested Formula and Picture regions, then emits one Gutenberg table plus surrounding document blocks while suppressing duplicate supplied equation and image output without loading Python, pdftext, pypdfium, Surya, tabled, Texify, Torch, or external PDF tools.
 
 ## Next Task
 
-Choose the next bounded markerPDF text extraction gap, or activate/reuse the existing `pdf-text-dictionary-core` gate only if broader searchable PDF dictionary output becomes the accepted next rich behavior. Keep OCR/model, table geometry, outlines/metadata, benchmark/archive, and runtime preflight work out of these accepted page-resource and object-stream/xref slices.
+Choose the next bounded markerPDF text extraction gap, or activate/reuse the existing `pdf-text-dictionary-core` gate only if broader searchable PDF dictionary output becomes the accepted next rich behavior. Keep OCR/model, table geometry, outlines/metadata, benchmark/archive, and runtime preflight work out of these accepted parser-hardening slices.

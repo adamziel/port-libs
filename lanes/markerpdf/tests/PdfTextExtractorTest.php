@@ -359,6 +359,31 @@ return [
         $t->same(['A'], $extractor->extractTextRuns($pdf));
         $t->true(!str_contains($extractor->extractPlainText($pdf), 'XA'));
     },
+    'uses mapped CMap source widths when codespacerange is missing before WordPress text' => static function (TestRunner $t): void {
+        $content = 'BT /Fcid 12 Tf 72 720 Td <20214142> Tj ET';
+        $cmap = "/CIDInit /ProcSet findresource begin\n"
+            . "12 dict begin\n"
+            . "begincmap\n"
+            . "3 beginbfchar\n"
+            . "<20> <0049006D0070006F00720074>\n"
+            . "<21> <0020>\n"
+            . "<4142> <0042006C006F0063006B0073>\n"
+            . "endbfchar\n"
+            . "endcmap\n"
+            . "CMapName currentdict /CMap defineresource pop\n"
+            . "end\n"
+            . "end\n";
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /SourceWidthFallbackSubset /Encoding /Identity-H /ToUnicode 3 0 R >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+
+        $t->same('Import Blocks', $extractor->extractPlainText($pdf));
+        $t->same(['Import Blocks'], $extractor->extractTextRuns($pdf));
+        $t->true(!str_contains($extractor->extractPlainText($pdf), "\u{2021}"));
+    },
     'decodes simple font Encoding Differences before WordPress paragraph rendering' => static function (TestRunner $t): void {
         $content = 'BT /Fdiff 12 Tf 72 720 Td <202122232425262728292A2B2C2D2E2F> Tj ET';
         $pdf = "%PDF-1.4\n"
@@ -404,6 +429,31 @@ return [
         $t->same('Literal Import', $extractor->extractPlainText($verticalPdf));
         $t->true(!str_contains($extractor->extractPlainText($pdf), "\0"));
         $t->true(!str_contains($extractor->extractPlainText($verticalPdf), "\0"));
+    },
+    'falls back to font Encoding when malformed ToUnicode CMap filters are ignored' => static function (TestRunner $t): void {
+        $badCMap = 'not valid flate cmap bytes';
+        $identityContent = 'BT /Fcid 12 Tf 72 720 Td <0057005000200049006D0070006F00720074> Tj ET';
+        $identityPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /BrokenCMapSubset /Encoding /Identity-H /ToUnicode 3 0 R >>\nendobj\n"
+            . "3 0 obj\n<< /Filter /FlateDecode /Length " . strlen($badCMap) . " >>\nstream\n{$badCMap}\nendstream\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($identityContent) . " >>\nstream\n{$identityContent}\nendstream\nendobj\n%%EOF";
+
+        $winAnsiContent = 'BT /Fwin 12 Tf 72 720 Td <9344617461204C696265726174696F6E94209620575092> Tj ET';
+        $winAnsiPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fwin 2 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /BrokenWinAnsiSubset /Encoding /WinAnsiEncoding /ToUnicode 3 0 R >>\nendobj\n"
+            . "3 0 obj\n<< /Filter /FlateDecode /Length " . strlen($badCMap) . " >>\nstream\n{$badCMap}\nendstream\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($winAnsiContent) . " >>\nstream\n{$winAnsiContent}\nendstream\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $winAnsiExpected = "\u{201c}Data Liberation\u{201d} \u{2013} WP\u{2019}";
+
+        $t->same('WP Import', $extractor->extractPlainText($identityPdf));
+        $t->same(['WP Import'], $extractor->extractTextRuns($identityPdf));
+        $t->true(!str_contains($extractor->extractPlainText($identityPdf), "\0"));
+        $t->same($winAnsiExpected, $extractor->extractPlainText($winAnsiPdf));
+        $t->same([$winAnsiExpected], $extractor->extractTextRuns($winAnsiPdf));
     },
     'uses ToUnicode bfrange arrays for WordPress text extraction' => static function (TestRunner $t): void {
         $content = 'BT /Fcid 12 Tf 72 720 Td <202122> Tj ET';
@@ -660,6 +710,24 @@ return [
         $t->same("Page Before Form\nReusable Form Block\nImported Once\nPage After Form", $extractor->extractPlainText($pdf));
         $t->same("Page Before Form\nReusable Form Block\nImported Once\nPage After Form\n", $extractor->naiveGetText($pdf));
         $t->true(!str_contains($extractor->extractPlainText($pdf), 'Dormant Form Text'));
+    },
+    'skips Image XObject streams in fallback before WordPress text extraction' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf 72 720 Td (Visible Text) Tj ET';
+        $imageBytes = 'BT /F1 12 Tf 72 720 Td (Raster Image Noise) Tj ET';
+        $compressedImageBytes = (string) gzcompress('BT /F1 12 Tf 72 720 Td (Compressed Image Noise) Tj ET');
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "2 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length " . strlen($imageBytes) . " >>\nstream\n{$imageBytes}\nendstream\nendobj\n"
+            . "3 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($compressedImageBytes) . " >>\nstream\n{$compressedImageBytes}\nendstream\nendobj\n"
+            . "%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Visible Text'], $extractor->extractTextLines($pdf));
+        $t->same(['Visible Text'], $extractor->extractTextRuns($pdf));
+        $t->same('Visible Text', $plainText);
+        $t->true(!str_contains($plainText, 'Raster Image Noise'));
+        $t->true(!str_contains($plainText, 'Compressed Image Noise'));
     },
     'inherits page tree font resources per page before WordPress text extraction' => static function (TestRunner $t) use ($toUnicodeCMap): void {
         $pageOne = 'BT /F1 12 Tf 72 720 Td <4142> Tj ET';

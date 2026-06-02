@@ -287,6 +287,10 @@ final class PdfTextExtractor
 
         foreach ($matches as $match) {
             $dict = $match[1];
+            if ($this->isImageXObjectDictionary($dict)) {
+                continue;
+            }
+
             $stream = $match[2];
             $decoded = $this->decodeStream($dict, $stream, $objects);
             if ($decoded === null) {
@@ -296,6 +300,11 @@ final class PdfTextExtractor
         }
 
         return $streams;
+    }
+
+    private function isImageXObjectDictionary(string $dict): bool
+    {
+        return preg_match('/\/Subtype\s*\/Image\b/', $dict) === 1;
     }
 
     /**
@@ -839,16 +848,17 @@ final class PdfTextExtractor
                 continue;
             }
 
+            $encodingFallback = $this->fontEncodingMap($body);
             $cmap = null;
             if (preg_match('/\/ToUnicode\s+(\d+)\s+\d+\s+R\b/', $body, $match)) {
                 $cmapObjectNumber = (int) $match[1];
                 if (isset($objects[$cmapObjectNumber])) {
                     $cmap = $this->toUnicodeMapFromObject($objects[$cmapObjectNumber], $objects, $namedCMapBodies);
                 }
-            } elseif (preg_match('/\/Differences\s*\[(.*?)\]/s', $body, $match)) {
-                $cmap = $this->encodingDifferencesMap($match[1]);
-            } elseif (preg_match('/\/Encoding\s+\/([^\s\[\]()<>{}\/%]+)/', $body, $match)) {
-                $cmap = $this->namedEncodingMap($this->decodePdfName($match[1]));
+            }
+
+            if (($cmap === null || ($cmap['map'] === [] && $cmap['codeSpaceRanges'] === [])) && $encodingFallback !== null) {
+                $cmap = $encodingFallback;
             }
 
             if ($cmap !== null && ($cmap['map'] !== [] || $cmap['codeSpaceRanges'] !== [])) {
@@ -952,6 +962,22 @@ final class PdfTextExtractor
         }
 
         return $maps;
+    }
+
+    /**
+     * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}|null
+     */
+    private function fontEncodingMap(string $fontBody): ?array
+    {
+        if (preg_match('/\/Differences\s*\[(.*?)\]/s', $fontBody, $match)) {
+            return $this->encodingDifferencesMap($match[1]);
+        }
+
+        if (preg_match('/\/Encoding\s+\/([^\s\[\]()<>{}\/%]+)/', $fontBody, $match)) {
+            return $this->namedEncodingMap($this->decodePdfName($match[1]));
+        }
+
+        return null;
     }
 
     /**
@@ -2538,6 +2564,7 @@ final class PdfTextExtractor
                 $keyLengths,
                 $length - $offset,
                 $toUnicodeMap['codeSpaceRanges'] ?? [],
+                $mappings,
                 $normalized,
                 $offset
             );
@@ -2554,11 +2581,13 @@ final class PdfTextExtractor
     /**
      * @param list<int> $keyLengths
      * @param list<array{start: int, end: int, width: int}> $codeSpaceRanges
+     * @param array<string, string> $mappings
      */
     private function toUnicodeSourceLength(
         array $keyLengths,
         int $remainingHexLength,
         array $codeSpaceRanges,
+        array $mappings,
         string $normalized,
         int $offset
     ): int {
@@ -2571,6 +2600,16 @@ final class PdfTextExtractor
             $source = hexdec(substr($normalized, $offset, $width));
             if ($source >= $range['start'] && $source <= $range['end']) {
                 return $width;
+            }
+        }
+
+        foreach ($keyLengths as $keyLength) {
+            if ($keyLength <= 0 || $keyLength > $remainingHexLength) {
+                continue;
+            }
+
+            if (array_key_exists(substr($normalized, $offset, $keyLength), $mappings)) {
+                return $keyLength;
             }
         }
 
