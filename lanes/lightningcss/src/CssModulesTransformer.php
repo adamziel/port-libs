@@ -6665,6 +6665,7 @@ final class CssModulesTransformer
         $declarationHead = '';
         $inDeclarationValue = false;
         $inComposesDeclarationValue = false;
+        $licenseCommentsEligible = true;
         $length = strlen($css);
 
         for ($i = 0; $i < $length; $i++) {
@@ -6693,7 +6694,8 @@ final class CssModulesTransformer
                     return [$output, $licenseComments];
                 }
                 $comment = substr($css, $i, $end - $i + 2);
-                if (($css[$i + 2] ?? '') === '!') {
+                $isLicenseComment = ($css[$i + 2] ?? '') === '!';
+                if ($isLicenseComment && $licenseCommentsEligible && $braceDepth === 0) {
                     $licenseComments[] = trim($comment);
                 } elseif (str_contains(substr($css, $i + 2, $end - $i - 2), 'cssmodules-pure-no-check')) {
                     $output .= self::PURE_NO_CHECK_MARKER;
@@ -6709,8 +6711,15 @@ final class CssModulesTransformer
                     $output .= '  ';
                     $declarationHead .= '  ';
                 }
+                if (!$isLicenseComment && !str_contains(substr($css, $i + 2, $end - $i - 2), 'cssmodules-pure-no-check')) {
+                    $licenseCommentsEligible = false;
+                }
                 $i = $end + 1;
                 continue;
+            }
+
+            if ($licenseCommentsEligible && !ctype_space($char)) {
+                $licenseCommentsEligible = false;
             }
 
             if ($char === '{') {

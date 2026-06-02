@@ -179,6 +179,28 @@ $preparedHandoffWindowMethods = [
     'expressionKeyForStat4ExpressionPartialHandoff',
 ];
 
+$peerCardinalitySelectivityMethods = [
+    'materializeStat4ExpressionPartialPeerCardinality',
+    'indexByNameForStat4PeerCardinality',
+    'sampleProofsForStat4PeerCardinality',
+    'stat4PeerCardinalityFence',
+    'payloadPeerCountsForStat4PeerCardinality',
+    'payloadExpressionKeyForStat4PeerCardinality',
+    'proofKeyForStat4PeerCardinality',
+    'proofIntForStat4PeerCardinality',
+    'proofNullableIntForStat4PeerCardinality',
+    'cursorProgramForStat4PeerCardinality',
+    'signatureForStat4PeerCardinality',
+    'materializeStat4ExpressionPartialSelectivity',
+    'matchedRowsForStat4Selectivity',
+    'stat4SelectivityFence',
+    'maxIntColumnForStat4Selectivity',
+    'sampleNeqForStat4SelectivityKey',
+    'rowidForStat4Selectivity',
+    'cursorProgramForStat4Selectivity',
+    'signatureForStat4Selectivity',
+];
+
 $genericCurrentSource = [
     'indexes' => [$genericIndex + ['selected' => true]],
     'rows' => [
@@ -224,6 +246,7 @@ return [
     ])),
     'planner stat4 late current source fences are source neutral' => static fn (TestRunner $t) => $t->same([], $domainMatches($lateCurrentSourceFenceMethods)),
     'planner stat4 prepared handoff windows are source neutral' => static fn (TestRunner $t) => $t->same([], $domainMatches($preparedHandoffWindowMethods)),
+    'planner stat4 peer cardinality and selectivity helpers are source neutral' => static fn (TestRunner $t) => $t->same([], $domainMatches($peerCardinalitySelectivityMethods)),
     'planner stat4 prepared handoff key column uses generic metadata' => static fn (TestRunner $t) => $t->same('key_name', $callPrivate('keyColumnForPreparedHandoff', ['indexes' => [$genericIndex]])),
     'planner stat4 selected key fields reject stale selected index name' => static fn (TestRunner $t) => $t->throws(
         InvalidArgumentException::class,
@@ -308,6 +331,62 @@ return [
     'planner stat4 dynamic left-key helper uses generic expression payload' => static fn (TestRunner $t) => $t->same('module_forms', $callPrivate('stat4ValueForLeftKey', ['key_name' => 'Module_Forms'], ['rowid' => 7], 'expression:lower(key_name)', 'source-neutral-test')),
     'planner stat4 payload expression fence accepts generic index expression' => static fn (TestRunner $t) => $t->same('lower(key_name)', $callPrivate('expressionForPayloadExpressionFence', $genericIndex)),
     'planner stat4 source-neutral expression key supports generic length expression' => static fn (TestRunner $t) => $t->same('17', $callPrivate('stat4ExpressionKeyForExpression', ['key_value' => 'scheduled_refresh'], 'length(key_value)', 'source-neutral-test')),
+    'planner stat4 peer cardinality counts generic key fields' => static function (TestRunner $t) use ($callPrivate): void {
+        $counts = $callPrivate(
+            'payloadPeerCountsForStat4PeerCardinality',
+            [
+                ['coveredValues' => ['key_name' => 'Module_Forms']],
+                ['expressionKey' => 'module_forms'],
+                ['key_name' => 'Module_Search'],
+            ],
+            'key_name'
+        );
+
+        $t->same(['module_forms' => 2, 'module_search' => 1], $counts);
+    },
+    'planner stat4 peer cardinality fence uses generic key payloads' => static function (TestRunner $t) use ($callPrivate): void {
+        $fence = $callPrivate(
+            'stat4PeerCardinalityFence',
+            [
+                'stat4ExpressionPayloads' => [
+                    ['coveredValues' => ['key_name' => 'Module_Forms']],
+                    ['key_name' => 'module_forms'],
+                    ['key_name' => 'Module_Search'],
+                ],
+            ],
+            [
+                ['expressionKey' => 'module_forms', 'sampleNeq' => 2, 'sampleOrdinal' => 1, 'sampleNlt' => 0, 'sampleNdlt' => 0],
+                ['expressionKey' => 'module_search', 'sampleNeq' => 1, 'sampleOrdinal' => 2, 'sampleNlt' => 2, 'sampleNdlt' => 1],
+            ],
+            'key_name'
+        );
+
+        $t->same([], $fence['expressionKeysWithStalePeerCounts']);
+        $t->same(['module_forms', 'module_search'], array_column($fence['selectedPeerCounts'], 'expressionKey'));
+        $t->same([2, 1], array_column($fence['selectedPeerCounts'], 'currentPayloadPeerCount'));
+    },
+    'planner stat4 selectivity fence uses generic expression keys' => static function (TestRunner $t) use ($callPrivate): void {
+        $fence = $callPrivate(
+            'stat4SelectivityFence',
+            [
+                ['rowid' => 1, 'key_name' => 'Module_Forms'],
+                ['rowid' => 2, 'key_name' => 'module_forms'],
+            ],
+            [
+                'matchedSampleProofs' => [
+                    ['rowid' => 1, 'expressionKey' => 'module_forms', 'sampleNeq' => 2, 'sampleNlt' => 0],
+                    ['rowid' => 2, 'expressionKey' => 'module_forms', 'sampleNeq' => 2, 'sampleNlt' => 0],
+                    ['rowid' => 3, 'expressionKey' => 'module_search', 'sampleNeq' => 1, 'sampleNlt' => 2],
+                ],
+            ],
+            2,
+            0
+        );
+
+        $t->same(true, $fence['currentStat4CardinalityBracketsMatchedRows']);
+        $t->same(true, $fence['samplePeerCountsCoverMatchedPeers']);
+        $t->same(['module_forms', 'module_search'], array_column($fence['peerSelectivityProofs'], 'expressionKey'));
+    },
     'planner stat4 source-neutral like matcher supports generic wildcard' => static fn (TestRunner $t) => $t->same(true, $callPrivate('stat4SourceNeutralLikeMatches', 'moduleA_forms', 'module_%')),
     'planner stat4 source-neutral like matcher rejects unrelated prefix' => static fn (TestRunner $t) => $t->same(false, $callPrivate('stat4SourceNeutralLikeMatches', 'service_forms', 'module_%')),
     'planner stat4 gap density like helper uses generic wildcard' => static fn (TestRunner $t) => $t->same(true, $callPrivate('gapDensityLikePrefixMatches', 'moduleA_forms', 'module_%')),

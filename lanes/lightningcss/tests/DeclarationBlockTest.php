@@ -919,6 +919,33 @@ return [
             'color: red; --Raster-Mode: optimizeSpeed; image-rendering: optimizequality !important',
             $block->removeProperty($declarations, 'color-rendering')
         );
+
+        $fallbackDeclarations = 'image-rendering: CRISP-EDGES; color: red; --Raster-Mode: Pixelated';
+        $t->same(
+            [
+                'image-rendering' => 'crisp-edges',
+                'color' => 'red',
+                '--Raster-Mode' => 'Pixelated',
+            ],
+            $block->parse($fallbackDeclarations)
+        );
+        $t->same(['value' => 'crisp-edges', 'important' => false], $block->getProperty($fallbackDeclarations, 'image-rendering'));
+        $t->same(
+            'color: red; --Raster-Mode: Pixelated; image-rendering: pixelated !important',
+            $block->setProperty($fallbackDeclarations, 'image-rendering', 'Pixelated', true)
+        );
+        $t->same(
+            'image-rendering: -webkit-optimize-contrast; color: red; --Raster-Mode: Pixelated',
+            $block->setProperty($fallbackDeclarations, 'image-rendering', '-WEBKIT-OPTIMIZE-CONTRAST')
+        );
+        $t->same(
+            'image-rendering: -moz-crisp-edges; color: red; --Raster-Mode: Pixelated',
+            $block->setProperty($fallbackDeclarations, 'image-rendering', '-MOZ-CRISP-EDGES')
+        );
+        $t->same(
+            'image-rendering: -o-pixelated; color: red; --Raster-Mode: Pixelated',
+            $block->setProperty($fallbackDeclarations, 'image-rendering', '-O-PIXELATED')
+        );
     },
     'declaration block canonicalizes upstream svg stroke linejoin miter clip cssom read write' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();

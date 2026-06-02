@@ -14,9 +14,9 @@ $css = <<<'CSS'
 }
 
 .button {
-  composes/* property comment before colon */: card;
-  c\6f mposes/* escaped property comment before colon */: wp-block-button from global;
-  C\6f MPOSES/* dependency property comment before colon */: token from "./tokens.css";
+  composes/* property comment before colon */: card /*! migration token */;
+  c\6f mposes/* escaped property comment before colon */: wp-block-button /*! public token */ from /*! source token */ global;
+  C\6f MPOSES/* dependency property comment before colon */: token /*! dependency token */ from /*! source token */ "./tokens.css";
   color: blue;
 }
 CSS;

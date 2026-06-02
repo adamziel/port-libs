@@ -3375,4 +3375,73 @@ return [
         $t->same(8, $parent->findClosestMapping(3, 17)['originalLine'] ?? null);
         $t->same('{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}', $child->toJson(null, false));
     },
+    'source map fills missing reused source content during pruned generated-offset append' => static function (TestRunner $t): void {
+        $parent = new SourceMap('/theme');
+        $shared = $parent->addSource('src/shared.scss');
+        $entry = $parent->addSource('entry.css');
+        $parent->setSourceContent($entry, ".entry{}\n");
+        $parent->addMapping(0, 0, $entry, 0, 0, 'entryRule');
+
+        $child = new SourceMap('/theme');
+        $childSource = $child->addSource('src/./shared.scss');
+        $unusedSource = $child->addSource('src/unused.scss');
+        $child->setSourceContent($childSource, ".shared{color:\$brand}\n.shared__title{font-weight:600}\n");
+        $child->setSourceContent($unusedSource, ".unused{}\n");
+        $child->addGeneratedMapping(0, 2);
+        $child->addMapping(0, 6, $childSource, 4, 1, 'sharedRule');
+        $child->addMapping(1, 3, $childSource, 5, 2, 'sharedDecl');
+        $child->addName('unusedName');
+
+        $parent->appendSourceMapWithGeneratedOffset($child, 2, 5, false);
+
+        $second = new SourceMap('/theme');
+        $secondSource = $second->addSource('src/shared.scss');
+        $second->setSourceContent($secondSource, ".shared{color:changed}\n");
+        $second->addMapping(0, 4, $secondSource, 9, 3, 'secondRule');
+
+        $parent->appendSourceMapWithGeneratedOffset($second, 4, 2, false);
+
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $data = $parent->toArray(null, false);
+
+        $t->same('ACAAA;;WDICC;GACCC;MAICC', $parent->writeVlq());
+        $t->same($shared, $parent->getSourceIndex('src/shared.scss'));
+        $t->same([0, 2, 3, 4], array_column($decoded, 'generatedLine'));
+        $t->same([0, 11, 3, 6], array_column($decoded, 'generatedColumn'));
+        $t->same([1, 0, 0, 0], array_column($decoded, 'sourceIndex'));
+        $t->same([0, 4, 5, 9], array_column($decoded, 'originalLine'));
+        $t->same([0, 1, 2, 3], array_column($decoded, 'originalColumn'));
+        $t->same([0, 1, 2, 3], array_column($decoded, 'nameIndex'));
+        $t->same(['src/shared.scss', 'entry.css'], $data['sources']);
+        $t->same(
+            [
+                ".shared{color:\$brand}\n.shared__title{font-weight:600}\n",
+                ".entry{}\n",
+            ],
+            $data['sourcesContent']
+        );
+        $t->same(['entryRule', 'sharedRule', 'sharedDecl', 'secondRule'], $data['names']);
+        $t->same(4, $parent->findClosestMapping(2, 11)['originalLine'] ?? null);
+        $t->same(9, $parent->findClosestMapping(4, 6)['originalLine'] ?? null);
+        $t->same('{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}', $child->toJson(null, false));
+        $t->same('{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}', $second->toJson(null, false));
+
+        $parsedParent = SourceMap::fromJson('{"version":3,"mappings":"AAAA","sources":["src/shared.scss"],"names":[]}', '/theme');
+        $parsedChild = new SourceMap('/theme');
+        $parsedSource = $parsedChild->addSource('src/./shared.scss');
+        $parsedChild->setSourceContent($parsedSource, ".parsed{color:blue}\n");
+        $parsedChild->addMapping(0, 1, $parsedSource, 2, 3, 'parsedRule');
+
+        $parsedParent->appendSourceMapWithGeneratedOffset($parsedChild, 1, 2, false);
+
+        $parsedDecoded = SourceMap::decodeVlq($parsedParent->writeVlq());
+        $parsedData = $parsedParent->toArray(null, false);
+        $t->same(['src/shared.scss'], $parsedData['sources']);
+        $t->same([".parsed{color:blue}\n"], $parsedData['sourcesContent']);
+        $t->same([0, 1], array_column($parsedDecoded, 'generatedLine'));
+        $t->same([0, 3], array_column($parsedDecoded, 'generatedColumn'));
+        $t->same(['parsedRule'], $parsedData['names']);
+        $t->same(2, $parsedParent->findClosestMapping(1, 3)['originalLine'] ?? null);
+        $t->same('{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}', $parsedChild->toJson(null, false));
+    },
 ];

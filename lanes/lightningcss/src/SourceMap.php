@@ -23,6 +23,9 @@ final class SourceMap
     /** @var array<int, string> */
     private array $sourcesContent = [];
 
+    /** @var array<int, true> */
+    private array $sourceContentIndexes = [];
+
     /** @var list<string> */
     private array $names = [];
 
@@ -107,12 +110,24 @@ final class SourceMap
 
     public function setSourceContent(int $sourceIndex, string $content): void
     {
+        $this->setSourceContentValue($sourceIndex, $content, true);
+    }
+
+    private function setSourceContentValue(int $sourceIndex, string $content, bool $explicit): void
+    {
         $this->assertSourceIndex($sourceIndex);
+        if (!$explicit && isset($this->sourceContentIndexes[$sourceIndex])) {
+            return;
+        }
+
         for ($i = count($this->sourcesContent); $i < $sourceIndex; $i++) {
             $this->sourcesContent[$i] = '';
         }
 
         $this->sourcesContent[$sourceIndex] = $content;
+        if ($explicit) {
+            $this->sourceContentIndexes[$sourceIndex] = true;
+        }
     }
 
     public function getSourceContent(int $sourceIndex): string
@@ -442,8 +457,11 @@ final class SourceMap
 
                         if (
                             !$preserveUnusedTables
-                            && ($sourceIndexIsNew[$mapping['sourceIndex']] ?? false)
                             && array_key_exists($mapping['sourceIndex'], $sourceMap->sourcesContent)
+                            && (
+                                ($sourceIndexIsNew[$mapping['sourceIndex']] ?? false)
+                                || !isset($this->sourceContentIndexes[$sourceIndex])
+                            )
                         ) {
                             $this->setSourceContent($sourceIndex, $sourceMap->sourcesContent[$mapping['sourceIndex']]);
                         }
@@ -498,6 +516,7 @@ final class SourceMap
         $sourceMap->sources = [];
         $sourceMap->sourceIndexes = [];
         $sourceMap->sourcesContent = [];
+        $sourceMap->sourceContentIndexes = [];
         $sourceMap->names = [];
         $sourceMap->nameIndexes = [];
         $sourceMap->mappings = [];
@@ -699,6 +718,7 @@ final class SourceMap
      * @param list<string> $sources
      * @param list<string> $sourcesContent
      * @param list<string> $names
+     * @param array<int, true>|null $explicitSourceContentIndexes
      */
     public function addVlqMap(
         string $mappings,
@@ -706,7 +726,8 @@ final class SourceMap
         array $sourcesContent = [],
         array $names = [],
         int $lineOffset = 0,
-        int $columnOffset = 0
+        int $columnOffset = 0,
+        ?array $explicitSourceContentIndexes = null
     ): void {
         self::assertListArray($sources, 'sources');
         self::assertListArray($sourcesContent, 'sourcesContent');
@@ -730,7 +751,11 @@ final class SourceMap
                 continue;
             }
 
-            $this->setSourceContent($sourceIndexes[$index], $content);
+            $this->setSourceContentValue(
+                $sourceIndexes[$index],
+                $content,
+                $explicitSourceContentIndexes === null || isset($explicitSourceContentIndexes[$index])
+            );
         }
 
         $nameIndexes = [];
@@ -818,8 +843,13 @@ final class SourceMap
             'sourcesContent'
         );
         $sourcesContent = [];
+        $explicitSourceContentIndexes = [];
         foreach ($sources as $index => $_source) {
             $sourcesContent[] = $rawSourcesContent[$index] ?? '';
+            if (array_key_exists($index, $rawSourcesContent) && $rawSourcesContent[$index] !== null) {
+                $explicitSourceContentIndexes[$index] = true;
+            }
+
             if ($sourcesContent[$index] === null) {
                 $sourcesContent[$index] = '';
             }
@@ -828,7 +858,7 @@ final class SourceMap
         $names = self::listOfStrings($data['names'] ?? null, 'names');
 
         $map = new self($projectRoot);
-        $map->addVlqMap($data['mappings'], $sources, $sourcesContent, $names);
+        $map->addVlqMap($data['mappings'], $sources, $sourcesContent, $names, 0, 0, $explicitSourceContentIndexes);
 
         return $map;
     }
@@ -851,8 +881,13 @@ final class SourceMap
             'sourcesContent'
         );
         $sourcesContent = [];
+        $explicitSourceContentIndexes = [];
         foreach ($sources as $index => $_source) {
             $sourcesContent[] = $rawSourcesContent[$index] ?? '';
+            if (array_key_exists($index, $rawSourcesContent) && $rawSourcesContent[$index] !== null) {
+                $explicitSourceContentIndexes[$index] = true;
+            }
+
             if ($sourcesContent[$index] === null) {
                 $sourcesContent[$index] = '';
             }
@@ -861,7 +896,7 @@ final class SourceMap
         $names = self::listOfStrings($data->names ?? null, 'names');
 
         $map = new self($projectRoot);
-        $map->addVlqMap($mappings, $sources, $sourcesContent, $names);
+        $map->addVlqMap($mappings, $sources, $sourcesContent, $names, 0, 0, $explicitSourceContentIndexes);
 
         return $map;
     }
@@ -1070,6 +1105,7 @@ final class SourceMap
             }
 
             $map->sourcesContent[$index] = $content;
+            $map->sourceContentIndexes[$index] = true;
         }
 
         $map->names = $names;

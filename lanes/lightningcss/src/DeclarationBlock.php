@@ -191,7 +191,16 @@ final class DeclarationBlock
         'color-rendering' => ['auto', 'optimizespeed', 'optimizequality'],
         'shape-rendering' => ['auto', 'optimizespeed', 'crispedges', 'geometricprecision'],
         'text-rendering' => ['auto', 'optimizespeed', 'optimizelegibility', 'geometricprecision'],
-        'image-rendering' => ['auto', 'optimizespeed', 'optimizequality'],
+        'image-rendering' => [
+            'auto',
+            'optimizespeed',
+            'optimizequality',
+            'crisp-edges',
+            'pixelated',
+            '-webkit-optimize-contrast',
+            '-moz-crisp-edges',
+            '-o-pixelated',
+        ],
     ];
     private const PRINT_COLOR_ADJUST_PROPERTIES = ['print-color-adjust', '-webkit-print-color-adjust', '-moz-print-color-adjust'];
     private const OBJECT_FIT_PROPERTIES = ['object-fit', '-o-object-fit'];

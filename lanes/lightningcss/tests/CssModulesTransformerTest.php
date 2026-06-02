@@ -2199,6 +2199,65 @@ CSS);
             ]),
         ], $dependencyResult['exports']);
         $t->same([], $dependencyResult['references']);
+
+        $leadingLicense = (new CssModulesTransformer())->transform(<<<'CSS'
+/*! Theme module license */
+.test {
+  composes: foo;
+}
+
+.foo {
+  color: red;
+}
+CSS);
+
+        $t->same("/*! Theme module license */\n.EgL3uq_test{}.EgL3uq_foo{color:red}", $leadingLicense['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test', [$local('EgL3uq_foo')]),
+            'foo' => $export('EgL3uq_foo'),
+        ], $leadingLicense['exports']);
+        $t->same([], $leadingLicense['references']);
+
+        $localLicenseSeparator = (new CssModulesTransformer())->transform(<<<'CSS'
+.test {
+  composes: foo /*! migration-token */;
+}
+
+.foo {
+  color: red;
+}
+CSS);
+
+        $t->same('.EgL3uq_test{}.EgL3uq_foo{color:red}', $localLicenseSeparator['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test', [$local('EgL3uq_foo')]),
+            'foo' => $export('EgL3uq_foo'),
+        ], $localLicenseSeparator['exports']);
+        $t->same([], $localLicenseSeparator['references']);
+
+        $globalLicenseSeparator = (new CssModulesTransformer())->transform(<<<'CSS'
+.test {
+  composes: foo /*! migration-token */ from /*! source-token */ global;
+}
+CSS);
+
+        $t->same('.EgL3uq_test{}', $globalLicenseSeparator['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test', [$global('foo')]),
+        ], $globalLicenseSeparator['exports']);
+        $t->same([], $globalLicenseSeparator['references']);
+
+        $dependencyLicenseSeparator = (new CssModulesTransformer())->transform(<<<'CSS'
+.test {
+  composes: foo /*! migration-token */ from /*! source-token */ "./tokens.css";
+}
+CSS);
+
+        $t->same('.EgL3uq_test{}', $dependencyLicenseSeparator['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test', [$dependency('foo', './tokens.css')]),
+        ], $dependencyLicenseSeparator['exports']);
+        $t->same([], $dependencyLicenseSeparator['references']);
     },
     'css modules treats comments as token separators after escaped composes properties' => static function (TestRunner $t) use ($export, $local, $global, $dependency): void {
         $localResult = (new CssModulesTransformer())->transform(<<<'CSS'
