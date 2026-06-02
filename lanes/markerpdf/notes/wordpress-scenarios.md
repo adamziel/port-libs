@@ -268,6 +268,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-nested-xobject-form-import.php` maps nested Form XObject resource font scoping into a WordPress import path. It emits page text, a parent form paragraph, and a child form paragraph while proving reused `/F1` names resolve through each form's own `/Resources`, without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
+`examples/wordpress-pdf-cidset-glyph-widths-import.php` maps descendant CIDFont `/CIDSet` subset membership into a WordPress import path. It emits `WideBlock` as one Gutenberg paragraph from embedded-subset CID glyphs whose `/W` array is absent but whose present CIDs use the CIDFont default `/DW 1000` advance, without loading Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring parser, font, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
