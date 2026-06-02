@@ -109,6 +109,36 @@ return [
         $t->same('Fixture Writer', $metadata['producer']);
         $t->same('D:20240602112233Z', $metadata['created_at']);
     },
+    'extracts trailer ID array as document fingerprint metadata' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf 72 720 Td (Fingerprint Body) Tj ET';
+        $permanentId = "WP PDF\x00ID-A";
+        $changingId = 'WP-PDF-ID-B';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Title (Fingerprint Review PDF) /Producer (Fixture Writer) >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R /ID [<00000000000000000000000000000000> <11111111111111111111111111111111>] >>\n"
+            . "trailer\n<< /Root 1 0 R /Info 6 0 R /ID [(WP\\040PDF\\000ID-A) <57502d5044462d49442d42>] >>\n%%EOF";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+
+        $t->same(['info', 'trailer_id'], $metadata['source']);
+        $t->same('Fingerprint Review PDF', $metadata['title']);
+        $t->same('Fingerprint Body', (new PdfTextExtractor())->extractPlainText($pdf));
+        $t->same('trailer_id', $metadata['trailer_ids']['source']);
+        $t->same(2, $metadata['trailer_ids']['id_count']);
+        $t->true($metadata['trailer_ids']['changed_since_creation']);
+        $t->same(bin2hex($permanentId), $metadata['trailer_ids']['permanent']['hex']);
+        $t->same(strlen($permanentId), $metadata['trailer_ids']['permanent']['bytes']);
+        $t->same(hash('sha256', $permanentId), $metadata['trailer_ids']['permanent']['sha256']);
+        $t->same(bin2hex($changingId), $metadata['trailer_ids']['changing']['hex']);
+        $t->same(strlen($changingId), $metadata['trailer_ids']['changing']['bytes']);
+        $t->same(hash('sha256', $changingId), $metadata['trailer_ids']['changing']['sha256']);
+        $t->same(hash('sha256', $permanentId), $metadata['document_fingerprint']);
+        $t->same('trailer_id_permanent', $metadata['document_fingerprint_source']);
+    },
     'ignores malformed XMP streams while preserving Info metadata fallback' => static function (TestRunner $t) use ($pdfWithMetadata): void {
         $pdf = $pdfWithMetadata(
             '<x:xmpmeta><rdf:RDF><rdf:Description><dc:title>Broken',

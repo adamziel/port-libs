@@ -17,13 +17,17 @@ final class PdfMetadataExtractor
 
     /**
      * Native metadata boundary for PDF Catalog /Metadata XMP streams plus the
-     * trailer /Info dictionary used by pdfium-backed document metadata flows.
+     * trailer /Info dictionary and trailer /ID file identifiers used by
+     * pdfium-backed document metadata flows.
      *
      * @return array{
      *     source: list<string>,
      *     xmp: array<string, mixed>,
      *     info: array<string, string>,
      *     output_intents: list<array<string, mixed>>,
+     *     trailer_ids?: array<string, mixed>,
+     *     document_fingerprint?: string,
+     *     document_fingerprint_source?: string,
      *     title?: string,
      *     authors?: list<string>,
      *     description?: string,
@@ -42,8 +46,9 @@ final class PdfMetadataExtractor
         $xmp = $this->extractXmpMetadata($pdfBytes, $objects);
         $info = $this->extractInfoMetadata($pdfBytes, $objects);
         $outputIntents = $this->extractOutputIntentMetadata($pdfBytes, $objects);
+        $trailerIds = $this->extractTrailerIdMetadata($pdfBytes);
 
-        return $this->mergedMetadata($xmp, $info, $outputIntents);
+        return $this->mergedMetadata($xmp, $info, $outputIntents, $trailerIds);
     }
 
     /**
@@ -130,12 +135,178 @@ final class PdfMetadataExtractor
     }
 
     /**
+     * Native equivalent of pypdfium2/PDFium document identifiers: read the
+     * permanent and changing file IDs from the latest trailer /ID array.
+     *
+     * @return array<string, mixed>
+     */
+    private function extractTrailerIdMetadata(string $pdfBytes): array
+    {
+        $trailer = $this->trailerDictionaryBody($pdfBytes);
+        if ($trailer === null) {
+            return [];
+        }
+
+        $value = $this->dictionaryRawValue($trailer, 'ID');
+        if ($value === null) {
+            return [];
+        }
+
+        $identifiers = $this->trailerIdentifierBytesFromValue($value);
+        if ($identifiers === []) {
+            return [];
+        }
+
+        $permanent = $identifiers[0];
+        $changing = $identifiers[1] ?? $permanent;
+
+        return [
+            'source' => 'trailer_id',
+            'permanent' => $this->identifierMetadata($permanent),
+            'changing' => $this->identifierMetadata($changing),
+            'id_count' => count($identifiers),
+            'changed_since_creation' => $permanent !== $changing,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function trailerIdentifierBytesFromValue(string $value): array
+    {
+        $body = $this->arrayBody(trim($value));
+        if ($body === null) {
+            return [];
+        }
+
+        $identifiers = [];
+        for ($offset = 0, $length = strlen($body); $offset < $length && count($identifiers) < 2;) {
+            while ($offset < $length && ctype_space($body[$offset])) {
+                $offset++;
+            }
+
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($body[$offset] === '(') {
+                $literal = $this->literalStringBytesAt($body, $offset);
+                if ($literal !== null) {
+                    $identifiers[] = $literal['bytes'];
+                    $offset = $literal['nextOffset'];
+                    continue;
+                }
+            }
+
+            if ($body[$offset] === '<' && $offset + 1 < $length && $body[$offset + 1] !== '<') {
+                $hex = $this->hexStringBytesAt($body, $offset);
+                if ($hex !== null) {
+                    $identifiers[] = $hex['bytes'];
+                    $offset = $hex['nextOffset'];
+                    continue;
+                }
+            }
+
+            $offset++;
+        }
+
+        return $identifiers;
+    }
+
+    /**
+     * @return array{bytes: string, nextOffset: int}|null
+     */
+    private function literalStringBytesAt(string $value, int $offset): ?array
+    {
+        $depth = 0;
+        $body = '';
+        for ($index = $offset, $length = strlen($value); $index < $length; $index++) {
+            $char = $value[$index];
+            if ($char === '\\') {
+                if ($index + 1 < $length) {
+                    $body .= $char . $value[$index + 1];
+                    $index++;
+                }
+                continue;
+            }
+
+            if ($char === '(') {
+                if ($depth > 0) {
+                    $body .= $char;
+                }
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return [
+                        'bytes' => $this->decodeLiteralEscapes($body),
+                        'nextOffset' => $index + 1,
+                    ];
+                }
+                $body .= $char;
+                continue;
+            }
+
+            if ($depth > 0) {
+                $body .= $char;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{bytes: string, nextOffset: int}|null
+     */
+    private function hexStringBytesAt(string $value, int $offset): ?array
+    {
+        $end = strpos($value, '>', $offset + 1);
+        if ($end === false) {
+            return null;
+        }
+
+        $hex = preg_replace('/\s+/', '', substr($value, $offset + 1, $end - $offset - 1));
+        if ($hex === null || preg_match('/^[\da-fA-F]*$/', $hex) !== 1) {
+            return null;
+        }
+        if (strlen($hex) % 2 === 1) {
+            $hex .= '0';
+        }
+
+        $bytes = hex2bin($hex);
+        if ($bytes === false) {
+            return null;
+        }
+
+        return [
+            'bytes' => $bytes,
+            'nextOffset' => $end + 1,
+        ];
+    }
+
+    /**
+     * @return array{hex: string, bytes: int, sha256: string}
+     */
+    private function identifierMetadata(string $bytes): array
+    {
+        return [
+            'hex' => bin2hex($bytes),
+            'bytes' => strlen($bytes),
+            'sha256' => hash('sha256', $bytes),
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $xmp
      * @param array<string, string> $info
      * @param list<array<string, mixed>> $outputIntents
+     * @param array<string, mixed> $trailerIds
      * @return array<string, mixed>
      */
-    private function mergedMetadata(array $xmp, array $info, array $outputIntents): array
+    private function mergedMetadata(array $xmp, array $info, array $outputIntents, array $trailerIds): array
     {
         $result = [
             'source' => [],
@@ -152,6 +323,15 @@ final class PdfMetadataExtractor
         }
         if ($outputIntents !== []) {
             $result['source'][] = 'output_intents';
+        }
+        if ($trailerIds !== []) {
+            $result['source'][] = 'trailer_id';
+            $result['trailer_ids'] = $trailerIds;
+            $fingerprint = $trailerIds['permanent']['sha256'] ?? null;
+            if (is_string($fingerprint) && $fingerprint !== '') {
+                $result['document_fingerprint'] = $fingerprint;
+                $result['document_fingerprint_source'] = 'trailer_id_permanent';
+            }
         }
 
         foreach (['title', 'description', 'creator_tool', 'producer', 'created_at', 'modified_at', 'metadata_date'] as $field) {
