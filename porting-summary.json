@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 23:09:43 UTC",
-    "sourceCommit": "ba3bb297d18fcf8ad7e76f0af297bdfddf868256",
-    "sourceCommitShort": "ba3bb297d18f",
+    "generated": "2026-06-02 23:19:58 UTC",
+    "sourceCommit": "620c4b36c1d9dc0c9cfad0b398b9dfb8f7fce480",
+    "sourceCommitShort": "620c4b36c1d9",
     "sourceBranch": "unknown",
-    "dashboardCommit": "ba3bb297d18fcf8ad7e76f0af297bdfddf868256",
-    "dashboardCommitShort": "ba3bb297d18f",
+    "dashboardCommit": "620c4b36c1d9dc0c9cfad0b398b9dfb8f7fce480",
+    "dashboardCommitShort": "620c4b36c1d9",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "672",
-            "coverage": "672 / 78 (861.5%)",
-            "mapPercent": "861.5%",
+            "mapped": "677",
+            "coverage": "677 / 78 (867.9%)",
+            "mapPercent": "867.9%",
             "unmapped": "0",
-            "php": "958 pass / 0 fail",
-            "phase": "focused source integration accepted; full upstream runner parity rema...",
-            "audit": "2026-06-02 UTC supervisor malformed-CMap markerPDF integration: accep...",
-            "currentWork": "MarkerPDF now maps malformed ToUnicode CMap filter operand rejection, metadata associ...",
-            "nextTarget": "Keep 10-11 visible markerPDF lanes active with auto-refill; n...",
-            "remainingGate": "Upstream runner parity unavailable",
-            "commit": "ba3bb29"
+            "php": "967 pass / 0 fail",
+            "phase": "native no-GPU markerPDF scope; focused source integration accepted; c...",
+            "audit": "2026-06-02 UTC supervisor 5-slice markerPDF integration: accepted run...",
+            "currentWork": "MarkerPDF is now supervised as a native PHP searchable-PDF parser/converter plus supp...",
+            "nextTarget": "Maintain roughly 8 visible native markerPDF workers plus 3 Pa...",
+            "remainingGate": "No GPU/model execution will be run for markerPDF under current user d...",
+            "commit": "620c4b3"
         },
         {
             "lane": "readability",

@@ -21,6 +21,9 @@ refill_lane_on_exit() {
   if [[ "${LANE:-}" == "markerpdf" && "${MARKERPDF_AUTO_REFILL:-1}" != "0" && -x "$ROOT/scripts/refill-markerpdf-workers.sh" ]]; then
     MARKERPDF_AUTO_REFILL=0 bash "$ROOT/scripts/refill-markerpdf-workers.sh" --once || true
   fi
+  if [[ "${LANE:-}" == "pandoc" && "${PANDOC_AUTO_REFILL:-1}" != "0" && -x "$ROOT/scripts/refill-pandoc-workers.sh" ]]; then
+    PANDOC_AUTO_REFILL=0 bash "$ROOT/scripts/refill-pandoc-workers.sh" --once || true
+  fi
   exit "$status"
 }
 trap refill_lane_on_exit EXIT

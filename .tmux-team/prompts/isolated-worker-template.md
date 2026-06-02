@@ -10,6 +10,34 @@ Supervisor log: `{{LOG_FILE}}`
 
 Current supervisor override, 2026-05-31 11:25 UTC:
 
+- Current no-GPU markerPDF/Pandoc dependency regroup, 2026-06-02 UTC:
+  If `Lane` is `markerpdf`, do not work on live OCR, Surya/Texify/Torch,
+  GPU/model execution, Streamlit/FastAPI model workers, or exact upstream
+  model benchmark parity. Treat those as intentionally out of scope unless the
+  user explicitly authorizes those runs. Focus on native PDF parser and
+  converter behavior: searchable-PDF text extraction, fonts, CMaps, stream
+  filters, xref repair, metadata, outlines, annotations, forms, security
+  preflight, page geometry, image/filter metadata, and supplied-boundary table
+  or equation handoffs. Record any model/OCR gap honestly as a non-GPU scope
+  limit, not as a blocker to solve by launching models.
+  If `Lane` is `pandoc`, fully focus on bounded support-library work needed
+  for richer Pandoc conversion under `lanes/pandoc/**`. Use the dependency
+  backlog rows as source truth and produce a real patch with focused PHP
+  tests/examples or a lane note only when the slice is explicitly an upstream
+  runner dependency audit. Do not edit dashboard/progress files. Do not shell
+  out to Pandoc, Word, LibreOffice, zip/unzip, external template engines,
+  TeX/PDF engines, Haskell test binaries, or online services as progress.
+  Preferred slice prefixes and ownership:
+  `pandoc-shared-zip-package-core-*` owns ZIP/OPC package primitives and tests;
+  `pandoc-opc-xml-relationships-core-*` owns content-types/relationships XML
+  package semantics and tests; `pandoc-doctemplates-core-*` owns bounded
+  Pandoc template rendering and tests; `pandoc-yaml-metadata-core-*` owns
+  YAML/front-matter metadata parsing and tests; `pandoc-citation-csl-core-*`
+  owns bounded citation/CSL handoff tests; `pandoc-upstream-runner-deps-*`
+  owns a bounded audit of the Cabal/upstream-runner dependency closure and may
+  leave a lane note instead of implementation if no safe local build step is
+  available.
+
 - If `Lane` is `lightningcss`, fully focus on porting LightningCSS under
   `lanes/lightningcss/**`. Ignore SQLite/Gitoxide-specific backlog text except
   for the general handoff discipline: preserve unrelated dirty work, produce a

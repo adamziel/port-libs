@@ -15,8 +15,35 @@
 ## Non-Goals
 - No lane implementation in the supervisor session.
 - No live-service provider tests unless bounded, opt-in, and documented.
+- No markerPDF GPU/model execution: no live OCR, Surya/Texify/Torch,
+  Streamlit/FastAPI model workers, or upstream model benchmark parity unless
+  the user explicitly authorizes those runs.
 - No secret inspection, printing, or copying.
 - No wrappers as final port deliverables.
+
+## MarkerPDF Native Scope + Pandoc Dependency Regroup 2026-06-02T23:17Z
+- User direction: no GPU models will run. markerPDF is now supervised as a
+  native PHP searchable-PDF/parser/converter port plus supplied-boundary review
+  pipeline, not as full upstream Marker model-stack parity.
+- markerPDF work that remains in scope: PDF objects, fonts, CMaps, stream
+  filters, xref repair, metadata, outlines, annotations, AcroForms, security
+  preflight, page geometry, image/filter metadata, native text extraction, and
+  supplied-boundary table/equation/image handoffs.
+- markerPDF capabilities that must be reported as unavailable under this
+  scope: scanned-PDF OCR, Surya layout/reading-order/OCR/table-cell models,
+  Texify equation recognition, Torch/model batching, page-pixel visual table
+  recognition, and exact upstream model benchmark parity.
+- Steady-state worker split: trend toward about 8 visible markerPDF native
+  workers plus 3 visible Pandoc dependency workers, keeping total development
+  lanes around 10-11 as active markerPDF panes finish. Preserve existing
+  markerPDF panes; do not kill good work just to hit the split immediately.
+- Pandoc dependency workers should focus first on bounded rows already in
+  `dependency-backlog.json`: `shared-zip-package-core`,
+  `xml-html5-dom-core`/OPC relationships needed by DOCX/EPUB/ODT,
+  `pandoc-doctemplates-core`, YAML/metadata, citation/CSL, math/TeX, charset,
+  and the upstream Cabal runner dependency audit. They must produce focused
+  lane patches or explicit bounded audit notes; no external converter or
+  shell-out progress is accepted.
 
 ## Split Priority Override 2026-05-31T08:10Z
 - New user direction: run the visible worker pool roughly half on continued
