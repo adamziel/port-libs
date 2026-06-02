@@ -1521,6 +1521,21 @@ return [
         $t->true(!str_contains($plainText, 'Profile s'));
         $t->true(str_contains($plainText, 'SiteMap Index'));
     },
+    'ignores PDF comments inside TJ arrays before WordPress paragraph rendering' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $content = "BT /F1 12 Tf 1 0 0 1 72 720 Tm [(Clean) % ] (Comment Noise) -5000\n"
+            . " (Blocks)] TJ 1 0 0 1 150 720 Tm (Ready) Tj T* [(Second) % (Hidden Review Text) 900\n"
+            . " (Line)] TJ ET";
+        $extractor = new PdfTextExtractor();
+        $lines = $extractor->extractTextLines($pdfWithContent($content));
+        $runs = $extractor->extractTextRuns($pdfWithContent($content));
+        $plainText = $extractor->extractPlainText($pdfWithContent($content));
+
+        $t->same(['CleanBlocks Ready', 'SecondLine'], $lines);
+        $t->same(['CleanBlocks', 'Ready', 'SecondLine'], $runs);
+        $t->true(!str_contains($plainText, 'Comment Noise'));
+        $t->true(!str_contains($plainText, 'Hidden Review Text'));
+        $t->true(!str_contains($plainText, '5000'));
+    },
     'applies Tm horizontal scaling before WordPress Tm gap decisions' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = 'BT /F1 12 Tf 1.5 0 0 1 72 720 Tm (Import Profile) Tj 1 0 0 1 204 720 Tm (s) Tj '
             . '0.5 0 0 1 72 704 Tm (SiteMap) Tj 1 0 0 1 106 704 Tm (Index) Tj ET';

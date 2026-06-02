@@ -6890,6 +6890,10 @@ final class PdfTextExtractor
                 $this->readHexToken($stream, $index);
                 continue;
             }
+            if ($char === '%') {
+                $this->skipPdfComment($stream, $index);
+                continue;
+            }
             if ($char === ']') {
                 $index++;
                 break;
@@ -7620,6 +7624,11 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($body[$index] === '%') {
+                $this->skipPdfComment($body, $index);
+                continue;
+            }
+
             if ($body[$index] === '(') {
                 $elements[] = [
                     'type' => 'text',
@@ -7657,6 +7666,14 @@ final class PdfTextExtractor
         }
 
         return $elements;
+    }
+
+    private function skipPdfComment(string $value, int &$index): void
+    {
+        $length = strlen($value);
+        while ($index < $length && !in_array($value[$index], ["\n", "\r"], true)) {
+            $index++;
+        }
     }
 
     private function startsWithWhitespace(string $text): bool
