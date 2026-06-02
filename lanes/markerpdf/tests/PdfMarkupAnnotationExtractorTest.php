@@ -59,6 +59,54 @@ $suppliedPages = static function (): array {
     ];
 };
 
+$rotatedMarkupPdf = static function (): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [10 20 210 320] /CropBox [20 40 180 240] /Rotate 90 /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [7 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 300] /CropBox [0 0 200 300] /Rotate 270 /Annots [8 0 R] >>\nendobj\n"
+        . "7 0 obj\n<< /Type /Annot /Subtype /Highlight /Rect [30 150 150 170] /QuadPoints [30 170 150 170 30 150 150 150] /Contents (rotated crop highlight) /T (Rotation QA) /C [0 1 0] >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Annot /Subtype /Underline /Rect [20 100 80 120] /QuadPoints [20 120 80 120 20 100 80 100] /Contents (rotated 270 underline) /T (Rotation QA) /C [0 0 1] >>\nendobj\n"
+        . "%%EOF";
+};
+
+$rotatedSuppliedPages = static function (): array {
+    return [
+        [
+            'pnum' => 0,
+            'bbox' => [0.0, 0.0, 200.0, 160.0],
+            'rotation' => 90,
+            'blocks' => [[
+                'type' => 'Text',
+                'bbox' => [110.0, 10.0, 130.0, 130.0],
+                'lines' => [[
+                    'bbox' => [110.0, 10.0, 130.0, 130.0],
+                    'spans' => [
+                        ['text' => 'Rotated crop', 'bbox' => [110.0, 10.0, 130.0, 130.0], 'font' => 'Helvetica'],
+                        ['text' => 'raw decoy', 'bbox' => [30.0, 150.0, 150.0, 170.0], 'font' => 'Helvetica'],
+                    ],
+                ]],
+            ]],
+        ],
+        [
+            'pnum' => 1,
+            'bbox' => [0.0, 0.0, 300.0, 200.0],
+            'rotation' => 270,
+            'blocks' => [[
+                'type' => 'Text',
+                'bbox' => [180.0, 120.0, 200.0, 180.0],
+                'lines' => [[
+                    'bbox' => [180.0, 120.0, 200.0, 180.0],
+                    'spans' => [
+                        ['text' => 'Rotated 270', 'bbox' => [180.0, 120.0, 200.0, 180.0], 'font' => 'Helvetica'],
+                        ['text' => 'raw decoy', 'bbox' => [20.0, 100.0, 80.0, 120.0], 'font' => 'Helvetica'],
+                    ],
+                ]],
+            ]],
+        ],
+    ];
+};
+
 return [
     'extracts text-markup annotation QuadPoints and review metadata' => static function (TestRunner $t) use ($markupPdf): void {
         $pages = (new PdfMarkupAnnotationExtractor())->extractPageMarkups($markupPdf());
@@ -158,6 +206,37 @@ return [
         $t->same(1, count($pages[1]['markup_annotations']), 'direct underline with QuadPoints is kept while missing-QuadPoints highlight is excluded.');
         $t->same('Underline', $pages[1]['blocks'][0]['lines'][0]['spans'][0]['review_annotations'][0]['subtype']);
         $t->same('import later', $pages[1]['blocks'][0]['lines'][0]['spans'][0]['review_annotations'][0]['contents']);
+    },
+    'maps rotated QuadPoints through page boxes before applying to supplied pdftext spans' => static function (TestRunner $t) use ($rotatedMarkupPdf, $rotatedSuppliedPages): void {
+        $extractor = new PdfMarkupAnnotationExtractor();
+        $markups = $extractor->extractPageMarkups($rotatedMarkupPdf());
+
+        $t->same(2, count($markups));
+        $t->same(90, $markups[0]['markups'][0]['page_rotation']);
+        $t->same([20.0, 40.0, 180.0, 240.0], $markups[0]['markups'][0]['page_bbox']);
+        $t->same([0.0, 0.0, 200.0, 160.0], $markups[0]['markups'][0]['display_page_bbox']);
+        $t->same([[30.0, 150.0, 150.0, 170.0]], $markups[0]['markups'][0]['quad_rects']);
+        $t->same([[110.0, 10.0, 130.0, 130.0]], $markups[0]['markups'][0]['pdftext_quad_rects']);
+        $t->same(270, $markups[1]['markups'][0]['page_rotation']);
+        $t->same([[180.0, 120.0, 200.0, 180.0]], $markups[1]['markups'][0]['pdftext_quad_rects']);
+
+        $pages = $extractor->applyMarkupsToPages($rotatedSuppliedPages(), $rotatedMarkupPdf());
+        $firstReview = $pages[0]['blocks'][0]['lines'][0]['spans'][0]['review_annotations'][0];
+        $secondReview = $pages[1]['blocks'][0]['lines'][0]['spans'][0]['review_annotations'][0];
+
+        $t->same('Highlight', $firstReview['subtype']);
+        $t->same('rotated crop highlight', $firstReview['contents']);
+        $t->same([110.0, 10.0, 130.0, 130.0], $firstReview['quad_rect']);
+        $t->same('marker_pdftext_display', $firstReview['quad_rect_coordinate_space']);
+        $t->same([30.0, 150.0, 150.0, 170.0], $firstReview['page_quad_rect']);
+        $t->same([110.0, 10.0, 130.0, 130.0], $firstReview['pdftext_quad_rect']);
+        $t->true(!isset($pages[0]['blocks'][0]['lines'][0]['spans'][1]['review_annotations']), 'raw page-space decoy span is not annotated on a rotated pdftext page.');
+
+        $t->same('Underline', $secondReview['subtype']);
+        $t->same('rotated 270 underline', $secondReview['contents']);
+        $t->same([180.0, 120.0, 200.0, 180.0], $secondReview['quad_rect']);
+        $t->same('marker_pdftext_display', $secondReview['quad_rect_coordinate_space']);
+        $t->true(!isset($pages[1]['blocks'][0]['lines'][0]['spans'][1]['review_annotations']), 'raw 270 page-space decoy span is not annotated on a rotated pdftext page.');
     },
     'keeps pages without text-markup annotations unchanged' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [<< /Type /Annot /Subtype /Text /Rect [72 700 160 718] /Contents (sticky note) >>] >>\nendobj\n%%EOF";

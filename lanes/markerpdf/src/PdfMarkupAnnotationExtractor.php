@@ -6,6 +6,7 @@ namespace PortLibs\MarkerPDF;
 
 final class PdfMarkupAnnotationExtractor
 {
+    private const DEFAULT_PAGE_BBOX = [0.0, 0.0, 612.0, 792.0];
     private const TEXT_MARKUP_SUBTYPES = ['Highlight', 'Underline', 'Squiggly', 'StrikeOut'];
 
     /**
@@ -24,7 +25,8 @@ final class PdfMarkupAnnotationExtractor
                 continue;
             }
 
-            $markups = $this->markupsFromPageObject($objects[$pageObjectNumber], $objects);
+            $pageGeometry = $this->pageGeometry($pageObjectNumber, $objects);
+            $markups = $this->markupsFromPageObject($objects[$pageObjectNumber], $objects, $pageGeometry);
             if ($markups === []) {
                 continue;
             }
@@ -80,7 +82,7 @@ final class PdfMarkupAnnotationExtractor
                             continue;
                         }
 
-                        $annotations = $this->markupAnnotationsForSpan($span, $markups);
+                        $annotations = $this->markupAnnotationsForSpan($span, $markups, $page);
                         if ($annotations === []) {
                             continue;
                         }
@@ -107,9 +109,10 @@ final class PdfMarkupAnnotationExtractor
     /**
      * @param array<string, mixed> $span
      * @param list<array<string, mixed>> $markups
+     * @param array<string, mixed> $page
      * @return list<array<string, mixed>>
      */
-    private function markupAnnotationsForSpan(array $span, array $markups): array
+    private function markupAnnotationsForSpan(array $span, array $markups, array $page): array
     {
         $bbox = $this->bbox($span['bbox'] ?? null);
         if ($bbox === null) {
@@ -118,8 +121,9 @@ final class PdfMarkupAnnotationExtractor
 
         $annotations = [];
         foreach ($markups as $markup) {
-            foreach (($markup['quad_rects'] ?? []) as $quadIndex => $quadRect) {
-                if (!is_array($quadRect) || !$this->bboxesIntersect($bbox, $quadRect)) {
+            foreach ($this->quadRectCandidatesForPage($markup, $page) as $candidate) {
+                $quadRect = $candidate['rect'];
+                if (!$this->bboxesIntersect($bbox, $quadRect)) {
                     continue;
                 }
 
@@ -135,8 +139,11 @@ final class PdfMarkupAnnotationExtractor
                     'border' => $markup['border'],
                     'border_style' => $markup['border_style'],
                     'popup' => $markup['popup'],
-                    'quad_index' => $quadIndex,
+                    'quad_index' => $candidate['index'],
                     'quad_rect' => $quadRect,
+                    'quad_rect_coordinate_space' => $candidate['coordinate_space'],
+                    'page_quad_rect' => $markup['quad_rects'][$candidate['index']] ?? null,
+                    'pdftext_quad_rect' => $markup['pdftext_quad_rects'][$candidate['index']] ?? null,
                     'annotation_object' => $markup['annotation_object'],
                 ];
             }
@@ -147,15 +154,16 @@ final class PdfMarkupAnnotationExtractor
 
     /**
      * @param array<int, string> $objects
+     * @param array{bbox: list<float>, rotation: int, display_bbox: list<float>} $pageGeometry
      * @return list<array<string, mixed>>
      */
-    private function markupsFromPageObject(string $pageBody, array $objects): array
+    private function markupsFromPageObject(string $pageBody, array $objects, array $pageGeometry): array
     {
         $annotationBodies = $this->annotationBodiesForPage($pageBody, $objects);
         $markups = [];
 
         foreach ($annotationBodies as $annotation) {
-            $markup = $this->markupFromAnnotationBody($annotation['body'], $objects, $annotation['object']);
+            $markup = $this->markupFromAnnotationBody($annotation['body'], $objects, $annotation['object'], $pageGeometry);
             if ($markup !== null) {
                 $markups[] = $markup;
             }
@@ -167,8 +175,9 @@ final class PdfMarkupAnnotationExtractor
     /**
      * @return array<string, mixed>|null
      * @param array<int, string> $objects
+     * @param array{bbox: list<float>, rotation: int, display_bbox: list<float>} $pageGeometry
      */
-    private function markupFromAnnotationBody(string $annotationBody, array $objects, ?int $annotationObject): ?array
+    private function markupFromAnnotationBody(string $annotationBody, array $objects, ?int $annotationObject, array $pageGeometry): ?array
     {
         if (preg_match('/\/Subtype\s*\/(' . implode('|', self::TEXT_MARKUP_SUBTYPES) . ')\b/', $annotationBody, $match) !== 1) {
             return null;
@@ -180,6 +189,7 @@ final class PdfMarkupAnnotationExtractor
         }
 
         $quadRects = array_map(fn (array $quad): array => $this->rectFromQuad($quad), $quadPoints);
+        $pdftextQuadRects = array_map(fn (array $rect): array => $this->pageRectToPdftextRect($rect, $pageGeometry), $quadRects);
         $rect = $this->rectFromAnnotation($annotationBody) ?? $this->unionRect($quadRects);
         if ($rect === null) {
             return null;
@@ -190,6 +200,11 @@ final class PdfMarkupAnnotationExtractor
             'rect' => $rect,
             'quad_points' => $quadPoints,
             'quad_rects' => $quadRects,
+            'pdftext_quad_rects' => $pdftextQuadRects,
+            'pdftext_rect' => $this->pageRectToPdftextRect($rect, $pageGeometry),
+            'page_bbox' => $pageGeometry['bbox'],
+            'page_rotation' => $pageGeometry['rotation'],
+            'display_page_bbox' => $pageGeometry['display_bbox'],
             'contents' => $this->stringAfterName($annotationBody, 'Contents'),
             'author' => $this->stringAfterName($annotationBody, 'T'),
             'subject' => $this->stringAfterName($annotationBody, 'Subj'),
@@ -501,6 +516,113 @@ final class PdfMarkupAnnotationExtractor
         ];
     }
 
+    /**
+     * @param array<string, mixed> $markup
+     * @param array<string, mixed> $page
+     * @return list<array{index: int, rect: list<float>, coordinate_space: string}>
+     */
+    private function quadRectCandidatesForPage(array $markup, array $page): array
+    {
+        $usesPdftextGeometry = $this->pageLooksLikePdftextGeometry($markup, $page);
+        $rects = $usesPdftextGeometry ? ($markup['pdftext_quad_rects'] ?? []) : ($markup['quad_rects'] ?? []);
+        $coordinateSpace = $usesPdftextGeometry ? 'marker_pdftext_display' : 'pdf_page_user_space';
+
+        if (!is_array($rects)) {
+            return [];
+        }
+
+        $candidates = [];
+        foreach ($rects as $quadIndex => $rect) {
+            $bbox = $this->bbox($rect);
+            if ($bbox === null) {
+                continue;
+            }
+
+            $candidates[] = [
+                'index' => (int) $quadIndex,
+                'rect' => $bbox,
+                'coordinate_space' => $coordinateSpace,
+            ];
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * markerPDF receives span bboxes from pdftext, whose page bbox is normalized
+     * to display dimensions and carries the page rotation. Legacy supplied tests
+     * without that page-level geometry continue to use raw PDF page-space quads.
+     *
+     * @param array<string, mixed> $markup
+     * @param array<string, mixed> $page
+     */
+    private function pageLooksLikePdftextGeometry(array $markup, array $page): bool
+    {
+        if (!array_key_exists('bbox', $page) || !array_key_exists('rotation', $page)) {
+            return false;
+        }
+        if (!is_int($page['rotation']) && !is_float($page['rotation'])) {
+            return false;
+        }
+
+        $pageBbox = $this->bbox($page['bbox']);
+        $displayBbox = $this->bbox($markup['display_page_bbox'] ?? null);
+        if ($pageBbox === null || $displayBbox === null) {
+            return false;
+        }
+
+        $pageRotation = $this->normalizedRotation((int) round((float) $page['rotation']));
+        $markupRotation = $this->normalizedRotation((int) ($markup['page_rotation'] ?? 0));
+        if ($pageRotation !== $markupRotation) {
+            return false;
+        }
+
+        return abs($this->rectWidth($pageBbox) - $this->rectWidth($displayBbox)) <= 0.5
+            && abs($this->rectHeight($pageBbox) - $this->rectHeight($displayBbox)) <= 0.5;
+    }
+
+    /**
+     * @param list<float> $rect
+     * @param array{bbox: list<float>, rotation: int, display_bbox: list<float>} $pageGeometry
+     * @return list<float>
+     */
+    private function pageRectToPdftextRect(array $rect, array $pageGeometry): array
+    {
+        $pageBox = $pageGeometry['bbox'];
+        $width = $this->rectWidth($pageBox);
+        $height = $this->rectHeight($pageBox);
+        $left = $pageBox[0];
+        $bottom = $pageBox[1];
+
+        $x1 = $rect[0] - $left;
+        $y1 = $rect[1] - $bottom;
+        $x2 = $rect[2] - $left;
+        $y2 = $rect[3] - $bottom;
+
+        return $this->normalizeRect(match ($this->normalizedRotation($pageGeometry['rotation'])) {
+            90 => [$y1, $x1, $y2, $x2],
+            180 => [$width - $x2, $y1, $width - $x1, $y2],
+            270 => [$height - $y2, $width - $x2, $height - $y1, $width - $x1],
+            default => [$x1, $height - $y2, $x2, $height - $y1],
+        });
+    }
+
+    /**
+     * @param list<float> $rect
+     */
+    private function rectWidth(array $rect): float
+    {
+        return max(0.0, $rect[2] - $rect[0]);
+    }
+
+    /**
+     * @param list<float> $rect
+     */
+    private function rectHeight(array $rect): float
+    {
+        return max(0.0, $rect[3] - $rect[1]);
+    }
+
     private function valueAfterName(string $body, string $name): ?string
     {
         if (preg_match('/\/' . preg_quote($name, '/') . '\b/s', $body, $match, PREG_OFFSET_CAPTURE) !== 1) {
@@ -751,6 +873,204 @@ final class PdfMarkupAnnotationExtractor
         }
 
         return $pages;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{bbox: list<float>, rotation: int, display_bbox: list<float>}
+     */
+    private function pageGeometry(int $pageObjectNumber, array $objects): array
+    {
+        $pageBody = $objects[$pageObjectNumber] ?? '';
+        $inherited = $this->parentInheritedPageGeometry($pageBody, $objects);
+
+        $mediaBox = $this->boxAfterName($pageBody, 'MediaBox', $objects) ?? $inherited['media_box'] ?? self::DEFAULT_PAGE_BBOX;
+        $cropBox = $this->boxAfterName($pageBody, 'CropBox', $objects) ?? $inherited['crop_box'] ?? $mediaBox;
+        $bbox = $this->intersectBoxes($mediaBox, $cropBox);
+
+        $rotation = $this->rotationAfterName($pageBody, $objects);
+        if ($rotation === null) {
+            $rotation = $inherited['rotation'] ?? 0;
+        }
+
+        return [
+            'bbox' => $bbox,
+            'rotation' => $rotation,
+            'display_bbox' => $this->displayPageBbox($bbox, $rotation),
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{media_box?: list<float>, crop_box?: list<float>, rotation?: int}
+     */
+    private function parentInheritedPageGeometry(string $pageBody, array $objects): array
+    {
+        $ancestors = [];
+        $seen = [];
+        $parent = $this->referenceAfterName($pageBody, 'Parent');
+        while ($parent !== null && !isset($seen[$parent]) && isset($objects[$parent])) {
+            $seen[$parent] = true;
+            $ancestors[] = $objects[$parent];
+            $parent = $this->referenceAfterName($objects[$parent], 'Parent');
+        }
+
+        $inherited = [];
+        foreach (array_reverse($ancestors) as $ancestorBody) {
+            $mediaBox = $this->boxAfterName($ancestorBody, 'MediaBox', $objects);
+            if ($mediaBox !== null) {
+                $inherited['media_box'] = $mediaBox;
+            }
+
+            $cropBox = $this->boxAfterName($ancestorBody, 'CropBox', $objects);
+            if ($cropBox !== null) {
+                $inherited['crop_box'] = $cropBox;
+            }
+
+            $rotation = $this->rotationAfterName($ancestorBody, $objects);
+            if ($rotation !== null) {
+                $inherited['rotation'] = $rotation;
+            }
+        }
+
+        return $inherited;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<float>|null
+     */
+    private function boxAfterName(string $body, string $name, array $objects): ?array
+    {
+        $value = $this->valueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+        if (str_starts_with($value, '[')) {
+            $arrayBody = $this->arrayBodyFromValue($value);
+            return $arrayBody === null ? null : $this->boxFromNumbers($arrayBody);
+        }
+
+        $objectNumber = $this->indirectObjectNumberFromValue($value);
+        if ($objectNumber === null || !isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        $objectBody = trim($objects[$objectNumber]);
+        if (!str_starts_with($objectBody, '[')) {
+            return null;
+        }
+
+        $arrayBody = $this->arrayBodyFromValue($objectBody);
+        return $arrayBody === null ? null : $this->boxFromNumbers($arrayBody);
+    }
+
+    /**
+     * @return list<float>|null
+     */
+    private function boxFromNumbers(string $body): ?array
+    {
+        $numbers = $this->numbersFromPdfArray($body);
+        if (count($numbers) < 4) {
+            return null;
+        }
+
+        return $this->normalizeRect(array_slice($numbers, 0, 4));
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function rotationAfterName(string $body, array $objects): ?int
+    {
+        $number = $this->numberValueAfterName($body, 'Rotate', $objects);
+        if ($number === null || abs($number - round($number)) > 0.000001) {
+            return null;
+        }
+
+        $rotation = (int) round($number);
+        if ($rotation % 90 !== 0) {
+            return null;
+        }
+
+        return $this->normalizedRotation($rotation);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function numberValueAfterName(string $body, string $name, array $objects): ?float
+    {
+        $value = $this->valueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+        if (preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?!\s+\d+\s+R\b)/', $value, $match) === 1) {
+            return (float) $match[0];
+        }
+
+        $objectNumber = $this->indirectObjectNumberFromValue($value);
+        if ($objectNumber === null || !isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        $objectBody = trim($objects[$objectNumber]);
+        return preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/', $objectBody) === 1 ? (float) $objectBody : null;
+    }
+
+    private function referenceAfterName(string $body, string $name): ?int
+    {
+        $value = $this->valueAfterName($body, $name);
+        return $value === null ? null : $this->indirectObjectNumberFromValue($value);
+    }
+
+    /**
+     * @param list<float> $mediaBox
+     * @param list<float> $cropBox
+     * @return list<float>
+     */
+    private function intersectBoxes(array $mediaBox, array $cropBox): array
+    {
+        $left = max($mediaBox[0], $cropBox[0]);
+        $bottom = max($mediaBox[1], $cropBox[1]);
+        $right = min($mediaBox[2], $cropBox[2]);
+        $top = min($mediaBox[3], $cropBox[3]);
+
+        return [
+            $left,
+            $bottom,
+            max($left, $right),
+            max($bottom, $top),
+        ];
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @return list<float>
+     */
+    private function displayPageBbox(array $bbox, int $rotation): array
+    {
+        $width = $this->rectWidth($bbox);
+        $height = $this->rectHeight($bbox);
+        if (in_array($this->normalizedRotation($rotation), [90, 270], true)) {
+            [$width, $height] = [$height, $width];
+        }
+
+        return [0.0, 0.0, $width, $height];
+    }
+
+    private function normalizedRotation(int $rotation): int
+    {
+        $rotation %= 360;
+        if ($rotation < 0) {
+            $rotation += 360;
+        }
+
+        return in_array($rotation, [0, 90, 180, 270], true) ? $rotation : 0;
     }
 
     /**
