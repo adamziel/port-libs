@@ -1297,6 +1297,47 @@ return [
         $t->same(['Chained Params Import', 'Current Filter Base'], $extractor->extractTextRuns($pdf));
         $t->same("Chained Params Import\nCurrent Filter Base\n", $extractor->naiveGetText($pdf));
     },
+    'recovers stream filter chains while failing closed on unresolved DecodeParms' => static function (TestRunner $t) use ($ascii85Encode, $pngPredictorEncode): void {
+        $rowOne = 'BT /F1 12 Tf 72 720 Td (Recovered Filter Chain) Tj T* ';
+        $rowTwo = str_pad('(DecodeParms Tail) Tj ET', strlen($rowOne));
+        $predicted = $pngPredictorEncode($rowOne . $rowTwo, strlen($rowOne));
+        $compressed = gzcompress($predicted);
+        $t->true(is_string($compressed), 'Recovered filter-chain fixture should compress.');
+        $encoded = $ascii85Encode($compressed);
+
+        $missingDecodeParmsLeak = 'BT /F1 12 Tf 72 704 Td (Missing Chain DecodeParms Leak) Tj ET';
+        $missingCompressed = gzcompress("\0" . $missingDecodeParmsLeak);
+        $t->true(is_string($missingCompressed), 'Missing DecodeParms fixture should compress.');
+        $missingEncoded = $ascii85Encode($missingCompressed);
+
+        $malformedDecodeParmsLeak = 'BT /F1 12 Tf 72 688 Td (Malformed Chain DecodeParms Leak) Tj ET';
+        $malformedCompressed = gzcompress("\0" . $malformedDecodeParmsLeak);
+        $t->true(is_string($malformedCompressed), 'Malformed DecodeParms fixture should compress.');
+        $malformedEncoded = $ascii85Encode($malformedCompressed);
+
+        $visibleAfter = 'BT /F1 12 Tf 72 672 Td (Visible After Recovery) Tj ET';
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 5 0 R 6 0 R 7 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null % parser comment\n20 0 R ] /Length " . (strlen($encoded) - 5) . " >>\nstream\n{$encoded}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null 99 0 R ] /Length " . strlen($missingEncoded) . " >>\nstream\n{$missingEncoded}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null 42 ] /Length " . strlen($malformedEncoded) . " >>\nstream\n{$malformedEncoded}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Predictor 12 /Columns " . strlen($rowOne) . " >>\nendobj\n"
+            . "%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $text = $extractor->extractPlainText($pdf);
+
+        $t->same("Recovered Filter Chain\nDecodeParms Tail\nVisible After Recovery", $text);
+        $t->same(['Recovered Filter Chain', 'DecodeParms Tail', 'Visible After Recovery'], $extractor->extractTextLines($pdf));
+        $t->same(['Recovered Filter Chain', 'DecodeParms Tail', 'Visible After Recovery'], $extractor->extractTextRuns($pdf));
+        $t->same("Recovered Filter Chain\nDecodeParms Tail\nVisible After Recovery\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($text, 'Missing Chain DecodeParms Leak'));
+        $t->true(!str_contains($text, 'Malformed Chain DecodeParms Leak'));
+    },
     'resolves indirect numeric DecodeParms values for predictor filters' => static function (TestRunner $t) use ($pngUpPredictorEncode, $lzwLiteralEncode): void {
         $rowOne = 'BT /F1 12 Tf 72 720 Td (Indirect Predictor Params) Tj T* ';
         if (strlen($rowOne) % 2 !== 0) {
