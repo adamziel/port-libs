@@ -4391,6 +4391,7 @@ final class PdfTextExtractor
             }
 
             $encodingFallback = $this->fontEncodingMap($body);
+            $cidEncodingMap = $this->fontCidEncodingMap($body, $objects, $namedCMapBodies);
             $widthMetrics = $this->fontWidthMetrics($body, $objects);
             $descriptorInfo = $this->fontDescriptorInfo($body, $objects);
             $cmap = null;
@@ -4422,7 +4423,8 @@ final class PdfTextExtractor
             }
 
             if ($cmap !== null && ($cmap['map'] !== [] || $cmap['codeSpaceRanges'] !== [] || $descriptorInfo['name'] !== null || $descriptorInfo['flags'] !== null)) {
-                $cmap = $this->withFontWidthMetrics($cmap, $widthMetrics, $this->fontWritingMode($body, $cmap));
+                $cmap = $this->withFontCidEncodingMap($cmap, $cidEncodingMap);
+                $cmap = $this->withFontWidthMetrics($cmap, $widthMetrics, $this->fontWritingMode($body, $cmap, $cidEncodingMap));
                 $cmap = $this->withFontDescriptorInfo($cmap, $descriptorInfo);
                 $fontObjectMaps[$objectNumber] = $cmap;
             }
@@ -4620,6 +4622,36 @@ final class PdfTextExtractor
         }
 
         return $this->implicitBaseFontEncodingMap($fontBody);
+    }
+
+    /**
+     * @return array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, writingMode?: int}|null
+     * @param array<int, string> $objects
+     * @param array<string, string> $namedCMapBodies
+     */
+    private function fontCidEncodingMap(string $fontBody, array $objects, array $namedCMapBodies): ?array
+    {
+        if (preg_match('/\/Subtype\s*\/Type0\b/s', $fontBody) !== 1) {
+            return null;
+        }
+
+        if (preg_match('/\/Encoding\s+(\d+)\s+\d+\s+R\b/s', $fontBody, $match) !== 1) {
+            return null;
+        }
+
+        $encodingObjectNumber = (int) $match[1];
+        if (!isset($objects[$encodingObjectNumber])) {
+            return null;
+        }
+
+        $decoded = $this->decodedCMapBody($objects[$encodingObjectNumber], $objects);
+        if ($decoded === null) {
+            return null;
+        }
+
+        $currentName = $this->cMapName($decoded);
+
+        return $this->parseCidCMap($decoded, $namedCMapBodies, $currentName === null ? [] : [$currentName]);
     }
 
     /**
@@ -5238,6 +5270,27 @@ final class PdfTextExtractor
 
     /**
      * @param array<string, mixed> $map
+     * @param array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, writingMode?: int}|null $cidEncodingMap
+     * @return array<string, mixed>
+     */
+    private function withFontCidEncodingMap(array $map, ?array $cidEncodingMap): array
+    {
+        if ($cidEncodingMap === null) {
+            return $map;
+        }
+
+        if ($cidEncodingMap['cidMap'] !== []) {
+            $map['cidMap'] = $cidEncodingMap['cidMap'];
+        }
+        if ($cidEncodingMap['codeSpaceRanges'] !== []) {
+            $map['cidCodeSpaceRanges'] = $cidEncodingMap['codeSpaceRanges'];
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param array<string, mixed> $map
      * @param array{name: string|null, flags: int|null, weight: float|null} $info
      * @return array<string, mixed>
      */
@@ -5256,7 +5309,11 @@ final class PdfTextExtractor
         return $map;
     }
 
-    private function fontWritingMode(string $fontBody, array $cmap): int
+    /**
+     * @param array<string, mixed> $cmap
+     * @param array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, writingMode?: int}|null $cidEncodingMap
+     */
+    private function fontWritingMode(string $fontBody, array $cmap, ?array $cidEncodingMap = null): int
     {
         if (preg_match('/\/Encoding\s+\/([^\s\[\]()<>{}\/%]+)/', $fontBody, $match)) {
             $encodingName = $this->decodePdfName($match[1]);
@@ -5266,6 +5323,10 @@ final class PdfTextExtractor
             if ($encodingName === 'Identity-H') {
                 return 0;
             }
+        }
+
+        if ($cidEncodingMap !== null && array_key_exists('writingMode', $cidEncodingMap)) {
+            return (int) $cidEncodingMap['writingMode'] === 1 ? 1 : 0;
         }
 
         return $this->mapWritingMode($cmap);
@@ -7473,6 +7534,81 @@ final class PdfTextExtractor
         return $result;
     }
 
+    /**
+     * @return array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, writingMode?: int}
+     * @param array<string, string> $namedCMapBodies
+     * @param list<string> $seenCMaps
+     */
+    private function parseCidCMap(string $cmap, array $namedCMapBodies = [], array $seenCMaps = []): array
+    {
+        $cmap = $this->stripPdfLineComments($cmap);
+        $cidMap = [];
+        $codeSpaceRanges = [];
+        $writingMode = null;
+
+        if (preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+usecmap\b/s', $cmap, $useCMapMatches)) {
+            foreach ($useCMapMatches[1] as $rawName) {
+                $name = $this->decodePdfName($rawName);
+                if (in_array($name, $seenCMaps, true) || !isset($namedCMapBodies[$name])) {
+                    continue;
+                }
+
+                $base = $this->parseCidCMap($namedCMapBodies[$name], $namedCMapBodies, [...$seenCMaps, $name]);
+                $cidMap = $base['cidMap'] + $cidMap;
+                if (isset($base['writingMode'])) {
+                    $writingMode = (int) $base['writingMode'] === 1 ? 1 : 0;
+                }
+                foreach ($base['codeSpaceRanges'] as $range) {
+                    $codeSpaceRanges[$range['start'] . ':' . $range['end'] . ':' . $range['width']] = $range;
+                }
+            }
+        }
+
+        if (preg_match('/\/WMode\s+([01])\s+def\b/s', $cmap, $wModeMatch) === 1) {
+            $writingMode = (int) $wModeMatch[1] === 1 ? 1 : 0;
+        }
+
+        if (preg_match_all('/begincidchar(.*?)endcidchar/s', $cmap, $charBlocks)) {
+            foreach ($charBlocks[1] as $block) {
+                if (!preg_match_all('/<([\da-fA-F\s]+)>\s+([+-]?\d+)/s', $block, $entries, PREG_SET_ORDER)) {
+                    continue;
+                }
+
+                foreach ($entries as $entry) {
+                    $source = $this->normalizeHexKey($entry[1]);
+                    $cid = (int) $entry[2];
+                    if ($source !== '' && $cid >= 0 && $cid <= 0xffff) {
+                        $cidMap[$source] = $cid;
+                    }
+                }
+            }
+        }
+
+        if (preg_match_all('/begincidrange(.*?)endcidrange/s', $cmap, $rangeBlocks)) {
+            foreach ($rangeBlocks[1] as $block) {
+                $this->parseCidRanges($block, $cidMap);
+            }
+        }
+
+        foreach ($this->parseCMapCodeSpaceRanges($cmap) as $range) {
+            $codeSpaceRanges[$range['start'] . ':' . $range['end'] . ':' . $range['width']] = $range;
+        }
+        $codeSpaceRanges = array_values($codeSpaceRanges);
+        usort($codeSpaceRanges, static function (array $left, array $right): int {
+            return $right['width'] <=> $left['width'] ?: $left['start'] <=> $right['start'];
+        });
+
+        $result = [
+            'cidMap' => $cidMap,
+            'codeSpaceRanges' => $codeSpaceRanges,
+        ];
+        if ($writingMode !== null) {
+            $result['writingMode'] = $writingMode;
+        }
+
+        return $result;
+    }
+
     private function stripPdfLineComments(string $source): string
     {
         $stripped = '';
@@ -7562,6 +7698,39 @@ final class PdfTextExtractor
                     $source++;
                     $count++;
                 }
+            }
+        }
+    }
+
+    /**
+     * @param array<string, int> $cidMap
+     */
+    private function parseCidRanges(string $block, array &$cidMap): void
+    {
+        if (!preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>\s*([+-]?\d+)/s', $block, $ranges, PREG_SET_ORDER)) {
+            return;
+        }
+
+        foreach ($ranges as $range) {
+            $start = $this->normalizeHexKey($range[1]);
+            $end = $this->normalizeHexKey($range[2]);
+            if ($start === '' || $end === '' || strlen($start) !== strlen($end)) {
+                continue;
+            }
+
+            $source = hexdec($start);
+            $last = hexdec($end);
+            $cid = (int) $range[3];
+            $sourceWidth = strlen($start);
+            $count = 0;
+            while ($source <= $last && $count < 512) {
+                $currentCid = $cid + $count;
+                if ($currentCid >= 0 && $currentCid <= 0xffff) {
+                    $sourceKey = str_pad(strtolower(dechex($source)), $sourceWidth, '0', STR_PAD_LEFT);
+                    $cidMap[$sourceKey] = $currentCid;
+                }
+                $source++;
+                $count++;
             }
         }
     }
@@ -9400,7 +9569,7 @@ final class PdfTextExtractor
 
         $widths = [];
         foreach ($this->textOperandSourceKeys($hex, $toUnicodeMap) as $key) {
-            $cid = hexdec($key);
+            $cid = $this->cidForWidthSourceKey($key, $toUnicodeMap);
             if (is_array($cidWidths) && array_key_exists($cid, $cidWidths)) {
                 $widths[] = (float) $cidWidths[$cid];
                 continue;
@@ -9434,13 +9603,23 @@ final class PdfTextExtractor
 
         $displacements = [];
         foreach ($this->textOperandSourceKeys($hex, $toUnicodeMap) as $key) {
-            $cid = hexdec($key);
+            $cid = $this->cidForWidthSourceKey($key, $toUnicodeMap);
             $displacements[] = is_array($cidDisplacements) && array_key_exists($cid, $cidDisplacements)
                 ? (float) $cidDisplacements[$cid]
                 : (float) $defaultDisplacement;
         }
 
         return $displacements;
+    }
+
+    private function cidForWidthSourceKey(string $sourceKey, array $toUnicodeMap): int
+    {
+        $cidMap = $toUnicodeMap['cidMap'] ?? [];
+        if (is_array($cidMap) && array_key_exists($sourceKey, $cidMap) && is_int($cidMap[$sourceKey])) {
+            return $cidMap[$sourceKey];
+        }
+
+        return hexdec($sourceKey);
     }
 
     private function textOperandSourceHex(string $operand): string
