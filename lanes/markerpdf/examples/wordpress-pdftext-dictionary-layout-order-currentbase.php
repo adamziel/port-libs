@@ -37,8 +37,18 @@ $document = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
             ['text' => 'Second column lists media attachments.', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
             ['text' => 'First column introduces the import.', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
         ]),
+        $page(8, [
+            ['text' => 'Skipped appendix page', 'bbox' => [72.0, 84.0, 300.0, 98.0]],
+        ]),
     ],
     [
+        [
+            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+            'bboxes' => [
+                ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+            ],
+        ],
         [
             'image_bbox' => [0.0, 0.0, 612.0, 792.0],
             'bboxes' => [
@@ -46,8 +56,15 @@ $document = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
                 ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
             ],
         ],
+        [
+            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+            'bboxes' => [
+                ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+            ],
+        ],
     ],
-    orderImages: ['rendered-selected-page'],
+    orderImages: ['rendered-cover-page', 'rendered-selected-page', 'rendered-appendix-page'],
     maxPages: 1,
     startPage: 1,
     toc: [['title' => 'Data liberation import', 'level' => 1, 'page_index' => 7]]
@@ -88,6 +105,9 @@ echo '<!-- markerpdf-pdftext-dictionary-layout-order-currentbase ' . htmlspecial
     'span_ids_restart_for_selected_page' => in_array('0_0', $spanIds, true),
     'ordered_text' => $orderedText,
     'cover_page_excluded' => !in_array('Skipped editorial cover', $orderedText, true),
+    'appendix_page_excluded' => !in_array('Skipped appendix page', $orderedText, true),
+    'full_document_order_artifacts_trimmed' => ($document['metadata']['order_plan']['image_count'] ?? null) === 1
+        && ($document['metadata']['order_plan']['order_result_count'] ?? null) === 1,
     'order_plan' => $document['metadata']['order_plan'] ?? null,
     'supplied_boundaries' => $document['metadata']['supplied_boundaries'] ?? [],
     'executes_python_or_models' => false,

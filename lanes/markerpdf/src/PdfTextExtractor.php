@@ -15291,15 +15291,16 @@ final class PdfTextExtractor
             return true;
         }
 
-        if ($filters === []) {
-            return true;
-        }
-
         if (
             $this->inlineImageUsesJpxDecode($filters)
             && $this->inlineJpxCandidateState($candidate) === 'incomplete'
         ) {
             return false;
+        }
+
+        $expectedLength = $this->inlineImageExpectedDecodedLength($dictionary);
+        if ($filters === []) {
+            return $expectedLength === null || strlen($candidate) >= $expectedLength;
         }
 
         if (!$this->hasVerifiableInlineImageFilter($filters)) {
@@ -15311,7 +15312,6 @@ final class PdfTextExtractor
             return false;
         }
 
-        $expectedLength = $this->inlineImageExpectedDecodedLength($dictionary);
         return $expectedLength === null || strlen($decoded) === $expectedLength;
     }
 

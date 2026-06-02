@@ -131,6 +131,18 @@ final class PdfTextDocumentExtractor
             workers: $workers
         );
         $orderer ??= new LayoutOrderer();
+        $orderImages = $this->selectSuppliedPageArtifacts(
+            $orderImages,
+            count($pdftextPages),
+            $document['page_range'],
+            count($document['pages'])
+        );
+        $orderResults = $this->selectSuppliedPageArtifacts(
+            $orderResults,
+            count($pdftextPages),
+            $document['page_range'],
+            count($document['pages'])
+        );
 
         $ordered = $orderer->runWithSuppliedOrder(
             $orderImages,
@@ -143,6 +155,36 @@ final class PdfTextDocumentExtractor
         $document['metadata']['supplied_boundaries'] = ['pdftext-dictionary', 'layout-order'];
 
         return $document;
+    }
+
+    /**
+     * Upstream trims the PDFium document to the selected page range before
+     * rendering order images and zipping model results with marker pages. If a
+     * supplied artifact list still spans the original pdftext page list, slice it
+     * to the same selected range; selected-only lists are already aligned.
+     *
+     * @param list<mixed> $artifacts
+     * @param list<int> $pageRange
+     * @return list<mixed>
+     */
+    private function selectSuppliedPageArtifacts(
+        array $artifacts,
+        int $sourcePageCount,
+        array $pageRange,
+        int $selectedPageCount
+    ): array {
+        $artifacts = array_values($artifacts);
+        if (
+            $artifacts === []
+            || $pageRange === []
+            || $selectedPageCount === 0
+            || count($artifacts) !== $sourcePageCount
+            || count($artifacts) === $selectedPageCount
+        ) {
+            return $artifacts;
+        }
+
+        return array_slice($artifacts, $pageRange[0], $selectedPageCount);
     }
 
     /**

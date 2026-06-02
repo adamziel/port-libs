@@ -12,6 +12,10 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "BI /W 1 /H 1 /CS /G /BPC 8 ID\n"
     . "BT /F1 12 Tf 72 660 Td (Inline Image Payload Noise) Tj ET\n"
     . "EI\n"
+    . "BI /W 16 /H 1 /CS /G /BPC 8 ID\n"
+    . "abc EI BT /F1 12 Tf 72 646 Td (Early EI Inline Payload Noise) Tj ET rawtail\n"
+    . "EI\n"
+    . "BT /F1 12 Tf 72 656 Td (After Early EI Boundary) Tj ET\n"
     . "BT /F1 12 Tf 72 672 Td (After Real Inline Image) Tj ET";
 
 $pdf = "%PDF-1.4\n"
@@ -33,6 +37,9 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
     'stray_bi_text_preserved' => str_contains($plainText, 'Stray BI Text Survives')
         && str_contains($plainText, 'After Tokenizer Boundary'),
     'real_inline_image_payload_excluded' => !str_contains($plainText, 'Inline Image Payload Noise'),
+    'early_ei_payload_text_excluded_until_sample_boundary' => !str_contains($plainText, 'Early EI Inline Payload Noise')
+        && !str_contains($plainText, 'rawtail')
+        && str_contains($plainText, 'After Early EI Boundary'),
     'visible_text_imported' => str_contains($plainText, 'Before Tokenizer Boundary')
         && str_contains($plainText, 'After Real Inline Image'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";

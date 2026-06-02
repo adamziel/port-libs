@@ -205,4 +205,60 @@ return [
             'order_max_bboxes' => 255,
         ], $result['metadata']['order_plan']);
     },
+    'trims whole document order artifacts to the selected pdftext page range' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(10, [
+                    ['text' => 'Skipped cover page', 'bbox' => [72.0, 80.0, 260.0, 94.0]],
+                ]),
+                $pdftextLinesPage(11, [
+                    ['text' => 'Second selected dictionary column', 'bbox' => [330.0, 112.0, 540.0, 126.0]],
+                    ['text' => 'First selected dictionary column', 'bbox' => [72.0, 112.0, 270.0, 126.0]],
+                ]),
+                $pdftextLinesPage(12, [
+                    ['text' => 'Skipped appendix page', 'bbox' => [72.0, 80.0, 260.0, 94.0]],
+                ]),
+            ],
+            [
+                [
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 96.0, 560.0, 144.0]],
+                        ['position' => 2, 'bbox' => [60.0, 96.0, 286.0, 144.0]],
+                    ],
+                ],
+                [
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 286.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 560.0, 144.0]],
+                    ],
+                ],
+                [
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 96.0, 560.0, 144.0]],
+                        ['position' => 2, 'bbox' => [60.0, 96.0, 286.0, 144.0]],
+                    ],
+                ],
+            ],
+            orderImages: ['cover-render', 'selected-render', 'appendix-render'],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $processor = new MarkdownPostProcessor();
+        $blocks = $processor->mergeBlocks($processor->mergeSpans($result['pages']));
+
+        $t->same([1], $result['page_range']);
+        $t->same(11, $result['pages'][0]['pnum']);
+        $t->same(['First selected dictionary column', 'Second selected dictionary column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First selected dictionary column Second selected dictionary column', $blocks[0]['text']);
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
 ];
