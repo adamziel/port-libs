@@ -21,6 +21,22 @@
 - No secret inspection, printing, or copying.
 - No wrappers as final port deliverables.
 
+## Worker-Creation Stop + Recovery 2026-06-02T23:35Z
+- User stopped worker creation after markerPDF/Pandoc refiller churn. Do not
+  spawn or refill markerPDF/Pandoc workers until the user explicitly
+  re-enables worker creation.
+- Live recovery state: `main` should have only the primary shell and
+  supervisor panes; markerPDF/Pandoc refiller scripts are intentionally
+  non-executable so `run-isolated-lane-worker.sh` exit traps cannot refill
+  those pools.
+- Regroup path: one supervisor/integrator lane, using the clean integration
+  worktree. Score existing ready handoffs serially, accept only clean no-GPU
+  native source/test slices, and leave conflicting handoffs marked
+  rebase-needed instead of starting replacement workers.
+- Pandoc dependency workers did not produce ready handoffs before the stop.
+  Treat Pandoc dependency work as pending until worker creation is explicitly
+  re-enabled.
+
 ## MarkerPDF Native Scope + Pandoc Dependency Regroup 2026-06-02T23:17Z
 - User direction: no GPU models will run. markerPDF is now supervised as a
   native PHP searchable-PDF/parser/converter port plus supplied-boundary review
@@ -33,10 +49,8 @@
   scope: scanned-PDF OCR, Surya layout/reading-order/OCR/table-cell models,
   Texify equation recognition, Torch/model batching, page-pixel visual table
   recognition, and exact upstream model benchmark parity.
-- Steady-state worker split: trend toward about 8 visible markerPDF native
-  workers plus 3 visible Pandoc dependency workers, keeping total development
-  lanes around 10-11 as active markerPDF panes finish. Preserve existing
-  markerPDF panes; do not kill good work just to hit the split immediately.
+- Previous steady-state worker split of about 8 markerPDF native workers plus
+  3 Pandoc dependency workers is superseded by the worker-creation stop above.
 - Pandoc dependency workers should focus first on bounded rows already in
   `dependency-backlog.json`: `shared-zip-package-core`,
   `xml-html5-dom-core`/OPC relationships needed by DOCX/EPUB/ODT,
