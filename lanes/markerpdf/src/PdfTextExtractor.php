@@ -7799,6 +7799,15 @@ final class PdfTextExtractor
             return $this->latestDirectObjectDefinition($definitions);
         }
 
+        if (($xrefEntry['type'] ?? 1) === 2) {
+            $objectStreamDefinition = $this->latestDirectObjectStreamDefinition($definitions);
+            if ($objectStreamDefinition !== null) {
+                return $objectStreamDefinition;
+            }
+
+            return null;
+        }
+
         if (($xrefEntry['type'] ?? 1) !== 1) {
             return null;
         }
@@ -7823,6 +7832,26 @@ final class PdfTextExtractor
                 continue;
             }
             $candidates[] = $definition;
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
+    }
+
+    /**
+     * Object streams are stream objects and cannot themselves be compressed
+     * members. Keep a scanned /ObjStm body available when a malformed type-2
+     * row tries to hide the current object-stream base.
+     *
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function latestDirectObjectStreamDefinition(array $definitions): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if (preg_match('/\/Type\s*\/ObjStm\b/', $definition['body']) === 1) {
+                $candidates[] = $definition;
+            }
         }
 
         return $this->latestDirectObjectDefinition($candidates);
