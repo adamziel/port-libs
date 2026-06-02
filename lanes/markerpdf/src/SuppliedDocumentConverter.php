@@ -193,7 +193,7 @@ final class SuppliedDocumentConverter
             );
             $detectorCells = $this->listOption($options, 'table_detector_cells');
             $ocrTextLines = $this->listOption($options, 'table_ocr_text_lines');
-            if ($detectorCells !== [] || $ocrTextLines !== [] || $detectBoxes) {
+            if ($detectorCells !== [] || $ocrTextLines !== [] || $detectBoxes || $this->recognizedTablesNeedCells($recognizedTables)) {
                 $cells = $this->tableRecognizer->getCells(
                     $tablePlan['table_bboxes'],
                     $tablePlan['image_sizes'],
@@ -308,6 +308,20 @@ final class SuppliedDocumentConverter
         }
 
         return $indexes;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $recognizedTables
+     */
+    private function recognizedTablesNeedCells(array $recognizedTables): bool
+    {
+        foreach ($recognizedTables as $table) {
+            if (!is_array($table) || !isset($table['cells']) || !is_array($table['cells']) || count($table['cells']) === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

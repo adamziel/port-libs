@@ -305,18 +305,21 @@ final class TableRecognizer
             return [];
         }
 
+        $rotation = (int) ($textLine['rotation'] ?? 0);
         if (isset($textLine['table_blocks']) && is_array($textLine['table_blocks'])) {
             return $this->filterTextBlocksToTable(
                 array_values(array_filter($textLine['table_blocks'], static fn (mixed $block): bool => is_array($block))),
                 $tableBbox,
-                $imageSize
+                $imageSize,
+                $rotation
             );
         }
         if (isset($textLine['blocks']) && is_array($textLine['blocks'])) {
             return $this->filterTextBlocksToTable(
                 array_values(array_filter($textLine['blocks'], static fn (mixed $block): bool => is_array($block))),
                 $tableBbox,
-                $imageSize
+                $imageSize,
+                $rotation
             );
         }
 
@@ -338,7 +341,7 @@ final class TableRecognizer
      * @param array{width: int, height: int} $imageSize
      * @return list<array<string, mixed>>
      */
-    private function filterTextBlocksToTable(array $blocks, array $tableBbox, array $imageSize): array
+    private function filterTextBlocksToTable(array $blocks, array $tableBbox, array $imageSize, int $rotation = 0): array
     {
         $tableBbox = [
             max(0.0, min((float) $imageSize['width'], $tableBbox[0])),
@@ -347,14 +350,368 @@ final class TableRecognizer
             max(0.0, min((float) $imageSize['height'], $tableBbox[3])),
         ];
 
+        if ($this->containsPdfTextLines($blocks)) {
+            return $this->pdfTextCellsForTable($blocks, $tableBbox, $imageSize, $rotation);
+        }
+
         $filtered = [];
         foreach ($this->normalizeCells($blocks) as $block) {
-            if ($this->hasPositiveIntersection($block['bbox'], $tableBbox)) {
+            if ($this->intersectionPct($block['bbox'], $tableBbox) >= 0.8) {
+                $block['bbox'] = $this->relativeToTableBbox($block['bbox'], $tableBbox);
                 $filtered[] = $block;
             }
         }
 
-        return $filtered;
+        return $this->sortTextCells($filtered);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $blocks
+     */
+    private function containsPdfTextLines(array $blocks): bool
+    {
+        foreach ($blocks as $block) {
+            if (is_array($block) && isset($block['lines']) && is_array($block['lines'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Native boundary for surya.input.pdflines::get_table_blocks.
+     *
+     * Upstream filters high-resolution pdftext lines by table overlap, splits
+     * their character streams into table cells, then rewrites coordinates to
+     * be relative to the cropped table image before tabled recognition.
+     *
+     * @param list<array<string, mixed>> $blocks
+     * @param list<float> $tableBbox
+     * @param array{width: int, height: int} $imageSize
+     * @return list<array<string, mixed>>
+     */
+    private function pdfTextCellsForTable(array $blocks, array $tableBbox, array $imageSize, int $rotation): array
+    {
+        $cells = [];
+        $spaceThresh = $this->dynamicGapThreshold($blocks, $imageSize, $rotation);
+
+        foreach ($blocks as $block) {
+            if (!is_array($block) || !isset($block['lines']) || !is_array($block['lines'])) {
+                continue;
+            }
+
+            foreach ($block['lines'] as $line) {
+                if (!is_array($line)) {
+                    continue;
+                }
+
+                $lineBbox = $this->lineBbox($line);
+                if ($lineBbox === null || $this->intersectionPct($lineBbox, $tableBbox) < 0.8) {
+                    continue;
+                }
+
+                $lineCells = $this->cellsFromPdfTextLine($line, $imageSize, $spaceThresh, $rotation);
+                if ($lineCells === []) {
+                    $text = $this->lineText($line);
+                    if (trim($text) !== '') {
+                        $lineCells[] = [
+                            'bbox' => $lineBbox,
+                            'text' => $text,
+                        ];
+                    }
+                }
+
+                foreach ($lineCells as $cell) {
+                    $cell['bbox'] = $this->relativeToTableBbox($cell['bbox'], $tableBbox);
+                    $cells[] = $cell;
+                }
+            }
+        }
+
+        return $this->sortTextCells($cells);
+    }
+
+    /**
+     * @param array<string, mixed> $line
+     * @param array{width: int, height: int} $imageSize
+     * @return list<array{bbox: list<float>, text: string}>
+     */
+    private function cellsFromPdfTextLine(array $line, array $imageSize, float $spaceThresh, int $rotation): array
+    {
+        $cells = [];
+        $currentText = null;
+        $currentBbox = null;
+
+        foreach ($this->lineChars($line) as $char) {
+            $text = (string) $char['text'];
+            $bbox = $char['bbox'];
+
+            if ($currentText === null || $currentBbox === null) {
+                $currentText = $text;
+                $currentBbox = $bbox;
+                continue;
+            }
+
+            if ($this->samePdfTextSpan($bbox, $currentBbox, $imageSize, $spaceThresh, $rotation)) {
+                $currentText .= $text;
+                $currentBbox = [
+                    min($currentBbox[0], $bbox[0]),
+                    min($currentBbox[1], $bbox[1]),
+                    max($currentBbox[2], $bbox[2]),
+                    max($currentBbox[3], $bbox[3]),
+                ];
+                continue;
+            }
+
+            if (trim($currentText) !== '') {
+                $cells[] = [
+                    'bbox' => $currentBbox,
+                    'text' => $currentText,
+                ];
+            }
+            $currentText = $text;
+            $currentBbox = $bbox;
+        }
+
+        if ($currentText !== null && $currentBbox !== null && trim($currentText) !== '') {
+            $cells[] = [
+                'bbox' => $currentBbox,
+                'text' => $currentText,
+            ];
+        }
+
+        return $cells;
+    }
+
+    /**
+     * @param array<string, mixed> $line
+     * @return list<array{bbox: list<float>, text: string}>
+     */
+    private function lineChars(array $line): array
+    {
+        $chars = [];
+        foreach (($line['spans'] ?? []) as $span) {
+            if (!is_array($span) || !isset($span['chars']) || !is_array($span['chars'])) {
+                continue;
+            }
+
+            foreach ($span['chars'] as $char) {
+                if (!is_array($char)) {
+                    continue;
+                }
+                $bbox = $this->nullableBbox($char['bbox'] ?? null);
+                if ($bbox === null) {
+                    continue;
+                }
+                $chars[] = [
+                    'bbox' => $bbox,
+                    'text' => (string) ($char['char'] ?? $char['text'] ?? ''),
+                ];
+            }
+        }
+
+        return $chars;
+    }
+
+    /**
+     * @param array<string, mixed> $line
+     * @return list<float>|null
+     */
+    private function lineBbox(array $line): ?array
+    {
+        $bbox = $this->nullableBbox($line['bbox'] ?? null);
+        if ($bbox !== null) {
+            return $bbox;
+        }
+
+        $charBoxes = array_column($this->lineChars($line), 'bbox');
+        if ($charBoxes === []) {
+            return null;
+        }
+
+        return [
+            min(array_column($charBoxes, 0)),
+            min(array_column($charBoxes, 1)),
+            max(array_column($charBoxes, 2)),
+            max(array_column($charBoxes, 3)),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $line
+     */
+    private function lineText(array $line): string
+    {
+        if (array_key_exists('text', $line) && is_scalar($line['text'])) {
+            return (string) $line['text'];
+        }
+
+        $parts = [];
+        foreach (($line['spans'] ?? []) as $span) {
+            if (is_array($span) && array_key_exists('text', $span) && is_scalar($span['text'])) {
+                $parts[] = (string) $span['text'];
+            }
+        }
+
+        return implode('', $parts);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $blocks
+     * @param array{width: int, height: int} $imageSize
+     */
+    private function dynamicGapThreshold(array $blocks, array $imageSize, int $rotation, float $default = 0.01, int $minChars = 100): float
+    {
+        $spaceDists = [];
+        foreach ($blocks as $block) {
+            if (!is_array($block) || !isset($block['lines']) || !is_array($block['lines'])) {
+                continue;
+            }
+
+            foreach ($block['lines'] as $line) {
+                if (!is_array($line)) {
+                    continue;
+                }
+
+                foreach (($line['spans'] ?? []) as $span) {
+                    if (!is_array($span) || !isset($span['chars']) || !is_array($span['chars'])) {
+                        continue;
+                    }
+                    $chars = array_values(array_filter(
+                        $span['chars'],
+                        static fn (mixed $char): bool => is_array($char) && is_array($char['bbox'] ?? null)
+                    ));
+                    for ($idx = 1; $idx < count($chars); $idx++) {
+                        $prev = $this->nullableBbox($chars[$idx - 1]['bbox'] ?? null);
+                        $curr = $this->nullableBbox($chars[$idx]['bbox'] ?? null);
+                        if ($prev === null || $curr === null) {
+                            continue;
+                        }
+                        if ($rotation === 90) {
+                            $spaceDists[] = ($curr[0] - $prev[2]) / max(1.0, (float) $imageSize['width']);
+                        } elseif ($rotation === 180) {
+                            $spaceDists[] = ($curr[1] - $prev[3]) / max(1.0, (float) $imageSize['height']);
+                        } elseif ($rotation === 270) {
+                            $spaceDists[] = ($prev[0] - $curr[2]) / max(1.0, (float) $imageSize['width']);
+                        } else {
+                            $spaceDists[] = ($prev[1] - $curr[3]) / max(1.0, (float) $imageSize['height']);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (count($spaceDists) <= $minChars) {
+            return $default;
+        }
+
+        sort($spaceDists, SORT_NUMERIC);
+        $index = (int) floor((count($spaceDists) - 1) * 0.8);
+
+        return max($default, (float) $spaceDists[$index]);
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @param list<float> $currentBbox
+     * @param array{width: int, height: int} $imageSize
+     */
+    private function samePdfTextSpan(array $bbox, array $currentBbox, array $imageSize, float $spaceThresh, int $rotation): bool
+    {
+        $normalizedDiff = static function (
+            float $left,
+            float $right,
+            int $dimension,
+            float $multiplier = 1.0,
+            bool $absolute = true
+        ) use ($imageSize, $spaceThresh): bool {
+            $size = $dimension === 0 ? (float) $imageSize['width'] : (float) $imageSize['height'];
+            $diff = $left - $right;
+            if ($absolute) {
+                $diff = abs($diff);
+            }
+
+            return ($diff / max(1.0, $size)) < ($spaceThresh * $multiplier);
+        };
+
+        if ($rotation === 90) {
+            return $normalizedDiff($bbox[0], $currentBbox[0], 0, 1.0, false)
+                && $normalizedDiff($bbox[1], $currentBbox[3], 1)
+                && $normalizedDiff($bbox[0], $currentBbox[0], 0, 5.0);
+        }
+        if ($rotation === 180) {
+            return $normalizedDiff($bbox[2], $currentBbox[0], 0, 1.0, false)
+                && $normalizedDiff($bbox[1], $currentBbox[1], 1)
+                && $normalizedDiff($bbox[2], $currentBbox[0], 1, 5.0);
+        }
+        if ($rotation === 270) {
+            return $normalizedDiff($bbox[0], $currentBbox[0], 0, 1.0, false)
+                && $normalizedDiff($bbox[3], $currentBbox[1], 1)
+                && $normalizedDiff($bbox[0], $currentBbox[0], 1, 5.0);
+        }
+
+        return $normalizedDiff($bbox[0], $currentBbox[2], 0, 1.0, false)
+            && $normalizedDiff($bbox[1], $currentBbox[1], 1)
+            && $normalizedDiff($bbox[0], $currentBbox[2], 1, 5.0);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $cells
+     * @return list<array<string, mixed>>
+     */
+    private function sortTextCells(array $cells): array
+    {
+        $groups = [];
+        foreach ($cells as $cell) {
+            $bbox = $cell['bbox'];
+            $groupKey = (string) (round($bbox[1] / 1.25) * 1.25);
+            $groups[$groupKey][] = $cell;
+        }
+        ksort($groups, SORT_NUMERIC);
+
+        $sorted = [];
+        foreach ($groups as $group) {
+            usort($group, static fn (array $left, array $right): int => ($left['bbox'][0] <=> $right['bbox'][0]));
+            array_push($sorted, ...$group);
+        }
+
+        return $sorted;
+    }
+
+    /**
+     * @param mixed $bbox
+     * @return list<float>|null
+     */
+    private function nullableBbox(mixed $bbox): ?array
+    {
+        if (!is_array($bbox) || count($bbox) !== 4) {
+            return null;
+        }
+
+        $values = array_values($bbox);
+        foreach ($values as $value) {
+            if (!is_int($value) && !is_float($value)) {
+                return null;
+            }
+        }
+
+        return array_map(static fn (int|float $value): float => (float) $value, $values);
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @param list<float> $tableBbox
+     * @return list<float>
+     */
+    private function relativeToTableBbox(array $bbox, array $tableBbox): array
+    {
+        return [
+            $bbox[0] - $tableBbox[0],
+            $bbox[1] - $tableBbox[1],
+            $bbox[2] - $tableBbox[0],
+            $bbox[3] - $tableBbox[1],
+        ];
     }
 
     /**
@@ -1245,20 +1602,6 @@ final class TableRecognizer
         }
 
         return (($xRight - $xLeft) * ($yBottom - $yTop)) / $area;
-    }
-
-    /**
-     * @param list<float> $left
-     * @param list<float> $right
-     */
-    private function hasPositiveIntersection(array $left, array $right): bool
-    {
-        $xLeft = max($left[0], $right[0]);
-        $yTop = max($left[1], $right[1]);
-        $xRight = min($left[2], $right[2]);
-        $yBottom = min($left[3], $right[3]);
-
-        return $xRight > $xLeft && $yBottom > $yTop;
     }
 
     /**

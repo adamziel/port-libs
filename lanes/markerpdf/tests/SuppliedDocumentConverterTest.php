@@ -80,6 +80,41 @@ $ciPdftextPage = static function (string $text) use ($pdftextPage): array {
     return $pdftextPage(0, $lines);
 };
 
+$pdfTextChars = static function (string $text, float $x, float $y, float $charWidth = 8.0, float $gap = 1.0): array {
+    $chars = [];
+    $cursor = $x;
+    foreach (preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $char) {
+        $chars[] = [
+            'char' => $char,
+            'bbox' => [$cursor, $y, $cursor + $charWidth, $y + 14.0],
+        ];
+        $cursor += $charWidth + $gap;
+    }
+
+    return $chars;
+};
+
+$pdfTextLine = static function (array $charGroups): array {
+    $chars = [];
+    foreach ($charGroups as $group) {
+        array_push($chars, ...$group);
+    }
+
+    $boxes = array_column($chars, 'bbox');
+
+    return [
+        'bbox' => [
+            min(array_column($boxes, 0)),
+            min(array_column($boxes, 1)),
+            max(array_column($boxes, 2)),
+            max(array_column($boxes, 3)),
+        ],
+        'spans' => [[
+            'chars' => $chars,
+        ]],
+    ];
+};
+
 return [
     'converts supplied pdftext layout order and table dictionaries into markdown' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-supplied-document-' . bin2hex(random_bytes(4)) . '.pdf';
@@ -368,6 +403,83 @@ return [
             $t->same(true, $result['metadata']['table_detect_boxes']);
             $t->same([4], $result['metadata']['table_cell_counts']);
             $t->same('Prediction OCR', $result['metadata']['table_assigned_cells'][0][2]['text']);
+        } finally {
+            unlink($path);
+        }
+    },
+    'uses pdftext table-line structures when recognition output needs cells' => static function (TestRunner $t) use ($pdftextPage, $pdfTextChars, $pdfTextLine): void {
+        $path = sys_get_temp_dir() . '/markerpdf-table-textline-structure-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% table text-line structure supplied pipeline\n%%EOF");
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'Layout table import', 'bbox' => [72.0, 48.0, 340.0, 68.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'Legacy table text should be replaced.', 'bbox' => [72.0, 178.0, 430.0, 196.0]],
+                ['text' => 'After structured table.', 'bbox' => [72.0, 276.0, 430.0, 294.0]],
+            ]);
+            $layout = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Title', 'bbox' => [72.0, 48.0, 340.0, 68.0]],
+                    ['label' => 'Table', 'bbox' => [72.0, 150.0, 430.0, 230.0]],
+                    ['label' => 'Text', 'bbox' => [72.0, 276.0, 430.0, 294.0]],
+                ],
+            ];
+            $recognizedTable = [
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 358.0, 32.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 38.0, 358.0, 72.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 170.0, 80.0]],
+                    ['col_id' => 1, 'bbox' => [180.0, 0.0, 358.0, 80.0]],
+                ],
+            ];
+            $tableTextLines = [[
+                'width' => 612,
+                'height' => 792,
+                'rotation' => 0,
+                'blocks' => [[
+                    'lines' => [
+                        $pdfTextLine([
+                            $pdfTextChars('Feature', 84.0, 160.0),
+                            $pdfTextChars('Status', 260.0, 160.0),
+                        ]),
+                        $pdfTextLine([
+                            $pdfTextChars('Imported', 84.0, 196.0),
+                            $pdfTextChars('Ready', 260.0, 196.0),
+                        ]),
+                        $pdfTextLine([
+                            $pdfTextChars('Stale', 50.0, 140.0),
+                        ]),
+                    ],
+                ]],
+            ]];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [$layout],
+                    'recognized_tables' => [$recognizedTable],
+                    'table_text_lines' => $tableTextLines,
+                    'table_rendered_image_sizes' => [['width' => 612, 'height' => 792]],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $t->contains('# Layout Table Import', $result['text']);
+            $t->contains('| Feature  | Status |', $result['text']);
+            $t->contains('| Imported | Ready  |', $result['text']);
+            $t->contains('After structured table.', $result['text']);
+            $t->true(!str_contains($result['text'], 'Legacy table text should be replaced.'));
+            $t->true(!str_contains($result['text'], 'Stale'));
+            $t->same(['layout', 'table-cell-routing', 'table-recognition', 'table-formatting'], $result['metadata']['supplied_boundaries']);
+            $t->same([false], $result['metadata']['table_needs_ocr']);
+            $t->same(false, $result['metadata']['table_detect_boxes']);
+            $t->same([4], $result['metadata']['table_cell_counts']);
+            $t->same([12.0, 10.0, 74.0, 24.0], $result['metadata']['table_assigned_cells'][0][0]['bbox']);
+            $t->same('Imported', $result['metadata']['table_assigned_cells'][0][2]['text']);
         } finally {
             unlink($path);
         }

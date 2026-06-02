@@ -74,6 +74,41 @@ $heuristicRows = static function (): array {
     return $rows;
 };
 
+$pdfTextChars = static function (string $text, float $x, float $y, float $charWidth = 8.0, float $gap = 1.0): array {
+    $chars = [];
+    $cursor = $x;
+    foreach (preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $char) {
+        $chars[] = [
+            'char' => $char,
+            'bbox' => [$cursor, $y, $cursor + $charWidth, $y + 14.0],
+        ];
+        $cursor += $charWidth + $gap;
+    }
+
+    return $chars;
+};
+
+$pdfTextLine = static function (array $charGroups): array {
+    $chars = [];
+    foreach ($charGroups as $group) {
+        array_push($chars, ...$group);
+    }
+
+    $boxes = array_column($chars, 'bbox');
+
+    return [
+        'bbox' => [
+            min(array_column($boxes, 0)),
+            min(array_column($boxes, 1)),
+            max(array_column($boxes, 2)),
+            max(array_column($boxes, 3)),
+        ],
+        'spans' => [[
+            'chars' => $chars,
+        ]],
+    ];
+};
+
 $wordpressTable = static function (string $tableMarkdown): string {
     $rows = array_values(array_filter(
         preg_split('/\R/', trim($tableMarkdown)) ?: [],
@@ -154,6 +189,40 @@ return [
         $t->same([false, false], $cells['needs_ocr']);
         $t->same(['Left table'], array_column($cells['table_cells'][0], 'text'));
         $t->same(['Right table'], array_column($cells['table_cells'][1], 'text'));
+    },
+    'extracts highres pdftext dictionary lines into table-local cells like get_table_blocks' => static function (TestRunner $t) use ($pdfTextChars, $pdfTextLine): void {
+        $recognizer = new TableRecognizer();
+        $fullText = [
+            'width' => 1000,
+            'height' => 800,
+            'rotation' => 0,
+            'blocks' => [[
+                'lines' => [
+                    $pdfTextLine([
+                        $pdfTextChars('Key', 110.0, 210.0),
+                        $pdfTextChars('Value', 250.0, 210.0),
+                    ]),
+                    $pdfTextLine([
+                        $pdfTextChars('Imported', 110.0, 250.0),
+                        $pdfTextChars('Ready', 250.0, 250.0),
+                    ]),
+                    $pdfTextLine([
+                        $pdfTextChars('Stale', 88.0, 190.0),
+                    ]),
+                ],
+            ]],
+        ];
+
+        $cells = $recognizer->getCells(
+            [[100.0, 200.0, 500.0, 320.0]],
+            [['width' => 1000, 'height' => 800]],
+            [$fullText]
+        );
+
+        $t->same([false], $cells['needs_ocr']);
+        $t->same(['Key', 'Value', 'Imported', 'Ready'], array_column($cells['table_cells'][0], 'text'));
+        $t->same([10.0, 10.0, 36.0, 24.0], $cells['table_cells'][0][0]['bbox']);
+        $t->same([10.0, 50.0, 81.0, 64.0], $cells['table_cells'][0][2]['bbox']);
     },
     'forces supplied detector cells when detect_boxes is enabled' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
