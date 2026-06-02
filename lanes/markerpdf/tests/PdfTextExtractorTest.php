@@ -805,6 +805,57 @@ return [
         $t->same("Page One Intro\nClean Blocks\nSecond Page\n", $extractor->naiveGetText($pdf));
         $t->true(!str_contains($extractor->extractPlainText($pdf), 'Phantom Form Text'));
     },
+    'extracts catalog PageLabels number tree for WordPress page boundaries' => static function (TestRunner $t): void {
+        $contents = [
+            10 => 'BT /F1 12 Tf 72 720 Td (Preface imported) Tj ET',
+            11 => 'BT /F1 12 Tf 72 720 Td (Contents imported) Tj ET',
+            12 => 'BT /F1 12 Tf 72 720 Td (Chapter starts) Tj ET',
+            13 => 'BT /F1 12 Tf 72 720 Td (Chapter continues) Tj ET',
+            14 => 'BT /F1 12 Tf 72 720 Td (Appendix imported) Tj ET',
+        ];
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R 6 0 R 7 0 R] /Count 5 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+            . "6 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 13 0 R >>\nendobj\n"
+            . "7 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 14 0 R >>\nendobj\n"
+            . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+        foreach ($contents as $objectNumber => $content) {
+            $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+        }
+        $pdf .= "20 0 obj\n<< /Kids [21 0 R 22 0 R] >>\nendobj\n"
+            . "21 0 obj\n<< /Nums [0 30 0 R 2 << /S /D /P (Body ) /St 1 >>] >>\nendobj\n"
+            . "22 0 obj\n<< /Nums [4 31 0 R] >>\nendobj\n"
+            . "30 0 obj\n<< /S /r /P (front-) /St 2 >>\nendobj\n"
+            . "31 0 obj\n<< /S /A /P (App-) /St 27 >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+
+        $t->same(['front-ii', 'front-iii', 'Body 1', 'Body 2', 'App-AA'], $extractor->extractPageLabels($pdf));
+        $t->same(['front-ii', 'front-iii', 'Body 1', 'Body 2', 'App-AA'], array_column($entries, 'page_label'));
+        $t->same([0, 1, 2, 3, 4], array_column($entries, 'page_index'));
+        $t->same([1, 2, 3, 4, 5], array_column($entries, 'page_number'));
+        $t->same('Chapter starts', $entries[2]['text']);
+        $t->same("Preface imported\nContents imported\nChapter starts\nChapter continues\nAppendix imported\n", $extractor->naiveGetText($pdf));
+    },
+    'falls back to one-based page labels when PDFs omit PageLabels metadata' => static function (TestRunner $t): void {
+        $pageOne = 'BT /F1 12 Tf 72 720 Td (First fallback page) Tj ET';
+        $pageTwo = 'BT /F1 12 Tf 72 720 Td (Second fallback page) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 6 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($pageOne) . " >>\nstream\n{$pageOne}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($pageTwo) . " >>\nstream\n{$pageTwo}\nendstream\nendobj\n%%EOF";
+        $entries = (new PdfTextExtractor())->extractLabeledPageTexts($pdf);
+
+        $t->same(['1', '2'], array_column($entries, 'page_label'));
+        $t->same(['First fallback page', 'Second fallback page'], array_column($entries, 'text'));
+    },
     'invokes referenced Form XObject content from page Contents before WordPress text' => static function (TestRunner $t): void {
         $pageContent = 'BT /F1 12 Tf 72 720 Td (Page Before Form) Tj ET q /Fm1 Do Q BT /F1 12 Tf 72 672 Td (Page After Form) Tj ET';
         $formContent = 'BT /F1 12 Tf 12 24 Td (Reusable Form Block) Tj T* (Imported Once) Tj ET';
