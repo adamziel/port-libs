@@ -1304,6 +1304,14 @@ final class PdfMetadataExtractor
 
     private function trailerDictionaryBody(string $pdfBytes): ?string
     {
+        $startxrefOffset = $this->latestStartxrefOffset($pdfBytes);
+        if ($startxrefOffset !== null) {
+            $trailer = $this->trailerDictionaryBodyAtOffset($pdfBytes, $startxrefOffset);
+            if ($trailer !== null) {
+                return $trailer;
+            }
+        }
+
         $body = null;
         $offset = 0;
         while (($position = strpos($pdfBytes, 'trailer', $offset)) !== false) {
@@ -1319,7 +1327,87 @@ final class PdfMetadataExtractor
             $offset = $position + 7;
         }
 
+        return $body ?? $this->lastXrefStreamDictionaryBody($pdfBytes);
+    }
+
+    private function latestStartxrefOffset(string $pdfBytes): ?int
+    {
+        if (preg_match_all('/\bstartxref\s+(\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER) < 1) {
+            return null;
+        }
+
+        $latest = end($matches);
+        if (!is_array($latest)) {
+            return null;
+        }
+
+        return max(0, (int) $latest[1]);
+    }
+
+    private function trailerDictionaryBodyAtOffset(string $pdfBytes, int $offset): ?string
+    {
+        $offset = $this->skipPdfWhitespace($pdfBytes, $offset);
+        if (substr($pdfBytes, $offset, 4) === 'xref') {
+            return $this->xrefTableTrailerDictionaryAtOffset($pdfBytes, $offset);
+        }
+
+        return $this->xrefStreamDictionaryAtObjectOffset($pdfBytes, $offset);
+    }
+
+    private function xrefTableTrailerDictionaryAtOffset(string $pdfBytes, int $offset): ?string
+    {
+        $trailerOffset = strpos($pdfBytes, 'trailer', $offset + 4);
+        if ($trailerOffset === false) {
+            return null;
+        }
+
+        $dictionaryOffset = strpos($pdfBytes, '<<', $trailerOffset);
+        return $dictionaryOffset === false ? null : $this->readPdfDictionaryAt($pdfBytes, $dictionaryOffset);
+    }
+
+    private function xrefStreamDictionaryAtObjectOffset(string $pdfBytes, int $offset): ?string
+    {
+        $offset = $this->skipPdfWhitespace($pdfBytes, $offset);
+        if (preg_match('/\d+\s+\d+\s+obj\b/A', substr($pdfBytes, $offset), $match) !== 1) {
+            return null;
+        }
+
+        $dictionaryOffset = strpos($pdfBytes, '<<', $offset + strlen($match[0]));
+        if ($dictionaryOffset === false) {
+            return null;
+        }
+
+        $body = $this->readPdfDictionaryAt($pdfBytes, $dictionaryOffset);
+        if ($body === null || preg_match('/\/Type\s*\/XRef\b/s', $body) !== 1) {
+            return null;
+        }
+
         return $body;
+    }
+
+    private function lastXrefStreamDictionaryBody(string $pdfBytes): ?string
+    {
+        $body = null;
+        $offset = 0;
+        while (preg_match('/\d+\s+\d+\s+obj\b/s', $pdfBytes, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $candidate = $this->xrefStreamDictionaryAtObjectOffset($pdfBytes, $match[0][1]);
+            if ($candidate !== null) {
+                $body = $candidate;
+            }
+            $offset = $match[0][1] + strlen($match[0][0]);
+        }
+
+        return $body;
+    }
+
+    private function skipPdfWhitespace(string $pdfBytes, int $offset): int
+    {
+        $length = strlen($pdfBytes);
+        while ($offset < $length && ctype_space($pdfBytes[$offset])) {
+            $offset++;
+        }
+
+        return $offset;
     }
 
     /**

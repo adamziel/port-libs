@@ -86,6 +86,66 @@ $pdfWithCatalogReview = static function (string $catalogExtras, string $bodyText
         . "trailer\n<< /Root 1 0 R >>\n%%EOF";
 };
 
+$pdfWithXrefStreamTrailerMetadata = static function (): array {
+    $xmp = '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
+        . '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about=""'
+        . ' xmlns:dc="http://purl.org/dc/elements/1.1/"'
+        . ' xmlns:xmp="http://ns.adobe.com/xap/1.0/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Current XRef XMP Title</rdf:li></rdf:Alt></dc:title>'
+        . '<dc:description><rdf:Alt><rdf:li xml:lang="x-default">Current xref stream metadata review</rdf:li></rdf:Alt></dc:description>'
+        . '<xmp:CreateDate>2024-06-02T08:30:00-04:00</xmp:CreateDate>'
+        . '</rdf:Description>'
+        . '</rdf:RDF>'
+        . '</x:xmpmeta>'
+        . '<?xpacket end="w"?>';
+    $compressedXmp = gzcompress($xmp);
+    if (!is_string($compressedXmp)) {
+        throw new RuntimeException('Unable to compress xref-stream XMP fixture.');
+    }
+
+    $content = 'BT /F1 12 Tf 72 720 Td (Current xref metadata body) Tj ET';
+    $pdf = "%PDF-1.5\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): int {
+        $offset = strlen($pdf);
+        $offsets[$objectNumber] = $offset;
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+        return $offset;
+    };
+
+    $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Metadata 5 0 R >>');
+    $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>');
+    $addObject(4, 0, "<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream");
+    $addObject(5, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($compressedXmp) . " >>\nstream\n{$compressedXmp}\nendstream");
+    $addObject(6, 0, '<< /Title (Current Info Title) /Author (Current XRef Author) /Producer (Current XRef Producer) /ModDate (D:20240602112233Z) >>');
+    $addObject(8, 0, '<< /Title (Stale Trailer Title) /Author (Stale Trailer Author) /Producer (Stale Trailer Producer) >>');
+
+    $stalePermanent = 'Stale Permanent';
+    $currentPermanent = 'Current Permanent';
+    $currentChanging = 'Current Changing';
+    $pdf .= "trailer\n<< /Root 1 0 R /Info 8 0 R /ID [(Stale\\040Permanent) <" . strtoupper(bin2hex('Stale Changing')) . ">] >>\n";
+
+    $xrefOffset = strlen($pdf);
+    $rows = '';
+    for ($objectNumber = 0; $objectNumber < 10; $objectNumber++) {
+        $rows .= pack('N', $objectNumber === 9 ? $xrefOffset : ($offsets[$objectNumber] ?? 0));
+    }
+    $compressedXref = gzcompress($rows);
+    if (!is_string($compressedXref)) {
+        throw new RuntimeException('Unable to compress xref-stream metadata fixture.');
+    }
+
+    $pdf .= "9 0 obj\n"
+        . '<< /Type /XRef /Size 10 /Root 1 0 R /Info 6 0 R /ID [(Current\040Permanent) <' . strtoupper(bin2hex($currentChanging)) . '>] /W [0 4 0] /Filter /FlateDecode /Length ' . strlen($compressedXref) . " >>\n"
+        . "stream\n{$compressedXref}\nendstream\nendobj\n"
+        . "startxref\n{$xrefOffset}\n%%EOF";
+
+    return [$pdf, $currentPermanent, $currentChanging, $stalePermanent];
+};
+
 return [
     'extracts catalog XMP metadata before WordPress import review' => static function (TestRunner $t) use ($xmpPacket, $pdfWithMetadata): void {
         $info = '<< /Title (Legacy Title) /Author (Legacy Author) /Keywords (legacy,hidden) /Creator (Legacy Tool) /Producer (Legacy Producer) >>';
@@ -258,6 +318,31 @@ return [
         $t->same(hash('sha256', $changingId), $metadata['trailer_ids']['changing']['sha256']);
         $t->same(hash('sha256', $permanentId), $metadata['document_fingerprint']);
         $t->same('trailer_id_permanent', $metadata['document_fingerprint_source']);
+    },
+    'uses current xref stream trailer for XMP Info and ID metadata' => static function (TestRunner $t) use ($pdfWithXrefStreamTrailerMetadata): void {
+        [$pdf, $permanentId, $changingId, $stalePermanent] = $pdfWithXrefStreamTrailerMetadata();
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['xmp', 'info', 'trailer_id'], $metadata['source']);
+        $t->same('Current XRef XMP Title', $metadata['title']);
+        $t->same('Current xref stream metadata review', $metadata['description']);
+        $t->same(['Current XRef Author'], $metadata['authors']);
+        $t->same('Current XRef Producer', $metadata['producer']);
+        $t->same('2024-06-02T08:30:00-04:00', $metadata['created_at']);
+        $t->same('2024-06-02T12:30:00Z', $metadata['created_at_utc']);
+        $t->same('D:20240602112233Z', $metadata['modified_at']);
+        $t->same('2024-06-02T11:22:33Z', $metadata['modified_at_utc']);
+        $t->same(bin2hex($permanentId), $metadata['trailer_ids']['permanent']['hex']);
+        $t->same(hash('sha256', $permanentId), $metadata['document_fingerprint']);
+        $t->same(bin2hex($changingId), $metadata['trailer_ids']['changing']['hex']);
+        $t->true($metadata['trailer_ids']['changed_since_creation']);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Stale Trailer Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, $stalePermanent));
+        $t->same('Current xref metadata body', $plainText);
+        $t->true(!str_contains($plainText, 'Current XRef XMP Title'));
     },
     'ignores malformed XMP streams while preserving Info metadata fallback' => static function (TestRunner $t) use ($pdfWithMetadata): void {
         $pdf = $pdfWithMetadata(
