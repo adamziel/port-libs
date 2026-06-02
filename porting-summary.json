@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-02 00:18:17 UTC",
-    "sourceCommit": "cc6ae53587c7f5bb2cfb0f68a2af54603474ae6d",
-    "sourceCommitShort": "cc6ae53587c7",
+    "generated": "2026-06-02 00:21:40 UTC",
+    "sourceCommit": "494b5c68807021a580c29cb627dcc49c17d3c7f8",
+    "sourceCommitShort": "494b5c688070",
     "sourceBranch": "main",
-    "dashboardCommit": "cc6ae53587c7f5bb2cfb0f68a2af54603474ae6d",
-    "dashboardCommitShort": "cc6ae53587c7",
+    "dashboardCommit": "494b5c68807021a580c29cb627dcc49c17d3c7f8",
+    "dashboardCommitShort": "494b5c688070",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "180",
-            "coverage": "180 / 78 (230.8%)",
-            "mapPercent": "230.8%",
+            "mapped": "181",
+            "coverage": "181 / 78 (232.1%)",
+            "mapPercent": "232.1%",
             "unmapped": "0",
-            "php": "298 pass / 0 fail",
+            "php": "299 pass / 0 fail",
             "phase": "cloned inventory + inspected CI benchmark archive + locked tabled hel...",
             "audit": "isolated lane worker 2026-06-01: reduced markerPDF page /Contents str...",
-            "currentWork": "PdfTextExtractor now uses Type0 /Encoding /Identity-H and /Identity-V code-space widt...",
-            "nextTarget": "Choose the next bounded markerPDF gap: XObject/Form content i...",
+            "currentWork": "PdfTextExtractor now expands page-resource /Subtype /Form XObjects only when the curr...",
+            "nextTarget": "Choose the next bounded markerPDF gap: object stream/xref par...",
             "remainingGate": "Upstream runner parity unavailable",
-            "commit": "cc6ae53"
+            "commit": "494b5c6"
         },
         {
             "lane": "readability",
