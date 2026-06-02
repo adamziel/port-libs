@@ -3497,15 +3497,30 @@ final class PdfTextExtractor
     {
         $length = $this->streamLength($dict, $objects);
         if ($length !== null) {
-            if ($length < 0 || $streamStart + $length > strlen($value)) {
+            $declaredEnd = $streamStart + $length;
+            if ($length >= 0 && $declaredEnd <= strlen($value)) {
+                if ($this->streamLengthEndsAtTerminator($value, $declaredEnd)) {
+                    return substr($value, $streamStart, $length);
+                }
+
+                $end = $this->endstreamTerminatorOffset($value, $streamStart, $declaredEnd);
+                if ($end === null) {
+                    return substr($value, $streamStart, $length);
+                }
+
+                return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $end - $streamStart));
+            }
+
+            $end = $this->endstreamTerminatorOffset($value, $streamStart, null);
+            if ($end === null) {
                 return null;
             }
 
-            return substr($value, $streamStart, $length);
+            return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $end - $streamStart));
         }
 
-        $end = strpos($value, 'endstream', $streamStart);
-        if ($end === false) {
+        $end = $this->endstreamTerminatorOffset($value, $streamStart, null);
+        if ($end === null) {
             return null;
         }
 
@@ -3548,6 +3563,69 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    private function streamLengthEndsAtTerminator(string $value, int $declaredEnd): bool
+    {
+        $offset = $declaredEnd;
+        if (substr($value, $offset, 2) === "\r\n") {
+            $offset += 2;
+        } elseif (($value[$offset] ?? '') === "\n" || ($value[$offset] ?? '') === "\r") {
+            $offset++;
+        }
+
+        return $this->endstreamKeywordAt($value, $offset);
+    }
+
+    private function endstreamTerminatorOffset(string $value, int $streamStart, ?int $declaredEnd): ?int
+    {
+        $fallback = null;
+        $beforeDeclaredEnd = null;
+        $offset = $streamStart;
+        while (($candidate = strpos($value, 'endstream', $offset)) !== false) {
+            $fallback ??= $candidate;
+            $offset = $candidate + 9;
+
+            if (!$this->endstreamTerminatorAt($value, $candidate, $streamStart)) {
+                continue;
+            }
+
+            if ($declaredEnd === null) {
+                return $candidate;
+            }
+
+            if ($candidate >= $declaredEnd) {
+                return $candidate;
+            }
+
+            $beforeDeclaredEnd = $candidate;
+        }
+
+        return $beforeDeclaredEnd ?? $fallback;
+    }
+
+    private function endstreamTerminatorAt(string $value, int $offset, int $streamStart): bool
+    {
+        if (!$this->endstreamKeywordAt($value, $offset)) {
+            return false;
+        }
+
+        if ($offset <= $streamStart) {
+            return true;
+        }
+
+        $previous = $value[$offset - 1] ?? '';
+        return $previous === "\n" || $previous === "\r";
+    }
+
+    private function endstreamKeywordAt(string $value, int $offset): bool
+    {
+        if (substr($value, $offset, 9) !== 'endstream') {
+            return false;
+        }
+
+        $after = $offset + 9;
+        return $after >= strlen($value) || ctype_space($value[$after]);
     }
 
     private function stripStreamTerminatingLineEnding(string $stream): string
@@ -6735,11 +6813,12 @@ final class PdfTextExtractor
      */
     private function decodedCMapBody(string $objectBody, array $objects): ?string
     {
-        if (!preg_match('/<<(.*?)>>\s*stream\r?\n?(.*?)\r?\n?endstream/s', $objectBody, $match)) {
+        $entry = $this->streamDictionaryAndPayload($objectBody, $objects);
+        if ($entry === null) {
             return null;
         }
 
-        return $this->decodeStream($match[1], $match[2], $objects);
+        return $this->decodeStream($entry['dict'], $entry['stream'], $objects);
     }
 
     /**

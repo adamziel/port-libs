@@ -705,6 +705,46 @@ return [
         $t->same('Visible endstream Word', $extractor->extractPlainText($indirectLengthPdf));
         $t->same("ASCIIHex RunLength Stack\nLength Safe", $extractor->extractPlainText($stackedPdf));
     },
+    'recovers stale stream Length with bounded endstream terminators before WordPress rendering' => static function (TestRunner $t): void {
+        $shortContent = 'BT /F1 12 Tf 72 720 Td (Recovered Length Stream) Tj T* (Endstream Fallback) Tj ET';
+        $shortCompressed = gzcompress($shortContent);
+        if (!is_string($shortCompressed)) {
+            throw new RuntimeException('Unable to compress stale short length fixture.');
+        }
+        $shortPdf = "%PDF-1.4\n1 0 obj\n<< /Filter /FlateDecode /Length " . (strlen($shortCompressed) - 5) . " >>\nstream\n{$shortCompressed}\nendstream\nendobj\n%%EOF";
+
+        $indirectContent = 'BT /F1 12 Tf 72 720 Td (Indirect Length Recovery) Tj ET';
+        $indirectCompressed = gzcompress($indirectContent);
+        if (!is_string($indirectCompressed)) {
+            throw new RuntimeException('Unable to compress stale indirect length fixture.');
+        }
+        $indirectPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Filter /FlateDecode /Length 2 0 R >>\nstream\n{$indirectCompressed}\nendstream\nendobj\n"
+            . "2 0 obj\n" . (strlen($indirectCompressed) - 3) . "\nendobj\n%%EOF";
+
+        $rawContent = 'BT /F1 12 Tf 72 720 Td (Raw Length Recovery) Tj ET';
+        $rawPdf = "%PDF-1.4\n1 0 obj\n<< /Length " . (strlen($rawContent) - 4) . " >>\nstream\n{$rawContent}\nendstream\nendobj\n%%EOF";
+
+        $missingLengthContent = 'BT /F1 12 Tf 72 720 Td (Literal endstream Word) Tj T* (Missing Length Tail) Tj ET';
+        $missingLengthPdf = "%PDF-1.4\n1 0 obj\n<< >>\nstream\n{$missingLengthContent}\nendstream\nendobj\n%%EOF";
+
+        $validLengthContent = 'BT /F1 12 Tf 72 720 Td (Visible endstream Word) Tj T* (Length Still Wins) Tj ET';
+        $validLengthPdf = "%PDF-1.4\n1 0 obj\n<< /Length " . strlen($validLengthContent) . " >>\nstream\n{$validLengthContent}\nendstream\nendobj\n%%EOF";
+
+        $unsupportedNoise = 'BT /F1 12 Tf 72 720 Td (Unsupported stale Length leak) Tj ET';
+        $unsupportedPdf = "%PDF-1.4\n1 0 obj\n<< /Filter /Crypt /Length " . (strlen($unsupportedNoise) - 5) . " >>\nstream\n{$unsupportedNoise}\nendstream\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $t->same("Recovered Length Stream\nEndstream Fallback", $extractor->extractPlainText($shortPdf));
+        $t->same(['Recovered Length Stream', 'Endstream Fallback'], $extractor->extractTextRuns($shortPdf));
+        $t->same("Recovered Length Stream\nEndstream Fallback\n", $extractor->naiveGetText($shortPdf));
+        $t->same('Indirect Length Recovery', $extractor->extractPlainText($indirectPdf));
+        $t->same('Raw Length Recovery', $extractor->extractPlainText($rawPdf));
+        $t->same("Literal endstream Word\nMissing Length Tail", $extractor->extractPlainText($missingLengthPdf));
+        $t->same("Visible endstream Word\nLength Still Wins", $extractor->extractPlainText($validLengthPdf));
+        $t->same('', $extractor->extractPlainText($unsupportedPdf));
+        $t->true(!str_contains($extractor->naiveGetText($unsupportedPdf), 'Unsupported stale Length leak'));
+    },
     'extracts LZW stream filters before WordPress paragraph rendering' => static function (TestRunner $t) use ($lzwPackCodes, $lzwLiteralEncode): void {
         $prefix = 'BT /F1 12 Tf 72 720 Td (';
         $suffix = ') Tj T* (Stack Ready) Tj ET';
