@@ -143,6 +143,46 @@ XML;
     return [$pdf, $xdpXml, hash('sha256', trim($xdpXml))];
 };
 
+$xfaSignatureWidgetStatePdf = static function (): array {
+    $xdpXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-16"?>
+<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/">
+  <xfa:template xmlns:xfa="http://www.xfa.org/schema/xfa-template/3.3/">
+    <xfa:subform name="approval">
+      <xfa:field name="approval.signature"><xfa:caption><xfa:value><xfa:text>Signature</xfa:text></xfa:value></xfa:caption></xfa:field>
+    </xfa:subform>
+  </xfa:template>
+  <xfa:datasets>
+    <xfa:data>
+      <approval><signature>dynamic XFA value must not sign or render</signature></approval>
+    </xfa:data>
+  </xfa:datasets>
+</xdp:xdp>
+XML;
+    $encoded = iconv('UTF-8', 'UTF-16BE', $xdpXml);
+    assert(is_string($encoded));
+    $utf16 = "\xFE\xFF" . $encoded;
+    $compressed = gzcompress($utf16);
+    assert(is_string($compressed));
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [6 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 9 0 R] /SigFlags 3 /XFA 30 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Subtype /Widget /FT /Sig /T (approval.signature) /TU (Final approval signature) /V 40 0 R /Rect [360 80 120 120] /P 3 0 R /F 36 /AS /Signed /AP << /N << /Signed 50 0 R /Off 51 0 R >> >> >>\nendobj\n"
+        . "9 0 obj\n<< /FT /Tx /T (article.title) /V (Static title) /DV (Draft title) >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($compressed) . " /Filter /FlateDecode >>\nstream\n"
+        . $compressed
+        . "\nendstream\nendobj\n"
+        . "40 0 obj\n<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Name (Editor Reviewer) /Reason (Approved after XFA review) /M (D:20260602082400Z) /ByteRange [0 128 512 64] /Contents <0102030405> >>\nendobj\n"
+        . "50 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "51 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, hash('sha256', trim($xdpXml))];
+};
+
 $submitResetActionPdf = static function (): string {
     return "%PDF-1.7\n"
         . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
@@ -531,6 +571,52 @@ return [
         $t->true($packet['has_datasets']);
         $t->true(str_contains($packet['text_preview'], 'Fresh dynamic value'));
         $t->true(str_contains($xdpXml, '<xdp:xdp'));
+    },
+    'keeps XFA signature widget annotation state boundaries review-only' => static function (TestRunner $t) use ($xfaSignatureWidgetStatePdf, $fieldsByName): void {
+        [$pdf, $xdpHash] = $xfaSignatureWidgetStatePdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $packets = $form['xfa_packets'];
+        $signature = $fields['approval.signature'];
+        $signatureMetadata = $signature['signature'];
+        $widget = $signature['widgets'][0];
+
+        $t->true($form['xfa_overrides_page_content']);
+        $t->same(2, count($fields));
+        $t->same('Static title', $fields['article.title']['value']);
+        $t->same(1, count($packets));
+        $t->same('xdp:xdp', $packets[0]['xml_root']);
+        $t->same('UTF-16BE', $packets[0]['xml_encoding']);
+        $t->same($xdpHash, $packets[0]['xml_sha256']);
+        $t->same(['approval.signature'], $packets[0]['field_names']);
+        $t->same(['approval', 'signature'], $packets[0]['data_node_names']);
+        $t->true(str_contains($packets[0]['text_preview'], 'dynamic XFA value'));
+
+        $t->same('Sig', $signature['field_type']);
+        $t->same('signature', $signature['field_type_label']);
+        $t->same(null, $signature['value']);
+        $t->true($signature['value_state']['has_current_value']);
+        $t->same(null, $signature['value_state']['display_value']);
+        $t->same('Editor Reviewer', $signatureMetadata['name']);
+        $t->same('Approved after XFA review', $signatureMetadata['reason']);
+        $t->same([0, 128, 512, 64], $signatureMetadata['byte_range']);
+        $t->true($signatureMetadata['contents_present']);
+
+        $t->same(6, $widget['object']);
+        $t->same(0, $widget['page_index']);
+        $t->same(3, $widget['page_object']);
+        $t->same(0, $widget['page_annotation_index']);
+        $t->true($widget['referenced_from_page_annots']);
+        $t->same([120.0, 80.0, 360.0, 120.0], $widget['rect']);
+        $t->same(36, $widget['annotation_flags']);
+        $t->same(['print', 'no_view'], $widget['annotation_flag_names']);
+        $t->same('no_view', $widget['annotation_visibility']);
+        $t->true($widget['hidden']);
+        $t->same(false, $widget['visible']);
+        $t->true($widget['printable']);
+        $t->true($widget['no_view']);
+        $t->same('Signed', $widget['appearance_state']);
+        $t->same(['Signed', 'Off'], $widget['appearance_states']);
     },
     'extracts SubmitForm and ResetForm action review metadata without executing actions' => static function (TestRunner $t) use ($submitResetActionPdf, $fieldsByName): void {
         $fields = $fieldsByName((new PdfAcroFormExtractor())->extractFields($submitResetActionPdf()));

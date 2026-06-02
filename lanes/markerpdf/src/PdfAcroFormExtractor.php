@@ -48,6 +48,19 @@ final class PdfAcroFormExtractor
         64 => 'digest_method',
     ];
 
+    private const ANNOTATION_FLAGS = [
+        1 => 'invisible',
+        2 => 'hidden',
+        3 => 'print',
+        4 => 'no_zoom',
+        5 => 'no_rotate',
+        6 => 'no_view',
+        7 => 'read_only',
+        8 => 'locked',
+        9 => 'toggle_no_view',
+        10 => 'locked_contents',
+    ];
+
     /**
      * Native boundary for PDF AcroForm field dictionaries.
      *
@@ -887,7 +900,7 @@ final class PdfAcroFormExtractor
      * @param list<string> $nameParts
      * @param array<int, true> $seen
      * @param array<int, int> $pageIndexes
-     * @param array<int, array{page_index: int, page_object: int}> $pageWidgets
+     * @param array<int, array{page_index: int, page_object: int, annotation_index: int}> $pageWidgets
      * @param array<int, string> $fieldNamesByObject
      */
     private function fieldsFromObject(
@@ -2083,14 +2096,22 @@ final class PdfAcroFormExtractor
                 : ($pageWidgets[$widgetRef]['page_index'] ?? null);
             $annotationFlags = $this->numberValueAfterName($body, 'F');
             $widgetAppearance = $this->widgetDefaultAppearance($body, $fieldDefaultAppearance);
+            $referencedFromPageAnnots = isset($pageWidgets[$widgetRef]);
 
             $widgets[] = [
                 'object' => $widgetRef,
                 'page_index' => $pageIndex,
                 'page_object' => $pageObject,
+                'page_annotation_index' => $pageWidgets[$widgetRef]['annotation_index'] ?? null,
+                'referenced_from_page_annots' => $referencedFromPageAnnots,
                 'rect' => $this->rectFromAnnotation($body),
                 'annotation_flags' => $annotationFlags,
-                'hidden' => $annotationFlags !== null && (($annotationFlags & 3) !== 0 || ($annotationFlags & 32) !== 0),
+                'annotation_flag_names' => $this->annotationFlagNames($annotationFlags ?? 0),
+                'annotation_visibility' => $this->annotationVisibility($annotationFlags ?? 0),
+                'hidden' => $this->annotationFlagsHideWidget($annotationFlags ?? 0),
+                'visible' => !$this->annotationFlagsHideWidget($annotationFlags ?? 0),
+                'printable' => $this->hasFlagBit($annotationFlags ?? 0, 3),
+                'no_view' => $this->hasFlagBit($annotationFlags ?? 0, 6),
                 'appearance_state' => $this->pdfNameValueAfterName($body, 'AS'),
                 'appearance_states' => $this->normalAppearanceStates($body),
                 'default_appearance' => $widgetAppearance,
@@ -2099,6 +2120,45 @@ final class PdfAcroFormExtractor
         }
 
         return $widgets;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function annotationFlagNames(int $flags): array
+    {
+        $names = [];
+        foreach (self::ANNOTATION_FLAGS as $bit => $name) {
+            if ($this->hasFlagBit($flags, $bit)) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
+    }
+
+    private function annotationFlagsHideWidget(int $flags): bool
+    {
+        return $this->hasFlagBit($flags, 1)
+            || $this->hasFlagBit($flags, 2)
+            || $this->hasFlagBit($flags, 6);
+    }
+
+    private function annotationVisibility(int $flags): string
+    {
+        if ($this->hasFlagBit($flags, 2)) {
+            return 'hidden';
+        }
+
+        if ($this->hasFlagBit($flags, 1)) {
+            return 'invisible';
+        }
+
+        if ($this->hasFlagBit($flags, 6)) {
+            return 'no_view';
+        }
+
+        return 'visible';
     }
 
     /**
@@ -2796,7 +2856,7 @@ final class PdfAcroFormExtractor
     }
 
     /**
-     * @return array<int, array{page_index: int, page_object: int}>
+     * @return array<int, array{page_index: int, page_object: int, annotation_index: int}>
      * @param array<int, string> $objects
      * @param list<int> $pageObjectNumbers
      */
@@ -2814,7 +2874,7 @@ final class PdfAcroFormExtractor
             }
 
             $annotationRefs = $this->annotationObjectReferences($annots, $objects);
-            foreach ($annotationRefs as $annotationRef) {
+            foreach ($annotationRefs as $annotationIndex => $annotationRef) {
                 $annotationBody = $this->dictionaryObjectBody($objects[$annotationRef] ?? '') ?? '';
                 if ($annotationBody === '' || !$this->isWidget($annotationBody)) {
                     continue;
@@ -2823,6 +2883,7 @@ final class PdfAcroFormExtractor
                 $widgets[$annotationRef] = [
                     'page_index' => $pageIndex,
                     'page_object' => $pageObjectNumber,
+                    'annotation_index' => $annotationIndex,
                 ];
             }
         }
