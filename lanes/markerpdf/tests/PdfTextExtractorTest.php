@@ -2237,6 +2237,50 @@ return [
         $t->same("Page One Intro\nClean Blocks\nSecond Page\n", $extractor->naiveGetText($pdf));
         $t->true(!str_contains($extractor->extractPlainText($pdf), 'Phantom Form Text'));
     },
+    'resolves indirect page Contents arrays while preserving page resource stacks' => static function (TestRunner $t) use ($toUnicodeCMap): void {
+        $pageOne = 'BT /F1 12 Tf 72 720 Td <41> Tj ET';
+        $pageTwoA = 'BT /F1 12 Tf 72 720 Td <41> Tj ET';
+        $pageTwoB = 'BT /F1 12 Tf 72 704 Td <42> Tj ET';
+        $orphan = 'BT /F1 12 Tf 72 720 Td (Indirect Contents fallback leak) Tj ET';
+        $cmapOne = $toUnicodeCMap([
+            '41' => 'Indirect Array Page One',
+        ]);
+        $cmapTwo = $toUnicodeCMap([
+            '41' => 'Indirect Array Page Two',
+            '42' => 'Shared Resource Still Active',
+        ]);
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 8 0 R] /Count 2 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 30 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /PageOne /Encoding /Identity-H /ToUnicode 11 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($pageOne) . " >>\nstream\n{$pageOne}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($orphan) . " >>\nstream\n{$orphan}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 9 0 R >> >> /Contents 31 0 R >>\nendobj\n"
+            . "9 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /PageTwo /Encoding /Identity-H /ToUnicode 12 0 R >>\nendobj\n"
+            . "10 0 obj\n<< /Length " . strlen($pageTwoA) . " >>\nstream\n{$pageTwoA}\nendstream\nendobj\n"
+            . "13 0 obj\n<< /Length " . strlen($pageTwoB) . " >>\nstream\n{$pageTwoB}\nendstream\nendobj\n"
+            . "11 0 obj\n<< /Length " . strlen($cmapOne) . " >>\nstream\n{$cmapOne}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Length " . strlen($cmapTwo) . " >>\nstream\n{$cmapTwo}\nendstream\nendobj\n"
+            . "30 0 obj\n[5 0 R]\nendobj\n"
+            . "31 0 obj\n[10 0 R 13 0 R]\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same([
+            'Indirect Array Page One',
+            'Indirect Array Page Two',
+            'Shared Resource Still Active',
+        ], $extractor->extractTextLines($pdf));
+        $t->same([
+            'Indirect Array Page One',
+            'Indirect Array Page Two',
+            'Shared Resource Still Active',
+        ], $extractor->extractTextRuns($pdf));
+        $t->same("Indirect Array Page One\nIndirect Array Page Two\nShared Resource Still Active", $plainText);
+        $t->same("Indirect Array Page One\nIndirect Array Page Two\nShared Resource Still Active\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Indirect Contents fallback leak'));
+    },
     'extracts catalog PageLabels number tree for WordPress page boundaries' => static function (TestRunner $t): void {
         $contents = [
             10 => 'BT /F1 12 Tf 72 720 Td (Preface imported) Tj ET',

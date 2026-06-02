@@ -653,7 +653,7 @@ final class PdfTextExtractor
             $objects,
             $optionalContentStates
         );
-        foreach ($this->pageContentObjectNumbers($objects[$pageObjectNumber]) as $contentObjectNumber) {
+        foreach ($this->pageContentObjectNumbers($objects[$pageObjectNumber], $objects) as $contentObjectNumber) {
             if (!isset($objects[$contentObjectNumber])) {
                 continue;
             }
@@ -3854,17 +3854,99 @@ final class PdfTextExtractor
     /**
      * @return list<int>
      */
-    private function pageContentObjectNumbers(string $pageBody): array
+    private function pageContentObjectNumbers(string $pageBody, array $objects): array
     {
-        if (preg_match('/\/Contents\s*\[(.*?)\]/s', $pageBody, $match)) {
-            return $this->objectReferences($match[1]);
+        $value = $this->pdfValueAfterName($pageBody, 'Contents');
+        return $value === null ? [] : $this->pageContentObjectNumbersFromValue($value, $objects, []);
+    }
+
+    /**
+     * @return list<int>
+     * @param array<int, string> $objects
+     * @param array<int, true> $seenArrayObjects
+     */
+    private function pageContentObjectNumbersFromValue(string $value, array $objects, array $seenArrayObjects): array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return [];
         }
 
-        if (preg_match('/\/Contents\s+(\d+)\s+\d+\s+R\b/s', $pageBody, $match)) {
-            return [(int) $match[1]];
+        $arrayBody = $this->pdfArrayFromValue($value, $objects);
+        if ($arrayBody !== null) {
+            return $this->pageContentObjectNumbersFromArrayBody($arrayBody, $objects, $seenArrayObjects);
         }
 
-        return [];
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) !== 1) {
+            return [];
+        }
+
+        $objectNumber = (int) $match[1];
+        if (isset($seenArrayObjects[$objectNumber])) {
+            return [];
+        }
+
+        if (isset($objects[$objectNumber]) && !isset($seenArrayObjects[$objectNumber])) {
+            $nestedArray = $this->pdfArrayAtStart(trim($objects[$objectNumber]));
+            if ($nestedArray !== null) {
+                $seenArrayObjects[$objectNumber] = true;
+                return $this->pageContentObjectNumbersFromArrayBody($nestedArray, $objects, $seenArrayObjects);
+            }
+        }
+
+        return [$objectNumber];
+    }
+
+    /**
+     * @return list<int>
+     * @param array<int, string> $objects
+     * @param array<int, true> $seenArrayObjects
+     */
+    private function pageContentObjectNumbersFromArrayBody(string $arrayBody, array $objects, array $seenArrayObjects): array
+    {
+        $objectNumbers = [];
+        foreach ($this->pdfArrayItems($arrayBody) as $item) {
+            $item = trim($item);
+            if ($item === '') {
+                continue;
+            }
+
+            if (str_starts_with($item, '[')) {
+                $nestedArray = $this->pdfArrayAtStart($item);
+                if ($nestedArray === null) {
+                    continue;
+                }
+                foreach ($this->pageContentObjectNumbersFromArrayBody($nestedArray, $objects, $seenArrayObjects) as $objectNumber) {
+                    $objectNumbers[] = $objectNumber;
+                }
+                continue;
+            }
+
+            if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $item, $match) !== 1) {
+                continue;
+            }
+
+            $objectNumber = (int) $match[1];
+            if (isset($seenArrayObjects[$objectNumber])) {
+                continue;
+            }
+
+            if (isset($objects[$objectNumber]) && !isset($seenArrayObjects[$objectNumber])) {
+                $nestedArray = $this->pdfArrayAtStart(trim($objects[$objectNumber]));
+                if ($nestedArray !== null) {
+                    $nextSeenArrayObjects = $seenArrayObjects;
+                    $nextSeenArrayObjects[$objectNumber] = true;
+                    foreach ($this->pageContentObjectNumbersFromArrayBody($nestedArray, $objects, $nextSeenArrayObjects) as $nestedObjectNumber) {
+                        $objectNumbers[] = $nestedObjectNumber;
+                    }
+                    continue;
+                }
+            }
+
+            $objectNumbers[] = $objectNumber;
+        }
+
+        return $objectNumbers;
     }
 
     /**
