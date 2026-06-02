@@ -1868,7 +1868,7 @@ final class PdfTextExtractor
 
         foreach ($matches as $match) {
             $dict = $match[1][0];
-            if ($this->isImageStreamDictionary($dict, $objects)) {
+            if ($this->isImageStreamDictionary($dict, $objects) || $this->isEmbeddedFileStreamDictionary($dict)) {
                 continue;
             }
 
@@ -2490,6 +2490,11 @@ final class PdfTextExtractor
         }
 
         return $stream;
+    }
+
+    private function isEmbeddedFileStreamDictionary(string $dict): bool
+    {
+        return preg_match('/\/Type\s*\/EmbeddedFile\b/', $dict) === 1;
     }
 
     /**
