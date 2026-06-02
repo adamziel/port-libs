@@ -29,6 +29,29 @@ $tableResult = static function (): array {
     ];
 };
 
+$mergedSpanResult = static function (): array {
+    return [
+        'rows' => [
+            ['row_id' => 0, 'bbox' => [0.0, 0.0, 300.0, 25.0]],
+            ['row_id' => 1, 'bbox' => [0.0, 35.0, 300.0, 60.0]],
+            ['row_id' => 2, 'bbox' => [0.0, 85.0, 300.0, 110.0]],
+        ],
+        'cols' => [
+            ['col_id' => 0, 'bbox' => [0.0, 0.0, 95.0, 120.0]],
+            ['col_id' => 1, 'bbox' => [105.0, 0.0, 195.0, 120.0]],
+            ['col_id' => 2, 'bbox' => [205.0, 0.0, 300.0, 120.0]],
+        ],
+        'cells' => [
+            ['bbox' => [5.0, 5.0, 295.0, 20.0], 'text' => 'Inventory summary'],
+            ['bbox' => [5.0, 36.0, 92.0, 109.0], 'text' => 'Media group'],
+            ['bbox' => [110.0, 39.0, 190.0, 56.0], 'text' => 'Image count'],
+            ['bbox' => [210.0, 39.0, 290.0, 56.0], 'text' => '12'],
+            ['bbox' => [110.0, 89.0, 190.0, 106.0], 'text' => 'Review state'],
+            ['bbox' => [210.0, 89.0, 290.0, 106.0], 'text' => 'Needs review'],
+        ],
+    ];
+};
+
 $tablePage = static function (): array {
     return [
         'pnum' => 2,
@@ -335,31 +358,9 @@ return [
         $t->same([1], $byText['Media']['row_ids']);
         $t->contains('Summary continued', $recognizer->markdownFormat($assigned));
     },
-    'adds tabled-style row and column spans when geometry covers open bands' => static function (TestRunner $t): void {
+    'adds tabled-style row and column spans when geometry covers open bands' => static function (TestRunner $t) use ($mergedSpanResult): void {
         $recognizer = new TableRecognizer();
-        $assigned = $recognizer->assignRowsColumns(
-            [
-                'rows' => [
-                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 300.0, 25.0]],
-                    ['row_id' => 1, 'bbox' => [0.0, 35.0, 300.0, 60.0]],
-                    ['row_id' => 2, 'bbox' => [0.0, 85.0, 300.0, 110.0]],
-                ],
-                'cols' => [
-                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 95.0, 120.0]],
-                    ['col_id' => 1, 'bbox' => [105.0, 0.0, 195.0, 120.0]],
-                    ['col_id' => 2, 'bbox' => [205.0, 0.0, 300.0, 120.0]],
-                ],
-                'cells' => [
-                    ['bbox' => [5.0, 5.0, 295.0, 20.0], 'text' => 'Inventory summary'],
-                    ['bbox' => [5.0, 36.0, 92.0, 109.0], 'text' => 'Media group'],
-                    ['bbox' => [110.0, 39.0, 190.0, 56.0], 'text' => 'Image count'],
-                    ['bbox' => [210.0, 39.0, 290.0, 56.0], 'text' => '12'],
-                    ['bbox' => [110.0, 89.0, 190.0, 106.0], 'text' => 'Review state'],
-                    ['bbox' => [210.0, 89.0, 290.0, 106.0], 'text' => 'Needs review'],
-                ],
-            ],
-            ['width' => 300, 'height' => 120]
-        );
+        $assigned = $recognizer->assignRowsColumns($mergedSpanResult(), ['width' => 300, 'height' => 120]);
         $byText = [];
         foreach ($assigned as $cell) {
             $byText[$cell['text']] = $cell;
@@ -373,6 +374,36 @@ return [
         $t->same([1], $byText['Image count']['col_ids']);
         $t->same([2], $byText['Needs review']['row_ids']);
         $t->same([2], $byText['Needs review']['col_ids']);
+    },
+    'exports merged-cell grid geometry for WordPress rowspan and colspan review' => static function (TestRunner $t) use ($mergedSpanResult): void {
+        $recognizer = new TableRecognizer();
+        $result = $mergedSpanResult();
+        $assigned = $recognizer->assignRowsColumns($result, ['width' => 300, 'height' => 120]);
+        $geometry = $recognizer->mergedCellGeometry($assigned, $result['rows'], $result['cols']);
+
+        $t->same(['Inventory summary', 'Media group'], array_column($geometry, 'text'));
+        $t->same([1, 3], [$geometry[0]['rowspan'], $geometry[0]['colspan']]);
+        $t->same([2, 1], [$geometry[1]['rowspan'], $geometry[1]['colspan']]);
+        $t->same(['row_id' => 0, 'col_id' => 0], $geometry[0]['anchor']);
+        $t->same(
+            [
+                ['row_id' => 0, 'col_id' => 0],
+                ['row_id' => 0, 'col_id' => 1],
+                ['row_id' => 0, 'col_id' => 2],
+            ],
+            $geometry[0]['grid_cells']
+        );
+        $t->same([0.0, 0.0, 300.0, 25.0], $geometry[0]['grid_bbox']);
+        $t->same([5.0, 5.0, 295.0, 20.0], $geometry[0]['cell_bbox']);
+        $t->same(
+            [
+                ['row_id' => 1, 'col_id' => 0],
+                ['row_id' => 2, 'col_id' => 0],
+            ],
+            $geometry[1]['grid_cells']
+        );
+        $t->same([0.0, 35.0, 95.0, 110.0], $geometry[1]['grid_bbox']);
+        $t->same([5.0, 36.0, 92.0, 109.0], $geometry[1]['cell_bbox']);
     },
     'applies supplied OCR text before row column assignment and markdown formatting' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();

@@ -228,6 +228,60 @@ final class TableRecognizer
     }
 
     /**
+     * Review metadata for tabled.assignment SpanTableCell row/column spans.
+     *
+     * Upstream keeps merged cells as row_ids/col_ids on SpanTableCell, while
+     * Markdown output uses only the first row and column. WordPress imports need
+     * the full grid geometry to emit stable rowspan/colspan attributes.
+     *
+     * @param list<array<string, mixed>> $cells Assigned cells from assignRowsColumns().
+     * @param list<array<string, mixed>> $rows Optional model row bands in table-image coordinates.
+     * @param list<array<string, mixed>> $cols Optional model column bands in table-image coordinates.
+     * @return list<array<string, mixed>>
+     */
+    public function mergedCellGeometry(array $cells, array $rows = [], array $cols = []): array
+    {
+        $cells = $this->sortCells($this->normalizeAssignedCells($cells));
+        $rows = $this->normalizeRowsOrCols($rows, 'row_id');
+        $cols = $this->normalizeRowsOrCols($cols, 'col_id');
+        $rowBboxes = $this->bboxesById($rows, 'row_id');
+        $colBboxes = $this->bboxesById($cols, 'col_id');
+        $rotated = $rows !== [] && $cols !== [] && $this->isRotated($rows, $cols);
+
+        $geometry = [];
+        foreach ($cells as $cell) {
+            $rowIds = $this->nonNullSortedIds($cell['row_ids']);
+            $colIds = $this->nonNullSortedIds($cell['col_ids']);
+            if (count($rowIds) <= 1 && count($colIds) <= 1) {
+                continue;
+            }
+
+            $entry = [
+                'text' => (string) $cell['text'],
+                'row_ids' => $rowIds,
+                'col_ids' => $colIds,
+                'rowspan' => count($rowIds),
+                'colspan' => count($colIds),
+                'anchor' => [
+                    'row_id' => $rowIds[0],
+                    'col_id' => $colIds[0],
+                ],
+                'grid_cells' => $this->gridCellsForSpan($rowIds, $colIds),
+                'cell_bbox' => $cell['bbox'],
+            ];
+
+            $gridBbox = $this->gridBboxForSpan($rowIds, $colIds, $rowBboxes, $colBboxes, $rotated);
+            if ($gridBbox !== null) {
+                $entry['grid_bbox'] = $gridBbox;
+            }
+
+            $geometry[] = $entry;
+        }
+
+        return $geometry;
+    }
+
+    /**
      * @param list<array<string, mixed>> $recognizedTables
      * @param list<array{width?: int|float, height?: int|float}|list<int|float>> $imageSizes
      * @return array{assigned_cells: list<list<array<string, mixed>>>, markdown_tables: list<string>}
@@ -1132,6 +1186,105 @@ final class TableRecognizer
         }
 
         return false;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return array<int, list<float>>
+     */
+    private function bboxesById(array $items, string $idField): array
+    {
+        $byId = [];
+        foreach ($items as $item) {
+            $byId[(int) $item[$idField]] = $item['bbox'];
+        }
+
+        return $byId;
+    }
+
+    /**
+     * @param list<int|null> $ids
+     * @return list<int>
+     */
+    private function nonNullSortedIds(array $ids): array
+    {
+        $out = [];
+        foreach ($ids as $id) {
+            if ($id !== null) {
+                $out[] = (int) $id;
+            }
+        }
+        $out = array_values(array_unique($out));
+        sort($out, SORT_NUMERIC);
+
+        return $out;
+    }
+
+    /**
+     * @param list<int> $rowIds
+     * @param list<int> $colIds
+     * @return list<array{row_id: int, col_id: int}>
+     */
+    private function gridCellsForSpan(array $rowIds, array $colIds): array
+    {
+        $grid = [];
+        foreach ($rowIds as $rowId) {
+            foreach ($colIds as $colId) {
+                $grid[] = [
+                    'row_id' => $rowId,
+                    'col_id' => $colId,
+                ];
+            }
+        }
+
+        return $grid;
+    }
+
+    /**
+     * @param list<int> $rowIds
+     * @param list<int> $colIds
+     * @param array<int, list<float>> $rowBboxes
+     * @param array<int, list<float>> $colBboxes
+     * @return list<float>|null
+     */
+    private function gridBboxForSpan(array $rowIds, array $colIds, array $rowBboxes, array $colBboxes, bool $rotated): ?array
+    {
+        $rowBand = $this->mergedBandBbox($rowIds, $rowBboxes);
+        $colBand = $this->mergedBandBbox($colIds, $colBboxes);
+        if ($rowBand === null || $colBand === null) {
+            return null;
+        }
+
+        if ($rotated) {
+            return [$rowBand[0], $colBand[1], $rowBand[2], $colBand[3]];
+        }
+
+        return [$colBand[0], $rowBand[1], $colBand[2], $rowBand[3]];
+    }
+
+    /**
+     * @param list<int> $ids
+     * @param array<int, list<float>> $bboxes
+     * @return list<float>|null
+     */
+    private function mergedBandBbox(array $ids, array $bboxes): ?array
+    {
+        $selected = [];
+        foreach ($ids as $id) {
+            if (isset($bboxes[$id])) {
+                $selected[] = $bboxes[$id];
+            }
+        }
+        if ($selected === []) {
+            return null;
+        }
+
+        return [
+            min(array_column($selected, 0)),
+            min(array_column($selected, 1)),
+            max(array_column($selected, 2)),
+            max(array_column($selected, 3)),
+        ];
     }
 
     /**
