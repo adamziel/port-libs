@@ -577,7 +577,7 @@ final class PdfMetadataExtractor
             }
         }
 
-        $embeddedFiles = $this->catalogEmbeddedFileNameTreeMetadata($catalog, $objects);
+        $embeddedFiles = $this->catalogEmbeddedFileNameTreeMetadata($catalog, $objects, $collection);
         if ($embeddedFiles !== []) {
             $metadata['embedded_files'] = $embeddedFiles;
         }
@@ -740,6 +740,7 @@ final class PdfMetadataExtractor
 
     /**
      * @param array<int, string> $objects
+     * @param array<string, mixed> $collection
      * @return array<string, mixed>|null
      */
     private function catalogAssociatedFileFromValue(string $value, int $index, array $objects): ?array
@@ -839,6 +840,7 @@ final class PdfMetadataExtractor
     /**
      * @param array<string, mixed> $collection
      * @param array<int, string> $objects
+     * @param array<string, mixed> $collection
      * @return list<array<string, mixed>>
      */
     private function collectionAssociatedFiles(?string $associatedFilesValue, array $collection, array $objects): array
@@ -4784,7 +4786,14 @@ final class PdfMetadataExtractor
      * @param array<int, string> $objects
      * @return array<string, mixed>|null
      */
-    private function fileSpecReviewFromValue(string $value, int $index, array $objects, string $source, bool $associatedFile): ?array
+    private function fileSpecReviewFromValue(
+        string $value,
+        int $index,
+        array $objects,
+        string $source,
+        bool $associatedFile,
+        array $collection = []
+    ): ?array
     {
         $fileSpec = $this->resolveDictionaryFromValue($value, $objects);
         if ($fileSpec === null) {
@@ -4867,6 +4876,19 @@ final class PdfMetadataExtractor
             $file['piece_info'] = $pieceInfo;
         }
 
+        if ($collection !== []) {
+            $collectionItemValue = $this->dictionaryTopLevelRawValue($body, 'CI');
+            $collectionItem = $this->collectionItemMetadata($collectionItemValue, $objects);
+            if ($collectionItem !== []) {
+                $file['collection_item'] = $collectionItem;
+            }
+
+            $fieldValues = $this->collectionFieldValueReview($collection, $collectionItemValue, $objects, $file);
+            if ($fieldValues !== []) {
+                $file['collection_field_values'] = $fieldValues;
+            }
+        }
+
         $relatedFiles = $this->relatedFileReviewRows($this->dictionaryTopLevelRawValue($body, 'RF'), $objects);
         if ($relatedFiles !== []) {
             $file['related_file_count'] = count($relatedFiles);
@@ -4936,7 +4958,7 @@ final class PdfMetadataExtractor
      * @param array<int, string> $objects
      * @return list<array<string, mixed>>
      */
-    private function catalogEmbeddedFileNameTreeMetadata(string $catalog, array $objects): array
+    private function catalogEmbeddedFileNameTreeMetadata(string $catalog, array $objects, array $collection = []): array
     {
         $names = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Names'), $objects);
         if ($names === null) {
@@ -4953,7 +4975,7 @@ final class PdfMetadataExtractor
 
         $files = [];
         $seenObjects = [];
-        $this->collectEmbeddedFileNameTreeReviewRows($embeddedFilesRoot, $objects, $files, $seenObjects);
+        $this->collectEmbeddedFileNameTreeReviewRows($embeddedFilesRoot, $objects, $files, $seenObjects, 0, null, $collection);
 
         return $this->dedupeFileSpecReviewRows($files);
     }
@@ -4964,6 +4986,7 @@ final class PdfMetadataExtractor
      * @param list<array<string, mixed>> $files
      * @param array<int, true> $seenObjects
      * @param array{lower: string, upper: string}|null $inheritedLimits
+     * @param array<string, mixed> $collection
      */
     private function collectEmbeddedFileNameTreeReviewRows(
         array $node,
@@ -4971,7 +4994,8 @@ final class PdfMetadataExtractor
         array &$files,
         array &$seenObjects,
         int $depth = 0,
-        ?array $inheritedLimits = null
+        ?array $inheritedLimits = null,
+        array $collection = []
     ): void
     {
         if ($depth > 20) {
@@ -5002,7 +5026,8 @@ final class PdfMetadataExtractor
                 count($files),
                 $objects,
                 'catalog_names_embedded_files',
-                false
+                false,
+                $collection
             );
             if ($file === null) {
                 continue;
@@ -5016,7 +5041,7 @@ final class PdfMetadataExtractor
         foreach ($kids as $kid) {
             $child = $this->resolveDictionaryFromValue($kid, $objects);
             if ($child !== null) {
-                $this->collectEmbeddedFileNameTreeReviewRows($child, $objects, $files, $seenObjects, $depth + 1, $entryLimits);
+                $this->collectEmbeddedFileNameTreeReviewRows($child, $objects, $files, $seenObjects, $depth + 1, $entryLimits, $collection);
             }
         }
     }

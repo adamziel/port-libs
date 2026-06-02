@@ -1693,23 +1693,24 @@ final class PdfImageRenderer
 
         $expectedPixelCount = $width * $height;
         $imageStream = $this->decodedImageStreamPreviewBoundary($dictionary, $imageObject, $objects);
-        if (($imageStream['decoded_with_current_filters'] ?? false) !== true || !is_string($imageStream['decoded_bytes'] ?? null)) {
+        $imageStreamMeta = $this->streamBoundaryPublicMetadata($imageStream);
+        $imageStreamDecoded = ($imageStream['decoded_with_current_filters'] ?? false) === true
+            && is_string($imageStream['decoded_bytes'] ?? null);
+        $imageStreamReviewOnly = !$imageStreamDecoded && $imageStreamMeta['preview_only_filters'] !== [];
+        if (!$imageStreamDecoded && !$imageStreamReviewOnly) {
             throw new InvalidArgumentException('Alternate colorant image stream filters must be natively decoded before RGB preview.');
-        }
-
-        $imageSamples = $this->packedImagePixelSamples(
-            $imageStream['decoded_bytes'],
-            $components,
-            $bitsPerComponent,
-            $expectedPixelCount
-        );
-        if (!$imageSamples['complete']) {
-            throw new InvalidArgumentException('Alternate colorant image stream does not contain complete image sample data.');
         }
 
         $softMaskSamples = null;
         $softMaskStream = null;
+        $softMaskStreamMeta = null;
         $softMask = $plan['soft_mask'] ?? null;
+        $softMaskGroup = $plan['soft_mask_group'] ?? null;
+        $softMaskIsTransparencyGroup = is_array($softMask)
+            && ($softMask['present'] ?? false) === true
+            && is_array($softMaskGroup)
+            && !is_int($softMask['width'] ?? null)
+            && !is_int($softMask['height'] ?? null);
         if (is_array($softMask) && ($softMask['present'] ?? false) === true) {
             if (($plan['soft_mask_applied_before_rgb'] ?? false) !== true) {
                 throw new InvalidArgumentException('Alternate colorant stream preview requires a grayscale soft-mask image.');
@@ -1721,20 +1722,96 @@ final class PdfImageRenderer
                 throw new InvalidArgumentException('Alternate colorant soft-mask height must match the image height.');
             }
 
-            $softMaskStream = $this->decodedSoftMaskStreamPreviewBoundary($dictionary, $objects);
-            if ($softMaskStream === null || ($softMaskStream['decoded_with_current_filters'] ?? false) !== true || !is_string($softMaskStream['decoded_bytes'] ?? null)) {
-                throw new InvalidArgumentException('Alternate colorant soft-mask stream filters must be natively decoded before RGB preview.');
+            if ($softMaskIsTransparencyGroup && !$imageStreamReviewOnly) {
+                throw new InvalidArgumentException('Alternate colorant stream preview requires sampled soft-mask alpha for transparency groups.');
             }
 
-            $softMaskSamples = $this->packedImagePixelSamples(
-                $softMaskStream['decoded_bytes'],
-                1,
-                max(1, (int) ($softMask['bits_per_component'] ?? 8)),
-                $expectedPixelCount
-            );
-            if (!$softMaskSamples['complete']) {
-                throw new InvalidArgumentException('Alternate colorant soft-mask stream does not contain complete alpha sample data.');
+            if (!$softMaskIsTransparencyGroup) {
+                $softMaskStream = $this->decodedSoftMaskStreamPreviewBoundary($dictionary, $objects);
+                $softMaskStreamMeta = is_array($softMaskStream) ? $this->streamBoundaryPublicMetadata($softMaskStream) : null;
+                if (is_array($softMaskStream) && ($softMaskStream['decoded_with_current_filters'] ?? false) === true && is_string($softMaskStream['decoded_bytes'] ?? null)) {
+                    $softMaskSamples = $this->packedImagePixelSamples(
+                        $softMaskStream['decoded_bytes'],
+                        1,
+                        max(1, (int) ($softMask['bits_per_component'] ?? 8)),
+                        $expectedPixelCount
+                    );
+                } elseif (!$imageStreamReviewOnly) {
+                    throw new InvalidArgumentException('Alternate colorant soft-mask stream filters must be natively decoded before RGB preview.');
+                }
+
+                if (is_array($softMaskSamples) && !$softMaskSamples['complete']) {
+                    throw new InvalidArgumentException('Alternate colorant soft-mask stream does not contain complete alpha sample data.');
+                }
             }
+        }
+
+        $streamNotes = [
+            $imageStreamMeta['filters'] === []
+                ? 'image_stream_unfiltered_samples_before_rgb_conversion'
+                : 'image_stream_filters_decoded_before_rgb_conversion',
+        ];
+        if (!$imageStreamMeta['decoded_with_current_filters'] && $imageStreamMeta['preview_only_filters'] !== []) {
+            $streamNotes[0] = 'alternate_colorant_image_stream_preview_only_before_rgb_conversion';
+        }
+        if ($softMaskStreamMeta !== null) {
+            $streamNotes[] = $softMaskStreamMeta['filters'] === []
+                ? 'soft_mask_stream_unfiltered_samples_before_rgb_conversion'
+                : 'soft_mask_stream_filters_decoded_before_rgb_conversion';
+        } elseif ($softMaskIsTransparencyGroup && $imageStreamReviewOnly) {
+            $streamNotes[] = 'soft_mask_transfer_function_reviewed_without_raster_samples';
+        }
+
+        $alternate = $plan['alternate_color_space'];
+
+        if (!$imageStreamDecoded) {
+            return [
+                'source_color_space' => (string) $plan['source_color_space'],
+                'width' => $width,
+                'height' => $height,
+                'components_per_pixel' => $components,
+                'bits_per_component' => $bitsPerComponent,
+                'expected_pixel_count' => $expectedPixelCount,
+                'preview_pixel_count' => 0,
+                'review_only_image_stream' => true,
+                'complete_image_sample_data' => false,
+                'complete_soft_mask_sample_data' => $softMaskSamples === null ? null : $softMaskSamples['complete'],
+                'image_filter_boundary' => $plan['image_filter_boundary'],
+                'image_filter_details' => $plan['image_filter_details'],
+                'image_stream' => $imageStreamMeta,
+                'soft_mask_stream' => $softMaskStreamMeta,
+                'soft_mask' => $softMask,
+                'soft_mask_group' => $softMaskGroup,
+                'soft_mask_filter_boundary' => $plan['soft_mask_filter_boundary'],
+                'alternate_color_space' => is_array($alternate) ? ($alternate['alternate_color_space'] ?? null) : null,
+                'alternate_components' => is_array($alternate) ? ($alternate['alternate_components'] ?? null) : null,
+                'alternate_uses_icc_profile' => is_array($alternate) && ($alternate['alternate_uses_icc_profile'] ?? false) === true,
+                'icc_profile' => $plan['icc_profile'] ?? null,
+                'tint_transform_object' => is_array($alternate) ? ($alternate['tint_transform_object'] ?? null) : null,
+                'tint_transform_function_type' => is_array($alternate) ? ($alternate['tint_transform_function_type'] ?? null) : null,
+                'tint_transform_preview_mode' => is_array($alternate) && ($alternate['tint_transform_function_type'] ?? null) !== null ? 'review_only' : 'none',
+                'image_decode' => $plan['image_decode'],
+                'soft_mask_transfer_function' => $plan['soft_mask_transfer_function'],
+                'soft_mask_transfer_function_applied_before_rgb' => $plan['soft_mask_transfer_function_applied_before_rgb'],
+                'pixels' => [],
+                'stream_notes' => $streamNotes,
+                'notes' => array_values(array_unique(array_merge($plan['notes'] ?? [], $streamNotes))),
+                'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
+                'alpha_output_mode' => (string) ($plan['alpha_output_mode'] ?? 'opaque_rgb_preview'),
+            ];
+        }
+
+        $imageSamples = $this->packedImagePixelSamples(
+            $imageStream['decoded_bytes'],
+            $components,
+            $bitsPerComponent,
+            $expectedPixelCount
+        );
+        if (!$imageSamples['complete']) {
+            throw new InvalidArgumentException('Alternate colorant image stream does not contain complete image sample data.');
+        }
+        if (is_array($softMask) && ($softMask['present'] ?? false) === true && !$softMaskIsTransparencyGroup && $softMaskSamples === null) {
+            throw new InvalidArgumentException('Alternate colorant soft-mask stream filters must be natively decoded before RGB preview.');
         }
 
         $limit = min($maxPixels, $expectedPixelCount);
@@ -1757,21 +1834,6 @@ final class PdfImageRenderer
             ];
         }
 
-        $imageStreamMeta = $this->streamBoundaryPublicMetadata($imageStream);
-        $softMaskStreamMeta = is_array($softMaskStream) ? $this->streamBoundaryPublicMetadata($softMaskStream) : null;
-        $streamNotes = [
-            $imageStreamMeta['filters'] === []
-                ? 'image_stream_unfiltered_samples_before_rgb_conversion'
-                : 'image_stream_filters_decoded_before_rgb_conversion',
-        ];
-        if ($softMaskStreamMeta !== null) {
-            $streamNotes[] = $softMaskStreamMeta['filters'] === []
-                ? 'soft_mask_stream_unfiltered_samples_before_rgb_conversion'
-                : 'soft_mask_stream_filters_decoded_before_rgb_conversion';
-        }
-
-        $alternate = $plan['alternate_color_space'];
-
         return [
             'source_color_space' => (string) $plan['source_color_space'],
             'width' => $width,
@@ -1780,10 +1842,16 @@ final class PdfImageRenderer
             'bits_per_component' => $bitsPerComponent,
             'expected_pixel_count' => $expectedPixelCount,
             'preview_pixel_count' => count($pixels),
+            'review_only_image_stream' => false,
             'complete_image_sample_data' => $imageSamples['complete'],
             'complete_soft_mask_sample_data' => $softMaskSamples === null ? null : $softMaskSamples['complete'],
+            'image_filter_boundary' => $plan['image_filter_boundary'],
+            'image_filter_details' => $plan['image_filter_details'],
             'image_stream' => $imageStreamMeta,
             'soft_mask_stream' => $softMaskStreamMeta,
+            'soft_mask' => $softMask,
+            'soft_mask_group' => $softMaskGroup,
+            'soft_mask_filter_boundary' => $plan['soft_mask_filter_boundary'],
             'alternate_color_space' => is_array($alternate) ? ($alternate['alternate_color_space'] ?? null) : null,
             'alternate_components' => is_array($alternate) ? ($alternate['alternate_components'] ?? null) : null,
             'alternate_uses_icc_profile' => is_array($alternate) && ($alternate['alternate_uses_icc_profile'] ?? false) === true,
@@ -1791,12 +1859,14 @@ final class PdfImageRenderer
             'tint_transform_object' => is_array($alternate) ? ($alternate['tint_transform_object'] ?? null) : null,
             'tint_transform_function_type' => is_array($alternate) ? ($alternate['tint_transform_function_type'] ?? null) : null,
             'tint_transform_preview_mode' => is_array($alternate) && ($alternate['tint_transform_function_type'] ?? null) !== null ? 'review_only' : 'none',
+            'image_decode' => $plan['image_decode'],
             'soft_mask_transfer_function' => $plan['soft_mask_transfer_function'],
             'soft_mask_transfer_function_applied_before_rgb' => $plan['soft_mask_transfer_function_applied_before_rgb'],
             'pixels' => $pixels,
             'stream_notes' => $streamNotes,
             'notes' => array_values(array_unique(array_merge($plan['notes'] ?? [], $streamNotes))),
             'output_color_mode' => (string) ($plan['output_color_mode'] ?? 'RGB'),
+            'alpha_output_mode' => (string) ($plan['alpha_output_mode'] ?? 'opaque_rgb_preview'),
         ];
     }
 

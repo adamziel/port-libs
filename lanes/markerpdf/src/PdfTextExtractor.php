@@ -6716,12 +6716,21 @@ final class PdfTextExtractor
             return null;
         }
 
-        $cidSetObjectNumber = $this->objectReferenceValueAfterName($descriptor, 'CIDSet');
-        if ($cidSetObjectNumber === null || !isset($objects[$cidSetObjectNumber])) {
+        $cidSetReference = $this->objectReferenceAfterName($descriptor, 'CIDSet');
+        if ($cidSetReference === null) {
             return null;
         }
 
-        $decoded = $this->decodeStreamObject($objects[$cidSetObjectNumber], $objects);
+        $cidSetObject = $this->indirectObjectBodyForReference(
+            $objects,
+            $cidSetReference['objectNumber'],
+            $cidSetReference['generation']
+        );
+        if ($cidSetObject === null) {
+            return null;
+        }
+
+        $decoded = $this->decodeStreamObject($cidSetObject, $objects);
         if ($decoded === null || $decoded === '') {
             return null;
         }
@@ -7362,16 +7371,28 @@ final class PdfTextExtractor
 
     private function objectReferenceValueAfterName(string $body, string $name): ?int
     {
+        $reference = $this->objectReferenceAfterName($body, $name);
+        return $reference === null ? null : $reference['objectNumber'];
+    }
+
+    /**
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function objectReferenceAfterName(string $body, string $name): ?array
+    {
         $offset = $this->nameValueOffset($body, $name);
         if ($offset === null) {
             return null;
         }
 
-        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $body, $match, 0, $offset) !== 1) {
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $body, $match, 0, $offset) !== 1) {
             return null;
         }
 
-        return (int) $match[1];
+        return [
+            'objectNumber' => (int) $match[1],
+            'generation' => (int) $match[2],
+        ];
     }
 
     private function pdfNameValueAfterName(string $body, string $name): ?string
@@ -10167,6 +10188,17 @@ final class PdfTextExtractor
      */
     private function xrefEntriesSelectSameStorage(array $left, array $right): bool
     {
+        if (
+            ($left['type'] ?? null) === 1
+            && ($right['type'] ?? null) === 1
+            && ($left['offsetIsExplicit'] ?? true) === true
+            && ($right['offsetIsExplicit'] ?? true) === true
+            && isset($left['offset'], $right['offset'])
+            && $left['offset'] === $right['offset']
+        ) {
+            return true;
+        }
+
         foreach (['type', 'generation', 'offset', 'objectStream', 'index'] as $field) {
             if (($left[$field] ?? null) !== ($right[$field] ?? null)) {
                 return false;

@@ -1336,13 +1336,29 @@ return [
         $t->same(0.0, $third['soft_mask_alpha']);
         $t->same('RGB', $preview['output_color_mode']);
 
-        $t->throws(
-            InvalidArgumentException::class,
-            static fn (): array => $renderer->alternateColorantStreamPreviewRows(
-                "<< /Subtype /Image /Filter /JPXDecode /Width 1 /Height 1 /ColorSpace [/DeviceN [/Spot#20Blue /Spot#20Varnish] 71 0 R 73 0 R << /Subtype /NChannel >>] /BitsPerComponent 8 /Length 3 >>\nstream\nJPX\nendstream",
-                $objects
-            )
+        $reviewOnly = $renderer->alternateColorantStreamPreviewRows(
+            "<< /Subtype /Image /Filter /JPXDecode /Width 1 /Height 1 /ColorSpace [/DeviceN [/Spot#20Blue /Spot#20Varnish] 71 0 R 73 0 R << /Subtype /NChannel >>] /BitsPerComponent 8 /Length 3 >>\nstream\nJPX\nendstream",
+            $objects
         );
+        $t->same(true, $reviewOnly['review_only_image_stream']);
+        $t->same(0, $reviewOnly['preview_pixel_count']);
+        $t->same(false, $reviewOnly['complete_image_sample_data']);
+        $t->same(null, $reviewOnly['complete_soft_mask_sample_data']);
+        $t->same([
+            'filters' => ['JPXDecode'],
+            'preview_only_filters' => ['JPXDecode'],
+            'unsupported_filters' => ['JPXDecode'],
+            'raw_length' => 3,
+            'decoded_length' => null,
+            'decoded_sha256' => null,
+            'decoded_preview_hex' => null,
+            'decoded_with_current_filters' => false,
+            'decode_failed' => false,
+        ], $reviewOnly['image_stream']);
+        $t->same(null, $reviewOnly['soft_mask_stream']);
+        $t->same([], $reviewOnly['pixels']);
+        $t->same(['alternate_colorant_image_stream_preview_only_before_rgb_conversion'], $reviewOnly['stream_notes']);
+        $t->contains('jpx_image_filter_review_only', implode(',', $reviewOnly['notes']));
     },
     'maps decoded Indexed image stream rows and keeps JPX soft-mask streams review-only before RGB preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();

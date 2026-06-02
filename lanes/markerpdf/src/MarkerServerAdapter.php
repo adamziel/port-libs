@@ -12,6 +12,128 @@ use Throwable;
 final class MarkerServerAdapter
 {
     public const DEFAULT_DATALAB_URL = 'https://api.datalab.to/api/v1/marker';
+    public const DEFAULT_HOST = '127.0.0.1';
+    public const DEFAULT_PORT = 8000;
+    public const DEFAULT_UPLOAD_DIRECTORY = './uploads';
+
+    /**
+     * Native non-executing boundary for marker_server.py import-time upload setup
+     * and main() CLI configuration before uvicorn.run().
+     *
+     * @param array<string, mixed> $config
+     * @param callable(string): bool|null $uploadDirectoryInitializer
+     * @return array{
+     *     host: string,
+     *     port: int,
+     *     local: bool,
+     *     api_key_configured: bool,
+     *     datalab_url: string,
+     *     upload_directory: string,
+     *     upload_directory_absolute: string,
+     *     upload_directory_status: string,
+     *     upload_directory_created: bool,
+     *     app_state: array{API_KEY_CONFIGURED: bool, LOCAL: bool, DATALAB_URL: string},
+     *     uvicorn: array{app: string, host: string, port: int},
+     *     loads_models_on_lifespan: bool,
+     *     loads_models_during_plan: false,
+     *     executes_uvicorn: false,
+     *     executes_fastapi: false,
+     *     executes_python_or_models: false,
+     *     executes_live_http: false
+     * }
+     */
+    public function serverConfigPlan(array $config = [], ?callable $uploadDirectoryInitializer = null): array
+    {
+        $host = $this->serverHost($config['host'] ?? self::DEFAULT_HOST);
+        $port = $this->serverPort($config['port'] ?? self::DEFAULT_PORT);
+        $apiKey = $this->serverApiKey($config['api_key'] ?? $config['apiKey'] ?? null);
+        $local = $apiKey === null;
+        $datalabUrl = $this->serverString(
+            $config['datalab_url'] ?? $config['datalabUrl'] ?? self::DEFAULT_DATALAB_URL,
+            'datalab_url'
+        );
+        $uploadDirectory = $this->serverString(
+            $config['upload_directory'] ?? $config['uploadDirectory'] ?? self::DEFAULT_UPLOAD_DIRECTORY,
+            'upload_directory'
+        );
+        $uploadDirectoryAbsolute = $this->absoluteServerPath($uploadDirectory);
+        $ensureUploadDirectory = $this->boolValue($config['ensure_upload_directory'] ?? $config['ensureUploadDirectory'] ?? false)
+            || $uploadDirectoryInitializer !== null;
+
+        $created = false;
+        $status = is_dir($uploadDirectoryAbsolute) ? 'exists' : 'planned';
+        if ($ensureUploadDirectory && !is_dir($uploadDirectoryAbsolute)) {
+            $created = $uploadDirectoryInitializer !== null
+                ? (bool) $uploadDirectoryInitializer($uploadDirectoryAbsolute)
+                : mkdir($uploadDirectoryAbsolute, 0777, true);
+
+            if (!$created || !is_dir($uploadDirectoryAbsolute)) {
+                throw new RuntimeException('Unable to create markerPDF upload folder: ' . $uploadDirectoryAbsolute);
+            }
+
+            $status = 'created';
+        }
+
+        return [
+            'host' => $host,
+            'port' => $port,
+            'local' => $local,
+            'api_key_configured' => $apiKey !== null,
+            'datalab_url' => $datalabUrl,
+            'upload_directory' => $uploadDirectory,
+            'upload_directory_absolute' => $uploadDirectoryAbsolute,
+            'upload_directory_status' => $status,
+            'upload_directory_created' => $created,
+            'app_state' => [
+                'API_KEY_CONFIGURED' => $apiKey !== null,
+                'LOCAL' => $local,
+                'DATALAB_URL' => $datalabUrl,
+            ],
+            'uvicorn' => [
+                'app' => 'marker_server:app',
+                'host' => $host,
+                'port' => $port,
+            ],
+            'loads_models_on_lifespan' => $local,
+            'loads_models_during_plan' => false,
+            'executes_uvicorn' => false,
+            'executes_fastapi' => false,
+            'executes_python_or_models' => false,
+            'executes_live_http' => false,
+        ];
+    }
+
+    /**
+     * WordPress-safe wrapper for marker_server.py configuration failures.
+     *
+     * @param array<string, mixed> $config
+     * @param callable(string): bool|null $uploadDirectoryInitializer
+     * @return array{success: bool, config: array<string, mixed>|null, error: string|null, executes_uvicorn: false, executes_fastapi: false, executes_python_or_models: false, executes_live_http: false}
+     */
+    public function serverConfigErrorBoundary(array $config = [], ?callable $uploadDirectoryInitializer = null): array
+    {
+        try {
+            return [
+                'success' => true,
+                'config' => $this->serverConfigPlan($config, $uploadDirectoryInitializer),
+                'error' => null,
+                'executes_uvicorn' => false,
+                'executes_fastapi' => false,
+                'executes_python_or_models' => false,
+                'executes_live_http' => false,
+            ];
+        } catch (Throwable $throwable) {
+            return [
+                'success' => false,
+                'config' => null,
+                'error' => $throwable->getMessage(),
+                'executes_uvicorn' => false,
+                'executes_fastapi' => false,
+                'executes_python_or_models' => false,
+                'executes_live_http' => false,
+            ];
+        }
+    }
 
     /**
      * Native parameter boundary for marker_server.py::CommonParams.
@@ -269,6 +391,73 @@ final class MarkerServerAdapter
         }
 
         throw new InvalidArgumentException("Marker API {$name} must be an integer when provided.");
+    }
+
+    private function serverPort(mixed $value): int
+    {
+        if (is_int($value)) {
+            $port = $value;
+        } elseif (is_string($value) && preg_match('/^\d+$/', trim($value)) === 1) {
+            $port = (int) trim($value);
+        } else {
+            throw new InvalidArgumentException('Marker server port must be an integer.');
+        }
+
+        if ($port < 1 || $port > 65535) {
+            throw new InvalidArgumentException('Marker server port must be between 1 and 65535.');
+        }
+
+        return $port;
+    }
+
+    private function serverHost(mixed $value): string
+    {
+        $host = $this->serverString($value, 'host');
+        if (str_contains($host, "\0")) {
+            throw new InvalidArgumentException('Marker server host must not contain NUL bytes.');
+        }
+
+        return $host;
+    }
+
+    private function serverApiKey(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (is_scalar($value) || $value instanceof Stringable) {
+            return (string) $value;
+        }
+
+        throw new InvalidArgumentException('Marker server api_key must be a string when provided.');
+    }
+
+    private function serverString(mixed $value, string $name): string
+    {
+        if (!is_scalar($value) && !$value instanceof Stringable) {
+            throw new InvalidArgumentException("Marker server {$name} must be a string.");
+        }
+
+        $normalized = trim((string) $value);
+        if ($normalized === '') {
+            throw new InvalidArgumentException("Marker server {$name} must not be empty.");
+        }
+
+        return $normalized;
+    }
+
+    private function absoluteServerPath(string $path): string
+    {
+        $normalized = rtrim($path, "/\\");
+        if ($normalized === '') {
+            return DIRECTORY_SEPARATOR;
+        }
+
+        if (str_starts_with($normalized, DIRECTORY_SEPARATOR) || preg_match('/^[A-Za-z]:[\\\\\\/]/', $normalized) === 1) {
+            return $normalized;
+        }
+
+        return getcwd() . DIRECTORY_SEPARATOR . $normalized;
     }
 
     private function boolValue(mixed $value): bool
