@@ -134,6 +134,7 @@ final class PdfMetadataExtractor
      *     page_mode?: string,
      *     viewer_preferences?: array<string, mixed>,
      *     collection?: array<string, mixed>,
+     *     structure_tree?: array<string, mixed>,
      *     document_destinations?: array<string, mixed>,
      *     pdfa?: array{has_output_intent: bool, output_condition_identifiers: list<string>, profile_sha256: list<string>}
      * }
@@ -532,6 +533,11 @@ final class PdfMetadataExtractor
         $viewerPreferences = $this->extractViewerPreferences($catalog, $objects);
         if ($viewerPreferences !== []) {
             $metadata['viewer_preferences'] = $viewerPreferences;
+        }
+
+        $structureTree = $this->structureTreeReviewMetadata($catalog, $objects);
+        if ($structureTree !== []) {
+            $metadata['structure_tree'] = $structureTree;
         }
 
         $pieceInfo = $this->pieceInfoMetadata($this->dictionaryTopLevelRawValue($catalog, 'PieceInfo'), $objects);
@@ -1042,6 +1048,556 @@ final class PdfMetadataExtractor
         }
 
         return $metadata === [] ? null : $metadata;
+    }
+
+    /**
+     * Tagged PDF structure element dictionaries carry accessibility language,
+     * expansion, alternate text, IDs, classes, namespaces, and MCID/page links.
+     * Keep those fields as WordPress review metadata instead of promoting them
+     * into visible text or overriding explicit catalog language.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function structureTreeReviewMetadata(string $catalog, array $objects): array
+    {
+        $root = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'StructTreeRoot'), $objects);
+        if ($root === null) {
+            return [];
+        }
+
+        $rootBody = $root['body'];
+        $roleMap = $this->structureRoleMapFromValue($this->dictionaryTopLevelRawValue($rootBody, 'RoleMap'), $objects);
+        $namespaces = $this->structureNamespacesFromValue($this->dictionaryTopLevelRawValue($rootBody, 'Namespaces'), $objects);
+        $pageObjectNumbers = $this->orderedDestinationPageObjectNumbers($catalog, $objects);
+        $pageIndexes = [];
+        foreach ($pageObjectNumbers as $pageIndex => $pageObjectNumber) {
+            $pageIndexes[$pageObjectNumber] = $pageIndex;
+        }
+
+        $catalogLanguage = $this->dictionaryStringValue($catalog, 'Lang');
+        $rootLanguage = $this->reviewStringFromRaw($this->dictionaryTopLevelRawValue($rootBody, 'Lang'), $objects)
+            ?? $catalogLanguage;
+
+        $elements = [];
+        $this->collectStructureReviewElements(
+            $this->dictionaryTopLevelRawValue($rootBody, 'K'),
+            $objects,
+            null,
+            $rootLanguage,
+            $roleMap,
+            $pageIndexes,
+            $elements
+        );
+
+        if ($elements === [] && $roleMap === [] && $namespaces === [] && $rootLanguage === null) {
+            return [];
+        }
+
+        $languages = [];
+        foreach ($elements as $element) {
+            $language = $element['language'] ?? null;
+            if (is_string($language)) {
+                $languages[] = $language;
+            }
+        }
+
+        $metadata = [
+            'source' => 'catalog_struct_tree_root',
+            'element_count' => count($elements),
+            'page_count' => count($pageObjectNumbers),
+            'elements' => $elements,
+            'review_only' => true,
+            'visible_text_source' => false,
+        ];
+
+        if ($root['object'] !== null) {
+            $metadata['root_object'] = $root['object'];
+        }
+        if ($rootLanguage !== null) {
+            $metadata['root_language'] = $rootLanguage;
+            $metadata['catalog_language_fallback'] = $catalogLanguage === $rootLanguage
+                && $this->dictionaryTopLevelRawValue($rootBody, 'Lang') === null;
+        }
+        if ($roleMap !== []) {
+            $metadata['role_map'] = $roleMap;
+        }
+        if ($namespaces !== []) {
+            $metadata['namespaces'] = $namespaces;
+        }
+
+        $languages = $this->uniqueStrings($languages);
+        if ($languages !== []) {
+            $metadata['languages'] = $languages;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, string> $roleMap
+     * @param array<int, int> $pageIndexes
+     * @param list<array<string, mixed>> $elements
+     * @param array<int, true> $seenObjects
+     */
+    private function collectStructureReviewElements(
+        ?string $value,
+        array $objects,
+        ?int $inheritedPageObject,
+        ?string $inheritedLanguage,
+        array $roleMap,
+        array $pageIndexes,
+        array &$elements,
+        array $seenObjects = [],
+        int $depth = 0
+    ): void {
+        if ($value === null || $depth > 24) {
+            return;
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        if ($resolved === '') {
+            return;
+        }
+
+        $objectNumber = $this->objectNumberFromReference($value);
+        if ($objectNumber !== null) {
+            if (isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
+                return;
+            }
+            $seenObjects[$objectNumber] = true;
+            $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+            if ($dictionary !== null) {
+                $this->collectStructureDictionaryReview(
+                    $dictionary,
+                    $objectNumber,
+                    $objects,
+                    $inheritedPageObject,
+                    $inheritedLanguage,
+                    $roleMap,
+                    $pageIndexes,
+                    $elements,
+                    $seenObjects,
+                    $depth + 1
+                );
+            }
+            return;
+        }
+
+        if (str_starts_with($resolved, '[')) {
+            foreach ($this->arrayItemsFromValue($resolved, $objects) as $item) {
+                $this->collectStructureReviewElements(
+                    $item,
+                    $objects,
+                    $inheritedPageObject,
+                    $inheritedLanguage,
+                    $roleMap,
+                    $pageIndexes,
+                    $elements,
+                    $seenObjects,
+                    $depth + 1
+                );
+            }
+            return;
+        }
+
+        if (str_starts_with($resolved, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($resolved, 0);
+            if ($dictionary !== null) {
+                $this->collectStructureDictionaryReview(
+                    $dictionary,
+                    null,
+                    $objects,
+                    $inheritedPageObject,
+                    $inheritedLanguage,
+                    $roleMap,
+                    $pageIndexes,
+                    $elements,
+                    $seenObjects,
+                    $depth + 1
+                );
+            }
+        }
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, string> $roleMap
+     * @param array<int, int> $pageIndexes
+     * @param list<array<string, mixed>> $elements
+     * @param array<int, true> $seenObjects
+     */
+    private function collectStructureDictionaryReview(
+        string $dictionary,
+        ?int $objectNumber,
+        array $objects,
+        ?int $inheritedPageObject,
+        ?string $inheritedLanguage,
+        array $roleMap,
+        array $pageIndexes,
+        array &$elements,
+        array $seenObjects,
+        int $depth
+    ): void {
+        $type = $this->dictionaryNameValue($dictionary, 'Type', $objects);
+        $rawRole = $this->dictionaryNameValue($dictionary, 'S', $objects);
+        $isStructElement = $type === 'StructElem' || $rawRole !== null;
+        if (!$isStructElement) {
+            return;
+        }
+
+        $pageObject = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Pg') ?? '')
+            ?? $inheritedPageObject;
+        $languageRaw = $this->dictionaryTopLevelRawValue($dictionary, 'Lang');
+        $language = $this->reviewStringFromRaw($languageRaw, $objects) ?? $inheritedLanguage;
+        $namespace = $this->structureNamespaceMetadataFromRaw($this->dictionaryTopLevelRawValue($dictionary, 'NS'), $objects);
+        $namespaceRoleMap = is_array($namespace['role_map'] ?? null) ? $namespace['role_map'] : [];
+        $effectiveRoleMap = $namespaceRoleMap + $roleMap;
+        $role = $rawRole === null ? null : $this->resolveStructureRole($rawRole, $effectiveRoleMap);
+
+        $row = [
+            'source' => 'struct_elem',
+            'review_only' => true,
+        ];
+        if ($objectNumber !== null) {
+            $row['object'] = $objectNumber;
+        }
+        if ($rawRole !== null) {
+            $row['raw_role'] = $rawRole;
+        }
+        if ($role !== null) {
+            $row['role'] = $role;
+            $row['role_mapped'] = $role !== $rawRole;
+        }
+        if ($pageObject !== null) {
+            $this->applyPageReviewMetadata($row, $pageObject, $pageIndexes);
+        }
+        if ($language !== null) {
+            $row['language'] = $language;
+            $row['language_inherited'] = $languageRaw === null;
+        }
+
+        foreach ([
+            'title' => 'T',
+            'id' => 'ID',
+            'alternate_text' => 'Alt',
+            'actual_text' => 'ActualText',
+            'expansion_text' => 'E',
+        ] as $metadataKey => $pdfKey) {
+            $value = $this->reviewStringFromRaw($this->dictionaryTopLevelRawValue($dictionary, $pdfKey), $objects);
+            if ($value !== null) {
+                $row[$metadataKey] = $value;
+            }
+        }
+
+        $classes = $this->structureClassNames($this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($dictionary, 'C'), $objects));
+        if ($classes !== []) {
+            $row['classes'] = $classes;
+        }
+
+        $revision = $this->dictionaryIntegerValue($dictionary, 'R', $objects);
+        if ($revision !== null) {
+            $row['revision'] = $revision;
+        }
+
+        if ($namespace !== []) {
+            $row['namespace'] = $namespace;
+        }
+
+        $markedContent = $this->structureMarkedContentFromKidValue(
+            $this->dictionaryTopLevelRawValue($dictionary, 'K'),
+            $objects,
+            $pageObject
+        );
+        if ($markedContent !== []) {
+            foreach ($markedContent as &$entry) {
+                $entryPageObject = $entry['page_object'] ?? null;
+                if (is_int($entryPageObject)) {
+                    $this->applyPageReviewMetadata($entry, $entryPageObject, $pageIndexes);
+                }
+            }
+            unset($entry);
+
+            $row['marked_content'] = $markedContent;
+            $row['mcids'] = $this->uniqueIntegers(array_map(
+                static fn (array $entry): int => (int) $entry['mcid'],
+                $markedContent
+            ));
+        }
+
+        $elements[] = $row;
+
+        $this->collectStructureReviewElements(
+            $this->dictionaryTopLevelRawValue($dictionary, 'K'),
+            $objects,
+            $pageObject,
+            $language,
+            $roleMap,
+            $pageIndexes,
+            $elements,
+            $seenObjects,
+            $depth + 1
+        );
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function structureNamespacesFromValue(?string $value, array $objects): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        $items = str_starts_with(trim($this->resolvePdfValue($value, $objects) ?? $value), '[')
+            ? $this->arrayItemsFromValue($value, $objects)
+            : [$value];
+        $namespaces = [];
+        $seen = [];
+        foreach ($items as $item) {
+            $namespace = $this->structureNamespaceMetadataFromRaw($item, $objects);
+            if ($namespace === []) {
+                continue;
+            }
+
+            $key = (string) ($namespace['object'] ?? '') . '|' . (string) ($namespace['namespace'] ?? '');
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $namespaces[] = $namespace;
+        }
+
+        return $namespaces;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function structureNamespaceMetadataFromRaw(?string $value, array $objects): array
+    {
+        $namespace = $this->resolveDictionaryFromValue($value, $objects);
+        if ($namespace === null) {
+            return [];
+        }
+
+        $metadata = [];
+        if ($namespace['object'] !== null) {
+            $metadata['object'] = $namespace['object'];
+        }
+
+        $name = $this->reviewStringFromRaw($this->dictionaryTopLevelRawValue($namespace['body'], 'NS'), $objects);
+        if ($name !== null) {
+            $metadata['namespace'] = $name;
+        }
+
+        $roleMap = $this->structureRoleMapFromValue($this->dictionaryTopLevelRawValue($namespace['body'], 'RoleMap'), $objects);
+        if ($roleMap !== []) {
+            $metadata['role_map'] = $roleMap;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, string>
+     */
+    private function structureRoleMapFromValue(?string $value, array $objects): array
+    {
+        $roleMap = $this->resolveDictionaryFromValue($value, $objects);
+        if ($roleMap === null) {
+            return [];
+        }
+
+        $mapped = [];
+        foreach ($this->dictionaryTopLevelEntries($roleMap['body']) as $rawRole => $rawValue) {
+            $role = $this->reviewStringFromRaw($rawValue, $objects);
+            if ($role !== null) {
+                $mapped[$rawRole] = $role;
+            }
+        }
+
+        return $mapped;
+    }
+
+    /**
+     * @param array<string, string> $roleMap
+     */
+    private function resolveStructureRole(string $role, array $roleMap): string
+    {
+        $current = $role;
+        $seen = [];
+        for ($depth = 0; $depth < 16; $depth++) {
+            if (!isset($roleMap[$current]) || isset($seen[$current])) {
+                break;
+            }
+
+            $seen[$current] = true;
+            $current = $roleMap[$current];
+        }
+
+        return $current;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function structureMarkedContentFromKidValue(
+        ?string $value,
+        array $objects,
+        ?int $inheritedPageObject,
+        array $seenObjects = [],
+        int $depth = 0
+    ): array {
+        if ($value === null || $depth > 12) {
+            return [];
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        if ($resolved === '') {
+            return [];
+        }
+
+        $objectNumber = $this->objectNumberFromReference($value);
+        if ($objectNumber !== null) {
+            if (isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
+                return [];
+            }
+            $seenObjects[$objectNumber] = true;
+            $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+            if ($dictionary === null || $this->dictionaryNameValue($dictionary, 'Type', $objects) === 'StructElem' || $this->dictionaryTopLevelRawValue($dictionary, 'S') !== null) {
+                return [];
+            }
+
+            return $this->structureMarkedContentFromDictionary($dictionary, $objects, $inheritedPageObject);
+        }
+
+        if (preg_match('/^[+-]?\d+$/', $resolved) === 1) {
+            $mcid = (int) $resolved;
+            return $mcid >= 0 ? [[
+                'mcid' => $mcid,
+                'page_object' => $inheritedPageObject,
+            ]] : [];
+        }
+
+        if (str_starts_with($resolved, '[')) {
+            $entries = [];
+            foreach ($this->arrayItemsFromValue($resolved, $objects) as $item) {
+                foreach ($this->structureMarkedContentFromKidValue($item, $objects, $inheritedPageObject, $seenObjects, $depth + 1) as $entry) {
+                    $entries[] = $entry;
+                }
+            }
+
+            return $this->dedupeMarkedContentEntries($entries);
+        }
+
+        if (str_starts_with($resolved, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($resolved, 0);
+            if ($dictionary === null || $this->dictionaryNameValue($dictionary, 'Type', $objects) === 'StructElem' || $this->dictionaryTopLevelRawValue($dictionary, 'S') !== null) {
+                return [];
+            }
+
+            return $this->structureMarkedContentFromDictionary($dictionary, $objects, $inheritedPageObject);
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array{mcid: int, page_object: int|null}>
+     */
+    private function structureMarkedContentFromDictionary(string $dictionary, array $objects, ?int $inheritedPageObject): array
+    {
+        $mcid = $this->dictionaryIntegerValue($dictionary, 'MCID', $objects);
+        if ($mcid === null || $mcid < 0) {
+            return [];
+        }
+
+        return [[
+            'mcid' => $mcid,
+            'page_object' => $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Pg') ?? '')
+                ?? $inheritedPageObject,
+        ]];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private function dedupeMarkedContentEntries(array $entries): array
+    {
+        $deduped = [];
+        $seen = [];
+        foreach ($entries as $entry) {
+            $key = (string) ($entry['page_object'] ?? '') . ':' . (string) ($entry['mcid'] ?? '');
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $deduped[] = $entry;
+        }
+
+        return $deduped;
+    }
+
+    /**
+     * @param array<string, mixed> $target
+     * @param array<int, int> $pageIndexes
+     */
+    private function applyPageReviewMetadata(array &$target, int $pageObject, array $pageIndexes): void
+    {
+        $target['page_object'] = $pageObject;
+        if (isset($pageIndexes[$pageObject])) {
+            $target['page'] = $pageIndexes[$pageObject];
+            $target['page_number'] = $pageIndexes[$pageObject] + 1;
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function structureClassNames(mixed $value): array
+    {
+        if (is_string($value)) {
+            return $value === '' ? [] : [$value];
+        }
+
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $classes = [];
+        foreach ($value as $entry) {
+            if (is_string($entry) && $entry !== '') {
+                $classes[] = $entry;
+            }
+        }
+
+        return $this->uniqueStrings($classes);
+    }
+
+    /**
+     * @param list<int> $values
+     * @return list<int>
+     */
+    private function uniqueIntegers(array $values): array
+    {
+        $out = [];
+        foreach ($values as $value) {
+            if (!in_array($value, $out, true)) {
+                $out[] = $value;
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -2161,7 +2717,7 @@ final class PdfMetadataExtractor
             $result['keywords'] = array_values($keywords);
         }
 
-        foreach (['language', 'page_layout', 'page_mode', 'viewer_preferences', 'collection', 'document_destinations'] as $field) {
+        foreach (['language', 'page_layout', 'page_mode', 'viewer_preferences', 'collection', 'structure_tree', 'document_destinations'] as $field) {
             if (array_key_exists($field, $catalog)) {
                 $result[$field] = $catalog[$field];
             }

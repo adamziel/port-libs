@@ -835,6 +835,81 @@ return [
         $t->same('Catalog Language Import', $text);
         $t->true(!str_contains($text, 'HideToolbar'));
     },
+    'extracts structure tree language alternate and expansion review metadata without visible text leakage' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf '
+            . '/DocSection << /MCID 0 >> BDC 72 720 Td (Visible heading glyphs) Tj EMC '
+            . '/Lead << /MCID 1 >> BDC 72 704 Td (Visible body glyphs) Tj EMC ET';
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /PageLayout /SinglePage /PageMode /UseOutlines /ViewerPreferences << /DisplayDocTitle true /Direction /L2R /PrintScaling /None >> /MarkInfo << /Marked true >> /StructTreeRoot 20 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Type /StructTreeRoot /RoleMap 24 0 R /Namespaces [25 0 R] /K [21 0 R 22 0 R] >>\nendobj\n"
+            . "21 0 obj\n<< /Type /StructElem /S /Doc#53ection /Pg 3 0 R /Lang (fr-CA) /T (Resume Section) /ID (sec-1) /C [/chapter /featured] /R 2 /K << /Type /MCR /Pg 3 0 R /MCID 0 >> >>\nendobj\n"
+            . "22 0 obj\n<< /Type /StructElem /S /Lead /Pg 3 0 R /NS 25 0 R /Alt (Accessible abstract summary) /ActualText (Expanded actual text should stay review) /E (Content Management System) /K 1 >>\nendobj\n"
+            . "24 0 obj\n<< /Doc#53ection /Sect /Lead /P >>\nendobj\n"
+            . "25 0 obj\n<< /Type /Namespace /NS (https://example.test/wp-structure) /RoleMap << /Lead /P >> >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $structure = $metadata['structure_tree'] ?? [];
+        $elements = $structure['elements'] ?? [];
+
+        $t->same(['catalog'], $metadata['source']);
+        $t->same('en-US', $metadata['language']);
+        $t->same('SinglePage', $metadata['page_layout']);
+        $t->same('UseOutlines', $metadata['page_mode']);
+        $t->same('L2R', $metadata['viewer_preferences']['direction']);
+        $t->same('catalog_struct_tree_root', $structure['source'] ?? null);
+        $t->same(20, $structure['root_object'] ?? null);
+        $t->same('en-US', $structure['root_language'] ?? null);
+        $t->same(true, $structure['catalog_language_fallback'] ?? null);
+        $t->same(['DocSection' => 'Sect', 'Lead' => 'P'], $structure['role_map'] ?? []);
+        $t->same(['fr-CA', 'en-US'], $structure['languages'] ?? []);
+        $t->same(2, $structure['element_count'] ?? null);
+        $t->same(1, $structure['page_count'] ?? null);
+        $t->same('https://example.test/wp-structure', $structure['namespaces'][0]['namespace'] ?? null);
+        $t->same(['Lead' => 'P'], $structure['namespaces'][0]['role_map'] ?? []);
+
+        $section = $elements[0] ?? [];
+        $t->same(21, $section['object'] ?? null);
+        $t->same('DocSection', $section['raw_role'] ?? null);
+        $t->same('Sect', $section['role'] ?? null);
+        $t->same(true, $section['role_mapped'] ?? null);
+        $t->same('fr-CA', $section['language'] ?? null);
+        $t->same(false, $section['language_inherited'] ?? null);
+        $t->same('Resume Section', $section['title'] ?? null);
+        $t->same('sec-1', $section['id'] ?? null);
+        $t->same(['chapter', 'featured'], $section['classes'] ?? []);
+        $t->same(2, $section['revision'] ?? null);
+        $t->same(3, $section['page_object'] ?? null);
+        $t->same(0, $section['page'] ?? null);
+        $t->same(1, $section['page_number'] ?? null);
+        $t->same([0], $section['mcids'] ?? []);
+        $t->same(0, $section['marked_content'][0]['mcid'] ?? null);
+
+        $lead = $elements[1] ?? [];
+        $t->same(22, $lead['object'] ?? null);
+        $t->same('Lead', $lead['raw_role'] ?? null);
+        $t->same('P', $lead['role'] ?? null);
+        $t->same(true, $lead['role_mapped'] ?? null);
+        $t->same('en-US', $lead['language'] ?? null);
+        $t->same(true, $lead['language_inherited'] ?? null);
+        $t->same('Accessible abstract summary', $lead['alternate_text'] ?? null);
+        $t->same('Expanded actual text should stay review', $lead['actual_text'] ?? null);
+        $t->same('Content Management System', $lead['expansion_text'] ?? null);
+        $t->same('https://example.test/wp-structure', $lead['namespace']['namespace'] ?? null);
+        $t->same([1], $lead['mcids'] ?? []);
+        $t->same(1, $lead['marked_content'][0]['mcid'] ?? null);
+        $t->same(3, $lead['marked_content'][0]['page_object'] ?? null);
+        $t->same(0, $lead['marked_content'][0]['page'] ?? null);
+
+        $t->same("Visible heading glyphs\nVisible body glyphs", $plainText);
+        $t->true(!str_contains($plainText, 'Accessible abstract summary'));
+        $t->true(!str_contains($plainText, 'Expanded actual text should stay review'));
+        $t->true(!str_contains($plainText, 'Content Management System'));
+    },
     'extracts direct viewer preferences and escaped preference names' => static function (TestRunner $t) use ($pdfWithCatalogReview): void {
         $pdf = $pdfWithCatalogReview(
             ' /Lang (en-US) /PageLayout /SinglePage /PageMode /FullScreen'
