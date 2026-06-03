@@ -34,6 +34,27 @@ $ascii85Encode = static function (string $bytes): string {
     return $encoded;
 };
 
+$zlibStored = static function (string $bytes): string {
+    $length = strlen($bytes);
+    if ($length > 65535) {
+        throw new RuntimeException('Focused zlib stored-block fixture must fit one deflate block.');
+    }
+
+    $s1 = 1;
+    $s2 = 0;
+    for ($index = 0; $index < $length; $index++) {
+        $s1 = ($s1 + ord($bytes[$index])) % 65521;
+        $s2 = ($s2 + $s1) % 65521;
+    }
+
+    return "\x78\x01"
+        . "\x01"
+        . pack('v', $length)
+        . pack('v', (~$length) & 0xffff)
+        . $bytes
+        . pack('N', ($s2 << 16) | $s1);
+};
+
 $before = "BT /F1 12 Tf 72 720 Td (Before ASCII85 Stack Boundary) Tj ET\n";
 while (strlen($before) % 4 !== 0) {
     $before .= ' ';
@@ -53,21 +74,51 @@ $pdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
     . "%%EOF";
 
-$lines = (new PdfTextExtractor())->extractTextLines($pdf);
-$joined = implode("\n", $lines);
+$fakeEndstreamBytes = hex2bin('d66c4ac5fe8a5a71');
+if ($fakeEndstreamBytes === false) {
+    throw new RuntimeException('Unable to build focused fake endstream byte sequence.');
+}
+
+$stackBefore = "BT /F1 12 Tf 72 720 Td (Stacked ASCII85 Flate Before) Tj ET\n";
+while ((7 + strlen($stackBefore)) % 4 !== 0) {
+    $stackBefore .= ' ';
+}
+$stackAfter = "\nBT /F1 12 Tf 72 704 Td (Stacked ASCII85 Flate After) Tj ET";
+$stackEncoded = $ascii85Encode($zlibStored($stackBefore . $fakeEndstreamBytes . $stackAfter));
+if (!str_contains($stackEncoded, 'endstream!')) {
+    throw new RuntimeException('Focused ASCII85 stack smoke fixture must contain the fake endstream marker.');
+}
+$stackEncoded = str_replace('endstream!', "\nendstream\n!", $stackEncoded) . '~>';
+
+$stackPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Filter [ /ASCII85Decode /FlateDecode ] >>\nstream\n{$stackEncoded}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "%%EOF";
+
+$extractor = new PdfTextExtractor();
+$lines = $extractor->extractTextLines($pdf);
+$stackLines = $extractor->extractTextLines($stackPdf);
+$joined = implode("\n", [...$lines, ...$stackLines]);
 
 echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_encode([
     'source' => 'native-pdf-stream-filter-stack-boundary',
-    'stream_filters' => [null, 'ASCII85Decode'],
+    'stream_filters' => [
+        [null, 'ASCII85Decode'],
+        ['ASCII85Decode', 'FlateDecode'],
+    ],
     'missing_length_stream_payload' => true,
     'requires_ascii85_eod_before_endstream_boundary' => true,
+    'requires_complete_filter_stack_before_boundary' => true,
     'fake_endstream_payload_excluded' => !str_contains($joined, 'endstream'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'paragraphs' => $lines,
+    'paragraphs' => [...$lines, ...$stackLines],
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach ($lines as $line) {
+foreach ([...$lines, ...$stackLines] as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

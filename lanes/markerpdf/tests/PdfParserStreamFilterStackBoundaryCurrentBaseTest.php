@@ -31,6 +31,27 @@ $parserStreamFilterStackBoundaryCurrentBaseAscii85 = static function (string $by
     return $encoded;
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseZlibStored = static function (string $bytes): string {
+    $length = strlen($bytes);
+    if ($length > 65535) {
+        throw new RuntimeException('Focused zlib stored-block fixture must fit one deflate block.');
+    }
+
+    $s1 = 1;
+    $s2 = 0;
+    for ($index = 0; $index < $length; $index++) {
+        $s1 = ($s1 + ord($bytes[$index])) % 65521;
+        $s2 = ($s2 + $s1) % 65521;
+    }
+
+    return "\x78\x01"
+        . "\x01"
+        . pack('v', $length)
+        . pack('v', (~$length) & 0xffff)
+        . $bytes
+        . pack('N', ($s2 << 16) | $s1);
+};
+
 $parserStreamFilterStackBoundaryCurrentBasePdf = static function () use ($parserStreamFilterStackBoundaryCurrentBaseAscii85): string {
     $before = "BT /F1 12 Tf 72 720 Td (Before ASCII85 Stack Boundary) Tj ET\n";
     while (strlen($before) % 4 !== 0) {
@@ -52,6 +73,38 @@ $parserStreamFilterStackBoundaryCurrentBasePdf = static function () use ($parser
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseStackedPdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBaseAscii85,
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $fakeEndstreamBytes = hex2bin('d66c4ac5fe8a5a71');
+    if ($fakeEndstreamBytes === false) {
+        throw new RuntimeException('Unable to build focused fake endstream byte sequence.');
+    }
+
+    $before = "BT /F1 12 Tf 72 720 Td (Stacked ASCII85 Flate Before) Tj ET\n";
+    while ((7 + strlen($before)) % 4 !== 0) {
+        $before .= ' ';
+    }
+
+    $after = "\nBT /F1 12 Tf 72 704 Td (Stacked ASCII85 Flate After) Tj ET";
+    $encoded = $parserStreamFilterStackBoundaryCurrentBaseAscii85(
+        $parserStreamFilterStackBoundaryCurrentBaseZlibStored($before . $fakeEndstreamBytes . $after)
+    );
+    if (!str_contains($encoded, 'endstream!')) {
+        throw new RuntimeException('Focused ASCII85 stack fixture must contain the fake endstream marker.');
+    }
+    $encoded = str_replace('endstream!', "\nendstream\n!", $encoded) . '~>';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Filter [ /ASCII85Decode /FlateDecode ] >>\nstream\n{$encoded}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses ASCII85 EOD markers before accepting missing-Length filter-stack endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -68,5 +121,21 @@ return [
         $t->true(!str_contains($text, 'endstream'));
         $t->true(!str_contains($text, 'ASCII85Decode'));
         $t->true(!str_contains($text, "\0"));
+    },
+    'uses the complete ASCII85 and Flate stack before accepting missing-Length endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseStackedPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseStackedPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = ['Stacked ASCII85 Flate Before', 'Stacked ASCII85 Flate After'];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same("Stacked ASCII85 Flate Before\nStacked ASCII85 Flate After", $text);
+        $t->same("Stacked ASCII85 Flate Before\nStacked ASCII85 Flate After\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'endstream'));
+        $t->true(!str_contains($text, 'FlateDecode'));
+        $t->true(!str_contains($text, "\xd6\x6c\x4a\xc5"));
     },
 ];
