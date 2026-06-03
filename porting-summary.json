@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-03 08:38:07 UTC",
-    "sourceCommit": "7dbe7af2accd0b33be81f0b4a7e28b036342371b",
-    "sourceCommitShort": "7dbe7af2accd",
+    "generated": "2026-06-03 08:48:50 UTC",
+    "sourceCommit": "629908f1e1b8f21e76525eab7448c655f6c7473c",
+    "sourceCommitShort": "629908f1e1b8",
     "sourceBranch": "unknown",
-    "dashboardCommit": "7dbe7af2accd0b33be81f0b4a7e28b036342371b",
-    "dashboardCommitShort": "7dbe7af2accd",
+    "dashboardCommit": "629908f1e1b8f21e76525eab7448c655f6c7473c",
+    "dashboardCommitShort": "629908f1e1b8",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "682",
-            "coverage": "682 / 78 (874.4%)",
-            "mapPercent": "874.4%",
+            "mapped": "684",
+            "coverage": "684 / 78 (876.9%)",
+            "mapPercent": "876.9%",
             "unmapped": "0",
-            "php": "983 pass / 0 fail",
-            "phase": "native no-GPU markerPDF scope; runtime preflight, table/stream, Type3...",
-            "audit": "2026-06-03 UTC supervisor recovered the bounded markerPDF/Pandoc swar...",
+            "php": "992 pass / 0 fail",
+            "phase": "native no-GPU markerPDF scope; recovered inline-image/xref evidence,...",
+            "audit": "2026-06-03 UTC supervisor accepted recovered markerPDF inline-image/x...",
             "currentWork": "MarkerPDF is supervised as a native PHP searchable-PDF parser/converter plus supplied...",
             "nextTarget": "Supervisor-only session with bounded worker swarm: keep the r...",
             "remainingGate": "No GPU/model execution will be run for markerPDF under current user d...",
-            "commit": "1143d87"
+            "commit": "7c743bf"
         },
         {
             "lane": "readability",
