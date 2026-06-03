@@ -10383,7 +10383,7 @@ final class PdfTextExtractor
      */
     private function trailerEncryptValueFromStartxrefChain(string $pdfBytes, array $definitions): array
     {
-        $offset = $this->latestStartxrefOffset($pdfBytes, $definitions);
+        $offset = $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
         if ($offset === null) {
             return ['parsed' => false, 'value' => null];
         }
@@ -11955,7 +11955,7 @@ final class PdfTextExtractor
      */
     private function xrefEntriesFromStartxrefChain(string $pdfBytes, array $objects, array $definitions): array
     {
-        $offset = $this->latestStartxrefOffset($pdfBytes, $definitions);
+        $offset = $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
         if ($offset === null) {
             return [];
         }
@@ -11969,7 +11969,7 @@ final class PdfTextExtractor
      */
     private function trailerRootReferenceFromStartxrefChain(string $pdfBytes, array $definitions): ?array
     {
-        $offset = $this->latestStartxrefOffset($pdfBytes, $definitions);
+        $offset = $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
         if ($offset === null) {
             return null;
         }
@@ -12082,6 +12082,49 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * Damaged producer output sometimes leaves the final startxref token
+     * pointing at an older classic table even though a later top-level classic
+     * table and trailer were appended. Treat that as a rebuild boundary for
+     * classic tables only; xref-stream startxref errors stay fail-closed.
+     *
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     */
+    private function startxrefOffsetWithClassicRebuild(string $pdfBytes, array $definitions): ?int
+    {
+        $offset = $this->latestStartxrefOffset($pdfBytes, $definitions);
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->classicRebuildOffsetForStartxref($pdfBytes, $offset, $definitions) ?? $offset;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     */
+    private function classicRebuildOffsetForStartxref(string $pdfBytes, int $offset, array $definitions): ?int
+    {
+        if ($this->xrefStreamSectionAtOffset($offset, $definitions) !== null) {
+            return null;
+        }
+
+        $latestClassicOffset = $this->latestClassicXrefTableOffset($pdfBytes, $definitions);
+        if ($latestClassicOffset === null) {
+            return null;
+        }
+
+        if ($this->xrefTableSectionAt($pdfBytes, $offset, $definitions) === null) {
+            if ($offset < strlen($pdfBytes) && $latestClassicOffset <= $offset) {
+                return null;
+            }
+
+            return $latestClassicOffset;
+        }
+
+        return $latestClassicOffset > $offset ? $latestClassicOffset : null;
     }
 
     /**
