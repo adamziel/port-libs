@@ -7,7 +7,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\Pandoc\ZipPackage;
 
 $crc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
-$documentModifiedAt = 1780479016;
+$documentModifiedAt = 1780479017;
 
 $buildDescriptorBackedPackage = static function () use ($crc32): string {
     $name = 'word/comments.xml';
@@ -101,6 +101,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected document part ZIP external attributes to round-trip');
     }
 
+    if ($documentEntry->extendedLastModifiedTimestamp() !== $documentModifiedAt) {
+        throw new RuntimeException('Expected document part ZIP extended timestamp extra field to round-trip');
+    }
+
     if ($descriptorPackage->read('/word/comments.xml') !== '<w:comments><w:comment>Reviewer note from migration packet</w:comment></w:comments>') {
         throw new RuntimeException('Expected descriptor-backed comments part bytes to round-trip from the ZIP package');
     }
@@ -118,6 +122,7 @@ foreach ($package->entries() as $entry) {
         . ' crc32=' . $entry->crc32Hex()
         . ' modifiedAt=' . ($modifiedAt === null ? 'none' : (string) $modifiedAt)
         . ' externalAttributes=' . sprintf('0x%08x', $entry->externalFileAttributes)
+        . ' extraFields=' . count($entry->centralExtraFields())
         . "\n";
 }
 echo 'document.xml=' . $package->read('/word/document.xml') . "\n";

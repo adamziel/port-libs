@@ -93,6 +93,7 @@ final class ZipPackage
                 throw new \RuntimeException("Duplicate ZIP package entry: {$name}");
             }
 
+            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
             $comment = substr($bytes, $variableStart + $nameLength + $extraLength, $commentLength);
             $entry = new ZipPackageEntry(
                 $name,
@@ -105,7 +106,8 @@ final class ZipPackage
                 $comment,
                 $modifiedTime,
                 $modifiedDate,
-                $externalAttributes
+                $externalAttributes,
+                $centralExtraFieldData
             );
 
             $entries[] = $entry;
@@ -202,6 +204,7 @@ final class ZipPackage
             $uncompressedSize = strlen($data);
             $localHeaderOffset = strlen($body);
             [$modifiedTime, $modifiedDate] = self::resolveModifiedDateTime($part, $name);
+            $extraFieldData = self::buildExtraFieldData($part, $name);
             $externalAttributes = $part['externalAttributes'] ?? (str_ends_with($name, '/') ? 0x10 : 0);
             if (!is_int($externalAttributes)) {
                 throw new \RuntimeException("ZIP entry {$name} external attributes must be an integer");
@@ -211,6 +214,7 @@ final class ZipPackage
             self::assertUInt32Value($uncompressedSize, "ZIP entry {$name} uncompressed size");
             self::assertUInt32Value($localHeaderOffset, "ZIP entry {$name} local header offset");
             self::assertUInt32Value($externalAttributes, "ZIP entry {$name} external attributes");
+            self::assertUInt16Length($extraFieldData, "ZIP entry {$name} extra fields");
 
             $body .= pack(
                 'VvvvvvVVVvv',
@@ -224,9 +228,9 @@ final class ZipPackage
                 $compressedSize,
                 $uncompressedSize,
                 strlen($name),
-                0
+                strlen($extraFieldData)
             );
-            $body .= $name . $compressed;
+            $body .= $name . $extraFieldData . $compressed;
 
             $central .= pack(
                 'VvvvvvvVVVvvvvvVV',
@@ -241,14 +245,14 @@ final class ZipPackage
                 $compressedSize,
                 $uncompressedSize,
                 strlen($name),
-                0,
+                strlen($extraFieldData),
                 strlen($comment),
                 0,
                 0,
                 $externalAttributes,
                 $localHeaderOffset
             );
-            $central .= $name . $comment;
+            $central .= $name . $extraFieldData . $comment;
         }
 
         $centralDirectoryOffset = strlen($body);
@@ -392,6 +396,9 @@ final class ZipPackage
             throw new \RuntimeException("ZIP local header name does not match central directory entry {$entry->name}");
         }
 
+        $localExtraFieldData = substr($this->bytes, $nameStart + $nameLength, $extraLength);
+        ZipPackageEntry::validateExtraFieldData($localExtraFieldData, "local extra fields for {$entry->name}");
+
         if (($flags & 0x0001) !== 0 || $flags !== $entry->generalPurposeFlags) {
             throw new \RuntimeException("ZIP local header flags do not match central directory entry {$entry->name}");
         }
@@ -506,6 +513,27 @@ final class ZipPackage
         }
 
         return [0, 0];
+    }
+
+    /**
+     * @param array<string, mixed> $part
+     */
+    private static function buildExtraFieldData(array $part, string $name): string
+    {
+        if (!array_key_exists('modifiedAt', $part)) {
+            return '';
+        }
+
+        if (!is_int($part['modifiedAt'])) {
+            throw new \RuntimeException("ZIP entry {$name} modifiedAt timestamp must be an integer");
+        }
+
+        $timestamp = $part['modifiedAt'];
+        if ($timestamp < 0 || $timestamp > 0xffffffff) {
+            return '';
+        }
+
+        return pack('vvCV', 0x5455, 5, 0x01, $timestamp);
     }
 
     /**

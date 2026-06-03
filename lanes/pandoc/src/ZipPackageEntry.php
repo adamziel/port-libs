@@ -18,7 +18,9 @@ final class ZipPackageEntry
         public readonly int $lastModifiedTime = 0,
         public readonly int $lastModifiedDate = 0,
         public readonly int $externalFileAttributes = 0,
+        public readonly string $centralExtraFieldData = '',
     ) {
+        self::parseExtraFields($this->centralExtraFieldData, "central extra fields for {$this->name}");
     }
 
     public function isDirectory(): bool
@@ -43,6 +45,11 @@ final class ZipPackageEntry
 
     public function lastModifiedTimestamp(): ?int
     {
+        $extendedTimestamp = $this->extendedLastModifiedTimestamp();
+        if ($extendedTimestamp !== null) {
+            return $extendedTimestamp;
+        }
+
         if ($this->lastModifiedTime === 0 && $this->lastModifiedDate === 0) {
             return null;
         }
@@ -70,5 +77,98 @@ final class ZipPackageEntry
         );
 
         return $date instanceof \DateTimeImmutable ? $date->getTimestamp() : null;
+    }
+
+    /**
+     * @return list<array{id:int, data:string}>
+     */
+    public function centralExtraFields(): array
+    {
+        return self::parseExtraFields($this->centralExtraFieldData, "central extra fields for {$this->name}");
+    }
+
+    public function centralExtraField(int $id): ?string
+    {
+        if ($id < 0 || $id > 0xffff) {
+            throw new \InvalidArgumentException('ZIP extra field id must fit in an unsigned 16-bit field');
+        }
+
+        foreach ($this->centralExtraFields() as $field) {
+            if ($field['id'] === $id) {
+                return $field['data'];
+            }
+        }
+
+        return null;
+    }
+
+    public function extendedLastModifiedTimestamp(): ?int
+    {
+        $data = $this->centralExtraField(0x5455);
+        if ($data === null || strlen($data) < 1) {
+            return null;
+        }
+
+        $flags = ord($data[0]);
+        if (($flags & 0x01) === 0) {
+            return null;
+        }
+
+        if (strlen($data) < 5) {
+            throw new \RuntimeException("ZIP extended timestamp extra field for {$this->name} is truncated");
+        }
+
+        $values = unpack('Vtimestamp', substr($data, 1, 4));
+        if (!is_array($values)) {
+            throw new \RuntimeException("Unable to read ZIP extended timestamp extra field for {$this->name}");
+        }
+
+        return (int) $values['timestamp'];
+    }
+
+    public static function validateExtraFieldData(string $bytes, string $label): void
+    {
+        self::parseExtraFields($bytes, $label);
+    }
+
+    /**
+     * @return list<array{id:int, data:string}>
+     */
+    private static function parseExtraFields(string $bytes, string $label): array
+    {
+        $fields = [];
+        $cursor = 0;
+        $length = strlen($bytes);
+
+        while ($cursor < $length) {
+            if ($cursor + 4 > $length) {
+                throw new \RuntimeException("ZIP {$label} contains a truncated extra field header");
+            }
+
+            $header = unpack('vid/vsize', substr($bytes, $cursor, 4));
+            if (!is_array($header)) {
+                throw new \RuntimeException("Unable to read ZIP {$label}");
+            }
+
+            $id = (int) $header['id'];
+            $size = (int) $header['size'];
+            $dataStart = $cursor + 4;
+            if ($dataStart + $size > $length) {
+                throw new \RuntimeException("ZIP {$label} contains a truncated extra field payload");
+            }
+
+            $data = substr($bytes, $dataStart, $size);
+            if ($id === 0x5455 && strlen($data) > 0 && (ord($data[0]) & 0x01) !== 0 && strlen($data) < 5) {
+                throw new \RuntimeException("ZIP extended timestamp extra field in {$label} is truncated");
+            }
+
+            $fields[] = [
+                'id' => $id,
+                'data' => $data,
+            ];
+            $cursor = $dataStart + $size;
+        }
+
+        return $fields;
     }
 }

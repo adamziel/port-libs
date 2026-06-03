@@ -26,6 +26,8 @@ $crc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
  *     modifiedDate?:int,
  *     localModifiedTime?:int,
  *     localModifiedDate?:int,
+ *     localExtra?:string,
+ *     centralExtra?:string,
  *     localName?:string,
  *     diskStart?:int,
  *     externalAttributes?:int,
@@ -57,6 +59,8 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
         $modifiedDate = $entry['modifiedDate'] ?? 0;
         $localModifiedTime = $entry['localModifiedTime'] ?? $modifiedTime;
         $localModifiedDate = $entry['localModifiedDate'] ?? $modifiedDate;
+        $localExtra = $entry['localExtra'] ?? '';
+        $centralExtra = $entry['centralExtra'] ?? $localExtra;
         $localCrc = $entry['localCrc'] ?? ($descriptor ? 0 : $actualCrc);
         $localCompressedSize = $entry['localCompressedSize'] ?? ($descriptor ? 0 : $compressedSize);
         $localUncompressedSize = $entry['localUncompressedSize'] ?? ($descriptor ? 0 : $uncompressedSize);
@@ -73,9 +77,9 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
             $localCompressedSize,
             $localUncompressedSize,
             strlen($localName),
-            0
+            strlen($localExtra)
         );
-        $body .= $localName . $compressed;
+        $body .= $localName . $localExtra . $compressed;
         if ($descriptor) {
             if ($entry['descriptorSignature'] ?? true) {
                 $body .= "PK\x07\x08";
@@ -102,14 +106,14 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
             $compressedSize,
             $uncompressedSize,
             strlen($name),
-            0,
+            strlen($centralExtra),
             strlen($entryComment),
             $entry['diskStart'] ?? 0,
             0,
             $entry['externalAttributes'] ?? 0,
             $offset
         );
-        $central .= $name . $entryComment;
+        $central .= $name . $centralExtra . $entryComment;
     }
 
     $centralOffset = strlen($body);
@@ -318,6 +322,85 @@ return [
         $t->same(23747, $mediaDirectory->modifiedDosDate());
         $t->same(1780479016, $mediaDirectory->lastModifiedTimestamp());
         $t->same(0x10, $mediaDirectory->externalFileAttributes);
+    },
+
+    'reads zip extra fields and uses extended timestamp metadata' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $extendedTimestamp = 1780479017;
+        $extendedTimestampExtra = pack('vvCV', 0x5455, 5, 0x01, $extendedTimestamp);
+        $vendorExtra = pack('vva*', 0xcafe, 6, 'review');
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>extra fields</w:p></w:document>',
+                'method' => 8,
+                'modifiedTime' => 19400,
+                'modifiedDate' => 23747,
+                'localExtra' => $extendedTimestampExtra . $vendorExtra,
+                'centralExtra' => $extendedTimestampExtra . $vendorExtra,
+            ],
+        ]));
+
+        $entry = $package->entry('word/document.xml');
+
+        $t->same($extendedTimestamp, $entry->extendedLastModifiedTimestamp());
+        $t->same($extendedTimestamp, $entry->lastModifiedTimestamp());
+        $t->same($extendedTimestampExtra . $vendorExtra, $entry->centralExtraFieldData);
+        $t->same("\x01" . pack('V', $extendedTimestamp), $entry->centralExtraField(0x5455));
+        $t->same('review', $entry->centralExtraField(0xcafe));
+        $t->same(null, $entry->centralExtraField(0x000a));
+        $t->same([
+            ['id' => 0x5455, 'data' => "\x01" . pack('V', $extendedTimestamp)],
+            ['id' => 0xcafe, 'data' => 'review'],
+        ], $entry->centralExtraFields());
+        $t->same('<w:document><w:p>extra fields</w:p></w:document>', $package->read('/word/document.xml'));
+    },
+
+    'writes extended timestamp extra fields for generated package parts' => static function (TestRunner $t): void {
+        $modifiedAt = 1780479017;
+        $package = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>exact modified timestamp</w:p></w:document>',
+                'modifiedAt' => $modifiedAt,
+            ],
+        ]);
+
+        $roundTrip = ZipPackage::fromString($package->bytes());
+        $entry = $roundTrip->entry('word/document.xml');
+
+        $t->same(19400, $entry->modifiedDosTime());
+        $t->same(23747, $entry->modifiedDosDate());
+        $t->same($modifiedAt, $entry->extendedLastModifiedTimestamp());
+        $t->same($modifiedAt, $entry->lastModifiedTimestamp());
+        $t->same("\x01" . pack('V', $modifiedAt), $entry->centralExtraField(0x5455));
+        $t->contains(pack('vvCV', 0x5455, 5, 0x01, $modifiedAt), $package->bytes());
+        $t->same('<w:document><w:p>exact modified timestamp</w:p></w:document>', $roundTrip->read('word/document.xml'));
+    },
+
+    'rejects malformed central and local zip extra fields' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $truncatedCentralExtra = pack('vvC', 0x5455, 5, 0x01);
+        $truncatedLocalExtra = pack('vvC', 0x5455, 5, 0x01);
+        $validCentralExtra = pack('vvCV', 0x5455, 5, 0x01, 1780479017);
+        $localExtraMismatch = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document/>',
+                'method' => 0,
+                'centralExtra' => $validCentralExtra,
+                'localExtra' => $truncatedLocalExtra,
+            ],
+        ]));
+
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document/>',
+                'method' => 0,
+                'centralExtra' => $truncatedCentralExtra,
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): string => $localExtraMismatch->read('word/document.xml'));
     },
 
     'rejects invalid generated zip package parts before writing' => static function (TestRunner $t): void {
