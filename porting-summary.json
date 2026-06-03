@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-03 08:59:50 UTC",
-    "sourceCommit": "f1ad124456e31e6ca7c639dffbf77e0119c8ae29",
-    "sourceCommitShort": "f1ad124456e3",
+    "generated": "2026-06-03 09:03:45 UTC",
+    "sourceCommit": "14373ce9bc5ad4a166991c8b7a6e5511ed9d006e",
+    "sourceCommitShort": "14373ce9bc5a",
     "sourceBranch": "unknown",
-    "dashboardCommit": "f1ad124456e31e6ca7c639dffbf77e0119c8ae29",
-    "dashboardCommitShort": "f1ad124456e3",
+    "dashboardCommit": "14373ce9bc5ad4a166991c8b7a6e5511ed9d006e",
+    "dashboardCommitShort": "14373ce9bc5a",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "674",
-            "coverage": "674 / 2,276 (29.6%)",
-            "mapPercent": "29.6%",
-            "unmapped": "1,602",
-            "php": "268 pass / 0 fail",
+            "mapped": "679",
+            "coverage": "679 / 2,276 (29.8%)",
+            "mapPercent": "29.8%",
+            "unmapped": "1,597",
+            "php": "273 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-03 UTC supervisor accepted recovered Pandoc citation-CSL hand...",
+            "audit": "2026-06-03 UTC supervisor accepted recovered Pandoc package/doctempla...",
             "currentWork": "Native Pandoc support now includes the accepted Markdown/HTML reader and writer evide...",
-            "nextTarget": "Continue serial integration from clean origin/main worktrees....",
+            "nextTarget": "Use the native YAML/ZIP/OPC/doctemplate primitives to parse a...",
             "remainingGate": "No local blocker",
-            "commit": "2768652"
+            "commit": "7cebd7b"
         },
         {
             "lane": "quadrable",
