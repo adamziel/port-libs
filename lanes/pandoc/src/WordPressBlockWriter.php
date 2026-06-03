@@ -903,7 +903,7 @@ final class WordPressBlockWriter
             'link' => '<a' . $this->renderLinkAttrs($node) . '>' . $this->renderInlines($node) . '</a>',
             'image' => $this->renderImageHtml($node),
             'note' => $this->renderNoteReference($node),
-            'citation' => $this->esc((string) $node->attr('text', '')),
+            'citation' => $this->esc((string) $node->attr('rendered', $node->attr('text', ''))),
             default => $this->renderInlines($node),
         };
     }

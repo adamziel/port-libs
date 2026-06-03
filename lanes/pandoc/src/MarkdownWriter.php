@@ -831,7 +831,7 @@ final class MarkdownWriter
             'link' => $this->renderLink($node, $following),
             'image' => $this->renderImage($node, $following),
             'math' => $this->renderMath($node),
-            'citation' => (string) $node->attr('text', $this->renderInlines($node->children)),
+            'citation' => (string) $node->attr('rendered', $node->attr('text', $this->renderInlines($node->children))),
             'raw_tex' => (string) $node->attr('tex', $node->attr('text', '')),
             'raw_inline', 'raw_markdown', 'raw_html_inline' => $this->renderRawInline($node),
             'note' => $this->renderNoteReference($node),
