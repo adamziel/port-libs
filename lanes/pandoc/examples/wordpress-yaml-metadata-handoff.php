@@ -8,6 +8,8 @@ use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $markdown = <<<'MARKDOWN'
+The source export starts with a migration preface before metadata.
+
 ---
 title: "Migration **Packet**"
 author:
@@ -16,14 +18,20 @@ author:
 date: 2026-06-03
 keywords: [migration, wordpress, metadata]
 review:
+  status: queued
+  priority: 3
+---
+
+# Imported Body
+
+---
+review:
   status: needs-review
   priority: 2
 summary: >
   Preserve front matter for reviewer handoff
   before rendering the imported body.
 ---
-
-# Imported Body
 
 The block import keeps the source metadata available for audit tooling.
 MARKDOWN;

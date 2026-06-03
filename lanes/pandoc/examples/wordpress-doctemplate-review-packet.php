@@ -9,12 +9,13 @@ use PortLibs\Pandoc\DocTemplate;
 $template = <<<'HTML'
 <article class="wp-import-review">
 <header>
-<h1>$title$</h1>
-<p class="authors">$for(authors)$$it.name$$sep$, $endfor$</p>
+<h1>$title/uppercase$</h1>
+<p class="summary">$warnings/length$ warnings queued for $title$</p>
+<p class="authors">$for(authors/pairs)$$it.value.name$$sep$, $endfor$</p>
 </header>
 $if(warnings)$
 <ul class="warnings">
-$for(warnings)$<li data-source="$it.source$">$it.message$</li>
+$for(warnings/pairs)$<li data-index="$it.key$" data-source="$it.value.source$">$it.value.message$</li>
 $endfor$</ul>
 $endif$
 <section class="wp-import-body">
@@ -43,9 +44,10 @@ $output = (new DocTemplate())->render($template, $context);
 
 if (in_array('--self-test', $argv, true)) {
     foreach ([
-        '<h1>Batch 42 Review</h1>',
+        '<h1>BATCH 42 REVIEW</h1>',
+        '<p class="summary">2 warnings queued for Batch 42 Review</p>',
         '<p class="authors">Migration bot, Content editor</p>',
-        '<li data-source="media">Check &amp; confirm alt text</li>',
+        '<li data-index="1" data-source="media">Check &amp; confirm alt text</li>',
         '  <!-- wp:paragraph --><p>Imported body is already escaped.</p><!-- /wp:paragraph -->',
         '  <!-- wp:paragraph --><p>Second reviewer packet line stays nested.</p><!-- /wp:paragraph -->',
     ] as $needle) {

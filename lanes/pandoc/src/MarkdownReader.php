@@ -44,7 +44,7 @@ final class MarkdownReader
         $previousExampleNumbersByLine = $this->exampleNumbersByLine;
         $previousRawTexMacros = $this->rawTexMacros;
         $documentAttrs = [];
-        [$lines, $yamlMetadata] = $this->extractYamlMetadataBlock($lines);
+        [$lines, $yamlMetadata] = $this->extractYamlMetadataBlocks($lines);
         [$lines, $titleBlock] = $this->extractTitleBlock($lines);
         [$lines, $references, $footnotes] = $this->extractReferenceDefinitions($lines);
         $lines = $this->splitMixedHtmlFlowLines($lines);
@@ -291,28 +291,98 @@ final class MarkdownReader
      * @param list<string> $lines
      * @return array{0:list<string>, 1:array<string, mixed>|null}
      */
-    private function extractYamlMetadataBlock(array $lines): array
+    private function extractYamlMetadataBlocks(array $lines): array
     {
-        if (preg_match('/^---[ \t]*$/', $lines[0] ?? '') !== 1) {
-            return [$lines, null];
+        $bodyLines = [];
+        $metadata = [];
+        $hasMetadata = false;
+        $count = count($lines);
+
+        for ($index = 0; $index < $count; $index++) {
+            $fencedCodeEnd = $this->yamlMetadataFencedCodeBlockEnd($lines, $index);
+            if ($fencedCodeEnd !== null) {
+                for (; $index <= $fencedCodeEnd; $index++) {
+                    $bodyLines[] = $lines[$index];
+                }
+                $index--;
+                continue;
+            }
+
+            $block = $this->tryReadYamlMetadataBlock($lines, $index);
+            if ($block !== null) {
+                $metadata = array_replace($metadata, $block['metadata']);
+                $hasMetadata = true;
+                $index = $block['end'];
+                continue;
+            }
+
+            $bodyLines[] = $lines[$index];
+        }
+
+        return [$bodyLines, $hasMetadata ? $metadata : null];
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function yamlMetadataFencedCodeBlockEnd(array $lines, int $start): ?int
+    {
+        $line = $lines[$start] ?? '';
+        if (preg_match('/^( {0,3})(`{3,}|~{3,})[ \t]*(.*)$/', $line, $m) !== 1) {
+            return null;
+        }
+
+        $fence = $m[2];
+        $fenceChar = $fence[0];
+        $info = trim($m[3]);
+        if ($fenceChar === '`' && str_contains($info, '`')) {
+            return null;
+        }
+
+        $count = count($lines);
+        for ($cursor = $start + 1; $cursor < $count; $cursor++) {
+            if ($this->isClosingCodeFence($lines[$cursor], $fenceChar, strlen($fence))) {
+                return $cursor;
+            }
+        }
+
+        return $count - 1;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{end:int, metadata:array<string, mixed>}|null
+     */
+    private function tryReadYamlMetadataBlock(array $lines, int $start): ?array
+    {
+        if (preg_match('/^---[ \t]*$/', $lines[$start] ?? '') !== 1) {
+            return null;
+        }
+
+        if ($start > 0 && trim($lines[$start - 1]) !== '') {
+            return null;
+        }
+
+        if (!isset($lines[$start + 1]) || trim($lines[$start + 1]) === '') {
+            return null;
         }
 
         $yamlLines = [];
         $count = count($lines);
-        for ($cursor = 1; $cursor < $count; $cursor++) {
+        for ($cursor = $start + 1; $cursor < $count; $cursor++) {
             if (preg_match('/^(?:---|\.\.\.)[ \t]*$/', $lines[$cursor]) === 1) {
-                $cursor++;
-                while ($cursor < $count && trim($lines[$cursor]) === '') {
-                    $cursor++;
+                $metadata = $this->parseYamlMetadataLines($yamlLines);
+                if ($metadata === []) {
+                    return null;
                 }
 
-                return [array_slice($lines, $cursor), $this->parseYamlMetadataLines($yamlLines)];
+                return ['end' => $cursor, 'metadata' => $metadata];
             }
 
             $yamlLines[] = $lines[$cursor];
         }
 
-        return [$lines, null];
+        return null;
     }
 
     /**
@@ -633,6 +703,10 @@ final class MarkdownReader
     {
         $meta = [];
         foreach ($metadata as $key => $value) {
+            if (str_ends_with($key, '_')) {
+                continue;
+            }
+
             if ($key === 'title') {
                 $lines = $this->metadataLinesFromYamlValue($value);
                 if ($this->metadataPlainText($lines) !== '') {

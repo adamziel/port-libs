@@ -145,6 +145,68 @@ TPL;
         ]), $output);
     },
 
+    'renders parameter-free pandoc doctemplate pipes for text arrays and maps' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+Title: $title/uppercase$ / $title/uppercase/lowercase$
+Title length: $title/length$
+Keywords: $keywords/length$ total
+First: $keywords/first$
+Last: $keywords/last$
+Reverse: $for(keywords/reverse)$$it$$sep$ | $endfor$
+Rest: $for(keywords/rest)$$it$$sep$, $endfor$
+All but last: $for(keywords/allbutlast)$$it$$sep$, $endfor$
+Body: <$body/chomp$>
+Nowrap: <$title/nowrap$>
+Meta: $for(meta/pairs)$$it.key$=$it.value$$sep$; $endfor$
+Indexed: $for(keywords/pairs)$$it.key$:$it.value$$sep$; $endfor$
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'title' => 'Import Review',
+            'keywords' => ['migration', 'wordpress', 'review'],
+            'body' => "Imported paragraph\n\n",
+            'meta' => ['format' => 'docx', 'status' => 'draft'],
+        ]);
+
+        $t->same(implode("\n", [
+            'Title: IMPORT REVIEW / import review',
+            'Title length: 13',
+            'Keywords: 3 total',
+            'First: migration',
+            'Last: review',
+            'Reverse: review | wordpress | migration',
+            'Rest: wordpress, review',
+            'All but last: migration, wordpress',
+            'Body: <Imported paragraph>',
+            'Nowrap: <Import Review>',
+            'Meta: format=docx; status=draft',
+            'Indexed: 1:migration; 2:wordpress; 3:review',
+        ]), $output);
+    },
+
+    'applies pandoc doctemplate pipes to loop expressions and conditionals' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+$if(warnings/first)$Warnings:
+$for(warnings/pairs)$- $it.key$. $it.value.source/uppercase$: $it.value.message$
+$endfor$$endif$$if(empty/rest)$unexpected$else$empty rest suppressed$endif$
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'warnings' => [
+                ['source' => 'media', 'message' => 'Confirm alt text'],
+                ['source' => 'links', 'message' => 'Review redirects'],
+            ],
+            'empty' => [],
+        ]);
+
+        $t->same(implode("\n", [
+            'Warnings:',
+            '- 1. MEDIA: Confirm alt text',
+            '- 2. LINKS: Review redirects',
+            'empty rest suppressed',
+        ]), $output);
+    },
+
     'renders wordpress review packet templates without output escaping' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 <article class="wp-import-review">
@@ -183,5 +245,12 @@ TPL;
 
         $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('$if(title)$missing endif', ['title' => true]));
         $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('$for(items)$missing endfor', ['items' => ['x']]));
+    },
+
+    'throws on unsupported pandoc doctemplate pipes' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('$title/left 20$', ['title' => 'Review']));
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('$title/no-such-pipe$', ['title' => 'Review']));
     },
 ];

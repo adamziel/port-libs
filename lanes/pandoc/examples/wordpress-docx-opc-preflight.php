@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\Pandoc\OpcContentTypes;
-use PortLibs\Pandoc\OpcRelationship;
-use PortLibs\Pandoc\OpcRelationships;
+use PortLibs\Pandoc\OpcRelationshipGraph;
 use PortLibs\Pandoc\ZipPackage;
 
 $contentTypesXml = <<<'XML'
@@ -48,25 +46,25 @@ $package = ZipPackage::fromParts([
     ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
 ]);
 
-$types = OpcContentTypes::fromXml($package->read('[Content_Types].xml'));
-$packageRelationships = OpcRelationships::fromPackage($package);
-$officeDocument = $packageRelationships->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument');
-if (!$officeDocument instanceof OpcRelationship) {
+$graph = OpcRelationshipGraph::fromPackage($package);
+$types = $graph->contentTypes();
+$documentPart = $graph->firstTargetOfType(OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE);
+if ($documentPart === null) {
     throw new RuntimeException('DOCX package does not contain an officeDocument relationship');
 }
 
-$documentPart = $packageRelationships->resolveTarget($officeDocument);
-$documentRelationships = OpcRelationships::fromPackage($package, $documentPart);
+$documentRelationships = $graph->requireRelationshipsForSource($documentPart);
 
 $relationshipSummaries = [];
-foreach ($documentRelationships->all() as $relationship) {
-    $target = $documentRelationships->resolveTarget($relationship);
-    $relationshipSummaries[$relationship->id] = [
-        'target' => $target,
-        'contentType' => $relationship->isExternal() ? null : $types->contentTypeForPart($target),
-        'external' => $relationship->isExternal(),
+foreach ($graph->summarizeTargetsForSource($documentPart) as $relationship) {
+    $relationshipSummaries[$relationship['id']] = [
+        'target' => $relationship['target'],
+        'contentType' => $relationship['contentType'],
+        'external' => $relationship['external'],
     ];
 }
+
+$corePropertiesPart = $graph->firstTargetOfType('http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties');
 
 $summary = [
     'document' => [
@@ -75,8 +73,8 @@ $summary = [
         'relationshipsPart' => $documentRelationships->relationshipPartName(),
     ],
     'coreProperties' => [
-        'part' => $packageRelationships->resolveTarget('rIdCore'),
-        'contentType' => $types->contentTypeForPart($packageRelationships->resolveTarget('rIdCore')),
+        'part' => $corePropertiesPart,
+        'contentType' => $corePropertiesPart === null ? null : $types->contentTypeForPart($corePropertiesPart),
     ],
     'relationships' => $relationshipSummaries,
     'wordpressImport' => [

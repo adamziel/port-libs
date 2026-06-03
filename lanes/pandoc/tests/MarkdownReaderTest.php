@@ -868,6 +868,90 @@ return [
         $t->same('paragraph', $document->children[0]->type);
         $t->same('Imported body.', $document->children[0]->attr('text'));
     },
+    'maps pandoc yaml metadata blocks outside the opening position' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Opening paragraph before metadata.',
+            '',
+            '---',
+            'title: Draft packet',
+            'review:',
+            '  status: pending',
+            'draft_: hidden reviewer scratch field',
+            '...',
+            '',
+            '# Imported Section',
+            '',
+            '---',
+            'title: Final **Packet**',
+            'authors:',
+            '  - Reviewer One',
+            '  - Reviewer Two',
+            'review:',
+            '  status: approved',
+            '  priority: 1',
+            '...',
+            '',
+            'Published copy.',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Final **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same(['Reviewer One', 'Reviewer Two'], $meta['authors']);
+        $t->same(['status' => 'approved', 'priority' => 1], $meta['review']);
+        $t->same(null, $meta['draft_'] ?? null);
+        $t->same(3, count($document->children));
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Opening paragraph before metadata.', $document->children[0]->attr('text'));
+        $t->same('heading', $document->children[1]->type);
+        $t->same('Imported Section', $document->children[1]->attr('text'));
+        $t->same('paragraph', $document->children[2]->type);
+        $t->same('Published copy.', $document->children[2]->attr('text'));
+        $t->contains('<p>Opening paragraph before metadata.</p>', $blocks);
+        $t->contains('<h1 id="imported-section">Imported Section</h1>', $blocks);
+        $t->contains('<p>Published copy.</p>', $blocks);
+    },
+    'keeps blank-led yaml-looking fences as markdown body' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '',
+            'title: Not metadata',
+            '---',
+            '',
+            '# After blank fence',
+        ]));
+
+        $t->same(null, $document->attr('meta'));
+        $t->same(3, count($document->children));
+        $t->same('horizontal_rule', $document->children[0]->type);
+        $t->same('heading', $document->children[1]->type);
+        $t->same('title: Not metadata', $document->children[1]->attr('text'));
+        $t->same('title-not-metadata', $document->children[1]->attr('id'));
+        $t->same('heading', $document->children[2]->type);
+        $t->same('after-blank-fence', $document->children[2]->attr('id'));
+    },
+    'keeps yaml looking blocks inside fenced code out of document metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '```markdown',
+            'keep this fixture:',
+            '',
+            '---',
+            'title: Not document metadata',
+            '---',
+            '```',
+            '',
+            'After the fixture.',
+        ]));
+
+        $t->same(null, $document->attr('meta'));
+        $t->same(['code_block', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('markdown', $document->children[0]->attr('info'));
+        $t->contains('title: Not document metadata', $document->children[0]->attr('text'));
+        $t->same('After the fixture.', $document->children[1]->attr('text'));
+    },
     'keeps thematic break without yaml closing fence as markdown body' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

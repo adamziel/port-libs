@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Pandoc\OpcContentTypes;
 use PortLibs\Pandoc\OpcPackagePath;
 use PortLibs\Pandoc\OpcRelationship;
+use PortLibs\Pandoc\OpcRelationshipGraph;
 use PortLibs\Pandoc\OpcRelationships;
 use PortLibs\Pandoc\ZipPackage;
 
@@ -36,6 +37,13 @@ $documentRelationshipsXml = <<<'XML'
   <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review-image.PNG"/>
   <Relationship Id="rIdCustomXml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml"/>
   <Relationship Id="rIdReviewerLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/wp-admin/post.php?post=42&amp;action=edit" TargetMode="External"/>
+</Relationships>
+XML;
+
+$footnotesRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdNoteImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/footnote-source.png"/>
+  <Relationship Id="rIdNoteSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source-footnote" TargetMode="External"/>
 </Relationships>
 XML;
 
@@ -153,6 +161,89 @@ return [
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $types->contentTypeForPart($documentPart));
         $t->same('image/png', $types->contentTypeForPart($documentRelationships->resolveTarget('rIdImage')));
         $t->throws(\RuntimeException::class, static fn (): OpcRelationships => OpcRelationships::fromPackage($package, '/word/missing.xml'));
+    },
+    'loads a ZIP backed OPC relationship graph by source part' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $footnotesRelationshipsXml): void {
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/footnotes.xml', 'data' => '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/footnotes.xml.rels', 'data' => $footnotesRelationshipsXml],
+            ['name' => 'word/media/review-image.PNG', 'data' => 'PNG'],
+            ['name' => 'word/media/footnote-source.png', 'data' => 'PNG'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]);
+
+        $graph = OpcRelationshipGraph::fromPackage($package);
+
+        $t->same(['/', '/word/document.xml', '/word/footnotes.xml'], $graph->sourcePartNames());
+        $t->true($graph->hasRelationshipsForSource('/'));
+        $t->true($graph->hasRelationshipsForSource('/word/document.xml'));
+        $t->same(false, $graph->hasRelationshipsForSource('/word/styles.xml'));
+        $t->same('/word/document.xml', $graph->firstTargetOfType(OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE));
+        $t->same('/word/footnotes.xml#notes', $graph->firstTargetOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes', '/word/document.xml'));
+        $t->same(null, $graph->firstTargetOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/header'));
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $graph->contentTypes()->contentTypeForPart('/word/document.xml'));
+        $t->same(5, count($graph->requireRelationshipsForSource('/word/document.xml')->all()));
+        $t->same('/word/media/footnote-source.png', $graph->requireRelationshipsForSource('/word/footnotes.xml')->resolveTarget('rIdNoteImage'));
+        $t->throws(\RuntimeException::class, static fn (): OpcRelationships => $graph->requireRelationshipsForSource('/word/missing.xml'));
+    },
+    'summarizes graph targets with content types for DOCX import preflight' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $footnotesRelationshipsXml): void {
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/footnotes.xml', 'data' => '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/footnotes.xml.rels', 'data' => $footnotesRelationshipsXml],
+            ['name' => 'word/media/review-image.PNG', 'data' => 'PNG'],
+            ['name' => 'word/media/footnote-source.png', 'data' => 'PNG'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $documentSummary = [];
+        foreach ($graph->summarizeTargetsForSource('/word/document.xml') as $target) {
+            $documentSummary[$target['id']] = $target;
+        }
+
+        $imageSummary = $graph->summarizeTargetsForSource('/word/document.xml', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image');
+        $footnoteSummary = [];
+        foreach ($graph->summarizeTargetsForSource('/word/footnotes.xml') as $target) {
+            $footnoteSummary[$target['id']] = $target;
+        }
+
+        $t->same('/word/styles.xml', $documentSummary['rIdStyles']['target']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml', $documentSummary['rIdStyles']['contentType']);
+        $t->same('/word/footnotes.xml#notes', $documentSummary['rIdFootnotes']['target']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml', $documentSummary['rIdFootnotes']['contentType']);
+        $t->same('/customXml/item1.xml', $documentSummary['rIdCustomXml']['target']);
+        $t->same('application/xml', $documentSummary['rIdCustomXml']['contentType']);
+        $t->same(true, $documentSummary['rIdReviewerLink']['external']);
+        $t->same(null, $documentSummary['rIdReviewerLink']['contentType']);
+        $t->same(1, count($imageSummary));
+        $t->same('/word/media/review-image.PNG', $imageSummary[0]['target']);
+        $t->same('image/png', $imageSummary[0]['contentType']);
+        $t->same('/word/media/footnote-source.png', $footnoteSummary['rIdNoteImage']['target']);
+        $t->same('image/png', $footnoteSummary['rIdNoteImage']['contentType']);
+        $t->same('https://example.test/source-footnote', $footnoteSummary['rIdNoteSource']['target']);
+        $t->same([], $graph->summarizeTargetsForSource('/word/missing.xml'));
+    },
+    'rejects malformed OPC relationship graph package inputs' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $t->throws(\RuntimeException::class, static fn (): OpcRelationshipGraph => OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ])));
+        $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationshipGraph => OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => 'word/_rels/.rels', 'data' => $packageRelationshipsXml],
+        ])));
+        $t->throws(\InvalidArgumentException::class, static function () use ($contentTypesXml): void {
+            $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+                ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+                ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdBad" Type="t" Target="../evil.xml"/></Relationships>'],
+            ]));
+            $graph->summarizeTargetsForSource('/');
+        });
     },
     'serializes OPC relationships with external target modes only when needed' => static function (TestRunner $t): void {
         $relationships = new OpcRelationships('/word/document.xml');

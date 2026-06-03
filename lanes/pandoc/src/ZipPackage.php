@@ -364,6 +364,9 @@ final class ZipPackage
 
         $flags = self::readUInt16($this->bytes, $entry->localHeaderOffset + 6);
         $method = self::readUInt16($this->bytes, $entry->localHeaderOffset + 8);
+        $localCrc32 = self::readUInt32($this->bytes, $entry->localHeaderOffset + 14);
+        $localCompressedSize = self::readUInt32($this->bytes, $entry->localHeaderOffset + 18);
+        $localUncompressedSize = self::readUInt32($this->bytes, $entry->localHeaderOffset + 22);
         $nameLength = self::readUInt16($this->bytes, $entry->localHeaderOffset + 26);
         $extraLength = self::readUInt16($this->bytes, $entry->localHeaderOffset + 28);
         $nameStart = $entry->localHeaderOffset + 30;
@@ -382,6 +385,16 @@ final class ZipPackage
             throw new \RuntimeException("ZIP local header compression method does not match entry {$entry->name}");
         }
 
+        if (($entry->generalPurposeFlags & 0x0008) === 0) {
+            if ($localCrc32 !== $entry->crc32) {
+                throw new \RuntimeException("ZIP local header CRC32 does not match central directory entry {$entry->name}");
+            }
+
+            if ($localCompressedSize !== $entry->compressedSize || $localUncompressedSize !== $entry->uncompressedSize) {
+                throw new \RuntimeException("ZIP local header sizes do not match central directory entry {$entry->name}");
+            }
+        }
+
         $dataStart = $nameStart + $nameLength + $extraLength;
         self::assertRange($this->bytes, $dataStart, $entry->compressedSize, "compressed data for {$entry->name}");
 
@@ -389,7 +402,36 @@ final class ZipPackage
             throw new \RuntimeException("ZIP compressed data for {$entry->name} overlaps the central directory");
         }
 
+        if (($entry->generalPurposeFlags & 0x0008) !== 0) {
+            $this->validateDataDescriptor($entry, $dataStart + $entry->compressedSize);
+        }
+
         return substr($this->bytes, $dataStart, $entry->compressedSize);
+    }
+
+    private function validateDataDescriptor(ZipPackageEntry $entry, int $offset): void
+    {
+        $valuesOffset = $offset;
+        if (substr($this->bytes, $offset, 4) === "PK\x07\x08") {
+            $valuesOffset += 4;
+        }
+
+        self::assertRange($this->bytes, $valuesOffset, 12, "data descriptor for {$entry->name}");
+        if ($valuesOffset + 12 > $this->centralDirectoryOffset) {
+            throw new \RuntimeException("ZIP data descriptor for {$entry->name} overlaps the central directory");
+        }
+
+        $crc32 = self::readUInt32($this->bytes, $valuesOffset);
+        $compressedSize = self::readUInt32($this->bytes, $valuesOffset + 4);
+        $uncompressedSize = self::readUInt32($this->bytes, $valuesOffset + 8);
+
+        if ($crc32 !== $entry->crc32) {
+            throw new \RuntimeException("ZIP data descriptor CRC32 does not match central directory entry {$entry->name}");
+        }
+
+        if ($compressedSize !== $entry->compressedSize || $uncompressedSize !== $entry->uncompressedSize) {
+            throw new \RuntimeException("ZIP data descriptor sizes do not match central directory entry {$entry->name}");
+        }
     }
 
     private function inflateEntry(ZipPackageEntry $entry, string $compressed): string

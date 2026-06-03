@@ -14,7 +14,14 @@ $crc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
  *     method?:int,
  *     flags?:int,
  *     descriptor?:bool,
+ *     descriptorSignature?:bool,
  *     centralCrc?:int,
+ *     descriptorCrc?:int,
+ *     descriptorCompressedSize?:int,
+ *     descriptorUncompressedSize?:int,
+ *     localCrc?:int,
+ *     localCompressedSize?:int,
+ *     localUncompressedSize?:int,
  *     localName?:string,
  *     diskStart?:int,
  *     comment?:string
@@ -41,9 +48,9 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
         $actualCrc = $crc32($data);
         $centralCrc = $entry['centralCrc'] ?? $actualCrc;
         $offset = strlen($body);
-        $localCrc = $descriptor ? 0 : $actualCrc;
-        $localCompressedSize = $descriptor ? 0 : $compressedSize;
-        $localUncompressedSize = $descriptor ? 0 : $uncompressedSize;
+        $localCrc = $entry['localCrc'] ?? ($descriptor ? 0 : $actualCrc);
+        $localCompressedSize = $entry['localCompressedSize'] ?? ($descriptor ? 0 : $compressedSize);
+        $localUncompressedSize = $entry['localUncompressedSize'] ?? ($descriptor ? 0 : $uncompressedSize);
 
         $body .= pack(
             'VvvvvvVVVvv',
@@ -61,7 +68,15 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
         );
         $body .= $localName . $compressed;
         if ($descriptor) {
-            $body .= "PK\x07\x08" . pack('VVV', $actualCrc, $compressedSize, $uncompressedSize);
+            if ($entry['descriptorSignature'] ?? true) {
+                $body .= "PK\x07\x08";
+            }
+            $body .= pack(
+                'VVV',
+                $entry['descriptorCrc'] ?? $actualCrc,
+                $entry['descriptorCompressedSize'] ?? $compressedSize,
+                $entry['descriptorUncompressedSize'] ?? $uncompressedSize
+            );
         }
 
         $entryComment = $entry['comment'] ?? '';
@@ -168,6 +183,31 @@ return [
         $t->same(8, $entry->compressionMethod);
         $t->same(0x0808, $entry->generalPurposeFlags);
         $t->same(str_repeat('<w:comment>review</w:comment>', 8), $package->read('word/comments.xml'));
+    },
+
+    'reads data descriptors with and without optional signatures' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>descriptor signed</w:p></w:document>',
+                'method' => 8,
+                'descriptor' => true,
+            ],
+            [
+                'name' => 'word/footnotes.xml',
+                'data' => '<w:footnotes><w:footnote>descriptor unsigned</w:footnote></w:footnotes>',
+                'method' => 0,
+                'descriptor' => true,
+                'descriptorSignature' => false,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+
+        $t->same('<w:document><w:p>descriptor signed</w:p></w:document>', $package->read('word/document.xml'));
+        $t->same('<w:footnotes><w:footnote>descriptor unsigned</w:footnote></w:footnotes>', $package->read('word/footnotes.xml'));
+        $t->same(8, $package->entry('word/document.xml')->compressionMethod);
+        $t->same(0, $package->entry('word/footnotes.xml')->compressionMethod);
     },
 
     'builds current zip package bytes for generated pandoc containers' => static function (TestRunner $t): void {
@@ -297,6 +337,48 @@ return [
 
         $t->throws(\RuntimeException::class, static fn (): string => $crcMismatch->read('word/document.xml'));
         $t->throws(\RuntimeException::class, static fn (): string => $localNameMismatch->read('word/document.xml'));
+    },
+
+    'rejects local header and data descriptor integrity mismatches' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $localCrcMismatch = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document>local crc mismatch</w:document>',
+                'method' => 8,
+                'localCrc' => 0,
+            ],
+        ]));
+        $localSizeMismatch = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/styles.xml',
+                'data' => '<w:styles/>',
+                'method' => 0,
+                'localCompressedSize' => 1,
+            ],
+        ]));
+        $descriptorSizeMismatch = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/comments.xml',
+                'data' => '<w:comments/>',
+                'method' => 8,
+                'descriptor' => true,
+                'descriptorUncompressedSize' => 999,
+            ],
+        ]));
+        $descriptorCrcMismatch = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/footnotes.xml',
+                'data' => '<w:footnotes/>',
+                'method' => 8,
+                'descriptor' => true,
+                'descriptorCrc' => 0,
+            ],
+        ]));
+
+        $t->throws(\RuntimeException::class, static fn (): string => $localCrcMismatch->read('word/document.xml'));
+        $t->throws(\RuntimeException::class, static fn (): string => $localSizeMismatch->read('word/styles.xml'));
+        $t->throws(\RuntimeException::class, static fn (): string => $descriptorSizeMismatch->read('word/comments.xml'));
+        $t->throws(\RuntimeException::class, static fn (): string => $descriptorCrcMismatch->read('word/footnotes.xml'));
     },
 
     'rejects unsupported compression methods and malformed package endings' => static function (TestRunner $t) use ($buildZipPackage): void {

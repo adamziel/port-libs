@@ -170,7 +170,7 @@ final class DocTemplate
         [$branches, $nextIndex] = $this->collectIfBranches($tokens, $start, $end, $firstVariable);
 
         foreach ($branches as $branch) {
-            if ($branch['variable'] === null || $this->isTruthy($this->resolve($branch['variable'], $context)['value'])) {
+            if ($branch['variable'] === null || $this->isTruthy($this->resolveExpression($branch['variable'], $context)['value'])) {
                 return [
                     $this->renderRange($tokens, $branch['start'], $branch['end'], $context),
                     $nextIndex,
@@ -261,12 +261,13 @@ final class DocTemplate
     private function renderFor(array $tokens, int $start, int $end, string $variable, array $context): array
     {
         [$bodyStart, $bodyEnd, $separatorStart, $separatorEnd, $nextIndex] = $this->collectForSlices($tokens, $start, $end);
-        $resolved = $this->resolve($variable, $context);
+        $expression = $this->parseVariableExpression($variable);
+        $resolved = $this->resolveParsedExpression($expression, $context);
         $iterations = $this->loopIterations($resolved['exists'], $resolved['value']);
         $rendered = [];
 
         foreach ($iterations as $item) {
-            $iterationContext = $this->contextForLoopIteration($context, $variable, $item);
+            $iterationContext = $this->contextForLoopIteration($context, $expression['name'], $item);
             $rendered[] = $this->renderRange($tokens, $bodyStart, $bodyEnd, $iterationContext);
         }
 
@@ -334,22 +335,18 @@ final class DocTemplate
      */
     private function renderVariableDirective(string $directive, array $context): string
     {
-        if (!preg_match('/^(it|[A-Za-z][A-Za-z0-9_.-]*)(?:\\[(.*)\\])?$/s', $directive, $matches)) {
-            throw new \UnexpectedValueException("Unsupported doctemplate directive {$directive}");
-        }
-
-        $name = $matches[1];
+        $expression = $this->parseVariableExpression($directive);
+        $name = $expression['name'];
         if (in_array($name, ['if', 'else', 'elseif', 'endif', 'for', 'sep', 'endfor'], true)) {
             throw new \UnexpectedValueException("Reserved doctemplate keyword {$name} cannot be rendered as a variable");
         }
 
-        $separator = array_key_exists(2, $matches) ? $matches[2] : null;
-        $resolved = $this->resolve($name, $context);
+        $resolved = $this->resolveParsedExpression($expression, $context);
         if (!$resolved['exists']) {
             return '';
         }
 
-        return $this->renderValue($resolved['value'], $separator);
+        return $this->renderValue($resolved['value'], $expression['separator']);
     }
 
     /**
@@ -357,11 +354,13 @@ final class DocTemplate
      */
     private function controlVariable(string $directive, string $name): ?string
     {
-        if (!preg_match('/^' . preg_quote($name, '/') . '\\((it|[A-Za-z][A-Za-z0-9_.-]*)\\)$/', $directive, $matches)) {
+        if (!preg_match('/^' . preg_quote($name, '/') . '\\((.+)\\)$/s', $directive, $matches)) {
             return null;
         }
 
-        return $matches[1];
+        $expression = trim($matches[1], " \t");
+
+        return $expression === '' ? null : $expression;
     }
 
     private function startsControlBlock(string $directive): bool
@@ -393,6 +392,209 @@ final class DocTemplate
         }
 
         return ['exists' => true, 'value' => $value];
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @return array{exists:bool, value:mixed}
+     */
+    private function resolveExpression(string $expression, array $context): array
+    {
+        return $this->resolveParsedExpression($this->parseVariableExpression($expression), $context);
+    }
+
+    /**
+     * @param array{name:string, separator:?string, pipes:list<string>} $expression
+     * @param array<string, mixed> $context
+     * @return array{exists:bool, value:mixed}
+     */
+    private function resolveParsedExpression(array $expression, array $context): array
+    {
+        $resolved = $this->resolve($expression['name'], $context);
+        if (!$resolved['exists']) {
+            return $resolved;
+        }
+
+        $value = $resolved['value'];
+        foreach ($expression['pipes'] as $pipe) {
+            $value = $this->applyPipe($pipe, $value);
+        }
+
+        return ['exists' => true, 'value' => $value];
+    }
+
+    /**
+     * @return array{name:string, separator:?string, pipes:list<string>}
+     */
+    private function parseVariableExpression(string $expression): array
+    {
+        $parts = $this->splitPipeExpression($expression);
+        $base = array_shift($parts);
+        if ($base === null || !preg_match('/^(it|[A-Za-z][A-Za-z0-9_.-]*)(?:\\[(.*)\\])?$/s', $base, $matches)) {
+            throw new \UnexpectedValueException("Unsupported doctemplate directive {$expression}");
+        }
+
+        $pipes = [];
+        foreach ($parts as $pipeSpec) {
+            $pipeSpec = trim($pipeSpec, " \t");
+            if ($pipeSpec === '') {
+                throw new \UnexpectedValueException("Unsupported doctemplate directive {$expression}");
+            }
+
+            if (!preg_match('/^([A-Za-z][A-Za-z0-9_-]*)(?:\\s+(.+))?$/s', $pipeSpec, $pipeMatches)) {
+                throw new \UnexpectedValueException("Unsupported doctemplate pipe {$pipeSpec}");
+            }
+
+            if (isset($pipeMatches[2]) && trim($pipeMatches[2]) !== '') {
+                throw new \UnexpectedValueException("Unsupported parameterized doctemplate pipe {$pipeMatches[1]}");
+            }
+
+            $pipes[] = $pipeMatches[1];
+        }
+
+        return [
+            'name' => $matches[1],
+            'separator' => array_key_exists(2, $matches) ? $matches[2] : null,
+            'pipes' => $pipes,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitPipeExpression(string $expression): array
+    {
+        $parts = [];
+        $buffer = '';
+        $bracketDepth = 0;
+        $length = strlen($expression);
+
+        for ($index = 0; $index < $length; $index++) {
+            $char = $expression[$index];
+            if ($char === '[') {
+                $bracketDepth++;
+                $buffer .= $char;
+                continue;
+            }
+
+            if ($char === ']' && $bracketDepth > 0) {
+                $bracketDepth--;
+                $buffer .= $char;
+                continue;
+            }
+
+            if ($char === '/' && $bracketDepth === 0) {
+                $parts[] = $buffer;
+                $buffer = '';
+                continue;
+            }
+
+            $buffer .= $char;
+        }
+
+        $parts[] = $buffer;
+
+        return $parts;
+    }
+
+    private function applyPipe(string $pipe, mixed $value): mixed
+    {
+        return match ($pipe) {
+            'pairs' => $this->pipePairs($value),
+            'uppercase' => is_string($value) ? $this->uppercase($value) : $value,
+            'lowercase' => is_string($value) ? $this->lowercase($value) : $value,
+            'length' => $this->pipeLength($value),
+            'reverse' => $this->pipeReverse($value),
+            'first' => is_array($value) && array_is_list($value) && $value !== [] ? $value[0] : $value,
+            'last' => is_array($value) && array_is_list($value) && $value !== [] ? $value[array_key_last($value)] : $value,
+            'rest' => is_array($value) && array_is_list($value) && $value !== [] ? array_slice($value, 1) : $value,
+            'allbutlast' => is_array($value) && array_is_list($value) && $value !== [] ? array_slice($value, 0, -1) : $value,
+            'chomp' => is_string($value) ? rtrim($value, "\r\n") : $value,
+            'nowrap' => $value,
+            default => throw new \UnexpectedValueException("Unsupported doctemplate pipe {$pipe}"),
+        };
+    }
+
+    private function pipePairs(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        $pairs = [];
+        if (array_is_list($value)) {
+            foreach ($value as $index => $item) {
+                $pairs[] = ['key' => $index + 1, 'value' => $item];
+            }
+
+            return $pairs;
+        }
+
+        foreach ($value as $key => $item) {
+            $pairs[] = ['key' => $key, 'value' => $item];
+        }
+
+        return $pairs;
+    }
+
+    private function pipeLength(mixed $value): int
+    {
+        if (is_string($value)) {
+            return $this->stringLength($value);
+        }
+
+        if (is_array($value)) {
+            return count($value);
+        }
+
+        return 0;
+    }
+
+    private function pipeReverse(mixed $value): mixed
+    {
+        if (is_string($value)) {
+            return $this->reverseString($value);
+        }
+
+        if (is_array($value) && array_is_list($value)) {
+            return array_reverse($value);
+        }
+
+        return $value;
+    }
+
+    private function uppercase(string $value): string
+    {
+        return function_exists('mb_strtoupper') ? mb_strtoupper($value, 'UTF-8') : strtoupper($value);
+    }
+
+    private function lowercase(string $value): string
+    {
+        return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
+    }
+
+    private function stringLength(string $value): int
+    {
+        if (function_exists('mb_strlen')) {
+            return mb_strlen($value, 'UTF-8');
+        }
+
+        $count = preg_match_all('/./us', $value, $matches);
+        if ($count !== false) {
+            return $count;
+        }
+
+        return strlen($value);
+    }
+
+    private function reverseString(string $value): string
+    {
+        $characters = preg_split('//u', $value, -1, PREG_SPLIT_NO_EMPTY);
+        if ($characters === false) {
+            return strrev($value);
+        }
+
+        return implode('', array_reverse($characters));
     }
 
     private function renderValue(mixed $value, ?string $separator): string
