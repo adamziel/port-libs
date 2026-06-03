@@ -127,10 +127,22 @@ start_worker() {
 slices=(
   "zip-package:pandoc-shared-zip-package-core-current-base"
   "opc-relationships:pandoc-opc-xml-relationships-core-current-base"
+  "xml-html5-dom:pandoc-xml-html5-dom-core-current-base"
   "doctemplates:pandoc-doctemplates-core-current-base"
   "yaml-metadata:pandoc-yaml-metadata-core-current-base"
-  "runner-deps:pandoc-upstream-runner-deps-current-base"
   "citation-csl:pandoc-citation-csl-core-current-base"
+  "bibtex-csl:pandoc-bibtex-csl-core-current-base"
+  "docx-openxml:pandoc-docx-openxml-core-current-base"
+  "epub3-package:pandoc-epub3-package-core-current-base"
+  "odf-package:pandoc-odf-open-document-core-current-base"
+  "legacy-doc:pandoc-legacy-doc-cfb-core-current-base"
+  "math-tex:pandoc-math-tex-conversion-core-current-base"
+  "syntax-highlight:pandoc-syntax-highlighting-core-current-base"
+  "charset-unicode:pandoc-charset-unicode-width-core-current-base"
+  "table-geometry:pandoc-table-geometry-core-current-base"
+  "archive-streams:pandoc-archive-compression-streams-current-base"
+  "pdf-handoff:pandoc-pdf-engine-handoff-core-current-base"
+  "runner-deps:pandoc-upstream-runner-deps-current-base"
 )
 
 idx=0

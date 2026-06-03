@@ -30,13 +30,32 @@ Current supervisor override, 2026-05-31 11:25 UTC:
   Preferred slice prefixes and ownership:
   `pandoc-shared-zip-package-core-*` owns ZIP/OPC package primitives and tests;
   `pandoc-opc-xml-relationships-core-*` owns content-types/relationships XML
-  package semantics and tests; `pandoc-doctemplates-core-*` owns bounded
-  Pandoc template rendering and tests; `pandoc-yaml-metadata-core-*` owns
-  YAML/front-matter metadata parsing and tests; `pandoc-citation-csl-core-*`
-  owns bounded citation/CSL handoff tests; `pandoc-upstream-runner-deps-*`
-  owns a bounded audit of the Cabal/upstream-runner dependency closure and may
-  leave a lane note instead of implementation if no safe local build step is
-  available.
+  package semantics and tests; `pandoc-xml-html5-dom-core-*` owns safe
+  XML/HTML fragment parsing and serializer behavior needed by document readers;
+  `pandoc-doctemplates-core-*` owns bounded Pandoc template rendering and tests;
+  `pandoc-yaml-metadata-core-*` owns YAML/front-matter metadata parsing and
+  tests; `pandoc-citation-csl-core-*` and `pandoc-bibtex-csl-core-*` own
+  bounded citation, CSL, BibTeX/BibLaTeX, and bibliography handoff tests;
+  `pandoc-docx-openxml-core-*` owns minimal DOCX body/properties/styles/
+  numbering/media package parsing into the existing Pandoc-like AST;
+  `pandoc-epub3-package-core-*` owns EPUB container, OPF, spine, nav/NCX,
+  XHTML asset, and metadata handoff behavior; `pandoc-odf-open-document-core-*`
+  owns ODT manifest/content/styles/meta XML mapping; `pandoc-legacy-doc-cfb-core-*`
+  owns safe Compound File Binary and legacy Word text/metadata extraction;
+  `pandoc-math-tex-conversion-core-*` owns inline/display math, bounded TeX,
+  and MathML handoff behavior; `pandoc-syntax-highlighting-core-*` owns
+  fixture-backed code language alias/style/token handoff; `pandoc-charset-unicode-width-core-*`
+  owns byte decoding, Unicode repair, and display-width behavior needed by
+  Pandoc readers/writers; `pandoc-table-geometry-core-*` owns table span,
+  alignment, and AST/WordPress table handoff behavior; `pandoc-archive-compression-streams-*`
+  owns bounded deflate/gzip/tar/LZ4 helper behavior only when needed by package
+  fixtures; `pandoc-pdf-engine-handoff-core-*` owns PDF-output planning and
+  fake-runner diagnostics without implementing TeX/Typst/browser engines;
+  `pandoc-upstream-runner-deps-*` owns a bounded audit of the Cabal/upstream
+  runner dependency closure and may leave a lane note instead of implementation
+  if no safe local build step is available. Port the format contract, not whole
+  office suites, bibliography managers, TeX engines, browser layout engines, or
+  generic parser ecosystems.
 
 - If `Lane` is `lightningcss`, fully focus on porting LightningCSS under
   `lanes/lightningcss/**`. Ignore SQLite/Gitoxide-specific backlog text except
