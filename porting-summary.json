@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-03 23:03:30 UTC",
-    "sourceCommit": "2d4be941674ab1345219170d904b1503f3acb7f5",
-    "sourceCommitShort": "2d4be941674a",
+    "generated": "2026-06-03 23:10:03 UTC",
+    "sourceCommit": "ea0e1f5294ced657a1ca66594f308fcca7dac22c",
+    "sourceCommitShort": "ea0e1f5294ce",
     "sourceBranch": "unknown",
-    "dashboardCommit": "2d4be941674ab1345219170d904b1503f3acb7f5",
-    "dashboardCommitShort": "2d4be941674a",
+    "dashboardCommit": "ea0e1f5294ced657a1ca66594f308fcca7dac22c",
+    "dashboardCommitShort": "ea0e1f5294ce",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -139,11 +139,11 @@
             "unmapped": "1,542",
             "php": "294 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-03 UTC isolated DOCX styles/numbering slice on base 85557f877...",
+            "audit": "2026-06-03 UTC upstream-runner dependency audit on base ea0e1f5294ced...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
             "nextTarget": "Keep richer DOCX nested numbering, table grid spans, comments...",
             "remainingGate": "No local blocker",
-            "commit": "85557f8"
+            "commit": "ea0e1f5"
         },
         {
             "lane": "quadrable",
