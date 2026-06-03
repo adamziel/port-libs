@@ -9,6 +9,7 @@ final class IndexFile
     private const SIGNATURE = 'DIRC';
     private const VERSION_V2 = 2;
     private const VERSION_V3 = 3;
+    private const VERSION_V4 = 4;
     private const HASH_BYTES = 20;
     private const ENTRY_BASE_BYTES = 62;
     private const PATH_LENGTH_MASK = 0x0fff;
@@ -331,13 +332,14 @@ final class IndexFile
 
         $offset = 4;
         $version = self::readUInt32($bytes, $offset);
-        if (!in_array($version, [self::VERSION_V2, self::VERSION_V3], true)) {
+        if (!in_array($version, [self::VERSION_V2, self::VERSION_V3, self::VERSION_V4], true)) {
             throw new \InvalidArgumentException("Unsupported index version: {$version}");
         }
         $count = self::readUInt32($bytes, $offset);
 
         $entries = [];
         $dataEnd = $length - self::HASH_BYTES;
+        $previousPath = null;
         for ($i = 0; $i < $count; $i++) {
             $entryStart = $offset;
             if ($entryStart + self::ENTRY_BASE_BYTES > $dataEnd) {
@@ -362,34 +364,53 @@ final class IndexFile
                 $pathStart += 2;
             }
 
-            $pathLength = $flags & self::PATH_LENGTH_MASK;
-            if ($pathLength === self::PATH_LENGTH_MASK) {
-                $nul = strpos($bytes, "\0", $pathStart);
-            } else {
-                $nul = $pathStart + $pathLength;
-                if ($nul >= $dataEnd || ($bytes[$nul] ?? null) !== "\0") {
-                    throw new \InvalidArgumentException('Index entry path length does not match its terminator');
+            if ($version === self::VERSION_V4) {
+                [$stripLength, $pathStart] = self::readVarIntAt($bytes, $pathStart, $dataEnd);
+                if ($previousPath === null && $stripLength !== 0) {
+                    throw new \InvalidArgumentException('Index v4 path compression cannot strip without a previous path');
                 }
-            }
-            if ($nul === false || $nul >= $dataEnd) {
-                throw new \InvalidArgumentException('Index entry path is not NUL-terminated');
+                if ($previousPath !== null && $stripLength > strlen($previousPath)) {
+                    throw new \InvalidArgumentException('Index v4 path compression strip length exceeds previous path length');
+                }
+                $nul = strpos($bytes, "\0", $pathStart);
+                if ($nul === false || $nul >= $dataEnd) {
+                    throw new \InvalidArgumentException('Index v4 compressed path suffix is not NUL-terminated');
+                }
+                $prefix = $previousPath === null ? '' : substr($previousPath, 0, strlen($previousPath) - $stripLength);
+                $path = $prefix . substr($bytes, $pathStart, $nul - $pathStart);
+                $offset = $nul + 1;
+            } else {
+                $pathLength = $flags & self::PATH_LENGTH_MASK;
+                if ($pathLength === self::PATH_LENGTH_MASK) {
+                    $nul = strpos($bytes, "\0", $pathStart);
+                } else {
+                    $nul = $pathStart + $pathLength;
+                    if ($nul >= $dataEnd || ($bytes[$nul] ?? null) !== "\0") {
+                        throw new \InvalidArgumentException('Index entry path length does not match its terminator');
+                    }
+                }
+                if ($nul === false || $nul >= $dataEnd) {
+                    throw new \InvalidArgumentException('Index entry path is not NUL-terminated');
+                }
+                $path = substr($bytes, $pathStart, $nul - $pathStart);
+                $offset = $nul + 1;
+                while (($offset - $entryStart) % 8 !== 0) {
+                    $offset++;
+                }
             }
 
             $entries[] = new IndexEntry(
-                substr($bytes, $pathStart, $nul - $pathStart),
+                $path,
                 $stage,
                 $mode,
                 $oid,
                 ($extendedFlags & self::EXTENDED_SKIP_WORKTREE) !== 0,
                 ($flags & self::FLAG_ASSUME_VALID) !== 0,
             );
-            $offset = $nul + 1;
-            while (($offset - $entryStart) % 8 !== 0) {
-                $offset++;
-            }
             if ($offset > $dataEnd) {
                 throw new \InvalidArgumentException('Index entry padding exceeds index payload');
             }
+            $previousPath = $path;
         }
 
         return ['version' => $version, 'entries' => $entries, 'extensionOffset' => $offset];
@@ -457,5 +478,35 @@ final class IndexFile
         }
 
         return $value[1];
+    }
+
+    /**
+     * @return array{0:int,1:int}
+     */
+    private static function readVarIntAt(string $bytes, int $offset, int $dataEnd): array
+    {
+        if ($offset >= $dataEnd) {
+            throw new \InvalidArgumentException('Index v4 path compression varint is truncated');
+        }
+
+        $byte = ord($bytes[$offset]);
+        $offset++;
+        $value = $byte & 0x7f;
+        $consumed = 1;
+        while (($byte & 0x80) !== 0) {
+            if ($offset >= $dataEnd) {
+                throw new \InvalidArgumentException('Index v4 path compression varint is truncated');
+            }
+            if ($consumed >= 10 || $value > intdiv(PHP_INT_MAX, 128) - 1) {
+                throw new \InvalidArgumentException('Index v4 path compression varint overflows PHP integer range');
+            }
+
+            $byte = ord($bytes[$offset]);
+            $offset++;
+            $consumed++;
+            $value = (($value + 1) << 7) + ($byte & 0x7f);
+        }
+
+        return [$value, $offset];
     }
 }
