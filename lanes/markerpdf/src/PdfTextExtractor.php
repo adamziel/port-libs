@@ -7455,11 +7455,11 @@ final class PdfTextExtractor
     private function cidEncodingMapFromNamedCMap(string $encodingName, array $namedCMapBodies): ?array
     {
         $cmap = $namedCMapBodies[$encodingName] ?? null;
-        if ($cmap === null) {
-            return null;
+        if ($cmap !== null) {
+            return $this->parseCidCMap($cmap, $namedCMapBodies, [$encodingName]);
         }
 
-        return $this->parseCidCMap($cmap, $namedCMapBodies, [$encodingName]);
+        return $this->predefinedCidCMap($encodingName);
     }
 
     /**

@@ -13,6 +13,9 @@ $content = 'BT /Fcid 12 Tf '
 $cmap = "/CIDInit /ProcSet findresource begin\n"
     . "12 dict begin\n"
     . "begincmap\n"
+    . "1 begincodespacerange\n"
+    . "<00> <FF>\n"
+    . "endcodespacerange\n"
     . "8 beginbfchar\n"
     . "<41> <0041>\n"
     . "<42> <0042>\n"
@@ -42,8 +45,9 @@ $spans = $pages[0]['blocks'][0]['lines'][0]['spans'] ?? [];
 echo "<!-- markerpdf-cmap-source-width-fallback-smoke " . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'ToUnicode mapped source-width fallback with CIDFont default width before Gutenberg paragraph rendering',
+    'native_boundary' => 'predefined Identity-H source-width fallback with CIDFont default width before Gutenberg paragraph rendering',
     'default_width_source_fallback_applied' => $lines === ['ABCD EFGH'],
+    'predefined_identity_source_width_applied' => $lines === ['ABCD EFGH'],
     'padding_bytes_not_counted_as_glyphs' => ($spans[0]['bbox'][2] ?? null) === 48.0,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
