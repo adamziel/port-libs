@@ -13148,7 +13148,7 @@ final class PdfTextExtractor
 
         $body = $this->xrefStreamIndirectOperandBody($objectNumber, $objects, $xrefEntry, $definition, $selected);
 
-        return [
+        $review = [
             'name' => $name,
             'kind' => 'indirect',
             'object_number' => $objectNumber,
@@ -13162,6 +13162,18 @@ final class PdfTextExtractor
             'owner_policy' => $ownerPolicy,
             'value_preview' => $body === null ? null : $this->xrefStreamOperandValuePreview($body),
         ];
+
+        if ($name === 'Filter' && $body !== null) {
+            $body = trim($body);
+            $review['token_type'] = $this->pdfOperandTokenType($body);
+            $review['valid_filter_operand'] = $this->filterNamesFromValue(
+                $body,
+                $objects,
+                [$objectNumber . ':' . $generation => true]
+            ) !== null;
+        }
+
+        return $review;
     }
 
     /**
@@ -13283,7 +13295,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if ($this->streamFilterOperandIsMalformedDirect($operand)) {
+            if ($this->streamFilterOperandIsMalformed($operand)) {
                 $count++;
             }
         }
@@ -13313,7 +13325,7 @@ final class PdfTextExtractor
     {
         $count = 0;
         foreach ($operands as $operand) {
-            if ($this->streamFilterOperandIsMalformedDirect($operand)) {
+            if ($this->streamFilterOperandIsMalformed($operand)) {
                 $count++;
             }
         }
@@ -13333,12 +13345,8 @@ final class PdfTextExtractor
     /**
      * @param array<string, mixed> $operand
      */
-    private function streamFilterOperandIsMalformedDirect(array $operand): bool
+    private function streamFilterOperandIsMalformed(array $operand): bool
     {
-        if (($operand['kind'] ?? null) !== 'direct') {
-            return false;
-        }
-
         $valid = $operand['valid_filter_operand'] ?? null;
         return $valid === false && !$this->streamFilterOperandIsDictionary($operand);
     }
