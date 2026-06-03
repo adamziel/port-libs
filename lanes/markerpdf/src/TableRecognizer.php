@@ -1622,6 +1622,11 @@ final class TableRecognizer
             return null;
         }
 
+        $named = $this->bboxFromNamedFields($bbox);
+        if ($named !== null) {
+            return $named;
+        }
+
         $values = array_values($bbox);
         foreach ($values as $value) {
             if (!is_int($value) && !is_float($value)) {
@@ -1638,7 +1643,8 @@ final class TableRecognizer
      */
     private function ocrLineBbox(array $ocrLine): ?array
     {
-        return $this->nullableBbox($ocrLine['bbox'] ?? null)
+        return $this->bboxFromValue($ocrLine['bbox'] ?? null)
+            ?? $this->bboxFromNamedFields($ocrLine)
             ?? $this->polygonBbox($ocrLine['polygon'] ?? null);
     }
 
@@ -1861,6 +1867,7 @@ final class TableRecognizer
             $normalized[] = [
                 $idField => (int) $id,
                 'bbox' => $bbox,
+                'coordinate_source' => $this->bboxCoordinateSourceFromRecord($item),
                 'width' => $bbox[2] - $bbox[0],
                 'height' => $bbox[3] - $bbox[1],
                 'area' => $this->area($bbox),
@@ -2291,7 +2298,7 @@ final class TableRecognizer
                 $status = 'clipped_to_table_image';
             }
 
-            $reviewRows[] = [
+            $reviewRow = [
                 'axis' => $axis,
                 'id_field' => $idField,
                 'id' => $id,
@@ -2301,6 +2308,10 @@ final class TableRecognizer
                 'status' => $status,
                 'active' => $active,
             ];
+            if (isset($band['coordinate_source']) && is_string($band['coordinate_source'])) {
+                $reviewRow['coordinate_source'] = $band['coordinate_source'];
+            }
+            $reviewRows[] = $reviewRow;
 
             if (!$active) {
                 continue;
@@ -3509,17 +3520,12 @@ final class TableRecognizer
      */
     private function bbox(mixed $bbox): array
     {
-        if (!is_array($bbox) || count($bbox) !== 4) {
-            throw new InvalidArgumentException('Table geometry entries must include a four-value bbox.');
-        }
-        $values = array_values($bbox);
-        foreach ($values as $value) {
-            if (!is_int($value) && !is_float($value)) {
-                throw new InvalidArgumentException('Table bbox values must be numeric.');
-            }
+        $normalized = $this->bboxFromValue($bbox);
+        if ($normalized === null) {
+            throw new InvalidArgumentException('Table geometry entries must include a four-value bbox or named bbox fields.');
         }
 
-        return array_map(static fn (int|float $value): float => (float) $value, $values);
+        return $normalized;
     }
 
     /**
@@ -3528,13 +3534,98 @@ final class TableRecognizer
      */
     private function bboxFromRecord(array $record): array
     {
-        $bbox = $this->nullableBbox($record['bbox'] ?? null)
+        $bbox = $this->bboxFromValue($record['bbox'] ?? null)
+            ?? $this->bboxFromNamedFields($record)
             ?? $this->polygonBbox($record['polygon'] ?? null);
         if ($bbox === null) {
-            throw new InvalidArgumentException('Table geometry entries must include a four-value bbox or four-corner polygon.');
+            throw new InvalidArgumentException('Table geometry entries must include a four-value bbox, named bbox fields, or four-corner polygon.');
         }
 
         return $bbox;
+    }
+
+    /**
+     * @param mixed $bbox
+     * @return list<float>|null
+     */
+    private function bboxFromValue(mixed $bbox): ?array
+    {
+        if (!is_array($bbox)) {
+            return null;
+        }
+
+        return $this->nullableBbox($bbox)
+            ?? $this->bboxFromNamedFields($bbox);
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return list<float>|null
+     */
+    private function bboxFromNamedFields(array $record): ?array
+    {
+        $sets = [
+            ['x1', 'y1', 'x2', 'y2'],
+            ['x_start', 'y_start', 'x_end', 'y_end'],
+            ['left', 'top', 'right', 'bottom'],
+        ];
+
+        foreach ($sets as $keys) {
+            [$x1, $y1, $x2, $y2] = $keys;
+            if (
+                !array_key_exists($x1, $record)
+                || !array_key_exists($y1, $record)
+                || !array_key_exists($x2, $record)
+                || !array_key_exists($y2, $record)
+            ) {
+                continue;
+            }
+
+            $values = [$record[$x1], $record[$y1], $record[$x2], $record[$y2]];
+            foreach ($values as $value) {
+                if (!is_int($value) && !is_float($value)) {
+                    return null;
+                }
+            }
+
+            return array_map(static fn (int|float $value): float => (float) $value, $values);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     */
+    private function bboxCoordinateSourceFromRecord(array $record): string
+    {
+        $bbox = $record['bbox'] ?? null;
+        if (is_array($bbox)) {
+            return $this->bboxNamedFieldSource($bbox) ?? 'bbox_array';
+        }
+
+        return $this->bboxNamedFieldSource($record)
+            ?? (is_array($record['polygon'] ?? null) ? 'polygon' : 'bbox_array');
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     */
+    private function bboxNamedFieldSource(array $record): ?string
+    {
+        $sets = [
+            'bbox_xyxy_named_fields' => ['x1', 'y1', 'x2', 'y2'],
+            'bbox_x_start_y_start_fields' => ['x_start', 'y_start', 'x_end', 'y_end'],
+            'bbox_left_top_right_bottom_fields' => ['left', 'top', 'right', 'bottom'],
+        ];
+
+        foreach ($sets as $source => $keys) {
+            if (count(array_intersect($keys, array_keys($record))) === 4) {
+                return $source;
+            }
+        }
+
+        return null;
     }
 
     /**

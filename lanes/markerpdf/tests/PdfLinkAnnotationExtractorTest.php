@@ -212,6 +212,35 @@ $xmpOutlineLinkPages = static function (): array {
     ]];
 };
 
+$rotatedUserUnitLinkPdf = static function (): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [10 20 210 320] /CropBox [20 40 180 240] /Rotate 90 /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /UserUnit 9 0 R /Annots [7 0 R] >>\nendobj\n"
+        . "7 0 obj\n<< /Type /Annot /Subtype /Link /Rect [30 150 110 170] /A << /S /URI /URI (https://example.com/rotated-link) >> >>\nendobj\n"
+        . "9 0 obj\n2\nendobj\n"
+        . "%%EOF";
+};
+
+$rotatedUserUnitLinkPages = static function (): array {
+    return [[
+        'pnum' => 0,
+        'bbox' => [0.0, 0.0, 400.0, 320.0],
+        'rotation' => 90,
+        'blocks' => [[
+            'type' => 'Text',
+            'bbox' => [220.0, 20.0, 260.0, 180.0],
+            'lines' => [[
+                'bbox' => [220.0, 20.0, 260.0, 180.0],
+                'spans' => [
+                    ['text' => 'Rotated link', 'bbox' => [220.0, 20.0, 260.0, 180.0], 'font' => 'Helvetica'],
+                    ['text' => ' raw decoy', 'bbox' => [30.0, 150.0, 110.0, 170.0], 'font' => 'Helvetica'],
+                ],
+            ]],
+        ]],
+    ]];
+};
+
 return [
     'extracts page link URI annotations at the native PDF page boundary' => static function (TestRunner $t) use ($linkPdf): void {
         $links = (new PdfLinkAnnotationExtractor())->extractPageLinks($linkPdf());
@@ -393,5 +422,32 @@ return [
         $t->true(!str_contains($plainText, 'Link XMP Review Title'));
         $t->true(!str_contains($plainText, 'chapter-open-review'));
         $t->true(!str_contains($plainText, 'hoverImportReview'));
+    },
+    'maps rotated link annotation rectangles through page boxes before applying supplied pdftext spans' => static function (TestRunner $t) use ($rotatedUserUnitLinkPdf, $rotatedUserUnitLinkPages): void {
+        $extractor = new PdfLinkAnnotationExtractor();
+        $links = $extractor->extractPageLinks($rotatedUserUnitLinkPdf());
+
+        $t->same(1, count($links));
+        $link = $links[0]['links'][0];
+        $t->same([30.0, 150.0, 110.0, 170.0], $link['rect']);
+        $t->same([220.0, 20.0, 260.0, 180.0], $link['pdftext_rect']);
+        $t->same([20.0, 40.0, 180.0, 240.0], $link['page_bbox']);
+        $t->same(90, $link['page_rotation']);
+        $t->same(2.0, $link['page_user_unit']);
+        $t->same([0.0, 0.0, 400.0, 320.0], $link['display_page_bbox']);
+
+        $pages = $extractor->applyLinksToPages($rotatedUserUnitLinkPages(), $rotatedUserUnitLinkPdf());
+        $spans = $pages[0]['blocks'][0]['lines'][0]['spans'];
+
+        $t->same('https://example.com/rotated-link', $spans[0]['link_uri']);
+        $t->same([220.0, 20.0, 260.0, 180.0], $spans[0]['link_rect']);
+        $t->same('marker_pdftext_display', $spans[0]['link_rect_coordinate_space']);
+        $t->same([30.0, 150.0, 110.0, 170.0], $spans[0]['link_page_rect']);
+        $t->same([220.0, 20.0, 260.0, 180.0], $spans[0]['link_pdftext_rect']);
+        $t->true(!isset($spans[1]['link_uri']), 'raw page-space decoy is not linked on a rotated pdftext page.');
+
+        $processor = new MarkdownPostProcessor();
+        $blocks = $processor->mergeBlocks($processor->mergeSpans($pages));
+        $t->same('[Rotated link](https://example.com/rotated-link) raw decoy', $blocks[0]['text']);
     },
 ];

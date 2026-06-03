@@ -4718,6 +4718,7 @@ final class PdfTextExtractor
         );
         $embeddedFilePayloadObjectNumbers = $this->embeddedFilePayloadObjectNumbers($objects);
         $pieceInfoPrivateObjectNumbers = $this->pieceInfoPrivateStreamObjectNumbers($objects);
+        $type3CharProcObjectGenerations = $this->type3CharProcObjectGenerationSet($objects);
         foreach ($this->liveDirectObjectDefinitionsInFileOrder($definitions, $xrefEntries) as $definition) {
             $streamObjectNumber = $definition['objectNumber'];
             if (
@@ -4726,6 +4727,7 @@ final class PdfTextExtractor
                 || $objects[$streamObjectNumber] !== $definition['body']
                 || isset($embeddedFilePayloadObjectNumbers[$streamObjectNumber])
                 || isset($pieceInfoPrivateObjectNumbers[$streamObjectNumber])
+                || isset($type3CharProcObjectGenerations[$streamObjectNumber][$definition['generation']])
             ) {
                 continue;
             }
@@ -4752,6 +4754,26 @@ final class PdfTextExtractor
         }
 
         return $streams;
+    }
+
+    /**
+     * @return array<int, array<int, true>>
+     * @param array<int, string> $objects
+     */
+    private function type3CharProcObjectGenerationSet(array $objects): array
+    {
+        $references = [];
+        foreach ($objects as $body) {
+            if (!$this->isType3FontBody($body)) {
+                continue;
+            }
+
+            foreach ($this->charProcObjectReferences($body, $objects) as $reference) {
+                $references[$reference['objectNumber']][$reference['generation']] = true;
+            }
+        }
+
+        return $references;
     }
 
     /**
@@ -14705,6 +14727,11 @@ final class PdfTextExtractor
                 if ($token === "'" || $token === '"') {
                     $this->pushSpanLine($lines, $spans);
                     $currentTextY = $this->advanceTextYByLeading($currentTextY, $currentTextLeading);
+                }
+
+                if ($token === '"') {
+                    $wordSpacing = $this->quoteWordSpacingOperand($operands) ?? $wordSpacing;
+                    $characterSpacing = $this->quoteCharacterSpacingOperand($operands) ?? $characterSpacing;
                 }
 
                 $operand = $this->textShowingOperand($token, $operands);

@@ -18,6 +18,16 @@ $fontWidthAdvanceBoundaryCurrentBasePdf = static function (): string {
         . "6 0 obj\n<< /Type /Encoding /Differences [65 /W /i /d /e 70 /B /l /o /c /k] >>\nendobj\n%%EOF";
 };
 
+$fontWidthQuoteAdvanceBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /Fquote 12 Tf 16 TL 1 0 0 1 72 720 Tm (Lead) Tj 24 6 (A B) " ET';
+    $widths = implode(' ', array_fill(0, 35, '1000'));
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fquote 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+QuoteAdvance /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 66 /Widths [{$widths}] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+};
+
 return [
     'uses simple-font average positive width fallback for missing glyph advances on current base' => static function (TestRunner $t) use ($fontWidthAdvanceBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -37,6 +47,25 @@ return [
         $t->true(!str_contains($plainText, 'Wide Block'));
         $t->true(str_contains($plainText, 'Blo ck'));
         $t->true(!str_contains($plainText, 'Favg'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'applies quote operator spacing before styled font advance bboxes on current base' => static function (TestRunner $t) use ($fontWidthQuoteAdvanceBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthQuoteAdvanceBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $blocks = $pages[0]['blocks'] ?? [];
+        $quotedSpan = $blocks[1]['lines'][0]['spans'][0] ?? [];
+
+        $t->same(['Lead', 'A B'], $extractor->extractTextLines($pdf));
+        $t->same(['Lead', 'A B'], $extractor->extractTextRuns($pdf));
+        $t->same("Lead\nA B", $plainText);
+        $t->same("Lead\nA B\n", $extractor->naiveGetText($pdf));
+        $t->same('A B', $quotedSpan['text'] ?? null);
+        $t->same([0.0, 0.0, 72.0, 12.0], $quotedSpan['bbox'] ?? null);
+        $t->same(12.0, $quotedSpan['font_size'] ?? null);
+        $t->true(!str_contains($plainText, 'QuoteAdvance'));
+        $t->true(!str_contains($plainText, 'Fquote'));
         $t->true(!str_contains($plainText, "\0"));
     },
 ];
