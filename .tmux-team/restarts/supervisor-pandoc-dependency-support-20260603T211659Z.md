@@ -9,9 +9,9 @@
 
 ## Intensity
 - Level: high
-- Starting workers: existing continuous pool of 3 Pandoc workers
-- Scaling rule: keep the markerPDF/Pandoc watchdog at the current 8/3 split
-  unless resources or user priority changes justify a larger Pandoc share.
+- Starting workers: continuous pool raised to 6 Pandoc workers
+- Scaling rule: keep the markerPDF/Pandoc watchdog at an 8 markerPDF / 6
+  Pandoc split while disk, RAM, and load remain healthy.
 
 ## Non-Goals
 - Do not port Word, LibreOffice, TeX, Typst, browser layout engines,
