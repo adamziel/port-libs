@@ -1,0 +1,101 @@
+<?php
+
+declare(strict_types=1);
+
+require dirname(__DIR__, 3) . '/tools/bootstrap.php';
+
+use PortLibs\Pandoc\DocxReader;
+use PortLibs\Pandoc\WordPressBlockWriter;
+use PortLibs\Pandoc\ZipPackage;
+
+$contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+</Types>
+XML;
+
+$package = ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+    ['name' => '_rels/.rels', 'data' => <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+</Relationships>
+XML],
+    ['name' => 'word/_rels/document.xml.rels', 'data' => <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source-packet?post=42" TargetMode="External"/>
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+  <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
+</Relationships>
+XML],
+    ['name' => 'word/document.xml', 'data' => <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>DOCX source packet</w:t></w:r></w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Import reviewer keeps </w:t></w:r>
+      <w:hyperlink r:id="rIdSource"><w:r><w:t>the source link</w:t></w:r></w:hyperlink>
+      <w:r><w:t xml:space="preserve"> visible.</w:t></w:r>
+      <w:r><w:footnoteReference w:id="2"/></w:r>
+    </w:p>
+    <w:p><w:r><w:drawing><wp:inline><wp:docPr id="9" name="Hero" descr="Source hero alt" title="Source hero"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdHero"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>
+  </w:body>
+</w:document>
+XML],
+    ['name' => 'word/footnotes.xml', 'data' => <<<'XML'
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="2"><w:p><w:r><w:t>DOCX footnote import note.</w:t></w:r></w:p></w:footnote>
+</w:footnotes>
+XML],
+    ['name' => 'word/media/hero.png', 'data' => 'PNGDATA'],
+    ['name' => 'docProps/core.xml', 'data' => <<<'XML'
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
+  xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <dc:title>WordPress DOCX handoff</dc:title>
+  <dc:creator>Migration Desk</dc:creator>
+</cp:coreProperties>
+XML],
+]);
+
+$reader = new DocxReader();
+$result = $reader->readPackage($package);
+$blocks = (new WordPressBlockWriter())->write($result['document']);
+
+$summary = [
+    'metadata' => $result['metadata'],
+    'documentPart' => $result['documentPart'],
+    'blockCount' => count($result['document']->children),
+    'wordpressBlocks' => $blocks,
+];
+
+if (($argv[1] ?? '') === '--self-test') {
+    if (($summary['metadata']['title'] ?? '') !== 'WordPress DOCX handoff') {
+        throw new RuntimeException('DOCX body handoff self-test missing metadata title');
+    }
+
+    foreach ([
+        '<h1 id="docx-source-packet">DOCX source packet</h1>',
+        '<a href="https://example.test/source-packet?post=42">the source link</a>',
+        '<img src="word/media/hero.png" alt="Source hero alt" title="Source hero"/>',
+        'DOCX footnote import note.',
+    ] as $needle) {
+        if (!str_contains($blocks, $needle)) {
+            throw new RuntimeException('DOCX body handoff self-test missing: ' . $needle);
+        }
+    }
+
+    echo "docx body handoff self-test ok\n";
+    return;
+}
+
+echo json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
