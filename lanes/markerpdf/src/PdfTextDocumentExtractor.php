@@ -37,7 +37,8 @@ final class PdfTextDocumentExtractor
         ?int $startPage = null,
         array $toc = [],
         bool $flattenPdf = false,
-        ?int $workers = null
+        ?int $workers = null,
+        bool $sort = false
     ): array {
         $totalPages = count($pdftextPages);
         $startPage ??= 0;
@@ -66,6 +67,9 @@ final class PdfTextDocumentExtractor
                 throw new InvalidArgumentException('Supplied pdftext page entries must be arrays.');
             }
             $page = $this->sanitizeDictionaryOutputPage($page);
+            if ($sort) {
+                $page['blocks'] = $this->sortDictionaryOutputBlocks($page['blocks'] ?? null);
+            }
             $pages[] = $this->converter->pdftextFormatToPage($page, $relativeIndex);
         }
 
@@ -84,6 +88,7 @@ final class PdfTextDocumentExtractor
                     'keep_chars' => false,
                     'flatten_pdf' => $flattenPdf,
                     'workers' => $workers,
+                    'sort' => $sort ? true : null,
                 ], static fn (mixed $value): bool => $value !== null),
             ],
             'page_range' => $pageRange,
@@ -119,6 +124,7 @@ final class PdfTextDocumentExtractor
         array $toc = [],
         bool $flattenPdf = false,
         ?int $workers = null,
+        bool $sort = false,
         float $batchMultiplier = 1.0,
         ?LayoutOrderer $orderer = null
     ): array {
@@ -128,7 +134,8 @@ final class PdfTextDocumentExtractor
             startPage: $startPage,
             toc: $toc,
             flattenPdf: $flattenPdf,
-            workers: $workers
+            workers: $workers,
+            sort: $sort
         );
         $orderer ??= new LayoutOrderer();
         $orderImages = $this->selectSuppliedPageArtifacts(
@@ -275,6 +282,82 @@ final class PdfTextDocumentExtractor
         }
 
         return $sanitizedSpans;
+    }
+
+    /**
+     * Mirrors pdftext.postprocessing::sort_blocks for callers that request
+     * dictionary_output(sort=true) before Marker page conversion.
+     *
+     * @param mixed $blocks
+     * @return list<array<string, mixed>>
+     */
+    private function sortDictionaryOutputBlocks(mixed $blocks, float $tolerance = 1.25): array
+    {
+        if (!is_array($blocks) || !array_is_list($blocks)) {
+            throw new InvalidArgumentException('pdftext page blocks must be a list before dictionary sort.');
+        }
+
+        $groups = [];
+        foreach ($blocks as $index => $block) {
+            if (!is_array($block)) {
+                throw new InvalidArgumentException("pdftext block {$index} must be a dictionary before dictionary sort.");
+            }
+
+            $bbox = $this->dictionaryOutputBbox($block['bbox'] ?? null, "blocks[{$index}].bbox");
+            $sortKey = $tolerance > 0.0 ? round($bbox[1] / $tolerance) * $tolerance : $bbox[1];
+            $key = (string) $sortKey;
+            if (!isset($groups[$key])) {
+                $groups[$key] = [
+                    'sort_key' => $sortKey,
+                    'blocks' => [],
+                ];
+            }
+            $groups[$key]['blocks'][] = [
+                'index' => $index,
+                'left' => $bbox[0],
+                'block' => $block,
+            ];
+        }
+
+        usort(
+            $groups,
+            static fn (array $left, array $right): int => $left['sort_key'] <=> $right['sort_key']
+        );
+
+        $sorted = [];
+        foreach ($groups as $group) {
+            $groupBlocks = $group['blocks'];
+            usort(
+                $groupBlocks,
+                static fn (array $left, array $right): int => ($left['left'] <=> $right['left']) ?: ($left['index'] <=> $right['index'])
+            );
+            foreach ($groupBlocks as $entry) {
+                $sorted[] = $entry['block'];
+            }
+        }
+
+        return $sorted;
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<float>
+     */
+    private function dictionaryOutputBbox(mixed $value, string $field): array
+    {
+        if (!is_array($value) || count($value) !== 4) {
+            throw new InvalidArgumentException("pdftext {$field} must be a four-number bbox before dictionary sort.");
+        }
+
+        $bbox = [];
+        foreach (array_values($value) as $part) {
+            if (!is_int($part) && !is_float($part)) {
+                throw new InvalidArgumentException("pdftext {$field} must be a four-number bbox before dictionary sort.");
+            }
+            $bbox[] = (float) $part;
+        }
+
+        return $bbox;
     }
 
     /**

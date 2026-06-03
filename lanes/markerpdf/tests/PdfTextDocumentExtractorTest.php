@@ -146,6 +146,52 @@ return [
         $t->true(!str_contains($span['text'], "\x00"), 'Visible WordPress text must not retain unsafe control bytes.');
         $t->true(!str_contains($span['text'], "\u{FB01}"), 'Visible WordPress text must expand pdftext ligatures.');
     },
+    'optionally sorts supplied pdftext dictionary blocks like dictionary_output sort' => static function (TestRunner $t): void {
+        $block = static function (string $text, array $bbox): array {
+            return [
+                'bbox' => $bbox,
+                'lines' => [[
+                    'bbox' => $bbox,
+                    'spans' => [[
+                        'text' => $text,
+                        'bbox' => $bbox,
+                        'font' => ['name' => 'Times-Roman', 'flags' => null, 'weight' => 400, 'size' => 11.0],
+                    ]],
+                ]],
+            ];
+        };
+        $page = [
+            'page' => 14,
+            'bbox' => [0.0, 0.0, 612.0, 792.0],
+            'rotation' => 0,
+            'blocks' => [
+                $block('Bottom dictionary paragraph', [72.0, 144.0, 320.0, 158.0]),
+                $block('Right top column', [330.0, 100.3, 540.0, 114.0]),
+                $block('Left top column', [72.0, 100.0, 270.0, 114.0]),
+            ],
+        ];
+
+        $extractor = new PdfTextDocumentExtractor();
+        $unsorted = $extractor->getTextBlocks([$page], maxPages: 1);
+        $sorted = $extractor->getTextBlocks([$page], maxPages: 1, sort: true);
+        $processor = new MarkdownPostProcessor();
+
+        $textFor = static fn (array $document): array => array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $document['pages'][0]['blocks']
+        );
+        $mergedSorted = $processor->mergeBlocks($processor->mergeSpans($sorted['pages']));
+
+        $t->same(['Bottom dictionary paragraph', 'Right top column', 'Left top column'], $textFor($unsorted));
+        $t->same(['Left top column', 'Right top column', 'Bottom dictionary paragraph'], $textFor($sorted));
+        $t->same(['Left top column', 'Right top column', 'Bottom dictionary paragraph'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $sorted['pages'][0]['char_blocks']
+        ));
+        $t->same('Left top column Right top column Bottom dictionary paragraph', $mergedSorted[0]['text']);
+        $t->same(true, $sorted['metadata']['pdftext_options']['sort']);
+        $t->true(!array_key_exists('sort', $unsorted['metadata']['pdftext_options']), 'Default markerPDF get_text_blocks path should keep pdftext sort=false omitted.');
+    },
     'rejects out of range page slices before WordPress import' => static function (TestRunner $t) use ($pdftextPage): void {
         $extractor = new PdfTextDocumentExtractor();
 
