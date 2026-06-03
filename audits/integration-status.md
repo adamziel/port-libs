@@ -1,5 +1,15 @@
 # Integration Status
 
+## Integration accepted - markerPDF/Pandoc 09:30 handoff batch - 2026-06-03T13:55:00Z
+
+- Accepted source commit: `d3507537968c50e510a4c0a301d3ce06601ee20b` (`Integrate markerPDF Pandoc 0930 handoff batch`).
+- Status commit: `89e148ba1` (`Update markerPDF Pandoc 0930 batch status`).
+- MarkerPDF accepted slices: encrypted permission operands, XMP/current-trailer metadata, inline-image decode boundaries, classic xref rebuild, xref Prev repair, named-destination limits, attachment review, and marker-app PageLabels limits.
+- Pandoc accepted slices: bracketed multi-item citation clusters/CSL rendering and ZIP entry timestamp/external-attribute metadata with local-header timestamp integrity.
+- Verification: PHP lint passed for all changed PHP files; focused gate passed `10 files / 1352 assertions / 0 failures`; full markerPDF passed `312 files / 16712 assertions / 0 failures / 1028 PASS lines`; full Pandoc passed `5 files / 2693 assertions / 0 failures / 288 PASS lines`; changed examples and ZIP self-test smokes passed.
+- Status reconciliation: markerPDF `1028 pass / 0 fail`, mapped `707 / 78`; Pandoc `288 pass / 0 fail`, mapped `707 / 2276`.
+- Worker health: `scripts/run-markerpdf-pandoc-refill-watchdog.sh` is running in tmux window `port-markerpdf-pandoc-refill-watchdog`. At `2026-06-03T13:54:16Z` it detected the pool had drained to `5/8` markerPDF and `2/3` Pandoc, started `3` markerPDF and `1` Pandoc replacement workers, and logged restored target window counts.
+
 ## Accepted marker - libsqlite Unicode GLOB range matching - 2026-05-27T06:08:00Z
 
 - Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-encoding-20260527T055454Z.ready`
