@@ -57,6 +57,16 @@ try {
 
     $batch = new BatchConverter();
     $textLength = static fn (string $filepath): int => basename($filepath) === 'short-text.pdf' ? 12 : 180;
+    $runtimePlan = $batch->runtimeMainPreflightPlan(
+        $input,
+        $output,
+        metadataByFilename: [
+            'ready-for-marker.pdf' => ['title' => 'Ready for Marker', 'languages' => ['English']],
+            'short-text.pdf' => ['title' => 'Short Text Review'],
+        ],
+        minLength: 80,
+        workers: 8
+    );
     $plans = [];
     foreach (['already-imported.pdf', 'extension-spoof.pdf', 'short-text.pdf', 'ready-for-marker.pdf'] as $filename) {
         $plans[$filename] = $batch->processFilePreflightPlan(
@@ -83,13 +93,28 @@ try {
     if ($plans['ready-for-marker.pdf']['executes_python_or_models'] !== false || $plans['ready-for-marker.pdf']['executes_external_pdf_tools'] !== false) {
         throw new RuntimeException('Preflight smoke must not execute Python models or external PDF tools.');
     }
+    if ($runtimePlan['worker_pool']['total_processes'] !== 4 || $runtimePlan['worker_pool']['pool_launchable'] !== true) {
+        throw new RuntimeException('Expected runtime main preflight to clamp worker count to selected task count.');
+    }
+    if ($runtimePlan['executes_python_or_models'] !== false || $runtimePlan['executes_multiprocessing'] !== false) {
+        throw new RuntimeException('Runtime main preflight smoke must not launch model workers or multiprocessing.');
+    }
 
     echo json_encode([
         'scenario' => 'wordpress-marker-runtime-preflight-boundary-currentbase',
         'purpose' => 'Review convert.py process_single_pdf preflight decisions for a WordPress PDF import queue before launching Marker model workers.',
         'source' => $plans['ready-for-marker.pdf']['source'],
+        'runtime_main_source' => $runtimePlan['source'],
         'min_length' => 80,
+        'runtime_main_order' => $runtimePlan['preflight_order'],
         'preflight_order' => $plans['ready-for-marker.pdf']['preflight_order'],
+        'runtime_selected_filenames' => $runtimePlan['chunking']['selected_filenames'],
+        'runtime_metadata_filenames' => $runtimePlan['metadata']['metadata_filenames'],
+        'runtime_missing_metadata_filenames' => $runtimePlan['metadata']['missing_metadata_filenames'],
+        'runtime_total_processes' => $runtimePlan['worker_pool']['total_processes'],
+        'runtime_pool_launchable' => $runtimePlan['worker_pool']['pool_launchable'],
+        'runtime_pool_error_boundary' => $runtimePlan['worker_pool']['pool_error_boundary'],
+        'runtime_output_folder_creation_required' => $runtimePlan['paths']['output_folder_creation_required'],
         'status_by_filename' => array_map(static fn (array $plan): string => (string) $plan['status'], $plans),
         'skip_reasons' => array_map(static fn (array $plan): ?string => $plan['skip_reason'], $plans),
         'ready_text_length' => $plans['ready-for-marker.pdf']['text_length'],
@@ -98,6 +123,7 @@ try {
         'spoof_text_length_checked' => $plans['extension-spoof.pdf']['text_length_checked'],
         'executes_python_or_models' => $plans['ready-for-marker.pdf']['executes_python_or_models'],
         'executes_multiprocessing' => $plans['ready-for-marker.pdf']['executes_multiprocessing'],
+        'runtime_executes_multiprocessing' => $runtimePlan['executes_multiprocessing'],
         'executes_external_pdf_tools' => $plans['ready-for-marker.pdf']['executes_external_pdf_tools'],
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 } finally {

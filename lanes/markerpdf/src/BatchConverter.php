@@ -224,6 +224,152 @@ final class BatchConverter
     }
 
     /**
+     * Native no-execution boundary for convert.py::main runtime admission.
+     *
+     * Upstream normalizes input/output folders with os.path.abspath(), creates
+     * the output folder with exist_ok=True, slices os.listdir() results into a
+     * chunk, resolves optional metadata by basename, then builds task tuples
+     * before torch multiprocessing/model loading. This records the same
+     * admission state for WordPress import review without mutating folders or
+     * launching Python workers.
+     *
+     * @param array<string, array<string, mixed>> $metadataByFilename
+     * @return array<string, mixed>
+     */
+    public function runtimeMainPreflightPlan(
+        string $inputFolder,
+        string $outputFolder,
+        int $chunkIndex = 0,
+        int $numChunks = 1,
+        ?int $maxFiles = null,
+        array $metadataByFilename = [],
+        ?int $minLength = null,
+        int $workers = 5,
+        ?string $metadataFile = null
+    ): array {
+        $absoluteInputFolder = $this->absolutePath($inputFolder);
+        $absoluteOutputFolder = $this->absolutePath($outputFolder);
+        $absoluteMetadataFile = $metadataFile === null || $metadataFile === ''
+            ? null
+            : $this->absolutePath($metadataFile);
+        $runtimeMetadata = $absoluteMetadataFile === null
+            ? $metadataByFilename
+            : $this->loadMetadataFile($absoluteMetadataFile);
+
+        $inputFiles = $this->inputFiles($absoluteInputFolder);
+        $tasks = $this->planTasks(
+            $absoluteInputFolder,
+            $absoluteOutputFolder,
+            $chunkIndex,
+            $numChunks,
+            $maxFiles,
+            $runtimeMetadata,
+            $minLength
+        );
+
+        $taskArgs = [];
+        foreach ($tasks as $task) {
+            $taskArgs[] = $this->taskArg($task);
+        }
+
+        $selectedFilenames = array_map(static fn (array $task): string => basename((string) $task['filepath']), $tasks);
+        $metadataFilenames = array_values(array_filter(array_keys($runtimeMetadata), 'is_string'));
+        sort($metadataFilenames, SORT_STRING);
+        $selectedMetadataFilenames = array_values(array_filter(
+            $selectedFilenames,
+            static fn (string $filename): bool => array_key_exists($filename, $runtimeMetadata)
+        ));
+        $missingMetadataFilenames = array_values(array_filter(
+            $selectedFilenames,
+            static fn (string $filename): bool => !array_key_exists($filename, $runtimeMetadata)
+        ));
+
+        $chunkSize = $numChunks < 1 ? 0 : (int) ceil(count($inputFiles) / $numChunks);
+        $startIndex = $chunkIndex * $chunkSize;
+        $endIndex = $startIndex + $chunkSize;
+        $totalProcesses = $workers < 1 ? 0 : min(count($taskArgs), $workers);
+        $poolErrorBoundary = null;
+        if ($workers < 1) {
+            $poolErrorBoundary = 'invalid-worker-count';
+        } elseif (count($taskArgs) === 0) {
+            $poolErrorBoundary = 'empty-task-queue';
+        }
+
+        return [
+            'schema' => 'markerpdf.convert_main_runtime_preflight.v1',
+            'source' => 'sddai/markerPDF convert.py::main + os.path.abspath + os.makedirs(exist_ok=True) + task_args + torch.multiprocessing.Pool',
+            'environment' => [
+                'PYTORCH_ENABLE_MPS_FALLBACK' => '1',
+                'IN_STREAMLIT' => 'true',
+                'PDFTEXT_CPU_WORKERS' => '1',
+            ],
+            'preflight_order' => [
+                'configure_logging',
+                'parse_args',
+                'abspath_input_output',
+                'list_input_files',
+                'makedirs_output_exist_ok',
+                'chunk_files',
+                'load_metadata_file',
+                'set_spawn_start_method',
+                'prepare_model_handoff',
+                'build_task_args',
+                'pool_imap_process_single_pdf',
+            ],
+            'paths' => [
+                'input_folder' => $inputFolder,
+                'output_folder' => $outputFolder,
+                'absolute_input_folder' => $absoluteInputFolder,
+                'absolute_output_folder' => $absoluteOutputFolder,
+                'output_folder_exists' => is_dir($absoluteOutputFolder),
+                'upstream_creates_output_folder' => true,
+                'native_plan_creates_output_folder' => false,
+                'output_folder_creation_required' => !is_dir($absoluteOutputFolder),
+            ],
+            'chunking' => [
+                'chunk_index' => $chunkIndex,
+                'num_chunks' => $numChunks,
+                'chunk_size' => $chunkSize,
+                'start_index' => $startIndex,
+                'end_index' => $endIndex,
+                'max_files' => $maxFiles,
+                'input_file_count' => count($inputFiles),
+                'selected_count' => count($tasks),
+                'selected_filenames' => $selectedFilenames,
+            ],
+            'metadata' => [
+                'source' => $absoluteMetadataFile === null ? 'metadataByFilename argument' : 'metadata_file json.load keyed by basename',
+                'metadata_file' => $absoluteMetadataFile,
+                'metadata_filenames' => $metadataFilenames,
+                'selected_metadata_filenames' => $selectedMetadataFilenames,
+                'missing_metadata_filenames' => $missingMetadataFilenames,
+            ],
+            'worker_pool' => [
+                'requested_workers' => $workers,
+                'total_processes' => $totalProcesses,
+                'pool_launchable' => $totalProcesses > 0,
+                'pool_error_boundary' => $poolErrorBoundary,
+                'start_method' => 'spawn',
+                'process_function' => 'process_single_pdf',
+                'task_args_count' => count($taskArgs),
+                'task_args' => $taskArgs,
+                'progress_iterator' => $this->progressIterator(),
+            ],
+            'conversion_boundary' => [
+                'min_length' => $minLength,
+                'per_file_preflight_function' => 'process_single_pdf',
+                'converter_function' => 'convert_single_pdf',
+                'metadata_lookup' => 'metadata.get(os.path.basename(f))',
+                'empty_output_policy' => 'print_empty_file_without_save_markdown',
+            ],
+            'review_only' => true,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
      * Native boundary for convert.py's --metadata_file json.load() path.
      *
      * @return array<string, array<string, mixed>>
@@ -608,6 +754,20 @@ final class BatchConverter
         }
 
         return round(($completed / $total) * 100, 4);
+    }
+
+    private function absolutePath(string $path): string
+    {
+        $real = realpath($path);
+        if (is_string($real)) {
+            return $real;
+        }
+
+        if (str_starts_with($path, DIRECTORY_SEPARATOR)) {
+            return rtrim($path, DIRECTORY_SEPARATOR);
+        }
+
+        return rtrim((string) getcwd(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $path;
     }
 
     /**

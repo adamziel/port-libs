@@ -86,7 +86,8 @@ final class SuppliedDocumentConverter
             : null;
         $batchMultiplier = $this->numericOption($options, 'batch_multiplier', 1.0);
         $ocrAllPages = (bool) ($options['ocr_all_pages'] ?? false);
-        $documentPageCount = $this->nullableIntOption($options, 'document_page_count') ?? count($pdftextPages);
+        $sourcePageCount = count($pdftextPages);
+        $documentPageCount = $this->nullableIntOption($options, 'document_page_count') ?? $sourcePageCount;
 
         $extracted = $this->textExtractor->getTextBlocks(
             $pdftextPages,
@@ -99,8 +100,8 @@ final class SuppliedDocumentConverter
             $filename,
             $extracted['pages'],
             $extracted['toc'],
-            function (array $pages, array $context) use ($options, $settings, $extracted, $batchMultiplier): array {
-                return $this->runSuppliedPipeline($pages, $context, $options, $settings, $extracted, (float) $batchMultiplier);
+            function (array $pages, array $context) use ($options, $settings, $extracted, $batchMultiplier, $sourcePageCount): array {
+                return $this->runSuppliedPipeline($pages, $context, $options, $settings, $extracted, (float) $batchMultiplier, $sourcePageCount);
             },
             maxPages: $maxPages,
             startPage: $startPage,
@@ -126,7 +127,8 @@ final class SuppliedDocumentConverter
         array $options,
         MarkerSettings $settings,
         array $extracted,
-        float $batchMultiplier
+        float $batchMultiplier,
+        int $sourcePageCount
     ): array {
         $metadata = [
             'page_range' => $extracted['page_range'],
@@ -148,10 +150,23 @@ final class SuppliedDocumentConverter
             ];
         }
 
-        $layoutResults = $this->listOption($options, 'layout_results');
+        $selectedPageCount = count($pages);
+        $pageRange = $extracted['page_range'];
+        $lowresImages = $this->selectSelectedPageArtifacts(
+            $this->listOption($options, 'lowres_images'),
+            $sourcePageCount,
+            $pageRange,
+            $selectedPageCount
+        );
+        $layoutResults = $this->selectSelectedPageArtifacts(
+            $this->listOption($options, 'layout_results'),
+            $sourcePageCount,
+            $pageRange,
+            $selectedPageCount
+        );
         if ($layoutResults !== []) {
             $layout = $this->layoutAnnotator->runWithSuppliedLayouts(
-                $this->listOption($options, 'lowres_images'),
+                $lowresImages,
                 $pages,
                 $layoutResults,
                 $batchMultiplier
@@ -166,10 +181,21 @@ final class SuppliedDocumentConverter
             (string) $settings->get('DEFAULT_BLOCK_TYPE')
         );
 
-        $orderResults = $this->listOption($options, 'order_results');
+        $orderImages = $this->selectSelectedPageArtifacts(
+            $this->listOption($options, 'order_images'),
+            $sourcePageCount,
+            $pageRange,
+            $selectedPageCount
+        );
+        $orderResults = $this->selectSelectedPageArtifacts(
+            $this->listOption($options, 'order_results'),
+            $sourcePageCount,
+            $pageRange,
+            $selectedPageCount
+        );
         if ($orderResults !== []) {
             $ordered = $this->layoutOrderer->runWithSuppliedOrder(
-                $this->listOption($options, 'order_images'),
+                $orderImages,
                 $pages,
                 $orderResults,
                 $batchMultiplier
@@ -351,6 +377,37 @@ final class SuppliedDocumentConverter
         }
 
         return $pages;
+    }
+
+    /**
+     * Upstream deletes pages before start_page from the PDFium document before
+     * rendering low-res images and running layout/order models. Native supplied
+     * artifacts that still span the original pdftext page list need the same
+     * range alignment before zip-style model assignment.
+     *
+     * @param list<mixed> $artifacts
+     * @param list<int> $pageRange
+     * @return list<mixed>
+     */
+    private function selectSelectedPageArtifacts(
+        array $artifacts,
+        int $sourcePageCount,
+        array $pageRange,
+        int $selectedPageCount
+    ): array {
+        $artifacts = array_values($artifacts);
+        if (
+            $artifacts === []
+            || $pageRange === []
+            || $selectedPageCount === 0
+            || $sourcePageCount === $selectedPageCount
+            || count($artifacts) !== $sourcePageCount
+            || count($artifacts) === $selectedPageCount
+        ) {
+            return $artifacts;
+        }
+
+        return array_slice($artifacts, $pageRange[0], $selectedPageCount);
     }
 
     /**

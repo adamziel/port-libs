@@ -191,6 +191,99 @@ return [
             unlink($path);
         }
     },
+    'aligns full document layout and order artifacts to selected pdftext page ranges' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-supplied-layout-order-range-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% supplied document selected layout order range\n%%EOF");
+        try {
+            $coverPage = $pdftextPage(6, [
+                ['text' => 'Skipped cover page artifact.', 'bbox' => [72.0, 80.0, 280.0, 94.0]],
+            ]);
+            $selectedPage = $pdftextPage(7, [
+                ['text' => 'Second selected column carries media notes.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                ['text' => 'First selected column starts the import.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+            ]);
+            $appendixPage = $pdftextPage(8, [
+                ['text' => 'Skipped appendix page artifact.', 'bbox' => [72.0, 80.0, 300.0, 94.0]],
+            ]);
+
+            $layoutResults = [
+                [
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['label' => 'Picture', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                        ['label' => 'Picture', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                    ],
+                ],
+                [
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                        ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                    ],
+                ],
+                [
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['label' => 'Caption', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                        ['label' => 'Caption', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                    ],
+                ],
+            ];
+            $orderResults = [
+                [
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                        ['position' => 2, 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                    ],
+                ],
+                [
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                        ['position' => 2, 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                    ],
+                ],
+                [
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                        ['position' => 2, 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                    ],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$coverPage, $selectedPage, $appendixPage],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => ['cover-render', 'selected-render', 'appendix-render'],
+                    'layout_results' => $layoutResults,
+                    'order_images' => ['cover-order-render', 'selected-order-render', 'appendix-order-render'],
+                    'order_results' => $orderResults,
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $t->same([1], $result['metadata']['page_range']);
+            $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries']);
+            $t->same(1, $result['metadata']['layout_plan']['image_count']);
+            $t->same(1, $result['metadata']['layout_plan']['layout_result_count']);
+            $t->same(1, $result['metadata']['order_plan']['image_count']);
+            $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+            $t->same([[60.0, 92.0, 290.0, 150.0], [318.0, 92.0, 570.0, 150.0]], $result['metadata']['order_plan']['requested_bboxes'][0]);
+            $t->contains('First selected column starts the import.', $result['text']);
+            $t->contains('Second selected column carries media notes.', $result['text']);
+            $t->true(strpos($result['text'], 'First selected column starts the import.') < strpos($result['text'], 'Second selected column carries media notes.'));
+            $t->true(!str_contains($result['text'], 'Skipped cover page artifact.'));
+            $t->true(!str_contains($result['text'], 'Skipped appendix page artifact.'));
+        } finally {
+            unlink($path);
+        }
+    },
     'routes forced OCR table cells through supplied detector output before formatting' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-forced-ocr-table-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% forced OCR table supplied pipeline\n%%EOF");
