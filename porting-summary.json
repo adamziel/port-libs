@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-03 09:18:19 UTC",
-    "sourceCommit": "2b759f764215c5b75af63ce797f50d5fb1e71f19",
-    "sourceCommitShort": "2b759f764215",
+    "generated": "2026-06-03 09:22:24 UTC",
+    "sourceCommit": "19763d66545b620e906c07c6e75d82b520edf361",
+    "sourceCommitShort": "19763d66545b",
     "sourceBranch": "unknown",
-    "dashboardCommit": "1f612163bbc3ce9817e1f83b5d7ef8b6f693f982",
-    "dashboardCommitShort": "1f612163bbc3",
+    "dashboardCommit": "19763d66545b620e906c07c6e75d82b520edf361",
+    "dashboardCommitShort": "19763d66545b",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "702",
-            "coverage": "702 / 78 (900.0%)",
-            "mapPercent": "900.0%",
+            "mapped": "703",
+            "coverage": "703 / 78 (901.3%)",
+            "mapPercent": "901.3%",
             "unmapped": "0",
-            "php": "1,016 pass / 0 fail",
-            "phase": "native no-GPU markerPDF scope; geometry/font/type3/link handoffs acce...",
-            "audit": "2026-06-03 UTC supervisor accepted markerPDF geometry/font/type3/link...",
+            "php": "1,017 pass / 0 fail",
+            "phase": "native no-GPU markerPDF scope; stream-filter stack boundary handoff a...",
+            "audit": "2026-06-03 UTC supervisor accepted markerPDF stream-filter stack boun...",
             "currentWork": "MarkerPDF is supervised as a native PHP searchable-PDF parser/converter plus supplied...",
-            "nextTarget": "Supervisor-only session with bounded worker swarm: keep the r...",
+            "nextTarget": "Supervisor-only session with bounded worker swarm: score rema...",
             "remainingGate": "No GPU/model execution will be run for markerPDF under current user d...",
-            "commit": "2b759f7"
+            "commit": "6c0d52c"
         },
         {
             "lane": "readability",
