@@ -13,6 +13,21 @@ $pdfWithPagesTree = static function (): string {
         . "%%EOF\n";
 };
 
+$pdfWithPageLabels = static function (): string {
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R 6 0 R 7 0 R] /Count 5 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "7 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "20 0 obj\n<< /Kids [21 0 R 22 0 R] /Limits [1 8] >>\nendobj\n"
+        . "21 0 obj\n<< /Limits [1 2] /Nums [1 << /P (front-) /S /r /St 2 >>] >>\nendobj\n"
+        . "22 0 obj\n<< /Limits [3 8] /Nums [3 << /P (Body\\040) /S /D /St 7 >> 4 << /P <466f6c646f757420> >> 8 << /P (stale-) /S /D /St 99 >>] >>\nendobj\n"
+        . "%%EOF\n";
+};
+
 return [
     'counts pdf pages through the upstream marker app open pdf boundary' => static function (TestRunner $t) use ($pdfWithPagesTree): void {
         $preview = new MarkerAppPreview();
@@ -23,6 +38,29 @@ return [
         $t->same(2, $preview->pageCount($pdfWithPagesTree()));
         $t->same([1, 2], array_column($summary['pages'], 'page_number'));
         $t->same([4, 3], array_column($summary['pages'], 'object_id'));
+    },
+    'resolves catalog page labels number tree onto preview page boundaries' => static function (TestRunner $t) use ($pdfWithPageLabels): void {
+        $preview = new MarkerAppPreview();
+        $summary = $preview->openPdfSummary($pdfWithPageLabels());
+
+        $t->same(['1', 'front-ii', 'front-iii', 'Body 7', 'Foldout '], $preview->pageLabels($pdfWithPageLabels()));
+        $t->same(['1', 'front-ii', 'front-iii', 'Body 7', 'Foldout '], array_column($summary['pages'], 'page_label'));
+        $t->same('Body 7', $preview->getPageImagePlan($pdfWithPageLabels(), 4)['page_label']);
+    },
+    'formats direct page label dictionaries with alphabetic roman and prefix-only sections' => static function (TestRunner $t): void {
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels << /Nums [0 << /P (App-) /S /A /St 26 >> 2 << /P (Part /S ) /S /R /St 4 >> 4 << /P (foldout) >>] >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R 6 0 R 7 0 R] /Count 5 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+            . "6 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+            . "7 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+            . "%%EOF\n";
+
+        $labels = (new MarkerAppPreview())->pageLabels($pdf);
+
+        $t->same(['App-Z', 'App-AA', 'Part /S IV', 'Part /S V', 'foldout'], $labels);
     },
     'uses pages tree order inherited media boxes and direct page media boxes' => static function (TestRunner $t) use ($pdfWithPagesTree): void {
         $summary = (new MarkerAppPreview())->openPdfSummary($pdfWithPagesTree());

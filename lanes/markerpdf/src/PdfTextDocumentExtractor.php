@@ -266,11 +266,66 @@ final class PdfTextDocumentExtractor
         $sanitizedSpans = [];
         foreach ($spans as $span) {
             if (is_array($span)) {
+                if (array_key_exists('text', $span) && is_string($span['text'])) {
+                    $span['text'] = $this->normalizeDictionaryOutputText($span['text']);
+                }
                 unset($span['chars']);
             }
             $sanitizedSpans[] = $span;
         }
 
         return $sanitizedSpans;
+    }
+
+    /**
+     * pdftext.extraction.dictionary_output post-processes span text before
+     * markerPDF receives it: special spaces are normalized, unsafe controls are
+     * dropped, ligatures are expanded, and the internal hyphen marker becomes
+     * the "-\n" sequence that markerPDF's converter later removes.
+     */
+    private function normalizeDictionaryOutputText(string $text): string
+    {
+        $text = str_replace("\r\n", "\n", $text);
+        $text = str_replace(["\u{FFFE}", "\u{FEFF}", "\u{00A0}"], ' ', $text);
+        $text = str_replace(["\r", "\n"], "\n", $text);
+        $text = str_replace("\u{0009}", "\t", $text);
+
+        $text = $this->removeUnsafeControlCharacters($text);
+
+        foreach ([
+            "\u{FB00}" => 'ff',
+            "\u{FB03}" => 'ffi',
+            "\u{FB04}" => 'ffl',
+            "\u{FB01}" => 'fi',
+            "\u{FB02}" => 'fl',
+            "\u{FB06}" => 'st',
+            "\u{FB05}" => 'st',
+        ] as $ligature => $replacement) {
+            $text = str_replace($ligature, $replacement, $text);
+        }
+
+        return str_replace("\x02", "-\n", $text);
+    }
+
+    private function removeUnsafeControlCharacters(string $text): string
+    {
+        $normalized = preg_replace_callback(
+            '/\p{C}/u',
+            static function (array $match): string {
+                $char = $match[0];
+                if (in_array($char, ["\x02", "\n", "\r", "\f", "\t", ' '], true)) {
+                    return $char;
+                }
+
+                return '';
+            },
+            $text
+        );
+
+        if ($normalized === null) {
+            return preg_replace('/[\x00-\x01\x03-\x08\x0B\x0E-\x1F\x7F]/', '', $text) ?? $text;
+        }
+
+        return $normalized;
     }
 }

@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
+use PortLibs\MarkerPDF\PdfNamedDestinationExtractor;
 use PortLibs\MarkerPDF\PdfOutlineExtractor;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-$pdf = "%PDF-1.4\n"
+$outlinePdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R /Names << /Dests 8 0 R >> /Dests << /Appendix [4 0 R /Fit] >> >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
     . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n"
@@ -18,14 +19,24 @@ $pdf = "%PDF-1.4\n"
     . "9 0 obj\n<< /Title (Review Checklist) /Parent 6 0 R /Dest /wp-review >>\nendobj\n"
     . "%%EOF";
 
-$toc = (new PdfOutlineExtractor())->getPdfToc($pdf);
+$destinationPdf = "%PDF-1.7\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /Dests << /Names [(migration-start) [3 0 R /Fit] (media-cleanup) [4 0 R /XYZ 72 650 1]] >> >> >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+    . "%%EOF\n";
+
+$toc = (new PdfOutlineExtractor())->getPdfToc($outlinePdf);
+$destinations = (new PdfNamedDestinationExtractor())->extractNamedDestinations($destinationPdf);
 
 echo '<!-- markerpdf-pdf-named-destinations ' . htmlspecialchars(json_encode([
-    'support_component' => 'native-pdf-outline-destination-parser',
+    'support_component' => 'native-pdf-outline-and-named-destination-parser',
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
     'toc_count' => count($toc),
-    'destination_names' => array_values(array_filter(array_column($toc, 'destination'), 'is_string')),
+    'destination_count' => count($destinations),
+    'outline_destination_names' => array_values(array_filter(array_column($toc, 'destination'), 'is_string')),
+    'named_destinations' => array_column($destinations, 'name'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
 echo "<!-- wp:list -->\n<ul>\n";
@@ -44,5 +55,18 @@ foreach ($toc as $item) {
     }
 
     echo '<li' . $attrText . '>' . htmlspecialchars($item['title'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</li>\n";
+}
+foreach ($destinations as $destination) {
+    $metadata = [
+        'markerDestination' => $destination['name'],
+        'markerPageIndex' => $destination['page'],
+        'markerPageObjectId' => $destination['page_object_id'],
+        'markerFit' => $destination['fit'],
+        'markerCoordinates' => $destination['coordinates'],
+        'markerSource' => $destination['source'],
+    ];
+    $json = htmlspecialchars(json_encode($metadata, JSON_THROW_ON_ERROR), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $label = htmlspecialchars($destination['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    echo '<li data-marker-named-destination="' . $json . '">' . $label . "</li>\n";
 }
 echo "</ul>\n<!-- /wp:list -->\n";

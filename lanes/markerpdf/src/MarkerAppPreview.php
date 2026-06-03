@@ -41,6 +41,16 @@ final class MarkerAppPreview
     }
 
     /**
+     * Native boundary for catalog /PageLabels number-tree metadata.
+     *
+     * @return list<string>
+     */
+    public function pageLabels(string $pdfBytes): array
+    {
+        return array_column($this->openPdfSummary($pdfBytes)['pages'], 'page_label');
+    }
+
+    /**
      * Plans marker_app.py::get_page_image without pypdfium/PIL rasterization.
      *
      * @return array<string, mixed>
@@ -57,6 +67,7 @@ final class MarkerAppPreview
         return [
             'page_number' => $pageNumber,
             'page_index' => $pageNumber - 1,
+            'page_label' => $page['page_label'],
             'page_count' => $summary['page_count'],
             'object_id' => $page['object_id'],
             'bbox_source' => $page['bbox_source'],
@@ -631,11 +642,13 @@ final class MarkerAppPreview
         }
 
         $pages = [];
+        $catalogBody = null;
         foreach ($objects as $objectId => $object) {
             if ($this->objectType($object['body']) !== 'Catalog') {
                 continue;
             }
 
+            $catalogBody = $object['body'];
             $pagesId = $this->reference($object['body'], 'Pages');
             if ($pagesId !== null && isset($objects[$pagesId])) {
                 $pages = $this->uniquePagesByObjectId($this->collectPages($pagesId, $objects));
@@ -659,6 +672,11 @@ final class MarkerAppPreview
         foreach ($pages as $index => $page) {
             $pages[$index]['page_index'] = $index;
             $pages[$index]['page_number'] = $index + 1;
+        }
+
+        $pageLabels = $this->pageLabelsFromCatalog($catalogBody, $objects, count($pages));
+        foreach ($pages as $index => $page) {
+            $pages[$index]['page_label'] = $pageLabels[$index] ?? (string) ($index + 1);
         }
 
         return array_values($pages);
@@ -1170,6 +1188,598 @@ final class MarkerAppPreview
         }
 
         return in_array($rotation, [0, 90, 180, 270], true) ? $rotation : 0;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @return list<string>
+     */
+    private function pageLabelsFromCatalog(?string $catalogBody, array $objects, int $pageCount): array
+    {
+        $labels = [];
+        for ($index = 0; $index < $pageCount; $index++) {
+            $labels[$index] = (string) ($index + 1);
+        }
+
+        if ($catalogBody === null || $pageCount === 0) {
+            return $labels;
+        }
+
+        $value = $this->valueAfterName($catalogBody, 'PageLabels');
+        if ($value === null) {
+            return $labels;
+        }
+
+        $sections = $this->pageLabelSections($value, $objects);
+        $sections = array_filter(
+            $sections,
+            static fn (array $section): bool => $section['page_index'] >= 0 && $section['page_index'] < $pageCount
+        );
+        usort($sections, static fn (array $left, array $right): int => $left['page_index'] <=> $right['page_index']);
+        if ($sections === []) {
+            return $labels;
+        }
+
+        $count = count($sections);
+        for ($sectionIndex = 0; $sectionIndex < $count; $sectionIndex++) {
+            $section = $sections[$sectionIndex];
+            $startPage = $section['page_index'];
+            $endPage = $sections[$sectionIndex + 1]['page_index'] ?? $pageCount;
+            for ($pageIndex = $startPage; $pageIndex < $endPage; $pageIndex++) {
+                $number = $section['start'] + ($pageIndex - $startPage);
+                $labels[$pageIndex] = $this->formatPageLabel($section['prefix'], $section['style'], $number);
+            }
+        }
+
+        return $labels;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param list<int> $seen
+     * @return list<array{page_index: int, prefix: string, style: string|null, start: int}>
+     */
+    private function pageLabelSections(string $value, array $objects, array $seen = []): array
+    {
+        $value = trim($this->resolvePdfValue($value, $objects, $seen));
+        if (!str_starts_with($value, '<<')) {
+            return [];
+        }
+
+        $sections = [];
+        $nums = $this->valueAfterName($value, 'Nums');
+        if ($nums !== null) {
+            foreach ($this->pageLabelSectionsFromNums($nums, $objects, $seen) as $section) {
+                $sections[] = $section;
+            }
+        }
+
+        $kids = $this->valueAfterName($value, 'Kids');
+        if ($kids !== null) {
+            foreach ($this->arrayElements($kids) as $kid) {
+                if (!preg_match('/^(\d+)\s+\d+\s+R$/', trim($kid), $match)) {
+                    continue;
+                }
+
+                $objectId = (int) $match[1];
+                if (in_array($objectId, $seen, true) || !isset($objects[$objectId])) {
+                    continue;
+                }
+
+                foreach ($this->pageLabelSections($objects[$objectId]['body'], $objects, [...$seen, $objectId]) as $section) {
+                    $sections[] = $section;
+                }
+            }
+        }
+
+        return $sections;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param list<int> $seen
+     * @return list<array{page_index: int, prefix: string, style: string|null, start: int}>
+     */
+    private function pageLabelSectionsFromNums(string $nums, array $objects, array $seen): array
+    {
+        $elements = $this->arrayElements($nums);
+        $sections = [];
+        $count = count($elements);
+        for ($index = 0; $index + 1 < $count; $index += 2) {
+            $pageIndex = trim($elements[$index]);
+            if (preg_match('/^-?\d+$/', $pageIndex) !== 1) {
+                continue;
+            }
+
+            $section = $this->parsePageLabelDictionary($elements[$index + 1], $objects, $seen);
+            if ($section === null) {
+                continue;
+            }
+
+            $sections[] = [
+                'page_index' => (int) $pageIndex,
+                'prefix' => $section['prefix'],
+                'style' => $section['style'],
+                'start' => $section['start'],
+            ];
+        }
+
+        return $sections;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param list<int> $seen
+     * @return array{prefix: string, style: string|null, start: int}|null
+     */
+    private function parsePageLabelDictionary(string $value, array $objects, array $seen): ?array
+    {
+        $dict = trim($this->resolvePdfValue($value, $objects, $seen));
+        if (!str_starts_with($dict, '<<')) {
+            return null;
+        }
+
+        $styleValue = $this->valueAfterName($dict, 'S');
+        $style = null;
+        if ($styleValue !== null && preg_match('/^\/([A-Za-z])$/', trim($styleValue), $match)) {
+            $style = in_array($match[1], ['D', 'R', 'r', 'A', 'a'], true) ? $match[1] : null;
+        }
+
+        $start = 1;
+        $startValue = $this->valueAfterName($dict, 'St');
+        if ($startValue !== null && preg_match('/^-?\d+$/', trim($startValue)) === 1) {
+            $start = max(1, (int) trim($startValue));
+        }
+
+        $prefix = '';
+        $prefixValue = $this->valueAfterName($dict, 'P');
+        if ($prefixValue !== null) {
+            $prefix = $this->decodePdfStringValue(trim($prefixValue));
+        }
+
+        return [
+            'prefix' => $prefix,
+            'style' => $style,
+            'start' => $start,
+        ];
+    }
+
+    private function formatPageLabel(string $prefix, ?string $style, int $number): string
+    {
+        return $prefix . match ($style) {
+            'D' => (string) $number,
+            'R' => $this->romanNumeral($number),
+            'r' => strtolower($this->romanNumeral($number)),
+            'A' => $this->alphabeticLabel($number, false),
+            'a' => $this->alphabeticLabel($number, true),
+            default => '',
+        };
+    }
+
+    private function romanNumeral(int $number): string
+    {
+        if ($number < 1) {
+            return '';
+        }
+
+        $values = [
+            1000 => 'M',
+            900 => 'CM',
+            500 => 'D',
+            400 => 'CD',
+            100 => 'C',
+            90 => 'XC',
+            50 => 'L',
+            40 => 'XL',
+            10 => 'X',
+            9 => 'IX',
+            5 => 'V',
+            4 => 'IV',
+            1 => 'I',
+        ];
+
+        $label = '';
+        foreach ($values as $value => $glyph) {
+            while ($number >= $value) {
+                $label .= $glyph;
+                $number -= $value;
+            }
+        }
+
+        return $label;
+    }
+
+    private function alphabeticLabel(int $number, bool $lowercase): string
+    {
+        if ($number < 1) {
+            return '';
+        }
+
+        $label = '';
+        while ($number > 0) {
+            $number--;
+            $label = chr(($number % 26) + 65) . $label;
+            $number = intdiv($number, 26);
+        }
+
+        return $lowercase ? strtolower($label) : $label;
+    }
+
+    private function decodePdfStringValue(string $value): string
+    {
+        if (str_starts_with($value, '(') && str_ends_with($value, ')')) {
+            return $this->decodePdfByteString($this->decodeLiteralString(substr($value, 1, -1)));
+        }
+
+        if (preg_match('/^<([\da-fA-F\s]+)>$/s', $value, $match) === 1) {
+            $hex = preg_replace('/\s+/', '', $match[1]);
+            if ($hex === null || $hex === '') {
+                return '';
+            }
+            if (strlen($hex) % 2 === 1) {
+                $hex .= '0';
+            }
+
+            $bytes = hex2bin($hex);
+            return $bytes === false ? '' : $this->decodePdfByteString($bytes);
+        }
+
+        return '';
+    }
+
+    private function decodePdfByteString(string $bytes): string
+    {
+        if (str_starts_with($bytes, "\xfe\xff")) {
+            $decoded = iconv('UTF-16BE', 'UTF-8//IGNORE', substr($bytes, 2));
+            return $decoded === false ? '' : $decoded;
+        }
+
+        if (str_starts_with($bytes, "\xff\xfe")) {
+            $decoded = iconv('UTF-16LE', 'UTF-8//IGNORE', substr($bytes, 2));
+            return $decoded === false ? '' : $decoded;
+        }
+
+        return $bytes;
+    }
+
+    private function decodeLiteralString(string $value): string
+    {
+        $out = '';
+        $length = strlen($value);
+        for ($index = 0; $index < $length; $index++) {
+            $char = $value[$index];
+            if ($char !== '\\') {
+                $out .= $char;
+                continue;
+            }
+
+            if ($index + 1 >= $length) {
+                continue;
+            }
+
+            $next = $value[++$index];
+            if ($next === "\r" || $next === "\n") {
+                if ($next === "\r" && $index + 1 < $length && $value[$index + 1] === "\n") {
+                    $index++;
+                }
+                continue;
+            }
+
+            if ($next >= '0' && $next <= '7') {
+                $octal = $next;
+                for ($count = 0; $count < 2 && $index + 1 < $length; $count++) {
+                    $peek = $value[$index + 1];
+                    if ($peek < '0' || $peek > '7') {
+                        break;
+                    }
+                    $octal .= $peek;
+                    $index++;
+                }
+                $out .= chr(octdec($octal) & 0xff);
+                continue;
+            }
+
+            $out .= match ($next) {
+                'n' => "\n",
+                'r' => "\r",
+                't' => "\t",
+                'b' => "\b",
+                'f' => "\f",
+                '(', ')', '\\' => $next,
+                default => $next,
+            };
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param list<int> $seen
+     */
+    private function resolvePdfValue(string $value, array $objects, array $seen = []): string
+    {
+        $value = trim($value);
+        if (preg_match('/^(\d+)\s+\d+\s+R$/', $value, $match) === 1) {
+            $objectId = (int) $match[1];
+            if (!in_array($objectId, $seen, true) && isset($objects[$objectId])) {
+                return $objects[$objectId]['body'];
+            }
+        }
+
+        return $value;
+    }
+
+    private function valueAfterName(string $body, string $name): ?string
+    {
+        $length = strlen($body);
+        for ($offset = 0; $offset < $length;) {
+            $offset = $this->skipPdfWhitespace($body, $offset);
+            if ($offset >= $length) {
+                return null;
+            }
+
+            $skipped = $this->skipCompositeValueBytes($body, $offset);
+            if ($skipped !== null) {
+                $offset = $skipped;
+                continue;
+            }
+
+            if ($body[$offset] !== '/') {
+                $offset++;
+                continue;
+            }
+
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', substr($body, $offset), $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $offset += strlen($match[0]);
+            if ($match[1] !== $name) {
+                continue;
+            }
+
+            $value = $this->readPdfValue($body, $offset);
+
+            return $value === null ? null : $value[0];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function arrayElements(string $array): array
+    {
+        $array = trim($array);
+        if (!str_starts_with($array, '[') || !str_ends_with($array, ']')) {
+            return [];
+        }
+
+        $body = substr($array, 1, -1);
+        $elements = [];
+        $offset = 0;
+        while (true) {
+            $value = $this->readPdfValue($body, $offset);
+            if ($value === null) {
+                break;
+            }
+
+            $elements[] = $value[0];
+            $offset = $value[1];
+        }
+
+        return $elements;
+    }
+
+    /**
+     * @return array{0: string, 1: int}|null
+     */
+    private function readPdfValue(string $body, int $offset): ?array
+    {
+        $offset = $this->skipPdfWhitespace($body, $offset);
+        if ($offset >= strlen($body)) {
+            return null;
+        }
+
+        if (str_starts_with(substr($body, $offset), '<<')) {
+            return $this->readBalancedDictionary($body, $offset);
+        }
+
+        $char = $body[$offset];
+        if ($char === '[') {
+            return $this->readBalancedArray($body, $offset);
+        }
+
+        if ($char === '(') {
+            return $this->readBalancedLiteralString($body, $offset);
+        }
+
+        if ($char === '<') {
+            return $this->readHexString($body, $offset);
+        }
+
+        if ($char === '/') {
+            if (preg_match('/\/[^\s\[\]()<>{}\/%]+/A', substr($body, $offset), $match) === 1) {
+                return [$match[0], $offset + strlen($match[0])];
+            }
+
+            return null;
+        }
+
+        $tail = substr($body, $offset);
+        if (preg_match('/[+-]?\d+(?:\.\d+)?/A', $tail, $number) === 1) {
+            $end = $offset + strlen($number[0]);
+            $afterFirst = $this->skipPdfWhitespace($body, $end);
+            if (preg_match('/\d+\s+R\b/A', substr($body, $afterFirst), $referenceTail) === 1) {
+                return [substr($body, $offset, ($afterFirst - $offset) + strlen($referenceTail[0])), $afterFirst + strlen($referenceTail[0])];
+            }
+
+            return [$number[0], $end];
+        }
+
+        if (preg_match('/[A-Za-z][A-Za-z0-9_-]*/A', $tail, $keyword) === 1) {
+            return [$keyword[0], $offset + strlen($keyword[0])];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{0: string, 1: int}|null
+     */
+    private function readBalancedDictionary(string $body, int $offset): ?array
+    {
+        $depth = 0;
+        $length = strlen($body);
+        for ($index = $offset; $index < $length;) {
+            if (str_starts_with(substr($body, $index), '<<')) {
+                $depth++;
+                $index += 2;
+                continue;
+            }
+
+            if (str_starts_with(substr($body, $index), '>>')) {
+                $depth--;
+                $index += 2;
+                if ($depth === 0) {
+                    return [substr($body, $offset, $index - $offset), $index];
+                }
+                continue;
+            }
+
+            $skipped = $this->skipCompositeValueBytes($body, $index);
+            $index = $skipped ?? ($index + 1);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{0: string, 1: int}|null
+     */
+    private function readBalancedArray(string $body, int $offset): ?array
+    {
+        $depth = 0;
+        $length = strlen($body);
+        for ($index = $offset; $index < $length;) {
+            $char = $body[$index];
+            if ($char === '[') {
+                $depth++;
+                $index++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $depth--;
+                $index++;
+                if ($depth === 0) {
+                    return [substr($body, $offset, $index - $offset), $index];
+                }
+                continue;
+            }
+
+            if (str_starts_with(substr($body, $index), '<<')) {
+                $dict = $this->readBalancedDictionary($body, $index);
+                if ($dict === null) {
+                    return null;
+                }
+                $index = $dict[1];
+                continue;
+            }
+
+            $skipped = $this->skipCompositeValueBytes($body, $index);
+            $index = $skipped ?? ($index + 1);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{0: string, 1: int}|null
+     */
+    private function readBalancedLiteralString(string $body, int $offset): ?array
+    {
+        $depth = 0;
+        $length = strlen($body);
+        for ($index = $offset; $index < $length; $index++) {
+            $char = $body[$index];
+            if ($char === '\\') {
+                $index++;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    $end = $index + 1;
+                    return [substr($body, $offset, $end - $offset), $end];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{0: string, 1: int}|null
+     */
+    private function readHexString(string $body, int $offset): ?array
+    {
+        $end = strpos($body, '>', $offset + 1);
+        if ($end === false) {
+            return null;
+        }
+
+        return [substr($body, $offset, $end - $offset + 1), $end + 1];
+    }
+
+    private function skipCompositeValueBytes(string $body, int $offset): ?int
+    {
+        $char = $body[$offset];
+        if ($char === '(') {
+            $literal = $this->readBalancedLiteralString($body, $offset);
+            return $literal[1] ?? null;
+        }
+
+        if (
+            $char === '<'
+            && !str_starts_with(substr($body, $offset), '<<')
+            && ($offset === 0 || $body[$offset - 1] !== '<')
+        ) {
+            $hex = $this->readHexString($body, $offset);
+            return $hex[1] ?? null;
+        }
+
+        return null;
+    }
+
+    private function skipPdfWhitespace(string $body, int $offset): int
+    {
+        $length = strlen($body);
+        while ($offset < $length) {
+            $char = $body[$offset];
+            if ($char === '%') {
+                while ($offset < $length && $body[$offset] !== "\n" && $body[$offset] !== "\r") {
+                    $offset++;
+                }
+                continue;
+            }
+
+            if (!ctype_space($char) && $char !== "\0") {
+                break;
+            }
+            $offset++;
+        }
+
+        return $offset;
     }
 
     private function assertPdfBytes(string $pdfBytes): void

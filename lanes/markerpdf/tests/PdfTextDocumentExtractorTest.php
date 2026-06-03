@@ -132,6 +132,20 @@ return [
         $t->true(!array_key_exists('pdfium_block_type', $charBlock), 'pdftext dictionary_output strips non-core block keys.');
         $t->true(!array_key_exists('baseline', $charBlock['lines'][0]), 'pdftext dictionary_output strips non-core line keys.');
     },
+    'normalizes pdftext dictionary_output span text before WordPress import' => static function (TestRunner $t) use ($pdftextPage): void {
+        $page = $pdftextPage(2, 'placeholder');
+        $page['blocks'][0]['lines'][0]['spans'][0]['text'] = "Of\u{FB01}ce docu\x02ment\u{00A0}keeps\u{FEFF}clean\x00 text\r\n";
+
+        $result = (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1);
+        $span = $result['pages'][0]['blocks'][0]['lines'][0]['spans'][0];
+        $charSpan = $result['pages'][0]['char_blocks'][0]['lines'][0]['spans'][0];
+
+        $t->same('Office document keeps clean text', $span['text']);
+        $t->same("Office docu-\nment keeps clean text\n", $charSpan['text']);
+        $t->true(!str_contains($span['text'], "\x02"), 'Visible WordPress text must not retain pdftext hyphen sentinels.');
+        $t->true(!str_contains($span['text'], "\x00"), 'Visible WordPress text must not retain unsafe control bytes.');
+        $t->true(!str_contains($span['text'], "\u{FB01}"), 'Visible WordPress text must expand pdftext ligatures.');
+    },
     'rejects out of range page slices before WordPress import' => static function (TestRunner $t) use ($pdftextPage): void {
         $extractor = new PdfTextDocumentExtractor();
 
