@@ -57,6 +57,47 @@ return [
         $t->same(false, $attachment['executes_python_or_models']);
         $t->same(false, $attachment['executes_external_pdf_tools']);
     },
+    'reports platform FileSpec names relationship and checksum match state in attachment preflight' => static function (TestRunner $t): void {
+        $payload = "Title,Status\nLegacy Import,Ready\n";
+        $encodedPayload = strtoupper(bin2hex($payload)) . '>';
+        $checksum = md5($payload);
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Names << /EmbeddedFiles 2 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Names [(name-tree-fallback.csv) 4 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Filespec /DOS (LEGACY.CSV) /Desc (Legacy import export) /AFRelationship /Supplement /EF << /DOS 5 0 R >> >>\nendobj\n"
+            . "5 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter /ASCIIHexDecode /Params << /Size " . strlen($payload) . " /CheckSum <{$checksum}> /CreationDate (D:20260603091500Z) /ModDate (D:20260603091600Z) >> /Length " . strlen($encodedPayload) . " >>\n"
+            . "stream\n{$encodedPayload}\nendstream\nendobj\n"
+            . "%%EOF\n";
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(['LEGACY.CSV'], $summary['filenames']);
+
+        $attachment = $summary['attachments'][0];
+        $t->same('embedded-files-name-tree', $attachment['source']);
+        $t->same('name-tree-fallback.csv', $attachment['name_key']);
+        $t->same('LEGACY.CSV', $attachment['filename']);
+        $t->same('DOS', $attachment['filename_source']);
+        $t->same('DOS', $attachment['ef_key']);
+        $t->same('Legacy import export', $attachment['description']);
+        $t->same('Supplement', $attachment['relationship']);
+        $t->same('supplemental_representation', $attachment['relationship_role']);
+        $t->same('standard_pdf_associated_file_relationship', $attachment['relationship_status']);
+        $t->same('text/csv', $attachment['content_type']);
+        $t->same(['ASCIIHexDecode'], $attachment['filters']);
+        $t->same(strlen($payload), $attachment['declared_size']);
+        $t->same(true, $attachment['declared_size_matches']);
+        $t->same(strlen($payload), $attachment['byte_length']);
+        $t->same($checksum, $attachment['checksum_hex']);
+        $t->same($checksum, $attachment['computed_checksum_hex']);
+        $t->same(true, $attachment['checksum_matches']);
+        $t->same('D:20260603091500Z', $attachment['created_at']);
+        $t->same('D:20260603091600Z', $attachment['modified_at']);
+        $t->same(false, array_key_exists('bytes', $attachment));
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+    },
     'extracts page FileAttachment annotation embedded streams with page metadata' => static function (TestRunner $t) use ($fileAttachmentAnnotationPdf): void {
         [$pdf, $payload] = $fileAttachmentAnnotationPdf();
         $attachments = (new PdfAttachmentExtractor())->extractAttachments($pdf);

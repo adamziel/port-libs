@@ -1247,15 +1247,17 @@ final class MarkerAppPreview
         }
 
         $sections = [];
+        $limits = $this->pageLabelLimits($value, $objects, $seen);
         $nums = $this->valueAfterName($value, 'Nums');
         if ($nums !== null) {
-            foreach ($this->pageLabelSectionsFromNums($nums, $objects, $seen) as $section) {
+            foreach ($this->pageLabelSectionsFromNums($nums, $objects, $seen, $limits) as $section) {
                 $sections[] = $section;
             }
         }
 
         $kids = $this->valueAfterName($value, 'Kids');
         if ($kids !== null) {
+            $kids = trim($this->resolvePdfValue($kids, $objects, $seen));
             foreach ($this->arrayElements($kids) as $kid) {
                 if (!preg_match('/^(\d+)\s+\d+\s+R$/', trim($kid), $match)) {
                     continue;
@@ -1278,9 +1280,10 @@ final class MarkerAppPreview
     /**
      * @param array<int, array{generation: int, body: string}> $objects
      * @param list<int> $seen
+     * @param array{0: int, 1: int}|null $limits
      * @return list<array{page_index: int, prefix: string, style: string|null, start: int}>
      */
-    private function pageLabelSectionsFromNums(string $nums, array $objects, array $seen): array
+    private function pageLabelSectionsFromNums(string $nums, array $objects, array $seen, ?array $limits): array
     {
         $elements = $this->arrayElements($nums);
         $sections = [];
@@ -1291,13 +1294,18 @@ final class MarkerAppPreview
                 continue;
             }
 
+            $pageIndexValue = (int) $pageIndex;
+            if ($limits !== null && ($pageIndexValue < $limits[0] || $pageIndexValue > $limits[1])) {
+                continue;
+            }
+
             $section = $this->parsePageLabelDictionary($elements[$index + 1], $objects, $seen);
             if ($section === null) {
                 continue;
             }
 
             $sections[] = [
-                'page_index' => (int) $pageIndex,
+                'page_index' => $pageIndexValue,
                 'prefix' => $section['prefix'],
                 'style' => $section['style'],
                 'start' => $section['start'],
@@ -1305,6 +1313,35 @@ final class MarkerAppPreview
         }
 
         return $sections;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param list<int> $seen
+     * @return array{0: int, 1: int}|null
+     */
+    private function pageLabelLimits(string $dict, array $objects, array $seen): ?array
+    {
+        $limits = $this->valueAfterName($dict, 'Limits');
+        if ($limits === null) {
+            return null;
+        }
+
+        $elements = $this->arrayElements(trim($this->resolvePdfValue($limits, $objects, $seen)));
+        if (count($elements) < 2) {
+            return null;
+        }
+
+        $lower = trim($elements[0]);
+        $upper = trim($elements[1]);
+        if (preg_match('/^-?\d+$/', $lower) !== 1 || preg_match('/^-?\d+$/', $upper) !== 1) {
+            return null;
+        }
+
+        $lowerIndex = (int) $lower;
+        $upperIndex = (int) $upper;
+
+        return $lowerIndex <= $upperIndex ? [$lowerIndex, $upperIndex] : null;
     }
 
     /**

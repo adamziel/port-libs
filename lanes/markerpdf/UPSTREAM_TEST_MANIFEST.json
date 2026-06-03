@@ -1037,11 +1037,11 @@
         "pdfXrefStreamPrevHybridGenerationRecoveryCurrentBaseBehaviors": 1,
         "mappedPdfXrefStreamPrevHybridGenerationRecoveryCurrentBaseBehaviors": 1
     },
-    "nativeImplementation": "current-base native PHP markerPDF behavior accepted through recovered navigation/pdftext handoffs; full upstream Python/model runner parity remains unavailable under the no-GPU scope",
-    "wordpressScenario": "WordPress PDF imports now cover native named-destination extraction, preview page-label metadata, pdftext dictionary_output span-text normalization, current incremental /Prev xref content selection, single-document runtime admission review, Type3/font-width boundaries, page-resource inheritance, clipped table grid geometry, malformed BI tokenizer recovery, pdftext keep_chars=false sanitation, indirect xref-stream W/Index/Size helper resolution, and the previously accepted native no-GPU markerPDF paths while keeping model execution, raw payload bytes, action/XFA operands, image payloads, encrypted associated-file text, stale xref data, and parser noise out of visible content.",
+    "nativeImplementation": "current-base native PHP markerPDF behavior includes indirect encrypted permission operand review, XMP/current-trailer metadata, inline-image decode boundaries, xref repair, named destinations, attachment review, and marker-app preview PageLabels /Limits enforcement; full upstream Python/model runner parity remains unavailable under the no-GPU scope",
+    "wordpressScenario": "WordPress PDF imports now cover indirect encrypted permission and crypt-filter review, catalog XMP plus current-trailer Info/ID metadata, inline ASCII85/Flate image decode boundaries, classic xref rebuild, xref /Prev repair, native named-destination extraction, attachment/FileSpec summaries, marker-app preview PageLabels /Limits boundaries, pdftext dictionary_output span-text normalization, current incremental /Prev xref content selection, single-document runtime admission review, Type3/font-width boundaries, page-resource inheritance, clipped table grid geometry, malformed BI tokenizer recovery, pdftext keep_chars=false sanitation, indirect xref-stream W/Index/Size helper resolution, and the previously accepted native no-GPU markerPDF paths while keeping model execution, raw payload bytes, action/XFA operands, image payloads, encrypted associated-file text, stale xref data, and parser noise out of visible content.",
     "nextTask": "Continue native no-GPU markerPDF/Pandoc supervision from clean origin/main worktrees, integrating ready handoffs serially only after focused verification and preserving the bounded worker swarm.",
-    "latestRunAddendum": "2026-06-03 UTC supervisor accepted recovered markerPDF navigation/pdftext handoffs on source commit aee494b9f21793f521e0b7ddde98f4d561af228b: native PdfNamedDestinationExtractor for catalog /Names /Dests and legacy /Dests dictionaries; MarkerAppPreview page-label extraction from catalog PageLabels; pdftext dictionary_output span-text normalization for WordPress imports; and /Prev incremental xref current-content evidence without replacing the richer current parser. Focused gate passed 4 files / 794 assertions / 0 failures; four WordPress/example smokes emitted non-empty output; full markerPDF lane passed 302 files / 16181 assertions / 0 failures / 1000 PASS lines. No GPU/model/OCR execution was run.",
-    "wordpressScenarios": 1000,
+    "latestRunAddendum": "2026-06-03 UTC 09:30 markerPDF batch maps encrypted permission operands, XMP/current-trailer metadata, inline-image decode boundaries, xref classic rebuild, xref Prev repair, named-destination limits, attachment review, and marker-app PageLabels /Limits. Focused gate passed 8 markerPDF test files inside a combined 10-file cross-lane run / 1352 assertions / 0 failures; full markerPDF lane passed 312 files / 16712 assertions / 0 failures / 1028 PASS lines; 8 markerPDF example smokes passed. No GPU/model/OCR execution was run.",
+    "wordpressScenarios": 1028,
     "inventory": {
         "mappedInlineImageReviewBehaviors": 1,
         "mappedMultilineOcrTableHeaderBehaviors": 1,
@@ -1251,7 +1251,7 @@
         "mappedPdfAttachmentEmbeddedFilesAnnotationSummaryCurrentBaseBehaviors": 1,
         "mappedPdfTextDictionaryPostprocessCurrentBaseBehaviors": 1,
         "mappedPdfNamedDestinationExtractorCurrentBaseBehaviors": 1,
-        "mappedMarkerAppPreviewPageLabelsCurrentBaseBehaviors": 1,
+        "mappedMarkerAppPreviewPageLabelsCurrentBaseBehaviors": 3,
         "mappedPdfXrefPrevIncrementalContentEvidenceCurrentBaseBehaviors": 1
     },
     "pdfParserNameArrayCommentBoundaryCurrentBase": "PDF comments inside optional-content arrays are skipped before indirect-reference and escaped-name scanning, preventing comment-only hidden layer references from affecting WordPress text extraction.",
@@ -1595,9 +1595,9 @@
     "pdfNamedDestinationExtractorCurrentBase": "Native named-destination extraction resolves catalog /Names /Dests trees and legacy /Dests dictionaries to page indices and Fit/XYZ coordinates while skipping malformed values.",
     "pdfNamedDestinationExtractorCurrentBaseBehaviors": 1,
     "mappedPdfNamedDestinationExtractorCurrentBaseBehaviors": 1,
-    "markerAppPreviewPageLabelsCurrentBase": "MarkerAppPreview resolves catalog PageLabels number-tree sections into per-page labels for preview/page-inventory metadata, including roman, alphabetic, prefixed, and prefix-only labels.",
-    "markerAppPreviewPageLabelsCurrentBaseBehaviors": 1,
-    "mappedMarkerAppPreviewPageLabelsCurrentBaseBehaviors": 1,
+    "markerAppPreviewPageLabelsCurrentBase": "MarkerAppPreview resolves catalog PageLabels number-tree sections into per-page labels for preview/page-inventory metadata, including roman, alphabetic, prefixed, prefix-only, indirect-Kids, and /Limits-bounded labels.",
+    "markerAppPreviewPageLabelsCurrentBaseBehaviors": 3,
+    "mappedMarkerAppPreviewPageLabelsCurrentBaseBehaviors": 3,
     "pdfXrefPrevIncrementalContentEvidenceCurrentBase": "Incremental xref /Prev chains keep the latest current content stream for reused objects before text extraction, preventing superseded draft stream text from winning WordPress imports.",
     "pdfXrefPrevIncrementalContentEvidenceCurrentBaseBehaviors": 1,
     "mappedPdfXrefPrevIncrementalContentEvidenceCurrentBaseBehaviors": 1,
@@ -1641,5 +1641,8 @@
     "pdfLinkAnnotationPageGeometryCurrentBaseBehaviors": 1,
     "mappedPdfLinkAnnotationPageGeometryCurrentBaseBehaviors": 1,
     "pdfParserStreamFilterStackBoundaryCurrentBase": "Missing-Length page content streams with ordered filter stacks decode the complete ASCII85-to-Flate chain before accepting endstream boundaries, excluding fake encoded endstream markers from WordPress text.",
-    "mappedPdfParserStreamFilterStackBoundaryCurrentBaseBehaviors": 1
+    "mappedPdfParserStreamFilterStackBoundaryCurrentBaseBehaviors": 1,
+    "pdfInlineImageDecodeBoundaryCurrentBase": "Inline-image candidates now require explicit ASCII85 end markers before accepting delimiter-looking EI bytes and still decode Flate DecodeParms predictor payloads before boundary acceptance, keeping image payload bytes out of WordPress paragraphs.",
+    "pdfInlineImageDecodeBoundaryCurrentBaseBehaviors": 2,
+    "mappedPdfInlineImageDecodeBoundaryCurrentBaseBehaviors": 2
 }

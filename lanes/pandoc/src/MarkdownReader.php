@@ -7407,18 +7407,18 @@ final class MarkdownReader
         }
 
         if (($text[$offset] ?? '') === '[') {
-            if (preg_match('/\G\[@([A-Za-z0-9_:.#\/$%&+?<>~|-]+)\]/u', $text, $m, 0, $offset) !== 1) {
-                return null;
+            if (preg_match('/\G\[@([A-Za-z0-9_:.#\/$%&+?<>~|-]+)\]/u', $text, $m, 0, $offset) === 1) {
+                return [
+                    'node' => new AstNode(
+                        'citation',
+                        ['id' => $m[1], 'text' => $m[0], 'mode' => 'normal'],
+                        [new AstNode('text', ['text' => $m[0]])]
+                    ),
+                    'next' => $offset + strlen($m[0]),
+                ];
             }
 
-            return [
-                'node' => new AstNode(
-                    'citation',
-                    ['id' => $m[1], 'text' => $m[0], 'mode' => 'normal'],
-                    [new AstNode('text', ['text' => $m[0]])]
-                ),
-                'next' => $offset + strlen($m[0]),
-            ];
+            return $this->tryParseBracketedCitationCluster($text, $offset);
         }
 
         if (!$allowBareCitation || ($text[$offset] ?? '') !== '@') {
@@ -7453,6 +7453,228 @@ final class MarkdownReader
             ),
             'next' => $next,
         ];
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseBracketedCitationCluster(string $text, int $offset): ?array
+    {
+        $label = $this->parseBracketedLabel($text, $offset);
+        if ($label === null || !str_contains($label['text'], '@')) {
+            return null;
+        }
+
+        $nextChar = $text[$label['next']] ?? '';
+        $startsWithCitation = preg_match('/^\s*-?@/u', $label['text']) === 1;
+        if (($nextChar === '(' || $nextChar === '[') && !$startsWithCitation) {
+            return null;
+        }
+
+        $items = $this->splitBracketedCitationItems($label['text']);
+        if ($items === []) {
+            return null;
+        }
+
+        $citations = [];
+        foreach ($items as $item) {
+            $citation = $this->parseBracketedCitationItem($item);
+            if ($citation === null) {
+                return null;
+            }
+
+            $citations[] = $citation;
+        }
+
+        $source = substr($text, $offset, $label['next'] - $offset);
+        if (count($citations) === 1) {
+            $citation = $citations[0];
+
+            return [
+                'node' => new AstNode(
+                    'citation',
+                    [...$citation->attrs, 'text' => $source],
+                    [new AstNode('text', ['text' => $source])]
+                ),
+                'next' => $label['next'],
+            ];
+        }
+
+        return [
+            'node' => new AstNode(
+                'citation_group',
+                ['text' => $source],
+                $citations
+            ),
+            'next' => $label['next'],
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitBracketedCitationItems(string $text): array
+    {
+        $items = [];
+        $start = 0;
+        $braceDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($text);
+
+        for ($cursor = 0; $cursor < $length; $cursor++) {
+            $char = $text[$cursor];
+            if ($char === '\\') {
+                $cursor++;
+                continue;
+            }
+
+            if ($char === '{') {
+                $braceDepth++;
+                continue;
+            }
+
+            if ($char === '}' && $braceDepth > 0) {
+                $braceDepth--;
+                continue;
+            }
+
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+
+            if ($char === ']' && $bracketDepth > 0) {
+                $bracketDepth--;
+                continue;
+            }
+
+            if ($char !== ';' || $braceDepth > 0 || $bracketDepth > 0) {
+                continue;
+            }
+
+            $item = trim(substr($text, $start, $cursor - $start));
+            if ($item === '') {
+                return [];
+            }
+            $items[] = $item;
+            $start = $cursor + 1;
+        }
+
+        $item = trim(substr($text, $start));
+        if ($item === '') {
+            return [];
+        }
+        $items[] = $item;
+
+        return $items;
+    }
+
+    private function parseBracketedCitationItem(string $item): ?AstNode
+    {
+        $match = $this->findBracketedCitationToken($item);
+        if ($match === null) {
+            return null;
+        }
+
+        $prefix = trim(substr($item, 0, $match['start']));
+        $tail = trim(substr($item, $match['start'] + $match['length']));
+        if (str_starts_with($tail, ',')) {
+            $tail = trim(substr($tail, 1));
+        }
+
+        $attrs = [
+            'id' => $match['id'],
+            'text' => $item,
+            'mode' => $match['suppressAuthor'] ? 'suppress_author' : 'normal',
+        ];
+        if ($prefix !== '') {
+            $attrs['prefix'] = $prefix;
+        }
+        if ($tail !== '') {
+            $attrs['locator'] = $this->normalizeBracketedCitationTail($tail);
+        }
+
+        return new AstNode('citation', $attrs, [
+            new AstNode('text', ['text' => $item]),
+        ]);
+    }
+
+    /**
+     * @return array{start:int, length:int, id:string, suppressAuthor:bool}|null
+     */
+    private function findBracketedCitationToken(string $item): ?array
+    {
+        $idPattern = '[A-Za-z0-9_](?:[A-Za-z0-9_]|[:.#\/$%&+?<>~|-](?=[A-Za-z0-9_]))*';
+        $pattern = '/(?<![A-Za-z0-9_@.\/-])(-?)@(?:\{([^}\r\n]+)\}|(' . $idPattern . '))/u';
+        if (preg_match($pattern, $item, $matches, PREG_OFFSET_CAPTURE) !== 1) {
+            return null;
+        }
+
+        $raw = $matches[0][0];
+        $id = $matches[2][0] !== '' ? $matches[2][0] : $matches[3][0];
+        if ($id === '') {
+            return null;
+        }
+
+        return [
+            'start' => $matches[0][1],
+            'length' => strlen($raw),
+            'id' => $id,
+            'suppressAuthor' => $matches[1][0] === '-',
+        ];
+    }
+
+    private function normalizeBracketedCitationTail(string $tail): string
+    {
+        $tail = trim($tail);
+        if ($tail === '') {
+            return '';
+        }
+
+        $forced = $this->unwrapForcedCitationLocator($tail);
+        if ($forced !== null) {
+            return $forced;
+        }
+
+        return preg_replace('/\s+/u', ' ', $tail) ?? $tail;
+    }
+
+    private function unwrapForcedCitationLocator(string $tail): ?string
+    {
+        if ($tail[0] !== '{') {
+            return null;
+        }
+
+        $depth = 0;
+        $length = strlen($tail);
+        for ($cursor = 0; $cursor < $length; $cursor++) {
+            if ($tail[$cursor] === '\\') {
+                $cursor++;
+                continue;
+            }
+
+            if ($tail[$cursor] === '{') {
+                $depth++;
+                continue;
+            }
+
+            if ($tail[$cursor] !== '}') {
+                continue;
+            }
+
+            $depth--;
+            if ($depth > 0) {
+                continue;
+            }
+
+            $locator = substr($tail, 1, $cursor - 1);
+            $suffix = trim(substr($tail, $cursor + 1));
+            $combined = trim($locator . ($suffix === '' ? '' : ' ' . $suffix));
+
+            return preg_replace('/\s+/u', ' ', $combined) ?? $combined;
+        }
+
+        return null;
     }
 
     /**

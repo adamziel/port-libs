@@ -121,6 +121,41 @@ final class CitationCslProcessor
         );
     }
 
+    public function normalizeCitationGroup(AstNode $group): AstNode
+    {
+        if ($group->type !== 'citation_group') {
+            throw new \InvalidArgumentException('Expected citation_group AST node');
+        }
+
+        $citations = [];
+        $missing = [];
+        foreach ($group->children as $child) {
+            if ($child->type !== 'citation') {
+                throw new \InvalidArgumentException('Citation group entries must be citation AST nodes');
+            }
+
+            $citations[] = $child;
+            $id = (string) $child->attr('id', '');
+            if ($id !== '' && !isset($this->itemsById[$id]) && !in_array($id, $missing, true)) {
+                $missing[] = $id;
+            }
+        }
+
+        $attrs = [
+            ...$group->attrs,
+            'rendered' => $this->renderCitationCluster($citations),
+        ];
+        if ($missing !== []) {
+            $attrs['missingCslItems'] = $missing;
+        }
+
+        return new AstNode(
+            'citation_group',
+            $attrs,
+            array_map(fn (AstNode $citation): AstNode => $this->normalizeCitation($citation), $citations)
+        );
+    }
+
     public function apply(AstNode $document): AstNode
     {
         return $this->mapNode($document);
@@ -402,6 +437,10 @@ final class CitationCslProcessor
             return $this->normalizeCitation($node);
         }
 
+        if ($node->type === 'citation_group') {
+            return $this->normalizeCitationGroup($node);
+        }
+
         if ($node->children === []) {
             return $node;
         }
@@ -570,11 +609,15 @@ final class CitationCslProcessor
     private function citationSuffix(AstNode $citation): string
     {
         $suffix = $citation->attr('suffix', null);
-        if ($suffix === null || $suffix === '') {
-            $suffix = $citation->attr('locator', '');
+        $locator = $citation->attr('locator', '');
+        $renderedSuffix = $this->inlineValue($suffix);
+        $renderedLocator = $this->inlineValue($locator);
+
+        if ($renderedLocator !== '' && $renderedSuffix !== '') {
+            return $renderedLocator . ' ' . $renderedSuffix;
         }
 
-        return $this->inlineValue($suffix);
+        return $renderedSuffix !== '' ? $renderedSuffix : $renderedLocator;
     }
 
     private function inlineValue(mixed $value): string

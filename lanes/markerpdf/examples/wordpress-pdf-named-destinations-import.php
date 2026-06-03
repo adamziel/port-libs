@@ -20,23 +20,36 @@ $outlinePdf = "%PDF-1.4\n"
     . "%%EOF";
 
 $destinationPdf = "%PDF-1.7\n"
-    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /Dests << /Names [(migration-start) [3 0 R /Fit] (media-cleanup) [4 0 R /XYZ 72 650 1]] >> >> >>\nendobj\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /Dests 8 0 R >> /Dests << /migration-start [4 0 R /Fit] /legacy-review [4 0 R /FitV 110] >> >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
     . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
     . "4 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+    . "8 0 obj\n<< /Limits [(media-cleanup) (z-export)] /Kids [9 0 R 10 0 R] >>\nendobj\n"
+    . "9 0 obj\n<< /Limits [(media-cleanup) (migration-start)] /Names [(migration-start) [3 0 R /Fit] (media-cleanup) [4 0 R /XYZ 72 650 1] (stale-secret) [4 0 R /Fit]] >>\nendobj\n"
+    . "10 0 obj\n<< /Limits [(review-summary) (z-export)] /Names [(migration-start) [4 0 R /Fit] (review-summary) [3 0 R /FitBH 600]] >>\nendobj\n"
     . "%%EOF\n";
 
 $toc = (new PdfOutlineExtractor())->getPdfToc($outlinePdf);
 $destinations = (new PdfNamedDestinationExtractor())->extractNamedDestinations($destinationPdf);
+$destinationNames = array_column($destinations, 'name');
+
+if ($destinationNames !== ['migration-start', 'media-cleanup', 'review-summary', 'legacy-review']) {
+    throw new RuntimeException('Expected name-tree /Limits to exclude stale named destinations before WordPress import metadata.');
+}
+if (in_array('stale-secret', $destinationNames, true)) {
+    throw new RuntimeException('Expected stale out-of-limits destination rows to stay hidden from WordPress output.');
+}
 
 echo '<!-- markerpdf-pdf-named-destinations ' . htmlspecialchars(json_encode([
     'support_component' => 'native-pdf-outline-and-named-destination-parser',
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
+    'native_boundary' => 'catalog /Names /Dests name-tree /Limits are enforced before WordPress named-destination import metadata',
     'toc_count' => count($toc),
     'destination_count' => count($destinations),
     'outline_destination_names' => array_values(array_filter(array_column($toc, 'destination'), 'is_string')),
-    'named_destinations' => array_column($destinations, 'name'),
+    'named_destinations' => $destinationNames,
+    'out_of_limits_destination_filtered' => true,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
 echo "<!-- wp:list -->\n<ul>\n";

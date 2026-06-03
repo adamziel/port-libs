@@ -43,6 +43,13 @@ $cslJson = static fn (): string => json_encode([
         'issued' => ['date-parts' => [['2024']]],
         'URL' => 'https://example.test/reviewer-log',
     ],
+    [
+        'id' => 'https://example.com/bib?name=foobar&date=2000',
+        'type' => 'webpage',
+        'title' => 'URL Key Source',
+        'issued' => ['date-parts' => [[2000]]],
+        'URL' => 'https://example.com/bib?name=foobar&date=2000',
+    ],
 ], JSON_THROW_ON_ERROR);
 
 $citation = static function (string $id, string $text, string $mode = 'normal', array $attrs = []): AstNode {
@@ -89,6 +96,62 @@ return [
         $missingNormalized = $processor->normalizeCitation($missing);
         $t->same('[@missing]', $missingNormalized->attr('rendered'));
         $t->same(true, (bool) $missingNormalized->attr('missingCslItem', false));
+    },
+    'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
+        $processor = CitationCslProcessor::fromJson($cslJson());
+        $document = (new MarkdownReader())->read(
+            'Archive says [see @smith1899, pp. 33-35; also @doe2020, chap. 1; -@wp-team, sec. 2].'
+            . "\n\n" . 'Forced locator [@smith1899, {ii, A, D-Z} with a suffix].'
+            . "\n\n" . 'URL key [@{https://example.com/bib?name=foobar&date=2000}, p. 33].'
+            . "\n\n" . 'Review keeps [see @missing-source; @smith1899, p. 7] visible.'
+        );
+
+        $cluster = $document->children[0]->children[1];
+        $t->same('citation_group', $cluster->type);
+        $t->same('[@smith1899]', (new MarkdownReader())->read('[@smith1899]')->children[0]->children[0]->attr('text'));
+        $t->same(['citation', 'citation', 'citation'], array_map(static fn (AstNode $node): string => $node->type, $cluster->children));
+        $t->same('smith1899', $cluster->children[0]->attr('id'));
+        $t->same('see', $cluster->children[0]->attr('prefix'));
+        $t->same('pp. 33-35', $cluster->children[0]->attr('locator'));
+        $t->same('doe2020', $cluster->children[1]->attr('id'));
+        $t->same('also', $cluster->children[1]->attr('prefix'));
+        $t->same('chap. 1', $cluster->children[1]->attr('locator'));
+        $t->same('wp-team', $cluster->children[2]->attr('id'));
+        $t->same('suppress_author', $cluster->children[2]->attr('mode'));
+        $t->same('sec. 2', $cluster->children[2]->attr('locator'));
+
+        $forced = $document->children[1]->children[1];
+        $t->same('citation', $forced->type);
+        $t->same('ii, A, D-Z with a suffix', $forced->attr('locator'));
+        $urlKey = $document->children[2]->children[1];
+        $t->same('https://example.com/bib?name=foobar&date=2000', $urlKey->attr('id'));
+        $t->same('p. 33', $urlKey->attr('locator'));
+
+        $processed = $processor->apply($document);
+        $processedCluster = $processed->children[0]->children[1];
+        $missingCluster = $processed->children[3]->children[1];
+        $t->same('(see Smith 1899, pp. 33-35; also Doe and Roe 2020, chap. 1; 2024, sec. 2)', $processedCluster->attr('rendered'));
+        $t->same('(see @missing-source; Smith 1899, p. 7)', $missingCluster->attr('rendered'));
+        $t->same(['missing-source'], $missingCluster->attr('missingCslItems'));
+        $t->same(
+            ['smith1899', 'doe2020', 'wp-team', 'smith1899', 'https://example.com/bib?name=foobar&date=2000', 'missing-source', 'smith1899'],
+            $processor->citationIds($document)
+        );
+        $t->same(['missing-source'], $processor->missingCitationIds($document));
+
+        $withBibliography = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($withBibliography);
+        $t->contains('Archive says (see Smith 1899, pp. 33-35; also Doe and Roe 2020, chap. 1; 2024, sec. 2).', $markdown);
+        $t->contains('Forced locator (Smith 1899, ii, A, D-Z with a suffix).', $markdown);
+        $t->contains('URL key (URL Key Source 2000, p. 33).', $markdown);
+        $t->contains('Review keeps (see @missing-source; Smith 1899, p. 7) visible.', $markdown);
+        $t->contains('URL Key Source 2000' . "\n" . ':   URL Key Source. 2000. https://example.com/bib?name=foobar&date=2000.', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($withBibliography);
+        $t->contains('<p>Archive says (see Smith 1899, pp. 33-35; also Doe and Roe 2020, chap. 1; 2024, sec. 2).</p>', $blocks);
+        $t->contains('<p>URL key (URL Key Source 2000, p. 33).</p>', $blocks);
+        $t->contains('<p>Review keeps (see @missing-source; Smith 1899, p. 7) visible.</p>', $blocks);
+        $t->contains('<dt>URL Key Source 2000</dt><dd>URL Key Source. 2000. https://example.com/bib?name=foobar&amp;date=2000.</dd>', $blocks);
     },
     'appends deterministic csl bibliography blocks for markdown and wordpress output' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());

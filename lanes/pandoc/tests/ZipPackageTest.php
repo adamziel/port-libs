@@ -22,8 +22,13 @@ $crc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
  *     localCrc?:int,
  *     localCompressedSize?:int,
  *     localUncompressedSize?:int,
+ *     modifiedTime?:int,
+ *     modifiedDate?:int,
+ *     localModifiedTime?:int,
+ *     localModifiedDate?:int,
  *     localName?:string,
  *     diskStart?:int,
+ *     externalAttributes?:int,
  *     comment?:string
  * }> $entries
  */
@@ -48,6 +53,10 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
         $actualCrc = $crc32($data);
         $centralCrc = $entry['centralCrc'] ?? $actualCrc;
         $offset = strlen($body);
+        $modifiedTime = $entry['modifiedTime'] ?? 0;
+        $modifiedDate = $entry['modifiedDate'] ?? 0;
+        $localModifiedTime = $entry['localModifiedTime'] ?? $modifiedTime;
+        $localModifiedDate = $entry['localModifiedDate'] ?? $modifiedDate;
         $localCrc = $entry['localCrc'] ?? ($descriptor ? 0 : $actualCrc);
         $localCompressedSize = $entry['localCompressedSize'] ?? ($descriptor ? 0 : $compressedSize);
         $localUncompressedSize = $entry['localUncompressedSize'] ?? ($descriptor ? 0 : $uncompressedSize);
@@ -58,8 +67,8 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
             20,
             $flags,
             $method,
-            0,
-            0,
+            $localModifiedTime,
+            $localModifiedDate,
             $localCrc,
             $localCompressedSize,
             $localUncompressedSize,
@@ -87,8 +96,8 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
             20,
             $flags,
             $method,
-            0,
-            0,
+            $modifiedTime,
+            $modifiedDate,
             $centralCrc,
             $compressedSize,
             $uncompressedSize,
@@ -97,7 +106,7 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
             strlen($entryComment),
             $entry['diskStart'] ?? 0,
             0,
-            0,
+            $entry['externalAttributes'] ?? 0,
             $offset
         );
         $central .= $name . $entryComment;
@@ -249,6 +258,7 @@ return [
         $t->same(8, $roundTrip->entry('_rels/.rels')->compressionMethod);
         $t->same(8, $roundTrip->entry('word/document.xml')->compressionMethod);
         $t->same(0, $roundTrip->entry('word/media/')->compressionMethod);
+        $t->same(0x10, $roundTrip->entry('word/media/')->externalFileAttributes);
         $t->same('content types', $roundTrip->entry('[Content_Types].xml')->comment);
         $t->same('office document', $roundTrip->entry('word/document.xml')->comment);
         $t->same('<Types><Default Extension="xml" ContentType="application/xml"/></Types>', $roundTrip->read('/[Content_Types].xml'));
@@ -256,6 +266,58 @@ return [
         $t->same('<w:document><w:body><w:p>Generated WordPress packet</w:p></w:body></w:document>', $roundTrip->read('word/document.xml'));
         $t->same('', $roundTrip->read('word/media/'));
         $t->true($roundTrip->centralDirectoryOffset() > 0);
+    },
+
+    'preserves zip entry modification metadata and external attributes' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>metadata</w:p></w:document>',
+                'method' => 8,
+                'modifiedTime' => 19400,
+                'modifiedDate' => 23747,
+                'externalAttributes' => 0x81a40000,
+            ],
+        ], 'metadata package');
+
+        $package = ZipPackage::fromString($zip);
+        $entry = $package->entry('/word/document.xml');
+
+        $t->same(19400, $entry->modifiedDosTime());
+        $t->same(23747, $entry->modifiedDosDate());
+        $t->same(1780479016, $entry->lastModifiedTimestamp());
+        $t->same(0x81a40000, $entry->externalFileAttributes);
+        $t->same('metadata package', $package->packageComment());
+        $t->same('<w:document><w:p>metadata</w:p></w:document>', $package->read('word/document.xml'));
+    },
+
+    'writes zip entry modification metadata for generated package parts' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>Generated metadata packet</w:p></w:document>',
+                'modifiedAt' => 1780479016,
+                'externalAttributes' => 0x81a40000,
+            ],
+            [
+                'name' => 'word/media/',
+                'modifiedDosTime' => 19400,
+                'modifiedDosDate' => 23747,
+            ],
+        ]);
+
+        $roundTrip = ZipPackage::fromString($package->bytes());
+        $document = $roundTrip->entry('word/document.xml');
+        $mediaDirectory = $roundTrip->entry('word/media/');
+
+        $t->same(19400, $document->modifiedDosTime());
+        $t->same(23747, $document->modifiedDosDate());
+        $t->same(1780479016, $document->lastModifiedTimestamp());
+        $t->same(0x81a40000, $document->externalFileAttributes);
+        $t->same(19400, $mediaDirectory->modifiedDosTime());
+        $t->same(23747, $mediaDirectory->modifiedDosDate());
+        $t->same(1780479016, $mediaDirectory->lastModifiedTimestamp());
+        $t->same(0x10, $mediaDirectory->externalFileAttributes);
     },
 
     'rejects invalid generated zip package parts before writing' => static function (TestRunner $t): void {
@@ -287,6 +349,27 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
             ['name' => 'word/document.xml', 'data' => 'ok'],
         ], str_repeat('x', 0x10000)));
+    },
+
+    'rejects invalid generated zip entry metadata before writing' => static function (TestRunner $t): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => 'ok', 'modifiedAt' => '2026-06-03'],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => 'ok', 'modifiedAt' => 1780479016, 'modifiedDosTime' => 19400, 'modifiedDosDate' => 23747],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => 'ok', 'modifiedDosTime' => 19400],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => 'ok', 'modifiedDosTime' => 0x10000, 'modifiedDosDate' => 23747],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => 'ok', 'modifiedAt' => 315532799],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => 'ok', 'externalAttributes' => -1],
+        ]));
     },
 
     'rejects unsafe package part names before exposing entries' => static function (TestRunner $t) use ($buildZipPackage): void {
@@ -356,6 +439,16 @@ return [
                 'localCompressedSize' => 1,
             ],
         ]));
+        $localModifiedTimeMismatch = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/settings.xml',
+                'data' => '<w:settings/>',
+                'method' => 0,
+                'modifiedTime' => 19400,
+                'modifiedDate' => 23747,
+                'localModifiedTime' => 19401,
+            ],
+        ]));
         $descriptorSizeMismatch = ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/comments.xml',
@@ -377,6 +470,7 @@ return [
 
         $t->throws(\RuntimeException::class, static fn (): string => $localCrcMismatch->read('word/document.xml'));
         $t->throws(\RuntimeException::class, static fn (): string => $localSizeMismatch->read('word/styles.xml'));
+        $t->throws(\RuntimeException::class, static fn (): string => $localModifiedTimeMismatch->read('word/settings.xml'));
         $t->throws(\RuntimeException::class, static fn (): string => $descriptorSizeMismatch->read('word/comments.xml'));
         $t->throws(\RuntimeException::class, static fn (): string => $descriptorCrcMismatch->read('word/footnotes.xml'));
     },

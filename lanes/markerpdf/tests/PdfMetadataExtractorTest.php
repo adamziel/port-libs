@@ -415,6 +415,68 @@ return [
         $t->true(!str_contains($plainText, 'Café'));
         $t->true(!str_contains($plainText, 'Legacy Encoded Title'));
     },
+    'rejects non metadata XML streams from catalog Metadata document roots' => static function (TestRunner $t) use ($xmpPacket): void {
+        $hiddenXmp = $xmpPacket([
+            'title' => 'Hidden Embedded XML XMP Title',
+            'description' => 'Embedded XML payload is not a document metadata stream',
+            'create_date' => '2026-06-03T09:30:09Z',
+            'metadata_date' => '2026-06-03T09:31:10Z',
+        ]);
+        $compressedHiddenXmp = gzcompress($hiddenXmp);
+        if (!is_string($compressedHiddenXmp)) {
+            throw new RuntimeException('Unable to compress catalog metadata boundary fixture.');
+        }
+
+        $content = 'BT /F1 12 Tf 72 720 Td (Catalog Metadata Boundary Body) Tj ET';
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Metadata 5 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Filter /FlateDecode /Length " . strlen($compressedHiddenXmp) . " >>\nstream\n{$compressedHiddenXmp}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Title (Info Boundary Title) /Author (Info Boundary Author) /Producer (Info Boundary Producer) /CreationDate (D:20260603093009Z) >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R /Info 6 0 R >>\n%%EOF";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $review = $metadata['catalog']['metadata_stream_review'] ?? [];
+        $summary = $review['xmp_summary'] ?? [];
+
+        $t->same(['info', 'catalog'], $metadata['source']);
+        $t->same([], $metadata['xmp']);
+        $t->same('Info Boundary Title', $metadata['title']);
+        $t->same(['Info Boundary Author'], $metadata['authors']);
+        $t->same('Info Boundary Producer', $metadata['producer']);
+        $t->same('Catalog Metadata Boundary Body', $plainText);
+        $t->same('catalog_metadata_stream_boundary', $review['source'] ?? null);
+        $t->same('rejected_non_metadata_xml_stream', $review['status'] ?? null);
+        $t->same(false, $review['accepted_as_document_xmp'] ?? null);
+        $t->same(false, $review['payload_included'] ?? null);
+        $t->same(5, $review['object_number'] ?? null);
+        $t->same('EmbeddedFile', $review['type'] ?? null);
+        $t->same('text/xml', $review['subtype'] ?? null);
+        $t->same(['FlateDecode'], $review['filters'] ?? null);
+        $t->same(strlen($hiddenXmp), $review['bytes'] ?? null);
+        $t->same(hash('sha256', $hiddenXmp), $review['sha256'] ?? null);
+        $t->same([
+            'title',
+            'description',
+            'creator_tool',
+            'producer',
+            'created_at',
+            'modified_at',
+            'metadata_date',
+            'authors',
+            'keywords',
+        ], $summary['field_names'] ?? null);
+        $t->same('2026-06-03T09:30:09Z', $summary['dates_utc']['created_at'] ?? null);
+        $t->same(false, $summary['payload_included'] ?? null);
+        $t->same(true, $summary['text_values_redacted'] ?? null);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Hidden Embedded XML XMP Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Embedded XML payload is not a document metadata stream'));
+        $t->true(!str_contains($plainText, 'Hidden Embedded XML XMP Title'));
+    },
     'keeps XMP and DocInfo metadata distinct from catalog destination names' => static function (TestRunner $t): void {
         $xmp = '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
             . '<x:xmpmeta xmlns:x="adobe:ns:meta/">'

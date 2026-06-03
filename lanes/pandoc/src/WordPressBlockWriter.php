@@ -499,6 +499,7 @@ final class WordPressBlockWriter
             'image',
             'note',
             'citation',
+            'citation_group',
         ], true);
     }
 
@@ -904,6 +905,7 @@ final class WordPressBlockWriter
             'image' => $this->renderImageHtml($node),
             'note' => $this->renderNoteReference($node),
             'citation' => $this->esc((string) $node->attr('rendered', $node->attr('text', ''))),
+            'citation_group' => $this->esc((string) $node->attr('rendered', $node->attr('text', ''))),
             default => $this->renderInlines($node),
         };
     }

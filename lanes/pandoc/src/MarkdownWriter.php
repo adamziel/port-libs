@@ -832,6 +832,7 @@ final class MarkdownWriter
             'image' => $this->renderImage($node, $following),
             'math' => $this->renderMath($node),
             'citation' => (string) $node->attr('rendered', $node->attr('text', $this->renderInlines($node->children))),
+            'citation_group' => (string) $node->attr('rendered', $node->attr('text', $this->renderInlines($node->children))),
             'raw_tex' => (string) $node->attr('tex', $node->attr('text', '')),
             'raw_inline', 'raw_markdown', 'raw_html_inline' => $this->renderRawInline($node),
             'note' => $this->renderNoteReference($node),
@@ -1089,7 +1090,7 @@ final class MarkdownWriter
             return true;
         }
 
-        if ($next->type === 'link' || $next->type === 'citation') {
+        if ($next->type === 'link' || $next->type === 'citation' || $next->type === 'citation_group') {
             return false;
         }
 
@@ -1139,7 +1140,7 @@ final class MarkdownWriter
             return true;
         }
 
-        if ($next->type === 'link' || $next->type === 'citation') {
+        if ($next->type === 'link' || $next->type === 'citation' || $next->type === 'citation_group') {
             return false;
         }
 
@@ -1680,6 +1681,7 @@ final class MarkdownWriter
             'image',
             'math',
             'citation',
+            'citation_group',
             'raw_tex',
             'raw_inline',
             'raw_markdown',

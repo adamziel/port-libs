@@ -47,6 +47,45 @@ return [
         $t->same(['1', 'front-ii', 'front-iii', 'Body 7', 'Foldout '], array_column($summary['pages'], 'page_label'));
         $t->same('Body 7', $preview->getPageImagePlan($pdfWithPageLabels(), 4)['page_label']);
     },
+    'honors page label number tree limits before preview image page boundaries' => static function (TestRunner $t): void {
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+            . "20 0 obj\n<< /Kids [21 0 R 22 0 R] >>\nendobj\n"
+            . "21 0 obj\n<< /Limits [0 1] /Nums [0 << /P (front-) /S /r /St 2 >> 2 << /P (stale-) /S /D /St 99 >>] >>\nendobj\n"
+            . "22 0 obj\n<< /Limits [2 2] /Nums [1 << /P (wrong-) /S /D /St 40 >> 2 << /P (Body ) /S /D /St 7 >>] >>\nendobj\n"
+            . "%%EOF\n";
+
+        $preview = new MarkerAppPreview();
+        $summary = $preview->openPdfSummary($pdf);
+
+        $t->same(['front-ii', 'front-iii', 'Body 7'], $preview->pageLabels($pdf));
+        $t->same(['front-ii', 'front-iii', 'Body 7'], array_column($summary['pages'], 'page_label'));
+        $t->same('front-iii', $preview->getPageImagePlan($pdf, 2)['page_label']);
+        $t->same('Body 7', $preview->getPageImagePlan($pdf, 3)['page_label']);
+    },
+    'walks indirect page label kids arrays before preview image page boundaries' => static function (TestRunner $t): void {
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+            . "20 0 obj\n<< /Kids 30 0 R >>\nendobj\n"
+            . "30 0 obj\n[21 0 R 22 0 R]\nendobj\n"
+            . "21 0 obj\n<< /Limits [0 0] /Nums [0 << /P (front-) /S /r /St 4 >>] >>\nendobj\n"
+            . "22 0 obj\n<< /Limits [1 1] /Nums [1 << /P (Body ) /S /D /St 9 >>] >>\nendobj\n"
+            . "%%EOF\n";
+
+        $preview = new MarkerAppPreview();
+        $summary = $preview->openPdfSummary($pdf);
+
+        $t->same(['front-iv', 'Body 9'], $preview->pageLabels($pdf));
+        $t->same(['front-iv', 'Body 9'], array_column($summary['pages'], 'page_label'));
+        $t->same('Body 9', $preview->getPageImagePlan($pdf, 2)['page_label']);
+    },
     'formats direct page label dictionaries with alphabetic roman and prefix-only sections' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n"
             . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels << /Nums [0 << /P (App-) /S /A /St 26 >> 2 << /P (Part /S ) /S /R /St 4 >> 4 << /P (foldout) >>] >> >>\nendobj\n"

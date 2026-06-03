@@ -7,6 +7,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\Pandoc\ZipPackage;
 
 $crc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
+$documentModifiedAt = 1780479016;
 
 $buildDescriptorBackedPackage = static function () use ($crc32): string {
     $name = 'word/comments.xml';
@@ -72,6 +73,8 @@ $package = ZipPackage::fromParts([
         'name' => 'word/document.xml',
         'data' => '<w:document><w:body><w:p>WordPress import source</w:p></w:body></w:document>',
         'comment' => 'generated document part',
+        'modifiedAt' => $documentModifiedAt,
+        'externalAttributes' => 0x81a40000,
     ],
 ], 'wordpress import package');
 $descriptorPackage = ZipPackage::fromString($buildDescriptorBackedPackage());
@@ -89,6 +92,15 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected package comment metadata to round-trip from the generated ZIP package');
     }
 
+    $documentEntry = $package->entry('/word/document.xml');
+    if ($documentEntry->lastModifiedTimestamp() !== $documentModifiedAt) {
+        throw new RuntimeException('Expected document part ZIP timestamp metadata to round-trip');
+    }
+
+    if ($documentEntry->externalFileAttributes !== 0x81a40000) {
+        throw new RuntimeException('Expected document part ZIP external attributes to round-trip');
+    }
+
     if ($descriptorPackage->read('/word/comments.xml') !== '<w:comments><w:comment>Reviewer note from migration packet</w:comment></w:comments>') {
         throw new RuntimeException('Expected descriptor-backed comments part bytes to round-trip from the ZIP package');
     }
@@ -100,7 +112,13 @@ if (in_array('--self-test', $argv, true)) {
 echo "ZIP package parts for WordPress import preflight:\n";
 echo 'packageComment=' . $package->packageComment() . "\n";
 foreach ($package->entries() as $entry) {
-    echo '- ' . $entry->name . ' method=' . $entry->compressionMethod . ' crc32=' . $entry->crc32Hex() . "\n";
+    $modifiedAt = $entry->lastModifiedTimestamp();
+    echo '- ' . $entry->name
+        . ' method=' . $entry->compressionMethod
+        . ' crc32=' . $entry->crc32Hex()
+        . ' modifiedAt=' . ($modifiedAt === null ? 'none' : (string) $modifiedAt)
+        . ' externalAttributes=' . sprintf('0x%08x', $entry->externalFileAttributes)
+        . "\n";
 }
 echo 'document.xml=' . $package->read('/word/document.xml') . "\n";
 echo 'descriptor.comments.xml=' . $descriptorPackage->read('/word/comments.xml') . "\n";

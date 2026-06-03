@@ -91,6 +91,34 @@ return [
         $t->same('names-tree', $destinations[0]['source']);
         $t->same(['top' => 700.0], $destinations[0]['coordinates']);
     },
+    'honors destination name-tree Limits before WordPress named destination import' => static function (TestRunner $t): void {
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /Dests 8 0 R >> /Dests << /DeckStart [4 0 R /Fit] /LegacyOnly [4 0 R /FitV 90] >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+            . "8 0 obj\n<< /Limits [(A) (Zzz)] /Kids [9 0 R 10 0 R 11 0 R] >>\nendobj\n"
+            . "9 0 obj\n<< /Limits [(A) (Mzz)] /Names [(DeckStart) [3 0 R /FitH 700] (DeckReview) 12 0 R (Z Stale Deck) [4 0 R /Fit]] >>\nendobj\n"
+            . "10 0 obj\n<< /Limits [(N) (Zzz)] /Names [(DeckStart) 13 0 R (ZedTarget) [4 0 R /Fit]] >>\nendobj\n"
+            . "11 0 obj\n<< /Limits [(ZebraAppendix) (Zzz)] /Names [(A Stale Deck) [4 0 R /Fit] (ZebraAppendix) [4 0 R /FitBH 600]] >>\nendobj\n"
+            . "12 0 obj\n<< /D [3 0 R /XYZ 72 690 0] >>\nendobj\n"
+            . "13 0 obj\n<< /D [4 0 R /FitV 80] >>\nendobj\n"
+            . "%%EOF\n";
+
+        $destinations = (new PdfNamedDestinationExtractor())->extractNamedDestinations($pdf);
+
+        $t->same(['DeckStart', 'DeckReview', 'ZedTarget', 'ZebraAppendix', 'LegacyOnly'], array_column($destinations, 'name'));
+        $t->same([0, 0, 1, 1, 1], array_column($destinations, 'page'));
+        $t->same(['FitH', 'XYZ', 'Fit', 'FitBH', 'FitV'], array_column($destinations, 'fit'));
+        $t->same(['names-tree', 'names-tree', 'names-tree', 'names-tree', 'legacy-dests'], array_column($destinations, 'source'));
+        $t->same(['top' => 700.0], $destinations[0]['coordinates']);
+        $t->same(['left' => 72.0, 'top' => 690.0, 'zoom' => 0.0], $destinations[1]['coordinates']);
+        $t->same([], $destinations[2]['coordinates']);
+        $t->same(['top' => 600.0], $destinations[3]['coordinates']);
+        $t->same(['left' => 90.0], $destinations[4]['coordinates']);
+        $t->true(!in_array('Z Stale Deck', array_column($destinations, 'name'), true));
+        $t->true(!in_array('A Stale Deck', array_column($destinations, 'name'), true));
+    },
     'skips malformed destination values and rejects non PDF bytes' => static function (TestRunner $t): void {
         $extractor = new PdfNamedDestinationExtractor();
         $pdf = "%PDF-1.7\n"

@@ -60,6 +60,8 @@ final class ZipPackage
             self::assertRange($bytes, $cursor, 46, 'central directory entry');
             $flags = self::readUInt16($bytes, $cursor + 8);
             $method = self::readUInt16($bytes, $cursor + 10);
+            $modifiedTime = self::readUInt16($bytes, $cursor + 12);
+            $modifiedDate = self::readUInt16($bytes, $cursor + 14);
             $crc32 = self::readUInt32($bytes, $cursor + 16);
             $compressedSize = self::readUInt32($bytes, $cursor + 20);
             $uncompressedSize = self::readUInt32($bytes, $cursor + 24);
@@ -67,6 +69,7 @@ final class ZipPackage
             $extraLength = self::readUInt16($bytes, $cursor + 30);
             $commentLength = self::readUInt16($bytes, $cursor + 32);
             $diskStart = self::readUInt16($bytes, $cursor + 34);
+            $externalAttributes = self::readUInt32($bytes, $cursor + 38);
             $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
             $variableStart = $cursor + 46;
             $variableLength = $nameLength + $extraLength + $commentLength;
@@ -99,7 +102,10 @@ final class ZipPackage
                 $compressedSize,
                 $uncompressedSize,
                 $localHeaderOffset,
-                $comment
+                $comment,
+                $modifiedTime,
+                $modifiedDate,
+                $externalAttributes
             );
 
             $entries[] = $entry;
@@ -117,7 +123,7 @@ final class ZipPackage
     }
 
     /**
-     * @param list<array{name:string, data?:string, compressionMethod?:int, comment?:string}> $parts
+     * @param list<array{name:string, data?:string, compressionMethod?:int, comment?:string, modifiedAt?:int, modifiedDosTime?:int, modifiedDosDate?:int, externalAttributes?:int}> $parts
      */
     public static function fromParts(array $parts, string $packageComment = ''): self
     {
@@ -125,7 +131,7 @@ final class ZipPackage
     }
 
     /**
-     * @param list<array{name:string, data?:string, compressionMethod?:int, comment?:string}> $parts
+     * @param list<array{name:string, data?:string, compressionMethod?:int, comment?:string, modifiedAt?:int, modifiedDosTime?:int, modifiedDosDate?:int, externalAttributes?:int}> $parts
      */
     public static function build(array $parts, string $packageComment = ''): string
     {
@@ -195,9 +201,16 @@ final class ZipPackage
             $compressedSize = strlen($compressed);
             $uncompressedSize = strlen($data);
             $localHeaderOffset = strlen($body);
+            [$modifiedTime, $modifiedDate] = self::resolveModifiedDateTime($part, $name);
+            $externalAttributes = $part['externalAttributes'] ?? (str_ends_with($name, '/') ? 0x10 : 0);
+            if (!is_int($externalAttributes)) {
+                throw new \RuntimeException("ZIP entry {$name} external attributes must be an integer");
+            }
+
             self::assertUInt32Value($compressedSize, "ZIP entry {$name} compressed size");
             self::assertUInt32Value($uncompressedSize, "ZIP entry {$name} uncompressed size");
             self::assertUInt32Value($localHeaderOffset, "ZIP entry {$name} local header offset");
+            self::assertUInt32Value($externalAttributes, "ZIP entry {$name} external attributes");
 
             $body .= pack(
                 'VvvvvvVVVvv',
@@ -205,8 +218,8 @@ final class ZipPackage
                 20,
                 self::UTF8_GENERAL_PURPOSE_FLAG,
                 $method,
-                0,
-                0,
+                $modifiedTime,
+                $modifiedDate,
                 $crc32,
                 $compressedSize,
                 $uncompressedSize,
@@ -222,8 +235,8 @@ final class ZipPackage
                 20,
                 self::UTF8_GENERAL_PURPOSE_FLAG,
                 $method,
-                0,
-                0,
+                $modifiedTime,
+                $modifiedDate,
                 $crc32,
                 $compressedSize,
                 $uncompressedSize,
@@ -232,7 +245,7 @@ final class ZipPackage
                 strlen($comment),
                 0,
                 0,
-                0,
+                $externalAttributes,
                 $localHeaderOffset
             );
             $central .= $name . $comment;
@@ -364,6 +377,8 @@ final class ZipPackage
 
         $flags = self::readUInt16($this->bytes, $entry->localHeaderOffset + 6);
         $method = self::readUInt16($this->bytes, $entry->localHeaderOffset + 8);
+        $modifiedTime = self::readUInt16($this->bytes, $entry->localHeaderOffset + 10);
+        $modifiedDate = self::readUInt16($this->bytes, $entry->localHeaderOffset + 12);
         $localCrc32 = self::readUInt32($this->bytes, $entry->localHeaderOffset + 14);
         $localCompressedSize = self::readUInt32($this->bytes, $entry->localHeaderOffset + 18);
         $localUncompressedSize = self::readUInt32($this->bytes, $entry->localHeaderOffset + 22);
@@ -383,6 +398,10 @@ final class ZipPackage
 
         if ($method !== $entry->compressionMethod) {
             throw new \RuntimeException("ZIP local header compression method does not match entry {$entry->name}");
+        }
+
+        if ($modifiedTime !== $entry->lastModifiedTime || $modifiedDate !== $entry->lastModifiedDate) {
+            throw new \RuntimeException("ZIP local header modification time does not match central directory entry {$entry->name}");
         }
 
         if (($entry->generalPurposeFlags & 0x0008) === 0) {
@@ -452,6 +471,65 @@ final class ZipPackage
         return $name;
     }
 
+    /**
+     * @param array<string, mixed> $part
+     *
+     * @return array{0:int, 1:int}
+     */
+    private static function resolveModifiedDateTime(array $part, string $name): array
+    {
+        $hasUnixTimestamp = array_key_exists('modifiedAt', $part);
+        $hasDosTime = array_key_exists('modifiedDosTime', $part);
+        $hasDosDate = array_key_exists('modifiedDosDate', $part);
+
+        if ($hasUnixTimestamp && ($hasDosTime || $hasDosDate)) {
+            throw new \RuntimeException("ZIP entry {$name} modification time must use either modifiedAt or DOS fields");
+        }
+
+        if ($hasDosTime || $hasDosDate) {
+            if (!$hasDosTime || !$hasDosDate || !is_int($part['modifiedDosTime']) || !is_int($part['modifiedDosDate'])) {
+                throw new \RuntimeException("ZIP entry {$name} DOS modification time and date must be integers");
+            }
+
+            self::assertUInt16Value($part['modifiedDosTime'], "ZIP entry {$name} DOS modification time");
+            self::assertUInt16Value($part['modifiedDosDate'], "ZIP entry {$name} DOS modification date");
+
+            return [$part['modifiedDosTime'], $part['modifiedDosDate']];
+        }
+
+        if ($hasUnixTimestamp) {
+            if (!is_int($part['modifiedAt'])) {
+                throw new \RuntimeException("ZIP entry {$name} modifiedAt timestamp must be an integer");
+            }
+
+            return self::dosDateTimeFromUnixTimestamp($part['modifiedAt'], $name);
+        }
+
+        return [0, 0];
+    }
+
+    /**
+     * @return array{0:int, 1:int}
+     */
+    private static function dosDateTimeFromUnixTimestamp(int $timestamp, string $name): array
+    {
+        $year = (int) gmdate('Y', $timestamp);
+        if ($year < 1980 || $year > 2107) {
+            throw new \RuntimeException("ZIP entry {$name} modifiedAt timestamp is outside the DOS date range");
+        }
+
+        $month = (int) gmdate('n', $timestamp);
+        $day = (int) gmdate('j', $timestamp);
+        $hour = (int) gmdate('G', $timestamp);
+        $minute = (int) gmdate('i', $timestamp);
+        $second = (int) gmdate('s', $timestamp);
+
+        $dosTime = ($hour << 11) | ($minute << 5) | intdiv($second, 2);
+        $dosDate = (($year - 1980) << 9) | ($month << 5) | $day;
+
+        return [$dosTime, $dosDate];
+    }
+
     private static function assertSafePartName(string $name): void
     {
         if ($name === '') {
@@ -489,9 +567,16 @@ final class ZipPackage
         }
     }
 
+    private static function assertUInt16Value(int $value, string $label): void
+    {
+        if ($value < 0 || $value > 0xffff) {
+            throw new \RuntimeException("{$label} must fit in an unsigned 16-bit ZIP field");
+        }
+    }
+
     private static function assertUInt32Value(int $value, string $label): void
     {
-        if ($value > 0xffffffff) {
+        if ($value < 0 || $value > 0xffffffff) {
             throw new \RuntimeException("{$label} requires ZIP64 and is not supported by this bounded package writer");
         }
     }

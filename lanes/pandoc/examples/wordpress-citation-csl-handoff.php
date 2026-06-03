@@ -11,9 +11,9 @@ use PortLibs\Pandoc\WordPressBlockWriter;
 $markdown = <<<'MARKDOWN'
 # Citation Import Review
 
-Smith says @smith1899 while the import queue cites [@wp-team].
+Smith says @smith1899 while the import queue cites [see @wp-team, sec. 2; -@smith1899, pp. 8-9].
 
-The source archive keeps [@missing-source] visible for reviewer follow-up.
+The source archive keeps [see @missing-source; @{https://example.com/bib?name=foobar&date=2000}, p. 33] visible for reviewer follow-up.
 MARKDOWN;
 
 $cslJson = <<<'JSON'
@@ -38,6 +38,13 @@ $cslJson = <<<'JSON'
     ],
     "issued": {"date-parts": [[2024]]},
     "URL": "https://example.test/reviewer-log"
+  },
+  {
+    "id": "https://example.com/bib?name=foobar&date=2000",
+    "type": "webpage",
+    "title": "URL Key Source",
+    "issued": {"date-parts": [[2000]]},
+    "URL": "https://example.com/bib?name=foobar&date=2000"
   }
 ]
 JSON;

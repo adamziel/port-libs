@@ -148,6 +148,7 @@ final class PdfMetadataExtractor
      *     metadata_date_utc?: string,
      *     language?: string,
      *     mark_info?: array<string, mixed>,
+     *     metadata_stream_review?: array<string, mixed>,
      *     page_layout?: string,
      *     page_mode?: string,
      *     viewer_preferences?: array<string, mixed>,
@@ -558,12 +559,118 @@ final class PdfMetadataExtractor
             return [];
         }
 
-        $stream = $this->decodeStreamObject($objects[$objectNumber], $objects);
-        if ($stream === null) {
+        $stream = $this->decodeStreamEntryObject($objects[$objectNumber], $objects);
+        if ($stream === null || !$this->isDocumentXmpMetadataStream($stream['dictionary'], $objects)) {
             return [];
         }
 
-        return $this->parseXmpPacket($stream);
+        return $this->parseXmpPacket($stream['content']);
+    }
+
+    /**
+     * Root document XMP is only promoted when Catalog /Metadata targets a PDF
+     * metadata XML stream. Other XML-like streams stay review-only.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function catalogMetadataStreamBoundaryReview(?string $value, array $objects): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        $base = [
+            'source' => 'catalog_metadata_stream_boundary',
+            'review_only' => true,
+            'payload_included' => false,
+            'accepted_as_document_xmp' => false,
+        ];
+
+        $objectNumber = $this->objectNumberFromReference($value);
+        if ($objectNumber === null) {
+            return $base + [
+                'status' => 'rejected_non_indirect_metadata_reference',
+            ];
+        }
+
+        if (!isset($objects[$objectNumber])) {
+            return $base + [
+                'status' => 'unresolved_metadata_reference',
+                'object_number' => $objectNumber,
+            ];
+        }
+
+        $stream = $this->decodeStreamEntryObject($objects[$objectNumber], $objects);
+        if ($stream === null) {
+            $review = $base + [
+                'status' => 'unreadable_metadata_stream',
+                'object_number' => $objectNumber,
+            ];
+            $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+            if ($dictionary !== null) {
+                foreach ($this->metadataStreamDictionaryLabels($dictionary, $objects) as $key => $metadataValue) {
+                    $review[$key] = $metadataValue;
+                }
+            }
+
+            return $review;
+        }
+
+        if ($this->isDocumentXmpMetadataStream($stream['dictionary'], $objects)) {
+            return [];
+        }
+
+        $review = $base + [
+            'status' => 'rejected_non_metadata_xml_stream',
+            'object_number' => $objectNumber,
+            'bytes' => strlen($stream['content']),
+            'sha256' => hash('sha256', $stream['content']),
+        ];
+
+        foreach ($this->metadataStreamDictionaryLabels($stream['dictionary'], $objects) as $key => $metadataValue) {
+            $review[$key] = $metadataValue;
+        }
+
+        $filters = $this->streamFilters($stream['dictionary'], $objects);
+        if ($filters !== []) {
+            $review['filters'] = $filters;
+        }
+
+        $xmpSummary = $this->xmpPacketReviewSummary($stream['content']);
+        if ($xmpSummary !== []) {
+            $review['xmp_summary'] = $xmpSummary;
+        }
+
+        return $review;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function isDocumentXmpMetadataStream(string $dictionary, array $objects): bool
+    {
+        return $this->dictionaryNameValue($dictionary, 'Type', $objects) === 'Metadata'
+            && $this->dictionaryNameValue($dictionary, 'Subtype', $objects) === 'XML';
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, string>
+     */
+    private function metadataStreamDictionaryLabels(string $dictionary, array $objects): array
+    {
+        $metadata = [];
+        foreach ([
+            'type' => $this->dictionaryNameValue($dictionary, 'Type', $objects),
+            'subtype' => $this->dictionaryNameValue($dictionary, 'Subtype', $objects),
+        ] as $key => $metadataValue) {
+            if (is_string($metadataValue) && $metadataValue !== '') {
+                $metadata[$key] = $metadataValue;
+            }
+        }
+
+        return $metadata;
     }
 
     /**
@@ -862,6 +969,14 @@ final class PdfMetadataExtractor
         $pieceInfo = $this->pieceInfoMetadata($this->dictionaryTopLevelRawValue($catalog, 'PieceInfo'), $objects);
         if ($pieceInfo !== []) {
             $metadata['piece_info'] = $pieceInfo;
+        }
+
+        $metadataStreamReview = $this->catalogMetadataStreamBoundaryReview(
+            $this->dictionaryTopLevelRawValue($catalog, 'Metadata'),
+            $objects
+        );
+        if ($metadataStreamReview !== []) {
+            $metadata['metadata_stream_review'] = $metadataStreamReview;
         }
 
         $collection = $this->collectionMetadata(
@@ -3720,10 +3835,10 @@ final class PdfMetadataExtractor
         }
 
         $dictionary = $entry['body'];
-        $version = $this->dictionaryIntegerValue($dictionary, 'V');
-        $revision = $this->dictionaryIntegerValue($dictionary, 'R');
-        $keyLength = $this->dictionaryIntegerValue($dictionary, 'Length');
-        $encryptMetadata = $this->dictionaryBooleanValue($dictionary, 'EncryptMetadata');
+        $version = $this->dictionaryIntegerValue($dictionary, 'V', $objects);
+        $revision = $this->dictionaryIntegerValue($dictionary, 'R', $objects);
+        $keyLength = $this->dictionaryIntegerValue($dictionary, 'Length', $objects);
+        $encryptMetadata = $this->dictionaryBooleanValue($dictionary, 'EncryptMetadata', $objects);
 
         $metadata = [
             'is_encrypted' => true,
@@ -3736,12 +3851,14 @@ final class PdfMetadataExtractor
             $metadata['object_number'] = $entry['object'];
         }
 
-        $filter = $this->dictionaryStringValue($dictionary, 'Filter');
+        $filter = $this->dictionaryNameValue($dictionary, 'Filter', $objects)
+            ?? $this->dictionaryStringValue($dictionary, 'Filter');
         if ($filter !== null) {
             $metadata['filter'] = $filter;
         }
 
-        $subfilter = $this->dictionaryStringValue($dictionary, 'SubFilter');
+        $subfilter = $this->dictionaryNameValue($dictionary, 'SubFilter', $objects)
+            ?? $this->dictionaryStringValue($dictionary, 'SubFilter');
         if ($subfilter !== null) {
             $metadata['subfilter'] = $subfilter;
         }
@@ -3768,7 +3885,8 @@ final class PdfMetadataExtractor
             'StrF' => 'string_filter',
             'EFF' => 'embedded_file_filter',
         ] as $pdfName => $key) {
-            $value = $this->dictionaryStringValue($dictionary, $pdfName);
+            $value = $this->dictionaryNameValue($dictionary, $pdfName, $objects)
+                ?? $this->dictionaryStringValue($dictionary, $pdfName);
             if ($value !== null) {
                 $metadata[$key] = $value;
             }
@@ -3789,7 +3907,7 @@ final class PdfMetadataExtractor
             $metadata['perms'] = $perms;
         }
 
-        $permissionValue = $this->dictionaryIntegerValue($dictionary, 'P');
+        $permissionValue = $this->dictionaryIntegerValue($dictionary, 'P', $objects);
         if ($permissionValue !== null) {
             $metadata['standard_permissions'] = $this->standardPermissionMetadata($permissionValue, $revision);
         }
@@ -4075,19 +4193,17 @@ final class PdfMetadataExtractor
      */
     private function cryptFilterMetadata(string $dictionary, array $objects): array
     {
-        $value = $this->dictionaryRawValue($dictionary, 'CF');
+        $value = $this->dictionaryTopLevelRawValue($dictionary, 'CF');
         if ($value === null) {
             return [];
         }
 
-        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
-        $body = str_starts_with($resolved, '<<')
-            ? $this->readPdfDictionaryAt($resolved, 0)
-            : $this->dictionaryObjectBody($resolved);
-        if ($body === null) {
+        $cfDictionary = $this->resolveDictionaryFromValue($value, $objects);
+        if ($cfDictionary === null) {
             return [];
         }
 
+        $body = $cfDictionary['body'];
         $filters = [];
         for ($offset = 0, $length = strlen($body); $offset < $length;) {
             while ($offset < $length && ctype_space($body[$offset])) {
@@ -4110,28 +4226,34 @@ final class PdfMetadataExtractor
                 $offset++;
             }
 
-            if (substr($body, $offset, 2) !== '<<') {
+            $valueOffset = $offset;
+            $filterValue = $this->readPdfValueAt($body, $valueOffset);
+            if ($filterValue === null) {
+                $offset++;
                 continue;
             }
 
-            $filterBody = $this->readPdfDictionaryAt($body, $offset);
-            if ($filterBody === null) {
-                $offset += 2;
+            $filterDictionary = $this->resolveDictionaryFromValue($filterValue, $objects);
+            if ($filterDictionary === null) {
+                $offset = $valueOffset + strlen($filterValue);
                 continue;
             }
 
+            $filterBody = $filterDictionary['body'];
             $metadata = [];
-            $method = $this->dictionaryStringValue($filterBody, 'CFM');
+            $method = $this->dictionaryNameValue($filterBody, 'CFM', $objects)
+                ?? $this->dictionaryStringValue($filterBody, 'CFM');
             if ($method !== null) {
                 $metadata['method'] = $method;
             }
 
-            $authEvent = $this->dictionaryStringValue($filterBody, 'AuthEvent');
+            $authEvent = $this->dictionaryNameValue($filterBody, 'AuthEvent', $objects)
+                ?? $this->dictionaryStringValue($filterBody, 'AuthEvent');
             if ($authEvent !== null) {
                 $metadata['auth_event'] = $authEvent;
             }
 
-            $lengthBytes = $this->dictionaryIntegerValue($filterBody, 'Length');
+            $lengthBytes = $this->dictionaryIntegerValue($filterBody, 'Length', $objects);
             if ($lengthBytes !== null) {
                 $metadata['key_length_bytes'] = $lengthBytes;
             }
@@ -4150,7 +4272,7 @@ final class PdfMetadataExtractor
                 $filters[$name] = $metadata;
             }
 
-            $offset += strlen($filterBody) + 4;
+            $offset = $valueOffset + strlen($filterValue);
         }
 
         return $filters;
@@ -4403,8 +4525,10 @@ final class PdfMetadataExtractor
      */
     private function publicKeyRecipientReview(string $dictionary, array $objects, array $cryptFilters): array
     {
-        $handler = $this->dictionaryStringValue($dictionary, 'Filter');
-        $subfilter = $this->dictionaryStringValue($dictionary, 'SubFilter');
+        $handler = $this->dictionaryNameValue($dictionary, 'Filter', $objects)
+            ?? $this->dictionaryStringValue($dictionary, 'Filter');
+        $subfilter = $this->dictionaryNameValue($dictionary, 'SubFilter', $objects)
+            ?? $this->dictionaryStringValue($dictionary, 'SubFilter');
         $topLevelRecipients = $this->recipientListMetadata(
             $this->dictionaryTopLevelRawValue($dictionary, 'Recipients'),
             $objects,
@@ -4450,7 +4574,7 @@ final class PdfMetadataExtractor
             }
         }
 
-        $cryptFilterSelection = $this->publicKeyRecipientCryptFilterSelection($dictionary, $cryptFilters);
+        $cryptFilterSelection = $this->publicKeyRecipientCryptFilterSelection($dictionary, $objects, $cryptFilters);
         $topLevelRecipientsSelected = $this->publicKeyTopLevelRecipientsSelected($handler, $subfilter, $topLevelRecipients !== null);
         $selectedRecipientCount = (int) ($cryptFilterSelection['selected_recipient_count'] ?? 0);
         $selectedRecipientBytes = (int) ($cryptFilterSelection['selected_recipient_bytes'] ?? 0);
@@ -4575,7 +4699,7 @@ final class PdfMetadataExtractor
      * @param array<string, array<string, mixed>> $cryptFilters
      * @return array<string, mixed>
      */
-    private function publicKeyRecipientCryptFilterSelection(string $dictionary, array $cryptFilters): array
+    private function publicKeyRecipientCryptFilterSelection(string $dictionary, array $objects, array $cryptFilters): array
     {
         $declared = [];
         $selectedRows = [];
@@ -4592,7 +4716,8 @@ final class PdfMetadataExtractor
             'string_filter' => 'StrF',
             'embedded_file_filter' => 'EFF',
         ] as $role => $pdfName) {
-            $name = $this->dictionaryStringValue($dictionary, $pdfName);
+            $name = $this->dictionaryNameValue($dictionary, $pdfName, $objects)
+                ?? $this->dictionaryStringValue($dictionary, $pdfName);
             if ($name === null) {
                 continue;
             }
@@ -5907,6 +6032,8 @@ final class PdfMetadataExtractor
         $xrefEntries = $this->xrefEntriesFromStartxrefChain($pdfBytes, $objects, $definitions);
         if ($xrefEntries !== []) {
             $objects = $this->liveDirectObjects($definitions, $xrefEntries);
+            $objects = $this->withTrailerDirectGenerationObjects($pdfBytes, $objects, $definitions);
+            $objects = $this->withReferencedDirectGenerationObjects($objects, $definitions, $xrefEntries);
         }
 
         ksort($objects, SORT_NUMERIC);
@@ -6174,6 +6301,129 @@ final class PdfMetadataExtractor
                 continue;
             }
             $candidates[] = $definition;
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
+    }
+
+    /**
+     * Incremental xref updates can name the current catalog or Info generation
+     * in the latest trailer while carrying damaged explicit offsets for those
+     * rows. Keep that latest trailer generation authoritative instead of
+     * falling back to stale /Prev metadata.
+     *
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, string>
+     */
+    private function withTrailerDirectGenerationObjects(string $pdfBytes, array $objects, array $definitions): array
+    {
+        $trailer = $this->trailerDictionaryBody($pdfBytes);
+        if ($trailer === null) {
+            return $objects;
+        }
+
+        $repaired = $objects;
+        foreach (['Root', 'Info'] as $name) {
+            $reference = $this->objectReferenceFromValue($this->dictionaryTopLevelRawValue($trailer, $name));
+            if ($reference === null || $reference['generation'] <= 0) {
+                continue;
+            }
+
+            $definition = $this->directObjectDefinitionForGeneration(
+                $definitions[$reference['objectNumber']] ?? [],
+                $reference['generation']
+            );
+            if ($definition !== null) {
+                $repaired[$reference['objectNumber']] = $definition['body'];
+            }
+        }
+
+        ksort($repaired, SORT_NUMERIC);
+        return $repaired;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
+     * @return array<int, string>
+     */
+    private function withReferencedDirectGenerationObjects(array $objects, array $definitions, array $xrefEntries): array
+    {
+        $repaired = $objects;
+
+        for ($pass = 0; $pass < 8; $pass++) {
+            $added = false;
+            foreach ($this->nonZeroGenerationObjectReferences($repaired) as $objectNumber => $generations) {
+                $xrefEntry = $xrefEntries[$objectNumber] ?? null;
+                if ($xrefEntry !== null && ($xrefEntry['type'] ?? null) !== 1) {
+                    continue;
+                }
+
+                $selected = isset($repaired[$objectNumber])
+                    ? $this->liveDirectObjectDefinition($definitions[$objectNumber] ?? [], $xrefEntry)
+                    : null;
+
+                krsort($generations, SORT_NUMERIC);
+                foreach (array_keys($generations) as $generation) {
+                    $generation = (int) $generation;
+                    if ($selected !== null && $selected['generation'] === $generation) {
+                        continue;
+                    }
+
+                    $definition = $this->directObjectDefinitionForGeneration($definitions[$objectNumber] ?? [], $generation);
+                    if ($definition === null) {
+                        continue;
+                    }
+
+                    $repaired[$objectNumber] = $definition['body'];
+                    $added = true;
+                    break;
+                }
+            }
+
+            if (!$added) {
+                break;
+            }
+        }
+
+        ksort($repaired, SORT_NUMERIC);
+        return $repaired;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<int, array<int, true>>
+     */
+    private function nonZeroGenerationObjectReferences(array $objects): array
+    {
+        $references = [];
+        foreach ($objects as $body) {
+            $source = $this->dictionaryObjectBody($body) ?? $body;
+            if (preg_match_all('/\b(\d+)\s+([1-9]\d*)\s+R\b/s', $source, $matches, PREG_SET_ORDER) < 1) {
+                continue;
+            }
+
+            foreach ($matches as $match) {
+                $references[(int) $match[1]][(int) $match[2]] = true;
+            }
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function directObjectDefinitionForGeneration(array $definitions, int $generation): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if ($definition['generation'] === $generation) {
+                $candidates[] = $definition;
+            }
         }
 
         return $this->latestDirectObjectDefinition($candidates);
@@ -8393,6 +8643,21 @@ final class PdfMetadataExtractor
     private function objectNumberFromReference(string $value): ?int
     {
         return preg_match('/^(\d+)\s+\d+\s+R\b/s', trim($value), $match) === 1 ? (int) $match[1] : null;
+    }
+
+    /**
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function objectReferenceFromValue(?string $value): ?array
+    {
+        if ($value === null || preg_match('/^(\d+)\s+(\d+)\s+R\b/s', trim($value), $match) !== 1) {
+            return null;
+        }
+
+        return [
+            'objectNumber' => (int) $match[1],
+            'generation' => (int) $match[2],
+        ];
     }
 
     /**

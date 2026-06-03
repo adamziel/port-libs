@@ -8,6 +8,17 @@ use InvalidArgumentException;
 
 final class PdfAttachmentExtractor
 {
+    private const ASSOCIATED_FILE_RELATIONSHIP_ROLES = [
+        'Source' => 'original_source',
+        'Data' => 'base_data_for_visual_presentation',
+        'Alternative' => 'alternative_representation',
+        'Supplement' => 'supplemental_representation',
+        'EncryptedPayload' => 'encrypted_payload',
+        'FormData' => 'form_data',
+        'Schema' => 'schema_definition',
+        'Unspecified' => 'unspecified',
+    ];
+
     /**
      * Native PDF attachment preflight for embedded file streams referenced by
      * document EmbeddedFiles name trees or page FileAttachment annotations.
@@ -308,11 +319,16 @@ final class PdfAttachmentExtractor
             return null;
         }
 
-        $streamObjectId = $this->embeddedFileStreamObjectId($fileSpec['EF'] ?? null, $objects);
-        if ($streamObjectId === null || !isset($objects[$streamObjectId])) {
+        $streamReference = $this->embeddedFileStreamReference(
+            $fileSpec['EF'] ?? null,
+            $objects,
+            array_key_exists('UF', $fileSpec)
+        );
+        if ($streamReference === null || !isset($objects[$streamReference['objectId']])) {
             return null;
         }
 
+        $streamObjectId = $streamReference['objectId'];
         $streamObject = $objects[$streamObjectId];
         if ($streamObject['stream'] === null) {
             return null;
@@ -324,58 +340,105 @@ final class PdfAttachmentExtractor
         }
 
         $streamDict = $this->dict($streamObject['value']) ?? [];
-        $params = $this->dict($streamDict['Params'] ?? null) ?? [];
+        $params = $this->dict($this->resolveValue($streamDict['Params'] ?? null, $objects)) ?? [];
         $nameKey = isset($context['name_key']) && is_string($context['name_key']) ? $context['name_key'] : null;
-        $filename = $this->stringValue($fileSpec['UF'] ?? null)
-            ?? $this->stringValue($fileSpec['F'] ?? null)
-            ?? $nameKey
-            ?? 'attachment-' . $streamObjectId;
+        [$filename, $filenameSource] = $this->filenameWithSource($fileSpec, $objects, $nameKey, $streamObjectId);
+        $filters = $this->filterNames($streamDict['Filter'] ?? null, $objects);
+        $declaredSize = $this->intValue($this->resolveValue($params['Size'] ?? null, $objects));
+        $checksum = $this->stringBytesHex($this->resolveValue($params['CheckSum'] ?? null, $objects));
+        $relationship = $this->nameValue($this->resolveValue($fileSpec['AFRelationship'] ?? null, $objects));
 
-        return [
+        $attachment = [
             ...$context,
             'source' => $source,
             'file_spec_object_id' => $fileSpecObjectId,
             'stream_object_id' => $streamObjectId,
+            'ef_key' => $streamReference['key'],
             'filename' => $filename,
-            'description' => $this->stringValue($fileSpec['Desc'] ?? null),
-            'content_type' => $this->nameValue($streamDict['Subtype'] ?? null),
-            'declared_size' => $this->intValue($params['Size'] ?? null),
+            'filename_source' => $filenameSource,
+            'description' => $this->stringValue($this->resolveValue($fileSpec['Desc'] ?? null, $objects)),
+            'content_type' => $this->nameValue($this->resolveValue($streamDict['Subtype'] ?? null, $objects)),
+            'declared_size' => $declaredSize,
             'byte_length' => strlen($bytes),
             'sha256' => hash('sha256', $bytes),
-            'checksum_hex' => $this->stringBytesHex($params['CheckSum'] ?? null),
-            'created_at' => $this->stringValue($params['CreationDate'] ?? null),
-            'modified_at' => $this->stringValue($params['ModDate'] ?? null),
+            'checksum_hex' => $checksum,
+            'created_at' => $this->stringValue($this->resolveValue($params['CreationDate'] ?? null, $objects)),
+            'modified_at' => $this->stringValue($this->resolveValue($params['ModDate'] ?? null, $objects)),
             'bytes' => $bytes,
             'executes_python_or_models' => false,
             'executes_external_pdf_tools' => false,
         ];
+
+        if ($filters !== []) {
+            $attachment['filters'] = $filters;
+        }
+        if ($declaredSize !== null) {
+            $attachment['declared_size_matches'] = $declaredSize === strlen($bytes);
+        }
+        if ($checksum !== null) {
+            $computedChecksum = md5($bytes);
+            $attachment['computed_checksum_hex'] = $computedChecksum;
+            $attachment['checksum_matches'] = strtolower($checksum) === $computedChecksum;
+        }
+        if ($relationship !== null && $relationship !== '') {
+            $attachment['relationship'] = $relationship;
+            $attachment['relationship_role'] = self::ASSOCIATED_FILE_RELATIONSHIP_ROLES[$relationship] ?? 'unrecognized';
+            $attachment['relationship_status'] = array_key_exists($relationship, self::ASSOCIATED_FILE_RELATIONSHIP_ROLES)
+                ? 'standard_pdf_associated_file_relationship'
+                : 'unrecognized_pdf_associated_file_relationship';
+        }
+
+        return $attachment;
     }
 
     /**
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return array{objectId: int, key: string}|null
      */
-    private function embeddedFileStreamObjectId(mixed $efValue, array $objects): ?int
+    private function embeddedFileStreamReference(mixed $efValue, array $objects, bool $preferUnicode): ?array
     {
         $ef = $this->dict($this->resolveValue($efValue, $objects));
         if ($ef === null) {
             return null;
         }
 
-        foreach (['UF', 'F', 'DOS', 'Mac', 'Unix'] as $key) {
+        $keys = $preferUnicode ? ['UF', 'F', 'DOS', 'Unix', 'Mac'] : ['F', 'UF', 'DOS', 'Unix', 'Mac'];
+        foreach ($keys as $key) {
             $objectId = $this->refObjectId($ef[$key] ?? null);
             if ($objectId !== null) {
-                return $objectId;
+                return ['objectId' => $objectId, 'key' => $key];
             }
         }
 
-        foreach ($ef as $value) {
+        foreach ($ef as $key => $value) {
             $objectId = $this->refObjectId($value);
             if ($objectId !== null) {
-                return $objectId;
+                return ['objectId' => $objectId, 'key' => is_string($key) ? $key : 'unknown'];
             }
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $fileSpec
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return array{0: string, 1: string}
+     */
+    private function filenameWithSource(array $fileSpec, array $objects, ?string $nameKey, int $streamObjectId): array
+    {
+        foreach (['UF', 'F', 'DOS', 'Unix', 'Mac'] as $key) {
+            $filename = $this->stringValue($this->resolveValue($fileSpec[$key] ?? null, $objects));
+            if ($filename !== null && $filename !== '') {
+                return [$filename, $key];
+            }
+        }
+
+        if ($nameKey !== null && $nameKey !== '') {
+            return [$nameKey, 'name_tree_key'];
+        }
+
+        return ['attachment-' . $streamObjectId, 'generated'];
     }
 
     /**

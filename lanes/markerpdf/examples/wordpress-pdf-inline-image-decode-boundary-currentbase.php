@@ -16,7 +16,11 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . 'BI /W ' . strlen($imageRow) . ' /H 1 /CS /G /BPC 8 /F /Fl '
     . '/DP << /Predictor 12 /Columns ' . strlen($imageRow) . " /Colors 1 /BitsPerComponent 8 >> ID "
     . $compressedImage . "\nEI\n"
-    . "BT /F1 12 Tf 72 704 Td (After DP Inline Image) Tj ET";
+    . "BT /F1 12 Tf 72 704 Td (After DP Inline Image) Tj ET\n"
+    . "BT /F1 12 Tf 72 688 Td (Before A85 Inline Image) Tj ET\n"
+    . "BI /F /A85 ID\n"
+    . "87cURDc^jtCh* EI BT /F1 12 Tf 72 672 Td (ASCII85 Inline Noise) Tj ET ~>\nEI\n"
+    . "BT /F1 12 Tf 72 656 Td (After A85 Inline Image) Tj ET";
 
 $pdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
@@ -28,12 +32,21 @@ $plainText = $extractor->extractPlainText($pdf);
 echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'page /Contents BI /F /Fl /DP inline image payload exclusion before Gutenberg paragraph rendering',
+    'native_boundary' => 'page /Contents BI inline image filter decode boundary before Gutenberg paragraph rendering',
     'uses_inline_image_abbreviations' => true,
     'fake_ei_inside_compressed_payload' => str_contains($compressedImage, ' EI '),
-    'visible_text_imported' => $lines === ['Before DP Inline Image', 'After DP Inline Image'],
+    'fake_ei_inside_ascii85_payload' => true,
+    'visible_text_imported' => $lines === [
+        'Before DP Inline Image',
+        'After DP Inline Image',
+        'Before A85 Inline Image',
+        'After A85 Inline Image',
+    ],
+    'requires_ascii85_end_marker_before_ei' => true,
     'excluded_inline_image_text' => !str_contains($plainText, 'Inline DP Image Noise')
-        && !str_contains($plainText, 'raw EI'),
+        && !str_contains($plainText, 'raw EI')
+        && !str_contains($plainText, 'ASCII85 Inline Noise')
+        && !str_contains($plainText, '87cURDc'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
 foreach ($lines as $line) {

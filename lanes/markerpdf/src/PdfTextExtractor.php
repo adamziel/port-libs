@@ -10180,7 +10180,8 @@ final class PdfTextExtractor
         ksort($objects, SORT_NUMERIC);
         $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
 
-        $rootReference = $this->trailerRootReferenceFromStartxrefChain($pdfBytes, $definitions);
+        $rootReference = $this->trailerRootReferenceFromStartxrefChain($pdfBytes, $definitions)
+            ?? $this->trailerRootReferenceFromLatestClassicXrefTable($pdfBytes, $definitions);
         if ($rootReference !== null && $rootReference['generation'] > 0) {
             $objects = $this->withDirectGenerationObjectReference(
                 $objects,
@@ -11504,7 +11505,10 @@ final class PdfTextExtractor
             return [];
         }
 
-        $entries = $this->xrefTableEntries($pdfBytes, $definitions);
+        $fallbackClassicOffset = $this->latestClassicXrefTableOffset($pdfBytes, $definitions);
+        $entries = $fallbackClassicOffset === null
+            ? $this->xrefTableEntries($pdfBytes, $definitions)
+            : $this->xrefEntriesFromOffsetChain($pdfBytes, $fallbackClassicOffset, $objects, $definitions);
         foreach ($this->xrefStreamEntries($objects, $definitions) as $objectNumber => $entry) {
             $entries[$objectNumber] = $entry;
         }
@@ -11974,6 +11978,25 @@ final class PdfTextExtractor
     }
 
     /**
+     * Damaged files can leave the final startxref pointing outside the file
+     * while still appending a valid classic xref table and trailer. Use that
+     * latest top-level table as the rebuild boundary instead of letting older
+     * trailer roots win during object-boundary recovery.
+     *
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function trailerRootReferenceFromLatestClassicXrefTable(string $pdfBytes, array $definitions): ?array
+    {
+        $offset = $this->latestClassicXrefTableOffset($pdfBytes, $definitions);
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->trailerRootReferenceFromOffsetChain($pdfBytes, $offset, $definitions);
+    }
+
+    /**
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @param array<int, bool> $seenOffsets
      * @return array{objectNumber: int, generation: int}|null
@@ -12056,6 +12079,22 @@ final class PdfTextExtractor
             }
 
             return max(0, (int) ($match[1][0] ?? 0));
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>>|null $definitions
+     */
+    private function latestClassicXrefTableOffset(string $pdfBytes, ?array $definitions = null): ?int
+    {
+        $offsets = $this->xrefTableKeywordOffsets($pdfBytes);
+        for ($index = count($offsets) - 1; $index >= 0; $index--) {
+            $offset = $offsets[$index];
+            if ($this->xrefTableSectionAt($pdfBytes, $offset, $definitions) !== null) {
+                return $offset;
+            }
         }
 
         return null;
@@ -15762,7 +15801,7 @@ final class PdfTextExtractor
             return true;
         }
 
-        $decoded = $this->decodeStream($dictionary, $candidate, []);
+        $decoded = $this->decodeStream($dictionary, $candidate, [], true);
         if ($decoded === null) {
             return false;
         }
@@ -15891,6 +15930,10 @@ final class PdfTextExtractor
 
             $filterDecodeParms = $decodeParms[$index] ?? null;
             if (!$this->canApplyDecodeParms($filter, $filterDecodeParms, [])) {
+                return null;
+            }
+
+            if (!$this->streamFilterInputHasExplicitEndMarker($filter, $stream)) {
                 return null;
             }
 
