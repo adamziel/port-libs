@@ -18,6 +18,8 @@ final class DocxReader
     public const REL_TYPE_HYPERLINK = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
     public const REL_TYPE_IMAGE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
     public const REL_TYPE_FOOTNOTES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
+    public const REL_TYPE_STYLES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
+    public const REL_TYPE_NUMBERING = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     public const REL_TYPE_CORE_PROPERTIES = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
 
     /**
@@ -38,12 +40,16 @@ final class DocxReader
 
         $documentRelationships = $graph->relationshipsForSource($documentPart);
         $footnotes = $this->loadFootnotes($package, $graph, $documentPart);
+        $styles = $this->loadStyles($package, $graph, $documentPart);
+        $numbering = $this->loadNumbering($package, $graph, $documentPart);
         $document = $this->parseDocumentXml(
             $package->read($documentPart),
             $documentPart,
             $package,
             $documentRelationships,
             $footnotes,
+            $styles,
+            $numbering,
         );
         $metadata = $this->readCoreProperties($package, $graph);
 
@@ -62,13 +68,17 @@ final class DocxReader
 
     /**
      * @param array<string, AstNode> $footnotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
      */
     private function parseDocumentXml(
         string $xml,
         string $documentPart,
         ZipPackage $package,
         ?OpcRelationships $relationships,
-        array $footnotes
+        array $footnotes,
+        array $styles,
+        array $numbering
     ): AstNode {
         $dom = self::loadXml($xml, 'DOCX document XML');
         $root = $dom->documentElement;
@@ -81,32 +91,62 @@ final class DocxReader
             throw new \InvalidArgumentException('DOCX document XML is missing w:body');
         }
 
-        return new AstNode('document', ['sourceFormat' => 'docx', 'documentPart' => $documentPart], $this->bodyChildren($body, $package, $relationships, $footnotes));
+        return new AstNode('document', ['sourceFormat' => 'docx', 'documentPart' => $documentPart], $this->bodyChildren(
+            $body,
+            $package,
+            $relationships,
+            $footnotes,
+            $styles,
+            $numbering
+        ));
     }
 
     /**
      * @param array<string, AstNode> $footnotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
      * @return list<AstNode>
      */
-    private function bodyChildren(\DOMElement $body, ZipPackage $package, ?OpcRelationships $relationships, array $footnotes): array
+    private function bodyChildren(
+        \DOMElement $body,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $footnotes,
+        array $styles,
+        array $numbering
+    ): array
     {
         $blocks = [];
+        $currentList = null;
         foreach ($body->childNodes as $child) {
             if (!$child instanceof \DOMElement) {
                 continue;
             }
 
             if ($this->isWordElement($child, 'p')) {
-                $paragraph = $this->paragraphNode($child, $package, $relationships, $footnotes);
+                $paragraph = $this->paragraphNode($child, $package, $relationships, $footnotes, $styles);
                 if ($paragraph instanceof AstNode) {
+                    $listDefinition = $paragraph->type === 'paragraph'
+                        ? $this->listDefinitionForParagraph($child, $styles, $numbering)
+                        : null;
+                    if ($listDefinition !== null) {
+                        $this->appendListParagraph($blocks, $currentList, $paragraph, $listDefinition);
+                        continue;
+                    }
+
+                    $currentList = null;
                     $blocks[] = $paragraph;
                 }
                 continue;
             }
 
             if ($this->isWordElement($child, 'tbl')) {
-                $blocks[] = $this->tableNode($child, $package, $relationships, $footnotes);
+                $currentList = null;
+                $blocks[] = $this->tableNode($child, $package, $relationships, $footnotes, $styles);
+                continue;
             }
+
+            $currentList = null;
         }
 
         return $blocks;
@@ -114,8 +154,15 @@ final class DocxReader
 
     /**
      * @param array<string, AstNode> $footnotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
      */
-    private function paragraphNode(\DOMElement $paragraph, ZipPackage $package, ?OpcRelationships $relationships, array $footnotes): ?AstNode
+    private function paragraphNode(
+        \DOMElement $paragraph,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $footnotes,
+        array $styles = []
+    ): ?AstNode
     {
         $children = $this->paragraphInlines($paragraph, $package, $relationships, $footnotes);
         $text = $this->plainInlineText($children);
@@ -124,9 +171,10 @@ final class DocxReader
         }
 
         $style = $this->paragraphStyleId($paragraph);
-        if ($style !== null && preg_match('/^Heading([1-6])$/i', $style, $match) === 1) {
+        $headingLevel = $this->paragraphHeadingLevel($paragraph, $styles);
+        if ($headingLevel !== null) {
             return new AstNode('heading', [
-                'level' => (int) $match[1],
+                'level' => $headingLevel,
                 'style' => $style,
                 'text' => $text,
                 'id' => $this->slugify($text),
@@ -366,8 +414,15 @@ final class DocxReader
 
     /**
      * @param array<string, AstNode> $footnotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
      */
-    private function tableNode(\DOMElement $table, ZipPackage $package, ?OpcRelationships $relationships, array $footnotes): AstNode
+    private function tableNode(
+        \DOMElement $table,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $footnotes,
+        array $styles = []
+    ): AstNode
     {
         $rows = [];
         foreach ($table->getElementsByTagNameNS(self::WORDPROCESSINGML_NS, 'tr') as $rowElement) {
@@ -384,7 +439,7 @@ final class DocxReader
                 $cellBlocks = [];
                 foreach ($cellElement->childNodes as $cellChild) {
                     if ($cellChild instanceof \DOMElement && $this->isWordElement($cellChild, 'p')) {
-                        $paragraph = $this->paragraphNode($cellChild, $package, $relationships, $footnotes);
+                        $paragraph = $this->paragraphNode($cellChild, $package, $relationships, $footnotes, $styles);
                         if ($paragraph instanceof AstNode) {
                             $cellBlocks[] = $paragraph;
                         }
@@ -402,6 +457,48 @@ final class DocxReader
         return new AstNode('table', ['caption' => ''], [
             new AstNode('table_body', [], $rows),
         ]);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @param array{key:string, index:int}|null $currentList
+     * @param array{numId:string, level:int, ordered:bool, style:string, delimiter:string, start:int, format:string} $definition
+     */
+    private function appendListParagraph(array &$blocks, ?array &$currentList, AstNode $paragraph, array $definition): void
+    {
+        $key = implode(':', [
+            $definition['numId'],
+            (string) $definition['level'],
+            $definition['ordered'] ? 'ordered' : 'bullet',
+            $definition['style'],
+            $definition['delimiter'],
+        ]);
+
+        if ($currentList === null || $currentList['key'] !== $key) {
+            $attrs = [
+                'sourceFormat' => 'docx',
+                'numId' => $definition['numId'],
+                'level' => $definition['level'],
+            ];
+            if ($definition['ordered']) {
+                $attrs['style'] = $definition['style'];
+                $attrs['delimiter'] = $definition['delimiter'];
+                $attrs['start'] = $definition['start'];
+            } else {
+                $attrs['format'] = $definition['format'];
+            }
+
+            $blocks[] = new AstNode($definition['ordered'] ? 'ordered_list' : 'bullet_list', $attrs, []);
+            $currentList = [
+                'key' => $key,
+                'index' => count($blocks) - 1,
+            ];
+        }
+
+        $index = $currentList['index'];
+        $items = $blocks[$index]->children;
+        $items[] = new AstNode('list_item', ['level' => $definition['level']], [$paragraph]);
+        $blocks[$index] = new AstNode($blocks[$index]->type, $blocks[$index]->attrs, $items);
     }
 
     /**
@@ -454,6 +551,181 @@ final class DocxReader
     }
 
     /**
+     * @return array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}>
+     */
+    private function loadStyles(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart): array
+    {
+        $stylesPart = $graph->firstTargetOfType(self::REL_TYPE_STYLES, $documentPart);
+        if ($stylesPart === null) {
+            return [];
+        }
+
+        $stylesPart = OpcPackagePath::stripQueryAndFragment($stylesPart);
+        if (!$package->has($stylesPart)) {
+            return [];
+        }
+
+        $dom = self::loadXml($package->read($stylesPart), 'DOCX styles XML');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || !$this->isWordElement($root, 'styles')) {
+            return [];
+        }
+
+        $styles = [];
+        foreach ($root->getElementsByTagNameNS(self::WORDPROCESSINGML_NS, 'style') as $styleElement) {
+            if (!$styleElement instanceof \DOMElement || $styleElement->parentNode !== $root) {
+                continue;
+            }
+
+            $type = $this->wordAttr($styleElement, 'type');
+            if ($type !== null && strtolower($type) !== 'paragraph') {
+                continue;
+            }
+
+            $styleId = $this->wordAttr($styleElement, 'styleId');
+            if ($styleId === null || $styleId === '') {
+                continue;
+            }
+
+            $name = $this->styleChildValue($styleElement, 'name');
+            $basedOn = $this->styleChildValue($styleElement, 'basedOn');
+            $properties = $this->firstChildElement($styleElement, self::WORDPROCESSINGML_NS, 'pPr');
+
+            $styles[$styleId] = [
+                'name' => $name,
+                'basedOn' => $basedOn,
+                'headingLevel' => $this->styleElementHeadingLevel($styleElement),
+                'numPr' => $properties instanceof \DOMElement ? $this->numberingProperties($properties) : null,
+            ];
+        }
+
+        return $styles;
+    }
+
+    /**
+     * @return array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>>
+     */
+    private function loadNumbering(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart): array
+    {
+        $numberingPart = $graph->firstTargetOfType(self::REL_TYPE_NUMBERING, $documentPart);
+        if ($numberingPart === null) {
+            return [];
+        }
+
+        $numberingPart = OpcPackagePath::stripQueryAndFragment($numberingPart);
+        if (!$package->has($numberingPart)) {
+            return [];
+        }
+
+        $dom = self::loadXml($package->read($numberingPart), 'DOCX numbering XML');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || !$this->isWordElement($root, 'numbering')) {
+            return [];
+        }
+
+        $abstractLevels = [];
+        foreach ($root->childNodes as $child) {
+            if (!$child instanceof \DOMElement || !$this->isWordElement($child, 'abstractNum')) {
+                continue;
+            }
+
+            $abstractNumId = $this->wordAttr($child, 'abstractNumId');
+            if ($abstractNumId === null || $abstractNumId === '') {
+                continue;
+            }
+
+            $levels = [];
+            foreach ($child->childNodes as $levelElement) {
+                if (!$levelElement instanceof \DOMElement || !$this->isWordElement($levelElement, 'lvl')) {
+                    continue;
+                }
+
+                $level = $this->intWordAttr($levelElement, 'ilvl', 0);
+                $levels[$level] = $this->numberingLevelDefinition($levelElement);
+            }
+
+            $abstractLevels[$abstractNumId] = $levels;
+        }
+
+        $numbering = [];
+        foreach ($root->childNodes as $child) {
+            if (!$child instanceof \DOMElement || !$this->isWordElement($child, 'num')) {
+                continue;
+            }
+
+            $numId = $this->wordAttr($child, 'numId');
+            if ($numId === null || $numId === '') {
+                continue;
+            }
+
+            $abstractNumIdElement = $this->firstChildElement($child, self::WORDPROCESSINGML_NS, 'abstractNumId');
+            $abstractNumId = $abstractNumIdElement instanceof \DOMElement ? $this->wordAttr($abstractNumIdElement, 'val') : null;
+            $levels = $abstractNumId !== null ? ($abstractLevels[$abstractNumId] ?? []) : [];
+
+            foreach ($child->childNodes as $override) {
+                if (!$override instanceof \DOMElement || !$this->isWordElement($override, 'lvlOverride')) {
+                    continue;
+                }
+
+                $level = $this->intWordAttr($override, 'ilvl', 0);
+                $startOverride = $this->firstChildElement($override, self::WORDPROCESSINGML_NS, 'startOverride');
+                if ($startOverride instanceof \DOMElement) {
+                    $existing = $levels[$level] ?? [
+                        'ordered' => true,
+                        'style' => 'decimal',
+                        'delimiter' => 'period',
+                        'start' => 1,
+                        'format' => 'decimal',
+                    ];
+                    $existing['start'] = max(0, $this->intWordAttr($startOverride, 'val', $existing['start']));
+                    $levels[$level] = $existing;
+                }
+            }
+
+            $numbering[$numId] = $levels;
+        }
+
+        return $numbering;
+    }
+
+    /**
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
+     * @return array{numId:string, level:int, ordered:bool, style:string, delimiter:string, start:int, format:string}|null
+     */
+    private function listDefinitionForParagraph(\DOMElement $paragraph, array $styles, array $numbering): ?array
+    {
+        $numPr = $this->paragraphNumberingProperties($paragraph, $styles);
+        if ($numPr === null || ($numPr['numId'] ?? null) === null || $numPr['numId'] === '' || $numPr['numId'] === '0') {
+            return null;
+        }
+
+        $numId = $numPr['numId'];
+        $level = max(0, (int) ($numPr['level'] ?? 0));
+        $levelDefinition = $numbering[$numId][$level] ?? $numbering[$numId][0] ?? [
+            'ordered' => true,
+            'style' => 'decimal',
+            'delimiter' => 'period',
+            'start' => 1,
+            'format' => 'decimal',
+        ];
+
+        if ($levelDefinition['format'] === 'none') {
+            return null;
+        }
+
+        return [
+            'numId' => $numId,
+            'level' => $level,
+            'ordered' => $levelDefinition['ordered'],
+            'style' => $levelDefinition['style'],
+            'delimiter' => $levelDefinition['delimiter'],
+            'start' => $levelDefinition['start'],
+            'format' => $levelDefinition['format'],
+        ];
+    }
+
+    /**
      * @return array<string, string>
      */
     private function readCoreProperties(ZipPackage $package, OpcRelationshipGraph $graph): array
@@ -494,6 +766,219 @@ final class DocxReader
         }
 
         return $properties;
+    }
+
+    /**
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     */
+    private function paragraphHeadingLevel(\DOMElement $paragraph, array $styles): ?int
+    {
+        $style = $this->paragraphStyleId($paragraph);
+        $directStyleLevel = $this->headingLevelFromStyleLabel($style);
+        if ($directStyleLevel !== null) {
+            return $directStyleLevel;
+        }
+
+        $properties = $this->firstChildElement($paragraph, self::WORDPROCESSINGML_NS, 'pPr');
+        $outlineLevel = $properties instanceof \DOMElement ? $this->outlineHeadingLevel($properties) : null;
+        if ($outlineLevel !== null) {
+            return $outlineLevel;
+        }
+
+        $seen = [];
+
+        return $this->resolveStyleHeadingLevel($style, $styles, $seen);
+    }
+
+    /**
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, true> $seen
+     */
+    private function resolveStyleHeadingLevel(?string $styleId, array $styles, array &$seen): ?int
+    {
+        if ($styleId === null || isset($seen[$styleId]) || !isset($styles[$styleId])) {
+            return null;
+        }
+
+        $seen[$styleId] = true;
+        $style = $styles[$styleId];
+        if ($style['headingLevel'] !== null) {
+            return $style['headingLevel'];
+        }
+
+        return $this->resolveStyleHeadingLevel($style['basedOn'], $styles, $seen);
+    }
+
+    private function styleElementHeadingLevel(\DOMElement $styleElement): ?int
+    {
+        $styleId = $this->wordAttr($styleElement, 'styleId');
+        $level = $this->headingLevelFromStyleLabel($styleId);
+        if ($level !== null) {
+            return $level;
+        }
+
+        $name = $this->styleChildValue($styleElement, 'name');
+        $level = $this->headingLevelFromStyleLabel($name);
+        if ($level !== null) {
+            return $level;
+        }
+
+        $properties = $this->firstChildElement($styleElement, self::WORDPROCESSINGML_NS, 'pPr');
+
+        return $properties instanceof \DOMElement ? $this->outlineHeadingLevel($properties) : null;
+    }
+
+    private function headingLevelFromStyleLabel(?string $label): ?int
+    {
+        if ($label === null) {
+            return null;
+        }
+
+        $normalized = trim(str_replace(['_', '-'], ' ', $label));
+        if (preg_match('/^heading\s*([1-6])$/i', $normalized, $match) === 1) {
+            return (int) $match[1];
+        }
+
+        return null;
+    }
+
+    private function outlineHeadingLevel(\DOMElement $properties): ?int
+    {
+        $outlineLevel = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'outlineLvl');
+        if (!$outlineLevel instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = $this->intWordAttr($outlineLevel, 'val', 9);
+        if ($value < 0 || $value > 5) {
+            return null;
+        }
+
+        return $value + 1;
+    }
+
+    private function styleChildValue(\DOMElement $styleElement, string $localName): ?string
+    {
+        $child = $this->firstChildElement($styleElement, self::WORDPROCESSINGML_NS, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = $this->wordAttr($child, 'val');
+
+        return $value === null || $value === '' ? null : $value;
+    }
+
+    /**
+     * @return array{ordered:bool, style:string, delimiter:string, start:int, format:string}
+     */
+    private function numberingLevelDefinition(\DOMElement $levelElement): array
+    {
+        $formatElement = $this->firstChildElement($levelElement, self::WORDPROCESSINGML_NS, 'numFmt');
+        $format = $formatElement instanceof \DOMElement ? strtolower((string) $this->wordAttr($formatElement, 'val')) : 'decimal';
+        $startElement = $this->firstChildElement($levelElement, self::WORDPROCESSINGML_NS, 'start');
+        $start = $startElement instanceof \DOMElement ? max(0, $this->intWordAttr($startElement, 'val', 1)) : 1;
+        $levelTextElement = $this->firstChildElement($levelElement, self::WORDPROCESSINGML_NS, 'lvlText');
+        $levelText = $levelTextElement instanceof \DOMElement ? (string) $this->wordAttr($levelTextElement, 'val') : '%1.';
+
+        return [
+            'ordered' => !in_array($format, ['bullet', 'none'], true),
+            'style' => $this->orderedListStyleForNumberingFormat($format),
+            'delimiter' => $this->orderedListDelimiterForLevelText($levelText),
+            'start' => $start,
+            'format' => $format,
+        ];
+    }
+
+    private function orderedListStyleForNumberingFormat(string $format): string
+    {
+        return match ($format) {
+            'lowerletter' => 'lower_alpha',
+            'upperletter' => 'upper_alpha',
+            'lowerroman' => 'lower_roman',
+            'upperroman' => 'upper_roman',
+            default => 'decimal',
+        };
+    }
+
+    private function orderedListDelimiterForLevelText(string $levelText): string
+    {
+        if (preg_match('/^\(%\d+\)$/', $levelText) === 1) {
+            return 'two_parens';
+        }
+        if (preg_match('/%\d+\)$/', $levelText) === 1) {
+            return 'one_paren';
+        }
+
+        return 'period';
+    }
+
+    /**
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @return array{numId:?string, level:?int}|null
+     */
+    private function paragraphNumberingProperties(\DOMElement $paragraph, array $styles): ?array
+    {
+        $properties = $this->firstChildElement($paragraph, self::WORDPROCESSINGML_NS, 'pPr');
+        $direct = $properties instanceof \DOMElement ? $this->numberingProperties($properties) : null;
+        $style = $this->paragraphStyleId($paragraph);
+        $seen = [];
+        $fromStyle = $this->resolveStyleNumberingProperties($style, $styles, $seen);
+
+        $numId = $direct['numId'] ?? $fromStyle['numId'] ?? null;
+        if ($numId === null) {
+            return null;
+        }
+
+        return [
+            'numId' => $numId,
+            'level' => $direct['level'] ?? $fromStyle['level'] ?? 0,
+        ];
+    }
+
+    /**
+     * @return array{numId:?string, level:?int}|null
+     */
+    private function numberingProperties(\DOMElement $properties): ?array
+    {
+        $numPr = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'numPr');
+        if (!$numPr instanceof \DOMElement) {
+            return null;
+        }
+
+        $numIdElement = $this->firstChildElement($numPr, self::WORDPROCESSINGML_NS, 'numId');
+        $levelElement = $this->firstChildElement($numPr, self::WORDPROCESSINGML_NS, 'ilvl');
+        $numId = $numIdElement instanceof \DOMElement ? $this->wordAttr($numIdElement, 'val') : null;
+        $level = $levelElement instanceof \DOMElement ? $this->intWordAttr($levelElement, 'val', 0) : null;
+
+        if ($numId === null && $level === null) {
+            return null;
+        }
+
+        return [
+            'numId' => $numId,
+            'level' => $level,
+        ];
+    }
+
+    /**
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, true> $seen
+     * @return array{numId:?string, level:?int}|null
+     */
+    private function resolveStyleNumberingProperties(?string $styleId, array $styles, array &$seen): ?array
+    {
+        if ($styleId === null || isset($seen[$styleId]) || !isset($styles[$styleId])) {
+            return null;
+        }
+
+        $seen[$styleId] = true;
+        $style = $styles[$styleId];
+        if ($style['numPr'] !== null) {
+            return $style['numPr'];
+        }
+
+        return $this->resolveStyleNumberingProperties($style['basedOn'], $styles, $seen);
     }
 
     private function paragraphStyleId(\DOMElement $paragraph): ?string
@@ -543,6 +1028,16 @@ final class DocxReader
         }
 
         return null;
+    }
+
+    private function intWordAttr(\DOMElement $element, string $localName, int $default): int
+    {
+        $value = $this->wordAttr($element, $localName);
+        if ($value === null || !preg_match('/^-?\d+$/', $value)) {
+            return $default;
+        }
+
+        return (int) $value;
     }
 
     private function isWordElement(\DOMElement $element, string $localName): bool

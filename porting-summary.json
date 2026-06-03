@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-03 22:54:52 UTC",
-    "sourceCommit": "8a463fbf7b6042c889e7779c0f6e4decd6d82fa7",
-    "sourceCommitShort": "8a463fbf7b60",
+    "generated": "2026-06-03 22:58:16 UTC",
+    "sourceCommit": "5b96b09569574c4c3f26d7d99da635ab4d7632c0",
+    "sourceCommitShort": "5b96b0956957",
     "sourceBranch": "unknown",
-    "dashboardCommit": "8a463fbf7b6042c889e7779c0f6e4decd6d82fa7",
-    "dashboardCommitShort": "8a463fbf7b60",
+    "dashboardCommit": "5b96b09569574c4c3f26d7d99da635ab4d7632c0",
+    "dashboardCommitShort": "5b96b0956957",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "727",
-            "coverage": "727 / 2,276 (31.9%)",
-            "mapPercent": "31.9%",
-            "unmapped": "1,549",
-            "php": "293 pass / 0 fail",
+            "mapped": "734",
+            "coverage": "734 / 2,276 (32.2%)",
+            "mapPercent": "32.2%",
+            "unmapped": "1,542",
+            "php": "294 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-03 UTC isolated OPC relationship integrity slice on base 3710...",
+            "audit": "2026-06-03 UTC isolated DOCX styles/numbering slice on base 85557f877...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "Keep DOCX styles/numbering/list semantics, richer table grid...",
+            "nextTarget": "Keep richer DOCX nested numbering, table grid spans, comments...",
             "remainingGate": "No local blocker",
-            "commit": "3710732"
+            "commit": "85557f8"
         },
         {
             "lane": "quadrable",

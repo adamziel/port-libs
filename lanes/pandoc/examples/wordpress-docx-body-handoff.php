@@ -14,6 +14,8 @@ $contentTypesXml = <<<'XML'
   <Default Extension="xml" ContentType="application/xml"/>
   <Default Extension="png" ContentType="image/png"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
   <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
   <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
 </Types>
@@ -32,6 +34,8 @@ XML],
   <Relationship Id="rIdSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source-packet?post=42" TargetMode="External"/>
   <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
   <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
 </Relationships>
 XML],
     ['name' => 'word/document.xml', 'data' => <<<'XML'
@@ -42,6 +46,11 @@ XML],
   xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
   <w:body>
     <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>DOCX source packet</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="ReviewSubhead"/></w:pPr><w:r><w:t>Reviewer checklist</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="ChecklistBullet"/></w:pPr><w:r><w:t>Match media IDs</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="ChecklistBullet"/></w:pPr><w:r><w:t>Preserve alt text</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="12"/></w:numPr></w:pPr><w:r><w:t>Confirm source URL</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="12"/></w:numPr></w:pPr><w:r><w:t>Publish packet</w:t></w:r></w:p>
     <w:p>
       <w:r><w:t xml:space="preserve">Import reviewer keeps </w:t></w:r>
       <w:hyperlink r:id="rIdSource"><w:r><w:t>the source link</w:t></w:r></w:hyperlink>
@@ -51,6 +60,21 @@ XML],
     <w:p><w:r><w:drawing><wp:inline><wp:docPr id="9" name="Hero" descr="Source hero alt" title="Source hero"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdHero"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>
   </w:body>
 </w:document>
+XML],
+    ['name' => 'word/styles.xml', 'data' => <<<'XML'
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/></w:style>
+  <w:style w:type="paragraph" w:styleId="ReviewSubhead"><w:name w:val="Review Subhead"/><w:basedOn w:val="Heading2"/></w:style>
+  <w:style w:type="paragraph" w:styleId="ChecklistBullet"><w:name w:val="Checklist Bullet"/><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="11"/></w:numPr></w:pPr></w:style>
+</w:styles>
+XML],
+    ['name' => 'word/numbering.xml', 'data' => <<<'XML'
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="10"><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="-"/></w:lvl></w:abstractNum>
+  <w:num w:numId="11"><w:abstractNumId w:val="10"/></w:num>
+  <w:abstractNum w:abstractNumId="20"><w:lvl w:ilvl="0"><w:start w:val="3"/><w:numFmt w:val="lowerLetter"/><w:lvlText w:val="%1)"/></w:lvl></w:abstractNum>
+  <w:num w:numId="12"><w:abstractNumId w:val="20"/></w:num>
+</w:numbering>
 XML],
     ['name' => 'word/footnotes.xml', 'data' => <<<'XML'
 <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
@@ -85,6 +109,9 @@ if (($argv[1] ?? '') === '--self-test') {
 
     foreach ([
         '<h1 id="docx-source-packet">DOCX source packet</h1>',
+        '<h2 id="reviewer-checklist">Reviewer checklist</h2>',
+        '<ul><li>Match media IDs</li><li>Preserve alt text</li></ul>',
+        '<ol start="3" type="a"><li>Confirm source URL</li><li>Publish packet</li></ol>',
         '<a href="https://example.test/source-packet?post=42">the source link</a>',
         '<img src="word/media/hero.png" alt="Source hero alt" title="Source hero"/>',
         'DOCX footnote import note.',
