@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-03 23:16:08 UTC",
-    "sourceCommit": "88d5d06f11a328db34b0ccb54a83582541a02de8",
-    "sourceCommitShort": "88d5d06f11a3",
+    "generated": "2026-06-03 23:28:44 UTC",
+    "sourceCommit": "bb492a8177b461eb64d4f0b8495d9b7b155c59df",
+    "sourceCommitShort": "bb492a8177b4",
     "sourceBranch": "unknown",
-    "dashboardCommit": "88d5d06f11a328db34b0ccb54a83582541a02de8",
-    "dashboardCommitShort": "88d5d06f11a3",
+    "dashboardCommit": "bb492a8177b461eb64d4f0b8495d9b7b155c59df",
+    "dashboardCommitShort": "bb492a8177b4",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -12,7 +12,7 @@
             "library": "libsqlite",
             "priority": "Primary",
             "queue": "Primary",
-            "state": "1 open failures",
+            "state": "PHP green, upstream gap",
             "progressPercent": "99.6",
             "completion": "99.6%",
             "suite": "mapped; current-base JSON subtype root-gate reduction integrated",
@@ -22,12 +22,12 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,290,283 pass / 1 fail",
-            "phase": "current-base root failure reduction in progress; broad full-lane/rele...",
+            "php": "6,290,284 pass / 0 fail",
+            "phase": "current-base root failure reduction complete for SQLiteHeaderTest.php...",
             "audit": "2026-06-01 21:15 UTC supervisor integration: source commit c3bf2f17bb...",
-            "currentWork": "Current combined root-gate replay corrected zero-offset lag()/lead() assertion covera...",
-            "nextTarget": "Fix the final broad libsqlite failure: execute bounded SQLite...",
-            "remainingGate": "Broad libsqlite full-lane/release parity is not green: current SQLite...",
+            "currentWork": "Current final root query-plan scalar-output slice normalizes SQLite JSON subtype valu...",
+            "nextTarget": "Integrator should run the serialized root/full-lane gate on t...",
+            "remainingGate": "No local blocker",
             "commit": "16d8081"
         },
         {

@@ -346,6 +346,7 @@ final class SQLiteSelectResult
 
     private static function valueKey(mixed $value, string $collation = 'BINARY'): string
     {
+        $value = self::sqlResultValue($value);
         if ($value === null) {
             return 'null:';
         }
@@ -378,6 +379,8 @@ final class SQLiteSelectResult
      */
     private static function compareSqlValues(mixed $left, mixed $right, string $collation = 'BINARY', array $customCollations = []): int
     {
+        $left = self::sqlResultValue($left);
+        $right = self::sqlResultValue($right);
         $leftRank = self::sortRank($left);
         $rightRank = self::sortRank($right);
         if ($leftRank !== $rightRank) {
@@ -424,6 +427,8 @@ final class SQLiteSelectResult
 
     private static function sortRank(mixed $value): int
     {
+        $value = self::sqlResultValue($value);
+
         return match (true) {
             $value === null => 0,
             is_int($value) || is_float($value) || is_bool($value) => 1,
@@ -431,6 +436,11 @@ final class SQLiteSelectResult
             $value instanceof SQLiteBlobValue => 3,
             default => throw new \InvalidArgumentException('SQLite ORDER BY values must be scalar, BLOB, or NULL'),
         };
+    }
+
+    private static function sqlResultValue(mixed $value): mixed
+    {
+        return $value instanceof SQLiteJsonSubtypeValue ? $value->json : $value;
     }
 
     /**
