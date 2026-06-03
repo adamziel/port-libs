@@ -130,6 +130,38 @@ return [
             unlink($path);
         }
     },
+    'short-circuits encrypted PDFs before supplied model pipeline runs' => static function (TestRunner $t) use ($makeTempFile): void {
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
+            . "5 0 obj\n<< /Filter /Standard /V 4 /R 4 /Length 128 /P -20 /O <00> /U <01> >>\nendobj\n"
+            . "trailer << /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF\n";
+        $path = $makeTempFile($pdf);
+        try {
+            $calls = 0;
+            $result = (new CorePdfConverter())->convertWithSuppliedPages(
+                $path,
+                [['pnum' => 0, 'blocks' => []]],
+                [],
+                static function () use (&$calls): array {
+                    $calls++;
+
+                    return ['text' => 'should not run', 'images' => [], 'metadata' => []];
+                }
+            );
+
+            $t->same(0, $calls);
+            $t->same('', $result['text']);
+            $t->same([], $result['images']);
+            $t->same('pdf', $result['metadata']['filetype']);
+            $t->same('encrypted-pdf-preflight', $result['context']['stage']);
+            $t->same(true, $result['metadata']['pdf_security']['encrypted']);
+            $t->same(false, $result['metadata']['pdf_security']['permission_allows_text_extraction']);
+            $t->same(false, $result['context']['pdf_security']['should_queue_models']);
+        } finally {
+            unlink($path);
+        }
+    },
     'runs actual CI benchmark excerpts through the core supplied-page boundary' => static function (TestRunner $t) use ($makeTempFile, $pageFromText): void {
         $fixture = require __DIR__ . '/../fixtures/upstream-ci-benchmark-short.php';
         $converter = new CorePdfConverter();

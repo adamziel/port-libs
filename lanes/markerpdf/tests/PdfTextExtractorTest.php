@@ -20,6 +20,42 @@ $pdfWithStreams = static function (array $streams): string {
     return $pdf . "%%EOF";
 };
 
+$streamObjectBody = static function (string $content): string {
+    return "<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream";
+};
+
+$pdfWithClassicXref = static function (array $objects, array $freeObjectNumbers = [], ?int $startXref = null): string {
+    $pdf = "%PDF-1.4\n";
+    $offsets = [];
+    $maxObjectNumber = 0;
+    foreach ($objects as $object) {
+        $objectNumber = (int) $object['number'];
+        $generation = (int) ($object['generation'] ?? 0);
+        $body = (string) $object['body'];
+        $offsets[$objectNumber] = strlen($pdf);
+        $maxObjectNumber = max($maxObjectNumber, $objectNumber);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+    }
+
+    foreach ($freeObjectNumbers as $objectNumber) {
+        $maxObjectNumber = max($maxObjectNumber, (int) $objectNumber);
+    }
+
+    $xrefOffset = strlen($pdf);
+    $pdf .= "xref\n0 " . ($maxObjectNumber + 1) . "\n";
+    for ($objectNumber = 0; $objectNumber <= $maxObjectNumber; $objectNumber++) {
+        if ($objectNumber === 0 || in_array($objectNumber, $freeObjectNumbers, true)) {
+            $pdf .= "0000000000 65535 f \n";
+            continue;
+        }
+
+        $pdf .= str_pad((string) ($offsets[$objectNumber] ?? 0), 10, '0', STR_PAD_LEFT) . " 00000 n \n";
+    }
+    $pdf .= "trailer\n<< /Size " . ($maxObjectNumber + 1) . " >>\nstartxref\n" . ($startXref ?? $xrefOffset) . "\n%%EOF";
+
+    return $pdf;
+};
+
 $ascii85Encode = static function (string $bytes): string {
     $encoded = '<~';
     $length = strlen($bytes);
@@ -833,6 +869,32 @@ $encryptedPreflightPdf = static function (): string {
 };
 
 return [
+    'repairs damaged startxref to the latest classic xref table before WordPress text extraction' => static function (TestRunner $t) use ($pdfWithClassicXref, $streamObjectBody): void {
+        $currentContent = 'BT /F1 12 Tf 72 720 Td (Current XRef Import) Tj ET';
+        $freeStaleContent = 'BT /F1 12 Tf 72 720 Td (Free Stale Import) Tj ET';
+        $pdf = $pdfWithClassicXref([
+            ['number' => 1, 'body' => $streamObjectBody($currentContent)],
+            ['number' => 2, 'body' => $streamObjectBody($freeStaleContent)],
+        ], [2], 12);
+        $extractor = new PdfTextExtractor();
+
+        $t->same('Current XRef Import', $extractor->extractPlainText($pdf));
+        $t->same(['Current XRef Import'], $extractor->extractTextRuns($pdf));
+        $t->true(!str_contains($extractor->naiveGetText($pdf), 'Free Stale Import'));
+    },
+    'rebuilds current object bodies from classic object boundaries when xref is missing' => static function (TestRunner $t) use ($streamObjectBody): void {
+        $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale Rebuild Import) Tj ET';
+        $currentContent = 'BT /F1 12 Tf 72 720 Td (Current Rebuild Import) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "4 0 obj\n" . $streamObjectBody($staleContent) . "\nendobj\n"
+            . "4 0 obj\n" . $streamObjectBody($currentContent) . "\nendobj\n"
+            . "%%EOF";
+        $extractor = new PdfTextExtractor();
+
+        $t->same('Current Rebuild Import', $extractor->extractPlainText($pdf));
+        $t->same(['Current Rebuild Import'], $extractor->extractTextRuns($pdf));
+        $t->true(!str_contains($extractor->naiveGetText($pdf), 'Stale Rebuild Import'));
+    },
     'extracts literal and array text operators from content streams' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = "BT /F1 12 Tf 72 720 Td (Hello \\(WP\\)) Tj [(Data) 120 ( Liberation)] TJ ET";
         $runs = (new PdfTextExtractor())->extractTextRuns($pdfWithContent($content));
@@ -2437,6 +2499,47 @@ return [
         $t->true(!str_contains($extractor->extractPlainText($identityPdf), "\0"));
         $t->same($winAnsiExpected, $extractor->extractPlainText($winAnsiPdf));
         $t->same([$winAnsiExpected], $extractor->extractTextRuns($winAnsiPdf));
+    },
+    'skips inline image payload bytes before WordPress text extraction' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $content = "BT /F1 12 Tf 72 720 Td (Visible Before Image) Tj ET\n"
+            . "BI /W 18 /H 1 /CS /DeviceGray /BPC 8 ID\n"
+            . "abc EI BT /F1 12 Tf 72 690 Td (Inline Image Noise) Tj ET rawtail\n"
+            . "EI\n"
+            . "BT /F1 12 Tf 72 704 Td (Visible After Image) Tj ET";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdfWithContent($content));
+        $expected = ['Visible Before Image', 'Visible After Image'];
+
+        $t->same($expected, $extractor->extractTextLines($pdfWithContent($content)));
+        $t->same($expected, $extractor->extractTextRuns($pdfWithContent($content)));
+        $t->same("Visible Before Image\nVisible After Image", $plainText);
+        $t->same("Visible Before Image\nVisible After Image\n", $extractor->naiveGetText($pdfWithContent($content)));
+        $t->true(!str_contains($plainText, 'Inline Image Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+    },
+    'uses inline image abbreviations and DecodeParms before accepting compressed EI bytes' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $imageRow = 'raw EI BT /F1 12 Tf 72 690 Td (Inline DP Image Noise) Tj ET';
+        $compressedImage = gzcompress("\0" . $imageRow, 0);
+        if (!is_string($compressedImage)) {
+            throw new RuntimeException('Unable to build inline image fixture.');
+        }
+        $t->true(str_contains($compressedImage, ' EI '));
+
+        $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
+            . 'BI /W ' . strlen($imageRow) . ' /H 1 /CS /G /BPC 8 /F /Fl '
+            . '/DP << /Predictor 12 /Columns ' . strlen($imageRow) . " /Colors 1 /BitsPerComponent 8 >> ID "
+            . $compressedImage . "\nEI\n"
+            . 'BT /F1 12 Tf 72 704 Td (After DP Inline Image) Tj ET';
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdfWithContent($content));
+        $expected = ['Before DP Inline Image', 'After DP Inline Image'];
+
+        $t->same($expected, $extractor->extractTextLines($pdfWithContent($content)));
+        $t->same($expected, $extractor->extractTextRuns($pdfWithContent($content)));
+        $t->same("Before DP Inline Image\nAfter DP Inline Image", $plainText);
+        $t->same("Before DP Inline Image\nAfter DP Inline Image\n", $extractor->naiveGetText($pdfWithContent($content)));
+        $t->true(!str_contains($plainText, 'Inline DP Image Noise'));
+        $t->true(!str_contains($plainText, 'raw EI'));
     },
     'uses ToUnicode bfrange arrays for WordPress text extraction' => static function (TestRunner $t): void {
         $content = 'BT /Fcid 12 Tf 72 720 Td <202122> Tj ET';

@@ -9,10 +9,12 @@ use InvalidArgumentException;
 final class CorePdfConverter
 {
     private OcrLanguage $languages;
+    private PdfSecurityPreflight $securityPreflight;
 
-    public function __construct(?OcrLanguage $languages = null)
+    public function __construct(?OcrLanguage $languages = null, ?PdfSecurityPreflight $securityPreflight = null)
     {
         $this->languages = $languages ?? new OcrLanguage();
+        $this->securityPreflight = $securityPreflight ?? new PdfSecurityPreflight();
     }
 
     /**
@@ -64,6 +66,10 @@ final class CorePdfConverter
             'languages' => $langs,
             'filetype' => $filetype,
         ];
+        $pdfSecurity = $filetype === 'pdf' ? $this->pdfSecurityForFile($filename) : null;
+        if ($pdfSecurity !== null) {
+            $outMetadata['pdf_security'] = $pdfSecurity;
+        }
         $context = [
             'filename' => $filename,
             'max_pages' => $maxPages,
@@ -74,9 +80,23 @@ final class CorePdfConverter
             'filetype' => $filetype,
             'stage' => 'preflight',
         ];
+        if ($pdfSecurity !== null) {
+            $context['pdf_security'] = $pdfSecurity;
+        }
 
         if ($filetype === 'other') {
             $context['stage'] = 'unsupported-filetype';
+
+            return [
+                'text' => '',
+                'images' => [],
+                'metadata' => $outMetadata,
+                'context' => $context,
+            ];
+        }
+
+        if ($pdfSecurity !== null && $pdfSecurity['encrypted'] === true) {
+            $context['stage'] = 'encrypted-pdf-preflight';
 
             return [
                 'text' => '',
@@ -112,6 +132,26 @@ final class CorePdfConverter
             'metadata' => array_replace_recursive($outMetadata, $conversion['metadata']),
             'context' => $context,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function pdfSecurityForFile(string $filename): array
+    {
+        $bytes = @file_get_contents($filename);
+        if (!is_string($bytes)) {
+            throw new InvalidArgumentException('Unable to read PDF security preflight source: ' . $filename);
+        }
+
+        $security = $this->securityPreflight->analyze($bytes);
+        $encrypted = ($security['encrypted'] ?? false) === true;
+        $contentExtractionAllowed = ($security['content_extraction_allowed'] ?? false) === true;
+
+        $security['permission_allows_text_extraction'] = $contentExtractionAllowed;
+        $security['should_queue_models'] = !$encrypted;
+
+        return $security;
     }
 
     /**
