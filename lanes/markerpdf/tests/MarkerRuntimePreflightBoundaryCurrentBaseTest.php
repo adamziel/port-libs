@@ -232,6 +232,66 @@ return [
             $removeTree($output);
         }
     },
+    'matches convert.py integer truthiness for max and min_length gates' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'beta.pdf', 'gamma.pdf', 'omega.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'archive.pdf', "PK\x03\x04not really a pdf");
+
+            $batch = new BatchConverter();
+            $zeroMax = $batch->runtimeMainPreflightPlan($input, $output, maxFiles: 0);
+            $negativeMax = $batch->runtimeMainPreflightPlan($input, $output, maxFiles: -1);
+            $zeroMinLength = $batch->processFilePreflightPlan(
+                $input . DIRECTORY_SEPARATOR . 'archive.pdf',
+                $output,
+                null,
+                0,
+                static fn (): int => 0
+            );
+            $negativeMinLengthSpoof = $batch->processFilePreflightPlan(
+                $input . DIRECTORY_SEPARATOR . 'archive.pdf',
+                $output,
+                null,
+                -1,
+                static fn (): int => 0
+            );
+            $negativeMinLengthPdf = $batch->processFilePreflightPlan(
+                $input . DIRECTORY_SEPARATOR . 'alpha.pdf',
+                $output,
+                ['title' => 'Alpha'],
+                -1,
+                static fn (): int => 0
+            );
+
+            $t->same(false, $zeroMax['chunking']['max_files_limit_active']);
+            $t->same(5, $zeroMax['chunking']['selected_count']);
+            $t->same(['alpha.pdf', 'archive.pdf', 'beta.pdf', 'gamma.pdf', 'omega.pdf'], $zeroMax['chunking']['selected_filenames']);
+            $t->same(true, $negativeMax['chunking']['max_files_limit_active']);
+            $t->same(4, $negativeMax['chunking']['selected_count']);
+            $t->same(['alpha.pdf', 'archive.pdf', 'beta.pdf', 'gamma.pdf'], $negativeMax['chunking']['selected_filenames']);
+
+            $t->same(false, $zeroMinLength['min_length_gate_active']);
+            $t->same(false, $zeroMinLength['filetype_checked']);
+            $t->same('ready-for-conversion', $zeroMinLength['status']);
+            $t->same(true, $negativeMinLengthSpoof['min_length_gate_active']);
+            $t->same(true, $negativeMinLengthSpoof['filetype_checked']);
+            $t->same('other', $negativeMinLengthSpoof['filetype']);
+            $t->same(false, $negativeMinLengthSpoof['text_length_checked']);
+            $t->same('skipped-unsupported-filetype', $negativeMinLengthSpoof['status']);
+            $t->same(true, $negativeMinLengthPdf['min_length_gate_active']);
+            $t->same(true, $negativeMinLengthPdf['filetype_checked']);
+            $t->same(true, $negativeMinLengthPdf['text_length_checked']);
+            $t->same(0, $negativeMinLengthPdf['text_length']);
+            $t->same('ready-for-conversion', $negativeMinLengthPdf['status']);
+            $t->same(false, $negativeMinLengthPdf['executes_python_or_models']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'flags empty convert.py chunks and invalid workers before pool launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         try {

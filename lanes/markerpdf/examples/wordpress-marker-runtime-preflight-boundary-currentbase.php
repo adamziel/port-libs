@@ -60,11 +60,18 @@ try {
     $runtimePlan = $batch->runtimeMainPreflightPlan(
         $input,
         $output,
+        maxFiles: 0,
         metadataByFilename: [
             'ready-for-marker.pdf' => ['title' => 'Ready for Marker', 'languages' => ['English']],
             'short-text.pdf' => ['title' => 'Short Text Review'],
         ],
         minLength: 80,
+        workers: 8
+    );
+    $negativeMaxPlan = $batch->runtimeMainPreflightPlan(
+        $input,
+        $output,
+        maxFiles: -1,
         workers: 8
     );
     $plans = [];
@@ -77,6 +84,20 @@ try {
             $textLength
         );
     }
+    $zeroMinLengthSpoof = $batch->processFilePreflightPlan(
+        $input . DIRECTORY_SEPARATOR . 'extension-spoof.pdf',
+        $output,
+        null,
+        0,
+        $textLength
+    );
+    $negativeMinLengthSpoof = $batch->processFilePreflightPlan(
+        $input . DIRECTORY_SEPARATOR . 'extension-spoof.pdf',
+        $output,
+        null,
+        -1,
+        $textLength
+    );
 
     if ($plans['already-imported.pdf']['status'] !== 'skipped-existing') {
         throw new RuntimeException('Expected existing WordPress import output to skip before filetype checks.');
@@ -96,6 +117,18 @@ try {
     if ($runtimePlan['worker_pool']['total_processes'] !== 4 || $runtimePlan['worker_pool']['pool_launchable'] !== true) {
         throw new RuntimeException('Expected runtime main preflight to clamp worker count to selected task count.');
     }
+    if ($runtimePlan['chunking']['max_files_limit_active'] !== false || $runtimePlan['chunking']['selected_count'] !== 4) {
+        throw new RuntimeException('Expected --max=0 to behave like upstream convert.py and leave the WordPress queue uncapped.');
+    }
+    if ($negativeMaxPlan['chunking']['max_files_limit_active'] !== true || $negativeMaxPlan['chunking']['selected_count'] !== 3) {
+        throw new RuntimeException('Expected negative --max to behave like upstream Python slicing and drop the tail of the queue.');
+    }
+    if ($zeroMinLengthSpoof['min_length_gate_active'] !== false || $zeroMinLengthSpoof['filetype_checked'] !== false || $zeroMinLengthSpoof['status'] !== 'ready-for-conversion') {
+        throw new RuntimeException('Expected --min_length=0 to leave filetype preflight inactive like upstream convert.py.');
+    }
+    if ($negativeMinLengthSpoof['min_length_gate_active'] !== true || $negativeMinLengthSpoof['status'] !== 'skipped-unsupported-filetype') {
+        throw new RuntimeException('Expected negative --min_length to keep the upstream filetype preflight gate active.');
+    }
     if ($runtimePlan['executes_python_or_models'] !== false || $runtimePlan['executes_multiprocessing'] !== false) {
         throw new RuntimeException('Runtime main preflight smoke must not launch model workers or multiprocessing.');
     }
@@ -114,9 +147,16 @@ try {
         'runtime_total_processes' => $runtimePlan['worker_pool']['total_processes'],
         'runtime_pool_launchable' => $runtimePlan['worker_pool']['pool_launchable'],
         'runtime_pool_error_boundary' => $runtimePlan['worker_pool']['pool_error_boundary'],
+        'runtime_max_files_limit_active' => $runtimePlan['chunking']['max_files_limit_active'],
+        'runtime_zero_max_selected_count' => $runtimePlan['chunking']['selected_count'],
+        'negative_max_selected_filenames' => $negativeMaxPlan['chunking']['selected_filenames'],
         'runtime_output_folder_creation_required' => $runtimePlan['paths']['output_folder_creation_required'],
         'status_by_filename' => array_map(static fn (array $plan): string => (string) $plan['status'], $plans),
         'skip_reasons' => array_map(static fn (array $plan): ?string => $plan['skip_reason'], $plans),
+        'zero_min_length_gate_active' => $zeroMinLengthSpoof['min_length_gate_active'],
+        'zero_min_length_spoof_status' => $zeroMinLengthSpoof['status'],
+        'negative_min_length_gate_active' => $negativeMinLengthSpoof['min_length_gate_active'],
+        'negative_min_length_spoof_status' => $negativeMinLengthSpoof['status'],
         'ready_text_length' => $plans['ready-for-marker.pdf']['text_length'],
         'ready_should_invoke_converter' => $plans['ready-for-marker.pdf']['should_invoke_converter'],
         'existing_filetype_checked' => $plans['already-imported.pdf']['filetype_checked'],

@@ -78,8 +78,8 @@ final class BatchConverter
         }
 
         $selected = array_slice($files, $chunkIndex * $chunkSize, $chunkSize);
-        if ($maxFiles !== null && $maxFiles > 0) {
-            $selected = array_slice($selected, 0, $maxFiles);
+        if ($this->pythonTruthyInteger($maxFiles)) {
+            $selected = array_slice($selected, 0, (int) $maxFiles);
         }
 
         return array_values($selected);
@@ -333,6 +333,7 @@ final class BatchConverter
                 'start_index' => $startIndex,
                 'end_index' => $endIndex,
                 'max_files' => $maxFiles,
+                'max_files_limit_active' => $this->pythonTruthyInteger($maxFiles),
                 'input_file_count' => count($inputFiles),
                 'selected_count' => count($tasks),
                 'selected_filenames' => $selectedFilenames,
@@ -455,6 +456,7 @@ final class BatchConverter
             'existing_markdown' => $this->writer->markdownExists($outputFolder, $filename),
             'filetype_checked' => false,
             'filetype' => null,
+            'min_length_gate_active' => $this->pythonTruthyInteger($minLength),
             'text_length_checked' => false,
             'text_length' => null,
             'skip_reason' => null,
@@ -479,7 +481,7 @@ final class BatchConverter
             ];
         }
 
-        if ($minLength !== null && $minLength > 0) {
+        if ($this->pythonTruthyInteger($minLength)) {
             $filetype = $this->filetypeDetector->findFiletype($filepath);
             $base['filetype_checked'] = true;
             $base['filetype'] = $filetype;
@@ -754,6 +756,11 @@ final class BatchConverter
         }
 
         return round(($completed / $total) * 100, 4);
+    }
+
+    private function pythonTruthyInteger(?int $value): bool
+    {
+        return $value !== null && $value !== 0;
     }
 
     private function absolutePath(string $path): string
