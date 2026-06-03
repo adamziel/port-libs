@@ -187,6 +187,116 @@ final class CssMinifier
     }
 
     /**
+     * @param array<string, string> $variables
+     */
+    public function substituteVariables(string $property, string $value, array $variables): string
+    {
+        $property = trim($property);
+        if (!$this->isDeclarationProperty($property)) {
+            throw new \InvalidArgumentException("Invalid declaration property: {$property}");
+        }
+
+        $normalizedVariables = [];
+        foreach ($variables as $name => $variableValue) {
+            $name = trim((string) $name);
+            if (preg_match('/^--[-_a-zA-Z0-9]+$/', $name) !== 1) {
+                throw new \InvalidArgumentException("Invalid custom property variable name: {$name}");
+            }
+
+            $normalizedVariables[$name] = (string) $variableValue;
+        }
+
+        $substituted = $this->substituteVariableFunctions($value, $normalizedVariables, []);
+
+        return $property . ': ' . $this->minifyDeclarationValue($property, $substituted);
+    }
+
+    /**
+     * @param array<string, string> $variables
+     * @param list<string> $stack
+     */
+    private function substituteVariableFunctions(string $value, array $variables, array $stack): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($this->startsUrlFunction($value, $i)) {
+                [$url, $offset] = $this->readFunctionRaw($value, $i);
+                $output .= $url;
+                $i = $offset;
+                continue;
+            }
+
+            if (
+                strcasecmp(substr($value, $i, 3), 'var') === 0
+                && ($i === 0 || !$this->isIdentifierChar($value[$i - 1]))
+                && $this->cssFunctionOpenOffset($value, $i, 'var') !== null
+            ) {
+                [$function, $offset] = $this->readFunctionRaw($value, $i);
+                $output .= $this->substituteVariableFunction($function, $variables, $stack);
+                $i = $offset;
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @param array<string, string> $variables
+     * @param list<string> $stack
+     */
+    private function substituteVariableFunction(string $function, array $variables, array $stack): string
+    {
+        if (preg_match('/^var\((.*)\)$/is', trim($function), $matches) !== 1) {
+            return $function;
+        }
+
+        $parts = $this->splitFirstTopLevel($matches[1], ',');
+        $name = trim($parts[0]);
+        if (preg_match('/^--[-_a-zA-Z0-9]+$/', $name) !== 1) {
+            return $function;
+        }
+
+        if (array_key_exists($name, $variables)) {
+            if (in_array($name, $stack, true)) {
+                return $function;
+            }
+
+            return $this->substituteVariableFunctions($variables[$name], $variables, [...$stack, $name]);
+        }
+
+        if (count($parts) === 2) {
+            return $this->substituteVariableFunctions($parts[1], $variables, $stack);
+        }
+
+        return $function;
+    }
+
+    /**
      * @param list<array{message:string,type:string,loc:array{filename:string,line:int,column:int}}> $warnings
      */
     private function omitRecoverableInvalidAtRules(string $css, string $filename, array &$warnings): string
@@ -9732,6 +9842,50 @@ final class CssMinifier
         }
 
         return array_values(array_map('trim', $parts));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitFirstTopLevel(string $value, string $delimiter): array
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif ($char === $delimiter && $parenDepth === 0 && $bracketDepth === 0) {
+                return [
+                    trim(substr($value, 0, $i)),
+                    trim(substr($value, $i + 1)),
+                ];
+            }
+        }
+
+        return [trim($value)];
     }
 
     private function mergeAdjacentRuleBlocks(string $css): string

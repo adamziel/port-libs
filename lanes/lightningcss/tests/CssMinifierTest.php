@@ -845,6 +845,17 @@ CSS
         $t->same('.foo{--theme-sizes-1\\/12:2}', $minifier->minify('.foo { --theme-sizes-1\\/12: 2 }'));
         $t->same('.foo{--test:0px}', $minifier->minify('.foo { --test: 0px; }'));
     },
+    'css minifier maps upstream custom property substitution fallbacks and cycles' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('color: #ff0', $minifier->substituteVariables('color', 'var(--test)', ['--test' => 'yellow']));
+        $t->same('color: #ff0', $minifier->substituteVariables('color', 'var(--test, var(--foo))', ['--foo' => 'yellow']));
+        $t->same('color: #ff0', $minifier->substituteVariables('color', 'var(--test, var(--foo, yellow))', []));
+        $t->same('width: 6px', $minifier->substituteVariables('width', 'calc(var(--a) + var(--b))', ['--a' => '2px', '--b' => '4px']));
+        $t->same('color: #ff0', $minifier->substituteVariables('color', 'var(--a)', ['--a' => 'var(--b)', '--b' => 'yellow']));
+        $t->same('color: var(--a)', $minifier->substituteVariables('color', 'var(--a)', ['--a' => 'var(--b)', '--b' => 'var(--c)', '--c' => 'var(--a)']));
+        $t->same('background: linear-gradient(#ff0,#00f)', $minifier->substituteVariables('background', 'var(--hero-gradient, linear-gradient(yellow, blue))', []));
+    },
     'css minifier maps upstream aspect-ratio value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

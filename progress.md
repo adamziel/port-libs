@@ -1,7 +1,7 @@
 | Project | Focus | State | Progress | PHP Tests | Mapped Upstream | Unmapped | Next Gate | Commit |
 | --- | --- | --- | ---: | ---: | --- | ---: | --- | --- |
 | [libsqlite](lanes/libsqlite/lane-status.json) | Primary | 1 open failures | 99.6% | 6,290,283 pass / 1 fail | [1,589 / 1,589 (100.0%)](lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json) | 0 | Broad libsqlite full-lane/release parity is not green: current SQLite... | 16d8081 |
-| [LightningCSS](lanes/lightningcss/lane-status.json) | Active | PHP green, upstream gap | 99.8% | 9,273 pass / 0 fail | [2,439 / 3,532 (69.1%)](lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json) | 1,093 | Full upstream runner closure is partial: bounded Rust media test and... | 16d8081 |
+| [LightningCSS](lanes/lightningcss/lane-status.json) | Active | PHP green, upstream gap | 99.8% | 9,280 pass / 0 fail | [2,445 / 3,532 (69.2%)](lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json) | 1,087 | Full upstream runner closure is partial: bounded Rust media test and... | pending isolate... |
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,093 pass / 0 fail | [1,820 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,066 | Cargo workspace blocked by sparse target files | 16d8081 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 99.9% | 1,029 pass / 0 fail | [707 / 78 (906.4%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | ee5bab2 |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
