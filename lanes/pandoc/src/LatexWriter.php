@@ -6,6 +6,10 @@ namespace PortLibs\Pandoc;
 
 final class LatexWriter
 {
+    public function __construct(private readonly ?MathTexConverter $mathConverter = null)
+    {
+    }
+
     public function write(AstNode $document): string
     {
         if ($document->type !== 'document') {
@@ -32,6 +36,7 @@ final class LatexWriter
             'paragraph', 'plain' => [$this->renderInlines($node->children)],
             'bullet_list' => $this->renderList($node, false),
             'ordered_list' => $this->renderList($node, true),
+            'raw_tex', 'raw_block' => $this->renderRawTexBlock($node),
             default => [],
         };
     }
@@ -69,7 +74,7 @@ final class LatexWriter
             if ($index > 0) {
                 $lines[] = '';
             }
-            $lines[] = '  ' . $this->escapeText($paragraph);
+            $lines[] = '  ' . $paragraph;
         }
 
         foreach ($item->children as $child) {
@@ -114,15 +119,35 @@ final class LatexWriter
         $text = '';
         foreach ($nodes as $node) {
             $text .= match ($node->type) {
-                'text' => (string) $node->attr('text', ''),
+                'text' => $this->escapeText((string) $node->attr('text', '')),
                 'softbreak', 'linebreak' => "\n",
                 'emph', 'strong' => $this->renderInlines($node->children),
-                'code' => (string) $node->attr('text', ''),
+                'code' => $this->escapeText((string) $node->attr('text', '')),
+                'math' => $this->mathConverter()->latexFor($node),
+                'raw_tex' => (string) $node->attr('tex', $node->attr('text', '')),
                 default => $this->renderInlines($node->children),
             };
         }
 
         return $text;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderRawTexBlock(AstNode $node): array
+    {
+        $format = strtolower((string) $node->attr('format', ''));
+        if ($node->type !== 'raw_tex' && !in_array($format, ['tex', 'latex', 'context'], true)) {
+            return [];
+        }
+
+        return explode("\n", (string) $node->attr('tex', $node->attr('text', '')));
+    }
+
+    private function mathConverter(): MathTexConverter
+    {
+        return $this->mathConverter ?? new MathTexConverter();
     }
 
     private function escapeText(string $text): string
@@ -148,6 +173,8 @@ final class LatexWriter
             'softbreak',
             'linebreak',
             'code',
+            'math',
+            'raw_tex',
         ], true);
     }
 }
