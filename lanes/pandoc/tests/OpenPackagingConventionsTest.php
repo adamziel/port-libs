@@ -229,6 +229,69 @@ return [
         $t->same('https://example.test/source-footnote', $footnoteSummary['rIdNoteSource']['target']);
         $t->same([], $graph->summarizeTargetsForSource('/word/missing.xml'));
     },
+    'preflights OPC graph targets for package integrity issues' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdMissingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing.png"/>
+  <Relationship Id="rIdEmbeddedOle" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" Target="embeddings/oleObject1.bin"/>
+  <Relationship Id="rIdRelsTarget" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="_rels/document.xml.rels"/>
+  <Relationship Id="rIdExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/review" TargetMode="External"/>
+  <Relationship Id="rIdEscape" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../../evil.xml"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/embeddings/oleObject1.bin', 'data' => 'OLE'],
+        ]));
+
+        $preflight = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $preflight[$target['id']] = $target;
+        }
+
+        $t->same(6, count($preflight));
+        $t->same('/word/styles.xml', $preflight['rIdStyles']['target']);
+        $t->same(true, $preflight['rIdStyles']['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml', $preflight['rIdStyles']['contentType']);
+        $t->same(true, $preflight['rIdStyles']['valid']);
+        $t->same([], $preflight['rIdStyles']['issues']);
+
+        $t->same('/word/media/missing.png', $preflight['rIdMissingImage']['target']);
+        $t->same(false, $preflight['rIdMissingImage']['exists']);
+        $t->same('image/png', $preflight['rIdMissingImage']['contentType']);
+        $t->same(false, $preflight['rIdMissingImage']['valid']);
+        $t->same(['missing-in-package'], $preflight['rIdMissingImage']['issues']);
+
+        $t->same('/word/embeddings/oleObject1.bin', $preflight['rIdEmbeddedOle']['target']);
+        $t->same(true, $preflight['rIdEmbeddedOle']['exists']);
+        $t->same(null, $preflight['rIdEmbeddedOle']['contentType']);
+        $t->same(['missing-content-type'], $preflight['rIdEmbeddedOle']['issues']);
+
+        $t->same('/word/_rels/document.xml.rels', $preflight['rIdRelsTarget']['target']);
+        $t->same(true, $preflight['rIdRelsTarget']['exists']);
+        $t->same('application/vnd.openxmlformats-package.relationships+xml', $preflight['rIdRelsTarget']['contentType']);
+        $t->same(true, $preflight['rIdRelsTarget']['relationshipPartTarget']);
+        $t->same(['targets-relationship-part'], $preflight['rIdRelsTarget']['issues']);
+
+        $t->same('https://example.test/review', $preflight['rIdExternal']['target']);
+        $t->same(true, $preflight['rIdExternal']['external']);
+        $t->same(null, $preflight['rIdExternal']['exists']);
+        $t->same([], $preflight['rIdExternal']['issues']);
+
+        $t->same('../../evil.xml', $preflight['rIdEscape']['target']);
+        $t->same(false, $preflight['rIdEscape']['valid']);
+        $t->same(['invalid-target'], $preflight['rIdEscape']['issues']);
+
+        $imagePreflight = $graph->preflightTargetsForSource('/word/document.xml', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image');
+        $t->same(['rIdMissingImage', 'rIdEscape'], array_column($imagePreflight, 'id'));
+        $t->same([], $graph->preflightTargetsForSource('/word/missing.xml'));
+    },
     'rejects malformed OPC relationship graph package inputs' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $t->throws(\RuntimeException::class, static fn (): OpcRelationshipGraph => OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
             ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],

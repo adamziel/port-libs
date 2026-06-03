@@ -129,6 +129,88 @@ final class OpcRelationshipGraph
         return $summary;
     }
 
+    /**
+     * @return list<array{id:string, type:string, target:string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, valid:bool, issues:list<string>}>
+     */
+    public function preflightTargetsForSource(string $sourcePartName = '/', ?string $relationshipType = null): array
+    {
+        $relationships = $this->relationshipsForSource($sourcePartName);
+        if (!$relationships instanceof OpcRelationships) {
+            return [];
+        }
+
+        $items = $relationshipType === null
+            ? $relationships->all()
+            : $relationships->ofType($relationshipType);
+
+        $preflight = [];
+        foreach ($items as $relationship) {
+            if ($relationship->isExternal()) {
+                $preflight[] = [
+                    'id' => $relationship->id,
+                    'type' => $relationship->type,
+                    'target' => $relationship->target,
+                    'contentType' => null,
+                    'external' => true,
+                    'exists' => null,
+                    'relationshipPartTarget' => false,
+                    'valid' => true,
+                    'issues' => [],
+                ];
+                continue;
+            }
+
+            try {
+                $target = $relationships->resolveTarget($relationship);
+            } catch (\InvalidArgumentException $exception) {
+                $preflight[] = [
+                    'id' => $relationship->id,
+                    'type' => $relationship->type,
+                    'target' => $relationship->target,
+                    'contentType' => null,
+                    'external' => false,
+                    'exists' => null,
+                    'relationshipPartTarget' => false,
+                    'valid' => false,
+                    'issues' => ['invalid-target'],
+                ];
+                continue;
+            }
+
+            $targetPartName = OpcPackagePath::stripQueryAndFragment($target);
+            $exists = $this->package->has($targetPartName);
+            $contentType = $this->contentTypes->contentTypeForPart($targetPartName);
+            $relationshipPartTarget = self::isRelationshipPartName($targetPartName);
+            $issues = [];
+
+            if (!$exists) {
+                $issues[] = 'missing-in-package';
+            }
+
+            if ($contentType === null) {
+                $issues[] = 'missing-content-type';
+            }
+
+            if ($relationshipPartTarget) {
+                $issues[] = 'targets-relationship-part';
+            }
+
+            $preflight[] = [
+                'id' => $relationship->id,
+                'type' => $relationship->type,
+                'target' => $target,
+                'contentType' => $contentType,
+                'external' => false,
+                'exists' => $exists,
+                'relationshipPartTarget' => $relationshipPartTarget,
+                'valid' => $issues === [],
+                'issues' => $issues,
+            ];
+        }
+
+        return $preflight;
+    }
+
     private static function isRelationshipPartName(string $name): bool
     {
         return str_ends_with($name, '.rels') && str_contains('/' . ltrim($name, '/'), '/_rels/');

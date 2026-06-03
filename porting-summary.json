@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-03 22:37:26 UTC",
-    "sourceCommit": "37107328aa2e26664de5326c647d0bffd6b7b48c",
-    "sourceCommitShort": "37107328aa2e",
+    "generated": "2026-06-03 22:41:54 UTC",
+    "sourceCommit": "36ca2972680b4a8e4116ae933f205a721d40ff3d",
+    "sourceCommitShort": "36ca2972680b",
     "sourceBranch": "unknown",
-    "dashboardCommit": "37107328aa2e26664de5326c647d0bffd6b7b48c",
-    "dashboardCommitShort": "37107328aa2e",
+    "dashboardCommit": "36ca2972680b4a8e4116ae933f205a721d40ff3d",
+    "dashboardCommitShort": "36ca2972680b",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "721",
-            "coverage": "721 / 2,276 (31.7%)",
-            "mapPercent": "31.7%",
-            "unmapped": "1,555",
-            "php": "292 pass / 0 fail",
+            "mapped": "727",
+            "coverage": "727 / 2,276 (31.9%)",
+            "mapPercent": "31.9%",
+            "unmapped": "1,549",
+            "php": "293 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-03 UTC isolated DOCX/OpenXML slice on base ee5bab2f1ee2c0907f...",
+            "audit": "2026-06-03 UTC isolated OPC relationship integrity slice on base 3710...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
             "nextTarget": "Keep DOCX styles/numbering/list semantics, richer table grid...",
             "remainingGate": "No local blocker",
-            "commit": "ee5bab2"
+            "commit": "3710732"
         },
         {
             "lane": "quadrable",

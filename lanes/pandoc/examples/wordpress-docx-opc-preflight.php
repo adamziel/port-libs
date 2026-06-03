@@ -64,6 +64,18 @@ foreach ($graph->summarizeTargetsForSource($documentPart) as $relationship) {
     ];
 }
 
+$relationshipPreflight = [];
+foreach ($graph->preflightTargetsForSource($documentPart) as $target) {
+    $relationshipPreflight[$target['id']] = [
+        'target' => $target['target'],
+        'contentType' => $target['contentType'],
+        'external' => $target['external'],
+        'exists' => $target['exists'],
+        'valid' => $target['valid'],
+        'issues' => $target['issues'],
+    ];
+}
+
 $corePropertiesPart = $graph->firstTargetOfType('http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties');
 
 $summary = [
@@ -77,6 +89,17 @@ $summary = [
         'contentType' => $corePropertiesPart === null ? null : $types->contentTypeForPart($corePropertiesPart),
     ],
     'relationships' => $relationshipSummaries,
+    'integrity' => [
+        'documentRelationshipsValid' => array_reduce(
+            $relationshipPreflight,
+            static fn (bool $valid, array $target): bool => $valid && $target['valid'],
+            true
+        ),
+        'issues' => array_filter(
+            $relationshipPreflight,
+            static fn (array $target): bool => $target['issues'] !== []
+        ),
+    ],
     'wordpressImport' => [
         'mediaParts' => array_values(array_filter(
             array_column($relationshipSummaries, 'target'),
@@ -103,7 +126,12 @@ if (($argv[1] ?? '') === '--self-test') {
         $summary['relationships']['rIdHero']['contentType'],
         $summary['relationships']['rIdReviewer']['target'],
     ];
-    if ($actual !== $expected || $summary['wordpressImport']['hasReviewerEditLink'] !== true) {
+    if (
+        $actual !== $expected
+        || $summary['wordpressImport']['hasReviewerEditLink'] !== true
+        || $summary['integrity']['documentRelationshipsValid'] !== true
+        || $summary['integrity']['issues'] !== []
+    ) {
         throw new RuntimeException('OPC DOCX preflight self-test failed');
     }
 
