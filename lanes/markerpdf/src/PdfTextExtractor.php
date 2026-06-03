@@ -15048,7 +15048,8 @@ final class PdfTextExtractor
                 $xStart = (float) $previousBbox[2];
             }
         }
-        $width = $this->nativeTextSpanWidth(
+        $bbox = $this->nativeTextSpanBbox(
+            $xStart,
             $text,
             $sourceOperand,
             $toUnicodeMap,
@@ -15060,7 +15061,7 @@ final class PdfTextExtractor
 
         $span = [
             'text' => $text,
-            'bbox' => [$xStart, 0.0, $xStart + $width, max(1.0, $fontSize)],
+            'bbox' => $bbox,
             'span_id' => $pageIndex . '_' . $spanId,
             'font' => $fontName . '_' . (new PdfTextBlockConverter())->fontFlagsDecomposer($flags),
             'font_weight' => $fontInfo['weight'],
@@ -15072,6 +15073,47 @@ final class PdfTextExtractor
 
         $spans[] = $span;
         $spanId++;
+    }
+
+    /**
+     * @return list<float>
+     */
+    private function nativeTextSpanBbox(
+        float $xStart,
+        string $text,
+        ?string $sourceOperand,
+        ?array $toUnicodeMap,
+        float $fontSize,
+        float $characterSpacing,
+        float $wordSpacing,
+        float $horizontalScale
+    ): array {
+        $height = max(1.0, $fontSize);
+        if ($sourceOperand !== null && $this->mapWritingMode($toUnicodeMap) === 1) {
+            $endY = $this->advanceTextEndYForOperand(
+                0.0,
+                $sourceOperand,
+                $toUnicodeMap,
+                $fontSize,
+                $characterSpacing,
+                $wordSpacing
+            );
+            if ($endY !== null && is_finite($endY)) {
+                return [$xStart, 0.0, $xStart + $height, max(1.0, abs($endY))];
+            }
+        }
+
+        $width = $this->nativeTextSpanWidth(
+            $text,
+            $sourceOperand,
+            $toUnicodeMap,
+            $fontSize,
+            $characterSpacing,
+            $wordSpacing,
+            $horizontalScale
+        );
+
+        return [$xStart, 0.0, $xStart + $width, $height];
     }
 
     private function nativeTextSpanWidth(

@@ -532,7 +532,7 @@
             "mappedTableNamedBboxGeometryBoundaryCurrentBaseBehaviors": 1,
             "mappedPdfFontType3CharProcsFallbackBoundaryCurrentBaseBehaviors": 1,
             "mappedPdfLinkAnnotationPageGeometryCurrentBaseBehaviors": 1,
-            "mappedPdfFontWidthAdvanceBoundaryCurrentBaseBehaviors": 2
+            "mappedPdfFontWidthAdvanceBoundaryCurrentBaseBehaviors": 3
         },
         "benchmarkDocuments": [
             "multicolcnn.pdf",
@@ -1590,9 +1590,9 @@
     "markerRuntimeSinglePreflightBoundaryCurrentBase": "Single-document convert_single.py admission records PYTORCH MPS fallback, option parsing, all-model load boundary, convert_single_pdf call shape, no batch resume/min_length gates, and save_markdown empty-output persistence without executing Python, Torch, model workers, Streamlit, FastAPI, or external PDF tools.",
     "markerRuntimeSinglePreflightBoundaryCurrentBaseBehaviors": 1,
     "mappedMarkerRuntimeSinglePreflightBoundaryCurrentBaseBehaviors": 1,
-    "pdfFontWidthAdvanceBoundaryCurrentBase": "Simple-font missing glyph codes use the average of positive /Widths entries as their default advance when /MissingWidth is absent, and quote-operator word/character spacing is applied before native styled-span bbox advance, preventing false WordPress text gaps while preserving review geometry.",
-    "pdfFontWidthAdvanceBoundaryCurrentBaseBehaviors": 2,
-    "mappedPdfFontWidthAdvanceBoundaryCurrentBaseBehaviors": 2,
+    "pdfFontWidthAdvanceBoundaryCurrentBase": "Simple-font missing glyph codes use the average of positive /Widths entries as their default advance when /MissingWidth is absent, quote-operator word/character spacing is applied before native styled-span bbox advance, and vertical Type0 CIDFont /W2 displacements drive styled-span bbox height, preventing false WordPress text gaps while preserving review geometry.",
+    "pdfFontWidthAdvanceBoundaryCurrentBaseBehaviors": 3,
+    "mappedPdfFontWidthAdvanceBoundaryCurrentBaseBehaviors": 3,
     "pdfTextDictionaryPostprocessCurrentBase": "Supplied pdftext dictionary_output span payloads normalize span text before WordPress block merging, preserving selected page ranges/options while trimming pdftext artifacts from paragraph output.",
     "pdfTextDictionaryPostprocessCurrentBaseBehaviors": 1,
     "mappedPdfTextDictionaryPostprocessCurrentBaseBehaviors": 1,
