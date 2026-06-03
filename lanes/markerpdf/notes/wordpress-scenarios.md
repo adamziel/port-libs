@@ -256,7 +256,7 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-object-stream-xref-import.php` maps a native PDF 1.5 object lookup edge into a WordPress import path. It expands compressed `/ObjStm` member dictionaries through an xref stream, ignores a stale unlisted compressed page, preserves an Identity-H font resource from a decoded page object, and emits only the live Gutenberg paragraphs without loading pdftext, pypdfium, Python models, or external PDF tools.
 
-`examples/wordpress-pdf-cmap-source-width-fallback-import.php` maps a native ToUnicode CMap extraction edge into a WordPress import path. It chooses exact mapped source-key widths when a minimal CMap omits `begincodespacerange`, so adjacent one-byte mappings and two-byte mappings emit `Import Blocks` without loading pdftext, pypdfium, Python models, or external PDF tools.
+`examples/wordpress-pdf-cmap-source-width-fallback-import.php` maps a native ToUnicode CMap extraction edge into a WordPress import path. It chooses exact mapped source-key widths when a minimal CMap omits `begincodespacerange`, including CIDFonts whose only width source is `/DW`, so zero-padded source operands emit `ABCD EFGH` without loading pdftext, pypdfium, Python models, or external PDF tools.
 
 `examples/wordpress-pdf-malformed-cmap-filter-import.php` maps a native malformed CMap extraction boundary into a WordPress import path. It ignores an unusable `/ToUnicode` CMap stream after its `/FlateDecode` filter fails, falls back to `/Encoding /Identity-H`, and emits a clean Gutenberg paragraph without raw NUL bytes, pdftext, pypdfium, Python models, or external PDF tools.
 
@@ -409,6 +409,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 `examples/wordpress-pdf-image-xobject-boundary-currentbase.php` maps inherited page `/Resources /XObject` image streams into a WordPress review path. It records decoded resource names, `Do` invocation counts, dimensions, filters, safe decoded hashes, and RGB-preview handoff metadata while proving image XObject payload bytes stay out of visible Gutenberg paragraphs without Python, pdftext, pypdfium/PDFium execution, PIL, Poppler, Ghostscript, models, or external PDF tools.
 
 `examples/wordpress-pdf-type3-charprocs-generation-boundary-currentbase.php` maps same-number Type3 `/CharProcs` stream references with different object generations into a WordPress paragraph import path. It preserves `3 0 R` wide glyph d0 metrics and `3 1 R` thin glyph d1 metrics independently, emitting `WideBlock` and `Thin Text` while excluding CharProc payload text without Python, pdftext, pypdfium/PDFium execution, Poppler, Ghostscript, models, or external PDF tools.
+
+`examples/wordpress-pdf-xref-object-stream-skipped-header-index-currentbase.php` maps PDF 1.5 xref-stream type-2 member indexes through object streams that contain a skipped zero object-number header row. It keeps explicit archive index `1` aligned to the original `/ObjStm` header row, emits the current direct and compressed page paragraphs, records `selection_policy=explicit_member_index`, and excludes skipped header decoy text without Python, pdftext, pypdfium/PDFium execution, Poppler, Ghostscript, models, or external PDF tools.
 
 ## Next Task
 

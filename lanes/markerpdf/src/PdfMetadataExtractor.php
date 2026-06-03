@@ -2425,12 +2425,14 @@ final class PdfMetadataExtractor
             $pageIndexes[$pageObjectNumber] = $index;
         }
 
+        $structureContext = $this->documentOutlineStructureElementContext($catalog, $objects);
         $destinationsByName = $this->documentDestinationRawMap($catalog, $objects);
         $items = $this->documentOutlineItemMetadataRows(
             $this->dictionaryTopLevelRawValue($outlineRoot['body'], 'First'),
             $objects,
             $pageIndexes,
             $destinationsByName,
+            $structureContext,
             15
         );
 
@@ -2462,7 +2464,115 @@ final class PdfMetadataExtractor
             'items' => $items,
         ];
 
+        foreach ($this->documentOutlineStructureElementSummary($items) as $key => $value) {
+            $metadata[$key] = $value;
+        }
+
         return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{root_language: string|null, role_map: array<string, string>}
+     */
+    private function documentOutlineStructureElementContext(string $catalog, array $objects): array
+    {
+        $catalogLanguage = $this->dictionaryTopLevelStringValue($catalog, 'Lang', $objects);
+        $root = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'StructTreeRoot'), $objects);
+        if ($root === null) {
+            return [
+                'root_language' => $catalogLanguage,
+                'role_map' => [],
+            ];
+        }
+
+        $rootLanguage = $this->reviewStringFromRaw($this->dictionaryTopLevelRawValue($root['body'], 'Lang'), $objects)
+            ?? $catalogLanguage;
+
+        return [
+            'root_language' => $rootLanguage,
+            'role_map' => $this->structureRoleMapFromValue(
+                $this->dictionaryTopLevelRawValue($root['body'], 'RoleMap'),
+                $objects
+            ),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return array<string, mixed>
+     */
+    private function documentOutlineStructureElementSummary(array $items): array
+    {
+        $objects = [];
+        $roles = [];
+        $rawRoles = [];
+        $mcids = [];
+        $associatedFileCount = 0;
+
+        foreach ($items as $item) {
+            $structure = $item['structure_element'] ?? null;
+            if (!is_array($structure)) {
+                continue;
+            }
+
+            $object = $structure['object'] ?? null;
+            if (is_int($object)) {
+                $objects[] = $object;
+            }
+
+            $role = $structure['role'] ?? null;
+            if (is_string($role) && $role !== '') {
+                $roles[] = $role;
+            }
+
+            $rawRole = $structure['raw_role'] ?? null;
+            if (is_string($rawRole) && $rawRole !== '') {
+                $rawRoles[] = $rawRole;
+            }
+
+            foreach (($structure['mcids'] ?? []) as $mcid) {
+                if (is_int($mcid)) {
+                    $mcids[] = $mcid;
+                }
+            }
+
+            $count = $structure['associated_file_count'] ?? null;
+            if (is_int($count)) {
+                $associatedFileCount += $count;
+            }
+        }
+
+        if ($objects === [] && $roles === [] && $rawRoles === [] && $mcids === [] && $associatedFileCount === 0) {
+            return [];
+        }
+
+        $summary = [
+            'structure_element_count' => count(array_filter(
+                $items,
+                static fn (array $item): bool => is_array($item['structure_element'] ?? null)
+            )),
+            'structure_element_review_only' => true,
+            'structure_element_payload_included' => false,
+        ];
+
+        if ($objects !== []) {
+            $summary['structure_element_objects'] = array_values(array_unique($objects));
+        }
+        if ($roles !== []) {
+            $summary['structure_element_roles'] = $this->uniqueStrings($roles);
+        }
+        if ($rawRoles !== []) {
+            $summary['structure_element_raw_roles'] = $this->uniqueStrings($rawRoles);
+        }
+        if ($mcids !== []) {
+            $summary['structure_element_mcids'] = array_values(array_unique($mcids));
+        }
+        if ($associatedFileCount > 0) {
+            $summary['structure_element_associated_file_count'] = $associatedFileCount;
+        }
+
+        return $summary;
     }
 
     /**
@@ -2506,6 +2616,7 @@ final class PdfMetadataExtractor
      * @param array<int, string> $objects
      * @param array<int, int> $pageIndexes
      * @param array<string, string> $destinationsByName
+     * @param array{root_language: string|null, role_map: array<string, string>} $structureContext
      * @param array<int, true> $seen
      * @return list<array<string, mixed>>
      */
@@ -2514,6 +2625,7 @@ final class PdfMetadataExtractor
         array $objects,
         array $pageIndexes,
         array $destinationsByName,
+        array $structureContext,
         int $maxDepth,
         int $level = 1,
         array $seen = []
@@ -2540,7 +2652,8 @@ final class PdfMetadataExtractor
                     $level,
                     $objects,
                     $pageIndexes,
-                    $destinationsByName
+                    $destinationsByName,
+                    $structureContext
                 );
             }
 
@@ -2549,6 +2662,7 @@ final class PdfMetadataExtractor
                 $objects,
                 $pageIndexes,
                 $destinationsByName,
+                $structureContext,
                 $maxDepth,
                 $level + 1,
                 $seen
@@ -2566,6 +2680,7 @@ final class PdfMetadataExtractor
      * @param array<int, string> $objects
      * @param array<int, int> $pageIndexes
      * @param array<string, string> $destinationsByName
+     * @param array{root_language: string|null, role_map: array<string, string>} $structureContext
      * @return array<string, mixed>
      */
     private function documentOutlineItemMetadataRow(
@@ -2575,7 +2690,8 @@ final class PdfMetadataExtractor
         int $level,
         array $objects,
         array $pageIndexes,
-        array $destinationsByName
+        array $destinationsByName,
+        array $structureContext
     ): array {
         $firstChild = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'First') ?? '');
         $lastChild = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Last') ?? '');
@@ -2613,6 +2729,30 @@ final class PdfMetadataExtractor
             $row['is_bold'] = ($styleFlags & 2) !== 0;
         }
 
+        $structureElement = $this->documentOutlineItemStructureElementMetadata(
+            $this->dictionaryTopLevelRawValue($dictionary, 'SE'),
+            $objects,
+            $pageIndexes,
+            $structureContext
+        );
+        if ($structureElement !== []) {
+            $row['structure_element'] = $structureElement;
+            foreach ([
+                'object' => 'structure_element_object',
+                'raw_role' => 'structure_element_raw_role',
+                'role' => 'structure_element_role',
+                'page' => 'structure_element_page',
+                'page_number' => 'structure_element_page_number',
+                'page_object' => 'structure_element_page_object',
+                'mcids' => 'structure_element_mcids',
+                'associated_file_count' => 'structure_element_associated_file_count',
+            ] as $sourceKey => $targetKey) {
+                if (array_key_exists($sourceKey, $structureElement)) {
+                    $row[$targetKey] = $structureElement[$sourceKey];
+                }
+            }
+        }
+
         if ($destination['value'] !== null && $pageIndexes !== []) {
             $details = $this->documentDestinationDetails(
                 $destination['value'],
@@ -2630,6 +2770,80 @@ final class PdfMetadataExtractor
         }
 
         return $row;
+    }
+
+    /**
+     * PDF outline items may associate a bookmark with a structure element
+     * through `/SE`. Keep the association as review-only metadata so tagged
+     * accessibility provenance is available without treating structure strings
+     * or associated-file payloads as visible document text.
+     *
+     * @param array<int, string> $objects
+     * @param array<int, int> $pageIndexes
+     * @param array{root_language: string|null, role_map: array<string, string>} $structureContext
+     * @return array<string, mixed>
+     */
+    private function documentOutlineItemStructureElementMetadata(
+        ?string $value,
+        array $objects,
+        array $pageIndexes,
+        array $structureContext
+    ): array {
+        if ($value === null) {
+            return [];
+        }
+
+        $elements = [];
+        $this->collectStructureReviewElements(
+            $value,
+            $objects,
+            null,
+            $structureContext['root_language'],
+            $structureContext['role_map'],
+            $pageIndexes,
+            $elements
+        );
+        if ($elements === []) {
+            return [];
+        }
+
+        $element = $elements[0];
+        $metadata = [
+            'source' => 'outline_item_structure_element',
+            'review_only' => true,
+            'visible_text_source' => false,
+            'payload_included' => false,
+        ];
+
+        foreach ([
+            'object',
+            'raw_role',
+            'role',
+            'role_mapped',
+            'page',
+            'page_number',
+            'page_object',
+            'language',
+            'language_inherited',
+            'title',
+            'id',
+            'alternate_text',
+            'actual_text',
+            'expansion_text',
+            'classes',
+            'revision',
+            'namespace',
+            'marked_content',
+            'mcids',
+            'associated_file_count',
+            'associated_files',
+        ] as $key) {
+            if (array_key_exists($key, $element)) {
+                $metadata[$key] = $element[$key];
+            }
+        }
+
+        return $metadata;
     }
 
     /**

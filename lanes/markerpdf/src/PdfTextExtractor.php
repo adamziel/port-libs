@@ -241,25 +241,13 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $xObjectMap = $this->xObjectResourceObjectNumbers($resourceDictionary, $objects);
-            if ($xObjectMap === []) {
-                continue;
-            }
-
-            $invocations = $this->pageXObjectInvocationCounts($objects[$pageObjectNumber], $objects);
-            foreach ($xObjectMap as $resourceName => $objectNumber) {
-                $entry = $this->imageXObjectBoundaryEntry(
-                    $pageIndex,
-                    $pageObjectNumber,
-                    $resourceName,
-                    $objectNumber,
-                    $invocations[$resourceName] ?? 0,
-                    $objects
-                );
-                if ($entry === null) {
-                    continue;
-                }
-
+            foreach ($this->imageXObjectBoundaryEntriesForResourceOwner(
+                $pageIndex,
+                $pageObjectNumber,
+                $resourceDictionary,
+                $objects,
+                $this->pageDecodedContentStreams($objects[$pageObjectNumber], $objects)
+            ) as $entry) {
                 $review['entries'][] = $entry;
                 $review['image_xobject_count']++;
                 if ($entry['invoked']) {
@@ -388,7 +376,7 @@ final class PdfTextExtractor
                 ? $this->decodedObjectStreamMemberTable($objects[$objectStreamNumber], $objects)
                 : null;
             $members = $memberTable['members'] ?? [];
-            $memberAtDefaultIndex = $members[$defaultMemberIndex] ?? null;
+            $memberAtDefaultIndex = $this->objectStreamMemberAtHeaderIndex($members, $defaultMemberIndex);
             $membersByObjectNumber = [];
             foreach ($members as $member) {
                 if ($member['objectNumber'] === $objectNumber) {
@@ -707,6 +695,7 @@ final class PdfTextExtractor
      *     unresolved_operand_count: int,
      *     invalid_filter_operand_count: int,
      *     dictionary_filter_operand_count: int,
+     *     malformed_filter_operand_count: int,
      *     decoded_cmap_count: int,
      *     entries: list<array<string, mixed>>,
      *     executes_python_or_models: false,
@@ -728,6 +717,7 @@ final class PdfTextExtractor
             'unresolved_operand_count' => 0,
             'invalid_filter_operand_count' => 0,
             'dictionary_filter_operand_count' => 0,
+            'malformed_filter_operand_count' => 0,
             'decoded_cmap_count' => 0,
             'entries' => [],
             'executes_python_or_models' => false,
@@ -791,6 +781,7 @@ final class PdfTextExtractor
             $unresolvedOperandCount = $this->xrefStreamUnresolvedOperandCount($operands);
             $invalidFilterOperandCount = $this->invalidStreamFilterOperandCount($operandGroups['Filter']);
             $dictionaryFilterOperandCount = $this->dictionaryStreamFilterOperandCount($operandGroups['Filter']);
+            $malformedFilterOperandCount = $this->malformedStreamFilterOperandCount($operandGroups['Filter']);
             $decoded = $this->decodedCMapBody($body, $objects);
             $filters = $this->streamFilters($dict, $objects);
             $decodeParms = $this->streamDecodeParms($dict, $objects);
@@ -813,6 +804,7 @@ final class PdfTextExtractor
             $review['unresolved_operand_count'] += $unresolvedOperandCount;
             $review['invalid_filter_operand_count'] += $invalidFilterOperandCount;
             $review['dictionary_filter_operand_count'] += $dictionaryFilterOperandCount;
+            $review['malformed_filter_operand_count'] += $malformedFilterOperandCount;
             if ($decoded !== null) {
                 $review['decoded_cmap_count']++;
             }
@@ -830,10 +822,12 @@ final class PdfTextExtractor
                 'decodeparms_resolution_failed' => $decodeParms === null,
                 'invalid_filter_operand_count' => $invalidFilterOperandCount,
                 'dictionary_filter_operand_count' => $dictionaryFilterOperandCount,
+                'malformed_filter_operand_count' => $malformedFilterOperandCount,
                 'filter_operand_policy' => $this->streamFilterOperandPolicy(
                     $filters,
                     $invalidFilterOperandCount,
-                    $dictionaryFilterOperandCount
+                    $dictionaryFilterOperandCount,
+                    $malformedFilterOperandCount
                 ),
                 'decoded_cmap_length' => $decoded === null ? null : strlen($decoded),
                 'decoded_cmap_sha256' => $decoded === null ? null : hash('sha256', $decoded),
@@ -964,6 +958,7 @@ final class PdfTextExtractor
      *     unresolved_operand_count: int,
      *     invalid_filter_operand_count: int,
      *     dictionary_filter_operand_count: int,
+     *     malformed_filter_operand_count: int,
      *     entries: list<array<string, mixed>>,
      *     executes_python_or_models: false,
      *     executes_external_pdf_tools: false
@@ -981,6 +976,7 @@ final class PdfTextExtractor
             'unresolved_operand_count' => 0,
             'invalid_filter_operand_count' => 0,
             'dictionary_filter_operand_count' => 0,
+            'malformed_filter_operand_count' => 0,
             'entries' => [],
             'executes_python_or_models' => false,
             'executes_external_pdf_tools' => false,
@@ -1039,6 +1035,7 @@ final class PdfTextExtractor
                 $unresolvedOperandCount = $this->xrefStreamUnresolvedOperandCount($operands);
                 $invalidFilterOperandCount = $this->invalidStreamFilterOperandCount($operandGroups['Filter'] ?? []);
                 $dictionaryFilterOperandCount = $this->dictionaryStreamFilterOperandCount($operandGroups['Filter'] ?? []);
+                $malformedFilterOperandCount = $this->malformedStreamFilterOperandCount($operandGroups['Filter'] ?? []);
                 $memberTable = $this->decodedObjectStreamMemberTable($body, $objects);
                 $filters = $this->streamFilters($dict, $objects);
                 $decodeParms = $this->streamDecodeParms($dict, $objects);
@@ -1049,6 +1046,7 @@ final class PdfTextExtractor
                 $review['unresolved_operand_count'] += $unresolvedOperandCount;
                 $review['invalid_filter_operand_count'] += $invalidFilterOperandCount;
                 $review['dictionary_filter_operand_count'] += $dictionaryFilterOperandCount;
+                $review['malformed_filter_operand_count'] += $malformedFilterOperandCount;
                 $review['entries'][] = [
                     'object_number' => $definition['objectNumber'],
                     'generation' => $definition['generation'],
@@ -1065,10 +1063,12 @@ final class PdfTextExtractor
                     'decodeparms_resolution_failed' => $decodeParms === null,
                     'invalid_filter_operand_count' => $invalidFilterOperandCount,
                     'dictionary_filter_operand_count' => $dictionaryFilterOperandCount,
+                    'malformed_filter_operand_count' => $malformedFilterOperandCount,
                     'filter_operand_policy' => $this->streamFilterOperandPolicy(
                         $filters,
                         $invalidFilterOperandCount,
-                        $dictionaryFilterOperandCount
+                        $dictionaryFilterOperandCount,
+                        $malformedFilterOperandCount
                     ),
                     'decoded_member_count' => $memberTable === null ? 0 : count($memberTable['members']),
                     'decoded_with_current_operands' => $memberTable !== null && $unresolvedOperandCount === 0,
@@ -2862,6 +2862,13 @@ final class PdfTextExtractor
         return $properties;
     }
 
+    private function formXObjectResourceOwnerBody(string $formBody, string $invokingResourceOwnerBody): string
+    {
+        return $this->topLevelNameValueOffset($formBody, 'Resources') === null
+            ? $invokingResourceOwnerBody
+            : $formBody;
+    }
+
     private function formatPdfNumber(float $value): string
     {
         if (abs($value - round($value)) < 0.000001) {
@@ -2955,7 +2962,8 @@ final class PdfTextExtractor
                     if ($form !== null) {
                         $nextActiveForms = $activeFormObjectNumbers;
                         $nextActiveForms[$objectNumber] = true;
-                        $formFontMaps = $this->fontResourceMapsForResourceOwnerBody($form['body'], $objects, $fontObjectMaps);
+                        $formResourceOwnerBody = $this->formXObjectResourceOwnerBody($form['body'], $resourceOwnerBody);
+                        $formFontMaps = $this->fontResourceMapsForResourceOwnerBody($formResourceOwnerBody, $objects, $fontObjectMaps);
                         $fontAliases = [];
                         foreach ($formFontMaps as $name => $map) {
                             $alias = $this->formFontResourceAlias($objectNumber, $name);
@@ -2966,14 +2974,14 @@ final class PdfTextExtractor
                         $formStream = $this->filterOptionalContentMarkedBlocks(
                             $form['stream'],
                             $this->optionalContentPropertyVisibilityMapForResourceOwnerBody(
-                                $form['body'],
+                                $formResourceOwnerBody,
                                 $objects,
                                 $optionalContentStates
                             )
                         );
                         $expandedForm = $this->expandFormXObjectInvocations(
                             $this->rewriteFontResourceOperands($formStream, $fontAliases),
-                            $form['body'],
+                            $formResourceOwnerBody,
                             $objects,
                             $fontObjectMaps,
                             $expandedFontToUnicodeMaps,
@@ -3232,48 +3240,138 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array<string, int>
+     * @return list<string>
      * @param array<int, string> $objects
      */
-    private function pageXObjectInvocationCounts(string $pageBody, array $objects): array
+    private function pageDecodedContentStreams(string $pageBody, array $objects): array
     {
-        $invocations = [];
+        $streams = [];
         foreach ($this->pageContentObjectNumbers($pageBody, $objects) as $contentObjectNumber) {
             if (!isset($objects[$contentObjectNumber])) {
                 continue;
             }
 
             $decoded = $this->decodeStreamObject($objects[$contentObjectNumber], $objects);
-            if ($decoded === null) {
+            if ($decoded !== null) {
+                $streams[] = $decoded;
+            }
+        }
+
+        return $streams;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function contentXObjectInvocationCounts(string $content): array
+    {
+        $invocations = [];
+        $operands = [];
+        foreach ($this->contentTokens($content) as $token) {
+            if ($token === 'Do') {
+                $resourceName = $this->xObjectNameOperand($operands);
+                if ($resourceName !== null) {
+                    $invocations[$resourceName] = ($invocations[$resourceName] ?? 0) + 1;
+                }
+                $operands = [];
                 continue;
             }
 
-            $operands = [];
-            foreach ($this->contentTokens($decoded) as $token) {
-                if ($token === 'Do') {
-                    $resourceName = $this->xObjectNameOperand($operands);
-                    if ($resourceName !== null) {
-                        $invocations[$resourceName] = ($invocations[$resourceName] ?? 0) + 1;
-                    }
-                    $operands = [];
-                    continue;
-                }
-
-                if ($this->isOperator($token)) {
-                    $operands = [];
-                    continue;
-                }
-
-                $operands[] = $token;
+            if ($this->isOperator($token)) {
+                $operands = [];
+                continue;
             }
+
+            $operands[] = $token;
         }
 
         return $invocations;
     }
 
     /**
+     * @return list<array<string, mixed>>
+     * @param array<int, string> $objects
+     * @param list<string> $decodedContents
+     * @param list<string> $resourcePath
+     * @param array<int, true> $activeFormObjectNumbers
+     */
+    private function imageXObjectBoundaryEntriesForResourceOwner(
+        int $pageIndex,
+        int $pageObjectNumber,
+        string $resourceOwnerBody,
+        array $objects,
+        array $decodedContents,
+        int $ownerInvocationCount = 1,
+        array $resourcePath = [],
+        array $activeFormObjectNumbers = [],
+        ?int $parentFormObjectNumber = null
+    ): array {
+        $xObjectMap = $this->xObjectResourceObjectNumbers($resourceOwnerBody, $objects);
+        if ($xObjectMap === []) {
+            return [];
+        }
+
+        $invocations = [];
+        foreach ($decodedContents as $content) {
+            foreach ($this->contentXObjectInvocationCounts($content) as $resourceName => $count) {
+                $invocations[$resourceName] = ($invocations[$resourceName] ?? 0) + $count;
+            }
+        }
+
+        $entries = [];
+        foreach ($xObjectMap as $resourceName => $objectNumber) {
+            $localInvocationCount = $invocations[$resourceName] ?? 0;
+            $effectiveInvocationCount = $localInvocationCount > 0
+                ? $ownerInvocationCount * $localInvocationCount
+                : 0;
+            $entryResourcePath = [...$resourcePath, $resourceName];
+            $entry = $this->imageXObjectBoundaryEntry(
+                $pageIndex,
+                $pageObjectNumber,
+                $resourceName,
+                $objectNumber,
+                $effectiveInvocationCount,
+                $objects,
+                $entryResourcePath,
+                $parentFormObjectNumber
+            );
+            if ($entry !== null) {
+                $entries[] = $entry;
+            }
+
+            if ($localInvocationCount <= 0 || isset($activeFormObjectNumbers[$objectNumber])) {
+                continue;
+            }
+
+            $form = $this->decodedFormXObject($objects, $objectNumber);
+            if ($form === null) {
+                continue;
+            }
+
+            $nextActiveForms = $activeFormObjectNumbers;
+            $nextActiveForms[$objectNumber] = true;
+            foreach ($this->imageXObjectBoundaryEntriesForResourceOwner(
+                $pageIndex,
+                $pageObjectNumber,
+                $form['body'],
+                $objects,
+                [$form['stream']],
+                $effectiveInvocationCount,
+                $entryResourcePath,
+                $nextActiveForms,
+                $objectNumber
+            ) as $nestedEntry) {
+                $entries[] = $nestedEntry;
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
      * @return array<string, mixed>|null
      * @param array<int, string> $objects
+     * @param list<string> $resourcePath
      */
     private function imageXObjectBoundaryEntry(
         int $pageIndex,
@@ -3281,7 +3379,9 @@ final class PdfTextExtractor
         string $resourceName,
         int $objectNumber,
         int $invocationCount,
-        array $objects
+        array $objects,
+        array $resourcePath = [],
+        ?int $parentFormObjectNumber = null
     ): ?array {
         if (!isset($objects[$objectNumber])) {
             return null;
@@ -3297,6 +3397,8 @@ final class PdfTextExtractor
             ? []
             : array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
         $previewOnlyFilters = $this->previewOnlyImageXObjectFilters($resolvedFilters);
+        $decodeParms = $filters === null ? null : $this->streamDecodeParms($stream['dict'], $objects);
+        $filterDetails = $filters === null ? [] : $this->imageXObjectFilterDetails($filters, $decodeParms, $objects);
         $decoded = $filters === null ? null : $this->decodeStream($stream['dict'], $stream['stream'], $objects);
         $colorSpace = $this->imageColorSpaceFamily($stream['dict'], $objects);
         $bitsPerComponent = $this->pdfIntegerValueAfterNameResolvingObjects(
@@ -3310,6 +3412,9 @@ final class PdfTextExtractor
             'page_index' => $pageIndex,
             'page_object' => $pageObjectNumber,
             'resource_name' => $resourceName,
+            'resource_path' => $resourcePath === [] ? [$resourceName] : $resourcePath,
+            'form_xobject_depth' => max(0, count($resourcePath) - 1),
+            'parent_form_xobject_object' => $parentFormObjectNumber,
             'object_number' => $objectNumber,
             'invoked' => $invocationCount > 0,
             'invocation_count' => $invocationCount,
@@ -3323,6 +3428,7 @@ final class PdfTextExtractor
             'filters_resolved' => $filters !== null,
             'filters' => $resolvedFilters,
             'preview_only_filters' => $previewOnlyFilters,
+            'filter_details' => $filterDetails,
             'native_raster_decode' => $previewOnlyFilters === [],
             'raw_length' => strlen($stream['stream']),
             'decoded_with_current_filters' => $decoded !== null,
@@ -3348,6 +3454,63 @@ final class PdfTextExtractor
                 true
             )
         ));
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @param list<string|null>|null $decodeParms
+     * @param array<int, string> $objects
+     * @return list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null>|null}>
+     */
+    private function imageXObjectFilterDetails(array $filters, ?array $decodeParms, array $objects): array
+    {
+        $details = [];
+        $stringFilterCount = count(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+
+        foreach ($filters as $index => $filter) {
+            if (!is_string($filter)) {
+                continue;
+            }
+
+            $decodeParmsValue = $decodeParms === null
+                ? null
+                : ($decodeParms[$index] ?? ($stringFilterCount === 1 ? ($decodeParms[0] ?? null) : null));
+
+            $details[] = [
+                'filter' => $filter,
+                'preview_only' => in_array($filter, ['DCTDecode', 'DCT', 'CCITTFaxDecode', 'CCF', 'JPXDecode', 'JBIG2Decode'], true),
+                'decode_parms' => $this->imageXObjectFilterDecodeParms($filter, $decodeParmsValue, $objects),
+            ];
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, int|bool|string|null>|null
+     */
+    private function imageXObjectFilterDecodeParms(string $filter, ?string $value, array $objects): ?array
+    {
+        if ($value === null || trim($value) === '') {
+            return null;
+        }
+
+        if ($filter === 'CCITTFaxDecode' || $filter === 'CCF') {
+            return [
+                'type' => 'CCITTFaxDecode',
+                'k' => $this->decodeParmsInt($value, 'K', $objects),
+                'columns' => $this->decodeParmsInt($value, 'Columns', $objects),
+                'rows' => $this->decodeParmsInt($value, 'Rows', $objects),
+                'black_is_1' => $this->decodeParmsBool($value, 'BlackIs1', $objects),
+                'encoded_byte_align' => $this->decodeParmsBool($value, 'EncodedByteAlign', $objects),
+                'end_of_line' => $this->decodeParmsBool($value, 'EndOfLine', $objects),
+                'end_of_block' => $this->decodeParmsBool($value, 'EndOfBlock', $objects),
+                'damaged_rows_before_error' => $this->decodeParmsInt($value, 'DamagedRowsBeforeError', $objects),
+            ];
+        }
+
+        return ['type' => $filter];
     }
 
     /**
@@ -6616,6 +6779,19 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
+     */
+    private function decodeParmsBool(?string $decodeParms, string $name, array $objects = []): ?bool
+    {
+        if ($decodeParms === null) {
+            return null;
+        }
+
+        $offset = $this->topLevelNameValueOffset($decodeParms, $name);
+        return $offset === null ? null : $this->decodeParmsBooleanTokenAt($decodeParms, $offset, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
      * @param array<int, true> $seen
      */
     private function decodeParmsIntegerTokenAt(string $value, int $offset, array $objects, array $seen = []): ?int
@@ -6640,6 +6816,41 @@ final class PdfTextExtractor
 
         if (preg_match('/\G([+-]?\d+)/s', $value, $match, 0, $offset) === 1) {
             return (int) $match[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     */
+    private function decodeParmsBooleanTokenAt(string $value, int $offset, array $objects, array $seen = []): ?bool
+    {
+        $offset = $this->skipPdfWhitespace($value, $offset);
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) === 1) {
+            $objectNumber = (int) $match[1];
+            $generation = (int) $match[2];
+            $objectKey = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || isset($seen[$objectKey])) {
+                return null;
+            }
+
+            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            if ($body === null) {
+                return null;
+            }
+
+            $seen[$objectKey] = true;
+            return $this->decodeParmsBooleanTokenAt(trim($body), 0, $objects, $seen);
+        }
+
+        if (preg_match('/\Gtrue\b/s', $value, $match, 0, $offset) === 1) {
+            return true;
+        }
+
+        if (preg_match('/\Gfalse\b/s', $value, $match, 0, $offset) === 1) {
+            return false;
         }
 
         return null;
@@ -12533,7 +12744,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            foreach ($pairs as $index => $pair) {
+            foreach ($pairs as $position => $pair) {
                 $objectNumber = $pair['objectNumber'];
                 $offset = $pair['offset'];
                 $xrefEntry = $xrefEntries[$objectNumber] ?? null;
@@ -12552,13 +12763,13 @@ final class PdfTextExtractor
                     $xrefIndex = (int) ($xrefEntry['index'] ?? 0);
                     $indexIsExplicit = ($xrefEntry['indexIsExplicit'] ?? true) === true;
                     if ($indexIsExplicit) {
-                        if ($xrefIndex !== $index) {
+                        if ($xrefIndex !== $pair['index']) {
                             continue;
                         }
                     } else {
-                        $strictMember = $pairs[$xrefIndex] ?? null;
+                        $strictMember = $this->objectStreamMemberAtHeaderIndex($pairs, $xrefIndex);
                         if ($strictMember !== null && $strictMember['objectNumber'] === $objectNumber) {
-                            if ($xrefIndex !== $index) {
+                            if ($xrefIndex !== $pair['index']) {
                                 continue;
                             }
                         } elseif (($memberObjectNumberCounts[$objectNumber] ?? 0) !== 1) {
@@ -12569,7 +12780,7 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                $nextOffset = isset($pairs[$index + 1]) ? $pairs[$index + 1]['offset'] : strlen($decoded) - $first;
+                $nextOffset = isset($pairs[$position + 1]) ? $pairs[$position + 1]['offset'] : strlen($decoded) - $first;
                 if ($offset < 0 || $nextOffset < $offset) {
                     continue;
                 }
@@ -12597,6 +12808,21 @@ final class PdfTextExtractor
         }
 
         return $counts;
+    }
+
+    /**
+     * @param list<array{objectNumber: int, offset: int, index: int}> $members
+     * @return array{objectNumber: int, offset: int, index: int}|null
+     */
+    private function objectStreamMemberAtHeaderIndex(array $members, int $headerIndex): ?array
+    {
+        foreach ($members as $member) {
+            if ($member['index'] === $headerIndex) {
+                return $member;
+            }
+        }
+
+        return null;
     }
 
     private function objectStreamIndexSelectionPolicy(
@@ -12728,14 +12954,21 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $reviews[] = [
+            $tokenType = $this->pdfOperandTokenType($item);
+            $review = [
                 'name' => $name,
                 'kind' => 'direct',
                 'value' => $this->xrefStreamDirectOperandValue($item),
+                'token_type' => $tokenType,
                 'resolved' => true,
                 'xref_selected' => false,
                 'owner_policy' => 'direct_operand',
             ];
+            if ($name === 'Filter') {
+                $review['valid_filter_operand'] = $this->directFilterOperandTokenTypeIsValid($tokenType);
+            }
+
+            $reviews[] = $review;
         }
 
         return $reviews;
@@ -12773,6 +13006,49 @@ final class PdfTextExtractor
         }
 
         return $item;
+    }
+
+    private function pdfOperandTokenType(string $item): string
+    {
+        $item = trim($item);
+        if ($item === 'null') {
+            return 'null';
+        }
+
+        if ($item === 'true' || $item === 'false') {
+            return 'boolean';
+        }
+
+        if (str_starts_with($item, '/')) {
+            return 'name';
+        }
+
+        if (str_starts_with($item, '<<')) {
+            return 'dictionary';
+        }
+
+        if (str_starts_with($item, '[')) {
+            return 'array';
+        }
+
+        if (str_starts_with($item, '(')) {
+            return 'literal';
+        }
+
+        if (str_starts_with($item, '<')) {
+            return 'hex_string';
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $item) === 1) {
+            return 'number';
+        }
+
+        return 'bareword';
+    }
+
+    private function directFilterOperandTokenTypeIsValid(string $tokenType): bool
+    {
+        return $tokenType === 'name' || $tokenType === 'null';
     }
 
     /**
@@ -12943,6 +13219,11 @@ final class PdfTextExtractor
 
             if ($this->streamFilterOperandIsDictionary($operand)) {
                 $count++;
+                continue;
+            }
+
+            if ($this->streamFilterOperandIsMalformedDirect($operand)) {
+                $count++;
             }
         }
 
@@ -12965,6 +13246,21 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param list<array<string, mixed>> $operands
+     */
+    private function malformedStreamFilterOperandCount(array $operands): int
+    {
+        $count = 0;
+        foreach ($operands as $operand) {
+            if ($this->streamFilterOperandIsMalformedDirect($operand)) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
      * @param array<string, mixed> $operand
      */
     private function streamFilterOperandIsDictionary(array $operand): bool
@@ -12974,12 +13270,34 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param array<string, mixed> $operand
+     */
+    private function streamFilterOperandIsMalformedDirect(array $operand): bool
+    {
+        if (($operand['kind'] ?? null) !== 'direct') {
+            return false;
+        }
+
+        $valid = $operand['valid_filter_operand'] ?? null;
+        return $valid === false && !$this->streamFilterOperandIsDictionary($operand);
+    }
+
+    /**
      * @param list<string|null>|null $filters
      */
-    private function streamFilterOperandPolicy(?array $filters, int $invalidCount, int $dictionaryCount): string
+    private function streamFilterOperandPolicy(
+        ?array $filters,
+        int $invalidCount,
+        int $dictionaryCount,
+        int $malformedCount = 0
+    ): string
     {
         if ($dictionaryCount > 0) {
             return 'reject_dictionary_filter_operands';
+        }
+
+        if ($malformedCount > 0) {
+            return 'reject_malformed_filter_operands';
         }
 
         if ($invalidCount > 0) {
@@ -15202,11 +15520,11 @@ final class PdfTextExtractor
 
         $this->consumeInlineImageDataPrefixWhitespace($stream, $index);
         $dataStart = $index;
-        $incompleteJpxFallbackEnd = null;
+        $incompletePreviewFallbackEnd = null;
         while ($index < $length) {
             $end = strpos($stream, 'EI', $index);
             if ($end === false) {
-                $index = $incompleteJpxFallbackEnd === null ? $length : $incompleteJpxFallbackEnd + 2;
+                $index = $incompletePreviewFallbackEnd === null ? $length : $incompletePreviewFallbackEnd + 2;
                 return true;
             }
 
@@ -15217,16 +15535,16 @@ final class PdfTextExtractor
                     return true;
                 }
 
-                if ($this->inlineImageCandidateIsIncompleteJpx($dictionary, $candidate)) {
-                    $incompleteJpxFallbackEnd = $end;
+                if ($this->inlineImageCandidateIsIncompletePreviewOnly($dictionary, $candidate)) {
+                    $incompletePreviewFallbackEnd = $end;
                 }
             }
 
             $index = $end + 2;
         }
 
-        if ($incompleteJpxFallbackEnd !== null) {
-            $index = $incompleteJpxFallbackEnd + 2;
+        if ($incompletePreviewFallbackEnd !== null) {
+            $index = $incompletePreviewFallbackEnd + 2;
             return true;
         }
 
@@ -15398,6 +15716,16 @@ final class PdfTextExtractor
             return false;
         }
 
+        $dctState = $this->inlineImageUsesDctDecode($filters)
+            ? $this->inlineDctCandidateStateForFilters($dictionary, $filters, $candidate)
+            : null;
+        if ($dctState === 'incomplete') {
+            return false;
+        }
+        if ($dctState === 'complete') {
+            return true;
+        }
+
         $expectedLength = $this->inlineImageExpectedDecodedLength($dictionary);
         if ($filters === []) {
             return $expectedLength === null || strlen($candidate) >= $expectedLength;
@@ -15415,14 +15743,18 @@ final class PdfTextExtractor
         return $expectedLength === null || strlen($decoded) === $expectedLength;
     }
 
-    private function inlineImageCandidateIsIncompleteJpx(string $dictionary, string $candidate): bool
+    private function inlineImageCandidateIsIncompletePreviewOnly(string $dictionary, string $candidate): bool
     {
         $filters = $this->streamFilters($dictionary, []);
-        if ($filters === null || !$this->inlineImageUsesJpxDecode($filters)) {
+        if ($filters === null) {
             return false;
         }
 
-        return $this->inlineJpxCandidateState($candidate) === 'incomplete';
+        return ($this->inlineImageUsesJpxDecode($filters) && $this->inlineJpxCandidateState($candidate) === 'incomplete')
+            || (
+                $this->inlineImageUsesDctDecode($filters)
+                && $this->inlineDctCandidateStateForFilters($dictionary, $filters, $candidate) === 'incomplete'
+            );
     }
 
     /**
@@ -15432,6 +15764,20 @@ final class PdfTextExtractor
     {
         foreach ($filters as $filter) {
             if ($filter === 'JPXDecode') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     */
+    private function inlineImageUsesDctDecode(array $filters): bool
+    {
+        foreach ($filters as $filter) {
+            if ($filter === 'DCTDecode' || $filter === 'DCT') {
                 return true;
             }
         }
@@ -15458,6 +15804,86 @@ final class PdfTextExtractor
         }
 
         return str_contains($bytes, "\xff\xd9") ? 'complete' : 'incomplete';
+    }
+
+    /**
+     * DCTDecode image data is JPEG preview-only here, but JPEG framing still
+     * lets the tokenizer reject delimiter-looking `EI` bytes before EOI.
+     */
+    private function inlineDctCandidateState(string $candidate): string
+    {
+        $bytes = rtrim($candidate, "\x00\t\n\f\r ");
+        if ($bytes === '') {
+            return 'unknown';
+        }
+
+        if (!str_starts_with($bytes, "\xff\xd8")) {
+            return 'unknown';
+        }
+
+        return str_contains($bytes, "\xff\xd9") ? 'complete' : 'incomplete';
+    }
+
+    /**
+     * @param list<string|null> $filters
+     */
+    private function inlineDctCandidateStateForFilters(string $dictionary, array $filters, string $candidate): string
+    {
+        $bytes = $this->inlineImageBytesBeforePreviewFilter($dictionary, $filters, $candidate, ['DCTDecode', 'DCT']);
+        if ($bytes === null) {
+            return 'unknown';
+        }
+
+        return $this->inlineDctCandidateState($bytes);
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @param list<string> $previewFilters
+     */
+    private function inlineImageBytesBeforePreviewFilter(
+        string $dictionary,
+        array $filters,
+        string $candidate,
+        array $previewFilters
+    ): ?string {
+        $decodeParms = $this->streamDecodeParms($dictionary, []);
+        if ($decodeParms === null) {
+            return null;
+        }
+
+        $stream = $candidate;
+        foreach ($filters as $index => $filter) {
+            if ($filter === null) {
+                continue;
+            }
+
+            if (in_array($filter, $previewFilters, true)) {
+                return $stream;
+            }
+
+            $filterDecodeParms = $decodeParms[$index] ?? null;
+            if (!$this->canApplyDecodeParms($filter, $filterDecodeParms, [])) {
+                return null;
+            }
+
+            $decoded = match ($filter) {
+                'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
+                'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
+                'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
+                'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $filterDecodeParms, []),
+                'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $filterDecodeParms, []),
+                default => null,
+            };
+
+            if ($decoded === null) {
+                return null;
+            }
+
+            $stream = $decoded;
+        }
+
+        return null;
     }
 
     /**
@@ -16620,6 +17046,11 @@ final class PdfTextExtractor
     {
         $cidWidths = $toUnicodeMap['cidWidths'] ?? [];
         if (is_array($cidWidths) && array_key_exists($cid, $cidWidths)) {
+            return true;
+        }
+
+        $defaultWidth = $toUnicodeMap['cidDefaultWidth'] ?? null;
+        if ((is_int($defaultWidth) || is_float($defaultWidth)) && $cid >= 0 && $cid <= 0xffff) {
             return true;
         }
 

@@ -32,9 +32,12 @@ $toUnicodeCMap = static function (array $entries): string {
         . "end\n";
 };
 
-$pageOne = 'BT /F1 12 Tf 72 720 Td <4142> Tj ET q /FmOne Do Q';
+$pageOne = 'BT /F1 12 Tf 72 720 Td <4142> Tj ET q /FmOne Do Q q /FmLegacyOuter Do Q q /FmExplicit Do Q';
 $pageTwo = 'BT /F1 12 Tf 72 720 Td <4142> Tj ET';
 $formOne = 'BT /Fform 12 Tf 12 12 Td <43> Tj ET';
+$legacyOuter = 'q /FmLegacyNested Do Q';
+$legacyNested = 'BT /Fplain 12 Tf 12 12 Td (Legacy Nested Form Resources) Tj ET';
+$explicitForm = 'q /FmLegacyNested Do Q BT /Fplain 12 Tf 12 12 Td (Explicit Form Local Resources) Tj ET';
 $cmapOne = $toUnicodeCMap([
     '41' => 'Inherited',
     '42' => ' One',
@@ -50,7 +53,7 @@ $cmapForm = $toUnicodeCMap([
 $pdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [10 0 R 20 0 R] /Count 2 >>\nendobj\n"
-    . "10 0 obj\n<< /Type /Pages /Parent 2 0 R /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 4 0 R >> /XObject << /FmOne 13 0 R >> >> >>\nendobj\n"
+    . "10 0 obj\n<< /Type /Pages /Parent 2 0 R /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 4 0 R /Fplain 16 0 R >> /XObject << /FmOne 13 0 R /FmLegacyOuter 17 0 R /FmLegacyNested 18 0 R /FmExplicit 19 0 R >> >> >>\nendobj\n"
     . "20 0 obj\n<< /Type /Pages /Parent 2 0 R /Kids [8 0 R] /Count 1 /Resources << /Font << /F1 6 0 R >> >> >>\nendobj\n"
     . "3 0 obj\n<< /Type /Page /Parent 10 0 R /Contents 5 0 R >>\nendobj\n"
     . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /InheritedOne /Encoding /Identity-H /ToUnicode 11 0 R >>\nendobj\n"
@@ -62,17 +65,34 @@ $pdf = "%PDF-1.4\n"
     . "12 0 obj\n<< /Length " . strlen($cmapTwo) . " >>\nstream\n{$cmapTwo}\nendstream\nendobj\n"
     . "13 0 obj\n<< /Type /XObject /Subtype /Form /Resources << /Font << /Fform 14 0 R >> >> /Length " . strlen($formOne) . " >>\nstream\n{$formOne}\nendstream\nendobj\n"
     . "14 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /InheritedForm /Encoding /Identity-H /ToUnicode 15 0 R >>\nendobj\n"
-    . "15 0 obj\n<< /Length " . strlen($cmapForm) . " >>\nstream\n{$cmapForm}\nendstream\nendobj\n%%EOF";
+    . "15 0 obj\n<< /Length " . strlen($cmapForm) . " >>\nstream\n{$cmapForm}\nendstream\nendobj\n"
+    . "16 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+    . "17 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($legacyOuter) . " >>\nstream\n{$legacyOuter}\nendstream\nendobj\n"
+    . "18 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($legacyNested) . " >>\nstream\n{$legacyNested}\nendstream\nendobj\n"
+    . "19 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Resources << /Font << /Fplain 16 0 R >> >> /Length " . strlen($explicitForm) . " >>\nstream\n{$explicitForm}\nendstream\nendobj\n%%EOF";
 
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
+$expectedLines = [
+    'Inherited One',
+    'Inherited Form One',
+    'Legacy Nested Form Resources',
+    'Explicit Form Local Resources',
+    'Inherited Two',
+];
+
+if ($lines !== $expectedLines) {
+    throw new RuntimeException('Expected page-resource inheritance smoke lines to match current-base legacy Form behavior.');
+}
 
 echo '<!-- markerpdf-page-resource-inheritance-smoke ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'page-tree inherited /Resources font and XObject lookup before Gutenberg paragraph rendering',
-    'uses_page_specific_resources' => $lines === ['Inherited One', 'Inherited Form One', 'Inherited Two'],
+    'native_boundary' => 'page-tree inherited /Resources font and XObject lookup plus legacy Form XObject omitted-Resources fallback before Gutenberg paragraph rendering',
+    'uses_page_specific_resources' => $lines === $expectedLines,
     'inherits_xobject_resources' => in_array('Inherited Form One', $lines, true),
+    'inherits_legacy_form_page_resources' => in_array('Legacy Nested Form Resources', $lines, true),
+    'keeps_explicit_form_resources_unmerged' => substr_count(implode("\n", $lines), 'Legacy Nested Form Resources') === 1,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
 foreach ($lines as $line) {
