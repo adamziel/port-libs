@@ -6,6 +6,7 @@ use PortLibs\Pandoc\OpcContentTypes;
 use PortLibs\Pandoc\OpcPackagePath;
 use PortLibs\Pandoc\OpcRelationship;
 use PortLibs\Pandoc\OpcRelationships;
+use PortLibs\Pandoc\ZipPackage;
 
 $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -122,6 +123,36 @@ return [
         $t->same('External', $relationships->byId('rIdReviewerLink')?->targetMode);
         $t->same('Internal', $relationships->byId('rIdStyles')?->targetMode);
         $t->same(null, $relationships->byId('missing'));
+    },
+    'loads package and part level OPC relationship parts from zip package entries' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml): void {
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/media/review-image.PNG', 'data' => 'PNG'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]);
+
+        $t->true(OpcRelationships::packageHasRelationshipsForSource($package));
+        $t->true(OpcRelationships::packageHasRelationshipsForSource($package, '/word/document.xml'));
+        $t->same(false, OpcRelationships::packageHasRelationshipsForSource($package, '/word/missing.xml'));
+
+        $packageRelationships = OpcRelationships::fromPackage($package);
+        $documentPart = $packageRelationships->resolveTarget('rIdDocument');
+        $documentRelationships = OpcRelationships::fromPackage($package, $documentPart);
+
+        $t->same('/word/document.xml', $documentPart);
+        $t->same('/word/_rels/document.xml.rels', $documentRelationships->relationshipPartName());
+        $t->same('/word/styles.xml', $documentRelationships->resolveTarget('rIdStyles'));
+        $t->same('/word/media/review-image.PNG', $documentRelationships->resolveTarget('rIdImage'));
+        $t->same('https://example.test/wp-admin/post.php?post=42&action=edit', $documentRelationships->resolveTarget('rIdReviewerLink'));
+
+        $types = OpcContentTypes::fromXml($package->read('[Content_Types].xml'));
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $types->contentTypeForPart($documentPart));
+        $t->same('image/png', $types->contentTypeForPart($documentRelationships->resolveTarget('rIdImage')));
+        $t->throws(\RuntimeException::class, static fn (): OpcRelationships => OpcRelationships::fromPackage($package, '/word/missing.xml'));
     },
     'serializes OPC relationships with external target modes only when needed' => static function (TestRunner $t): void {
         $relationships = new OpcRelationships('/word/document.xml');

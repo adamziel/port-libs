@@ -111,19 +111,25 @@ final class DocTemplate
     private function renderRange(array $tokens, int $start, int $end, array $context): string
     {
         $output = '';
+        $pendingNestColumn = null;
 
         for ($index = $start; $index < $end; $index++) {
             $token = $tokens[$index];
             if ($token['type'] === 'text') {
-                $output .= $token['value'];
+                $this->appendRenderedChunk($output, $token['value'], $pendingNestColumn);
                 continue;
             }
 
             $directive = $token['value'];
+            if ($directive === '^') {
+                $pendingNestColumn = $this->currentColumn($output);
+                continue;
+            }
+
             $ifVariable = $this->controlVariable($directive, 'if');
             if ($ifVariable !== null) {
                 [$rendered, $nextIndex] = $this->renderIf($tokens, $index + 1, $end, $ifVariable, $context);
-                $output .= $rendered;
+                $this->appendRenderedChunk($output, $rendered, $pendingNestColumn);
                 $index = $nextIndex - 1;
                 continue;
             }
@@ -131,7 +137,7 @@ final class DocTemplate
             $forVariable = $this->controlVariable($directive, 'for');
             if ($forVariable !== null) {
                 [$rendered, $nextIndex] = $this->renderFor($tokens, $index + 1, $end, $forVariable, $context);
-                $output .= $rendered;
+                $this->appendRenderedChunk($output, $rendered, $pendingNestColumn);
                 $index = $nextIndex - 1;
                 continue;
             }
@@ -140,7 +146,15 @@ final class DocTemplate
                 throw new \UnexpectedValueException("Unexpected doctemplate control directive {$directive}");
             }
 
-            $output .= $this->renderVariableDirective($directive, $context);
+            $rendered = $this->renderVariableDirective($directive, $context);
+            if ($pendingNestColumn === null) {
+                $autoNestPrefix = $this->automaticNestPrefix($tokens, $index, $end, $output);
+                if ($autoNestPrefix !== null) {
+                    $rendered = $this->nestMultiline($rendered, $autoNestPrefix);
+                }
+            }
+
+            $this->appendRenderedChunk($output, $rendered, $pendingNestColumn);
         }
 
         return $output;
@@ -493,6 +507,64 @@ final class DocTemplate
         }
 
         return $next;
+    }
+
+    private function currentColumn(string $output): int
+    {
+        $lineStart = strrpos($output, "\n");
+        $line = $lineStart === false ? $output : substr($output, $lineStart + 1);
+
+        return strlen($line);
+    }
+
+    /**
+     * @param list<array{type:string, value:string}> $tokens
+     */
+    private function automaticNestPrefix(array $tokens, int $index, int $end, string $output): ?string
+    {
+        $lineStart = strrpos($output, "\n");
+        $prefix = $lineStart === false ? $output : substr($output, $lineStart + 1);
+        if (trim($prefix, " \t") !== '') {
+            return null;
+        }
+
+        for ($next = $index + 1; $next < $end; $next++) {
+            $token = $tokens[$next];
+            if ($token['type'] !== 'text') {
+                return null;
+            }
+
+            $newline = strpos($token['value'], "\n");
+            $beforeNewline = $newline === false ? $token['value'] : substr($token['value'], 0, $newline);
+            if (trim($beforeNewline, " \t\r") !== '') {
+                return null;
+            }
+
+            if ($newline !== false) {
+                return $prefix;
+            }
+        }
+
+        return $prefix;
+    }
+
+    private function appendRenderedChunk(string &$output, string $chunk, ?int &$pendingNestColumn): void
+    {
+        if ($pendingNestColumn !== null) {
+            $chunk = $this->nestMultiline($chunk, str_repeat(' ', $pendingNestColumn));
+            $pendingNestColumn = null;
+        }
+
+        $output .= $chunk;
+    }
+
+    private function nestMultiline(string $value, string $indent): string
+    {
+        if ($indent === '' || !str_contains($value, "\n")) {
+            return $value;
+        }
+
+        return preg_replace('/\n(?!$)/', "\n" . $indent, $value) ?? $value;
     }
 
     /**

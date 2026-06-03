@@ -101,6 +101,50 @@ TPL;
         $t->same('Intro: one two|redacted|', $output);
     },
 
+    'nests multiline pandoc doctemplate variables with explicit caret alignment' => static function (TestRunner $t): void {
+        $template = '$for(items)$<li>$it.number$ $^$$it.description$ <a href="$it.editUrl$">edit</a></li>$sep$' . "\n" . '$endfor$';
+
+        $output = (new DocTemplate())->render($template, [
+            'items' => [
+                [
+                    'number' => '01',
+                    'description' => "Imported paragraph\nNeeds media review",
+                    'editUrl' => 'https://example.test/wp-admin/post.php?post=42&amp;action=edit',
+                ],
+                [
+                    'number' => '02',
+                    'description' => 'Inline source note',
+                    'editUrl' => 'https://example.test/wp-admin/post.php?post=43&amp;action=edit',
+                ],
+            ],
+        ]);
+
+        $t->same(implode("\n", [
+            '<li>01 Imported paragraph',
+            '       Needs media review <a href="https://example.test/wp-admin/post.php?post=42&amp;action=edit">edit</a></li>',
+            '<li>02 Inline source note <a href="https://example.test/wp-admin/post.php?post=43&amp;action=edit">edit</a></li>',
+        ]), $output);
+    },
+
+    'automatically nests multiline pandoc doctemplate variables that stand alone on indented lines' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+<section class="wp-import-body">
+  $body$
+</section>
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'body' => "<!-- wp:paragraph --><p>Imported body.</p><!-- /wp:paragraph -->\n<!-- wp:paragraph --><p>Needs review.</p><!-- /wp:paragraph -->",
+        ]);
+
+        $t->same(implode("\n", [
+            '<section class="wp-import-body">',
+            '  <!-- wp:paragraph --><p>Imported body.</p><!-- /wp:paragraph -->',
+            '  <!-- wp:paragraph --><p>Needs review.</p><!-- /wp:paragraph -->',
+            '</section>',
+        ]), $output);
+    },
+
     'renders wordpress review packet templates without output escaping' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 <article class="wp-import-review">

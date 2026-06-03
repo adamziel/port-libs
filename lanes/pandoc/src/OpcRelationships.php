@@ -48,6 +48,21 @@ final class OpcRelationships
         return $relationships;
     }
 
+    public static function fromPackage(ZipPackage $package, string $sourcePartName = '/'): self
+    {
+        $relationshipPartName = self::relationshipPartNameForSource($sourcePartName);
+        if (!$package->has($relationshipPartName)) {
+            throw new \RuntimeException('OPC relationship part not found: ' . $relationshipPartName);
+        }
+
+        return self::fromXml($package->read($relationshipPartName), $sourcePartName);
+    }
+
+    public static function packageHasRelationshipsForSource(ZipPackage $package, string $sourcePartName = '/'): bool
+    {
+        return $package->has(self::relationshipPartNameForSource($sourcePartName));
+    }
+
     public static function relationshipPartNameForSource(string $sourcePartName): string
     {
         $sourcePartName = OpcPackagePath::canonicalPartName($sourcePartName, true);

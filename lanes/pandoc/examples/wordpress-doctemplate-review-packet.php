@@ -17,7 +17,9 @@ $if(warnings)$
 $for(warnings)$<li data-source="$it.source$">$it.message$</li>
 $endfor$</ul>
 $endif$
-$body$
+<section class="wp-import-body">
+  $^$$body$
+</section>
 </article>
 HTML;
 
@@ -31,7 +33,10 @@ $context = [
         ['source' => 'media', 'message' => 'Check &amp; confirm alt text'],
         ['source' => 'links', 'message' => 'Verify edit links before publish'],
     ],
-    'body' => '<!-- wp:paragraph --><p>Imported body is already escaped.</p><!-- /wp:paragraph -->',
+    'body' => implode("\n", [
+        '<!-- wp:paragraph --><p>Imported body is already escaped.</p><!-- /wp:paragraph -->',
+        '<!-- wp:paragraph --><p>Second reviewer packet line stays nested.</p><!-- /wp:paragraph -->',
+    ]),
 ];
 
 $output = (new DocTemplate())->render($template, $context);
@@ -41,7 +46,8 @@ if (in_array('--self-test', $argv, true)) {
         '<h1>Batch 42 Review</h1>',
         '<p class="authors">Migration bot, Content editor</p>',
         '<li data-source="media">Check &amp; confirm alt text</li>',
-        '<!-- wp:paragraph --><p>Imported body is already escaped.</p><!-- /wp:paragraph -->',
+        '  <!-- wp:paragraph --><p>Imported body is already escaped.</p><!-- /wp:paragraph -->',
+        '  <!-- wp:paragraph --><p>Second reviewer packet line stays nested.</p><!-- /wp:paragraph -->',
     ] as $needle) {
         if (!str_contains($output, $needle)) {
             fwrite(STDERR, "Missing expected doctemplate output: {$needle}\n");

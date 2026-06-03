@@ -7,6 +7,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\Pandoc\OpcContentTypes;
 use PortLibs\Pandoc\OpcRelationship;
 use PortLibs\Pandoc\OpcRelationships;
+use PortLibs\Pandoc\ZipPackage;
 
 $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -36,15 +37,26 @@ $documentRelationshipsXml = <<<'XML'
 </Relationships>
 XML;
 
-$types = OpcContentTypes::fromXml($contentTypesXml);
-$packageRelationships = OpcRelationships::fromXml($packageRelationshipsXml);
+$package = ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+    ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+    ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+    ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => 'word/footnotes.xml', 'data' => '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => 'word/media/hero.PNG', 'data' => 'PNG'],
+    ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+]);
+
+$types = OpcContentTypes::fromXml($package->read('[Content_Types].xml'));
+$packageRelationships = OpcRelationships::fromPackage($package);
 $officeDocument = $packageRelationships->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument');
 if (!$officeDocument instanceof OpcRelationship) {
     throw new RuntimeException('DOCX package does not contain an officeDocument relationship');
 }
 
 $documentPart = $packageRelationships->resolveTarget($officeDocument);
-$documentRelationships = OpcRelationships::fromXml($documentRelationshipsXml, $documentPart);
+$documentRelationships = OpcRelationships::fromPackage($package, $documentPart);
 
 $relationshipSummaries = [];
 foreach ($documentRelationships->all() as $relationship) {

@@ -9,6 +9,7 @@ final class ZipPackage
     private const EOCD_SIGNATURE = "PK\x05\x06";
     private const CENTRAL_DIRECTORY_SIGNATURE = "PK\x01\x02";
     private const LOCAL_FILE_SIGNATURE = "PK\x03\x04";
+    private const UTF8_GENERAL_PURPOSE_FLAG = 0x0800;
 
     /**
      * @param array<string, ZipPackageEntry> $entriesByName
@@ -19,6 +20,7 @@ final class ZipPackage
         private readonly array $entriesByName,
         private readonly array $entries,
         private readonly int $centralDirectoryOffset,
+        private readonly string $packageComment = '',
     ) {
     }
 
@@ -28,6 +30,7 @@ final class ZipPackage
         $entryCount = self::readUInt16($bytes, $eocdOffset + 10);
         $centralDirectorySize = self::readUInt32($bytes, $eocdOffset + 12);
         $centralDirectoryOffset = self::readUInt32($bytes, $eocdOffset + 16);
+        $packageCommentLength = self::readUInt16($bytes, $eocdOffset + 20);
 
         $diskNumber = self::readUInt16($bytes, $eocdOffset + 4);
         $centralDirectoryDisk = self::readUInt16($bytes, $eocdOffset + 6);
@@ -108,7 +111,152 @@ final class ZipPackage
             throw new \RuntimeException('Central directory size does not match parsed ZIP entries');
         }
 
-        return new self($bytes, $entriesByName, $entries, $centralDirectoryOffset);
+        $packageComment = substr($bytes, $eocdOffset + 22, $packageCommentLength);
+
+        return new self($bytes, $entriesByName, $entries, $centralDirectoryOffset, $packageComment);
+    }
+
+    /**
+     * @param list<array{name:string, data?:string, compressionMethod?:int, comment?:string}> $parts
+     */
+    public static function fromParts(array $parts, string $packageComment = ''): self
+    {
+        return self::fromString(self::build($parts, $packageComment));
+    }
+
+    /**
+     * @param list<array{name:string, data?:string, compressionMethod?:int, comment?:string}> $parts
+     */
+    public static function build(array $parts, string $packageComment = ''): string
+    {
+        self::assertUInt16Length($packageComment, 'ZIP package comment');
+        if (count($parts) > 0xffff) {
+            throw new \RuntimeException('ZIP package writer cannot emit more than 65535 entries without ZIP64');
+        }
+
+        $body = '';
+        $central = '';
+        $entriesByName = [];
+
+        foreach ($parts as $index => $part) {
+            if (!is_array($part)) {
+                throw new \RuntimeException("ZIP package part {$index} must be an array");
+            }
+
+            if (!isset($part['name']) || !is_string($part['name'])) {
+                throw new \RuntimeException("ZIP package part {$index} is missing a string name");
+            }
+
+            $name = $part['name'];
+            self::assertSafePartName($name);
+            self::assertUInt16Length($name, "ZIP entry name {$name}");
+            if (isset($entriesByName[$name])) {
+                throw new \RuntimeException("Duplicate ZIP package entry: {$name}");
+            }
+            $entriesByName[$name] = true;
+
+            $data = $part['data'] ?? '';
+            if (!is_string($data)) {
+                throw new \RuntimeException("ZIP package entry {$name} data must be a string");
+            }
+
+            $method = $part['compressionMethod'] ?? ($data === '' || str_ends_with($name, '/') ? 0 : 8);
+            if (!is_int($method)) {
+                throw new \RuntimeException("ZIP package entry {$name} compression method must be an integer");
+            }
+
+            if (str_ends_with($name, '/') && $data !== '') {
+                throw new \RuntimeException("ZIP package directory entry {$name} must not contain file data");
+            }
+
+            if (str_ends_with($name, '/') && $method !== 0) {
+                throw new \RuntimeException("ZIP package directory entry {$name} must use stored compression");
+            }
+
+            $compressed = match ($method) {
+                0 => $data,
+                8 => gzdeflate($data),
+                default => throw new \RuntimeException(
+                    "Unsupported ZIP compression method {$method} for entry {$name}"
+                ),
+            };
+
+            if ($compressed === false) {
+                throw new \RuntimeException("Unable to deflate ZIP entry {$name}");
+            }
+
+            $comment = $part['comment'] ?? '';
+            if (!is_string($comment)) {
+                throw new \RuntimeException("ZIP package entry {$name} comment must be a string");
+            }
+            self::assertUInt16Length($comment, "ZIP entry comment {$name}");
+
+            $crc32 = self::unsignedCrc32($data);
+            $compressedSize = strlen($compressed);
+            $uncompressedSize = strlen($data);
+            $localHeaderOffset = strlen($body);
+            self::assertUInt32Value($compressedSize, "ZIP entry {$name} compressed size");
+            self::assertUInt32Value($uncompressedSize, "ZIP entry {$name} uncompressed size");
+            self::assertUInt32Value($localHeaderOffset, "ZIP entry {$name} local header offset");
+
+            $body .= pack(
+                'VvvvvvVVVvv',
+                0x04034b50,
+                20,
+                self::UTF8_GENERAL_PURPOSE_FLAG,
+                $method,
+                0,
+                0,
+                $crc32,
+                $compressedSize,
+                $uncompressedSize,
+                strlen($name),
+                0
+            );
+            $body .= $name . $compressed;
+
+            $central .= pack(
+                'VvvvvvvVVVvvvvvVV',
+                0x02014b50,
+                0x0314,
+                20,
+                self::UTF8_GENERAL_PURPOSE_FLAG,
+                $method,
+                0,
+                0,
+                $crc32,
+                $compressedSize,
+                $uncompressedSize,
+                strlen($name),
+                0,
+                strlen($comment),
+                0,
+                0,
+                0,
+                $localHeaderOffset
+            );
+            $central .= $name . $comment;
+        }
+
+        $centralDirectoryOffset = strlen($body);
+        $centralDirectorySize = strlen($central);
+        self::assertUInt32Value($centralDirectoryOffset, 'ZIP central directory offset');
+        self::assertUInt32Value($centralDirectorySize, 'ZIP central directory size');
+
+        return $body
+            . $central
+            . pack(
+                'VvvvvVVv',
+                0x06054b50,
+                0,
+                0,
+                count($parts),
+                count($parts),
+                $centralDirectorySize,
+                $centralDirectoryOffset,
+                strlen($packageComment)
+            )
+            . $packageComment;
     }
 
     /**
@@ -125,6 +273,16 @@ final class ZipPackage
     public function names(): array
     {
         return array_map(static fn (ZipPackageEntry $entry): string => $entry->name, $this->entries);
+    }
+
+    public function bytes(): string
+    {
+        return $this->bytes;
+    }
+
+    public function packageComment(): string
+    {
+        return $this->packageComment;
     }
 
     public function has(string $partName): bool
@@ -279,6 +437,20 @@ final class ZipPackage
     {
         if ($offset < 0 || $length < 0 || $offset > strlen($bytes) || $offset + $length > strlen($bytes)) {
             throw new \RuntimeException("ZIP package {$label} extends beyond available bytes");
+        }
+    }
+
+    private static function assertUInt16Length(string $bytes, string $label): void
+    {
+        if (strlen($bytes) > 0xffff) {
+            throw new \RuntimeException("{$label} is too long for a bounded ZIP package");
+        }
+    }
+
+    private static function assertUInt32Value(int $value, string $label): void
+    {
+        if ($value > 0xffffffff) {
+            throw new \RuntimeException("{$label} requires ZIP64 and is not supported by this bounded package writer");
         }
     }
 

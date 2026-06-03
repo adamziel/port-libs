@@ -148,6 +148,8 @@ return [
         $t->same('<w:document><w:body><w:p>Imported post</w:p></w:body></w:document>', $package->read('/word/document.xml'));
         $t->same('', $package->read('word/media/'));
         $t->true($package->centralDirectoryOffset() > 0);
+        $t->same('package comment', $package->packageComment());
+        $t->same($zip, $package->bytes());
     },
 
     'reads package entries whose local header uses a data descriptor' => static function (TestRunner $t) use ($buildZipPackage): void {
@@ -166,6 +168,85 @@ return [
         $t->same(8, $entry->compressionMethod);
         $t->same(0x0808, $entry->generalPurposeFlags);
         $t->same(str_repeat('<w:comment>review</w:comment>', 8), $package->read('word/comments.xml'));
+    },
+
+    'builds current zip package bytes for generated pandoc containers' => static function (TestRunner $t): void {
+        $parts = [
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+                'comment' => 'content types',
+            ],
+            [
+                'name' => '_rels/.rels',
+                'data' => '<Relationships><Relationship Target="word/document.xml"/></Relationships>',
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>Generated WordPress packet</w:p></w:body></w:document>',
+                'comment' => 'office document',
+            ],
+            [
+                'name' => 'word/media/',
+            ],
+        ];
+
+        $package = ZipPackage::fromParts($parts, 'wordpress package writer');
+        $roundTrip = ZipPackage::fromString($package->bytes());
+
+        $t->same($package->bytes(), ZipPackage::build($parts, 'wordpress package writer'));
+        $t->contains("PK\x03\x04", $package->bytes());
+        $t->contains("PK\x01\x02", $package->bytes());
+        $t->same('wordpress package writer', $roundTrip->packageComment());
+        $t->same([
+            '[Content_Types].xml',
+            '_rels/.rels',
+            'word/document.xml',
+            'word/media/',
+        ], $roundTrip->names());
+        $t->same(0, $roundTrip->entry('[Content_Types].xml')->compressionMethod);
+        $t->same(8, $roundTrip->entry('_rels/.rels')->compressionMethod);
+        $t->same(8, $roundTrip->entry('word/document.xml')->compressionMethod);
+        $t->same(0, $roundTrip->entry('word/media/')->compressionMethod);
+        $t->same('content types', $roundTrip->entry('[Content_Types].xml')->comment);
+        $t->same('office document', $roundTrip->entry('word/document.xml')->comment);
+        $t->same('<Types><Default Extension="xml" ContentType="application/xml"/></Types>', $roundTrip->read('/[Content_Types].xml'));
+        $t->same('<Relationships><Relationship Target="word/document.xml"/></Relationships>', $roundTrip->read('/_rels/.rels'));
+        $t->same('<w:document><w:body><w:p>Generated WordPress packet</w:p></w:body></w:document>', $roundTrip->read('word/document.xml'));
+        $t->same('', $roundTrip->read('word/media/'));
+        $t->true($roundTrip->centralDirectoryOffset() > 0);
+    },
+
+    'rejects invalid generated zip package parts before writing' => static function (TestRunner $t): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => 'first'],
+            ['name' => 'word/document.xml', 'data' => 'second'],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => 'word/../document.xml', 'data' => 'traversal'],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => 'ok', 'compressionMethod' => 12],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => 'word/media/', 'data' => 'not a directory entry'],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => 'word/media/', 'compressionMethod' => 8],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            'not a part array',
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => []],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => 'ok', 'comment' => str_repeat('x', 0x10000)],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => 'ok'],
+        ], str_repeat('x', 0x10000)));
     },
 
     'rejects unsafe package part names before exposing entries' => static function (TestRunner $t) use ($buildZipPackage): void {
