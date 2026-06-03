@@ -79,6 +79,11 @@ final class PdfTextExtractor
     private array $currentObjectReferenceOwners = [];
 
     /**
+     * @var array<int, array<int, string>>
+     */
+    private array $currentDirectObjectBodiesByGeneration = [];
+
+    /**
      * @return list<string>
      */
     public function extractTextRuns(string $pdfBytes): array
@@ -7291,7 +7296,8 @@ final class PdfTextExtractor
                 $hasCidFontBody = true;
             }
 
-            foreach ($this->simpleFontWidthMetrics($body, $objects) as $code => $width) {
+            $simpleWidths = $this->simpleFontWidthMetrics($body, $objects);
+            foreach ($simpleWidths as $code => $width) {
                 $widths[$code] = $width;
             }
 
@@ -7299,6 +7305,8 @@ final class PdfTextExtractor
                 $missingWidth = $this->fontDescriptorMissingWidth($body, $objects);
                 if ($missingWidth !== null) {
                     $defaultWidth = $missingWidth;
+                } elseif ($simpleWidths !== [] && !$this->isType3FontBody($body)) {
+                    $defaultWidth = $this->averagePositiveFontWidth($simpleWidths) ?? $defaultWidth;
                 }
             }
 
@@ -7364,19 +7372,24 @@ final class PdfTextExtractor
         }
 
         $glyphNamesByCode = $this->type3EncodingGlyphNamesByCode($fontBody, $objects);
-        $charProcObjectNumbers = $this->charProcObjectNumbers($fontBody, $objects);
-        if ($glyphNamesByCode === [] || $charProcObjectNumbers === []) {
+        $charProcObjectReferences = $this->charProcObjectReferences($fontBody, $objects);
+        if ($glyphNamesByCode === [] || $charProcObjectReferences === []) {
             return [];
         }
 
         $widths = [];
         foreach ($glyphNamesByCode as $code => $glyphName) {
-            $objectNumber = $charProcObjectNumbers[$glyphName] ?? null;
-            if ($objectNumber === null || !isset($objects[$objectNumber])) {
+            $reference = $charProcObjectReferences[$glyphName] ?? null;
+            if ($reference === null) {
                 continue;
             }
 
-            $width = $this->type3CharProcDeclaredWidth($objects[$objectNumber], $objects);
+            $objectBody = $this->objectBodyForExactReference($objects, $reference['objectNumber'], $reference['generation']);
+            if ($objectBody === null) {
+                continue;
+            }
+
+            $width = $this->type3CharProcDeclaredWidth($objectBody, $objects);
             if ($width !== null) {
                 $widths[$code] = $width;
             }
@@ -7449,13 +7462,13 @@ final class PdfTextExtractor
      */
     private function type3StandardCharProcUnicodeByName(string $fontBody, array $objects): ?array
     {
-        $charProcObjectNumbers = $this->charProcObjectNumbers($fontBody, $objects);
-        if ($charProcObjectNumbers === []) {
+        $charProcObjectReferences = $this->charProcObjectReferences($fontBody, $objects);
+        if ($charProcObjectReferences === []) {
             return null;
         }
 
         $unicodeByName = [];
-        foreach (array_keys($charProcObjectNumbers) as $glyphName) {
+        foreach (array_keys($charProcObjectReferences) as $glyphName) {
             $unicode = $this->glyphNameToUnicode($glyphName);
             if ($unicode === '') {
                 return null;
@@ -7615,26 +7628,29 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array<string, int>
+     * @return array<string, array{objectNumber: int, generation: int}>
      * @param array<int, string> $objects
      */
-    private function charProcObjectNumbers(string $fontBody, array $objects): array
+    private function charProcObjectReferences(string $fontBody, array $objects): array
     {
         $dictionary = $this->charProcsDictionaryBody($fontBody, $objects);
         if ($dictionary === null) {
             return [];
         }
 
-        if (!preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+\d+\s+R\b/', $dictionary, $matches, PREG_SET_ORDER)) {
+        if (!preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+(\d+)\s+R\b/', $dictionary, $matches, PREG_SET_ORDER)) {
             return [];
         }
 
-        $objectNumbers = [];
+        $references = [];
         foreach ($matches as $match) {
-            $objectNumbers[$this->decodePdfName($match[1])] = (int) $match[2];
+            $references[$this->decodePdfName($match[1])] = [
+                'objectNumber' => (int) $match[2],
+                'generation' => (int) $match[3],
+            ];
         }
 
-        return $objectNumbers;
+        return $references;
     }
 
     /**
@@ -7790,6 +7806,25 @@ final class PdfTextExtractor
         }
 
         return $widths;
+    }
+
+    /**
+     * @param array<int, float> $widths
+     */
+    private function averagePositiveFontWidth(array $widths): ?float
+    {
+        $sum = 0.0;
+        $count = 0;
+        foreach ($widths as $width) {
+            if ($width <= 0.0) {
+                continue;
+            }
+
+            $sum += $width;
+            $count++;
+        }
+
+        return $count === 0 ? null : $sum / $count;
     }
 
     /**
@@ -9870,6 +9905,7 @@ final class PdfTextExtractor
     private function pdfObjects(string $pdfBytes): array
     {
         $this->currentObjectReferenceOwners = [];
+        $this->currentDirectObjectBodiesByGeneration = [];
         if ($this->hasEncryptedTrailer($pdfBytes)) {
             return [];
         }
@@ -9878,9 +9914,11 @@ final class PdfTextExtractor
         if ($definitions === []) {
             return [];
         }
+        $this->currentDirectObjectBodiesByGeneration = $this->directObjectBodiesByGeneration($definitions);
 
         $preliminaryObjects = $this->latestDirectObjects($definitions);
         if ($this->startxrefXrefStreamFilterDecodeFailed($pdfBytes, $preliminaryObjects, $definitions)) {
+            $this->currentDirectObjectBodiesByGeneration = [];
             return [];
         }
 
@@ -10234,6 +10272,34 @@ final class PdfTextExtractor
         ksort($definitions, SORT_NUMERIC);
 
         return $definitions;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     * @return array<int, array<int, string>>
+     */
+    private function directObjectBodiesByGeneration(array $definitions): array
+    {
+        $bodies = [];
+
+        foreach ($definitions as $objectNumber => $entries) {
+            $byGeneration = [];
+            foreach ($entries as $entry) {
+                $generation = $entry['generation'];
+                if (!isset($byGeneration[$generation]) || $entry['offset'] >= $byGeneration[$generation]['offset']) {
+                    $byGeneration[$generation] = [
+                        'offset' => $entry['offset'],
+                        'body' => $entry['body'],
+                    ];
+                }
+            }
+
+            foreach ($byGeneration as $generation => $entry) {
+                $bodies[$objectNumber][$generation] = $entry['body'];
+            }
+        }
+
+        return $bodies;
     }
 
     private function pdfObjectEndOffset(string $pdfBytes, int $offset): ?int
@@ -11059,6 +11125,19 @@ final class PdfTextExtractor
         }
 
         return $objects[$objectNumber];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function objectBodyForExactReference(array $objects, int $objectNumber, int $generation): ?string
+    {
+        $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+        if ($body !== null) {
+            return $body;
+        }
+
+        return $this->currentDirectObjectBodiesByGeneration[$objectNumber][$generation] ?? null;
     }
 
     /**
