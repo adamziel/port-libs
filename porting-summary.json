@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-03 08:35:03 UTC",
-    "sourceCommit": "82c0d9d742339955bf0aa8722d0f68073564c879",
-    "sourceCommitShort": "82c0d9d74233",
+    "generated": "2026-06-03 08:38:07 UTC",
+    "sourceCommit": "7dbe7af2accd0b33be81f0b4a7e28b036342371b",
+    "sourceCommitShort": "7dbe7af2accd",
     "sourceBranch": "unknown",
-    "dashboardCommit": "82c0d9d742339955bf0aa8722d0f68073564c879",
-    "dashboardCommitShort": "82c0d9d74233",
+    "dashboardCommit": "7dbe7af2accd0b33be81f0b4a7e28b036342371b",
+    "dashboardCommitShort": "7dbe7af2accd",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -137,13 +137,13 @@
             "coverage": "670 / 2,276 (29.4%)",
             "mapPercent": "29.4%",
             "unmapped": "1,606",
-            "php": "262 pass / 0 fail",
+            "php": "265 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
             "audit": "updated 2026-06-03: recovered bounded-swarm Pandoc package dependency...",
             "currentWork": "Native Pandoc support now includes the accepted Markdown/HTML reader and writer evide...",
-            "nextTarget": "Use the native ZIP/OPC/doctemplate primitives to parse a mini...",
+            "nextTarget": "Use the native YAML/ZIP/OPC/doctemplate primitives to parse a...",
             "remainingGate": "No local blocker",
-            "commit": "82c0d9d"
+            "commit": "7dbe7af"
         },
         {
             "lane": "quadrable",
