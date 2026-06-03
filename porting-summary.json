@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-03 09:14:17 UTC",
-    "sourceCommit": "8e5822906ca369c756128688d5f864861e2bf673",
-    "sourceCommitShort": "8e5822906ca3",
+    "generated": "2026-06-03 09:18:19 UTC",
+    "sourceCommit": "2b759f764215c5b75af63ce797f50d5fb1e71f19",
+    "sourceCommitShort": "2b759f764215",
     "sourceBranch": "unknown",
-    "dashboardCommit": "316fbec25ba2be29a749d4564c4a08ed7a6e7684",
-    "dashboardCommitShort": "316fbec25ba2",
+    "dashboardCommit": "1f612163bbc3ce9817e1f83b5d7ef8b6f693f982",
+    "dashboardCommitShort": "1f612163bbc3",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -87,17 +87,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "698",
-            "coverage": "698 / 78 (894.9%)",
-            "mapPercent": "894.9%",
+            "mapped": "702",
+            "coverage": "702 / 78 (900.0%)",
+            "mapPercent": "900.0%",
             "unmapped": "0",
-            "php": "1,012 pass / 0 fail",
-            "phase": "native no-GPU markerPDF scope; supplied layout/runtime handoffs accep...",
-            "audit": "2026-06-03 UTC supervisor accepted markerPDF supplied layout/runtime...",
+            "php": "1,016 pass / 0 fail",
+            "phase": "native no-GPU markerPDF scope; geometry/font/type3/link handoffs acce...",
+            "audit": "2026-06-03 UTC supervisor accepted markerPDF geometry/font/type3/link...",
             "currentWork": "MarkerPDF is supervised as a native PHP searchable-PDF parser/converter plus supplied...",
             "nextTarget": "Supervisor-only session with bounded worker swarm: keep the r...",
             "remainingGate": "No GPU/model execution will be run for markerPDF under current user d...",
-            "commit": "8e58229"
+            "commit": "2b759f7"
         },
         {
             "lane": "readability",
