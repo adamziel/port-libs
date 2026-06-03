@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-03 08:32:04 UTC",
-    "sourceCommit": "d3fd7fd6061216bdfdddc417aa5d9fca448c4d5d",
-    "sourceCommitShort": "d3fd7fd60612",
+    "generated": "2026-06-03 08:35:03 UTC",
+    "sourceCommit": "82c0d9d742339955bf0aa8722d0f68073564c879",
+    "sourceCommitShort": "82c0d9d74233",
     "sourceBranch": "unknown",
-    "dashboardCommit": "d3fd7fd6061216bdfdddc417aa5d9fca448c4d5d",
-    "dashboardCommitShort": "d3fd7fd60612",
+    "dashboardCommit": "82c0d9d742339955bf0aa8722d0f68073564c879",
+    "dashboardCommitShort": "82c0d9d74233",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "660",
-            "coverage": "660 / 2,276 (29.0%)",
-            "mapPercent": "29.0%",
-            "unmapped": "1,616",
-            "php": "239 pass / 0 fail",
-            "phase": "cloned inventory plus native Markdown/HTML reader and Markdown/LaTeX/...",
-            "audit": "updated 2026-05-26: continuous-dev-20260526T002956Z extended Markdown...",
-            "currentWork": "Native MarkdownWriter keeps the accepted inline line-break, table, definition-list, u...",
-            "nextTarget": "Map another bounded Markdown writer branch after block-start...",
+            "mapped": "670",
+            "coverage": "670 / 2,276 (29.4%)",
+            "mapPercent": "29.4%",
+            "unmapped": "1,606",
+            "php": "262 pass / 0 fail",
+            "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
+            "audit": "updated 2026-06-03: recovered bounded-swarm Pandoc package dependency...",
+            "currentWork": "Native Pandoc support now includes the accepted Markdown/HTML reader and writer evide...",
+            "nextTarget": "Use the native ZIP/OPC/doctemplate primitives to parse a mini...",
             "remainingGate": "No local blocker",
-            "commit": "cd2e8a0"
+            "commit": "82c0d9d"
         },
         {
             "lane": "quadrable",
