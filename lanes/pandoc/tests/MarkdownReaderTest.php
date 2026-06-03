@@ -800,6 +800,87 @@ return [
         $t->same('additional-markdown-reader-tests', $document->children[0]->attr('id'));
         $t->contains('<h1 id="additional-markdown-reader-tests">Additional markdown reader tests</h1>', $blocks);
     },
+    'maps pandoc yaml metadata blocks before markdown body' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: "Migration **Packet**"',
+            'author:',
+            '  - Ada Lovelace',
+            '  - "WordPress Reviewer"',
+            'date: 2026-06-03',
+            'keywords: [migration, "Data Liberation", wordpress]',
+            'published: false',
+            'review:',
+            '  status: needs-review',
+            '  priority: 2',
+            'abstract: |',
+            '  First source paragraph.',
+            '  Preserve **review** line.',
+            '---',
+            '',
+            '# Import packet',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $authorInlines = $meta['authorInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Migration **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same(['Ada Lovelace', 'WordPress Reviewer'], $meta['author']);
+        $t->same(['Ada Lovelace', 'WordPress Reviewer'], $meta['authors']);
+        $t->same(2, count($authorInlines));
+        $t->same('WordPress Reviewer', $authorInlines[1][0]->attr('text'));
+        $t->same('2026-06-03', $meta['date']);
+        $t->same(['migration', 'Data Liberation', 'wordpress'], $meta['keywords']);
+        $t->same(false, $meta['published']);
+        $t->same(['status' => 'needs-review', 'priority' => 2], $meta['review']);
+        $t->same("First source paragraph.\nPreserve **review** line.", $meta['abstract']);
+        $t->same(1, count($document->children));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('import-packet', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="import-packet">Import packet</h1>', $blocks);
+    },
+    'maps pandoc yaml folded metadata and scalar author aliases' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'authors: "Reviewer One; Reviewer Two"',
+            'summary: >',
+            '  Legacy source',
+            '  reviewer note',
+            '',
+            '  Second paragraph',
+            'empty: null',
+            'score: 3.5',
+            '---',
+            '',
+            'Imported body.',
+        ]));
+        $meta = $document->attr('meta');
+
+        $t->same(['Reviewer One', 'Reviewer Two'], $meta['author']);
+        $t->same(['Reviewer One', 'Reviewer Two'], $meta['authors']);
+        $t->same("Legacy source reviewer note\n\nSecond paragraph", $meta['summary']);
+        $t->same(null, $meta['empty']);
+        $t->same(3.5, $meta['score']);
+        $t->same(1, count($document->children));
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Imported body.', $document->children[0]->attr('text'));
+    },
+    'keeps thematic break without yaml closing fence as markdown body' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '',
+            '# After break',
+        ]));
+
+        $t->same(null, $document->attr('meta'));
+        $t->same(2, count($document->children));
+        $t->same('horizontal_rule', $document->children[0]->type);
+        $t->same('heading', $document->children[1]->type);
+        $t->same('after-break', $document->children[1]->attr('id'));
+    },
     'maps upstream markdown reader more entity links and parenthesized urls' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '## Entities in links and titles',

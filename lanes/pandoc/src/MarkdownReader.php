@@ -44,6 +44,7 @@ final class MarkdownReader
         $previousExampleNumbersByLine = $this->exampleNumbersByLine;
         $previousRawTexMacros = $this->rawTexMacros;
         $documentAttrs = [];
+        [$lines, $yamlMetadata] = $this->extractYamlMetadataBlock($lines);
         [$lines, $titleBlock] = $this->extractTitleBlock($lines);
         [$lines, $references, $footnotes] = $this->extractReferenceDefinitions($lines);
         $lines = $this->splitMixedHtmlFlowLines($lines);
@@ -53,6 +54,9 @@ final class MarkdownReader
         $this->footnoteDefinitions = array_replace($previousFootnoteDefinitions, $footnotes);
         $this->exampleReferences = array_replace($previousExampleReferences, $exampleReferences);
         $this->exampleNumbersByLine = $exampleNumbersByLine;
+        if ($yamlMetadata !== null) {
+            $documentAttrs = array_replace_recursive($documentAttrs, $this->buildYamlMetadataAttrs($yamlMetadata));
+        }
         if ($titleBlock !== null) {
             $documentAttrs = array_replace_recursive($documentAttrs, $this->buildTitleBlockAttrs($titleBlock));
         }
@@ -281,6 +285,420 @@ final class MarkdownReader
         $this->rawTexMacros = $previousRawTexMacros;
 
         return $document;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:list<string>, 1:array<string, mixed>|null}
+     */
+    private function extractYamlMetadataBlock(array $lines): array
+    {
+        if (preg_match('/^---[ \t]*$/', $lines[0] ?? '') !== 1) {
+            return [$lines, null];
+        }
+
+        $yamlLines = [];
+        $count = count($lines);
+        for ($cursor = 1; $cursor < $count; $cursor++) {
+            if (preg_match('/^(?:---|\.\.\.)[ \t]*$/', $lines[$cursor]) === 1) {
+                $cursor++;
+                while ($cursor < $count && trim($lines[$cursor]) === '') {
+                    $cursor++;
+                }
+
+                return [array_slice($lines, $cursor), $this->parseYamlMetadataLines($yamlLines)];
+            }
+
+            $yamlLines[] = $lines[$cursor];
+        }
+
+        return [$lines, null];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array<string, mixed>
+     */
+    private function parseYamlMetadataLines(array $lines): array
+    {
+        $metadata = [];
+        $count = count($lines);
+        for ($index = 0; $index < $count;) {
+            $line = $lines[$index];
+            $trimmed = trim($line);
+            if ($trimmed === '' || str_starts_with($trimmed, '#')) {
+                $index++;
+                continue;
+            }
+
+            if ($this->countIndentColumns($line) > 0 || preg_match('/^([A-Za-z0-9_.:-]+):(?:[ \t]*(.*))?$/', $trimmed, $m) !== 1) {
+                $index++;
+                continue;
+            }
+
+            $key = $m[1];
+            $sourceValue = rtrim($m[2] ?? '');
+            [$children, $nextIndex] = $this->collectYamlChildLines($lines, $index + 1);
+
+            if ($this->isYamlLiteralBlockIndicator($sourceValue)) {
+                $metadata[$key] = $this->parseYamlBlockScalar($children, '|');
+            } elseif ($this->isYamlFoldedBlockIndicator($sourceValue)) {
+                $metadata[$key] = $this->parseYamlBlockScalar($children, '>');
+            } elseif ($sourceValue === '') {
+                $metadata[$key] = $this->parseYamlIndentedValue($children);
+            } else {
+                $metadata[$key] = $this->parseYamlScalarValue($sourceValue);
+            }
+
+            $index = $nextIndex;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:list<string>, 1:int}
+     */
+    private function collectYamlChildLines(array $lines, int $start): array
+    {
+        $children = [];
+        $count = count($lines);
+        for ($index = $start; $index < $count; $index++) {
+            $line = $lines[$index];
+            if (
+                trim($line) !== ''
+                && $this->countIndentColumns($line) === 0
+                && preg_match('/^[A-Za-z0-9_.:-]+:/', trim($line)) === 1
+            ) {
+                break;
+            }
+
+            $children[] = $line;
+        }
+
+        return [$children, $index];
+    }
+
+    private function isYamlLiteralBlockIndicator(string $value): bool
+    {
+        return preg_match('/^\|[+-]?$/', trim($value)) === 1;
+    }
+
+    private function isYamlFoldedBlockIndicator(string $value): bool
+    {
+        return preg_match('/^>[+-]?$/', trim($value)) === 1;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function parseYamlBlockScalar(array $lines, string $style): string
+    {
+        $normalized = $this->stripYamlCommonIndent($lines);
+        $text = rtrim(implode("\n", $normalized), "\n");
+        if ($style === '|') {
+            return $text;
+        }
+
+        $paragraphs = preg_split('/\n{2,}/', $text) ?: [];
+        $folded = array_map(
+            static fn (string $paragraph): string => preg_replace('/[ \t]*\n[ \t]*/', ' ', trim($paragraph)) ?? trim($paragraph),
+            $paragraphs
+        );
+
+        return implode("\n\n", array_filter($folded, static fn (string $paragraph): bool => $paragraph !== ''));
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return mixed
+     */
+    private function parseYamlIndentedValue(array $lines): mixed
+    {
+        $normalized = $this->stripYamlCommonIndent($lines);
+        while ($normalized !== [] && trim($normalized[0]) === '') {
+            array_shift($normalized);
+        }
+        while ($normalized !== [] && trim((string) end($normalized)) === '') {
+            array_pop($normalized);
+        }
+
+        if ($normalized === []) {
+            return '';
+        }
+
+        if (preg_match('/^-[ \t]?(.*)$/', $normalized[0]) === 1) {
+            return $this->parseYamlSequence($normalized);
+        }
+
+        if ($this->looksLikeYamlMapping($normalized)) {
+            return $this->parseYamlMetadataLines($normalized);
+        }
+
+        if (count($normalized) === 1) {
+            return $this->parseYamlScalarValue(trim($normalized[0]));
+        }
+
+        return rtrim(implode("\n", $normalized));
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<mixed>
+     */
+    private function parseYamlSequence(array $lines): array
+    {
+        $items = [];
+        $count = count($lines);
+        for ($index = 0; $index < $count;) {
+            $line = $lines[$index];
+            if (trim($line) === '') {
+                $index++;
+                continue;
+            }
+
+            if (preg_match('/^-[ \t]?(.*)$/', $line, $m) !== 1) {
+                $index++;
+                continue;
+            }
+
+            $sourceValue = rtrim($m[1]);
+            $children = [];
+            $index++;
+            while ($index < $count && preg_match('/^-[ \t]?/', $lines[$index]) !== 1) {
+                $children[] = $lines[$index];
+                $index++;
+            }
+
+            if ($sourceValue === '') {
+                $items[] = $this->parseYamlIndentedValue($children);
+                continue;
+            }
+
+            $childLines = $children === [] ? [] : $this->stripYamlCommonIndent($children);
+            if ($childLines !== [] && preg_match('/^[A-Za-z0-9_.:-]+:/', $sourceValue) === 1) {
+                $items[] = $this->parseYamlMetadataLines(array_merge([$sourceValue], $childLines));
+                continue;
+            }
+
+            $items[] = $this->parseYamlScalarValue($sourceValue);
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function looksLikeYamlMapping(array $lines): bool
+    {
+        $sawMapping = false;
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '' || str_starts_with($trimmed, '#')) {
+                continue;
+            }
+            if (preg_match('/^[A-Za-z0-9_.:-]+:/', $trimmed) !== 1) {
+                return false;
+            }
+            $sawMapping = true;
+        }
+
+        return $sawMapping;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function stripYamlCommonIndent(array $lines): array
+    {
+        $expanded = array_map(fn (string $line): string => $this->expandTabsToSpaces($line), $lines);
+        $minIndent = null;
+        foreach ($expanded as $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+            $indent = strspn($line, ' ');
+            $minIndent = $minIndent === null ? $indent : min($minIndent, $indent);
+        }
+
+        if ($minIndent === null || $minIndent === 0) {
+            return $expanded;
+        }
+
+        return array_map(
+            static fn (string $line): string => trim($line) === '' ? '' : substr($line, $minIndent),
+            $expanded
+        );
+    }
+
+    /**
+     * @return mixed
+     */
+    private function parseYamlScalarValue(string $value): mixed
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        if ($value[0] === '[' && str_ends_with($value, ']')) {
+            return array_map(
+                fn (string $item): mixed => $this->parseYamlScalarValue($item),
+                $this->splitYamlInlineList(substr($value, 1, -1))
+            );
+        }
+
+        if (($value[0] === '"' && str_ends_with($value, '"')) || ($value[0] === "'" && str_ends_with($value, "'"))) {
+            return $this->unquoteYamlScalar($value);
+        }
+
+        return match (strtolower($value)) {
+            'true' => true,
+            'false' => false,
+            'null', '~' => null,
+            default => is_numeric($value) ? $this->parseYamlNumericScalar($value) : $value,
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitYamlInlineList(string $source): array
+    {
+        $items = [];
+        $buffer = '';
+        $quote = null;
+        $length = strlen($source);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $source[$offset];
+            if ($quote !== null) {
+                $buffer .= $char;
+                if ($char === $quote && ($quote === "'" || $source[$offset - 1] !== '\\')) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $buffer .= $char;
+                continue;
+            }
+
+            if ($char === ',') {
+                $items[] = trim($buffer);
+                $buffer = '';
+                continue;
+            }
+
+            $buffer .= $char;
+        }
+
+        if (trim($buffer) !== '') {
+            $items[] = trim($buffer);
+        }
+
+        return $items;
+    }
+
+    private function unquoteYamlScalar(string $value): string
+    {
+        $quote = $value[0];
+        $inner = substr($value, 1, -1);
+        if ($quote === "'") {
+            return str_replace("''", "'", $inner);
+        }
+
+        return strtr($inner, [
+            '\\"' => '"',
+            '\\\\' => '\\',
+            '\\n' => "\n",
+            '\\t' => "\t",
+        ]);
+    }
+
+    private function parseYamlNumericScalar(string $value): int|float
+    {
+        return str_contains($value, '.') || stripos($value, 'e') !== false ? (float) $value : (int) $value;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @return array<string, mixed>
+     */
+    private function buildYamlMetadataAttrs(array $metadata): array
+    {
+        $meta = [];
+        foreach ($metadata as $key => $value) {
+            if ($key === 'title') {
+                $lines = $this->metadataLinesFromYamlValue($value);
+                if ($this->metadataPlainText($lines) !== '') {
+                    $meta['title'] = $this->metadataPlainText($lines);
+                    $meta['titleInlines'] = $this->metadataInlines($lines);
+                }
+                continue;
+            }
+
+            if ($key === 'author' || $key === 'authors') {
+                $authors = $this->yamlMetadataAuthors($value);
+                if ($authors !== []) {
+                    $meta['author'] = $authors;
+                    $meta['authors'] = $authors;
+                    $meta['authorInlines'] = array_map(
+                        fn (string $author): array => $this->parseInlines($author),
+                        $authors
+                    );
+                }
+                continue;
+            }
+
+            if ($key === 'date') {
+                $lines = $this->metadataLinesFromYamlValue($value);
+                if ($this->metadataPlainText($lines) !== '') {
+                    $meta['date'] = $this->metadataPlainText($lines);
+                    $meta['dateInlines'] = $this->metadataInlines($lines);
+                }
+                continue;
+            }
+
+            $meta[$key] = $value;
+        }
+
+        return $meta === [] ? [] : ['meta' => $meta];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function metadataLinesFromYamlValue(mixed $value): array
+    {
+        if (is_array($value)) {
+            return array_map(static fn (mixed $item): string => is_scalar($item) ? (string) $item : '', $value);
+        }
+
+        return is_scalar($value) ? explode("\n", (string) $value) : [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function yamlMetadataAuthors(mixed $value): array
+    {
+        if (is_array($value)) {
+            $authors = [];
+            foreach ($value as $item) {
+                if (is_scalar($item) && trim((string) $item) !== '') {
+                    $authors[] = trim((string) $item);
+                }
+            }
+
+            return $authors;
+        }
+
+        return $this->metadataAuthors($this->metadataLinesFromYamlValue($value));
     }
 
     /**
