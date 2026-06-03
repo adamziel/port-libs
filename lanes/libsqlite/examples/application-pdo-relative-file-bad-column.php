@@ -45,7 +45,20 @@ try {
         ];
     }
 
-    $pdo->exec("INSERT INTO app_settings (key_name, key_value) VALUES ('beta', 'kept-too')");
+    $beforeParameterizedFailure = (string) file_get_contents($firstPath);
+    try {
+        $pdo->exec('INSERT INTO app_settings (missing_key) VALUES (?)', ['ignored']);
+        throw new RuntimeException('Expected parameterized invalid target-column failure');
+    } catch (PDOException $exception) {
+        $afterParameterizedFailure = [
+            'exception_error_info' => $exception->errorInfo ?? null,
+            'connection_error_info' => $pdo->errorInfo(),
+            'original_file_unchanged' => hash('sha256', $beforeParameterizedFailure) === hash('sha256', (string) file_get_contents($firstPath)),
+            'stray_relative_file_exists' => is_file($second . '/app-relative.sqlite'),
+        ];
+    }
+
+    $parameterizedInsertChanges = $pdo->exec('INSERT INTO app_settings (key_name, key_value) VALUES (?, ?)', ['beta']);
     $rowsAfterSuccess = $pdo->query('SELECT setting_id, key_name, key_value FROM app_settings ORDER BY setting_id')->fetchAll();
     unset($pdo);
 
@@ -57,10 +70,12 @@ try {
 
     $result = [
         'scenario' => 'application-pdo-relative-file-bad-column',
-        'applicationUse' => 'Keep relative file-backed SQLitePDO connections anchored to the originally opened file after native-style bad-column errors and later writes.',
+        'applicationUse' => 'Keep relative file-backed SQLitePDO connections anchored to the originally opened file after native-style bad-column errors, parameterized exec failures, and later parameterized writes.',
         'afterFailure' => $afterFailure,
+        'afterParameterizedFailure' => $afterParameterizedFailure,
         'afterSuccess' => [
             'connection_error_info' => $reopened->errorInfo(),
+            'parameterized_insert_changes' => $parameterizedInsertChanges,
             'rows' => $rowsAfterSuccess,
             'reopened_rows' => $reopened->query('SELECT setting_id, key_name, key_value FROM app_settings ORDER BY setting_id')->fetchAll(),
             'stray_relative_file_exists' => is_file($second . '/app-relative.sqlite'),
@@ -87,15 +102,21 @@ try {
 if (($argv[1] ?? null) === '--self-test') {
     $expectedRows = [
         ['setting_id' => 1, 'key_name' => 'alpha', 'key_value' => 'kept'],
-        ['setting_id' => 2, 'key_name' => 'beta', 'key_value' => 'kept-too'],
+        ['setting_id' => 2, 'key_name' => 'beta', 'key_value' => null],
     ];
     $expectedErrorInfo = ['HY000', 1, 'no such column: missing_key'];
+    $expectedParameterizedErrorInfo = ['HY000', 1, 'table app_settings has no column named missing_key'];
     $passed = $result !== null
         && $result['afterFailure']['exception_error_info'] === $expectedErrorInfo
         && $result['afterFailure']['connection_error_info'] === $expectedErrorInfo
         && $result['afterFailure']['original_file_unchanged'] === true
         && $result['afterFailure']['stray_relative_file_exists'] === false
+        && $result['afterParameterizedFailure']['exception_error_info'] === $expectedParameterizedErrorInfo
+        && $result['afterParameterizedFailure']['connection_error_info'] === $expectedParameterizedErrorInfo
+        && $result['afterParameterizedFailure']['original_file_unchanged'] === true
+        && $result['afterParameterizedFailure']['stray_relative_file_exists'] === false
         && $result['afterSuccess']['connection_error_info'] === ['00000', null, null]
+        && $result['afterSuccess']['parameterized_insert_changes'] === 1
         && $result['afterSuccess']['rows'] === $expectedRows
         && $result['afterSuccess']['reopened_rows'] === $expectedRows
         && $result['afterSuccess']['stray_relative_file_exists'] === false;
