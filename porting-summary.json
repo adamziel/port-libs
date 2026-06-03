@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-03 09:22:24 UTC",
-    "sourceCommit": "19763d66545b620e906c07c6e75d82b520edf361",
-    "sourceCommitShort": "19763d66545b",
+    "generated": "2026-06-03 09:29:21 UTC",
+    "sourceCommit": "70422c93981f9c3773d31c35205e47f00d43516f",
+    "sourceCommitShort": "70422c93981f",
     "sourceBranch": "unknown",
-    "dashboardCommit": "19763d66545b620e906c07c6e75d82b520edf361",
-    "dashboardCommitShort": "19763d66545b",
+    "dashboardCommit": "70422c93981f9c3773d31c35205e47f00d43516f",
+    "dashboardCommitShort": "70422c93981f",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "679",
-            "coverage": "679 / 2,276 (29.8%)",
-            "mapPercent": "29.8%",
-            "unmapped": "1,597",
-            "php": "273 pass / 0 fail",
+            "mapped": "699",
+            "coverage": "699 / 2,276 (30.7%)",
+            "mapPercent": "30.7%",
+            "unmapped": "1,577",
+            "php": "284 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-03 UTC supervisor accepted recovered Pandoc package/doctempla...",
-            "currentWork": "Native Pandoc support now includes the accepted Markdown/HTML reader and writer evide...",
-            "nextTarget": "Use the native YAML/ZIP/OPC/doctemplate primitives to parse a...",
+            "audit": "2026-06-03 UTC supervisor accepted combined Pandoc YAML/OPC/doctempla...",
+            "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
+            "nextTarget": "Use the strengthened native YAML/ZIP/OPC/doctemplate primitiv...",
             "remainingGate": "No local blocker",
-            "commit": "7cebd7b"
+            "commit": "1779e15"
         },
         {
             "lane": "quadrable",
