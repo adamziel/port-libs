@@ -15936,6 +15936,13 @@ final class PdfTextExtractor
             return false;
         }
 
+        if (
+            $this->inlineImageUsesJbig2Decode($filters)
+            && $this->inlineJbig2CandidateState($candidate) === 'incomplete'
+        ) {
+            return false;
+        }
+
         $dctState = $this->inlineImageUsesDctDecode($filters)
             ? $this->inlineDctCandidateStateForFilters($dictionary, $filters, $candidate)
             : null;
@@ -15971,6 +15978,7 @@ final class PdfTextExtractor
         }
 
         return ($this->inlineImageUsesJpxDecode($filters) && $this->inlineJpxCandidateState($candidate) === 'incomplete')
+            || ($this->inlineImageUsesJbig2Decode($filters) && $this->inlineJbig2CandidateState($candidate) === 'incomplete')
             || (
                 $this->inlineImageUsesDctDecode($filters)
                 && $this->inlineDctCandidateStateForFilters($dictionary, $filters, $candidate) === 'incomplete'
@@ -15984,6 +15992,20 @@ final class PdfTextExtractor
     {
         foreach ($filters as $filter) {
             if ($filter === 'JPXDecode') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     */
+    private function inlineImageUsesJbig2Decode(array $filters): bool
+    {
+        foreach ($filters as $filter) {
+            if ($filter === 'JBIG2Decode') {
                 return true;
             }
         }
@@ -16024,6 +16046,24 @@ final class PdfTextExtractor
         }
 
         return str_contains($bytes, "\xff\xd9") ? 'complete' : 'incomplete';
+    }
+
+    /**
+     * JBIG2Decode is preview-only in this native port. File-header wrapped
+     * payloads expose enough structure to reject delimiter-looking `EI` bytes
+     * before the final fallback boundary.
+     */
+    private function inlineJbig2CandidateState(string $candidate): string
+    {
+        if (rtrim($candidate, "\x00\t\n\f\r ") === '') {
+            return 'unknown';
+        }
+
+        if (!str_starts_with($candidate, "\x97JB2\r\n\x1a\n")) {
+            return 'unknown';
+        }
+
+        return 'incomplete';
     }
 
     /**
