@@ -109,6 +109,25 @@ return [
         ], $result['metadata']['pdftext_options']);
         $t->same(4, $result['pages'][0]['pnum']);
     },
+    'preserves pdftext page source dimensions through document extraction' => static function (TestRunner $t) use ($pdftextPage): void {
+        $page = $pdftextPage(12, 'Dictionary source geometry boundary');
+        $page['bbox'] = [0.0, 0.0, 400.0, 600.0];
+        $page['width'] = 400.0;
+        $page['height'] = 600.0;
+        $page['rotation'] = 270;
+
+        $result = (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1);
+
+        $t->same([0.0, 0.0, 600.0, 400.0], $result['pages'][0]['bbox']);
+        $t->same([
+            'page' => 12,
+            'bbox' => [0.0, 0.0, 400.0, 600.0],
+            'rotation' => 270,
+            'width' => 400.0,
+            'height' => 600.0,
+        ], $result['pages'][0]['pdftext_source']);
+        $t->same('Dictionary source geometry boundary', $result['pages'][0]['blocks'][0]['lines'][0]['spans'][0]['text']);
+    },
     'sanitizes pdftext keep chars false dictionary payloads before WordPress import' => static function (TestRunner $t) use ($pdftextPage): void {
         $page = $pdftextPage(2, 'Dictionary payload boundary');
         $page['blocks'][0]['pdfium_block_type'] = 'text';

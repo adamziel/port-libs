@@ -412,6 +412,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-xref-object-stream-skipped-header-index-currentbase.php` maps PDF 1.5 xref-stream type-2 member indexes through object streams that contain a skipped zero object-number header row. It keeps explicit archive index `1` aligned to the original `/ObjStm` header row, emits the current direct and compressed page paragraphs, records `selection_policy=explicit_member_index`, and excludes skipped header decoy text without Python, pdftext, pypdfium/PDFium execution, Poppler, Ghostscript, models, or external PDF tools.
 
+`examples/wordpress-pdftext-dictionary-source-page-currentbase.php` maps pdftext dictionary page-level source geometry into WordPress review metadata. It preserves source `page`, `bbox`, `width`, `height`, and `rotation` separately from the Marker rendered page bbox, emits a Gutenberg paragraph unchanged, and avoids Python pdftext, models, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

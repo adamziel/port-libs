@@ -9,6 +9,8 @@ $pdftextPage = static function (): array {
     return [
         'page' => 5,
         'bbox' => [0.0, 0.0, 612.0, 792.0],
+        'width' => 612.0,
+        'height' => 792.0,
         'rotation' => 90,
         'blocks' => [
             [
@@ -71,6 +73,18 @@ return [
         $t->same('TimesNewRomanPS-Bold_serif_non_symbolic_bold', $secondSpan['font']);
         $t->same(700.0, $secondSpan['font_weight']);
         $t->same(11.0, $secondSpan['font_size']);
+    },
+    'preserves pdftext page source dimensions as review metadata' => static function (TestRunner $t) use ($pdftextPage): void {
+        $page = (new PdfTextBlockConverter())->pdftextFormatToPage($pdftextPage(), 2);
+
+        $t->same([0.0, 0.0, 792.0, 612.0], $page['bbox']);
+        $t->same([
+            'page' => 5,
+            'bbox' => [0.0, 0.0, 612.0, 792.0],
+            'rotation' => 90,
+            'width' => 612.0,
+            'height' => 792.0,
+        ], $page['pdftext_source']);
     },
     'keeps upstream span id sequencing when invalid line bboxes are skipped' => static function (TestRunner $t): void {
         $page = (new PdfTextBlockConverter())->pdftextFormatToPage([

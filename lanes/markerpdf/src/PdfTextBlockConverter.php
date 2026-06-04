@@ -73,9 +73,9 @@ final class PdfTextBlockConverter
             }
         }
 
-        $pageBbox = $this->bbox($page['bbox'], 'bbox');
-        $pageWidth = abs($pageBbox[2] - $pageBbox[0]);
-        $pageHeight = abs($pageBbox[3] - $pageBbox[1]);
+        $sourceBbox = $this->bbox($page['bbox'], 'bbox');
+        $pageWidth = abs($sourceBbox[2] - $sourceBbox[0]);
+        $pageHeight = abs($sourceBbox[3] - $sourceBbox[1]);
         $rotation = (int) $page['rotation'];
         if ($rotation === 90 || $rotation === 270) {
             [$pageWidth, $pageHeight] = [$pageHeight, $pageWidth];
@@ -87,6 +87,7 @@ final class PdfTextBlockConverter
             'bbox' => [0.0, 0.0, $pageWidth, $pageHeight],
             'rotation' => $rotation,
             'char_blocks' => array_values($page['blocks']),
+            'pdftext_source' => $this->pdftextSourceMetadata($page, $sourceBbox, $rotation),
         ];
     }
 
@@ -201,6 +202,31 @@ final class PdfTextBlockConverter
         if (!is_int($value) && !is_float($value)) {
             throw new InvalidArgumentException("pdftext {$field} must be numeric.");
         }
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     * @param list<float> $sourceBbox
+     * @return array<string, mixed>
+     */
+    private function pdftextSourceMetadata(array $page, array $sourceBbox, int $rotation): array
+    {
+        $source = [
+            'page' => (int) $page['page'],
+            'bbox' => $sourceBbox,
+            'rotation' => $rotation,
+        ];
+
+        foreach (['width', 'height'] as $field) {
+            if (!array_key_exists($field, $page)) {
+                continue;
+            }
+
+            $this->assertNumeric($page[$field], $field);
+            $source[$field] = (float) $page[$field];
+        }
+
+        return $source;
     }
 
     /**
