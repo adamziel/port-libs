@@ -459,6 +459,18 @@ XML;
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdAbsoluteUri'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('missing'));
     },
+    'rejects OPC relationship Id values outside XML NCName shape' => static function (TestRunner $t): void {
+        $xml = static fn (string $id): string => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="' . $id . '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>';
+
+        $relationships = OpcRelationships::fromXml($xml('rId_image-1.2'), '/word/document.xml');
+        $t->same('/word/media/image.png', $relationships->resolveTarget('rId_image-1.2'));
+
+        $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => OpcRelationships::fromXml($xml('1rId')));
+        $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => OpcRelationships::fromXml($xml('rId one')));
+        $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => OpcRelationships::fromXml($xml('r:id')));
+        $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationship => new OpcRelationship('-rId', 't', 'media/image.png'));
+        $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationship => new OpcRelationship('rId/one', 't', 'media/image.png'));
+    },
     'preflights a DOCX package relationship graph for WordPress import' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml): void {
         $types = OpcContentTypes::fromXml($contentTypesXml);
         $packageRelationships = OpcRelationships::fromXml($packageRelationshipsXml);
