@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
+use PortLibs\Pandoc\GzipStream;
 use PortLibs\Pandoc\ZipPackage;
 
 $crc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
@@ -78,6 +79,14 @@ $package = ZipPackage::fromParts([
     ],
 ], 'wordpress import package');
 $descriptorPackage = ZipPackage::fromString($buildDescriptorBackedPackage());
+$compressedPackage = GzipStream::build($package->bytes(), [
+    'modifiedAt' => $documentModifiedAt,
+    'extraFieldData' => 'WP',
+    'filename' => 'wordpress-import-package.zip',
+    'comment' => 'Data Liberation package fixture',
+    'headerCrc' => true,
+]);
+$compressedPackageMembers = GzipStream::members($compressedPackage);
 
 if (in_array('--self-test', $argv, true)) {
     if (!$package->has('/word/document.xml')) {
@@ -109,6 +118,18 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected descriptor-backed comments part bytes to round-trip from the ZIP package');
     }
 
+    if (GzipStream::decode($compressedPackage) !== $package->bytes()) {
+        throw new RuntimeException('Expected gzip-wrapped ZIP package bytes to round-trip');
+    }
+
+    if (($compressedPackageMembers[0]['filename'] ?? null) !== 'wordpress-import-package.zip') {
+        throw new RuntimeException('Expected gzip original filename metadata to round-trip');
+    }
+
+    if (($compressedPackageMembers[0]['extraFieldData'] ?? '') !== 'WP') {
+        throw new RuntimeException('Expected gzip extra field metadata to round-trip');
+    }
+
     echo "zip package writer preflight self-test passed\n";
     exit(0);
 }
@@ -127,3 +148,6 @@ foreach ($package->entries() as $entry) {
 }
 echo 'document.xml=' . $package->read('/word/document.xml') . "\n";
 echo 'descriptor.comments.xml=' . $descriptorPackage->read('/word/comments.xml') . "\n";
+echo 'gzip.filename=' . $compressedPackageMembers[0]['filename'] . "\n";
+echo 'gzip.comment=' . $compressedPackageMembers[0]['comment'] . "\n";
+echo 'gzip.compressedSize=' . $compressedPackageMembers[0]['compressedSize'] . "\n";

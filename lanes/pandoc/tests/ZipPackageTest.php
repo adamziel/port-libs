@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\ZipPackage;
 use PortLibs\Pandoc\ZipPackageEntry;
+use PortLibs\Pandoc\GzipStream;
 
 $crc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
 
@@ -566,5 +567,93 @@ return [
         $t->same(['word/document.xml'], $unsupported->names());
         $t->throws(\RuntimeException::class, static fn (): string => $unsupported->read('word/document.xml'));
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString('not a zip package'));
+    },
+
+    'builds and reads bounded gzip streams around package fixture bytes' => static function (TestRunner $t) use ($crc32): void {
+        $package = ZipPackage::fromParts([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>GZip wrapped import source</w:p></w:document>',
+            ],
+        ]);
+        $gzip = GzipStream::build($package->bytes(), [
+            'modifiedAt' => 1780479017,
+            'extraFlags' => 2,
+            'operatingSystem' => 3,
+            'extraFieldData' => 'WP',
+            'filename' => 'wordpress-package.zip',
+            'comment' => 'migration source package',
+            'headerCrc' => true,
+            'compressionLevel' => 9,
+        ]);
+        $members = GzipStream::members($gzip);
+
+        $t->same(1, count($members));
+        $t->same($package->bytes(), GzipStream::decode($gzip));
+        $t->same($package->bytes(), $members[0]['data']);
+        $t->same(1780479017, $members[0]['modifiedAt']);
+        $t->same(2, $members[0]['extraFlags']);
+        $t->same(3, $members[0]['operatingSystem']);
+        $t->same('WP', $members[0]['extraFieldData']);
+        $t->same('wordpress-package.zip', $members[0]['filename']);
+        $t->same('migration source package', $members[0]['comment']);
+        $t->true(is_int($members[0]['headerCrc16']));
+        $t->same($crc32($package->bytes()), $members[0]['crc32']);
+        $t->same(strlen($package->bytes()), $members[0]['uncompressedSize']);
+        $t->true($members[0]['compressedSize'] > 0);
+        $t->same(strlen($gzip), $members[0]['memberSize']);
+        $roundTrip = ZipPackage::fromString(GzipStream::decode($gzip));
+        $t->same('<w:document><w:p>GZip wrapped import source</w:p></w:document>', $roundTrip->read('/word/document.xml'));
+    },
+
+    'reads concatenated gzip members as one import stream' => static function (TestRunner $t): void {
+        $first = GzipStream::build("title: Archive packet\n", [
+            'filename' => 'packet.yml',
+            'comment' => 'front matter',
+        ]);
+        $second = GzipStream::build("body: Ready for WordPress review\n", [
+            'filename' => 'body.yml',
+        ]);
+        $members = GzipStream::members($first . $second);
+
+        $t->same(2, count($members));
+        $t->same("title: Archive packet\nbody: Ready for WordPress review\n", GzipStream::decode($first . $second));
+        $t->same("title: Archive packet\n", $members[0]['data']);
+        $t->same("body: Ready for WordPress review\n", $members[1]['data']);
+        $t->same('packet.yml', $members[0]['filename']);
+        $t->same('front matter', $members[0]['comment']);
+        $t->same('body.yml', $members[1]['filename']);
+        $t->same(null, $members[1]['comment']);
+        $t->true($members[0]['memberSize'] < strlen($first . $second));
+        $t->same(strlen($second), $members[1]['memberSize']);
+    },
+
+    'rejects malformed gzip stream headers and trailers' => static function (TestRunner $t): void {
+        $valid = GzipStream::build('review source', [
+            'filename' => 'source.txt',
+            'headerCrc' => true,
+        ]);
+        $badCrc = substr_replace($valid, "\0\0\0\0", -8, 4);
+        $badSize = substr_replace($valid, pack('V', 999), -4, 4);
+        $badHeaderCrc = substr_replace($valid, "\0\0", 21, 2);
+        $badReservedFlags = substr_replace($valid, chr(0xe0 | 0x0a), 3, 1);
+        $badMethod = substr_replace($valid, chr(12), 2, 1);
+        $missingNameTerminator = "\x1f\x8b\x08\x08" . pack('VCC', 0, 0, 255) . 'unterminated';
+
+        $t->throws(\RuntimeException::class, static fn (): string => GzipStream::decode('not gzip'));
+        $t->throws(\RuntimeException::class, static fn (): string => GzipStream::decode($badCrc));
+        $t->throws(\RuntimeException::class, static fn (): string => GzipStream::decode($badSize));
+        $t->throws(\RuntimeException::class, static fn (): array => GzipStream::members($badHeaderCrc));
+        $t->throws(\RuntimeException::class, static fn (): array => GzipStream::members($badReservedFlags));
+        $t->throws(\RuntimeException::class, static fn (): array => GzipStream::members($badMethod));
+        $t->throws(\RuntimeException::class, static fn (): array => GzipStream::members($missingNameTerminator));
+        $t->throws(\RuntimeException::class, static fn (): string => GzipStream::build('x', ['filename' => "bad\0name"]));
+        $t->throws(\RuntimeException::class, static fn (): string => GzipStream::build('x', ['extraFieldData' => str_repeat('x', 0x10000)]));
+        $t->throws(\RuntimeException::class, static fn (): array => GzipStream::members($valid, 1));
     },
 ];

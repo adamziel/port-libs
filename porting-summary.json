@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-04 08:52:49 UTC",
-    "sourceCommit": "cb6cfe4542e0ad28600b36fba81b57c0842797c7",
-    "sourceCommitShort": "cb6cfe4542e0",
+    "generated": "2026-06-04 09:02:45 UTC",
+    "sourceCommit": "c0cb75e6d2aa1cad62de5c1d22985a09572b7ec3",
+    "sourceCommitShort": "c0cb75e6d2aa",
     "sourceBranch": "unknown",
-    "dashboardCommit": "cb6cfe4542e0ad28600b36fba81b57c0842797c7",
-    "dashboardCommitShort": "cb6cfe4542e0",
+    "dashboardCommit": "c0cb75e6d2aa1cad62de5c1d22985a09572b7ec3",
+    "dashboardCommitShort": "c0cb75e6d2aa",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "746",
-            "coverage": "746 / 2,276 (32.8%)",
-            "mapPercent": "32.8%",
-            "unmapped": "1,530",
-            "php": "306 pass / 0 fail",
+            "mapped": "749",
+            "coverage": "749 / 2,276 (32.9%)",
+            "mapPercent": "32.9%",
+            "unmapped": "1,527",
+            "php": "309 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
             "audit": "2026-06-03 UTC upstream-runner dependency audit on base ea0e1f5294ced...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "Keep richer table normalization diagnostics for malformed ove...",
+            "nextTarget": "Keep tar file entries, LZ4 frames, ZIP64/symlink/NTFS extra-f...",
             "remainingGate": "No local blocker",
-            "commit": "2d94da6"
+            "commit": "cb6cfe4"
         },
         {
             "lane": "quadrable",
