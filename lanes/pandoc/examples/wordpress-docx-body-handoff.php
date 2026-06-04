@@ -12,6 +12,7 @@ $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="html" ContentType="text/html"/>
   <Default Extension="png" ContentType="image/png"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
@@ -42,6 +43,7 @@ XML],
   <Relationship Id="rIdNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
   <Relationship Id="rIdHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
   <Relationship Id="rIdFooterDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
+  <Relationship Id="rIdReviewChunk" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="chunks/review.html"/>
 </Relationships>
 XML],
     ['name' => 'word/document.xml', 'data' => <<<'XML'
@@ -94,6 +96,7 @@ XML],
       <w:commentRangeEnd w:id="9"/>
       <w:r><w:commentReference w:id="9"/></w:r>
     </w:p>
+    <w:altChunk r:id="rIdReviewChunk"/>
     <w:p>
       <w:r><w:t xml:space="preserve">Formula handoff </w:t></w:r>
       <m:oMath>
@@ -143,6 +146,7 @@ XML],
   </w:body>
 </w:document>
 XML],
+    ['name' => 'word/chunks/review.html', 'data' => '<aside data-review="docx-alt"><p>Alternative HTML chunk from source packet.</p></aside>'],
     ['name' => 'word/styles.xml', 'data' => <<<'XML'
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/></w:style>
@@ -233,6 +237,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['importReport']['sections']['count'] ?? 0) !== 1) {
         throw new RuntimeException('DOCX body handoff self-test missing section property report');
     }
+    if (($summary['importReport']['alternativeFormats']['importedCount'] ?? 0) !== 1) {
+        throw new RuntimeException('DOCX body handoff self-test missing alternative-format import report');
+    }
     if (($summary['sectionProperties'][0]['pageSize']['orientation'] ?? '') !== 'landscape') {
         throw new RuntimeException('DOCX body handoff self-test missing section page orientation');
     }
@@ -266,6 +273,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<a href="https://example.test/source-packet?post=42">the source link</a>',
         '<span class="docx-insertion" data-docx-change="insertion" data-docx-change-id="8" data-docx-author="Migration Editor" data-docx-date="2026-06-04T17:50:00Z"> Approved tracked wording.</span>',
         '<span class="docx-comment-range" data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-04T09:55:00Z"> and reviewer comment</span>',
+        '<aside data-review="docx-alt"><p>Alternative HTML chunk from source packet.</p></aside>',
         '<span class="math inline">\(x_{i} + \frac{1}{\sqrt{n}}\)</span>',
         '<img src="word/media/hero.png" alt="Source hero alt" title="Source hero"/>',
         '<td colspan="2" rowspan="2"><p>Review scope</p></td><td><p>Status</p></td>',

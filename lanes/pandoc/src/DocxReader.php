@@ -24,6 +24,7 @@ final class DocxReader
     public const REL_TYPE_STYLES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
     public const REL_TYPE_NUMBERING = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     public const REL_TYPE_CORE_PROPERTIES = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
+    public const REL_TYPE_ALTERNATIVE_FORMAT_IMPORT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
 
     /**
      * @return array{document:AstNode, metadata:array<string, mixed>, documentPart:string, relationships:list<array{id:string, type:string, target:string, contentType:?string, external:bool}>, importReport:array<string, mixed>}
@@ -64,7 +65,16 @@ final class DocxReader
             'metadata' => $metadata,
             'documentPart' => $documentPart,
             'relationships' => $graph->summarizeTargetsForSource($documentPart),
-            'importReport' => $this->importReport($package, $documentPart, $documentRelationships, $relationshipPreflight, $reachableRelationships, $document, $this->revisionImportReport($documentXml)),
+            'importReport' => $this->importReport(
+                $package,
+                $documentPart,
+                $documentRelationships,
+                $relationshipPreflight,
+                $reachableRelationships,
+                $document,
+                $this->revisionImportReport($documentXml),
+                $this->alternativeFormatImportReport($documentXml, $package, $documentRelationships),
+            ),
         ];
     }
 
@@ -72,7 +82,8 @@ final class DocxReader
      * @param list<array{id:string, type:string, target:string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, valid:bool, issues:list<string>}> $relationshipPreflight
      * @param list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, valid:bool, issues:list<string>}> $reachableRelationships
      * @param array{insertionCount:int, deletionCount:int, items:list<array{type:string, accepted:bool, id:?string, author:?string, date:?string, text:string}>} $revisions
-     * @return array{documentPart:string, relationshipsPart:?string, relationshipCount:int, reachableRelationshipCount:int, relationshipIssues:list<array{source:string, id:string, type:string, target:string, issues:list<string>}>, media:array{count:int, embeddedCount:int, missingCount:int, items:list<array{source:string, id:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, bytes:?int, usedCount:int, altTexts:list<string>, titles:list<string>, issues:list<string>}>}}
+     * @param array<string, mixed> $alternativeFormats
+     * @return array<string, mixed>
      */
     private function importReport(
         ZipPackage $package,
@@ -81,7 +92,8 @@ final class DocxReader
         array $relationshipPreflight,
         array $reachableRelationships,
         AstNode $document,
-        array $revisions
+        array $revisions,
+        array $alternativeFormats
     ): array {
         $relationshipIssues = [];
         foreach ($reachableRelationships as $relationship) {
@@ -105,6 +117,7 @@ final class DocxReader
             'reachableRelationshipCount' => count($reachableRelationships),
             'relationshipIssues' => $relationshipIssues,
             'media' => $this->mediaImportReport($package, $reachableRelationships, $document),
+            'alternativeFormats' => $alternativeFormats,
             'revisions' => $revisions,
             'sections' => [
                 'count' => count($document->attr('sectionProperties', [])),
@@ -156,6 +169,186 @@ final class DocxReader
             )),
             'items' => $items,
         ];
+    }
+
+    /**
+     * @return array{count:int, importedCount:int, missingCount:int, externalCount:int, unsupportedCount:int, items:list<array<string, mixed>>}
+     */
+    private function alternativeFormatImportReport(string $xml, ZipPackage $package, ?OpcRelationships $relationships): array
+    {
+        $dom = self::loadXml($xml, 'DOCX document XML alternative formats');
+        $items = [];
+
+        foreach ($dom->getElementsByTagNameNS(self::WORDPROCESSINGML_NS, 'altChunk') as $chunk) {
+            if (!$chunk instanceof \DOMElement) {
+                continue;
+            }
+
+            $items[] = $this->alternativeFormatItem($chunk, $package, $relationships);
+        }
+
+        return [
+            'count' => count($items),
+            'importedCount' => count(array_filter($items, static fn (array $item): bool => $item['imported'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-in-package', $item['issues'], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => in_array('external-altchunk', $item['issues'], true))),
+            'unsupportedCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => in_array('unsupported-content-type', $item['issues'], true) || in_array('missing-content-type', $item['issues'], true),
+            )),
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function alternativeFormatItem(\DOMElement $chunk, ZipPackage $package, ?OpcRelationships $relationships): array
+    {
+        $id = $this->relationshipAttr($chunk, 'id');
+        $item = [
+            'id' => $id,
+            'relationshipType' => null,
+            'target' => null,
+            'targetPart' => null,
+            'contentType' => null,
+            'external' => null,
+            'exists' => null,
+            'bytes' => null,
+            'imported' => false,
+            'text' => null,
+            'html' => null,
+            'issues' => [],
+        ];
+
+        if ($id === null || $id === '') {
+            $item['issues'][] = 'missing-relationship-id';
+            return $item;
+        }
+
+        if (!$relationships instanceof OpcRelationships) {
+            $item['issues'][] = 'missing-relationships';
+            return $item;
+        }
+
+        $relationship = $relationships->byId($id);
+        if (!$relationship instanceof OpcRelationship) {
+            $item['issues'][] = 'unknown-relationship';
+            return $item;
+        }
+
+        $item['relationshipType'] = $relationship->type;
+        $item['external'] = $relationship->isExternal();
+        if ($relationship->type !== self::REL_TYPE_ALTERNATIVE_FORMAT_IMPORT) {
+            $item['issues'][] = 'unexpected-relationship-type';
+            return $item;
+        }
+
+        if ($relationship->isExternal()) {
+            $item['target'] = $relationship->target;
+            $item['issues'][] = 'external-altchunk';
+            return $item;
+        }
+
+        try {
+            $target = $relationships->resolveTarget($relationship);
+        } catch (\InvalidArgumentException) {
+            $item['issues'][] = 'invalid-target';
+            return $item;
+        }
+
+        $targetPart = OpcPackagePath::stripQueryAndFragment($target);
+        $item['target'] = $target;
+        $item['targetPart'] = $targetPart;
+        $item['exists'] = $package->has($targetPart);
+        $item['contentType'] = $this->contentTypeForPackagePart($package, $targetPart);
+
+        if ($item['exists'] !== true) {
+            $item['issues'][] = 'missing-in-package';
+            return $item;
+        }
+
+        $bytes = $package->read($targetPart);
+        $item['bytes'] = strlen($bytes);
+
+        if ($item['contentType'] === null) {
+            $item['issues'][] = 'missing-content-type';
+            return $item;
+        }
+
+        if (!$this->isSupportedAlternativeFormatContentType($item['contentType'])) {
+            $item['issues'][] = 'unsupported-content-type';
+            return $item;
+        }
+
+        try {
+            $dom = XmlHtmlDom::loadHtmlFragment($bytes, 'DOCX altChunk HTML ' . $targetPart);
+        } catch (\InvalidArgumentException) {
+            $item['issues'][] = 'invalid-html';
+            return $item;
+        }
+
+        $root = XmlHtmlDom::fragmentRoot($dom);
+        $item['html'] = XmlHtmlDom::serializeHtmlFragment($dom);
+        $item['text'] = $root instanceof \DOMElement ? $this->plainDomText($root) : '';
+        $item['imported'] = true;
+
+        return $item;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function alternativeFormatBlocks(\DOMElement $chunk, ZipPackage $package, ?OpcRelationships $relationships): array
+    {
+        $item = $this->alternativeFormatItem($chunk, $package, $relationships);
+        if ($item['imported'] !== true || !is_string($item['html']) || $item['html'] === '') {
+            return [];
+        }
+
+        return [new AstNode('raw_html', [
+            'format' => 'html',
+            'html' => $item['html'],
+            'sourceFormat' => 'docx-altChunk',
+            'id' => $item['id'],
+            'target' => $item['target'],
+            'targetPart' => $item['targetPart'],
+            'contentType' => $item['contentType'],
+            'bytes' => $item['bytes'],
+        ])];
+    }
+
+    private function contentTypeForPackagePart(ZipPackage $package, string $targetPart): ?string
+    {
+        if (!$package->has('[Content_Types].xml')) {
+            return null;
+        }
+
+        return OpcContentTypes::fromXml($package->read('[Content_Types].xml'))->contentTypeForPart($targetPart);
+    }
+
+    private function isSupportedAlternativeFormatContentType(string $contentType): bool
+    {
+        $contentType = strtolower(trim(explode(';', $contentType, 2)[0]));
+
+        return in_array($contentType, ['text/html', 'application/xhtml+xml'], true);
+    }
+
+    private function plainDomText(\DOMNode $node): string
+    {
+        if ($node instanceof \DOMText) {
+            return trim(preg_replace('/[ \t\r\n\f]+/u', ' ', $node->nodeValue ?? '') ?? ($node->nodeValue ?? ''));
+        }
+
+        $parts = [];
+        foreach ($node->childNodes as $child) {
+            $text = $this->plainDomText($child);
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        return implode(' ', $parts);
     }
 
     /**
@@ -599,6 +792,12 @@ final class DocxReader
             if ($this->isWordElement($child, 'tbl')) {
                 $currentList = null;
                 $blocks[] = $this->tableNode($child, $package, $relationships, $referencedNotes, $styles);
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'altChunk')) {
+                $currentList = null;
+                array_push($blocks, ...$this->alternativeFormatBlocks($child, $package, $relationships));
                 continue;
             }
 
