@@ -152,6 +152,31 @@ final class ZipPackageEntry
     }
 
     /**
+     * @return array{modifiedAt?:int, accessedAt?:int, createdAt?:int}|null
+     */
+    public function extendedTimestamps(): ?array
+    {
+        return self::extendedTimestampsFromExtraField(
+            $this->centralExtraField(0x5455),
+            $this->name
+        );
+    }
+
+    public function extendedAccessedTimestamp(): ?int
+    {
+        $timestamps = $this->extendedTimestamps();
+
+        return $timestamps['accessedAt'] ?? null;
+    }
+
+    public function extendedCreatedTimestamp(): ?int
+    {
+        $timestamps = $this->extendedTimestamps();
+
+        return $timestamps['createdAt'] ?? null;
+    }
+
+    /**
      * @return array{modifiedAt:int, accessedAt:int, createdAt:int}|null
      */
     public function ntfsTimestamps(): ?array
@@ -179,25 +204,20 @@ final class ZipPackageEntry
 
     public static function extendedTimestampFromExtraField(?string $data, string $label): ?int
     {
-        if ($data === null || strlen($data) < 1) {
+        $timestamps = self::extendedTimestampsFromExtraField($data, $label);
+        if ($timestamps === null) {
             return null;
         }
 
-        $flags = ord($data[0]);
-        if (($flags & 0x01) === 0) {
-            return null;
-        }
+        return $timestamps['modifiedAt'] ?? null;
+    }
 
-        if (strlen($data) < 5) {
-            throw new \RuntimeException("ZIP extended timestamp extra field for {$label} is truncated");
-        }
-
-        $values = unpack('Vtimestamp', substr($data, 1, 4));
-        if (!is_array($values)) {
-            throw new \RuntimeException("Unable to read ZIP extended timestamp extra field for {$label}");
-        }
-
-        return (int) $values['timestamp'];
+    /**
+     * @return array{modifiedAt?:int, accessedAt?:int, createdAt?:int}|null
+     */
+    public static function extendedTimestampsFromExtraField(?string $data, string $label): ?array
+    {
+        return self::parseExtendedTimestamps($data, $label);
     }
 
     /**
@@ -244,8 +264,8 @@ final class ZipPackageEntry
             }
 
             $data = substr($bytes, $dataStart, $size);
-            if ($id === 0x5455 && strlen($data) > 0 && (ord($data[0]) & 0x01) !== 0 && strlen($data) < 5) {
-                throw new \RuntimeException("ZIP extended timestamp extra field in {$label} is truncated");
+            if ($id === 0x5455) {
+                self::parseExtendedTimestamps($data, $label);
             }
             if ($id === 0x000a) {
                 self::parseNtfsTimestamps($data, $label);
@@ -259,6 +279,45 @@ final class ZipPackageEntry
         }
 
         return $fields;
+    }
+
+    /**
+     * @return array{modifiedAt?:int, accessedAt?:int, createdAt?:int}|null
+     */
+    private static function parseExtendedTimestamps(?string $data, string $label): ?array
+    {
+        if ($data === null || strlen($data) < 1) {
+            return null;
+        }
+
+        $flags = ord($data[0]);
+        $cursor = 1;
+        $timestamps = [];
+        $fields = [
+            0x01 => 'modifiedAt',
+            0x02 => 'accessedAt',
+            0x04 => 'createdAt',
+        ];
+
+        foreach ($fields as $bit => $name) {
+            if (($flags & $bit) === 0) {
+                continue;
+            }
+
+            if ($cursor + 4 > strlen($data)) {
+                throw new \RuntimeException("ZIP extended timestamp extra field for {$label} is truncated");
+            }
+
+            $values = unpack('Vtimestamp', substr($data, $cursor, 4));
+            if (!is_array($values)) {
+                throw new \RuntimeException("Unable to read ZIP extended timestamp extra field for {$label}");
+            }
+
+            $timestamps[$name] = (int) $values['timestamp'];
+            $cursor += 4;
+        }
+
+        return $timestamps === [] ? null : $timestamps;
     }
 
     /**

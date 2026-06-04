@@ -437,6 +437,66 @@ return [
         $t->same('<w:document><w:p>local metadata</w:p></w:document>', $package->read('/word/document.xml'));
     },
 
+    'reads local extended timestamp access and creation metadata for package preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $modifiedAt = 1780479017;
+        $accessedAt = 1780479022;
+        $createdAt = 1780479023;
+        $centralTimestampExtra = pack('vvCV', 0x5455, 5, 0x01, $modifiedAt);
+        $localTimestampExtra = pack('vvCVVV', 0x5455, 13, 0x07, $modifiedAt, $accessedAt, $createdAt);
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/reviewer-note.txt',
+                'data' => 'reviewer media provenance',
+                'method' => 8,
+                'localExtra' => $localTimestampExtra,
+                'centralExtra' => $centralTimestampExtra,
+            ],
+        ]));
+        $entry = $package->entry('word/media/reviewer-note.txt');
+
+        $t->same(['modifiedAt' => $modifiedAt], $entry->extendedTimestamps());
+        $t->same($modifiedAt, $entry->extendedLastModifiedTimestamp());
+        $t->same(null, $entry->extendedAccessedTimestamp());
+        $t->same(null, $entry->extendedCreatedTimestamp());
+        $t->same([
+            'modifiedAt' => $modifiedAt,
+            'accessedAt' => $accessedAt,
+            'createdAt' => $createdAt,
+        ], $package->localExtendedTimestamps('/word/media/reviewer-note.txt'));
+        $t->same($modifiedAt, $package->localExtendedLastModifiedTimestamp('word/media/reviewer-note.txt'));
+        $t->same($accessedAt, $package->localExtendedAccessedTimestamp('word/media/reviewer-note.txt'));
+        $t->same($createdAt, $package->localExtendedCreatedTimestamp('word/media/reviewer-note.txt'));
+        $t->same($modifiedAt, $entry->lastModifiedTimestamp());
+        $t->same('reviewer media provenance', $package->read('/word/media/reviewer-note.txt'));
+    },
+
+    'reads local extended timestamp fields without modified time' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $accessedAt = 1780479022;
+        $createdAt = 1780479023;
+        $localTimestampExtra = pack('vvCVV', 0x5455, 9, 0x06, $accessedAt, $createdAt);
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/audit-source.txt',
+                'data' => 'source packet audit timestamp',
+                'method' => 0,
+                'localExtra' => $localTimestampExtra,
+                'centralExtra' => '',
+            ],
+        ]));
+
+        $t->same(null, $package->entry('/word/media/audit-source.txt')->extendedTimestamps());
+        $t->same([
+            'accessedAt' => $accessedAt,
+            'createdAt' => $createdAt,
+        ], $package->localExtendedTimestamps('word/media/audit-source.txt'));
+        $t->same(null, $package->localExtendedLastModifiedTimestamp('word/media/audit-source.txt'));
+        $t->same($accessedAt, $package->localExtendedAccessedTimestamp('word/media/audit-source.txt'));
+        $t->same($createdAt, $package->localExtendedCreatedTimestamp('word/media/audit-source.txt'));
+        $t->same('source packet audit timestamp', $package->read('word/media/audit-source.txt'));
+    },
+
     'rejects local extended timestamp mismatches before returning package bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
         $centralTimestampExtra = pack('vvCV', 0x5455, 5, 0x01, 1780479017);
         $localTimestampExtra = pack('vvCV', 0x5455, 5, 0x01, 1780479018);
@@ -566,7 +626,25 @@ return [
                 'centralExtra' => $truncatedCentralExtra,
             ],
         ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/reviewer-note.txt',
+                'data' => 'truncated central access timestamp',
+                'method' => 0,
+                'centralExtra' => pack('vvC', 0x5455, 5, 0x02),
+            ],
+        ])));
         $t->throws(\RuntimeException::class, static fn (): string => $localExtraMismatch->read('word/document.xml'));
+        $localAccessCreatedMismatch = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/reviewer-note.txt',
+                'data' => 'truncated local creation timestamp',
+                'method' => 0,
+                'centralExtra' => '',
+                'localExtra' => pack('vvCVV', 0x5455, 9, 0x07, 1780479017, 1780479022),
+            ],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): string => $localAccessCreatedMismatch->read('word/media/reviewer-note.txt'));
     },
 
     'rejects invalid generated zip package parts before writing' => static function (TestRunner $t): void {

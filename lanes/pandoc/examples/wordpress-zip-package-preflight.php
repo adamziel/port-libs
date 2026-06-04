@@ -162,6 +162,56 @@ $buildNtfsBackedPackage = static function () use ($crc32, $buildNtfsExtra, $medi
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
 
+$buildExtendedTimestampBackedPackage = static function () use ($crc32, $mediaModifiedAt, $mediaAccessedAt, $mediaCreatedAt): string {
+    $name = 'word/media/reviewer-note.txt';
+    $data = "Reviewer media provenance\n";
+    $localExtra = pack('vvCVVV', 0x5455, 13, 0x07, $mediaModifiedAt, $mediaAccessedAt, $mediaCreatedAt);
+    $centralExtra = pack('vvCV', 0x5455, 5, 0x01, $mediaModifiedAt);
+    $crc = $crc32($data);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        strlen($localExtra)
+    );
+    $body .= $name . $localExtra . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        strlen($centralExtra),
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name . $centralExtra;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
+
 $package = ZipPackage::fromParts([
     [
         'name' => '[Content_Types].xml',
@@ -182,6 +232,7 @@ $package = ZipPackage::fromParts([
 ], 'wordpress import package');
 $descriptorPackage = ZipPackage::fromString($buildDescriptorBackedPackage());
 $ntfsPackage = ZipPackage::fromString($buildNtfsBackedPackage());
+$extendedTimestampPackage = ZipPackage::fromString($buildExtendedTimestampBackedPackage());
 $compressedPackage = GzipStream::build($package->bytes(), [
     'modifiedAt' => $documentModifiedAt,
     'extraFieldData' => 'WP',
@@ -280,6 +331,27 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected document part local ZIP extra fields to be inspectable');
     }
 
+    $extendedTimestamps = $extendedTimestampPackage->localExtendedTimestamps('/word/media/reviewer-note.txt');
+    if (($extendedTimestamps['modifiedAt'] ?? null) !== $mediaModifiedAt) {
+        throw new RuntimeException('Expected local extended modified timestamp metadata to round-trip');
+    }
+
+    if (($extendedTimestamps['accessedAt'] ?? null) !== $mediaAccessedAt) {
+        throw new RuntimeException('Expected local extended access timestamp metadata to round-trip');
+    }
+
+    if (($extendedTimestamps['createdAt'] ?? null) !== $mediaCreatedAt) {
+        throw new RuntimeException('Expected local extended creation timestamp metadata to round-trip');
+    }
+
+    if ($extendedTimestampPackage->entry('/word/media/reviewer-note.txt')->extendedAccessedTimestamp() !== null) {
+        throw new RuntimeException('Expected central extended timestamp metadata to omit access time');
+    }
+
+    if ($extendedTimestampPackage->read('/word/media/reviewer-note.txt') !== "Reviewer media provenance\n") {
+        throw new RuntimeException('Expected extended timestamp package media bytes to round-trip');
+    }
+
     if ($descriptorPackage->read('/word/comments.xml') !== '<w:comments><w:comment>Reviewer note from migration packet</w:comment></w:comments>') {
         throw new RuntimeException('Expected descriptor-backed comments part bytes to round-trip from the ZIP package');
     }
@@ -367,6 +439,10 @@ echo 'descriptor.comments.xml=' . $descriptorPackage->read('/word/comments.xml')
 $ntfsTimestamps = $ntfsPackage->entry('/word/media/review.png')->ntfsTimestamps();
 echo 'ntfs.review.png.modifiedAt=' . ($ntfsTimestamps['modifiedAt'] ?? 'none') . "\n";
 echo 'ntfs.review.png.localModifiedAt=' . ($ntfsPackage->localNtfsLastModifiedTimestamp('/word/media/review.png') ?? 'none') . "\n";
+$extendedTimestamps = $extendedTimestampPackage->localExtendedTimestamps('/word/media/reviewer-note.txt') ?? [];
+echo 'extended.reviewer-note.modifiedAt=' . ($extendedTimestamps['modifiedAt'] ?? 'none') . "\n";
+echo 'extended.reviewer-note.accessedAt=' . ($extendedTimestamps['accessedAt'] ?? 'none') . "\n";
+echo 'extended.reviewer-note.createdAt=' . ($extendedTimestamps['createdAt'] ?? 'none') . "\n";
 echo 'symlinkPolicy=' . ($symlinkRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'gzip.filename=' . $compressedPackageMembers[0]['filename'] . "\n";
 echo 'gzip.comment=' . $compressedPackageMembers[0]['comment'] . "\n";

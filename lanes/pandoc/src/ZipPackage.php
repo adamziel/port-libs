@@ -357,12 +357,36 @@ final class ZipPackage
 
     public function localExtendedLastModifiedTimestamp(string $partName): ?int
     {
+        $timestamps = $this->localExtendedTimestamps($partName);
+
+        return $timestamps['modifiedAt'] ?? null;
+    }
+
+    /**
+     * @return array{modifiedAt?:int, accessedAt?:int, createdAt?:int}|null
+     */
+    public function localExtendedTimestamps(string $partName): ?array
+    {
         $entry = $this->entry($partName);
 
-        return ZipPackageEntry::extendedTimestampFromExtraField(
+        return ZipPackageEntry::extendedTimestampsFromExtraField(
             $this->localExtraField($entry->name, 0x5455),
             "local extra fields for {$entry->name}"
         );
+    }
+
+    public function localExtendedAccessedTimestamp(string $partName): ?int
+    {
+        $timestamps = $this->localExtendedTimestamps($partName);
+
+        return $timestamps['accessedAt'] ?? null;
+    }
+
+    public function localExtendedCreatedTimestamp(string $partName): ?int
+    {
+        $timestamps = $this->localExtendedTimestamps($partName);
+
+        return $timestamps['createdAt'] ?? null;
     }
 
     /**
@@ -499,20 +523,16 @@ final class ZipPackage
             throw new \RuntimeException("ZIP local header modification time does not match central directory entry {$entry->name}");
         }
 
-        $localExtendedTimestamp = self::extendedTimestampFromExtraFieldData(
+        $localExtendedTimestamps = self::extendedTimestampsFromExtraFieldData(
             $localExtraFieldData,
             "local extra fields for {$entry->name}"
         );
-        $centralExtendedTimestamp = $entry->extendedLastModifiedTimestamp();
-        if (
-            $localExtendedTimestamp !== null
-            && $centralExtendedTimestamp !== null
-            && $localExtendedTimestamp !== $centralExtendedTimestamp
-        ) {
-            throw new \RuntimeException(
-                "ZIP local header extended timestamp does not match central directory entry {$entry->name}"
-            );
-        }
+        self::assertMatchingOptionalTimestamps(
+            $localExtendedTimestamps,
+            $entry->extendedTimestamps(),
+            'extended timestamp',
+            $entry->name
+        );
 
         $localNtfsTimestamps = self::ntfsTimestampsFromExtraFieldData(
             $localExtraFieldData,
@@ -588,15 +608,41 @@ final class ZipPackage
         return $name;
     }
 
-    private static function extendedTimestampFromExtraFieldData(string $extraFieldData, string $label): ?int
+    /**
+     * @return array{modifiedAt?:int, accessedAt?:int, createdAt?:int}|null
+     */
+    private static function extendedTimestampsFromExtraFieldData(string $extraFieldData, string $label): ?array
     {
         foreach (ZipPackageEntry::extraFieldsFromData($extraFieldData, $label) as $field) {
             if ($field['id'] === 0x5455) {
-                return ZipPackageEntry::extendedTimestampFromExtraField($field['data'], $label);
+                return ZipPackageEntry::extendedTimestampsFromExtraField($field['data'], $label);
             }
         }
 
         return null;
+    }
+
+    /**
+     * @param array{modifiedAt?:int, accessedAt?:int, createdAt?:int}|null $local
+     * @param array{modifiedAt?:int, accessedAt?:int, createdAt?:int}|null $central
+     */
+    private static function assertMatchingOptionalTimestamps(?array $local, ?array $central, string $label, string $entryName): void
+    {
+        if ($local === null || $central === null) {
+            return;
+        }
+
+        foreach (['modifiedAt', 'accessedAt', 'createdAt'] as $field) {
+            if (!array_key_exists($field, $local) || !array_key_exists($field, $central)) {
+                continue;
+            }
+
+            if ($local[$field] !== $central[$field]) {
+                throw new \RuntimeException(
+                    "ZIP local header {$label} does not match central directory entry {$entryName}"
+                );
+            }
+        }
     }
 
     /**
