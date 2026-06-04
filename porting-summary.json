@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-04 21:44:40 UTC",
-    "sourceCommit": "b71cd6fb809e4ef9d0d33ad21e4e09f9abb6baec",
-    "sourceCommitShort": "b71cd6fb809e",
+    "generated": "2026-06-04 21:57:41 UTC",
+    "sourceCommit": "42dddc08604dab6783842b91ae410655f23b3754",
+    "sourceCommitShort": "42dddc08604d",
     "sourceBranch": "unknown",
-    "dashboardCommit": "b71cd6fb809e4ef9d0d33ad21e4e09f9abb6baec",
-    "dashboardCommitShort": "b71cd6fb809e",
+    "dashboardCommit": "42dddc08604dab6783842b91ae410655f23b3754",
+    "dashboardCommitShort": "42dddc08604d",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "835",
-            "coverage": "835 / 2,276 (36.7%)",
-            "mapPercent": "36.7%",
-            "unmapped": "1,441",
-            "php": "378 pass / 0 fail",
+            "mapped": "839",
+            "coverage": "839 / 2,276 (36.9%)",
+            "mapPercent": "36.9%",
+            "unmapped": "1,437",
+            "php": "382 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-04 UTC archive-compression LZ4 frame slice on accepted base 4...",
+            "audit": "2026-06-04 UTC EPUB3 package slice on accepted base b71cd6fb809e4ef9d...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For upstream-runner dependency closure, hydrate a local Pando...",
+            "nextTarget": "For EPUB3 follow-up, keep XHTML-to-AST conversion, EPUB media...",
             "remainingGate": "No local blocker",
-            "commit": "45692a2"
+            "commit": "b71cd6f"
         },
         {
             "lane": "quadrable",
