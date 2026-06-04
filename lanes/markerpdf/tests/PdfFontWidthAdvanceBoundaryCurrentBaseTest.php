@@ -28,6 +28,18 @@ $fontWidthQuoteAdvanceBoundaryCurrentBasePdf = static function (): string {
         . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
 };
 
+$fontWidthRelativeTdAdvanceBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /Ftd 12 Tf '
+        . '1 0 0 1 72 720 Tm <4142> Tj 24 0 Td <4344> Tj '
+        . '1 0 0 1 72 704 Tm <4142> Tj 48 0 Td <4344> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Ftd 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+RelativeTdAdvance /Encoding 6 0 R /FirstChar 65 /LastChar 68 /Widths [1000 1000 1000 1000] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
+};
+
 $fontVerticalWidthAdvanceBoundaryCurrentBasePdf = static function (): string {
     $encodingCMap = "/CIDInit /ProcSet findresource begin\n"
         . "12 dict begin\n"
@@ -117,6 +129,27 @@ return [
         $t->same(12.0, $quotedSpan['font_size'] ?? null);
         $t->true(!str_contains($plainText, 'QuoteAdvance'));
         $t->true(!str_contains($plainText, 'Fquote'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'uses font-width current text advance before relative Td word-gap decisions on current base' => static function (TestRunner $t) use ($fontWidthRelativeTdAdvanceBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthRelativeTdAdvanceBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $firstLine = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $firstSpans = $firstLine['spans'] ?? [];
+
+        $t->same(['ABCD', 'AB CD'], $extractor->extractTextLines($pdf));
+        $t->same(['AB', 'CD', 'AB', 'CD'], $extractor->extractTextRuns($pdf));
+        $t->same("ABCD\nAB CD", $plainText);
+        $t->same("ABCD\nAB CD\n", $extractor->naiveGetText($pdf));
+        $t->same(['AB', 'CD'], array_column($firstSpans, 'text'));
+        $t->same([[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]], array_column($firstSpans, 'bbox'));
+        $t->same([0.0, 0.0, 48.0, 12.0], $firstLine['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'AB CD' . "\n" . 'AB CD'));
+        $t->true(str_contains($plainText, 'AB CD'));
+        $t->true(!str_contains($plainText, 'RelativeTdAdvance'));
+        $t->true(!str_contains($plainText, 'Ftd'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'uses vertical CIDFont W2 advances for native styled span bboxes on current base' => static function (TestRunner $t) use ($fontVerticalWidthAdvanceBoundaryCurrentBasePdf): void {

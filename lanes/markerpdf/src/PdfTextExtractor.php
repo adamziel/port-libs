@@ -15565,7 +15565,7 @@ final class PdfTextExtractor
                     if ($this->textMoveBreaksLine($operands)) {
                         $this->pushLine($lines, $currentLine);
                         $pendingPositionWordGap = false;
-                    } elseif ($this->textMoveCreatesWordGap($operands)) {
+                    } elseif ($this->textMoveCreatesWordGap($operands, $currentTextX, $currentTextEndX)) {
                         $pendingPositionWordGap = $currentLine !== '';
                     }
                 }
@@ -16637,11 +16637,16 @@ final class PdfTextExtractor
     /**
      * @param list<string> $operands
      */
-    private function textMoveCreatesWordGap(array $operands): bool
+    private function textMoveCreatesWordGap(array $operands, ?float $currentTextX = null, ?float $currentTextEndX = null): bool
     {
         $tx = $this->textMoveOperandX($operands);
         if ($tx === null) {
             return false;
+        }
+
+        if ($currentTextX !== null && $currentTextEndX !== null) {
+            $nextX = $currentTextX + $tx;
+            return $nextX - $currentTextEndX >= self::POSITIONED_TEXT_WORD_GAP;
         }
 
         return $tx >= self::POSITIONED_TEXT_WORD_GAP;
