@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-04 23:57:10 UTC",
-    "sourceCommit": "60ff51818b883d449ba8d9355fc4a103f247637d",
-    "sourceCommitShort": "60ff51818b88",
+    "generated": "2026-06-04 23:57:32 UTC",
+    "sourceCommit": "66998dff5c17fb784857ef07f9ae980ae8b9292a",
+    "sourceCommitShort": "66998dff5c17",
     "sourceBranch": "unknown",
-    "dashboardCommit": "60ff51818b883d449ba8d9355fc4a103f247637d",
-    "dashboardCommitShort": "60ff51818b88",
+    "dashboardCommit": "66998dff5c17fb784857ef07f9ae980ae8b9292a",
+    "dashboardCommitShort": "66998dff5c17",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -139,9 +139,9 @@
             "unmapped": "1,378",
             "php": "430 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-04 UTC XML/HTML5 DOM implementation slice on accepted base 22...",
+            "audit": "2026-06-04 UTC upstream-runner dependency audit on accepted base 229d...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For XML/HTML5 DOM follow-up, keep full HTML-reader AST conver...",
+            "nextTarget": "For BibTeX/CSL follow-up, keep crossref inheritance, broader...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },
