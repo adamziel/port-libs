@@ -1311,7 +1311,7 @@ final class PdfPagePropertyExtractor
                 continue;
             }
 
-            $resourceValue = $this->dictionaryRawValue($objectDictionary, 'Resources');
+            $resourceValue = $this->dictionaryEntries($objectDictionary)['Resources'] ?? null;
             if ($resourceValue === null) {
                 continue;
             }

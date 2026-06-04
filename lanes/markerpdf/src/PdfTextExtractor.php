@@ -7242,17 +7242,22 @@ final class PdfTextExtractor
      */
     private function resourceDictionaryBody(string $objectBody, array $objects): ?string
     {
-        if (!preg_match('/\/Resources\s*(?:(\d+)\s+\d+\s+R|<<)/s', $objectBody, $match, PREG_OFFSET_CAPTURE)) {
+        $value = $this->topLevelPdfValueAfterName($objectBody, 'Resources');
+        if ($value === null) {
             return null;
         }
 
-        if (($match[1][0] ?? '') !== '') {
-            $objectNumber = (int) $match[1][0];
+        $value = trim($value);
+        if ($value === '' || $value === 'null') {
+            return null;
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) === 1) {
+            $objectNumber = (int) $match[1];
             return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
         }
 
-        $offset = strpos($objectBody, '<<', $match[0][1]);
-        return $offset === false ? null : $this->readPdfDictionaryAt($objectBody, $offset);
+        return str_starts_with($value, '<<') ? $this->readPdfDictionaryAt($value, 0) : null;
     }
 
     /**
