@@ -15,6 +15,7 @@ final class SuppliedDocumentConverter
     private TableFormatter $tableFormatter;
     private TableRecognizer $tableRecognizer;
     private ConversionFinalizer $finalizer;
+    private PdfPageArtifactSelector $artifactSelector;
 
     public function __construct(
         ?PdfTextDocumentExtractor $textExtractor = null,
@@ -23,7 +24,8 @@ final class SuppliedDocumentConverter
         ?LayoutOrderer $layoutOrderer = null,
         ?TableFormatter $tableFormatter = null,
         ?TableRecognizer $tableRecognizer = null,
-        ?ConversionFinalizer $finalizer = null
+        ?ConversionFinalizer $finalizer = null,
+        ?PdfPageArtifactSelector $artifactSelector = null
     ) {
         $this->textExtractor = $textExtractor ?? new PdfTextDocumentExtractor();
         $this->coreConverter = $coreConverter ?? new CorePdfConverter();
@@ -32,6 +34,7 @@ final class SuppliedDocumentConverter
         $this->tableFormatter = $tableFormatter ?? new TableFormatter();
         $this->tableRecognizer = $tableRecognizer ?? new TableRecognizer();
         $this->finalizer = $finalizer ?? new ConversionFinalizer();
+        $this->artifactSelector = $artifactSelector ?? new PdfPageArtifactSelector();
     }
 
     /**
@@ -152,17 +155,20 @@ final class SuppliedDocumentConverter
 
         $selectedPageCount = count($pages);
         $pageRange = $extracted['page_range'];
+        $selectedPageNumbers = $this->artifactSelector->pageNumbersFromPages($pages);
         $lowresImages = $this->selectSelectedPageArtifacts(
             $this->listOption($options, 'lowres_images'),
             $sourcePageCount,
             $pageRange,
-            $selectedPageCount
+            $selectedPageCount,
+            $selectedPageNumbers
         );
         $layoutResults = $this->selectSelectedPageArtifacts(
             $this->listOption($options, 'layout_results'),
             $sourcePageCount,
             $pageRange,
-            $selectedPageCount
+            $selectedPageCount,
+            $selectedPageNumbers
         );
         if ($layoutResults !== []) {
             $layout = $this->layoutAnnotator->runWithSuppliedLayouts(
@@ -185,13 +191,15 @@ final class SuppliedDocumentConverter
             $this->listOption($options, 'order_images'),
             $sourcePageCount,
             $pageRange,
-            $selectedPageCount
+            $selectedPageCount,
+            $selectedPageNumbers
         );
         $orderResults = $this->selectSelectedPageArtifacts(
             $this->listOption($options, 'order_results'),
             $sourcePageCount,
             $pageRange,
-            $selectedPageCount
+            $selectedPageCount,
+            $selectedPageNumbers
         );
         if ($orderResults !== []) {
             $ordered = $this->layoutOrderer->runWithSuppliedOrder(
@@ -393,21 +401,10 @@ final class SuppliedDocumentConverter
         array $artifacts,
         int $sourcePageCount,
         array $pageRange,
-        int $selectedPageCount
+        int $selectedPageCount,
+        array $selectedPageNumbers = []
     ): array {
-        $artifacts = array_values($artifacts);
-        if (
-            $artifacts === []
-            || $pageRange === []
-            || $selectedPageCount === 0
-            || $sourcePageCount === $selectedPageCount
-            || count($artifacts) !== $sourcePageCount
-            || count($artifacts) === $selectedPageCount
-        ) {
-            return $artifacts;
-        }
-
-        return array_slice($artifacts, $pageRange[0], $selectedPageCount);
+        return $this->artifactSelector->select($artifacts, $sourcePageCount, $pageRange, $selectedPageCount, $selectedPageNumbers);
     }
 
     /**

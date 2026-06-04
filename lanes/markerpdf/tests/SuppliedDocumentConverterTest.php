@@ -284,6 +284,95 @@ return [
             unlink($path);
         }
     },
+    'aligns sparse keyed layout and order artifacts to selected pdftext page numbers' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-supplied-layout-order-keyed-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% supplied keyed layout order boundary\n%%EOF");
+        try {
+            $coverPage = $pdftextPage(30, [
+                ['text' => 'Keyed cover page artifact.', 'bbox' => [72.0, 80.0, 280.0, 94.0]],
+            ]);
+            $selectedPage = $pdftextPage(31, [
+                ['text' => 'Second keyed column carries review notes.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                ['text' => 'First keyed column starts the import.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+            ]);
+            $appendixPage = $pdftextPage(32, [
+                ['text' => 'Keyed appendix page artifact.', 'bbox' => [72.0, 80.0, 300.0, 94.0]],
+            ]);
+
+            $layoutResults = [
+                [
+                    'page' => 30,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['label' => 'Picture', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                        ['label' => 'Picture', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                    ],
+                ],
+                [
+                    'page' => 31,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                        ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                    ],
+                ],
+            ];
+            $orderResults = [
+                [
+                    'page' => 30,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                        ['position' => 2, 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                    ],
+                ],
+                [
+                    'page' => 31,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                        ['position' => 2, 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                    ],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$coverPage, $selectedPage, $appendixPage],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['page' => 30, 'image' => 'keyed-cover-layout-render'],
+                        ['page' => 31, 'image' => 'keyed-selected-layout-render'],
+                    ],
+                    'layout_results' => $layoutResults,
+                    'order_images' => [
+                        ['page' => 30, 'image' => 'keyed-cover-order-render'],
+                        ['page' => 31, 'image' => 'keyed-selected-order-render'],
+                    ],
+                    'order_results' => $orderResults,
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $t->same([1], $result['metadata']['page_range']);
+            $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries']);
+            $t->same(1, $result['metadata']['layout_plan']['image_count']);
+            $t->same(1, $result['metadata']['layout_plan']['layout_result_count']);
+            $t->same(1, $result['metadata']['order_plan']['image_count']);
+            $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+            $t->same([[60.0, 92.0, 290.0, 150.0], [318.0, 92.0, 570.0, 150.0]], $result['metadata']['order_plan']['requested_bboxes'][0]);
+            $t->contains('First keyed column starts the import.', $result['text']);
+            $t->contains('Second keyed column carries review notes.', $result['text']);
+            $t->true(strpos($result['text'], 'First keyed column starts the import.') < strpos($result['text'], 'Second keyed column carries review notes.'));
+            $t->true(!str_contains($result['text'], 'Keyed cover page artifact.'));
+            $t->true(!str_contains($result['text'], 'Keyed appendix page artifact.'));
+        } finally {
+            unlink($path);
+        }
+    },
     'routes forced OCR table cells through supplied detector output before formatting' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-forced-ocr-table-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% forced OCR table supplied pipeline\n%%EOF");

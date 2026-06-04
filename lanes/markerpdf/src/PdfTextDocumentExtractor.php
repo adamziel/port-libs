@@ -9,10 +9,12 @@ use InvalidArgumentException;
 final class PdfTextDocumentExtractor
 {
     private PdfTextBlockConverter $converter;
+    private PdfPageArtifactSelector $artifactSelector;
 
-    public function __construct(?PdfTextBlockConverter $converter = null)
+    public function __construct(?PdfTextBlockConverter $converter = null, ?PdfPageArtifactSelector $artifactSelector = null)
     {
         $this->converter = $converter ?? new PdfTextBlockConverter();
+        $this->artifactSelector = $artifactSelector ?? new PdfPageArtifactSelector();
     }
 
     /**
@@ -138,17 +140,20 @@ final class PdfTextDocumentExtractor
             sort: $sort
         );
         $orderer ??= new LayoutOrderer();
+        $selectedPageNumbers = $this->artifactSelector->pageNumbersFromPages($document['pages']);
         $orderImages = $this->selectSuppliedPageArtifacts(
             $orderImages,
             count($pdftextPages),
             $document['page_range'],
-            count($document['pages'])
+            count($document['pages']),
+            $selectedPageNumbers
         );
         $orderResults = $this->selectSuppliedPageArtifacts(
             $orderResults,
             count($pdftextPages),
             $document['page_range'],
-            count($document['pages'])
+            count($document['pages']),
+            $selectedPageNumbers
         );
 
         $ordered = $orderer->runWithSuppliedOrder(
@@ -178,20 +183,10 @@ final class PdfTextDocumentExtractor
         array $artifacts,
         int $sourcePageCount,
         array $pageRange,
-        int $selectedPageCount
+        int $selectedPageCount,
+        array $selectedPageNumbers = []
     ): array {
-        $artifacts = array_values($artifacts);
-        if (
-            $artifacts === []
-            || $pageRange === []
-            || $selectedPageCount === 0
-            || count($artifacts) !== $sourcePageCount
-            || count($artifacts) === $selectedPageCount
-        ) {
-            return $artifacts;
-        }
-
-        return array_slice($artifacts, $pageRange[0], $selectedPageCount);
+        return $this->artifactSelector->select($artifacts, $sourcePageCount, $pageRange, $selectedPageCount, $selectedPageNumbers);
     }
 
     /**
