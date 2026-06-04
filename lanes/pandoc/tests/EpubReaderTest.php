@@ -57,6 +57,20 @@ $navXhtml = <<<'XML'
         </li>
       </ol>
     </nav>
+    <nav epub:type="landmarks">
+      <h2>Book landmarks</h2>
+      <ol>
+        <li><a epub:type="bodymatter" href="text/chapter1.xhtml#intro">Start reading</a></li>
+        <li><a epub:type="backmatter bibliography" href="text/chapter2.xhtml#media">Reviewer appendix</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="page-list">
+      <h2>Print page list</h2>
+      <ol>
+        <li><a epub:type="pagebreak" href="text/chapter1.xhtml#page-1">1</a></li>
+        <li><a epub:type="pagebreak" href="text/chapter2.xhtml#page-2">2</a></li>
+      </ol>
+    </nav>
   </body>
 </html>
 XML;
@@ -64,14 +78,14 @@ XML;
 $chapter1Xhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head><title>Imported packet</title></head>
-  <body><h1 id="intro">Imported packet</h1><p>Chapter XHTML stays available for WordPress review.</p></body>
+  <body><h1 id="intro">Imported packet</h1><span id="page-1"></span><p>Chapter XHTML stays available for WordPress review.</p></body>
 </html>
 XML;
 
 $chapter2Xhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head><title>Review appendix</title></head>
-  <body><h1>Review appendix</h1><p id="media">Media audit follows.</p></body>
+  <body><h1>Review appendix</h1><span id="page-2"></span><p id="media">Media audit follows.</p></body>
 </html>
 XML;
 
@@ -181,6 +195,38 @@ return [
         $t->same('/OEBPS/text/chapter1.xhtml#intro', $ncx['items'][0]['target']);
         $t->same('Media audit', $ncx['items'][1]['children'][0]['title']);
         $t->same('/OEBPS/text/chapter2.xhtml#media', $ncx['items'][1]['children'][0]['target']);
+    },
+    'parses typed EPUB3 landmarks and page-list navigation sections' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $result = (new EpubReader())->readPackage($buildEpubPackage());
+        $nav = $result['nav'];
+
+        $t->same(3, count($nav['sections']));
+        $t->same('toc', $nav['sections'][0]['type']);
+        $t->same(['toc'], $nav['sections'][0]['types']);
+        $t->same('Table of contents', $nav['sections'][0]['title']);
+        $t->same('landmarks', $nav['sections'][1]['type']);
+        $t->same(['landmarks'], $nav['sections'][1]['types']);
+        $t->same('Book landmarks', $nav['sections'][1]['title']);
+        $t->same('page-list', $nav['sections'][2]['type']);
+        $t->same('Print page list', $nav['sections'][2]['title']);
+
+        $t->same(2, count($nav['landmarks']));
+        $t->same('Start reading', $nav['landmarks'][0]['title']);
+        $t->same('bodymatter', $nav['landmarks'][0]['type']);
+        $t->same(['bodymatter'], $nav['landmarks'][0]['types']);
+        $t->same('/OEBPS/text/chapter1.xhtml#intro', $nav['landmarks'][0]['target']);
+        $t->same('Reviewer appendix', $nav['landmarks'][1]['title']);
+        $t->same('backmatter', $nav['landmarks'][1]['type']);
+        $t->same(['backmatter', 'bibliography'], $nav['landmarks'][1]['types']);
+        $t->same('/OEBPS/text/chapter2.xhtml#media', $nav['landmarks'][1]['target']);
+
+        $t->same(2, count($nav['pageList']));
+        $t->same('1', $nav['pageList'][0]['title']);
+        $t->same('pagebreak', $nav['pageList'][0]['type']);
+        $t->same('/OEBPS/text/chapter1.xhtml#page-1', $nav['pageList'][0]['target']);
+        $t->same('2', $nav['pageList'][1]['title']);
+        $t->same('/OEBPS/text/chapter2.xhtml#page-2', $nav['pageList'][1]['target']);
+        $t->same($nav['items'], $nav['sections'][0]['items']);
     },
     'reports missing non-spine package assets without dropping XHTML handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithMissingAudio = str_replace(

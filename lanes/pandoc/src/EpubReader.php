@@ -433,45 +433,87 @@ final class EpubReader
     /**
      * @param array<string, mixed> $item
      *
-     * @return array{part:string, items:list<array<string, mixed>>}
+     * @return array{
+     *     part:string,
+     *     items:list<array<string, mixed>>,
+     *     sections:list<array<string, mixed>>,
+     *     landmarks:list<array<string, mixed>>,
+     *     pageList:list<array<string, mixed>>
+     * }
      */
     private function readNavDocument(ZipPackage $package, array $item): array
     {
         $dom = self::loadXml($package->read((string) $item['part']), 'EPUB navigation XHTML');
-        $nav = $this->findTocNavElement($dom);
-        if (!$nav instanceof \DOMElement) {
+        $sections = [];
+        $tocItems = null;
+        $fallbackItems = null;
+        foreach (self::navigationElements($dom) as $nav) {
+            $types = self::epubTypes($nav);
+            $list = self::firstChildElement($nav, 'ol', self::XHTML_NS);
+            $items = $list instanceof \DOMElement ? $this->readNavList($list, (string) $item['part']) : [];
+            $section = [
+                'type' => $types[0] ?? null,
+                'types' => $types,
+                'title' => self::navHeading($nav),
+                'items' => $items,
+            ];
+
+            $sections[] = $section;
+            $fallbackItems ??= $items;
+            if (in_array('toc', $types, true) && $tocItems === null) {
+                $tocItems = $items;
+            }
+        }
+
+        if ($sections === []) {
             return [
                 'part' => (string) $item['part'],
                 'items' => [],
+                'sections' => [],
+                'landmarks' => [],
+                'pageList' => [],
             ];
         }
 
-        $list = self::firstChildElement($nav, 'ol', self::XHTML_NS);
-
         return [
             'part' => (string) $item['part'],
-            'items' => $list instanceof \DOMElement ? $this->readNavList($list, (string) $item['part']) : [],
+            'items' => $tocItems ?? $fallbackItems ?? [],
+            'sections' => $sections,
+            'landmarks' => self::navItemsForType($sections, 'landmarks'),
+            'pageList' => self::navItemsForType($sections, 'page-list'),
         ];
     }
 
-    private function findTocNavElement(\DOMDocument $dom): ?\DOMElement
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function navigationElements(\DOMDocument $dom): array
     {
-        $first = null;
+        $elements = [];
         foreach ($dom->getElementsByTagNameNS(self::XHTML_NS, 'nav') as $nav) {
             if (!$nav instanceof \DOMElement) {
                 continue;
             }
-            $first ??= $nav;
-            $type = trim($nav->getAttributeNS(self::EPUB_OPS_NS, 'type'));
-            if ($type === '') {
-                $type = trim($nav->getAttribute('epub:type'));
-            }
-            if (in_array('toc', self::spaceDelimited($type), true)) {
-                return $nav;
+            $elements[] = $nav;
+        }
+
+        return $elements;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sections
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function navItemsForType(array $sections, string $type): array
+    {
+        foreach ($sections as $section) {
+            if (in_array($type, $section['types'] ?? [], true)) {
+                return $section['items'] ?? [];
             }
         }
 
-        return $first;
+        return [];
     }
 
     /**
@@ -485,11 +527,14 @@ final class EpubReader
             $label = $link instanceof \DOMElement ? $link : self::firstChildElement($li, 'span', self::XHTML_NS);
             $href = $link instanceof \DOMElement ? trim($link->getAttribute('href')) : '';
             $childList = self::firstChildElement($li, 'ol', self::XHTML_NS);
+            $types = self::epubTypes($link ?? $label ?? $li);
 
             $items[] = [
                 'title' => $label instanceof \DOMElement ? self::normalizedText($label) : self::normalizedText($li),
                 'href' => $href === '' ? null : $href,
                 'target' => $href === '' ? null : OpcPackagePath::resolveInternalTarget($navPart, $href),
+                'type' => $types[0] ?? null,
+                'types' => $types,
                 'children' => $childList instanceof \DOMElement ? $this->readNavList($childList, $navPart) : [],
             ];
         }
@@ -693,6 +738,33 @@ final class EpubReader
         }
 
         return preg_split('/\s+/', $value) ?: [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function epubTypes(\DOMElement $element): array
+    {
+        $type = trim($element->getAttributeNS(self::EPUB_OPS_NS, 'type'));
+        if ($type === '') {
+            $type = trim($element->getAttribute('epub:type'));
+        }
+
+        return self::spaceDelimited($type);
+    }
+
+    private static function navHeading(\DOMElement $nav): ?string
+    {
+        foreach (self::childElements($nav) as $child) {
+            if ($child->namespaceURI !== self::XHTML_NS) {
+                continue;
+            }
+            if (preg_match('/^h[1-6]$/', $child->localName) === 1) {
+                return self::normalizedText($child);
+            }
+        }
+
+        return null;
     }
 
     private static function normalizedText(\DOMElement $element): string

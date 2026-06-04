@@ -47,6 +47,16 @@ $navXhtml = <<<'XML'
         <li><a href="text/chapter.xhtml#source">Source chapter</a></li>
       </ol>
     </nav>
+    <nav epub:type="landmarks">
+      <ol>
+        <li><a epub:type="bodymatter" href="text/chapter.xhtml#source">Begin source</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="page-list">
+      <ol>
+        <li><a epub:type="pagebreak" href="text/chapter.xhtml#page-1">1</a></li>
+      </ol>
+    </nav>
   </body>
 </html>
 XML;
@@ -55,6 +65,7 @@ $chapterXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml">
   <body>
     <h1 id="source">Source chapter</h1>
+    <span id="page-1"></span>
     <p>EPUB XHTML content is preserved for WordPress import review.</p>
   </body>
 </html>
@@ -99,6 +110,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['ncx']['items'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
         throw new RuntimeException('Expected NCX content src to resolve to the chapter fragment');
     }
+    if (($result['nav']['landmarks'][0]['type'] ?? null) !== 'bodymatter') {
+        throw new RuntimeException('Expected EPUB nav landmarks to preserve item type');
+    }
+    if (($result['nav']['pageList'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#page-1') {
+        throw new RuntimeException('Expected EPUB page-list target to resolve to the source page marker');
+    }
     if (!str_contains($blocks, '<!-- wp:html -->') || !str_contains($blocks, 'EPUB XHTML content is preserved')) {
         throw new RuntimeException('Expected EPUB XHTML spine item to hand off as a WordPress HTML block');
     }
@@ -113,5 +130,7 @@ echo 'identifier=' . $result['metadata']['identifier'] . "\n";
 echo 'opfPart=' . $result['opfPart'] . "\n";
 echo 'spineItems=' . count($result['spine']) . "\n";
 echo 'navTarget=' . ($result['nav']['items'][0]['target'] ?? '') . "\n";
+echo 'landmarkTarget=' . ($result['nav']['landmarks'][0]['target'] ?? '') . "\n";
+echo 'pageListTarget=' . ($result['nav']['pageList'][0]['target'] ?? '') . "\n";
 echo 'assets=' . count($result['assets']) . "\n";
 echo "wordpressBlocks:\n" . $blocks . "\n";
