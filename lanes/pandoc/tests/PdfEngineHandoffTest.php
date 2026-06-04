@@ -218,15 +218,15 @@ return [
     'fake runner classifies engine logs sidecars warnings and rerun signals' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'lualatex', 'outputPath' => 'review.pdf']);
+        $pdfBytes = "%PDF-1.7\n% fake bounded handoff\n%%EOF\n";
         $log = implode("\n", [
             'This is LuaHBTeX, Version 1.18.0',
             "LaTeX Warning: Citation `packet' on page 1 undefined on input line 4.",
             "Package rerunfilecheck Warning: File `review.out' has changed.",
             'LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.',
-            'Output written on review.pdf (1 page, 12345 bytes).',
+            'Output written on review.pdf (1 page, ' . strlen($pdfBytes) . ' bytes).',
             '',
         ]);
-        $pdfBytes = "%PDF-1.7\n% fake bounded handoff\n%%EOF\n";
         $result = $handoff->fakeRun($plan, [
             'stderr' => "warning: reviewer font substituted\n",
             'files' => [
@@ -249,6 +249,66 @@ return [
         $t->contains('engine-log-warnings:4', implode(',', $result['diagnostics']));
         $t->contains('engine-rerun-needed', implode(',', $result['diagnostics']));
         $t->contains('produced-engine-artifacts:3', implode(',', $result['diagnostics']));
+    },
+
+    'fake runner records engine declared pdf output metrics when artifact matches' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/review.pdf']);
+        $pdfBytes = "%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n";
+        $log = 'Output written on packets/review.pdf (2 pages, ' . strlen($pdfBytes) . " bytes).\n";
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/review.log' => $log,
+                'packets/review.pdf' => $pdfBytes,
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same('packets/review.pdf', $result['declaredOutputFile']);
+        $t->same(2, $result['declaredOutputPages']);
+        $t->same(strlen($pdfBytes), $result['declaredOutputBytes']);
+        $t->same(true, $result['pdfTrailerComplete']);
+        $t->contains('engine-output-file:packets/review.pdf', implode(',', $result['diagnostics']));
+        $t->contains('engine-output-pages:2', implode(',', $result['diagnostics']));
+        $t->contains('engine-output-bytes:' . strlen($pdfBytes), implode(',', $result['diagnostics']));
+    },
+
+    'fake runner rejects truncated stale or mismatched pdf output artifacts' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'review.pdf']);
+        $completePdf = "%PDF-1.7\n% fake bounded handoff\n%%EOF\n";
+        $staleBytes = strlen($completePdf) + 7;
+
+        $truncated = $handoff->fakeRun($plan, [
+            'files' => [
+                'review.pdf' => "%PDF-1.7\n% missing trailer\n",
+            ],
+        ]);
+        $stale = $handoff->fakeRun($plan, [
+            'files' => [
+                'review.log' => 'Output written on review.pdf (1 page, ' . $staleBytes . " bytes).\n",
+                'review.pdf' => $completePdf,
+            ],
+        ]);
+        $wrongPath = $handoff->fakeRun($plan, [
+            'files' => [
+                'review.log' => 'Output written on other.pdf (1 page, ' . strlen($completePdf) . " bytes).\n",
+                'review.pdf' => $completePdf,
+            ],
+        ]);
+
+        $t->same(false, $truncated['ok']);
+        $t->same('truncated-pdf-output', $truncated['reason']);
+        $t->same(false, $truncated['pdfTrailerComplete']);
+        $t->contains('pdf-output-truncated', implode(',', $truncated['diagnostics']));
+        $t->same(false, $stale['ok']);
+        $t->same('pdf-output-byte-mismatch', $stale['reason']);
+        $t->same($staleBytes, $stale['declaredOutputBytes']);
+        $t->contains('engine-output-byte-mismatch:' . $staleBytes . ':' . strlen($completePdf), implode(',', $stale['diagnostics']));
+        $t->same(false, $wrongPath['ok']);
+        $t->same('pdf-output-file-mismatch', $wrongPath['reason']);
+        $t->same('other.pdf', $wrongPath['declaredOutputFile']);
+        $t->contains('engine-output-file-mismatch:other.pdf:review.pdf', implode(',', $wrongPath['diagnostics']));
     },
 
     'fake runner fails when engine log records a fatal renderer error' => static function (TestRunner $t) use ($document): void {

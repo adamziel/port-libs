@@ -33,11 +33,12 @@ $plan = $handoff->plan($document, [
     ],
     'engineOptions' => ['-file-line-error'],
 ]);
+$fakePdfBytes = "%PDF-1.7\n% fake WordPress import review packet\n%%EOF\n";
 $fakeLog = implode("\n", [
     'This is XeTeX, Version 3.141592653',
     "LaTeX Warning: Citation `migration-log' on page 1 undefined on input line 4.",
     'LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.',
-    'Output written on pdf-review-packet.pdf (1 page, 12345 bytes).',
+    'Output written on handoff/pdf-review-packet.pdf (1 page, ' . strlen($fakePdfBytes) . ' bytes).',
     '',
 ]);
 $fakeResult = $handoff->fakeRun($plan, [
@@ -49,7 +50,7 @@ $fakeResult = $handoff->fakeRun($plan, [
         'handoff/pdf-review-packet.aux' => "\\relax\n",
         'handoff/pdf-review-packet.out' => "\n",
         'handoff/pdf-review-packet.log' => $fakeLog,
-        $plan['outputFile'] => "%PDF-1.7\n% fake WordPress import review packet\n%%EOF\n",
+        $plan['outputFile'] => $fakePdfBytes,
     ],
 ]);
 
@@ -79,6 +80,10 @@ $summary = [
         'engineWarnings' => $fakeResult['engineWarnings'],
         'engineErrors' => $fakeResult['engineErrors'],
         'rerunNeeded' => $fakeResult['rerunNeeded'],
+        'declaredOutputFile' => $fakeResult['declaredOutputFile'],
+        'declaredOutputPages' => $fakeResult['declaredOutputPages'],
+        'declaredOutputBytes' => $fakeResult['declaredOutputBytes'],
+        'pdfTrailerComplete' => $fakeResult['pdfTrailerComplete'],
         'diagnostics' => $fakeResult['diagnostics'],
     ],
 ];
@@ -101,6 +106,9 @@ if (in_array('--self-test', $argv, true)) {
         'produced-engine-artifacts:3',
         'engine-log-warnings:2',
         'engine-rerun-needed',
+        'engine-output-file:handoff/pdf-review-packet.pdf',
+        'engine-output-pages:1',
+        'pdfTrailerComplete',
         'migration-log',
         'fake-runner-no-execution',
     ] as $needle) {

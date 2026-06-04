@@ -178,6 +178,10 @@ final class PdfEngineHandoff
      *     engineWarnings: list<string>,
      *     engineErrors: list<string>,
      *     rerunNeeded: bool,
+     *     declaredOutputFile: string|null,
+     *     declaredOutputPages: int|null,
+     *     declaredOutputBytes: int|null,
+     *     pdfTrailerComplete: bool,
      *     pdfSha256: string|null,
      *     stdout: string,
      *     stderr: string,
@@ -262,10 +266,12 @@ final class PdfEngineHandoff
             $diagnostics[] = 'produced-engine-artifacts:' . count($producedArtifactsSha256);
         }
 
-        $engineMessages = $this->extractEngineMessages(array_merge(
+        $engineTexts = array_merge(
             [(string) ($result['stdout'] ?? ''), (string) ($result['stderr'] ?? '')],
             $engineLogTexts
-        ));
+        );
+        $engineMessages = $this->extractEngineMessages($engineTexts);
+        $declaredOutput = $this->extractDeclaredOutput($engineTexts);
         if ($engineMessages['warnings'] !== []) {
             $diagnostics[] = 'engine-log-warnings:' . count($engineMessages['warnings']);
         }
@@ -275,8 +281,37 @@ final class PdfEngineHandoff
         if ($engineMessages['rerunNeeded']) {
             $diagnostics[] = 'engine-rerun-needed';
         }
+        if ($declaredOutput['file'] !== null) {
+            $diagnostics[] = 'engine-output-file:' . $declaredOutput['file'];
+        }
+        if ($declaredOutput['pages'] !== null) {
+            $diagnostics[] = 'engine-output-pages:' . $declaredOutput['pages'];
+        }
+        if ($declaredOutput['bytes'] !== null) {
+            $diagnostics[] = 'engine-output-bytes:' . $declaredOutput['bytes'];
+        }
 
         $pdfBytes = array_key_exists($outputFile, $files) ? $files[$outputFile] : null;
+        $pdfTrailerComplete = is_string($pdfBytes) && $this->hasCompletePdfTrailer($pdfBytes);
+        if (
+            is_string($pdfBytes)
+            && str_starts_with($pdfBytes, '%PDF-')
+            && $declaredOutput['file'] !== null
+            && !$this->declaredOutputFileMatches($declaredOutput['file'], $outputFile)
+        ) {
+            $diagnostics[] = 'engine-output-file-mismatch:' . $declaredOutput['file'] . ':' . $outputFile;
+        }
+        if (
+            is_string($pdfBytes)
+            && str_starts_with($pdfBytes, '%PDF-')
+            && $declaredOutput['bytes'] !== null
+            && $declaredOutput['bytes'] !== strlen($pdfBytes)
+        ) {
+            $diagnostics[] = 'engine-output-byte-mismatch:' . $declaredOutput['bytes'] . ':' . strlen($pdfBytes);
+        }
+        if (is_string($pdfBytes) && str_starts_with($pdfBytes, '%PDF-') && !$pdfTrailerComplete) {
+            $diagnostics[] = 'pdf-output-truncated';
+        }
         if ($reason === null && $engineMessages['errors'] !== []) {
             $status = 'failed';
             $reason = 'engine-log-error';
@@ -292,6 +327,27 @@ final class PdfEngineHandoff
         if ($reason === null && !str_starts_with((string) $pdfBytes, '%PDF-')) {
             $status = 'failed';
             $reason = 'non-pdf-output';
+        }
+        if ($reason === null && !$pdfTrailerComplete) {
+            $status = 'failed';
+            $reason = 'truncated-pdf-output';
+        }
+        if (
+            $reason === null
+            && $declaredOutput['file'] !== null
+            && !$this->declaredOutputFileMatches($declaredOutput['file'], $outputFile)
+        ) {
+            $status = 'failed';
+            $reason = 'pdf-output-file-mismatch';
+        }
+        if (
+            $reason === null
+            && $declaredOutput['bytes'] !== null
+            && is_string($pdfBytes)
+            && $declaredOutput['bytes'] !== strlen($pdfBytes)
+        ) {
+            $status = 'failed';
+            $reason = 'pdf-output-byte-mismatch';
         }
 
         return [
@@ -309,6 +365,10 @@ final class PdfEngineHandoff
             'engineWarnings' => $engineMessages['warnings'],
             'engineErrors' => $engineMessages['errors'],
             'rerunNeeded' => $engineMessages['rerunNeeded'],
+            'declaredOutputFile' => $declaredOutput['file'],
+            'declaredOutputPages' => $declaredOutput['pages'],
+            'declaredOutputBytes' => $declaredOutput['bytes'],
+            'pdfTrailerComplete' => $pdfTrailerComplete,
             'pdfSha256' => is_string($pdfBytes) && str_starts_with($pdfBytes, '%PDF-') ? hash('sha256', $pdfBytes) : null,
             'stdout' => (string) ($result['stdout'] ?? ''),
             'stderr' => (string) ($result['stderr'] ?? ''),
@@ -618,6 +678,57 @@ final class PdfEngineHandoff
     {
         return preg_match('/\brerun\b/i', $line) === 1
             && preg_match('/cross-references?|bibliograph|citation|label|file .* changed|rerunfilecheck/i', $line) === 1;
+    }
+
+    /**
+     * @param list<string> $texts
+     * @return array{file:string|null, pages:int|null, bytes:int|null}
+     */
+    private function extractDeclaredOutput(array $texts): array
+    {
+        $output = ['file' => null, 'pages' => null, 'bytes' => null];
+
+        foreach ($texts as $text) {
+            foreach (preg_split('/\R/u', $text) ?: [] as $line) {
+                $line = trim($line);
+                if ($line === '') {
+                    continue;
+                }
+                if (preg_match('/\bOutput written on\s+(.+?)\s+\((\d+)\s+pages?,\s+(\d+)\s+bytes?\)\.?/i', $line, $matches) !== 1) {
+                    continue;
+                }
+
+                $output = [
+                    'file' => $this->normalizeDeclaredOutputFile($matches[1]),
+                    'pages' => (int) $matches[2],
+                    'bytes' => (int) $matches[3],
+                ];
+            }
+        }
+
+        return $output;
+    }
+
+    private function normalizeDeclaredOutputFile(string $path): string
+    {
+        $path = str_replace('\\', '/', trim($path));
+        $path = trim($path, " \t\n\r\0\x0B'\"`");
+        while (str_starts_with($path, './')) {
+            $path = substr($path, 2);
+        }
+
+        return $path;
+    }
+
+    private function declaredOutputFileMatches(string $declaredOutputFile, string $outputFile): bool
+    {
+        return $declaredOutputFile === $outputFile
+            || basename($declaredOutputFile) === basename($outputFile);
+    }
+
+    private function hasCompletePdfTrailer(string $pdfBytes): bool
+    {
+        return preg_match('/%%EOF\s*\z/s', $pdfBytes) === 1;
     }
 
     private function normalizeRelativePath(string $path, string $label): string
