@@ -6671,13 +6671,13 @@ final class PdfMetadataExtractor
         }
 
         $sectionBodyOffset = $offset + 4;
-        $trailerOffset = strpos($pdfBytes, 'trailer', $sectionBodyOffset);
-        if ($trailerOffset === false) {
+        $trailerOffset = $this->xrefTableTrailerKeywordOffset($pdfBytes, $sectionBodyOffset);
+        if ($trailerOffset === null) {
             return null;
         }
 
-        $dictionaryOffset = strpos($pdfBytes, '<<', $trailerOffset);
-        if ($dictionaryOffset === false) {
+        $dictionaryOffset = $this->skipPdfWhitespace($pdfBytes, $trailerOffset + strlen('trailer'));
+        if (substr($pdfBytes, $dictionaryOffset, 2) !== '<<') {
             return null;
         }
 
@@ -6695,6 +6695,42 @@ final class PdfMetadataExtractor
             'entries' => $entries,
             'trailer' => $trailer,
         ];
+    }
+
+    private function xrefTableTrailerKeywordOffset(string $pdfBytes, int $offset): ?int
+    {
+        $length = strlen($pdfBytes);
+        $index = $offset;
+        while ($index < $length) {
+            $char = $pdfBytes[$index];
+
+            if ($char === '%') {
+                $index = $this->lineCommentEndOffset($pdfBytes, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $index = $this->literalTokenEndOffset($pdfBytes, $index);
+                continue;
+            }
+
+            if ($char === '<' && ($pdfBytes[$index + 1] ?? '') !== '<') {
+                $end = strpos($pdfBytes, '>', $index + 1);
+                $index = $end === false ? $length : $end + 1;
+                continue;
+            }
+
+            if ($this->pdfKeywordAt($pdfBytes, $index, 'trailer')) {
+                $dictionaryOffset = $this->skipPdfWhitespace($pdfBytes, $index + strlen('trailer'));
+                if (substr($pdfBytes, $dictionaryOffset, 2) === '<<') {
+                    return $index;
+                }
+            }
+
+            $index++;
+        }
+
+        return null;
     }
 
     /**
@@ -7209,12 +7245,34 @@ final class PdfMetadataExtractor
     private function xrefTableKeywordOffsets(string $pdfBytes): array
     {
         $offsets = [];
-        $offset = 0;
-        while (($position = strpos($pdfBytes, 'xref', $offset)) !== false) {
-            if ($this->pdfKeywordAt($pdfBytes, $position, 'xref')) {
-                $offsets[] = $position;
+        $length = strlen($pdfBytes);
+        $index = 0;
+        while ($index < $length) {
+            $char = $pdfBytes[$index];
+
+            if ($char === '%') {
+                $index = $this->lineCommentEndOffset($pdfBytes, $index);
+                continue;
             }
-            $offset = $position + 4;
+
+            if ($char === '(') {
+                $index = $this->literalTokenEndOffset($pdfBytes, $index);
+                continue;
+            }
+
+            if ($char === '<' && ($pdfBytes[$index + 1] ?? '') !== '<') {
+                $end = strpos($pdfBytes, '>', $index + 1);
+                $index = $end === false ? $length : $end + 1;
+                continue;
+            }
+
+            if ($this->pdfKeywordAt($pdfBytes, $index, 'xref')) {
+                $offsets[] = $index;
+                $index += strlen('xref');
+                continue;
+            }
+
+            $index++;
         }
 
         return $offsets;
@@ -7244,13 +7302,15 @@ final class PdfMetadataExtractor
 
     private function xrefTableTrailerDictionaryAtOffset(string $pdfBytes, int $offset): ?string
     {
-        $trailerOffset = strpos($pdfBytes, 'trailer', $offset + 4);
-        if ($trailerOffset === false) {
+        $trailerOffset = $this->xrefTableTrailerKeywordOffset($pdfBytes, $offset + 4);
+        if ($trailerOffset === null) {
             return null;
         }
 
-        $dictionaryOffset = strpos($pdfBytes, '<<', $trailerOffset);
-        return $dictionaryOffset === false ? null : $this->readPdfDictionaryAt($pdfBytes, $dictionaryOffset);
+        $dictionaryOffset = $this->skipPdfWhitespace($pdfBytes, $trailerOffset + strlen('trailer'));
+        return substr($pdfBytes, $dictionaryOffset, 2) === '<<'
+            ? $this->readPdfDictionaryAt($pdfBytes, $dictionaryOffset)
+            : null;
     }
 
     private function xrefStreamDictionaryAtObjectOffset(string $pdfBytes, int $offset): ?string
