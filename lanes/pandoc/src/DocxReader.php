@@ -425,30 +425,47 @@ final class DocxReader
     ): AstNode
     {
         $rows = [];
+        $verticalMerges = [];
         foreach ($table->getElementsByTagNameNS(self::WORDPROCESSINGML_NS, 'tr') as $rowElement) {
             if (!$rowElement instanceof \DOMElement || $rowElement->parentNode !== $table) {
                 continue;
             }
 
             $cells = [];
+            $gridColumn = 0;
             foreach ($rowElement->getElementsByTagNameNS(self::WORDPROCESSINGML_NS, 'tc') as $cellElement) {
                 if (!$cellElement instanceof \DOMElement || $cellElement->parentNode !== $rowElement) {
                     continue;
                 }
 
-                $cellBlocks = [];
-                foreach ($cellElement->childNodes as $cellChild) {
-                    if ($cellChild instanceof \DOMElement && $this->isWordElement($cellChild, 'p')) {
-                        $paragraph = $this->paragraphNode($cellChild, $package, $relationships, $footnotes, $styles);
-                        if ($paragraph instanceof AstNode) {
-                            $cellBlocks[] = $paragraph;
-                        }
-                    }
+                $colspan = $this->tableCellGridSpan($cellElement);
+                $verticalMerge = $this->tableCellVerticalMerge($cellElement);
+                if ($verticalMerge === 'continue' && isset($verticalMerges[$gridColumn])) {
+                    $this->extendTableCellRowspan($rows, $verticalMerges[$gridColumn]['rowIndex'], $verticalMerges[$gridColumn]['cellIndex']);
+                    $gridColumn += $colspan;
+                    continue;
                 }
 
-                $cells[] = new AstNode('table_cell', [
-                    'text' => $this->plainBlockText($cellBlocks),
-                ], $cellBlocks);
+                $this->clearTableVerticalMergeColumns($verticalMerges, $gridColumn, $colspan);
+                $attrs = [];
+                if ($colspan > 1) {
+                    $attrs['colspan'] = $colspan;
+                }
+                $cellBlocks = $this->tableCellBlocks($cellElement, $package, $relationships, $footnotes, $styles);
+                $attrs['text'] = $this->plainBlockText($cellBlocks);
+
+                $cells[] = new AstNode('table_cell', $attrs, $cellBlocks);
+                if ($verticalMerge === 'restart') {
+                    $rowIndex = count($rows);
+                    $cellIndex = count($cells) - 1;
+                    for ($column = $gridColumn; $column < $gridColumn + $colspan; $column++) {
+                        $verticalMerges[$column] = [
+                            'rowIndex' => $rowIndex,
+                            'cellIndex' => $cellIndex,
+                        ];
+                    }
+                }
+                $gridColumn += $colspan;
             }
 
             $rows[] = new AstNode('table_row', [], $cells);
@@ -457,6 +474,96 @@ final class DocxReader
         return new AstNode('table', ['caption' => ''], [
             new AstNode('table_body', [], $rows),
         ]);
+    }
+
+    /**
+     * @param array<string, AstNode> $footnotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @return list<AstNode>
+     */
+    private function tableCellBlocks(
+        \DOMElement $cell,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $footnotes,
+        array $styles = []
+    ): array
+    {
+        $blocks = [];
+        foreach ($cell->childNodes as $child) {
+            if ($child instanceof \DOMElement && $this->isWordElement($child, 'p')) {
+                $paragraph = $this->paragraphNode($child, $package, $relationships, $footnotes, $styles);
+                if ($paragraph instanceof AstNode) {
+                    $blocks[] = $paragraph;
+                }
+            }
+        }
+
+        return $blocks;
+    }
+
+    private function tableCellGridSpan(\DOMElement $cell): int
+    {
+        $properties = $this->firstChildElement($cell, self::WORDPROCESSINGML_NS, 'tcPr');
+        if (!$properties instanceof \DOMElement) {
+            return 1;
+        }
+
+        $gridSpan = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'gridSpan');
+        if (!$gridSpan instanceof \DOMElement) {
+            return 1;
+        }
+
+        return max(1, $this->intWordAttr($gridSpan, 'val', 1));
+    }
+
+    private function tableCellVerticalMerge(\DOMElement $cell): ?string
+    {
+        $properties = $this->firstChildElement($cell, self::WORDPROCESSINGML_NS, 'tcPr');
+        if (!$properties instanceof \DOMElement) {
+            return null;
+        }
+
+        $verticalMerge = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'vMerge');
+        if (!$verticalMerge instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = strtolower((string) ($this->wordAttr($verticalMerge, 'val') ?? 'continue'));
+
+        return $value === 'restart' ? 'restart' : 'continue';
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     */
+    private function extendTableCellRowspan(array &$rows, int $rowIndex, int $cellIndex): void
+    {
+        $row = $rows[$rowIndex] ?? null;
+        if (!$row instanceof AstNode || !isset($row->children[$cellIndex])) {
+            return;
+        }
+
+        $cell = $row->children[$cellIndex];
+        if (!$cell instanceof AstNode) {
+            return;
+        }
+
+        $cells = $row->children;
+        $attrs = $cell->attrs;
+        $attrs['rowspan'] = max(1, (int) ($attrs['rowspan'] ?? 1)) + 1;
+        $cells[$cellIndex] = new AstNode($cell->type, $attrs, $cell->children);
+        $rows[$rowIndex] = new AstNode($row->type, $row->attrs, $cells);
+    }
+
+    /**
+     * @param array<int, array{rowIndex:int, cellIndex:int}> $verticalMerges
+     */
+    private function clearTableVerticalMergeColumns(array &$verticalMerges, int $startColumn, int $colspan): void
+    {
+        for ($column = $startColumn; $column < $startColumn + $colspan; $column++) {
+            unset($verticalMerges[$column]);
+        }
     }
 
     /**

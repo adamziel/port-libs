@@ -58,6 +58,29 @@ XML],
       <w:r><w:footnoteReference w:id="2"/></w:r>
     </w:p>
     <w:p><w:r><w:drawing><wp:inline><wp:docPr id="9" name="Hero" descr="Source hero alt" title="Source hero"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdHero"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>
+    <w:tbl>
+      <w:tr>
+        <w:tc>
+          <w:tcPr><w:gridSpan w:val="2"/><w:vMerge w:val="restart"/></w:tcPr>
+          <w:p><w:r><w:t>Review scope</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc><w:p><w:r><w:t>Status</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc>
+          <w:tcPr><w:gridSpan w:val="2"/><w:vMerge/></w:tcPr>
+          <w:p><w:r><w:t>Continuation marker should not render</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc><w:p><w:r><w:t>Ready</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Owner</w:t></w:r></w:p></w:tc>
+        <w:tc>
+          <w:tcPr><w:gridSpan w:val="2"/></w:tcPr>
+          <w:p><w:r><w:t>Migration desk</w:t></w:r></w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
   </w:body>
 </w:document>
 XML],
@@ -114,6 +137,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<ol start="3" type="a"><li>Confirm source URL</li><li>Publish packet</li></ol>',
         '<a href="https://example.test/source-packet?post=42">the source link</a>',
         '<img src="word/media/hero.png" alt="Source hero alt" title="Source hero"/>',
+        '<td colspan="2" rowspan="2"><p>Review scope</p></td><td><p>Status</p></td>',
+        '<td><p>Owner</p></td><td colspan="2"><p>Migration desk</p></td>',
         'DOCX footnote import note.',
     ] as $needle) {
         if (!str_contains($blocks, $needle)) {

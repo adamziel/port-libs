@@ -195,6 +195,36 @@ $stylesNumberingDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$tableSpanDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tr>
+        <w:tc>
+          <w:tcPr><w:gridSpan w:val="2"/><w:vMerge w:val="restart"/></w:tcPr>
+          <w:p><w:r><w:t>Review scope</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc><w:p><w:r><w:t>Status</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc>
+          <w:tcPr><w:gridSpan w:val="2"/><w:vMerge/></w:tcPr>
+          <w:p><w:r><w:t>suppressed continuation</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc><w:p><w:r><w:t>Ready</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Owner</w:t></w:r></w:p></w:tc>
+        <w:tc>
+          <w:tcPr><w:gridSpan w:val="2"/></w:tcPr>
+          <w:p><w:r><w:t>Migration desk</w:t></w:r></w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML;
+
 $buildDocxPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $documentXml, $footnotesXml, $corePropertiesXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -222,6 +252,14 @@ $buildStylesNumberingPackage = static function () use (
         ['name' => 'word/_rels/document.xml.rels', 'data' => $stylesNumberingDocumentRelationshipsXml],
         ['name' => 'word/styles.xml', 'data' => $stylesXml],
         ['name' => 'word/numbering.xml', 'data' => $numberingXml],
+    ]);
+};
+
+$buildTableSpanPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableSpanDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $tableSpanDocumentXml],
     ]);
 };
 
@@ -350,6 +388,41 @@ return [
         $t->contains('<ul><li>Confirm media map</li><li>Preserve footnotes</li></ul>', $blocks);
         $t->contains('<!-- wp:list {"ordered":true,"start":3} -->', $blocks);
         $t->contains('<ol start="3" type="a"><li>Legal review</li><li>Publish packet</li></ol>', $blocks);
+    },
+    'maps DOCX table gridSpan and vMerge cells into table span attributes' => static function (TestRunner $t) use ($buildTableSpanPackage): void {
+        $document = (new DocxReader())->readDocument($buildTableSpanPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $table = $document->children[0];
+        $t->same('table', $table->type);
+        $body = $table->children[0];
+        $t->same('table_body', $body->type);
+        $t->same(3, count($body->children));
+
+        $firstRow = $body->children[0];
+        $t->same(2, count($firstRow->children));
+        $t->same('Review scope', $firstRow->children[0]->attr('text'));
+        $t->same(2, $firstRow->children[0]->attr('colspan'));
+        $t->same(2, $firstRow->children[0]->attr('rowspan'));
+        $t->same('Status', $firstRow->children[1]->attr('text'));
+
+        $secondRow = $body->children[1];
+        $t->same(1, count($secondRow->children));
+        $t->same('Ready', $secondRow->children[0]->attr('text'));
+
+        $thirdRow = $body->children[2];
+        $t->same('Owner', $thirdRow->children[0]->attr('text'));
+        $t->same('Migration desk', $thirdRow->children[1]->attr('text'));
+        $t->same(2, $thirdRow->children[1]->attr('colspan'));
+
+        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
+        $t->contains('| Review scope | | Status |', $normalizedMarkdown);
+        $t->contains('| | | Ready |', $normalizedMarkdown);
+        $t->contains('| Owner | Migration desk | |', $normalizedMarkdown);
+        $t->contains('<td colspan="2" rowspan="2"><p>Review scope</p></td><td><p>Status</p></td>', $blocks);
+        $t->contains('<tr><td><p>Ready</p></td></tr>', $blocks);
+        $t->contains('<td><p>Owner</p></td><td colspan="2"><p>Migration desk</p></td>', $blocks);
     },
     'rejects malformed DOCX packages without shelling out to office tooling' => static function (TestRunner $t) use ($contentTypesXml, $documentXml): void {
         $reader = new DocxReader();
