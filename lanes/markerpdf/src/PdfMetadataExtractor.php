@@ -2857,12 +2857,38 @@ final class PdfMetadataExtractor
 
         $parentValue = $this->dictionaryTopLevelRawValue($dictionary, 'Parent');
         if ($parentValue === null) {
-            return true;
+            return $this->isDocumentOutlineRootObject($expectedParentObject, $objects);
         }
 
         $parent = $this->validObjectNumberFromReference($parentValue, $objects);
 
         return $parent === $expectedParentObject;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function isDocumentOutlineRootObject(?int $objectNumber, array $objects): bool
+    {
+        if ($objectNumber === null || !isset($objects[$objectNumber])) {
+            return false;
+        }
+
+        $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+        if ($dictionary === null) {
+            return false;
+        }
+
+        if ($this->dictionaryStringValue($dictionary, 'Type') === 'Outlines') {
+            return true;
+        }
+
+        return $this->dictionaryTopLevelRawValue($dictionary, 'Title') === null
+            && (
+                $this->dictionaryTopLevelRawValue($dictionary, 'First') !== null
+                || $this->dictionaryTopLevelRawValue($dictionary, 'Last') !== null
+                || $this->dictionaryTopLevelRawValue($dictionary, 'Count') !== null
+            );
     }
 
     /**

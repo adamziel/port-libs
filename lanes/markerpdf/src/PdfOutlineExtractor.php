@@ -1220,12 +1220,38 @@ final class PdfOutlineExtractor
         }
 
         if (!array_key_exists('Parent', $outline)) {
-            return true;
+            return $this->isOutlineRootObject($expectedParentObject, $objects);
         }
 
         $parent = $this->validReferenceObjectNumber($outline['Parent'], $objects);
 
         return $parent === $expectedParentObject;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     */
+    private function isOutlineRootObject(?int $objectNumber, array $objects): bool
+    {
+        if ($objectNumber === null) {
+            return false;
+        }
+
+        $dict = $this->resolveDictionary($this->refValue($objectNumber), $objects);
+        if ($dict === null) {
+            return false;
+        }
+
+        if ($this->nameValue($dict['Type'] ?? null) === 'Outlines') {
+            return true;
+        }
+
+        return !array_key_exists('Title', $dict)
+            && (
+                array_key_exists('First', $dict)
+                || array_key_exists('Last', $dict)
+                || array_key_exists('Count', $dict)
+            );
     }
 
     /**
