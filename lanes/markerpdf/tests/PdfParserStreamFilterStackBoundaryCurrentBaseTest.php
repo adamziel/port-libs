@@ -105,6 +105,42 @@ $parserStreamFilterStackBoundaryCurrentBaseStackedPdf = static function () use (
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseStaleLengthPdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBaseAscii85,
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $fakeEndstreamBytes = hex2bin('d66c4ac5fe8a5a71');
+    if ($fakeEndstreamBytes === false) {
+        throw new RuntimeException('Unable to build focused declared-Length fake endstream byte sequence.');
+    }
+
+    $before = "BT /F1 12 Tf 72 720 Td (Declared Length Stack Before) Tj ET\n";
+    while ((7 + strlen($before)) % 4 !== 0) {
+        $before .= ' ';
+    }
+
+    $after = "\nBT /F1 12 Tf 72 704 Td (Declared Length Stack After) Tj ET";
+    $encoded = $parserStreamFilterStackBoundaryCurrentBaseAscii85(
+        $parserStreamFilterStackBoundaryCurrentBaseZlibStored($before . $fakeEndstreamBytes . $after)
+    );
+    if (!str_contains($encoded, 'endstream!')) {
+        throw new RuntimeException('Focused declared-Length stack fixture must contain the fake endstream marker.');
+    }
+    $encoded = str_replace('endstream!', "\nendstream\n!", $encoded) . '~>';
+    $declaredLength = strpos($encoded, "\nendstream\n");
+    if ($declaredLength === false) {
+        throw new RuntimeException('Focused declared-Length stack fixture must expose a fake endstream boundary.');
+    }
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length {$declaredLength} /Filter [ /ASCII85Decode /FlateDecode ] >>\nstream\n{$encoded}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses ASCII85 EOD markers before accepting missing-Length filter-stack endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -132,6 +168,22 @@ return [
         $t->same($expected, $extractor->extractTextRuns($pdf));
         $t->same("Stacked ASCII85 Flate Before\nStacked ASCII85 Flate After", $text);
         $t->same("Stacked ASCII85 Flate Before\nStacked ASCII85 Flate After\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'endstream'));
+        $t->true(!str_contains($text, 'FlateDecode'));
+        $t->true(!str_contains($text, "\xd6\x6c\x4a\xc5"));
+    },
+    'uses the complete filter stack when declared Length points at an encoded fake endstream boundary' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseStaleLengthPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseStaleLengthPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = ['Declared Length Stack Before', 'Declared Length Stack After'];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same("Declared Length Stack Before\nDeclared Length Stack After", $text);
+        $t->same("Declared Length Stack Before\nDeclared Length Stack After\n", $extractor->naiveGetText($pdf));
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->true(!str_contains($text, 'endstream'));

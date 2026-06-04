@@ -98,27 +98,54 @@ $stackPdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
     . "%%EOF";
 
+$declaredBefore = "BT /F1 12 Tf 72 720 Td (Declared Length Stack Before) Tj ET\n";
+while ((7 + strlen($declaredBefore)) % 4 !== 0) {
+    $declaredBefore .= ' ';
+}
+$declaredAfter = "\nBT /F1 12 Tf 72 704 Td (Declared Length Stack After) Tj ET";
+$declaredEncoded = $ascii85Encode($zlibStored($declaredBefore . $fakeEndstreamBytes . $declaredAfter));
+if (!str_contains($declaredEncoded, 'endstream!')) {
+    throw new RuntimeException('Focused declared-Length stack smoke fixture must contain the fake endstream marker.');
+}
+$declaredEncoded = str_replace('endstream!', "\nendstream\n!", $declaredEncoded) . '~>';
+$declaredLength = strpos($declaredEncoded, "\nendstream\n");
+if ($declaredLength === false) {
+    throw new RuntimeException('Focused declared-Length stack smoke fixture must expose a fake endstream boundary.');
+}
+
+$declaredLengthPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Length {$declaredLength} /Filter [ /ASCII85Decode /FlateDecode ] >>\nstream\n{$declaredEncoded}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "%%EOF";
+
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
 $stackLines = $extractor->extractTextLines($stackPdf);
-$joined = implode("\n", [...$lines, ...$stackLines]);
+$declaredLengthLines = $extractor->extractTextLines($declaredLengthPdf);
+$allLines = [...$lines, ...$stackLines, ...$declaredLengthLines];
+$joined = implode("\n", $allLines);
 
 echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_encode([
     'source' => 'native-pdf-stream-filter-stack-boundary',
     'stream_filters' => [
         [null, 'ASCII85Decode'],
         ['ASCII85Decode', 'FlateDecode'],
+        ['ASCII85Decode', 'FlateDecode'],
     ],
     'missing_length_stream_payload' => true,
+    'declared_length_points_at_encoded_fake_endstream' => true,
     'requires_ascii85_eod_before_endstream_boundary' => true,
     'requires_complete_filter_stack_before_boundary' => true,
     'fake_endstream_payload_excluded' => !str_contains($joined, 'endstream'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'paragraphs' => [...$lines, ...$stackLines],
+    'paragraphs' => $allLines,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach ([...$lines, ...$stackLines] as $line) {
+foreach ($allLines as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

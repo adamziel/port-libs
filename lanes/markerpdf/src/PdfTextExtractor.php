@@ -5822,6 +5822,17 @@ final class PdfTextExtractor
                         return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $recoveredTerminator - $streamStart));
                     }
 
+                    $filterStackRecoveredTerminator = $this->filterStackRecoveredStreamTerminatorOffset(
+                        $value,
+                        $streamStart,
+                        $dict,
+                        $objects,
+                        $declaredTerminator
+                    );
+                    if ($filterStackRecoveredTerminator !== null) {
+                        return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $filterStackRecoveredTerminator - $streamStart));
+                    }
+
                     return substr($value, $streamStart, $length);
                 }
 
@@ -5944,6 +5955,32 @@ final class PdfTextExtractor
         }
 
         return preg_match('/\bstartxref\s+\d+\b/s', substr($value, $gapStart, $recoveredTerminator - $gapStart)) === 1;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function filterStackRecoveredStreamTerminatorOffset(
+        string $value,
+        int $streamStart,
+        string $dict,
+        array $objects,
+        int $declaredTerminator
+    ): ?int {
+        $filters = $this->streamFilters($dict, $objects);
+        if ($filters === null || !$this->hasVerifiableStreamFilter($filters)) {
+            return null;
+        }
+
+        $declaredPayload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $declaredTerminator - $streamStart));
+        if ($this->decodeStream($dict, $declaredPayload, $objects, true) !== null) {
+            return null;
+        }
+
+        $filteredTerminator = $this->filteredEndstreamTerminatorOffset($value, $streamStart, $dict, $objects);
+        return $filteredTerminator !== null && $filteredTerminator > $declaredTerminator
+            ? $filteredTerminator
+            : null;
     }
 
     private function streamLengthTerminatorOffset(string $value, int $declaredEnd): ?int
@@ -10270,6 +10307,18 @@ final class PdfTextExtractor
                 $streamEnd = $this->streamLengthTerminatorOffset($pdfBytes, $declaredEnd)
                     ?? $this->contentStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict)
                     ?? $this->endstreamTerminatorOffset($pdfBytes, $streamStart, $declaredEnd);
+                if ($streamEnd !== null) {
+                    $filterStackRecoveredTerminator = $this->filterStackRecoveredStreamTerminatorOffset(
+                        $pdfBytes,
+                        $streamStart,
+                        $dict,
+                        $objects,
+                        $streamEnd
+                    );
+                    if ($filterStackRecoveredTerminator !== null) {
+                        $streamEnd = $filterStackRecoveredTerminator;
+                    }
+                }
             }
         }
 
@@ -10581,15 +10630,27 @@ final class PdfTextExtractor
                 if ($declaredEnd !== null) {
                     $streamEnd = $this->streamLengthTerminatorOffset($pdfBytes, $declaredEnd);
                     if ($streamEnd !== null && $dict !== null) {
+                        $filterObjects = $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart);
                         $recoveredTerminator = $this->startxrefRecoveredStreamTerminatorOffset(
                             $pdfBytes,
                             $streamStart,
                             $dict,
-                            $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart),
+                            $filterObjects,
                             $streamEnd
                         );
                         if ($recoveredTerminator !== null) {
                             $streamEnd = $recoveredTerminator;
+                        }
+
+                        $filterStackRecoveredTerminator = $this->filterStackRecoveredStreamTerminatorOffset(
+                            $pdfBytes,
+                            $streamStart,
+                            $dict,
+                            $filterObjects,
+                            $streamEnd
+                        );
+                        if ($filterStackRecoveredTerminator !== null) {
+                            $streamEnd = $filterStackRecoveredTerminator;
                         }
                     }
                     $streamEnd ??= $dict === null
