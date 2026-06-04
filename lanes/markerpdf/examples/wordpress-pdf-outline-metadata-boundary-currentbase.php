@@ -49,12 +49,15 @@ $addObject(14, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' 
 $addObject(31, "<< /Length " . strlen($introContent) . " >>\nstream\n{$introContent}\nendstream");
 $addObject(32, "<< /Length " . strlen($targetContent) . " >>\nstream\n{$targetContent}\nendstream");
 $addObject(40, '<< /Type /Outlines /First 41 0 R /Last 42 0 R /Count 2 >>');
-$addObject(41, '<< /Title (Import Runbook) /Parent 40 0 R /Dest /ImportStart /Next 42 0 R /First 43 0 R /Last 43 0 R /Count -1 /F 2 >>');
+$addObject(41, '<< /Title (Import Runbook) /Parent 40 0 R /Dest /ImportStart /Next 42 0 R /First 43 0 R /Last 43 0 R /Count -1 /C [0 .35 .7] /F 2 >>');
 $addObject(42, '<< /Title (Media Appendix) /Parent 40 0 R /Prev 41 0 R /A 44 0 R >>');
-$addObject(43, '<< /Title (Collapsed Review Child) /Parent 41 0 R /Dest /MediaTarget >>');
+$addObject(43, '<< /Title (Collapsed Review Child) /Parent 41 0 R /Dest /MediaTarget /C [80 0 R 81 0 R 82 0 R] >>');
 $addObject(44, '<< /S /GoTo /D [4 0 R /FitR 10 20 300 700] >>');
 $addObject(50, '<< /Names [(ImportStart) [3 0 R /FitH 720] (MediaTarget) [4 0 R /XYZ 144 null 0]] >>');
 $addObject(60, '<< /Title (Outline Metadata Info Fallback) /Author (Data Liberation Team) >>');
+$addObject(80, '-.25');
+$addObject(81, '.5');
+$addObject(82, '1.2');
 
 $xrefOffset = strlen($pdf);
 $rows = '';
@@ -93,6 +96,9 @@ if (($outline['titles'] ?? []) !== ['Import Runbook', 'Collapsed Review Child', 
 if (($outline['resolved_destination_count'] ?? null) !== 3) {
     throw new RuntimeException('Expected all current outline metadata destinations to resolve.');
 }
+if (($outline['items'][0]['text_color_hex'] ?? null) !== '#0059b3' || ($outline['items'][1]['text_color_hex'] ?? null) !== '#0080ff') {
+    throw new RuntimeException('Expected current outline color metadata to be preserved for WordPress navigation review.');
+}
 if (!is_string($encoded) || str_contains($encoded, 'Stale Outline Review Title') || str_contains($encoded, 'Stale WordPress Outline Metadata Boundary')) {
     throw new RuntimeException('Expected stale appended outline and XMP objects to stay out of metadata.');
 }
@@ -112,6 +118,10 @@ echo '<!-- markerpdf-outline-metadata-boundary-currentbase ' . $htmlJson([
     'title' => $metadata['title'] ?? null,
     'outline_root_object' => $outline['outline_root_object'] ?? null,
     'outline_titles' => $outline['titles'] ?? [],
+    'outline_text_colors' => array_values(array_filter(array_map(
+        static fn (array $item): ?string => $item['text_color_hex'] ?? null,
+        $outline['items'] ?? []
+    ))),
     'resolved_destination_count' => $outline['resolved_destination_count'] ?? null,
     'stale_outline_excluded' => is_string($encoded) && !str_contains($encoded, 'Stale Outline Review Title'),
     'visible_text_excludes_outline_metadata' => !str_contains($plainText, 'Import Runbook')
@@ -127,6 +137,7 @@ foreach ($outline['items'] ?? [] as $item) {
     echo '<li data-marker-outline-level="' . (int) ($item['level'] ?? 0)
         . '" data-marker-outline-page="' . htmlspecialchars((string) ($item['page_number'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
         . '" data-marker-outline-state="' . htmlspecialchars((string) ($item['structure_state'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+        . '" data-marker-outline-color="' . htmlspecialchars((string) ($item['text_color_hex'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
         . '">' . htmlspecialchars((string) ($item['title'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</li>\n";
 }
 echo "</ul></nav>\n<!-- /wp:navigation -->\n";

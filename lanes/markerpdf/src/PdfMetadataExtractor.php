@@ -2844,6 +2844,12 @@ final class PdfMetadataExtractor
             $row['is_bold'] = ($styleFlags & 2) !== 0;
         }
 
+        $textColor = $this->documentOutlineColorRgb($this->dictionaryTopLevelRawValue($dictionary, 'C'), $objects);
+        if ($textColor !== null) {
+            $row['text_color_rgb'] = $textColor;
+            $row['text_color_hex'] = $this->rgbUnitColorToHex($textColor);
+        }
+
         $structureElement = $this->documentOutlineItemStructureElementMetadata(
             $this->dictionaryTopLevelRawValue($dictionary, 'SE'),
             $objects,
@@ -2885,6 +2891,47 @@ final class PdfMetadataExtractor
         }
 
         return $row;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<float>|null
+     */
+    private function documentOutlineColorRgb(?string $value, array $objects): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $items = $this->arrayItemsFromValue($value, $objects);
+        if (count($items) < 3) {
+            return null;
+        }
+
+        $rgb = [];
+        for ($index = 0; $index < 3; $index++) {
+            $component = $this->destinationNumericValue($items[$index], $objects);
+            if ($component === null) {
+                return null;
+            }
+
+            $rgb[] = max(0.0, min(1.0, $component));
+        }
+
+        return $rgb;
+    }
+
+    /**
+     * @param list<float> $rgb
+     */
+    private function rgbUnitColorToHex(array $rgb): string
+    {
+        return sprintf(
+            '#%02x%02x%02x',
+            (int) round($rgb[0] * 255),
+            (int) round($rgb[1] * 255),
+            (int) round($rgb[2] * 255)
+        );
     }
 
     /**

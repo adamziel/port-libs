@@ -44,12 +44,15 @@ $outlineMetadataBoundaryPdf = static function (): array {
     $addObject(31, 0, "<< /Length " . strlen($introContent) . " >>\nstream\n{$introContent}\nendstream");
     $addObject(32, 0, "<< /Length " . strlen($targetContent) . " >>\nstream\n{$targetContent}\nendstream");
     $addObject(40, 0, '<< /Type /Outlines /First 41 0 R /Last 42 0 R /Count 2 >>');
-    $addObject(41, 0, '<< /Title (Current Outline Metadata Chapter) /Parent 40 0 R /Dest /ReviewStart /Next 42 0 R /First 43 0 R /Last 43 0 R /Count -1 /F 2 >>');
+    $addObject(41, 0, '<< /Title (Current Outline Metadata Chapter) /Parent 40 0 R /Dest /ReviewStart /Next 42 0 R /First 43 0 R /Last 43 0 R /Count -1 /C [0 .35 .7] /F 2 >>');
     $addObject(42, 0, '<< /Title (Current Outline Action Appendix) /Parent 40 0 R /Prev 41 0 R /A 44 0 R >>');
-    $addObject(43, 0, '<< /Title (Collapsed Child Metadata) /Parent 41 0 R /Dest /AppendixTarget >>');
+    $addObject(43, 0, '<< /Title (Collapsed Child Metadata) /Parent 41 0 R /Dest /AppendixTarget /C [80 0 R 81 0 R 82 0 R] >>');
     $addObject(44, 0, '<< /S /GoTo /D [4 0 R /FitR 10 20 300 700] >>');
     $addObject(50, 0, '<< /Names [(AppendixTarget) [4 0 R /XYZ 144 null 0] (ReviewStart) [3 0 R /FitH 720]] >>');
     $addObject(60, 0, '<< /Title (Current Info Outline Fallback) /Author (Current Outline Metadata Author) >>');
+    $addObject(80, 0, '-.25');
+    $addObject(81, 0, '.5');
+    $addObject(82, 0, '1.2');
 
     $xrefOffset = strlen($pdf);
     $rows = '';
@@ -126,6 +129,8 @@ return [
         $t->same('collapsed', $items[0]['structure_state'] ?? null);
         $t->same(2, $items[0]['style_flags'] ?? null);
         $t->same(true, $items[0]['is_bold'] ?? null);
+        $t->same([0.0, 0.35, 0.7], $items[0]['text_color_rgb'] ?? null);
+        $t->same('#0059b3', $items[0]['text_color_hex'] ?? null);
         $t->same('ReviewStart', $items[0]['destination'] ?? null);
         $t->same(true, $items[0]['destination_resolved'] ?? null);
         $t->same(0, $items[0]['page'] ?? null);
@@ -138,6 +143,8 @@ return [
         $t->same(43, $items[1]['outline_object'] ?? null);
         $t->same(41, $items[1]['parent_object'] ?? null);
         $t->same('leaf', $items[1]['structure_state'] ?? null);
+        $t->same([0.0, 0.5, 1.0], $items[1]['text_color_rgb'] ?? null);
+        $t->same('#0080ff', $items[1]['text_color_hex'] ?? null);
         $t->same('AppendixTarget', $items[1]['destination'] ?? null);
         $t->same(1, $items[1]['page'] ?? null);
         $t->same(4, $items[1]['page_object'] ?? null);
@@ -149,10 +156,31 @@ return [
         $t->same(41, $items[2]['previous_object'] ?? null);
         $t->same('GoTo', $items[2]['action_type'] ?? null);
         $t->same(44, $items[2]['action_object'] ?? null);
+        $t->true(!array_key_exists('text_color_hex', $items[2]));
         $t->same(true, $items[2]['destination_resolved'] ?? null);
         $t->same(1, $items[2]['page'] ?? null);
         $t->same('FitR', $items[2]['view_mode'] ?? null);
         $t->same(['left' => 10.0, 'bottom' => 20.0, 'right' => 300.0, 'top' => 700.0], $items[2]['view_parameters'] ?? null);
+    },
+    'preserves outline text color metadata without promoting it to page text' => static function (
+        TestRunner $t
+    ) use ($outlineMetadataBoundaryPdf): void {
+        [$pdf] = $outlineMetadataBoundaryPdf();
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $items = $metadata['document_outline']['items'] ?? [];
+
+        $t->same(['#0059b3', '#0080ff'], array_values(array_filter(array_map(
+            static fn (array $item): ?string => $item['text_color_hex'] ?? null,
+            $items
+        ))));
+        $t->same([0.0, 0.35, 0.7], $items[0]['text_color_rgb'] ?? null);
+        $t->same('#0059b3', $items[0]['text_color_hex'] ?? null);
+        $t->same([0.0, 0.5, 1.0], $items[1]['text_color_rgb'] ?? null);
+        $t->same('#0080ff', $items[1]['text_color_hex'] ?? null);
+        $t->true(!array_key_exists('text_color_hex', $items[2] ?? []));
+        $t->true(!str_contains($plainText, '#0059b3'));
+        $t->true(!str_contains($plainText, '#0080ff'));
     },
     'keeps outline metadata and stale appended objects out of visible WordPress text' => static function (
         TestRunner $t
