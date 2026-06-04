@@ -356,6 +356,86 @@ return [
         $t->true(!str_contains($plainText, 'Rotated Image Payload Noise'));
         $t->true(!str_contains($plainText, 'Nested Placed Image Payload Noise'));
     },
+    'applies rectangular clipping paths to image XObject placement review' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before clipped images) Tj ET\n"
+            . "q 10 10 30 20 re W n 50 0 0 40 0 0 cm /Clipped#20Image Do Q\n"
+            . "q 100 100 15 10 re W n 20 0 0 20 0 0 cm /OutsideClip Do Q\n"
+            . "q 40 0 0 20 100 200 cm /Clip#20Form Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After clipped images) Tj ET';
+        $formContent = 'q 8 4 12 8 re W n 16 0 0 12 4 2 cm /Nested#20Clipped Do Q';
+        $clippedPayload = 'BT /F1 12 Tf 72 720 Td (Clipped Image Payload Noise) Tj ET';
+        $outsidePayload = 'BT /F1 12 Tf 72 720 Td (Outside Clip Image Payload Noise) Tj ET';
+        $nestedPayload = 'BT /F1 12 Tf 72 720 Td (Nested Clipped Image Payload Noise) Tj ET';
+        $clippedCompressed = gzcompress($clippedPayload);
+        $outsideCompressed = gzcompress($outsidePayload);
+        $nestedCompressed = gzcompress($nestedPayload);
+        if (!is_string($clippedCompressed) || !is_string($outsideCompressed) || !is_string($nestedCompressed)) {
+            throw new RuntimeException('Unable to compress clipped image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Clipped#20Image 5 0 R /OutsideClip 6 0 R /Clip#20Form 7 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 50 /Height 40 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($clippedCompressed) . " >>\nstream\n{$clippedCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 20 /Height 20 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($outsideCompressed) . " >>\nstream\n{$outsideCompressed}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 40 20] /Resources << /XObject << /Nested#20Clipped 8 0 R >> /Font << /F1 10 0 R >> >> /Length " . strlen($formContent) . " >>\nstream\n{$formContent}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 12 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($nestedCompressed) . " >>\nstream\n{$nestedCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(3, $review['image_xobject_count']);
+        $t->same(3, $review['invoked_image_xobject_count']);
+
+        $clipped = $entriesByName['Clipped Image'];
+        $t->same([[50.0, 0.0, 0.0, 40.0, 0.0, 0.0]], $clipped['invocation_matrices']);
+        $t->same([[0.0, 0.0, 50.0, 40.0]], $clipped['invocation_bboxes']);
+        $t->same([[10.0, 10.0, 40.0, 30.0]], $clipped['invocation_clip_bboxes'] ?? null);
+        $t->same([[10.0, 10.0, 40.0, 30.0]], $clipped['invocation_visible_bboxes'] ?? null);
+        $t->same([0.0, 0.0, 50.0, 40.0], $clipped['image_unit_bbox']);
+        $t->same([10.0, 10.0, 40.0, 30.0], $clipped['image_visible_bbox'] ?? null);
+        $t->same(true, $clipped['clip_applied'] ?? null);
+        $t->same(true, $clipped['clip_reduces_painted_bbox'] ?? null);
+        $t->same(false, $clipped['clip_excludes_image'] ?? null);
+        $t->same(1, $clipped['painted_invocation_count'] ?? null);
+        $t->same(0, $clipped['clip_excluded_invocation_count'] ?? null);
+
+        $outside = $entriesByName['OutsideClip'];
+        $t->same([[0.0, 0.0, 20.0, 20.0]], $outside['invocation_bboxes']);
+        $t->same([[100.0, 100.0, 115.0, 110.0]], $outside['invocation_clip_bboxes'] ?? null);
+        $t->same([], $outside['invocation_visible_bboxes'] ?? null);
+        $t->same(null, $outside['image_visible_bbox'] ?? null);
+        $t->same(true, $outside['clip_applied'] ?? null);
+        $t->same(true, $outside['clip_reduces_painted_bbox'] ?? null);
+        $t->same(true, $outside['clip_excludes_image'] ?? null);
+        $t->same(0, $outside['painted_invocation_count'] ?? null);
+        $t->same(1, $outside['clip_excluded_invocation_count'] ?? null);
+
+        $nested = $entriesByName['Nested Clipped'];
+        $t->same(['Clip Form', 'Nested Clipped'], $nested['resource_path']);
+        $t->same(7, $nested['parent_form_xobject_object']);
+        $t->same([[640.0, 0.0, 0.0, 240.0, 260.0, 240.0]], $nested['invocation_matrices']);
+        $t->same([[260.0, 240.0, 900.0, 480.0]], $nested['invocation_bboxes']);
+        $t->same([[420.0, 280.0, 900.0, 440.0]], $nested['invocation_clip_bboxes'] ?? null);
+        $t->same([[420.0, 280.0, 900.0, 440.0]], $nested['invocation_visible_bboxes'] ?? null);
+        $t->same([420.0, 280.0, 900.0, 440.0], $nested['image_visible_bbox'] ?? null);
+        $t->same(true, $nested['clip_reduces_painted_bbox'] ?? null);
+
+        $t->same(['Before clipped images', 'After clipped images'], $extractor->extractTextLines($pdf));
+        $t->same("Before clipped images\nAfter clipped images", $plainText);
+        $t->true(!str_contains($plainText, 'Clipped Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Outside Clip Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Nested Clipped Image Payload Noise'));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"

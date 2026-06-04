@@ -11,7 +11,7 @@ $content = "BT /F1 12 Tf 72 720 Td (Current Image Boundary Intro) Tj ET\n"
     . "/OC /LayerOff BDC q 12 0 0 12 110 690 cm /HiddenMarked Do Q EMC\n"
     . "q 12 0 0 12 126 690 cm /HiddenObject Do Q\n"
     . 'BT /F1 12 Tf 72 668 Td (Current Image Boundary Outro) Tj ET';
-$formContent = 'q 16 0 0 8 2 2 cm /Hero#20Image Do Q';
+$formContent = 'q 4 2 8 4 re W n 16 0 0 8 2 2 cm /Hero#20Image Do Q';
 $imagePayload = 'BT /F1 12 Tf 72 720 Td (WordPress Image XObject Payload Noise) Tj ET';
 $hiddenMarkedPayload = 'BT /F1 12 Tf 72 720 Td (WordPress Hidden Marked Image Noise) Tj ET';
 $hiddenObjectPayload = 'BT /F1 12 Tf 72 720 Td (WordPress Hidden Object Image Noise) Tj ET';
@@ -44,6 +44,8 @@ if (
     ($review['image_xobject_count'] ?? 0) !== 3
     || ($review['invoked_image_xobject_count'] ?? 0) !== 1
     || ($review['entries'][0]['image_unit_bbox'] ?? null) !== [136.0, 722.0, 648.0, 850.0]
+    || ($review['entries'][0]['image_visible_bbox'] ?? null) !== [200.0, 722.0, 456.0, 786.0]
+    || ($review['entries'][0]['clip_reduces_painted_bbox'] ?? false) !== true
     || str_contains($plainText, 'WordPress Image XObject Payload Noise')
     || str_contains($plainText, 'WordPress Hidden Marked Image Noise')
     || str_contains($plainText, 'WordPress Hidden Object Image Noise')
@@ -70,7 +72,13 @@ $metadata = [
     'first_form_xobject_depth' => $review['entries'][0]['form_xobject_depth'] ?? null,
     'first_invocation_matrix' => $review['entries'][0]['invocation_matrices'][0] ?? null,
     'first_invocation_bbox' => $review['entries'][0]['invocation_bboxes'][0] ?? null,
+    'first_invocation_clip_bbox' => $review['entries'][0]['invocation_clip_bboxes'][0] ?? null,
+    'first_invocation_visible_bbox' => $review['entries'][0]['invocation_visible_bboxes'][0] ?? null,
     'first_image_unit_bbox' => $review['entries'][0]['image_unit_bbox'] ?? null,
+    'first_image_visible_bbox' => $review['entries'][0]['image_visible_bbox'] ?? null,
+    'first_clip_reduces_painted_bbox' => $review['entries'][0]['clip_reduces_painted_bbox'] ?? false,
+    'first_clip_excludes_image' => $review['entries'][0]['clip_excludes_image'] ?? true,
+    'first_painted_invocation_count' => $review['entries'][0]['painted_invocation_count'] ?? null,
     'first_placement_review_only' => $review['entries'][0]['placement_review_only'] ?? false,
     'first_image_filters' => $review['entries'][0]['filters'] ?? [],
     'first_image_decoded_with_current_filters' => $review['entries'][0]['decoded_with_current_filters'] ?? false,

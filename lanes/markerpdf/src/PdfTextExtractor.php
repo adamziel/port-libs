@@ -3268,12 +3268,12 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param list<list<float>> $baseMatrices
-     * @return array<string, list<array{matrix: list<float>, bbox: list<float>}>>
+     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null}> $baseStates
+     * @return array<string, list<array{matrix: list<float>, bbox: list<float>, clip_bbox: list<float>|null, visible_bbox: list<float>|null, clipped: bool}>>
      */
-    private function contentXObjectInvocationDetails(string $content, array $baseMatrices = []): array
+    private function contentXObjectInvocationDetails(string $content, array $baseStates = []): array
     {
-        $currentMatrices = $this->normalizedInvocationBaseMatrices($baseMatrices);
+        $currentStates = $this->normalizedInvocationBaseStates($baseStates);
         $graphicsStateStack = [];
         $invocations = [];
         $operands = [];
@@ -3285,28 +3285,39 @@ final class PdfTextExtractor
             }
 
             if ($token === 'q') {
-                $graphicsStateStack[] = $currentMatrices;
+                $graphicsStateStack[] = $currentStates;
                 $operands = [];
                 continue;
             }
 
             if ($token === 'Q') {
-                $restoredMatrices = array_pop($graphicsStateStack);
-                if (is_array($restoredMatrices)) {
-                    $currentMatrices = $restoredMatrices;
+                $restoredStates = array_pop($graphicsStateStack);
+                if (is_array($restoredStates)) {
+                    $currentStates = $restoredStates;
                 }
                 $operands = [];
                 continue;
             }
 
-            if ($token === 'cm') {
-                $matrix = $this->contentMatrixOperand($operands);
-                if ($matrix !== null) {
-                    $currentMatrices = array_map(
-                        fn (array $currentMatrix): array => $this->pdfMatrixMultiply($currentMatrix, $matrix),
-                        $currentMatrices
-                    );
+            $clipPathOperatorHandled = false;
+            foreach ($currentStates as $index => $state) {
+                $matrix = $state['matrix'];
+                $clipRectangle = $state['clip_bbox'];
+                $currentPathRectangle = $state['path_bbox'];
+                if ($this->applyClipPathStateOperator(
+                    $token,
+                    $operands,
+                    $clipRectangle,
+                    $currentPathRectangle,
+                    $matrix
+                )) {
+                    $currentStates[$index]['matrix'] = $matrix;
+                    $currentStates[$index]['clip_bbox'] = $clipRectangle;
+                    $currentStates[$index]['path_bbox'] = $currentPathRectangle;
+                    $clipPathOperatorHandled = true;
                 }
+            }
+            if ($clipPathOperatorHandled) {
                 $operands = [];
                 continue;
             }
@@ -3314,11 +3325,18 @@ final class PdfTextExtractor
             if ($token === 'Do') {
                 $resourceName = $this->xObjectNameOperand($operands);
                 if ($resourceName !== null) {
-                    foreach ($currentMatrices as $matrix) {
-                        $normalizedMatrix = $this->normalizedPdfReviewNumbers($matrix);
+                    foreach ($currentStates as $state) {
+                        $normalizedMatrix = $this->normalizedPdfReviewNumbers($state['matrix']);
+                        $bbox = $this->imageUnitBboxForMatrix($normalizedMatrix);
+                        $clipRectangle = $this->normalizedPdfRectangleOrNull($state['clip_bbox']);
+                        $visibleBbox = $this->visibleImageInvocationBbox($bbox, $clipRectangle);
                         $invocations[$resourceName][] = [
                             'matrix' => $normalizedMatrix,
-                            'bbox' => $this->imageUnitBboxForMatrix($normalizedMatrix),
+                            'bbox' => $bbox,
+                            'clip_bbox' => $clipRectangle,
+                            'visible_bbox' => $visibleBbox,
+                            'clipped' => $clipRectangle !== null
+                                && ($visibleBbox === null || !$this->pdfRectanglesEqual($bbox, $visibleBbox)),
                         ];
                     }
                 }
@@ -3333,32 +3351,43 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param list<list<float>> $baseMatrices
-     * @return list<list<float>>
+     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null}> $baseStates
+     * @return list<array{matrix: list<float>, clip_bbox: list<float>|null, path_bbox: list<float>|null}>
      */
-    private function normalizedInvocationBaseMatrices(array $baseMatrices): array
+    private function normalizedInvocationBaseStates(array $baseStates): array
     {
-        if ($baseMatrices === []) {
-            return [[1.0, 0.0, 0.0, 1.0, 0.0, 0.0]];
+        if ($baseStates === []) {
+            return [[
+                'matrix' => [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+                'clip_bbox' => null,
+                'path_bbox' => null,
+            ]];
         }
 
         $normalized = [];
-        foreach ($baseMatrices as $matrix) {
-            if (!is_array($matrix) || count($matrix) < 6) {
+        foreach ($baseStates as $state) {
+            if (!is_array($state)) {
                 continue;
             }
 
-            $values = [];
-            foreach (array_slice($matrix, 0, 6) as $value) {
-                if (!is_int($value) && !is_float($value)) {
-                    continue 2;
-                }
-                $values[] = (float) $value;
+            $matrixValue = array_key_exists('matrix', $state) ? $state['matrix'] : $state;
+            $matrix = $this->normalizedPdfMatrixOrNull($matrixValue);
+            if ($matrix === null) {
+                continue;
             }
-            $normalized[] = $values;
+
+            $normalized[] = [
+                'matrix' => $matrix,
+                'clip_bbox' => $this->normalizedPdfRectangleOrNull($state['clip_bbox'] ?? null),
+                'path_bbox' => null,
+            ];
         }
 
-        return $normalized === [] ? [[1.0, 0.0, 0.0, 1.0, 0.0, 0.0]] : $normalized;
+        return $normalized === [] ? [[
+            'matrix' => [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            'clip_bbox' => null,
+            'path_bbox' => null,
+        ]] : $normalized;
     }
 
     /**
@@ -3382,6 +3411,86 @@ final class PdfTextExtractor
             max($xs),
             max($ys),
         ]);
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<float>|null
+     */
+    private function normalizedPdfMatrixOrNull(mixed $value): ?array
+    {
+        if (!is_array($value) || count($value) < 6) {
+            return null;
+        }
+
+        $matrix = [];
+        foreach (array_slice($value, 0, 6) as $number) {
+            if (!is_int($number) && !is_float($number)) {
+                return null;
+            }
+            $matrix[] = (float) $number;
+        }
+
+        return $matrix;
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<float>|null
+     */
+    private function normalizedPdfRectangleOrNull(mixed $value): ?array
+    {
+        if (!is_array($value) || count($value) < 4) {
+            return null;
+        }
+
+        $rectangle = [];
+        foreach (array_slice($value, 0, 4) as $number) {
+            if (!is_int($number) && !is_float($number)) {
+                return null;
+            }
+            $rectangle[] = (float) $number;
+        }
+
+        return $this->normalizedPdfReviewNumbers($rectangle);
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @param list<float>|null $clipRectangle
+     * @return list<float>|null
+     */
+    private function visibleImageInvocationBbox(array $bbox, ?array $clipRectangle): ?array
+    {
+        if ($clipRectangle === null) {
+            return $this->pdfRectangleHasArea($bbox) ? $this->normalizedPdfReviewNumbers($bbox) : null;
+        }
+
+        $visible = $this->pdfRectangleIntersection($clipRectangle, $bbox);
+        if (!$this->pdfRectangleHasArea($visible)) {
+            return null;
+        }
+
+        return $this->normalizedPdfReviewNumbers($visible);
+    }
+
+    /**
+     * @param list<float> $left
+     * @param list<float> $right
+     */
+    private function pdfRectanglesEqual(array $left, array $right): bool
+    {
+        if (count($left) < 4 || count($right) < 4) {
+            return false;
+        }
+
+        for ($index = 0; $index < 4; $index++) {
+            if (abs((float) $left[$index] - (float) $right[$index]) > 0.000001) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -3488,13 +3597,25 @@ final class PdfTextExtractor
             $formResourceOwnerBody = $this->formXObjectResourceOwnerBody($form['body'], $resourceOwnerBody);
             $formMatrix = $this->pdfMatrixValueAfterName($form['body'], 'Matrix', $objects)
                 ?? [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
-            $formInvocationMatrices = [];
+            $formInvocationStates = [];
             foreach ($localInvocationDetails as $detail) {
                 $matrix = $detail['matrix'] ?? null;
                 if (!is_array($matrix) || count($matrix) < 6) {
                     continue;
                 }
-                $formInvocationMatrices[] = $this->pdfMatrixMultiply($matrix, $formMatrix);
+                $formBaseMatrix = $this->pdfMatrixMultiply($matrix, $formMatrix);
+                $formClipBbox = $this->normalizedPdfRectangleOrNull($detail['clip_bbox'] ?? null);
+                $formBbox = $this->pdfRectangleValueAfterName($form['body'], 'BBox', $objects);
+                if ($formBbox !== null) {
+                    $formClipBbox = $this->pdfRectangleIntersection(
+                        $formClipBbox,
+                        $this->pdfRectangleTransform($formBaseMatrix, $formBbox)
+                    );
+                }
+                $formInvocationStates[] = [
+                    'matrix' => $formBaseMatrix,
+                    'clip_bbox' => $formClipBbox,
+                ];
             }
             foreach ($this->imageXObjectBoundaryEntriesForResourceOwner(
                 $pageIndex,
@@ -3507,7 +3628,7 @@ final class PdfTextExtractor
                 $nextActiveForms,
                 $objectNumber,
                 $formHasOwnResources,
-                $formInvocationMatrices
+                $formInvocationStates
             ) as $nestedEntry) {
                 $entries[] = $nestedEntry;
             }
@@ -3604,14 +3725,33 @@ final class PdfTextExtractor
         $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
         $invocationMatrices = [];
         $invocationBboxes = [];
+        $invocationClipBboxes = [];
+        $invocationVisibleBboxes = [];
+        $clipApplied = false;
+        $clipReducesPaintedBbox = false;
+        $clipExcludedInvocationCount = 0;
         foreach ($invocationDetails as $detail) {
             $matrix = $detail['matrix'] ?? null;
             $bbox = $detail['bbox'] ?? null;
+            $clipBbox = $detail['clip_bbox'] ?? null;
+            $visibleBbox = $detail['visible_bbox'] ?? null;
             if (is_array($matrix) && count($matrix) >= 6) {
                 $invocationMatrices[] = $this->normalizedPdfReviewNumbers(array_slice($matrix, 0, 6));
             }
             if (is_array($bbox) && count($bbox) >= 4) {
                 $invocationBboxes[] = $this->normalizedPdfReviewNumbers(array_slice($bbox, 0, 4));
+            }
+            if (is_array($clipBbox) && count($clipBbox) >= 4) {
+                $clipApplied = true;
+                $invocationClipBboxes[] = $this->normalizedPdfReviewNumbers(array_slice($clipBbox, 0, 4));
+            }
+            if (is_array($visibleBbox) && count($visibleBbox) >= 4) {
+                $invocationVisibleBboxes[] = $this->normalizedPdfReviewNumbers(array_slice($visibleBbox, 0, 4));
+            } elseif (is_array($clipBbox) && count($clipBbox) >= 4) {
+                $clipExcludedInvocationCount++;
+            }
+            if (($detail['clipped'] ?? false) === true) {
+                $clipReducesPaintedBbox = true;
             }
         }
         $imageUnitBbox = null;
@@ -3619,6 +3759,11 @@ final class PdfTextExtractor
             $imageUnitBbox = $this->pdfRectangleUnion($imageUnitBbox, $bbox);
         }
         $imageUnitBbox = $imageUnitBbox === null ? null : $this->normalizedPdfReviewNumbers($imageUnitBbox);
+        $imageVisibleBbox = null;
+        foreach ($invocationVisibleBboxes as $bbox) {
+            $imageVisibleBbox = $this->pdfRectangleUnion($imageVisibleBbox, $bbox);
+        }
+        $imageVisibleBbox = $imageVisibleBbox === null ? null : $this->normalizedPdfReviewNumbers($imageVisibleBbox);
 
         return [
             'page_index' => $pageIndex,
@@ -3631,9 +3776,17 @@ final class PdfTextExtractor
             'optional_content_visible' => $optionalContentVisible,
             'invoked' => $invocationMatrices !== [],
             'invocation_count' => count($invocationMatrices),
+            'painted_invocation_count' => count($invocationVisibleBboxes),
             'invocation_matrices' => $invocationMatrices,
             'invocation_bboxes' => $invocationBboxes,
+            'invocation_clip_bboxes' => $invocationClipBboxes,
+            'invocation_visible_bboxes' => $invocationVisibleBboxes,
             'image_unit_bbox' => $imageUnitBbox,
+            'image_visible_bbox' => $imageVisibleBbox,
+            'clip_applied' => $clipApplied,
+            'clip_reduces_painted_bbox' => $clipReducesPaintedBbox,
+            'clip_excludes_image' => $clipExcludedInvocationCount > 0,
+            'clip_excluded_invocation_count' => $clipExcludedInvocationCount,
             'placement_review_only' => true,
             'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
             'width' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
@@ -9129,6 +9282,30 @@ final class PdfTextExtractor
         return [
             ($matrix[0] * $x) + ($matrix[2] * $y) + $matrix[4],
             ($matrix[1] * $x) + ($matrix[3] * $y) + $matrix[5],
+        ];
+    }
+
+    /**
+     * @param list<float> $matrix
+     * @param list<float> $rectangle
+     * @return list<float>
+     */
+    private function pdfRectangleTransform(array $matrix, array $rectangle): array
+    {
+        $points = [
+            $this->pdfMatrixTransformPoint($matrix, $rectangle[0], $rectangle[1]),
+            $this->pdfMatrixTransformPoint($matrix, $rectangle[2], $rectangle[1]),
+            $this->pdfMatrixTransformPoint($matrix, $rectangle[0], $rectangle[3]),
+            $this->pdfMatrixTransformPoint($matrix, $rectangle[2], $rectangle[3]),
+        ];
+        $xs = array_column($points, 0);
+        $ys = array_column($points, 1);
+
+        return [
+            min($xs),
+            min($ys),
+            max($xs),
+            max($ys),
         ];
     }
 
