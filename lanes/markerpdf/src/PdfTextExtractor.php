@@ -229,6 +229,7 @@ final class PdfTextExtractor
 
         $objects = $this->pdfObjects($pdfBytes);
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
+        $optionalContentStates = $this->optionalContentVisibilityStates($objects);
         $review['page_count'] = count($pageObjectNumbers);
 
         foreach ($pageObjectNumbers as $pageIndex => $pageObjectNumber) {
@@ -246,7 +247,8 @@ final class PdfTextExtractor
                 $pageObjectNumber,
                 $resourceDictionary,
                 $objects,
-                $this->pageDecodedContentStreams($objects[$pageObjectNumber], $objects)
+                $this->pageDecodedContentStreams($objects[$pageObjectNumber], $objects),
+                $optionalContentStates
             ) as $entry) {
                 $review['entries'][] = $entry;
                 $review['image_xobject_count']++;
@@ -3292,6 +3294,7 @@ final class PdfTextExtractor
      * @return list<array<string, mixed>>
      * @param array<int, string> $objects
      * @param list<string> $decodedContents
+     * @param array<int, bool> $optionalContentStates
      * @param list<string> $resourcePath
      * @param array<int, true> $activeFormObjectNumbers
      */
@@ -3301,6 +3304,7 @@ final class PdfTextExtractor
         string $resourceOwnerBody,
         array $objects,
         array $decodedContents,
+        array $optionalContentStates = [],
         int $ownerInvocationCount = 1,
         array $resourcePath = [],
         array $activeFormObjectNumbers = [],
@@ -3312,6 +3316,18 @@ final class PdfTextExtractor
             return [];
         }
 
+        $optionalContentProperties = $this->optionalContentPropertyVisibilityMapForResourceOwnerBody(
+            $resourceOwnerBody,
+            $objects,
+            $optionalContentStates
+        );
+        if ($optionalContentProperties !== []) {
+            $decodedContents = array_map(
+                fn (string $content): string => $this->filterOptionalContentMarkedBlocks($content, $optionalContentProperties),
+                $decodedContents
+            );
+        }
+
         $invocations = [];
         foreach ($decodedContents as $content) {
             foreach ($this->contentXObjectInvocationCounts($content) as $resourceName => $count) {
@@ -3321,8 +3337,11 @@ final class PdfTextExtractor
 
         $entries = [];
         foreach ($xObjectMap as $resourceName => $objectNumber) {
+            $optionalContentVisible = isset($objects[$objectNumber])
+                ? $this->optionalContentObjectVisible($objects[$objectNumber], $objects, $optionalContentStates)
+                : true;
             $localInvocationCount = $invocations[$resourceName] ?? 0;
-            $effectiveInvocationCount = $localInvocationCount > 0
+            $effectiveInvocationCount = $localInvocationCount > 0 && $optionalContentVisible
                 ? $ownerInvocationCount * $localInvocationCount
                 : 0;
             $entryResourcePath = [...$resourcePath, $resourceName];
@@ -3334,13 +3353,14 @@ final class PdfTextExtractor
                 $effectiveInvocationCount,
                 $objects,
                 $entryResourcePath,
-                $parentFormObjectNumber
+                $parentFormObjectNumber,
+                $optionalContentVisible
             );
             if ($entry !== null && ($includeUninvokedImageResources || $entry['invoked'])) {
                 $entries[] = $entry;
             }
 
-            if ($localInvocationCount <= 0 || isset($activeFormObjectNumbers[$objectNumber])) {
+            if ($localInvocationCount <= 0 || !$optionalContentVisible || isset($activeFormObjectNumbers[$objectNumber])) {
                 continue;
             }
 
@@ -3359,6 +3379,7 @@ final class PdfTextExtractor
                 $formResourceOwnerBody,
                 $objects,
                 [$form['stream']],
+                $optionalContentStates,
                 $effectiveInvocationCount,
                 $entryResourcePath,
                 $nextActiveForms,
@@ -3431,7 +3452,8 @@ final class PdfTextExtractor
         int $invocationCount,
         array $objects,
         array $resourcePath = [],
-        ?int $parentFormObjectNumber = null
+        ?int $parentFormObjectNumber = null,
+        bool $optionalContentVisible = true
     ): ?array {
         if (!isset($objects[$objectNumber])) {
             return null;
@@ -3466,6 +3488,7 @@ final class PdfTextExtractor
             'form_xobject_depth' => max(0, count($resourcePath) - 1),
             'parent_form_xobject_object' => $parentFormObjectNumber,
             'object_number' => $objectNumber,
+            'optional_content_visible' => $optionalContentVisible,
             'invoked' => $invocationCount > 0,
             'invocation_count' => $invocationCount,
             'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',

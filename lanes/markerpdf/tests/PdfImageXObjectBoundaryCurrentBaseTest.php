@@ -222,6 +222,78 @@ return [
         $t->true(!str_contains($plainText, 'Unused Page Image Payload Noise'));
         $t->same(['Before inherited form image', 'After inherited form image'], $extractor->extractTextLines($pdf));
     },
+    'counts optional-content-hidden image XObject invocations as unpainted review metadata' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Current Optional Content Images) Tj ET\n"
+            . "/OC /LayerOff BDC q 12 0 0 12 72 690 cm /HiddenMarked Do Q EMC\n"
+            . "/OC /LayerOn BDC q 12 0 0 12 92 690 cm /Visible#20Image Do Q EMC\n"
+            . "q 12 0 0 12 112 690 cm /HiddenObject Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After Optional Content Images) Tj ET';
+        $visiblePayload = 'BT /F1 12 Tf 72 720 Td (Visible Optional Image Noise) Tj ET';
+        $hiddenMarkedPayload = 'BT /F1 12 Tf 72 720 Td (Hidden Marked Image Noise) Tj ET';
+        $hiddenObjectPayload = 'BT /F1 12 Tf 72 720 Td (Hidden Object Image Noise) Tj ET';
+        $visibleCompressed = gzcompress($visiblePayload);
+        $hiddenMarkedCompressed = gzcompress($hiddenMarkedPayload);
+        $hiddenObjectCompressed = gzcompress($hiddenObjectPayload);
+        if (!is_string($visibleCompressed) || !is_string($hiddenMarkedCompressed) || !is_string($hiddenObjectCompressed)) {
+            throw new RuntimeException('Unable to compress optional content image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.5\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [20 0 R 21 0 R] /D << /BaseState /OFF /ON [20 0 R] /Order [20 0 R 21 0 R] >> >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 10 0 R >> /Properties << /LayerOn 20 0 R /LayerOff 21 0 R >> /XObject << /Visible#20Image 5 0 R /HiddenMarked 6 0 R /HiddenObject 7 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /OC 20 0 R /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($visibleCompressed) . " >>\nstream\n{$visibleCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($hiddenMarkedCompressed) . " >>\nstream\n{$hiddenMarkedCompressed}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /XObject /Subtype /Image /OC 21 0 R /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($hiddenObjectCompressed) . " >>\nstream\n{$hiddenObjectCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "20 0 obj\n<< /Type /OCG /Name (Visible Image Layer) >>\nendobj\n"
+            . "21 0 obj\n<< /Type /OCG /Name (Hidden Image Layer) >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(3, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(2, $review['uninvoked_image_xobject_count']);
+        $t->same(['Current Optional Content Images', 'After Optional Content Images'], $extractor->extractTextLines($pdf));
+        $t->same("Current Optional Content Images\nAfter Optional Content Images", $plainText);
+
+        $visible = $entriesByName['Visible Image'];
+        $t->same(true, $visible['optional_content_visible']);
+        $t->same(true, $visible['invoked']);
+        $t->same(1, $visible['invocation_count']);
+        $t->same(true, $visible['decoded_with_current_filters']);
+        $t->same(hash('sha256', $visiblePayload), $visible['decoded_sha256']);
+
+        $hiddenMarked = $entriesByName['HiddenMarked'];
+        $t->same(true, $hiddenMarked['optional_content_visible']);
+        $t->same(false, $hiddenMarked['invoked']);
+        $t->same(0, $hiddenMarked['invocation_count']);
+        $t->same(true, $hiddenMarked['decoded_with_current_filters']);
+        $t->same(hash('sha256', $hiddenMarkedPayload), $hiddenMarked['decoded_sha256']);
+
+        $hiddenObject = $entriesByName['HiddenObject'];
+        $t->same(false, $hiddenObject['optional_content_visible']);
+        $t->same(false, $hiddenObject['invoked']);
+        $t->same(0, $hiddenObject['invocation_count']);
+        $t->same(true, $hiddenObject['decoded_with_current_filters']);
+        $t->same(hash('sha256', $hiddenObjectPayload), $hiddenObject['decoded_sha256']);
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $visiblePayload));
+        $t->true(!str_contains($encoded, $hiddenMarkedPayload));
+        $t->true(!str_contains($encoded, $hiddenObjectPayload));
+        $t->true(!str_contains($plainText, 'Visible Optional Image Noise'));
+        $t->true(!str_contains($plainText, 'Hidden Marked Image Noise'));
+        $t->true(!str_contains($plainText, 'Hidden Object Image Noise'));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
