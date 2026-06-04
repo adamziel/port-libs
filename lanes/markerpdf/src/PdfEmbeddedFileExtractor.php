@@ -1996,17 +1996,17 @@ final class PdfEmbeddedFileExtractor
         }
         $seenOffsets[$offset] = true;
 
-        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
+        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions, $objects);
         if ($tableSection !== null) {
             $entries = $tableSection['entries'];
-            $hybridStreamOffset = $this->dictionaryIntegerValue($tableSection['trailer'], 'XRefStm');
+            $hybridStreamOffset = $this->dictionaryIntegerValue($tableSection['trailer'], 'XRefStm', $objects);
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
                 foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions) as $objectNumber => $entry) {
                     $entries[$objectNumber] ??= $entry;
                 }
             }
 
-            $previousOffset = $this->dictionaryIntegerValue($tableSection['trailer'], 'Prev');
+            $previousOffset = $this->dictionaryIntegerValue($tableSection['trailer'], 'Prev', $objects);
             if ($previousOffset !== null && $previousOffset >= 0) {
                 foreach ($this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets) as $objectNumber => $entry) {
                     $entries[$objectNumber] ??= $entry;
@@ -2022,7 +2022,7 @@ final class PdfEmbeddedFileExtractor
         }
 
         $entries = $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions);
-        $previousOffset = $this->dictionaryIntegerValue($streamSection['body'], 'Prev');
+        $previousOffset = $this->dictionaryIntegerValue($streamSection['body'], 'Prev', $objects);
         if ($previousOffset !== null && $previousOffset >= 0) {
             foreach ($this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets) as $objectNumber => $entry) {
                 $entries[$objectNumber] ??= $entry;
@@ -2036,7 +2036,7 @@ final class PdfEmbeddedFileExtractor
      * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
      * @return array{entries: array<int, array{type: int, generation: int, offset: int, offsetIsExplicit: bool}>, trailer: string}|null
      */
-    private function xrefTableSectionAt(string $pdfBytes, int $offset, ?array $definitions = null): ?array
+    private function xrefTableSectionAt(string $pdfBytes, int $offset, ?array $definitions = null, array $objects = []): ?array
     {
         if ($definitions !== null && $this->offsetOwnedByDirectObjectBody($offset, $definitions)) {
             return null;
@@ -2066,7 +2066,7 @@ final class PdfEmbeddedFileExtractor
         $trailerBody = $trailer['body'];
         $entries = $this->xrefTableRows(substr($pdfBytes, $sectionBodyOffset, $trailerOffset - $sectionBodyOffset));
         if ($definitions !== null) {
-            $entries = $this->repairCurrentUpdateXrefTableRows($entries, $definitions, $trailerBody, $offset);
+            $entries = $this->repairCurrentUpdateXrefTableRows($entries, $definitions, $trailerBody, $offset, $objects);
         }
 
         return [
@@ -2135,9 +2135,9 @@ final class PdfEmbeddedFileExtractor
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @return array<int, array{type: int, generation: int, offset: int, offsetIsExplicit: bool}>
      */
-    private function repairCurrentUpdateXrefTableRows(array $entries, array $definitions, string $trailer, int $xrefOffset): array
+    private function repairCurrentUpdateXrefTableRows(array $entries, array $definitions, string $trailer, int $xrefOffset, array $objects = []): array
     {
-        $previousOffset = $this->dictionaryIntegerValue($trailer, 'Prev');
+        $previousOffset = $this->dictionaryIntegerValue($trailer, 'Prev', $objects === [] ? null : $objects);
         if ($previousOffset === null || $previousOffset < 0) {
             return $entries;
         }
@@ -2234,7 +2234,7 @@ final class PdfEmbeddedFileExtractor
 
         $decoded = $stream['content'];
         $decodedEntryCount = strlen($decoded) % $entryWidth === 0 ? intdiv(strlen($decoded), $entryWidth) : null;
-        $previousOffset = $definitions === null ? null : $this->dictionaryIntegerValue($body, 'Prev');
+        $previousOffset = $definitions === null ? null : $this->dictionaryIntegerValue($body, 'Prev', $objects);
         $xrefOffset = (int) $definition['offset'];
         $offset = 0;
         foreach ($this->xrefIndexRanges($body, $decodedEntryCount) as $range) {
@@ -2929,14 +2929,22 @@ final class PdfEmbeddedFileExtractor
         return $this->stringValueFromRaw($resolved, $objects);
     }
 
-    private function dictionaryIntegerValue(string $dictionary, string $key): ?int
+    /**
+     * @param array<int, string>|null $objects
+     */
+    private function dictionaryIntegerValue(string $dictionary, string $key, ?array $objects = null): ?int
     {
         $value = $this->dictionaryRawValue($dictionary, $key);
-        if ($value === null || preg_match('/^-?\d+$/', trim($value)) !== 1) {
+        if ($value === null) {
             return null;
         }
 
-        return (int) trim($value);
+        $resolved = trim($objects === null ? $value : ($this->resolveRawValue($value, $objects) ?? $value));
+        if (preg_match('/^-?\d+$/', $resolved) !== 1) {
+            return null;
+        }
+
+        return (int) $resolved;
     }
 
     /**
