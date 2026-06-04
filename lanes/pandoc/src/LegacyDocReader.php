@@ -394,6 +394,7 @@ final class LegacyDocReader
         return match ($type) {
             0x0002 => self::signed16(self::u16($bytes, $valueOffset)),
             0x0003 => self::signed32(self::u32($bytes, $valueOffset)),
+            0x000b => $this->readVariantBool($bytes, $valueOffset),
             0x001e => $this->readLpstr($bytes, $valueOffset, $codepage),
             0x001f => $this->readLpwstr($bytes, $valueOffset),
             0x0040 => $this->readFiletime($bytes, $valueOffset),
@@ -417,13 +418,37 @@ final class LegacyDocReader
                 7 => 'template',
                 8 => 'lastModifiedBy',
                 9 => 'revision',
+                11 => 'lastPrinted',
                 12 => 'created',
                 13 => 'modified',
+                14 => 'pageCount',
+                15 => 'wordCount',
+                16 => 'characterCount',
+                18 => 'application',
+                19 => 'documentSecurity',
             ]
             : [
                 2 => 'category',
+                3 => 'presentationFormat',
+                4 => 'byteCount',
+                5 => 'lineCount',
+                6 => 'paragraphCount',
+                7 => 'slideCount',
+                8 => 'noteCount',
+                9 => 'hiddenSlideCount',
+                10 => 'multimediaClipCount',
+                11 => 'scale',
                 14 => 'manager',
                 15 => 'company',
+                16 => 'linksDirty',
+                17 => 'charactersWithSpaces',
+                19 => 'sharedDocument',
+                22 => 'hyperlinksChanged',
+                23 => 'applicationVersion',
+                26 => 'contentType',
+                27 => 'contentStatus',
+                28 => 'language',
+                29 => 'documentVersion',
             ];
 
         $metadata = [];
@@ -433,8 +458,33 @@ final class LegacyDocReader
                 $metadata[$name] = $value;
             }
         }
+        if ($kind === 'summary' && isset($metadata['documentSecurity']) && is_int($metadata['documentSecurity'])) {
+            $metadata['documentSecurityFlags'] = $this->documentSecurityFlags($metadata['documentSecurity']);
+        }
 
         return $metadata;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function documentSecurityFlags(int $flags): array
+    {
+        $map = [
+            0x00000001 => 'passwordProtected',
+            0x00000002 => 'readOnlyRecommended',
+            0x00000004 => 'readOnlyEnforced',
+            0x00000008 => 'lockedForAnnotations',
+        ];
+
+        $names = [];
+        foreach ($map as $bit => $name) {
+            if (($flags & $bit) !== 0) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
     }
 
     private function looksLikeUtf16Le(string $bytes): bool
@@ -539,6 +589,15 @@ final class LegacyDocReader
         }
 
         return rtrim($this->decodeUtf16Le(substr($bytes, $offset + 4, $byteLength)), "\0");
+    }
+
+    private function readVariantBool(string $bytes, int $offset): ?bool
+    {
+        if ($offset + 2 > strlen($bytes)) {
+            return null;
+        }
+
+        return self::u16($bytes, $offset) !== 0;
     }
 
     private function readFiletime(string $bytes, int $offset): ?string

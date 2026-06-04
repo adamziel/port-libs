@@ -48,10 +48,19 @@ $typedLpstr = static function (string $value): string {
     return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
 };
 $typedI2 = static fn (int $value): string => pack('v', 0x0002) . "\0\0" . pack('v', $value) . "\0\0";
-$propertySet = static function (array $values) use ($u32, $typedI2, $typedLpstr): string {
-    $properties = [1 => $typedI2(1252)];
-    foreach ($values as $id => $value) {
-        $properties[(int) $id] = $typedLpstr((string) $value);
+$typedI4 = static fn (int $value): string => pack('v', 0x0003) . "\0\0" . pack('V', $value);
+$typedBool = static fn (bool $value): string => pack('v', 0x000b) . "\0\0" . pack('v', $value ? 0xffff : 0) . "\0\0";
+$typedFiletime = static function (string $iso8601) use ($u64): string {
+    $seconds = strtotime($iso8601);
+    if ($seconds === false) {
+        throw new RuntimeException('Unable to encode FILETIME fixture timestamp');
+    }
+
+    return pack('v', 0x0040) . "\0\0" . $u64(((int) $seconds + 11644473600) * 10000000);
+};
+$typedPropertySet = static function (array $properties) use ($u32, $typedI2): string {
+    if (!array_key_exists(1, $properties)) {
+        $properties = [1 => $typedI2(1252)] + $properties;
     }
 
     $count = count($properties);
@@ -73,6 +82,14 @@ $propertySet = static function (array $values) use ($u32, $typedI2, $typedLpstr)
         . $u32(48)
         . $set;
 };
+$propertySet = static function (array $values) use ($typedLpstr, $typedPropertySet): string {
+    $properties = [];
+    foreach ($values as $id => $value) {
+        $properties[(int) $id] = $typedLpstr((string) $value);
+    }
+
+    return $typedPropertySet($properties);
+};
 
 $wordText = "Legacy DOC import ΩЖ魚\rReviewer notes keep hard\vbreaks for block review.\r";
 $wordTextBytes = iconv('UTF-8', 'UTF-16LE', $wordText);
@@ -90,11 +107,27 @@ $wordDocument .= $wordTextBytes;
 
 $streams = [
     'WordDocument' => $wordDocument,
-    "\x05SummaryInformation" => $propertySet([
-        2 => 'Legacy DOC import packet',
-        4 => 'Migration Desk',
-        6 => 'Source .doc review notes',
-        8 => 'Reviewer',
+    "\x05SummaryInformation" => $typedPropertySet([
+        2 => $typedLpstr('Legacy DOC import packet'),
+        4 => $typedLpstr('Migration Desk'),
+        6 => $typedLpstr('Source .doc review notes'),
+        8 => $typedLpstr('Reviewer'),
+        12 => $typedFiletime('2024-01-02T03:04:05Z'),
+        13 => $typedFiletime('2024-02-10T11:12:13Z'),
+        14 => $typedI4(2),
+        15 => $typedI4(12),
+        16 => $typedI4(72),
+        18 => $typedLpstr('Native PHP legacy DOC handoff'),
+        19 => $typedI4(0x00000002),
+    ]),
+    "\x05DocumentSummaryInformation" => $typedPropertySet([
+        2 => $typedLpstr('Data Liberation import queue'),
+        5 => $typedI4(2),
+        6 => $typedI4(2),
+        11 => $typedBool(false),
+        15 => $typedLpstr('Example Press'),
+        16 => $typedBool(true),
+        17 => $typedI4(78),
     ]),
 ];
 
@@ -197,6 +230,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['metadata']['creator'] ?? '') !== 'Migration Desk') {
         throw new RuntimeException('Legacy DOC handoff self-test missing metadata creator');
+    }
+    if (($summary['metadata']['pageCount'] ?? null) !== 2 || ($summary['metadata']['wordCount'] ?? null) !== 12) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SummaryInformation counts');
+    }
+    if (($summary['metadata']['documentSecurityFlags'] ?? []) !== ['readOnlyRecommended']) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing document security flags');
+    }
+    if (($summary['metadata']['lineCount'] ?? null) !== 2 || ($summary['metadata']['linksDirty'] ?? null) !== true) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing DocumentSummaryInformation review metadata');
     }
     foreach ([
         '<p>Legacy DOC import ΩЖ魚</p>',

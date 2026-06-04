@@ -168,11 +168,26 @@ $typedLpstr = static function (string $value): string {
 
     return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
 };
+$typedLpwstr = static function (string $value) use ($utf16le): string {
+    $bytes = $utf16le($value . "\0");
+    $raw = pack('v', 0x001f) . "\0\0" . pack('V', intdiv(strlen($bytes), 2)) . $bytes;
+
+    return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
+};
 $typedI2 = static fn (int $value): string => pack('v', 0x0002) . "\0\0" . pack('v', $value) . "\0\0";
-$propertySet = static function (array $values) use ($u32, $typedI2, $typedLpstr): string {
-    $properties = [1 => $typedI2(1252)];
-    foreach ($values as $id => $value) {
-        $properties[(int) $id] = $typedLpstr((string) $value);
+$typedI4 = static fn (int $value): string => pack('v', 0x0003) . "\0\0" . pack('V', $value);
+$typedBool = static fn (bool $value): string => pack('v', 0x000b) . "\0\0" . pack('v', $value ? 0xffff : 0) . "\0\0";
+$typedFiletime = static function (string $iso8601) use ($u64): string {
+    $seconds = strtotime($iso8601);
+    if ($seconds === false) {
+        throw new RuntimeException('Unable to encode FILETIME fixture timestamp');
+    }
+
+    return pack('v', 0x0040) . "\0\0" . $u64(((int) $seconds + 11644473600) * 10000000);
+};
+$typedPropertySet = static function (array $properties) use ($u32, $typedI2): string {
+    if (!array_key_exists(1, $properties)) {
+        $properties = [1 => $typedI2(1252)] + $properties;
     }
 
     $count = count($properties);
@@ -193,6 +208,14 @@ $propertySet = static function (array $values) use ($u32, $typedI2, $typedLpstr)
         . str_repeat("\0", 16)
         . $u32(48)
         . $set;
+};
+$propertySet = static function (array $values) use ($typedLpstr, $typedPropertySet): string {
+    $properties = [];
+    foreach ($values as $id => $value) {
+        $properties[(int) $id] = $typedLpstr((string) $value);
+    }
+
+    return $typedPropertySet($properties);
 };
 
 $buildSimpleWordDocument = static function (string $text, int $flags = 0, string $encoding = 'Windows-1252//TRANSLIT'): string {
@@ -297,6 +320,89 @@ return [
         $t->same('breaks.', $document->children[1]->children[2]->attr('text'));
         $t->contains('Reviewer notes keep hard', $markdown);
         $t->contains("<p>Reviewer notes keep hard<br/>breaks.</p>", $blocks);
+    },
+    'extracts legacy DOC SummaryInformation dates counts and security metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedLpwstr, $typedI4, $typedFiletime): void {
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Metadata review packet\r"),
+            "\x05SummaryInformation" => $typedPropertySet([
+                2 => $typedLpwstr('Unicode Legacy Packet Ω'),
+                11 => $typedFiletime('2024-02-03T04:05:06Z'),
+                12 => $typedFiletime('2024-01-02T03:04:05Z'),
+                13 => $typedFiletime('2024-02-10T11:12:13Z'),
+                14 => $typedI4(7),
+                15 => $typedI4(321),
+                16 => $typedI4(2048),
+                18 => $typedLpwstr('Word 97 Review Importer'),
+                19 => $typedI4(0x00000003),
+            ]),
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $metadata = $result['metadata'];
+
+        $t->same('Unicode Legacy Packet Ω', $metadata['title']);
+        $t->same('2024-02-03T04:05:06Z', $metadata['lastPrinted']);
+        $t->same('2024-01-02T03:04:05Z', $metadata['created']);
+        $t->same('2024-02-10T11:12:13Z', $metadata['modified']);
+        $t->same(7, $metadata['pageCount']);
+        $t->same(321, $metadata['wordCount']);
+        $t->same(2048, $metadata['characterCount']);
+        $t->same('Word 97 Review Importer', $metadata['application']);
+        $t->same(3, $metadata['documentSecurity']);
+        $t->same(['passwordProtected', 'readOnlyRecommended'], $metadata['documentSecurityFlags']);
+        $t->same('Unicode Legacy Packet Ω', $result['document']->attr('meta')['title']);
+    },
+    'extracts legacy DOC DocumentSummaryInformation counters and booleans' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedLpstr, $typedI4, $typedBool): void {
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Document summary review packet\r"),
+            "\x05DocumentSummaryInformation" => $typedPropertySet([
+                2 => $typedLpstr('Import queue'),
+                3 => $typedLpstr('A4 Paper (210x297 mm)'),
+                4 => $typedI4(8192),
+                5 => $typedI4(44),
+                6 => $typedI4(12),
+                7 => $typedI4(0),
+                8 => $typedI4(3),
+                9 => $typedI4(1),
+                10 => $typedI4(2),
+                11 => $typedBool(false),
+                14 => $typedLpstr('Review Manager'),
+                15 => $typedLpstr('Example Press'),
+                16 => $typedBool(true),
+                17 => $typedI4(2400),
+                19 => $typedBool(false),
+                22 => $typedBool(true),
+                23 => $typedI4(0x00100000),
+                26 => $typedLpstr('migration-review'),
+                27 => $typedLpstr('draft-import'),
+                28 => $typedLpstr('en-US'),
+                29 => $typedLpstr('16.0'),
+            ]),
+        ]);
+
+        $metadata = (new LegacyDocReader())->readBytes($docBytes)['metadata'];
+
+        $t->same('Import queue', $metadata['category']);
+        $t->same('A4 Paper (210x297 mm)', $metadata['presentationFormat']);
+        $t->same(8192, $metadata['byteCount']);
+        $t->same(44, $metadata['lineCount']);
+        $t->same(12, $metadata['paragraphCount']);
+        $t->same(0, $metadata['slideCount']);
+        $t->same(3, $metadata['noteCount']);
+        $t->same(1, $metadata['hiddenSlideCount']);
+        $t->same(2, $metadata['multimediaClipCount']);
+        $t->same(false, $metadata['scale']);
+        $t->same('Review Manager', $metadata['manager']);
+        $t->same('Example Press', $metadata['company']);
+        $t->same(true, $metadata['linksDirty']);
+        $t->same(2400, $metadata['charactersWithSpaces']);
+        $t->same(false, $metadata['sharedDocument']);
+        $t->same(true, $metadata['hyperlinksChanged']);
+        $t->same(0x00100000, $metadata['applicationVersion']);
+        $t->same('migration-review', $metadata['contentType']);
+        $t->same('draft-import', $metadata['contentStatus']);
+        $t->same('en-US', $metadata['language']);
+        $t->same('16.0', $metadata['documentVersion']);
     },
     'extracts complex legacy DOC piece-table text from the selected 1Table stream' => static function (TestRunner $t) use ($buildCfb, $buildPieceTableDocStreams): void {
         $streams = $buildPieceTableDocStreams();
