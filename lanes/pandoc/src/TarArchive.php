@@ -15,6 +15,7 @@ final class TarArchive
     private const TYPE_SYMBOLIC_LINK = '2';
     private const TYPE_PAX_EXTENDED = 'x';
     private const TYPE_PAX_GLOBAL = 'g';
+    private const TYPE_GNU_LONG_NAME = 'L';
 
     /**
      * @param array<string, TarArchiveEntry> $entriesByName
@@ -47,11 +48,15 @@ final class TarArchive
         $entriesByName = [];
         $pendingPaxHeaders = [];
         $globalPaxHeaders = [];
+        $pendingGnuLongName = null;
         $totalUnpackedBytes = 0;
 
         while ($cursor < $length) {
             $header = substr($bytes, $cursor, self::BLOCK_SIZE);
             if (self::isZeroBlock($header)) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
                 self::assertTrailingZeroBlocks($bytes, $cursor);
                 break;
             }
@@ -71,6 +76,16 @@ final class TarArchive
                 throw new \RuntimeException('TAR entry payload extends beyond archive bytes');
             }
 
+            if ($typeFlag === self::TYPE_GNU_LONG_NAME) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+
+                $pendingGnuLongName = self::parseGnuLongName(substr($bytes, $dataOffset, $size));
+                $cursor = $nextCursor;
+                continue;
+            }
+
             if ($typeFlag === self::TYPE_PAX_EXTENDED || $typeFlag === self::TYPE_PAX_GLOBAL) {
                 $headers = self::parsePaxHeaders(substr($bytes, $dataOffset, $size));
                 if ($typeFlag === self::TYPE_PAX_EXTENDED) {
@@ -83,7 +98,7 @@ final class TarArchive
             }
 
             $metadataHeaders = array_merge($globalPaxHeaders, $pendingPaxHeaders);
-            $name = self::resolvedNameFromHeader($header, $metadataHeaders);
+            $name = self::resolvedNameFromHeader($header, $metadataHeaders, $pendingGnuLongName);
             self::assertSafePath($name, 'TAR entry name');
 
             if ($typeFlag === self::TYPE_HARD_LINK || $typeFlag === self::TYPE_SYMBOLIC_LINK) {
@@ -130,6 +145,7 @@ final class TarArchive
             $entries[] = $entry;
             $entriesByName[$name] = $entry;
             $pendingPaxHeaders = [];
+            $pendingGnuLongName = null;
             $cursor = $nextCursor;
         }
 
@@ -351,10 +367,14 @@ final class TarArchive
     /**
      * @param array<string, string> $headers
      */
-    private static function resolvedNameFromHeader(string $header, array $headers): string
+    private static function resolvedNameFromHeader(string $header, array $headers, ?string $gnuLongName): string
     {
         if (isset($headers['path'])) {
             return $headers['path'];
+        }
+
+        if ($gnuLongName !== null) {
+            return $gnuLongName;
         }
 
         $name = self::trimNullField(substr($header, 0, 100));
@@ -460,6 +480,14 @@ final class TarArchive
         }
 
         return $headers;
+    }
+
+    private static function parseGnuLongName(string $bytes): string
+    {
+        $name = rtrim($bytes, "\0");
+        self::assertSafePath($name, 'TAR GNU long name');
+
+        return $name;
     }
 
     /**

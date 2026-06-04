@@ -31,6 +31,37 @@ $buildNtfsExtra = static function (int $modifiedAt, int $accessedAt, int $create
 
     return pack('vv', 0x000a, strlen($payload)) . $payload;
 };
+$buildRawTarRecord = static function (string $name, string $typeFlag, string $data = '', int $modifiedAt = 0): string {
+    $octal = static fn (int $value, int $length): string => str_pad(decoct($value), $length - 1, '0', STR_PAD_LEFT) . "\0";
+    $field = static fn (string $value, int $length): string => str_pad($value, $length, "\0");
+
+    $header = $field($name, 100)
+        . $octal(0644, 8)
+        . $octal(0, 8)
+        . $octal(0, 8)
+        . $octal(strlen($data), 12)
+        . $octal($modifiedAt, 12)
+        . str_repeat(' ', 8)
+        . $typeFlag
+        . $field('', 100)
+        . "ustar\0"
+        . '00'
+        . $field('', 32)
+        . $field('', 32)
+        . $octal(0, 8)
+        . $octal(0, 8)
+        . $field('', 155)
+        . str_repeat("\0", 12);
+
+    $checksum = 0;
+    for ($index = 0, $length = strlen($header); $index < $length; $index++) {
+        $checksum += ord($header[$index]);
+    }
+
+    $padding = strlen($data) % 512 === 0 ? '' : str_repeat("\0", 512 - (strlen($data) % 512));
+
+    return substr_replace($header, sprintf('%06o', $checksum) . "\0 ", 148, 8) . $data . $padding;
+};
 
 $buildDescriptorBackedPackage = static function () use ($crc32): string {
     $name = 'word/comments.xml';
@@ -183,6 +214,16 @@ $compressedTarPacket = GzipStream::build($tarPacket->bytes(), [
     'headerCrc' => true,
 ]);
 $tarPacketRoundTrip = TarArchive::fromString(GzipStream::decode($compressedTarPacket));
+$gnuLongDocumentName = 'packet/' . str_repeat('migration-review-', 7) . 'word/document.xml';
+$gnuLongNameTar = $buildRawTarRecord('././@LongLink', 'L', $gnuLongDocumentName . "\0", $documentModifiedAt)
+    . $buildRawTarRecord(
+        'placeholder-document.xml',
+        '0',
+        '<w:document><w:body><w:p>GNU long-name tar source</w:p></w:body></w:document>',
+        $documentModifiedAt
+    )
+    . str_repeat("\0", 1024);
+$gnuLongNamePacket = TarArchive::fromString($gnuLongNameTar);
 $lz4ReviewPacket = Lz4Frame::skippableFrame('wordpress import archive metadata', 2)
     . Lz4Frame::build($tarPacket->bytes(), [
         'blockChecksum' => true,
@@ -280,6 +321,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected gzip-wrapped tar document bytes to round-trip');
     }
 
+    if ($gnuLongNamePacket->read('/' . $gnuLongDocumentName) !== '<w:document><w:body><w:p>GNU long-name tar source</w:p></w:body></w:document>') {
+        throw new RuntimeException('Expected GNU long-name tar document bytes to be addressable by the metadata path');
+    }
+
     if (!$tarPacketRoundTrip->entry('packet/')->isDirectory()) {
         throw new RuntimeException('Expected tar packet directory metadata to round-trip');
     }
@@ -328,6 +373,7 @@ echo 'gzip.comment=' . $compressedPackageMembers[0]['comment'] . "\n";
 echo 'gzip.compressedSize=' . $compressedPackageMembers[0]['compressedSize'] . "\n";
 echo 'tar.entries=' . implode(',', $tarPacketRoundTrip->names()) . "\n";
 echo 'tar.document.xml=' . $tarPacketRoundTrip->read('/packet/word/document.xml') . "\n";
+echo 'tar.gnuLongName=' . implode(',', $gnuLongNamePacket->names()) . "\n";
 echo 'lz4.frames=' . count($lz4ReviewFrames) . "\n";
 echo 'lz4.skippable=' . $lz4ReviewFrames[0]['data'] . "\n";
 echo 'lz4.blockTypes=' . implode(',', $lz4ReviewFrames[1]['blockTypes']) . "\n";

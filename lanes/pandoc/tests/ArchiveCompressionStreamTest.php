@@ -7,7 +7,7 @@ use PortLibs\Pandoc\Lz4Frame;
 use PortLibs\Pandoc\TarArchive;
 use PortLibs\Pandoc\TarArchiveEntry;
 
-$rawTarHeader = static function (string $name, string $typeFlag, string $data = '', int $modifiedAt = 0): string {
+$rawTarHeader = static function (string $name, string $typeFlag, string $data = '', int $modifiedAt = 0, bool $withEndMarker = true): string {
     $octal = static function (int $value, int $length): string {
         return str_pad(decoct($value), $length - 1, '0', STR_PAD_LEFT) . "\0";
     };
@@ -39,7 +39,7 @@ $rawTarHeader = static function (string $name, string $typeFlag, string $data = 
     $header = substr_replace($header, sprintf('%06o', $checksum) . "\0 ", 148, 8);
     $padding = strlen($data) % 512 === 0 ? '' : str_repeat("\0", 512 - (strlen($data) % 512));
 
-    return $header . $data . $padding . str_repeat("\0", 1024);
+    return $header . $data . $padding . ($withEndMarker ? str_repeat("\0", 1024) : '');
 };
 
 $lz4HeaderChecksum = static fn (string $descriptor): string => chr((intval(hash('xxh32', $descriptor), 16) >> 8) & 0xff);
@@ -117,6 +117,30 @@ return [
         $t->same('<w:document><w:p>pax path metadata</w:p></w:document>', $roundTrip->read('/' . $paxName));
     },
 
+    'reads gnu long name metadata for tar package fixture entries' => static function (TestRunner $t) use ($rawTarHeader): void {
+        $longDocumentName = 'packet/' . str_repeat('migration-review-', 7) . 'word/document.xml';
+        $longDirectoryName = 'packet/' . str_repeat('review-directory-', 6) . 'assets/';
+        $archive = $rawTarHeader('././@LongLink', 'L', $longDocumentName . "\0", 1780479024, false)
+            . $rawTarHeader('placeholder-document.xml', '0', '<w:document><w:p>GNU long name source</w:p></w:document>', 1780479025, false)
+            . $rawTarHeader('././@LongLink', 'L', $longDirectoryName . "\0", 1780479026, false)
+            . $rawTarHeader('placeholder-assets', '5', '', 1780479027, false)
+            . str_repeat("\0", 1024);
+
+        $roundTrip = TarArchive::fromString($archive);
+        $documentEntry = $roundTrip->entry($longDocumentName);
+        $directoryEntry = $roundTrip->entry($longDirectoryName);
+
+        $t->true(strlen($longDocumentName) > 100);
+        $t->true(strlen($longDirectoryName) > 100);
+        $t->same([$longDocumentName, $longDirectoryName], $roundTrip->names());
+        $t->true($documentEntry->isRegularFile());
+        $t->same(1780479025, $documentEntry->modifiedAt);
+        $t->same('<w:document><w:p>GNU long name source</w:p></w:document>', $roundTrip->read('/' . $longDocumentName));
+        $t->true($directoryEntry->isDirectory());
+        $t->same(1780479027, $directoryEntry->modifiedAt);
+        $t->same('', $roundTrip->read($longDirectoryName));
+    },
+
     'rejects unsafe or unsupported tar archive entries' => static function (TestRunner $t) use ($rawTarHeader): void {
         $valid = TarArchive::build([
             ['name' => 'packet/document.xml', 'data' => '<w:document/>'],
@@ -125,6 +149,11 @@ return [
         $linkArchive = $rawTarHeader('packet/link', '2', 'packet/document.xml');
         $deviceArchive = $rawTarHeader('packet/device', '3');
         $directoryWithPayload = $rawTarHeader('packet/dir/', '5', 'payload');
+        $unsafeGnuLongName = $rawTarHeader('././@LongLink', 'L', '../packet/document.xml' . "\0", 0, false)
+            . $rawTarHeader('placeholder.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+        $danglingGnuLongName = $rawTarHeader('././@LongLink', 'L', 'packet/missing.xml' . "\0", 0, false)
+            . str_repeat("\0", 1024);
 
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromEntries([
             ['name' => '../packet/document.xml', 'data' => 'unsafe'],
@@ -134,6 +163,8 @@ return [
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($linkArchive));
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($deviceArchive));
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($directoryWithPayload));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($unsafeGnuLongName));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($danglingGnuLongName));
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($valid, 1));
     },
 
