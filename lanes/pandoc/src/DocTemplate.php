@@ -136,6 +136,10 @@ final class DocTemplate
             }
 
             $directive = $token['value'];
+            if ($directive === '~') {
+                continue;
+            }
+
             if ($directive === '^') {
                 $pendingNestColumn = $this->currentColumn($output);
                 continue;

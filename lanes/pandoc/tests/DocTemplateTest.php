@@ -145,6 +145,35 @@ TPL;
         ]), $output);
     },
 
+    'renders pandoc doctemplate breakable space markers without leaking markers' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+Summary: $~$$warnings/length$ warnings queued for $title$$~$
+$if(warnings)$
+<ul>
+$for(warnings)$<li>$~$$it.source/uppercase$: $it.message$$~$</li>
+$endfor$</ul>
+$endif$
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'title' => 'Batch 42 Review',
+            'warnings' => [
+                ['source' => 'media', 'message' => 'Check alt text before publish'],
+                ['source' => 'links', 'message' => 'Verify redirects before publish'],
+            ],
+        ]);
+
+        $t->same(implode("\n", [
+            'Summary: 2 warnings queued for Batch 42 Review',
+            '',
+            '<ul>',
+            '<li>MEDIA: Check alt text before publish</li>',
+            '<li>LINKS: Verify redirects before publish</li>',
+            '</ul>',
+            '',
+        ]), $output);
+    },
+
     'renders parameter-free pandoc doctemplate pipes for text arrays and maps' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 Title: $title/uppercase$ / $title/uppercase/lowercase$

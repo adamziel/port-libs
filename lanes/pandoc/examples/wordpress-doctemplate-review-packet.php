@@ -18,14 +18,14 @@ $partials = [
     'review-header' => <<<'HTML'
 <header>
 <h1>$title/uppercase$</h1>
-<p class="summary">$warnings/length$ warnings queued for $title$</p>
+<p class="summary">$~$$warnings/length$ warnings queued for $title$$~$</p>
 <p class="authors">$for(authors/pairs)$$it.value.name$$sep$, $endfor$</p>
 </header>
 HTML,
     'warning-list' => <<<'HTML'
 $if(warnings)$
 <ul class="warnings">
-$for(warnings/pairs)$<li data-index="$it.key$" data-source="$it.value.source$"><span class="marker">$it.key/alpha/uppercase$.</span> <span class="source">$it.value.source/uppercase/left 8$</span> <span class="priority">$it.value.priority/roman/uppercase/right 4$</span> $it.value.message$</li>
+$for(warnings/pairs)$<li data-index="$it.key$" data-source="$it.value.source$">$~$<span class="marker">$it.key/alpha/uppercase$.</span> <span class="source">$it.value.source/uppercase/left 8$</span> <span class="priority">$it.value.priority/roman/uppercase/right 4$</span> $it.value.message$$~$</li>
 $endfor$</ul>
 $endif$
 HTML,
