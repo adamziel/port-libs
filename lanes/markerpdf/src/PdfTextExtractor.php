@@ -5230,10 +5230,31 @@ final class PdfTextExtractor
      * @return array<int, array{prefix: string, style: string|null, start: int}>
      * @param array<int, string> $objects
      * @param array<int, true> $seen
+     * @param array{0: int, 1: int}|null $inheritedLimits
      */
-    private function pageLabelNumberTreeEntries(string $dictionary, array $objects, int $pageCount, array $seen = []): array
+    private function pageLabelNumberTreeEntries(
+        string $dictionary,
+        array $objects,
+        int $pageCount,
+        array $seen = [],
+        ?array $inheritedLimits = null
+    ): array
     {
-        $limits = $this->pageLabelLimits($dictionary, $objects);
+        $limits = $inheritedLimits;
+        $localLimits = $this->pageLabelLimits($dictionary, $objects);
+        if ($localLimits !== null) {
+            if ($limits !== null) {
+                $lower = max($limits[0], $localLimits[0]);
+                $upper = min($limits[1], $localLimits[1]);
+                if ($lower > $upper) {
+                    return [];
+                }
+                $limits = [$lower, $upper];
+            } else {
+                $limits = $localLimits;
+            }
+        }
+
         $entries = $this->pageLabelNumsEntries($dictionary, $objects, $limits, $pageCount);
 
         foreach ($this->pageLabelKidObjectNumbers($dictionary, $objects) as $kidObjectNumber) {
@@ -5248,7 +5269,7 @@ final class PdfTextExtractor
 
             $nextSeen = $seen;
             $nextSeen[$kidObjectNumber] = true;
-            foreach ($this->pageLabelNumberTreeEntries($kidDictionary, $objects, $pageCount, $nextSeen) as $pageIndex => $section) {
+            foreach ($this->pageLabelNumberTreeEntries($kidDictionary, $objects, $pageCount, $nextSeen, $limits) as $pageIndex => $section) {
                 $entries[$pageIndex] = $section;
             }
         }

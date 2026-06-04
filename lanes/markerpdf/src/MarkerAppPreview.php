@@ -1237,9 +1237,15 @@ final class MarkerAppPreview
     /**
      * @param array<int, array{generation: int, body: string}> $objects
      * @param list<int> $seen
+     * @param array{0: int, 1: int}|null $inheritedLimits
      * @return list<array{page_index: int, prefix: string, style: string|null, start: int}>
      */
-    private function pageLabelSections(string $value, array $objects, array $seen = []): array
+    private function pageLabelSections(
+        string $value,
+        array $objects,
+        array $seen = [],
+        ?array $inheritedLimits = null
+    ): array
     {
         $value = trim($this->resolvePdfValue($value, $objects, $seen));
         if (!str_starts_with($value, '<<')) {
@@ -1247,7 +1253,21 @@ final class MarkerAppPreview
         }
 
         $sections = [];
-        $limits = $this->pageLabelLimits($value, $objects, $seen);
+        $limits = $inheritedLimits;
+        $localLimits = $this->pageLabelLimits($value, $objects, $seen);
+        if ($localLimits !== null) {
+            if ($limits !== null) {
+                $lower = max($limits[0], $localLimits[0]);
+                $upper = min($limits[1], $localLimits[1]);
+                if ($lower > $upper) {
+                    return [];
+                }
+                $limits = [$lower, $upper];
+            } else {
+                $limits = $localLimits;
+            }
+        }
+
         $nums = $this->valueAfterName($value, 'Nums');
         if ($nums !== null) {
             foreach ($this->pageLabelSectionsFromNums($nums, $objects, $seen, $limits) as $section) {
@@ -1268,7 +1288,7 @@ final class MarkerAppPreview
                     continue;
                 }
 
-                foreach ($this->pageLabelSections($objects[$objectId]['body'], $objects, [...$seen, $objectId]) as $section) {
+                foreach ($this->pageLabelSections($objects[$objectId]['body'], $objects, [...$seen, $objectId], $limits) as $section) {
                     $sections[] = $section;
                 }
             }
