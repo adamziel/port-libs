@@ -1227,7 +1227,8 @@ final class MarkerAppPreview
             $endPage = $sections[$sectionIndex + 1]['page_index'] ?? $pageCount;
             for ($pageIndex = $startPage; $pageIndex < $endPage; $pageIndex++) {
                 $number = $section['start'] + ($pageIndex - $startPage);
-                $labels[$pageIndex] = $this->formatPageLabel($section['prefix'], $section['style'], $number);
+                $label = $this->formatPageLabel($section['prefix'], $section['style'], $number);
+                $labels[$pageIndex] = $label !== '' ? $label : (string) ($pageIndex + 1);
             }
         }
 
@@ -1376,20 +1377,20 @@ final class MarkerAppPreview
             return null;
         }
 
-        $styleValue = $this->valueAfterName($dict, 'S');
+        $styleValue = $this->resolvedPageLabelValueAfterName($dict, 'S', $objects, $seen);
         $style = null;
         if ($styleValue !== null && preg_match('/^\/([A-Za-z])$/', trim($styleValue), $match)) {
             $style = in_array($match[1], ['D', 'R', 'r', 'A', 'a'], true) ? $match[1] : null;
         }
 
         $start = 1;
-        $startValue = $this->valueAfterName($dict, 'St');
+        $startValue = $this->resolvedPageLabelValueAfterName($dict, 'St', $objects, $seen);
         if ($startValue !== null && preg_match('/^-?\d+$/', trim($startValue)) === 1) {
             $start = max(1, (int) trim($startValue));
         }
 
         $prefix = '';
-        $prefixValue = $this->valueAfterName($dict, 'P');
+        $prefixValue = $this->resolvedPageLabelValueAfterName($dict, 'P', $objects, $seen);
         if ($prefixValue !== null) {
             $prefix = $this->decodePdfStringValue(trim($prefixValue));
         }
@@ -1399,6 +1400,16 @@ final class MarkerAppPreview
             'style' => $style,
             'start' => $start,
         ];
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param list<int> $seen
+     */
+    private function resolvedPageLabelValueAfterName(string $dict, string $name, array $objects, array $seen): ?string
+    {
+        $value = $this->valueAfterName($dict, $name);
+        return $value === null ? null : $this->resolvePdfValue($value, $objects, $seen);
     }
 
     private function formatPageLabel(string $prefix, ?string $style, int $number): string
