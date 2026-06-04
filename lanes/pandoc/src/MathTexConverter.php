@@ -48,6 +48,23 @@ final class MathTexConverter
     ];
 
     /** @var array<string, string> */
+    private const OVER_ACCENT_COMMANDS = [
+        'bar' => '¯',
+        'ddot' => '¨',
+        'dot' => '˙',
+        'hat' => '^',
+        'overline' => '‾',
+        'tilde' => '~',
+        'vec' => '→',
+        'widehat' => '^',
+    ];
+
+    /** @var array<string, string> */
+    private const UNDER_ACCENT_COMMANDS = [
+        'underline' => '_',
+    ];
+
+    /** @var array<string, string> */
     private const DELIMITER_COMMANDS = [
         '{' => '{',
         '}' => '}',
@@ -190,6 +207,20 @@ final class MathTexConverter
             return $this->parseFenceCommand($source, $offset);
         }
 
+        if (isset(self::OVER_ACCENT_COMMANDS[$command])) {
+            return '<mover accent="true">'
+                . $this->parseAccentArgument($source, $offset, $command)
+                . '<mo>' . $this->esc(self::OVER_ACCENT_COMMANDS[$command]) . '</mo>'
+                . '</mover>';
+        }
+
+        if (isset(self::UNDER_ACCENT_COMMANDS[$command])) {
+            return '<munder accentunder="true">'
+                . $this->parseAccentArgument($source, $offset, $command)
+                . '<mo>' . $this->esc(self::UNDER_ACCENT_COMMANDS[$command]) . '</mo>'
+                . '</munder>';
+        }
+
         if (isset(self::IDENTIFIER_COMMANDS[$command])) {
             return '<mi>' . self::IDENTIFIER_COMMANDS[$command] . '</mi>';
         }
@@ -267,6 +298,17 @@ final class MathTexConverter
         }
 
         return $this->parseAtom($source, $offset);
+    }
+
+    private function parseAccentArgument(string $source, int &$offset, string $command): string
+    {
+        $this->skipWhitespace($source, $offset);
+        $char = $source[$offset] ?? '';
+        if ($char === '' || $char === '_' || $char === '^') {
+            throw new \InvalidArgumentException('Expected TeX accent argument for \\' . $command . ' at offset ' . $offset);
+        }
+
+        return $this->parseScriptArgument($source, $offset);
     }
 
     private function parseRequiredGroup(string $source, int &$offset): string

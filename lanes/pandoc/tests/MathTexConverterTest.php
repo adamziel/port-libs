@@ -41,6 +41,19 @@ return [
         $t->contains('<msup><mi>sin</mi><mn>2</mn></msup><mi>θ</mi>', $functionMathml);
         $t->contains('<msub><mi>log</mi><mn>10</mn></msub><mi>x</mi><mo>+</mo><msubsup><mo>∏</mo><mrow><mi>k</mi><mo>=</mo><mn>1</mn></mrow><mn>3</mn></msubsup><mi>k</mi>', $functionMathml);
     },
+    'converts bounded tex accents overlines and underlines to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $accentMathml = $converter->texToMathMl('\\hat{x} + \\widehat{ab} + \\bar y + \\overline{AB} + \\vec{v}_i');
+        $dotMathml = $converter->texToMathMl('\\dot{x} + \\ddot{y} + \\tilde n');
+        $underMathml = $converter->texToMathMl('\\underline{\\operatorname{draft}}');
+
+        $t->contains('<mover accent="true"><mi>x</mi><mo>^</mo></mover>', $accentMathml);
+        $t->contains('<mover accent="true"><mrow><mi>a</mi><mi>b</mi></mrow><mo>^</mo></mover>', $accentMathml);
+        $t->contains('<mover accent="true"><mi>y</mi><mo>¯</mo></mover><mo>+</mo><mover accent="true"><mrow><mi>A</mi><mi>B</mi></mrow><mo>‾</mo></mover>', $accentMathml);
+        $t->contains('<msub><mover accent="true"><mi>v</mi><mo>→</mo></mover><mi>i</mi></msub>', $accentMathml);
+        $t->contains('<mover accent="true"><mi>x</mi><mo>˙</mo></mover><mo>+</mo><mover accent="true"><mi>y</mi><mo>¨</mo></mover><mo>+</mo><mover accent="true"><mi>n</mi><mo>~</mo></mover>', $dotMathml);
+        $t->contains('<munder accentunder="true"><mi>draft</mi><mo>_</mo></munder>', $underMathml);
+    },
     'rejects malformed bounded tex math groups without invoking a tex engine' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
 
@@ -51,6 +64,9 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left\\unknown{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hat'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\vec_1'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underline^2'));
     },
     'renders latex writer math and raw tex without dropping source content' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
