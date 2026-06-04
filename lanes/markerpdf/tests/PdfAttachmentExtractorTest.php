@@ -138,6 +138,73 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, 'zz-stale.csv'));
         $t->true(is_string($encoded) && !str_contains($encoded, 'Stale,Ignore'));
     },
+    'summarizes catalog associated FileSpec attachments and dedupes EmbeddedFiles mirrors' => static function (TestRunner $t): void {
+        $sourcePayload = '<wp-export><post id="catalog-af"/></wp-export>';
+        $sourceChecksum = md5($sourcePayload);
+
+        $catalogOnlyPdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AF [4 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Filespec /F (legacy-source.xml) /UF (source.xml) /Desc (Original WordPress export) /AFRelationship /Source /EF << /F 5 0 R /UF 5 0 R >> >>\nendobj\n"
+            . "5 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourcePayload) . " /CheckSum <{$sourceChecksum}> /ModDate (D:20260604174658Z) >> /Length " . strlen($sourcePayload) . " >>\n"
+            . "stream\n{$sourcePayload}\nendstream\nendobj\n"
+            . "%%EOF\n";
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($catalogOnlyPdf);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(strlen($sourcePayload), $summary['total_bytes']);
+        $t->same(['source.xml'], $summary['filenames']);
+
+        $attachment = $summary['attachments'][0];
+        $t->same('catalog-associated-file', $attachment['source']);
+        $t->same(true, $attachment['associated_file']);
+        $t->same(0, $attachment['associated_file_index']);
+        $t->same(1, $attachment['catalog_object_id']);
+        $t->same(4, $attachment['file_spec_object_id']);
+        $t->same(5, $attachment['stream_object_id']);
+        $t->same('UF', $attachment['ef_key']);
+        $t->same('source.xml', $attachment['filename']);
+        $t->same('UF', $attachment['filename_source']);
+        $t->same('Original WordPress export', $attachment['description']);
+        $t->same('Source', $attachment['relationship']);
+        $t->same('original_source', $attachment['relationship_role']);
+        $t->same('text/xml', $attachment['content_type']);
+        $t->same(strlen($sourcePayload), $attachment['byte_length']);
+        $t->same(true, $attachment['declared_size_matches']);
+        $t->same($sourceChecksum, $attachment['checksum_hex']);
+        $t->same($sourceChecksum, $attachment['computed_checksum_hex']);
+        $t->same(true, $attachment['checksum_matches']);
+        $t->same('D:20260604174658Z', $attachment['modified_at']);
+        $t->same(false, array_key_exists('bytes', $attachment));
+
+        $mirroredPdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> /AF [4 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Filespec /F (source.xml) /Desc (Mirrored associated source) /AFRelationship /Source /EF << /F 5 0 R >> >>\nendobj\n"
+            . "5 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourcePayload) . " /CheckSum <{$sourceChecksum}> >> /Length " . strlen($sourcePayload) . " >>\n"
+            . "stream\n{$sourcePayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Names [(source.xml) 4 0 R] >>\nendobj\n"
+            . "%%EOF\n";
+
+        $mirrored = (new PdfAttachmentExtractor())->attachmentSummary($mirroredPdf);
+        $mirroredEncoded = json_encode($mirrored, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $mirrored['attachment_count']);
+        $t->same(['source.xml'], $mirrored['filenames']);
+        $t->same('embedded-files-name-tree', $mirrored['attachments'][0]['source']);
+        $t->same('source.xml', $mirrored['attachments'][0]['name_key']);
+        $t->same(true, $mirrored['attachments'][0]['associated_file']);
+        $t->same('catalog_af', $mirrored['attachments'][0]['associated_file_source']);
+        $t->same(0, $mirrored['attachments'][0]['associated_file_index']);
+        $t->same(1, $mirrored['attachments'][0]['catalog_object_id']);
+        $t->same(strlen($sourcePayload), $mirrored['attachments'][0]['byte_length']);
+        $t->same(false, array_key_exists('bytes', $mirrored['attachments'][0]));
+        $t->same(false, $mirrored['executes_python_or_models']);
+        $t->same(false, $mirrored['executes_external_pdf_tools']);
+        $t->true(is_string($mirroredEncoded) && substr_count($mirroredEncoded, 'source.xml') >= 1);
+        $t->true(is_string($mirroredEncoded) && !str_contains($mirroredEncoded, $sourcePayload));
+    },
     'extracts page FileAttachment annotation embedded streams with page metadata' => static function (TestRunner $t) use ($fileAttachmentAnnotationPdf): void {
         [$pdf, $payload] = $fileAttachmentAnnotationPdf();
         $attachments = (new PdfAttachmentExtractor())->extractAttachments($pdf);

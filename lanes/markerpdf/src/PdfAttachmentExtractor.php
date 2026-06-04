@@ -48,6 +48,33 @@ final class PdfAttachmentExtractor
             }
         }
 
+        foreach ($this->catalogAssociatedFileEntries($objects) as $entry) {
+            $attachment = $this->attachmentFromFileSpecValue(
+                $entry['fileSpec'],
+                $objects,
+                'catalog-associated-file',
+                [
+                    'associated_file' => true,
+                    'associated_file_index' => $entry['associatedFileIndex'],
+                    'catalog_object_id' => $entry['catalogObjectId'],
+                ]
+            );
+            if ($attachment === null) {
+                continue;
+            }
+
+            $duplicateIndex = $this->documentAttachmentIndex($attachments, $attachment);
+            if ($duplicateIndex !== null) {
+                $attachments[$duplicateIndex]['associated_file'] = true;
+                $attachments[$duplicateIndex]['associated_file_source'] = 'catalog_af';
+                $attachments[$duplicateIndex]['associated_file_index'] = $entry['associatedFileIndex'];
+                $attachments[$duplicateIndex]['catalog_object_id'] = $entry['catalogObjectId'];
+                continue;
+            }
+
+            $attachments[] = $attachment;
+        }
+
         foreach ($this->fileAttachmentAnnotationEntries($objects) as $entry) {
             $attachment = $this->attachmentFromFileSpecValue(
                 $entry['fileSpec'],
@@ -67,6 +94,28 @@ final class PdfAttachmentExtractor
         }
 
         return $attachments;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $attachments
+     * @param array<string, mixed> $candidate
+     */
+    private function documentAttachmentIndex(array $attachments, array $candidate): ?int
+    {
+        foreach ($attachments as $index => $attachment) {
+            if (($attachment['source'] ?? null) !== 'embedded-files-name-tree') {
+                continue;
+            }
+
+            if (($attachment['file_spec_object_id'] ?? null) !== null
+                && ($attachment['file_spec_object_id'] ?? null) === ($candidate['file_spec_object_id'] ?? null)
+                && ($attachment['stream_object_id'] ?? null) === ($candidate['stream_object_id'] ?? null)
+            ) {
+                return $index;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -114,6 +163,36 @@ final class PdfAttachmentExtractor
 
             foreach ($this->nameTreeEntries($names['EmbeddedFiles'], $objects) as $entry) {
                 $entries[] = $entry;
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return list<array{catalogObjectId: int, associatedFileIndex: int, fileSpec: mixed}>
+     */
+    private function catalogAssociatedFileEntries(array $objects): array
+    {
+        $entries = [];
+        foreach ($objects as $objectId => $object) {
+            $dict = $this->dict($object['value']);
+            if ($dict === null || $this->nameValue($dict['Type'] ?? null) !== 'Catalog') {
+                continue;
+            }
+
+            $associatedFiles = $this->arrayValue($this->resolveValue($dict['AF'] ?? null, $objects));
+            if ($associatedFiles === null) {
+                continue;
+            }
+
+            foreach ($associatedFiles as $index => $fileSpec) {
+                $entries[] = [
+                    'catalogObjectId' => $objectId,
+                    'associatedFileIndex' => $index,
+                    'fileSpec' => $fileSpec,
+                ];
             }
         }
 
