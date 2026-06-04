@@ -3,8 +3,32 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\PdfTextExtractor;
+use PortLibs\MarkerPDF\PdfImageRenderer;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
+
+$ascii85Encode = static function (string $bytes, bool $includeTerminator = true): string {
+    $encoded = '<~';
+    $length = strlen($bytes);
+    for ($offset = 0; $offset < $length; $offset += 4) {
+        $chunk = substr($bytes, $offset, 4);
+        $chunkLength = strlen($chunk);
+        if ($chunkLength < 4) {
+            $chunk = str_pad($chunk, 4, "\0");
+        }
+
+        $value = unpack('N', $chunk)[1];
+        $digits = [];
+        for ($index = 0; $index < 5; $index++) {
+            $digits[] = chr(($value % 85) + 33);
+            $value = intdiv($value, 85);
+        }
+
+        $encoded .= implode('', array_slice(array_reverse($digits), 0, $chunkLength + 1));
+    }
+
+    return $encoded . ($includeTerminator ? '~>' : '');
+};
 
 $imageRow = 'raw EI BT /F1 12 Tf 72 690 Td (Inline DP Image Noise) Tj ET';
 $compressedImage = gzcompress("\0" . $imageRow, 0);
@@ -28,6 +52,28 @@ $pdf = "%PDF-1.4\n"
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
 $plainText = $extractor->extractPlainText($pdf);
+$renderer = new PdfImageRenderer();
+$inlineReviewDictionary = '/W 3 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 2 /F /A85 /D [0 3]';
+$inlineReviewObjects = [
+    91 => '<000000FF000000FF000000FF>',
+];
+$completeInlineReview = $renderer->inlineIndexedImageStreamPreviewRows(
+    $inlineReviewDictionary,
+    $ascii85Encode("\x1c", true),
+    $inlineReviewObjects,
+    3
+);
+$incompleteAscii85ReviewDecodeFailed = false;
+try {
+    $renderer->inlineIndexedImageStreamPreviewRows(
+        $inlineReviewDictionary,
+        $ascii85Encode("\x1c", false),
+        $inlineReviewObjects,
+        3
+    );
+} catch (InvalidArgumentException) {
+    $incompleteAscii85ReviewDecodeFailed = true;
+}
 
 echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
@@ -43,6 +89,10 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After A85 Inline Image',
     ],
     'requires_ascii85_end_marker_before_ei' => true,
+    'complete_ascii85_review_decoded' => ($completeInlineReview['image_stream']['decoded_with_current_filters'] ?? false) === true,
+    'complete_ascii85_review_preview_pixels' => $completeInlineReview['preview_pixel_count'] ?? null,
+    'incomplete_ascii85_review_decode_failed' => $incompleteAscii85ReviewDecodeFailed,
+    'requires_ascii85_review_end_marker_before_rgb_preview' => true,
     'excluded_inline_image_text' => !str_contains($plainText, 'Inline DP Image Noise')
         && !str_contains($plainText, 'raw EI')
         && !str_contains($plainText, 'ASCII85 Inline Noise')

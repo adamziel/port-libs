@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\PdfTextExtractor;
+use PortLibs\MarkerPDF\PdfImageRenderer;
 
 $inlineImageDecodeBoundaryPdf = static function (string $content): string {
     return "%PDF-1.4\n"
@@ -12,6 +13,29 @@ $inlineImageDecodeBoundaryPdf = static function (string $content): string {
         . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
         . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
         . "%%EOF";
+};
+
+$ascii85Encode = static function (string $bytes, bool $includeTerminator = true): string {
+    $encoded = '<~';
+    $length = strlen($bytes);
+    for ($offset = 0; $offset < $length; $offset += 4) {
+        $chunk = substr($bytes, $offset, 4);
+        $chunkLength = strlen($chunk);
+        if ($chunkLength < 4) {
+            $chunk = str_pad($chunk, 4, "\0");
+        }
+
+        $value = unpack('N', $chunk)[1];
+        $digits = [];
+        for ($index = 0; $index < 5; $index++) {
+            $digits[] = chr(($value % 85) + 33);
+            $value = intdiv($value, 85);
+        }
+
+        $encoded .= implode('', array_slice(array_reverse($digits), 0, $chunkLength + 1));
+    }
+
+    return $encoded . ($includeTerminator ? '~>' : '');
 };
 
 return [
@@ -37,6 +61,34 @@ return [
         $t->true(!str_contains($plainText, '87cURDc'));
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+    },
+    'requires ASCII85 inline image review payload terminator before RGB preview decoding' => static function (TestRunner $t) use ($ascii85Encode): void {
+        $renderer = new PdfImageRenderer();
+        $objects = [
+            91 => '<000000FF000000FF000000FF>',
+        ];
+        $dictionary = '/W 3 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 2 /F /A85 /D [0 3]';
+        $imageBytes = "\x1c";
+        $completePayload = $ascii85Encode($imageBytes, true);
+        $incompletePayload = $ascii85Encode($imageBytes, false);
+
+        $preview = $renderer->inlineIndexedImageStreamPreviewRows($dictionary, $completePayload, $objects, 3);
+
+        $t->same(['ASCII85Decode'], $preview['image_stream']['filters']);
+        $t->same(strlen($completePayload), $preview['image_stream']['raw_length']);
+        $t->same(1, $preview['image_stream']['decoded_length']);
+        $t->same(hash('sha256', $imageBytes), $preview['image_stream']['decoded_sha256']);
+        $t->same('1C', $preview['image_stream']['decoded_preview_hex']);
+        $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $preview['image_stream']['decode_failed']);
+        $t->same(3, $preview['preview_pixel_count']);
+        $t->same([0.0, 1.0, 3.0], array_column($preview['pixels'], 'raw_sample'));
+        $t->same(true, str_contains($completePayload, '~>'));
+        $t->same(false, str_contains($incompletePayload, '~>'));
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineIndexedImageStreamPreviewRows($dictionary, $incompletePayload, $objects, 3)
+        );
     },
     'decodes Flate DecodeParms inline image payload before accepting EI boundaries' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();

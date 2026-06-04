@@ -902,7 +902,7 @@ final class PdfImageRenderer
         $expectedPixelCount = $width * $height;
         $canonical = (string) $plan['inline_image']['canonical_dictionary'];
         $filters = $this->imageFilterNames($canonical, $objects);
-        $decodeResult = $this->decodeImageStreamByFilters($canonical, $payload, $objects);
+        $decodeResult = $this->decodeImageStreamByFilters($canonical, $payload, $objects, true);
         $decoded = $decodeResult['decoded'];
         $unsupportedFilters = $decodeResult['unsupported_filters'];
         $previewOnlyFilters = array_values(array_filter(
@@ -1037,7 +1037,7 @@ final class PdfImageRenderer
         }
 
         $expectedPixelCount = $width * $height;
-        $imageStream = $this->decodedInlineImageStreamPreviewBoundary($canonical, $payload, $objects);
+        $imageStream = $this->decodedInlineImageStreamPreviewBoundary($canonical, $payload, $objects, true);
         $imageStreamMeta = $this->streamBoundaryPublicMetadata($imageStream);
 
         $softMaskStream = null;
@@ -1534,7 +1534,7 @@ final class PdfImageRenderer
         }
 
         $expectedPixelCount = $width * $height;
-        $imageStream = $this->decodedInlineImageStreamPreviewBoundary($canonical, $payload, $objects);
+        $imageStream = $this->decodedInlineImageStreamPreviewBoundary($canonical, $payload, $objects, true);
         $imageStreamMeta = $this->streamBoundaryPublicMetadata($imageStream);
         $complete = count($suppliedSamples) >= $expectedPixelCount;
         $limit = min($maxPixels, $expectedPixelCount, count($suppliedSamples));
@@ -1654,7 +1654,7 @@ final class PdfImageRenderer
         }
 
         $expectedPixelCount = $width * $height;
-        $imageStream = $this->decodedInlineImageStreamPreviewBoundary($canonical, $payload, $objects);
+        $imageStream = $this->decodedInlineImageStreamPreviewBoundary($canonical, $payload, $objects, true);
         $imageStreamMeta = $this->streamBoundaryPublicMetadata($imageStream);
         $imageStreamDecoded = ($imageStream['decoded_with_current_filters'] ?? false) === true
             && is_string($imageStream['decoded_bytes'] ?? null);
@@ -5283,7 +5283,12 @@ final class PdfImageRenderer
      * @param array<int, string> $objects
      * @return array<string, mixed>
      */
-    private function decodedInlineImageStreamPreviewBoundary(string $dictionary, ?string $stream, array $objects): array
+    private function decodedInlineImageStreamPreviewBoundary(
+        string $dictionary,
+        ?string $stream,
+        array $objects,
+        bool $requireExplicitFilterEndMarkers = false
+    ): array
     {
         $filters = $this->imageFilterNames($dictionary, $objects);
         $decoded = null;
@@ -5291,7 +5296,12 @@ final class PdfImageRenderer
         $decodeFailed = false;
 
         if ($stream !== null) {
-            $decodeResult = $this->decodeImageStreamByFilters($dictionary, $stream, $objects);
+            $decodeResult = $this->decodeImageStreamByFilters(
+                $dictionary,
+                $stream,
+                $objects,
+                $requireExplicitFilterEndMarkers
+            );
             $decoded = $decodeResult['decoded'];
             $unsupportedFilters = $decodeResult['unsupported_filters'];
             $decodeFailed = $decodeResult['decode_failed'];
@@ -5416,7 +5426,12 @@ final class PdfImageRenderer
      * @param array<int, string> $objects
      * @return array{decoded: string|null, unsupported_filters: list<string>, decode_failed: bool}
      */
-    private function decodeImageStreamByFilters(string $dictionary, string $stream, array $objects): array
+    private function decodeImageStreamByFilters(
+        string $dictionary,
+        string $stream,
+        array $objects,
+        bool $requireExplicitFilterEndMarkers = false
+    ): array
     {
         $filters = $this->imageFilterNames($dictionary, $objects);
         if ($filters === []) {
@@ -5440,6 +5455,19 @@ final class PdfImageRenderer
                     'decoded' => null,
                     'unsupported_filters' => $unsupportedFilters,
                     'decode_failed' => !$this->isPreviewOnlyStreamFilter($filter),
+                ];
+            }
+
+            if (
+                $requireExplicitFilterEndMarkers
+                && !$this->streamFilterInputHasExplicitEndMarker($filter, $stream)
+            ) {
+                $unsupportedFilters[] = $filter;
+
+                return [
+                    'decoded' => null,
+                    'unsupported_filters' => $unsupportedFilters,
+                    'decode_failed' => true,
                 ];
             }
 
@@ -5469,6 +5497,15 @@ final class PdfImageRenderer
             'unsupported_filters' => [],
             'decode_failed' => false,
         ];
+    }
+
+    private function streamFilterInputHasExplicitEndMarker(string $filter, string $stream): bool
+    {
+        return match ($filter) {
+            'ASCIIHexDecode', 'AHx' => strpos($stream, '>') !== false,
+            'ASCII85Decode', 'A85' => strpos($stream, '~>') !== false,
+            default => true,
+        };
     }
 
     private function isPreviewOnlyStreamFilter(string $filter): bool
