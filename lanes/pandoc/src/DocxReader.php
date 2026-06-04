@@ -332,8 +332,29 @@ final class DocxReader
         $inlines = [];
         $activeCommentRangeId = null;
         $activeCommentRangeNodes = [];
+        $activeField = null;
         foreach ($paragraph->childNodes as $child) {
             if (!$child instanceof \DOMElement || $this->isWordElement($child, 'pPr')) {
+                continue;
+            }
+
+            if ($activeField !== null) {
+                $nodes = $this->consumeFieldElement($activeField, $child, $package, $relationships, $referencedNotes);
+                if ($nodes !== null) {
+                    $activeField = null;
+                    if ($activeCommentRangeId !== null) {
+                        array_push($activeCommentRangeNodes, ...$nodes);
+                        continue;
+                    }
+
+                    array_push($inlines, ...$nodes);
+                }
+                continue;
+            }
+
+            if ($this->startsComplexField($child)) {
+                $activeField = $this->newFieldState();
+                $this->consumeFieldElement($activeField, $child, $package, $relationships, $referencedNotes);
                 continue;
             }
 
@@ -381,11 +402,94 @@ final class DocxReader
             array_push($inlines, ...$nodes);
         }
 
+        if ($activeField !== null) {
+            $nodes = $this->fieldResultNodes($activeField);
+            if ($activeCommentRangeId !== null) {
+                array_push($activeCommentRangeNodes, ...$nodes);
+            } else {
+                array_push($inlines, ...$nodes);
+            }
+        }
         if ($activeCommentRangeId !== null) {
             $this->appendCommentRangeSpan($inlines, $activeCommentRangeId, $activeCommentRangeNodes, $referencedNotes);
         }
 
         return $this->coalesceTextNodes($inlines);
+    }
+
+    /**
+     * @return array{instruction:string, collectingResult:bool, resultNodes:list<AstNode>}
+     */
+    private function newFieldState(): array
+    {
+        return [
+            'instruction' => '',
+            'collectingResult' => false,
+            'resultNodes' => [],
+        ];
+    }
+
+    private function startsComplexField(\DOMElement $element): bool
+    {
+        return $this->isWordElement($element, 'r') && $this->runFieldCharType($element) === 'begin';
+    }
+
+    /**
+     * @param array{instruction:string, collectingResult:bool, resultNodes:list<AstNode>} $field
+     * @param array<string, AstNode> $referencedNotes
+     * @return list<AstNode>|null finalized field nodes, or null while the field remains active
+     */
+    private function consumeFieldElement(
+        array &$field,
+        \DOMElement $element,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes
+    ): ?array {
+        $fieldCharType = $this->isWordElement($element, 'r') ? $this->runFieldCharType($element) : null;
+        if ($fieldCharType === 'begin') {
+            $field['instruction'] .= $this->runInstructionText($element);
+            return null;
+        }
+        if ($fieldCharType === 'separate') {
+            $field['instruction'] .= $this->runInstructionText($element);
+            $field['collectingResult'] = true;
+            return null;
+        }
+        if ($fieldCharType === 'end') {
+            $nodes = $this->fieldResultNodes($field);
+            $field = $this->newFieldState();
+
+            return $nodes;
+        }
+
+        if (!$field['collectingResult']) {
+            $field['instruction'] .= $this->fieldInstructionText($element);
+            return null;
+        }
+
+        array_push($field['resultNodes'], ...$this->inlineNodes($element, $package, $relationships, $referencedNotes));
+
+        return null;
+    }
+
+    /**
+     * @param array{instruction:string, collectingResult:bool, resultNodes:list<AstNode>} $field
+     * @return list<AstNode>
+     */
+    private function fieldResultNodes(array $field): array
+    {
+        $resultNodes = $this->coalesceTextNodes($field['resultNodes']);
+        if ($resultNodes === []) {
+            return [];
+        }
+
+        $attrs = $this->hyperlinkFieldAttrs($field['instruction']);
+        if ($attrs === null) {
+            return $resultNodes;
+        }
+
+        return [new AstNode('link', $attrs, $resultNodes)];
     }
 
     /**
@@ -462,6 +566,10 @@ final class DocxReader
 
         if ($this->isWordElement($element, 'hyperlink')) {
             return [$this->hyperlinkNode($element, $package, $relationships, $referencedNotes)];
+        }
+
+        if ($this->isWordElement($element, 'fldSimple')) {
+            return $this->simpleFieldNodes($element, $package, $relationships, $referencedNotes);
         }
 
         if ($this->isMathElement($element, 'oMath')) {
@@ -794,6 +902,164 @@ final class DocxReader
         }
 
         return new AstNode('link', ['url' => $url], $children);
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @return list<AstNode>
+     */
+    private function simpleFieldNodes(\DOMElement $field, ZipPackage $package, ?OpcRelationships $relationships, array $referencedNotes): array
+    {
+        $children = $this->coalesceTextNodes($this->inlineContainerNodes($field, $package, $relationships, $referencedNotes));
+        if ($children === []) {
+            return [];
+        }
+
+        $attrs = $this->hyperlinkFieldAttrs((string) $this->wordAttr($field, 'instr'));
+        if ($attrs === null) {
+            return $children;
+        }
+
+        return [new AstNode('link', $attrs, $children)];
+    }
+
+    /**
+     * @return array{url:string, title?:string}|null
+     */
+    private function hyperlinkFieldAttrs(string $instruction): ?array
+    {
+        $tokens = $this->fieldInstructionTokens($instruction);
+        if ($tokens === [] || strtoupper(array_shift($tokens)) !== 'HYPERLINK') {
+            return null;
+        }
+
+        $url = null;
+        $anchor = null;
+        $title = null;
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if ($token === '') {
+                continue;
+            }
+
+            if (str_starts_with($token, '\\')) {
+                $switch = strtolower(substr($token, 1));
+                if (($switch === 'l' || $switch === 'o') && isset($tokens[$index + 1])) {
+                    $index++;
+                    if ($switch === 'l') {
+                        $anchor = $tokens[$index];
+                    } else {
+                        $title = $tokens[$index];
+                    }
+                }
+                continue;
+            }
+
+            $url ??= $token;
+        }
+
+        if ($url === null || $url === '') {
+            $url = $anchor === null || $anchor === '' ? '' : '#' . $anchor;
+        } elseif ($anchor !== null && $anchor !== '') {
+            $url .= '#' . $anchor;
+        }
+        if ($url === '') {
+            return null;
+        }
+
+        $attrs = ['url' => $url];
+        if ($title !== null && $title !== '') {
+            $attrs['title'] = $title;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function fieldInstructionTokens(string $instruction): array
+    {
+        $tokens = [];
+        $length = strlen($instruction);
+        for ($index = 0; $index < $length;) {
+            while ($index < $length && ctype_space($instruction[$index])) {
+                $index++;
+            }
+            if ($index >= $length) {
+                break;
+            }
+
+            if ($instruction[$index] === '"') {
+                $index++;
+                $token = '';
+                while ($index < $length) {
+                    $char = $instruction[$index];
+                    if ($char === '"' && ($index === 0 || $instruction[$index - 1] !== '\\')) {
+                        $index++;
+                        break;
+                    }
+                    if ($char === '\\' && isset($instruction[$index + 1]) && $instruction[$index + 1] === '"') {
+                        $token .= '"';
+                        $index += 2;
+                        continue;
+                    }
+
+                    $token .= $char;
+                    $index++;
+                }
+                $tokens[] = $token;
+                continue;
+            }
+
+            $start = $index;
+            while ($index < $length && !ctype_space($instruction[$index])) {
+                $index++;
+            }
+            $tokens[] = substr($instruction, $start, $index - $start);
+        }
+
+        return $tokens;
+    }
+
+    private function runFieldCharType(\DOMElement $run): ?string
+    {
+        $fieldChar = $this->firstChildElement($run, self::WORDPROCESSINGML_NS, 'fldChar');
+        if (!$fieldChar instanceof \DOMElement) {
+            return null;
+        }
+
+        $type = $this->wordAttr($fieldChar, 'fldCharType');
+
+        return $type === null ? null : strtolower($type);
+    }
+
+    private function fieldInstructionText(\DOMElement $element): string
+    {
+        if ($this->isWordElement($element, 'r')) {
+            return $this->runInstructionText($element);
+        }
+
+        $text = '';
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $text .= $this->fieldInstructionText($child);
+            }
+        }
+
+        return $text;
+    }
+
+    private function runInstructionText(\DOMElement $run): string
+    {
+        $text = '';
+        foreach ($run->childNodes as $child) {
+            if ($child instanceof \DOMElement && $this->isWordElement($child, 'instrText')) {
+                $text .= $child->textContent;
+            }
+        }
+
+        return $text;
     }
 
     /**

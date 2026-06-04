@@ -365,6 +365,31 @@ $bookmarkDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$fieldHyperlinkDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Field link to </w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText xml:space="preserve"> HYPERLINK "https://example.test/field?post=42&amp;step=docx" \o "Field source" </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:rPr><w:b/></w:rPr><w:t>source dossier</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+      <w:r><w:t xml:space="preserve"> and internal </w:t></w:r>
+      <w:fldSimple w:instr=' HYPERLINK \l "source_packet" '>
+        <w:r><w:t>anchor jump</w:t></w:r>
+      </w:fldSimple>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:bookmarkStart w:id="11" w:name="source_packet"/>
+      <w:r><w:t>Source packet anchor target.</w:t></w:r>
+      <w:bookmarkEnd w:id="11"/>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $buildDocxPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $documentXml, $footnotesXml, $corePropertiesXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -442,6 +467,14 @@ $buildBookmarkPackage = static function () use ($contentTypesXml, $packageRelati
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $bookmarkDocumentXml],
+    ]);
+};
+
+$buildFieldHyperlinkPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $fieldHyperlinkDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $fieldHyperlinkDocumentXml],
     ]);
 };
 
@@ -825,6 +858,43 @@ return [
         $t->contains('<a href="#source_packet">source packet</a>', $blocks);
         $t->contains('<span id="source_packet" class="anchor"></span>Source packet target keeps reviewer context.', $blocks);
         $t->true(!str_contains($blocks, '_GoBack'), 'Dummy Word return bookmarks should not render to WordPress blocks');
+    },
+    'maps DOCX field-code hyperlinks to normal link AST nodes' => static function (TestRunner $t) use ($buildFieldHyperlinkPackage): void {
+        $document = (new DocxReader())->readDocument($buildFieldHyperlinkPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Field link to ', $paragraph->children[0]->attr('text'));
+
+        $external = $paragraph->children[1];
+        $t->same('link', $external->type);
+        $t->same('https://example.test/field?post=42&step=docx', $external->attr('url'));
+        $t->same('Field source', $external->attr('title'));
+        $t->same('strong', $external->children[0]->type);
+        $t->same('source dossier', $external->children[0]->children[0]->attr('text'));
+
+        $t->same(' and internal ', $paragraph->children[2]->attr('text'));
+        $internal = $paragraph->children[3];
+        $t->same('link', $internal->type);
+        $t->same('#source_packet', $internal->attr('url'));
+        $t->same('anchor jump', $internal->children[0]->attr('text'));
+        $t->same('.', $paragraph->children[4]->attr('text'));
+
+        $target = $document->children[1];
+        $t->same('span', $target->children[0]->type);
+        $t->same('source_packet', $target->children[0]->attr('id'));
+        $t->same('Source packet anchor target.', $target->children[1]->attr('text'));
+
+        $t->contains('Field link to [**source dossier**](https://example.test/field?post=42&step=docx "Field source") and internal [anchor jump](#source_packet).', $markdown);
+        $t->contains('[]{#source_packet .anchor}Source packet anchor target.', $markdown);
+        $t->true(!str_contains($markdown, 'HYPERLINK'), 'DOCX field instructions should not render to Markdown');
+
+        $t->contains('<a href="https://example.test/field?post=42&amp;step=docx" title="Field source"><strong>source dossier</strong></a>', $blocks);
+        $t->contains('<a href="#source_packet">anchor jump</a>', $blocks);
+        $t->contains('<span id="source_packet" class="anchor"></span>Source packet anchor target.', $blocks);
+        $t->true(!str_contains($blocks, 'HYPERLINK'), 'DOCX field instructions should not render to WordPress blocks');
     },
     'rejects malformed DOCX packages without shelling out to office tooling' => static function (TestRunner $t) use ($contentTypesXml, $documentXml): void {
         $reader = new DocxReader();

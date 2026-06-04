@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-04 19:34:37 UTC",
-    "sourceCommit": "3e0384ae3bd348c676d909f1e53e226fe39172d6",
-    "sourceCommitShort": "3e0384ae3bd3",
+    "generated": "2026-06-04 19:44:09 UTC",
+    "sourceCommit": "2eb30dcd499f3dc00a244d1b2fe1a3591cc33d7e",
+    "sourceCommitShort": "2eb30dcd499f",
     "sourceBranch": "unknown",
-    "dashboardCommit": "3e0384ae3bd348c676d909f1e53e226fe39172d6",
-    "dashboardCommitShort": "3e0384ae3bd3",
+    "dashboardCommit": "2eb30dcd499f3dc00a244d1b2fe1a3591cc33d7e",
+    "dashboardCommitShort": "2eb30dcd499f",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "822",
-            "coverage": "822 / 2,276 (36.1%)",
-            "mapPercent": "36.1%",
-            "unmapped": "1,454",
-            "php": "365 pass / 0 fail",
+            "mapped": "823",
+            "coverage": "823 / 2,276 (36.2%)",
+            "mapPercent": "36.2%",
+            "unmapped": "1,453",
+            "php": "366 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-04 UTC upstream-runner dependency audit on accepted base a70e...",
+            "audit": "2026-06-04 UTC DOCX/OpenXML field-code hyperlink slice on accepted ba...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
             "nextTarget": "For upstream-runner dependency closure, hydrate a local Pando...",
             "remainingGate": "No local blocker",
-            "commit": "a70e452"
+            "commit": "3e0384a"
         },
         {
             "lane": "quadrable",

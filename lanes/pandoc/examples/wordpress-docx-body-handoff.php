@@ -62,6 +62,15 @@ XML],
       <w:r><w:t>.</w:t></w:r>
     </w:p>
     <w:p>
+      <w:r><w:t xml:space="preserve">Field-coded review link </w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText xml:space="preserve"> HYPERLINK "https://example.test/field-link?post=42" \o "Field link title" </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>field-coded source</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+      <w:r><w:t xml:space="preserve"> remains clickable.</w:t></w:r>
+    </w:p>
+    <w:p>
       <w:bookmarkStart w:id="14" w:name="source_packet_anchor"/>
       <w:bookmarkStart w:id="15" w:name="_GoBack"/>
       <w:bookmarkEnd w:id="15"/>
@@ -202,6 +211,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<ul><li>Match media IDs</li><li>Preserve alt text</li></ul>',
         '<ol start="3" type="a"><li>Confirm source URL</li><li>Publish packet</li></ol>',
         '<a href="#source_packet_anchor">source packet anchor</a>',
+        '<a href="https://example.test/field-link?post=42" title="Field link title">field-coded source</a>',
         '<span id="source_packet_anchor" class="anchor"></span>Import reviewer keeps',
         '<a href="https://example.test/source-packet?post=42">the source link</a>',
         '<span class="docx-insertion" data-docx-change="insertion" data-docx-change-id="8" data-docx-author="Migration Editor" data-docx-date="2026-06-04T17:50:00Z"> Approved tracked wording.</span>',
