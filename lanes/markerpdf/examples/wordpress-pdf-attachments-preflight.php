@@ -8,8 +8,10 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $csvPayload = "Title,Status\nDraft,Ready\n";
 $notesPayload = "Needs alt text\n";
+$stalePayload = "Title,Status\nStale,Ignore\n";
 $compressedCsv = gzcompress($csvPayload);
 $csvChecksum = md5($csvPayload);
+$staleChecksum = md5($stalePayload);
 $pdf = "%PDF-1.7\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names 7 0 R >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
@@ -18,16 +20,23 @@ $pdf = "%PDF-1.7\n"
     . "5 0 obj\n<< /Type /Filespec /F (review-notes.csv) /Desc (WordPress import rows) /AFRelationship /Data /EF << /F 6 0 R >> >>\nendobj\n"
     . "6 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter /FlateDecode /Params << /Size " . strlen($csvPayload) . " /ModDate (D:20260603082617Z) /CheckSum <{$csvChecksum}> >> /Length " . strlen($compressedCsv) . " >>\n"
     . "stream\n{$compressedCsv}\nendstream\nendobj\n"
-    . "7 0 obj\n<< /EmbeddedFiles << /Names [(review-notes.csv) 5 0 R] >> >>\nendobj\n"
+    . "7 0 obj\n<< /EmbeddedFiles 10 0 R >>\nendobj\n"
     . "8 0 obj\n<< /Type /Filespec /F (review-note.txt) /Desc (Editorial handoff) /EF << /F 9 0 R >> >>\nendobj\n"
     . "9 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fplain /Params << /Size " . strlen($notesPayload) . " >> /Length " . strlen($notesPayload) . " >>\n"
     . "stream\n{$notesPayload}\nendstream\nendobj\n"
+    . "10 0 obj\n<< /Limits [(review-notes.csv) (review-notes.csv)] /Names [(review-notes.csv) 5 0 R (zz-stale.csv) 11 0 R] >>\nendobj\n"
+    . "11 0 obj\n<< /Type /Filespec /F (zz-stale.csv) /Desc (Stale out-of-limits import rows) /AFRelationship /Data /EF << /F 12 0 R >> >>\nendobj\n"
+    . "12 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($stalePayload) . " /CheckSum <{$staleChecksum}> >> /Length " . strlen($stalePayload) . " >>\n"
+    . "stream\n{$stalePayload}\nendstream\nendobj\n"
     . "%%EOF\n";
 
 $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
 $csvAttachment = $summary['attachments'][0] ?? null;
 if (!is_array($csvAttachment) || ($csvAttachment['relationship'] ?? null) !== 'Data' || ($csvAttachment['checksum_matches'] ?? null) !== true) {
     throw new RuntimeException('Expected checksum-matched Data relationship attachment review metadata.');
+}
+if (str_contains(json_encode($summary, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), 'zz-stale.csv')) {
+    throw new RuntimeException('Expected out-of-limits EmbeddedFiles name-tree rows to be pruned.');
 }
 
 echo "<!-- markerpdf-pdf-attachments-smoke " . htmlspecialchars(json_encode([
@@ -36,6 +45,8 @@ echo "<!-- markerpdf-pdf-attachments-smoke " . htmlspecialchars(json_encode([
     'executes_external_pdf_tools' => false,
     'attachment_count' => $summary['attachment_count'],
     'total_bytes' => $summary['total_bytes'],
+    'filenames' => $summary['filenames'],
+    'pruned_out_of_limits_name_tree_entry' => true,
     'relationship_roles' => array_values(array_filter(array_map(
         static fn (array $attachment): ?string => $attachment['relationship_role'] ?? null,
         $summary['attachments']

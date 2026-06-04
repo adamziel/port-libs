@@ -98,6 +98,46 @@ return [
         $t->same(false, $summary['executes_python_or_models']);
         $t->same(false, $summary['executes_external_pdf_tools']);
     },
+    'prunes out-of-limits EmbeddedFiles name-tree attachments in WordPress preflight' => static function (TestRunner $t): void {
+        $currentPayload = "Title,Status\nCurrent,Ready\n";
+        $stalePayload = "Title,Status\nStale,Ignore\n";
+        $currentChecksum = md5($currentPayload);
+        $staleChecksum = md5($stalePayload);
+
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Names << /EmbeddedFiles 2 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Limits [(current.csv) (current.csv)] /Kids [3 0 R] >>\nendobj\n"
+            . "3 0 obj\n<< /Limits [(current.csv) (current.csv)] /Names [(current.csv) 4 0 R (zz-stale.csv) 6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Filespec /F (current.csv) /Desc (Current attachment import rows) /AFRelationship /Data /EF << /F 5 0 R >> >>\nendobj\n"
+            . "5 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($currentPayload) . " /CheckSum <{$currentChecksum}> >> /Length " . strlen($currentPayload) . " >>\n"
+            . "stream\n{$currentPayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /Filespec /F (zz-stale.csv) /Desc (Stale out-of-limits import rows) /AFRelationship /Data /EF << /F 7 0 R >> >>\nendobj\n"
+            . "7 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($stalePayload) . " /CheckSum <{$staleChecksum}> >> /Length " . strlen($stalePayload) . " >>\n"
+            . "stream\n{$stalePayload}\nendstream\nendobj\n"
+            . "%%EOF\n";
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $encoded = json_encode($summary, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(strlen($currentPayload), $summary['total_bytes']);
+        $t->same(['current.csv'], $summary['filenames']);
+
+        $attachment = $summary['attachments'][0];
+        $t->same('embedded-files-name-tree', $attachment['source']);
+        $t->same('current.csv', $attachment['name_key']);
+        $t->same('current.csv', $attachment['filename']);
+        $t->same('Current attachment import rows', $attachment['description']);
+        $t->same('Data', $attachment['relationship']);
+        $t->same('base_data_for_visual_presentation', $attachment['relationship_role']);
+        $t->same('text/csv', $attachment['content_type']);
+        $t->same(strlen($currentPayload), $attachment['byte_length']);
+        $t->same($currentChecksum, $attachment['checksum_hex']);
+        $t->same(true, $attachment['checksum_matches']);
+        $t->same(false, array_key_exists('bytes', $attachment));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'zz-stale.csv'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Stale,Ignore'));
+    },
     'extracts page FileAttachment annotation embedded streams with page metadata' => static function (TestRunner $t) use ($fileAttachmentAnnotationPdf): void {
         [$pdf, $payload] = $fileAttachmentAnnotationPdf();
         $attachments = (new PdfAttachmentExtractor())->extractAttachments($pdf);

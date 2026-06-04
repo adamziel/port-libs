@@ -153,6 +153,38 @@ return [
         $t->same('duplicate.txt', $files[0]['filename']);
         $t->same($payload, $files[0]['content']);
     },
+    'prunes out-of-limits EmbeddedFiles name-tree rows before attachment import' => static function (TestRunner $t): void {
+        $currentPayload = '<wp-export><post id="current-limits"/></wp-export>';
+        $stalePayload = '<wp-export><post id="stale-limits"/></wp-export>';
+        $currentChecksum = strtoupper(hash('md5', $currentPayload));
+        $staleChecksum = strtoupper(hash('md5', $stalePayload));
+
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
+            . "6 0 obj\n<< /Limits [(current-source.xml) (current-source.xml)] /Kids [7 0 R] >>\nendobj\n"
+            . "7 0 obj\n<< /Limits [(current-source.xml) (current-source.xml)] /Names [(current-source.xml) 10 0 R (zz-stale-source.xml) 20 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (current-source.xml) /Desc (Current bounded source export) /AFRelationship /Source /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($currentPayload) . " /CheckSum <{$currentChecksum}> >> /Length " . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Type /Filespec /F (zz-stale-source.xml) /Desc (Stale out-of-limits source export) /AFRelationship /Source /EF << /F 21 0 R >> >>\nendobj\n"
+            . "21 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($stalePayload) . " /CheckSum <{$staleChecksum}> >> /Length " . strlen($stalePayload) . " >>\nstream\n{$stalePayload}\nendstream\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $encoded = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, count($files));
+        $t->same('catalog_names_embedded_files', $files[0]['source']);
+        $t->same('current-source.xml', $files[0]['name']);
+        $t->same('current-source.xml', $files[0]['filename']);
+        $t->same('Current bounded source export', $files[0]['description']);
+        $t->same('Source', $files[0]['relationship']);
+        $t->same($currentPayload, $files[0]['content']);
+        $t->same(strtolower($currentChecksum), $files[0]['checksum']);
+        $t->same(true, $files[0]['checksum_matches']);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'zz-stale-source.xml'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'stale-limits'));
+    },
     'keeps embedded-file payload streams out of fallback page text extraction' => static function (TestRunner $t): void {
         $payload = 'BT /F1 12 Tf 72 720 Td (Attachment Payload Leak) Tj ET';
         $pdf = "%PDF-1.7\n"
