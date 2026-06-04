@@ -68,43 +68,28 @@ final class PdfPageArtifactSelector
     private function selectByPageMarkers(array $artifacts, array $pageRange, array $selectedPageNumbers): ?array
     {
         $hasMarkers = false;
-        $bySourceIndex = [];
-        $byPage = [];
-        $byPageNumber = [];
-
-        foreach ($artifacts as $artifact) {
-            if (!is_array($artifact)) {
-                continue;
-            }
-
-            $sourceIndex = $this->firstIntegerField($artifact, ['page_index', 'doc_page_index', 'document_page_index', 'source_page_index']);
-            if ($sourceIndex !== null) {
-                $hasMarkers = true;
-                $bySourceIndex[$sourceIndex] ??= $artifact;
-            }
-
-            $page = $this->firstIntegerField($artifact, ['pnum', 'page', 'pdftext_page']);
-            if ($page !== null) {
-                $hasMarkers = true;
-                $byPage[$page] ??= $artifact;
-            }
-
-            $pageNumber = $this->firstIntegerField($artifact, ['page_number']);
-            if ($pageNumber !== null) {
-                $hasMarkers = true;
-                $byPageNumber[$pageNumber] ??= $artifact;
-            }
-        }
-
-        if (!$hasMarkers) {
-            return null;
-        }
-
         $selected = [];
         $matched = 0;
         foreach (array_values($pageRange) as $selectedIndex => $sourceIndex) {
             $pageNumber = $selectedPageNumbers[$selectedIndex] ?? null;
-            $artifact = $this->artifactForSelectedPage($bySourceIndex, $byPage, $byPageNumber, $sourceIndex, $pageNumber);
+            $artifact = null;
+            foreach ($artifacts as $candidate) {
+                if (!is_array($candidate)) {
+                    continue;
+                }
+
+                $markers = $this->pageMarkers($candidate);
+                if ($markers === []) {
+                    continue;
+                }
+
+                $hasMarkers = true;
+                if ($this->pageMarkersMatchSelectedPage($markers, $sourceIndex, $pageNumber)) {
+                    $artifact = $candidate;
+                    break;
+                }
+            }
+
             if ($artifact !== null) {
                 $selected[] = $artifact;
                 $matched++;
@@ -114,54 +99,71 @@ final class PdfPageArtifactSelector
             $selected[] = [];
         }
 
+        if (!$hasMarkers) {
+            return null;
+        }
+
         return $matched > 0 ? $selected : [];
     }
 
     /**
-     * @param array<int, mixed> $bySourceIndex
-     * @param array<int, mixed> $byPage
-     * @param array<int, mixed> $byPageNumber
+     * @return array{source_indexes?: list<int>, pages?: list<int>, page_numbers?: list<int>}
      */
-    private function artifactForSelectedPage(
-        array $bySourceIndex,
-        array $byPage,
-        array $byPageNumber,
-        int $sourceIndex,
-        ?int $pageNumber
-    ): mixed {
-        if (array_key_exists($sourceIndex, $bySourceIndex)) {
-            return $bySourceIndex[$sourceIndex];
+    private function pageMarkers(array $artifact): array
+    {
+        $markers = [];
+        $sourceIndexes = $this->integerFields($artifact, ['page_index', 'doc_page_index', 'document_page_index', 'source_page_index']);
+        if ($sourceIndexes !== []) {
+            $markers['source_indexes'] = $sourceIndexes;
         }
 
-        if ($pageNumber !== null && array_key_exists($pageNumber, $byPage)) {
-            return $byPage[$pageNumber];
+        $pages = $this->integerFields($artifact, ['pnum', 'page', 'pdftext_page']);
+        if ($pages !== []) {
+            $markers['pages'] = $pages;
         }
 
-        if ($pageNumber !== null && array_key_exists($pageNumber + 1, $byPageNumber)) {
-            return $byPageNumber[$pageNumber + 1];
+        $pageNumbers = $this->integerFields($artifact, ['page_number']);
+        if ($pageNumbers !== []) {
+            $markers['page_numbers'] = $pageNumbers;
         }
 
-        if ($pageNumber !== null) {
-            return null;
+        return $markers;
+    }
+
+    /**
+     * @param array{source_indexes?: list<int>, pages?: list<int>, page_numbers?: list<int>} $markers
+     */
+    private function pageMarkersMatchSelectedPage(array $markers, int $sourceIndex, ?int $pageNumber): bool
+    {
+        foreach ($markers['source_indexes'] ?? [] as $marker) {
+            if ($marker !== $sourceIndex) {
+                return false;
+            }
         }
 
-        if (array_key_exists($sourceIndex, $byPage)) {
-            return $byPage[$sourceIndex];
+        foreach ($markers['pages'] ?? [] as $marker) {
+            if ($marker !== ($pageNumber ?? $sourceIndex)) {
+                return false;
+            }
         }
 
-        if (array_key_exists($sourceIndex + 1, $byPageNumber)) {
-            return $byPageNumber[$sourceIndex + 1];
+        foreach ($markers['page_numbers'] ?? [] as $marker) {
+            if ($marker !== (($pageNumber ?? $sourceIndex) + 1)) {
+                return false;
+            }
         }
 
-        return null;
+        return $markers !== [];
     }
 
     /**
      * @param array<string, mixed> $artifact
      * @param list<string> $fields
+     * @return list<int>
      */
-    private function firstIntegerField(array $artifact, array $fields): ?int
+    private function integerFields(array $artifact, array $fields): array
     {
+        $values = [];
         foreach ($fields as $field) {
             if (!array_key_exists($field, $artifact)) {
                 continue;
@@ -169,11 +171,11 @@ final class PdfPageArtifactSelector
 
             $value = $this->integerValue($artifact[$field]);
             if ($value !== null) {
-                return $value;
+                $values[] = $value;
             }
         }
 
-        return null;
+        return array_values(array_unique($values, SORT_REGULAR));
     }
 
     private function integerValue(mixed $value): ?int
