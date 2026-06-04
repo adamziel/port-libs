@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-04 23:34:02 UTC",
-    "sourceCommit": "13e4a34a676f7e28d451ba51d2e80ee1c66b1a31",
-    "sourceCommitShort": "13e4a34a676f",
+    "generated": "2026-06-04 23:34:16 UTC",
+    "sourceCommit": "9ddb5183521ac9259d32f8254b9b3d37b8c6482a",
+    "sourceCommitShort": "9ddb5183521a",
     "sourceBranch": "unknown",
-    "dashboardCommit": "13e4a34a676f7e28d451ba51d2e80ee1c66b1a31",
-    "dashboardCommitShort": "13e4a34a676f",
+    "dashboardCommit": "9ddb5183521ac9259d32f8254b9b3d37b8c6482a",
+    "dashboardCommitShort": "9ddb5183521a",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "850",
-            "coverage": "850 / 2,276 (37.3%)",
-            "mapPercent": "37.3%",
-            "unmapped": "1,426",
-            "php": "393 pass / 0 fail",
+            "mapped": "858",
+            "coverage": "858 / 2,276 (37.7%)",
+            "mapPercent": "37.7%",
+            "unmapped": "1,418",
+            "php": "394 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-04 UTC XML/HTML5 DOM core slice on accepted base fbe3fc855650...",
+            "audit": "2026-06-04 UTC charset/Unicode width core slice on accepted base dfcc...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
             "nextTarget": "For XML/HTML5 DOM follow-up, keep full HTML5 tree-builder par...",
             "remainingGate": "No local blocker",
-            "commit": "fbe3fc8"
+            "commit": "dfccfd2"
         },
         {
             "lane": "quadrable",

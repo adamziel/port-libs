@@ -13,6 +13,7 @@ use PortLibs\Pandoc\WordPressBlockWriter;
 $legacyBytes = "# Cafe\xE9 Review\n\nEditor \x93quoted\x94 source \x97 price \x8010.";
 
 $source = (new MarkdownReader())->readBytes($legacyBytes, 'windows-1252');
+$displaySlices = UnicodeText::splitByDisplayBreakpoints("\u{9B5A}A\u{0301}\u{1F469}\u{200D}\u{1F4BB}B", [2, 3, 5]);
 $table = new AstNode('table', [
     'caption' => 'Unicode width audit',
     'alignments' => ['default', 'default', 'default'],
@@ -40,6 +41,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => "Cafe\u{0301}"])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => (string) UnicodeText::displayWidth("Cafe\u{0301}")])]),
         ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Display slices'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $displaySlices)])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $displaySlices))])]),
+        ]),
     ]),
 ]);
 $document = new AstNode('document', $source->attrs, [...$source->children, $table]);
@@ -59,6 +65,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>\u{9B5A}\u{9B5A}</td><td>4</td>")) {
         throw new RuntimeException('charset handoff self-test missing WordPress Unicode table cells');
+    }
+    if (!str_contains($blocks, "<td>\u{9B5A} / A\u{0301} / \u{1F469}\u{200D}\u{1F4BB} / B</td><td>2,1,2,1</td>")) {
+        throw new RuntimeException('charset handoff self-test missing display-width split audit');
     }
 
     echo "charset unicode handoff self-test ok\n";

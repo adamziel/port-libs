@@ -100,6 +100,20 @@ return [
         $t->same("  \u{9B5A}", UnicodeText::padDisplay("\u{9B5A}", 4, 'right'));
         $t->same("A\u{0301}   ", UnicodeText::padDisplay($accent, 4));
     },
+    'splits display width breakpoints without cutting unicode graphemes' => static function (TestRunner $t): void {
+        $accent = "A\u{0301}";
+        $emoji = "\u{1F469}\u{200D}\u{1F4BB}";
+        $text = "\u{9B5A}" . $accent . $emoji . 'B';
+
+        $t->same(6, UnicodeText::displayWidth($text));
+        $t->same(['', $text], UnicodeText::splitAtDisplayWidth($text, 0));
+        $t->same(["\u{9B5A}", $accent . $emoji . 'B'], UnicodeText::splitAtDisplayWidth($text, 1));
+        $t->same(["\u{9B5A}", $accent . $emoji . 'B'], UnicodeText::splitAtDisplayWidth($text, 2));
+        $t->same(["\u{9B5A}" . $accent, $emoji . 'B'], UnicodeText::splitAtDisplayWidth($text, 3));
+        $t->same(["\u{9B5A}" . $accent . $emoji, 'B'], UnicodeText::splitAtDisplayWidth($text, 4));
+        $t->same(["\u{9B5A}", $accent, $emoji, 'B'], UnicodeText::splitByDisplayBreakpoints($text, [2, 3, 5]));
+        $t->same(["\u{9B5A}", '', $accent . $emoji . 'B'], UnicodeText::splitByDisplayBreakpoints($text, [2, 1]));
+    },
     'writes markdown pipe table padding with unicode display widths' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('table', [

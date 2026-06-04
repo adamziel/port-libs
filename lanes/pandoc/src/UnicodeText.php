@@ -146,6 +146,55 @@ final class UnicodeText
         return $width;
     }
 
+    /**
+     * @return array{0:string, 1:string}
+     */
+    public static function splitAtDisplayWidth(string $text, int $width): array
+    {
+        $text = self::repair($text);
+        if ($width <= 0 || $text === '') {
+            return ['', $text];
+        }
+
+        $head = '';
+        $usedWidth = 0;
+        foreach (self::graphemes($text) as $cluster) {
+            $clusterWidth = self::graphemeDisplayWidth($cluster);
+            $head .= $cluster;
+            $usedWidth += $clusterWidth;
+
+            if ($usedWidth >= $width) {
+                return [$head, substr($text, strlen($head))];
+            }
+        }
+
+        return [$text, ''];
+    }
+
+    /**
+     * Split text at absolute display-width breakpoints.
+     *
+     * @param list<int> $breakpoints
+     * @return list<string>
+     */
+    public static function splitByDisplayBreakpoints(string $text, array $breakpoints): array
+    {
+        $segments = [];
+        $remaining = self::repair($text);
+        $previous = 0;
+
+        foreach ($breakpoints as $breakpoint) {
+            $relativeWidth = max(0, $breakpoint - $previous);
+            [$segment, $remaining] = self::splitAtDisplayWidth($remaining, $relativeWidth);
+            $segments[] = $segment;
+            $previous = $breakpoint;
+        }
+
+        $segments[] = $remaining;
+
+        return $segments;
+    }
+
     public static function padDisplay(string $text, int $width, string $alignment = 'left'): string
     {
         $padding = max(0, $width - self::displayWidth($text));
