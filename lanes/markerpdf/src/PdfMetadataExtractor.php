@@ -2554,6 +2554,7 @@ final class PdfMetadataExtractor
             $pageIndexes,
             $destinationsByName,
             $structureContext,
+            $outlineRoot['object'],
             15
         );
 
@@ -2747,6 +2748,7 @@ final class PdfMetadataExtractor
         array $pageIndexes,
         array $destinationsByName,
         array $structureContext,
+        ?int $expectedParentObject,
         int $maxDepth,
         int $level = 1,
         array $seen = []
@@ -2761,6 +2763,9 @@ final class PdfMetadataExtractor
             $seen[$current] = true;
             $dictionary = isset($objects[$current]) ? $this->dictionaryObjectBody($objects[$current]) : null;
             if ($dictionary === null) {
+                break;
+            }
+            if (!$this->documentOutlineItemParentMatches($dictionary, $expectedParentObject)) {
                 break;
             }
 
@@ -2784,6 +2789,7 @@ final class PdfMetadataExtractor
                 $pageIndexes,
                 $destinationsByName,
                 $structureContext,
+                $current,
                 $maxDepth,
                 $level + 1,
                 $seen
@@ -2795,6 +2801,17 @@ final class PdfMetadataExtractor
         }
 
         return $items;
+    }
+
+    private function documentOutlineItemParentMatches(string $dictionary, ?int $expectedParentObject): bool
+    {
+        if ($expectedParentObject === null) {
+            return true;
+        }
+
+        $parent = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Parent') ?? '');
+
+        return $parent === null || $parent === $expectedParentObject;
     }
 
     /**

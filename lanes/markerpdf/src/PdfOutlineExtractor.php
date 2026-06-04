@@ -45,6 +45,7 @@ final class PdfOutlineExtractor
             $objects,
             $pageIndexes,
             $this->destinationMap($catalog, $objects),
+            $this->referenceObjectNumber($catalog['Outlines'] ?? null),
             max(1, $maxDepth)
         );
     }
@@ -73,6 +74,7 @@ final class PdfOutlineExtractor
             $outlineRoot['First'] ?? null,
             $objects,
             $this->destinationMap($catalog, $objects),
+            $this->referenceObjectNumber($catalog['Outlines'] ?? null),
             max(1, $maxDepth)
         );
     }
@@ -181,6 +183,7 @@ final class PdfOutlineExtractor
             $objects,
             $pageIndexes,
             $this->destinationMap($catalog, $objects),
+            $this->referenceObjectNumber($catalog['Outlines'] ?? null),
             max(1, $maxDepth)
         );
     }
@@ -233,6 +236,7 @@ final class PdfOutlineExtractor
             $this->articleBeadsByPageIndex($articleThreads),
             $this->pageReviewsByPageIndex($pageReviews),
             $this->taggedContentByPageIndex($pdfBytes),
+            $this->referenceObjectNumber($catalog['Outlines'] ?? null),
             max(1, $maxDepth)
         );
     }
@@ -435,6 +439,7 @@ final class PdfOutlineExtractor
                 $articleBeadsByPage,
                 $pageReviewsByPage,
                 $taggedContentByPage,
+                $this->referenceObjectNumber($catalog['Outlines'] ?? null),
                 15
             ) as $item) {
                 $metadata['outline'][] = $item;
@@ -453,6 +458,7 @@ final class PdfOutlineExtractor
                 $articleBeadsByPage,
                 $pageReviewsByPage,
                 $taggedContentByPage,
+                $this->referenceObjectNumber($catalog['Outlines'] ?? null),
                 15
             );
             if ($outlineActionReviews !== []) {
@@ -1017,6 +1023,7 @@ final class PdfOutlineExtractor
         array $articleBeadsByPage,
         array $pageReviewsByPage,
         array $taggedContentByPage,
+        ?int $expectedParentObject,
         int $maxDepth,
         int $level = 1,
         array $seen = []
@@ -1031,6 +1038,9 @@ final class PdfOutlineExtractor
             $seen[$current] = true;
             $dict = $this->resolveDictionary($this->refValue($current), $objects);
             if ($dict === null) {
+                break;
+            }
+            if (!$this->outlineItemParentMatches($dict, $expectedParentObject)) {
                 break;
             }
 
@@ -1168,6 +1178,7 @@ final class PdfOutlineExtractor
                     $articleBeadsByPage,
                     $pageReviewsByPage,
                     $taggedContentByPage,
+                    $current,
                     $maxDepth,
                     $level + 1,
                     $seen
@@ -1180,6 +1191,20 @@ final class PdfOutlineExtractor
         }
 
         return $items;
+    }
+
+    /**
+     * @param array<string, mixed> $outline
+     */
+    private function outlineItemParentMatches(array $outline, ?int $expectedParentObject): bool
+    {
+        if ($expectedParentObject === null) {
+            return true;
+        }
+
+        $parent = $this->referenceObjectNumber($outline['Parent'] ?? null);
+
+        return $parent === null || $parent === $expectedParentObject;
     }
 
     /**
@@ -1904,6 +1929,7 @@ final class PdfOutlineExtractor
         array $objects,
         array $pageIndexes,
         array $destinations,
+        ?int $expectedParentObject,
         int $maxDepth,
         int $level = 1,
         array $seen = []
@@ -1920,6 +1946,9 @@ final class PdfOutlineExtractor
             if ($dict === null) {
                 break;
             }
+            if (!$this->outlineItemParentMatches($dict, $expectedParentObject)) {
+                break;
+            }
 
             $title = $this->stringOrNameValue($this->resolveValue($dict['Title'] ?? null, $objects));
             $destination = $this->outlineDestination($dict, $objects);
@@ -1934,7 +1963,7 @@ final class PdfOutlineExtractor
             }
 
             if ($level < $maxDepth) {
-                foreach ($this->outlineItems($dict['First'] ?? null, $objects, $pageIndexes, $destinations, $maxDepth, $level + 1, $seen) as $child) {
+                foreach ($this->outlineItems($dict['First'] ?? null, $objects, $pageIndexes, $destinations, $current, $maxDepth, $level + 1, $seen) as $child) {
                     $items[] = $child;
                 }
             }
@@ -1965,6 +1994,7 @@ final class PdfOutlineExtractor
         array $objects,
         array $pageIndexes,
         array $destinations,
+        ?int $expectedParentObject,
         int $maxDepth,
         int $level = 1,
         array $seen = []
@@ -1979,6 +2009,9 @@ final class PdfOutlineExtractor
             $seen[$current] = true;
             $dict = $this->resolveDictionary($this->refValue($current), $objects);
             if ($dict === null) {
+                break;
+            }
+            if (!$this->outlineItemParentMatches($dict, $expectedParentObject)) {
                 break;
             }
 
@@ -2004,7 +2037,7 @@ final class PdfOutlineExtractor
             }
 
             if ($level < $maxDepth) {
-                foreach ($this->outlineItemsWithDestinationViews($dict['First'] ?? null, $objects, $pageIndexes, $destinations, $maxDepth, $level + 1, $seen) as $child) {
+                foreach ($this->outlineItemsWithDestinationViews($dict['First'] ?? null, $objects, $pageIndexes, $destinations, $current, $maxDepth, $level + 1, $seen) as $child) {
                     $items[] = $child;
                 }
             }
@@ -2039,6 +2072,7 @@ final class PdfOutlineExtractor
         array $articleBeadsByPage,
         array $pageReviewsByPage,
         array $taggedContentByPage,
+        ?int $expectedParentObject,
         int $maxDepth,
         int $level = 1,
         array $seen = []
@@ -2053,6 +2087,9 @@ final class PdfOutlineExtractor
             $seen[$current] = true;
             $dict = $this->resolveDictionary($this->refValue($current), $objects);
             if ($dict === null) {
+                break;
+            }
+            if (!$this->outlineItemParentMatches($dict, $expectedParentObject)) {
                 break;
             }
 
@@ -2120,6 +2157,7 @@ final class PdfOutlineExtractor
                     $articleBeadsByPage,
                     $pageReviewsByPage,
                     $taggedContentByPage,
+                    $current,
                     $maxDepth,
                     $level + 1,
                     $seen
@@ -2372,6 +2410,7 @@ final class PdfOutlineExtractor
         mixed $firstItem,
         array $objects,
         array $destinations,
+        ?int $expectedParentObject,
         int $maxDepth,
         int $level = 1,
         array $seen = []
@@ -2386,6 +2425,9 @@ final class PdfOutlineExtractor
             $seen[$current] = true;
             $dict = $this->resolveDictionary($this->refValue($current), $objects);
             if ($dict === null) {
+                break;
+            }
+            if (!$this->outlineItemParentMatches($dict, $expectedParentObject)) {
                 break;
             }
 
@@ -2403,7 +2445,7 @@ final class PdfOutlineExtractor
             }
 
             if ($level < $maxDepth) {
-                foreach ($this->remoteGoToOutlineItems($dict['First'] ?? null, $objects, $destinations, $maxDepth, $level + 1, $seen) as $child) {
+                foreach ($this->remoteGoToOutlineItems($dict['First'] ?? null, $objects, $destinations, $current, $maxDepth, $level + 1, $seen) as $child) {
                     $items[] = $child;
                 }
             }
