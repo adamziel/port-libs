@@ -5,6 +5,7 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\GzipStream;
+use PortLibs\Pandoc\Lz4Frame;
 use PortLibs\Pandoc\TarArchive;
 use PortLibs\Pandoc\TarArchiveEntry;
 use PortLibs\Pandoc\ZipPackage;
@@ -182,6 +183,14 @@ $compressedTarPacket = GzipStream::build($tarPacket->bytes(), [
     'headerCrc' => true,
 ]);
 $tarPacketRoundTrip = TarArchive::fromString(GzipStream::decode($compressedTarPacket));
+$lz4ReviewPacket = Lz4Frame::skippableFrame('wordpress import archive metadata', 2)
+    . Lz4Frame::build($tarPacket->bytes(), [
+        'blockChecksum' => true,
+        'contentChecksum' => true,
+        'contentSize' => true,
+    ]);
+$lz4ReviewFrames = Lz4Frame::frames($lz4ReviewPacket);
+$lz4TarPacketRoundTrip = TarArchive::fromString(Lz4Frame::decode($lz4ReviewPacket));
 $symlinkRejected = false;
 try {
     ZipPackage::fromParts([
@@ -275,6 +284,18 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected tar packet directory metadata to round-trip');
     }
 
+    if (($lz4ReviewFrames[0]['type'] ?? null) !== 'skippable') {
+        throw new RuntimeException('Expected LZ4 skippable metadata frame to be preserved');
+    }
+
+    if (($lz4ReviewFrames[1]['blockChecksum'] ?? false) !== true) {
+        throw new RuntimeException('Expected LZ4 block checksums to be validated');
+    }
+
+    if ($lz4TarPacketRoundTrip->read('/packet/word/document.xml') !== '<w:document><w:body><w:p>Tar packet WordPress source</w:p></w:body></w:document>') {
+        throw new RuntimeException('Expected LZ4-wrapped tar document bytes to round-trip');
+    }
+
     if (!$symlinkRejected) {
         throw new RuntimeException('Expected ZIP symlink entries to be rejected before media import');
     }
@@ -307,3 +328,7 @@ echo 'gzip.comment=' . $compressedPackageMembers[0]['comment'] . "\n";
 echo 'gzip.compressedSize=' . $compressedPackageMembers[0]['compressedSize'] . "\n";
 echo 'tar.entries=' . implode(',', $tarPacketRoundTrip->names()) . "\n";
 echo 'tar.document.xml=' . $tarPacketRoundTrip->read('/packet/word/document.xml') . "\n";
+echo 'lz4.frames=' . count($lz4ReviewFrames) . "\n";
+echo 'lz4.skippable=' . $lz4ReviewFrames[0]['data'] . "\n";
+echo 'lz4.blockTypes=' . implode(',', $lz4ReviewFrames[1]['blockTypes']) . "\n";
+echo 'lz4.document.xml=' . $lz4TarPacketRoundTrip->read('/packet/word/document.xml') . "\n";
