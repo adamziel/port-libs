@@ -9123,11 +9123,16 @@ final class PdfAcroFormExtractor
 
     private function valueAfterName(string $body, string $name): ?string
     {
-        if (preg_match('/\/' . preg_quote($name, '/') . '\b/s', $body, $match, PREG_OFFSET_CAPTURE) !== 1) {
+        $dictionaryBody = $this->topLevelDictionaryBody($body);
+        if ($dictionaryBody !== null) {
+            $body = $dictionaryBody;
+        }
+
+        $offset = $this->offsetAfterTopLevelName($body, $name);
+        if ($offset === null) {
             return null;
         }
 
-        $offset = $match[0][1] + strlen($match[0][0]);
         $this->skipWhitespace($body, $offset);
         if ($offset >= strlen($body)) {
             return null;
@@ -9170,6 +9175,67 @@ final class PdfAcroFormExtractor
         }
 
         return substr($body, $offset, max(0, $end - $offset));
+    }
+
+    private function topLevelDictionaryBody(string $body): ?string
+    {
+        $offset = 0;
+        $this->skipWhitespace($body, $offset);
+        if (substr($body, $offset, 2) !== '<<') {
+            return null;
+        }
+
+        return $this->readPdfDictionaryAt($body, $offset);
+    }
+
+    private function offsetAfterTopLevelName(string $body, string $name): ?int
+    {
+        $offset = 0;
+        $length = strlen($body);
+        while ($offset < $length) {
+            $this->skipWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $char = $body[$offset];
+            if ($char === '(') {
+                $offset = $this->skipLiteralString($body, $offset);
+                continue;
+            }
+
+            if ($char === '<' && substr($body, $offset, 2) === '<<') {
+                $endOffset = null;
+                $this->readPdfDictionaryAt($body, $offset, $endOffset);
+                $offset = $endOffset ?? ($offset + 2);
+                continue;
+            }
+
+            if ($char === '<') {
+                $offset = $this->skipHexString($body, $offset);
+                continue;
+            }
+
+            if ($char === '[') {
+                $endOffset = null;
+                $this->readPdfArrayAt($body, $offset, $endOffset);
+                $offset = $endOffset ?? ($offset + 1);
+                continue;
+            }
+
+            if ($char === '/') {
+                $endOffset = $this->skipPdfName($body, $offset);
+                if ($this->decodePdfName(substr($body, $offset, $endOffset - $offset)) === $name) {
+                    return $endOffset;
+                }
+                $offset = $endOffset;
+                continue;
+            }
+
+            $offset++;
+        }
+
+        return null;
     }
 
     private function readPdfValueAt(string $body, int $offset, ?int &$endOffset = null): ?string
@@ -9515,9 +9581,30 @@ final class PdfAcroFormExtractor
 
     private function skipWhitespace(string $body, int &$offset): void
     {
-        while ($offset < strlen($body) && ctype_space($body[$offset])) {
-            $offset++;
+        $length = strlen($body);
+        while ($offset < $length) {
+            while ($offset < $length && ctype_space($body[$offset])) {
+                $offset++;
+            }
+
+            if (($body[$offset] ?? '') !== '%') {
+                break;
+            }
+
+            $offset = $this->skipPdfComment($body, $offset);
         }
+    }
+
+    private function skipPdfComment(string $body, int $offset): int
+    {
+        $length = strlen($body);
+        for ($index = $offset + 1; $index < $length; $index++) {
+            if ($body[$index] === "\n" || $body[$index] === "\r") {
+                return $index + 1;
+            }
+        }
+
+        return $length;
     }
 
     private function skipPdfName(string $body, int $offset): int
@@ -9663,6 +9750,10 @@ final class PdfAcroFormExtractor
                 $index = $this->skipLiteralString($value, $index) - 1;
                 continue;
             }
+            if ($char === '%') {
+                $index = $this->skipPdfComment($value, $index) - 1;
+                continue;
+            }
             if ($char === '<' && substr($value, $index, 2) !== '<<') {
                 $index = $this->skipHexString($value, $index) - 1;
                 continue;
@@ -9702,6 +9793,10 @@ final class PdfAcroFormExtractor
             $char = $value[$index];
             if ($char === '(') {
                 $index = $this->skipLiteralString($value, $index) - 1;
+                continue;
+            }
+            if ($char === '%') {
+                $index = $this->skipPdfComment($value, $index) - 1;
                 continue;
             }
             if ($char === '<' && substr($value, $index, 2) === '<<') {

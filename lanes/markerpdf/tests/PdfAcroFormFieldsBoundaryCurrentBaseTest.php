@@ -34,6 +34,21 @@ $pageWidgetFieldBoundaryPdf = static function (): string {
         . "%%EOF";
 };
 
+$tokenAwareAcroFormFieldsBoundaryPdf = static function (): string {
+    $pageText = 'BT /F1 12 Tf 72 720 Td (Visible token-aware AcroForm field body) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /DA (/Fields [99 0 R] should stay a literal default appearance comment) /Fie#6Cds [6 0 R] /NeedAppearances true >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (article.token) /TU (Tooltip text with /V (Decoy token title) and /Kids [99 0 R]) /V (Real token title) /Kids [8 0 R] /AA << /K << /S /Named /N /Print /Fields [99 0 R] >> >> >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 320 664] /P 3 0 R /F 4 >>\nendobj\n"
+        . "99 0 obj\n<< /FT /Tx /T (decoy.literal) /V (Decoy token title) >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'repairs AcroForm field discovery from page owned widget annotations only' => static function (TestRunner $t) use ($pageWidgetFieldBoundaryPdf, $fieldsByName): void {
         $pdf = $pageWidgetFieldBoundaryPdf();
@@ -78,5 +93,33 @@ return [
         $t->true(str_contains($visibleText, 'Visible AcroForm page widget boundary body'));
         $t->true(!str_contains($visibleText, 'detached widget value must not surface'));
         $t->true(!str_contains($visibleText, 'inline page widget value'));
+    },
+    'uses token aware AcroForm field keys before WordPress review metadata' => static function (TestRunner $t) use ($tokenAwareAcroFormFieldsBoundaryPdf, $fieldsByName): void {
+        $pdf = $tokenAwareAcroFormFieldsBoundaryPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $visibleText = (new PdfTextExtractor())->extractPlainText($pdf);
+
+        $t->same(['article.token'], array_keys($fields));
+        $t->same(1, count($form['fields']));
+        $t->same(true, $form['need_appearances']);
+
+        $field = $fields['article.token'];
+        $t->same(6, $field['object']);
+        $t->same('text', $field['field_type_label']);
+        $t->same('Real token title', $field['value']);
+        $t->same('field_terminal', $field['value_state']['hierarchy_boundary']['current_value_source']);
+        $t->same([8], array_column($field['widgets'], 'object'));
+        $t->same([0], array_column($field['widgets'], 'page_annotation_index'));
+        $t->same([true], array_column($field['widgets'], 'referenced_from_page_annots'));
+        $t->same(['FT', 'V'], $field['field_hierarchy']['local_attributes']);
+        $t->same(['DA'], $field['field_hierarchy']['inherited_attributes']);
+        $t->same('Named', $field['actions'][0]['action_type']);
+        $t->same('K', $field['actions'][0]['trigger']);
+
+        $t->true(!isset($fields['decoy.literal']));
+        $t->true(str_contains($visibleText, 'Visible token-aware AcroForm field body'));
+        $t->true(!str_contains($visibleText, 'Decoy token title'));
+        $t->true(!str_contains($visibleText, 'Real token title'));
     },
 ];
