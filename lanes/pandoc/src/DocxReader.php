@@ -106,6 +106,10 @@ final class DocxReader
             'relationshipIssues' => $relationshipIssues,
             'media' => $this->mediaImportReport($package, $reachableRelationships, $document),
             'revisions' => $revisions,
+            'sections' => [
+                'count' => count($document->attr('sectionProperties', [])),
+                'items' => $document->attr('sectionProperties', []),
+            ],
         ];
     }
 
@@ -230,14 +234,199 @@ final class DocxReader
             throw new \InvalidArgumentException('DOCX document XML is missing w:body');
         }
 
-        return new AstNode('document', ['sourceFormat' => 'docx', 'documentPart' => $documentPart], $this->bodyChildren(
+        $blocks = $this->bodyChildren(
             $body,
             $package,
             $relationships,
             $referencedNotes,
             $styles,
             $numbering
-        ));
+        );
+        $attrs = [
+            'sourceFormat' => 'docx',
+            'documentPart' => $documentPart,
+        ];
+        $sectionProperties = $this->sectionProperties($body, $relationships);
+        if ($sectionProperties !== []) {
+            $attrs['sectionProperties'] = $sectionProperties;
+        }
+
+        return new AstNode('document', $attrs, $blocks);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function sectionProperties(\DOMElement $body, ?OpcRelationships $relationships): array
+    {
+        $sections = [];
+        foreach ($body->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'p')) {
+                $properties = $this->firstChildElement($child, self::WORDPROCESSINGML_NS, 'pPr');
+                $sectionProperties = $properties instanceof \DOMElement
+                    ? $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'sectPr')
+                    : null;
+                if ($sectionProperties instanceof \DOMElement) {
+                    $sections[] = $this->sectionPropertyAttrs($sectionProperties, 'paragraph', count($sections), $relationships);
+                }
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'sectPr')) {
+                $sections[] = $this->sectionPropertyAttrs($child, 'body', count($sections), $relationships);
+            }
+        }
+
+        return $sections;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sectionPropertyAttrs(
+        \DOMElement $sectionProperties,
+        string $source,
+        int $index,
+        ?OpcRelationships $relationships
+    ): array {
+        $attrs = [
+            'source' => $source,
+            'index' => $index,
+        ];
+
+        $pageSize = $this->sectionPageSize($sectionProperties);
+        if ($pageSize !== []) {
+            $attrs['pageSize'] = $pageSize;
+        }
+
+        $margins = $this->sectionMargins($sectionProperties);
+        if ($margins !== []) {
+            $attrs['margins'] = $margins;
+        }
+
+        $columns = $this->sectionColumns($sectionProperties);
+        if ($columns !== null) {
+            $attrs['columns'] = $columns;
+        }
+
+        $headers = $this->sectionReferences($sectionProperties, 'headerReference', $relationships);
+        if ($headers !== []) {
+            $attrs['headers'] = $headers;
+        }
+
+        $footers = $this->sectionReferences($sectionProperties, 'footerReference', $relationships);
+        if ($footers !== []) {
+            $attrs['footers'] = $footers;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, int|string>
+     */
+    private function sectionPageSize(\DOMElement $sectionProperties): array
+    {
+        $pageSize = $this->firstChildElement($sectionProperties, self::WORDPROCESSINGML_NS, 'pgSz');
+        if (!$pageSize instanceof \DOMElement) {
+            return [];
+        }
+
+        $attrs = [];
+        $width = $this->optionalIntWordAttr($pageSize, 'w');
+        if ($width !== null) {
+            $attrs['widthTwips'] = $width;
+        }
+
+        $height = $this->optionalIntWordAttr($pageSize, 'h');
+        if ($height !== null) {
+            $attrs['heightTwips'] = $height;
+        }
+
+        $orientation = $this->wordAttr($pageSize, 'orient');
+        if ($orientation !== null && $orientation !== '') {
+            $attrs['orientation'] = strtolower($orientation);
+        } elseif ($width !== null && $height !== null) {
+            $attrs['orientation'] = $width > $height ? 'landscape' : 'portrait';
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function sectionMargins(\DOMElement $sectionProperties): array
+    {
+        $pageMargins = $this->firstChildElement($sectionProperties, self::WORDPROCESSINGML_NS, 'pgMar');
+        if (!$pageMargins instanceof \DOMElement) {
+            return [];
+        }
+
+        $attrs = [];
+        foreach (['top', 'right', 'bottom', 'left', 'header', 'footer', 'gutter'] as $name) {
+            $value = $this->optionalIntWordAttr($pageMargins, $name);
+            if ($value !== null) {
+                $attrs[$name . 'Twips'] = $value;
+            }
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array{count:int, equalWidth:bool, spaceTwips?:int}|null
+     */
+    private function sectionColumns(\DOMElement $sectionProperties): ?array
+    {
+        $columns = $this->firstChildElement($sectionProperties, self::WORDPROCESSINGML_NS, 'cols');
+        if (!$columns instanceof \DOMElement) {
+            return null;
+        }
+
+        $attrs = [
+            'count' => max(1, $this->intWordAttr($columns, 'num', 1)),
+            'equalWidth' => $this->onOffWordAttr($columns, 'equalWidth', true),
+        ];
+        $space = $this->optionalIntWordAttr($columns, 'space');
+        if ($space !== null) {
+            $attrs['spaceTwips'] = $space;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return list<array{id:string, type:string, target:?string, external:?bool, relationshipType:?string}>
+     */
+    private function sectionReferences(\DOMElement $sectionProperties, string $localName, ?OpcRelationships $relationships): array
+    {
+        $references = [];
+        foreach ($sectionProperties->childNodes as $child) {
+            if (!$child instanceof \DOMElement || !$this->isWordElement($child, $localName)) {
+                continue;
+            }
+
+            $relationshipId = $this->relationshipAttr($child, 'id');
+            if ($relationshipId === null || $relationshipId === '') {
+                continue;
+            }
+
+            $relationship = $relationships instanceof OpcRelationships ? $relationships->byId($relationshipId) : null;
+            $references[] = [
+                'id' => $relationshipId,
+                'type' => (string) ($this->wordAttr($child, 'type') ?? 'default'),
+                'target' => $relationship instanceof OpcRelationship ? $relationships->resolveTarget($relationship) : null,
+                'external' => $relationship instanceof OpcRelationship ? $relationship->isExternal() : null,
+                'relationshipType' => $relationship instanceof OpcRelationship ? $relationship->type : null,
+            ];
+        }
+
+        return $references;
     }
 
     /**
@@ -1991,6 +2180,26 @@ final class DocxReader
         }
 
         return (int) $value;
+    }
+
+    private function optionalIntWordAttr(\DOMElement $element, string $localName): ?int
+    {
+        $value = $this->wordAttr($element, $localName);
+        if ($value === null || !preg_match('/^-?\d+$/', $value)) {
+            return null;
+        }
+
+        return (int) $value;
+    }
+
+    private function onOffWordAttr(\DOMElement $element, string $localName, bool $default): bool
+    {
+        $value = $this->wordAttr($element, $localName);
+        if ($value === null || $value === '') {
+            return $default;
+        }
+
+        return !in_array(strtolower($value), ['0', 'false', 'off', 'none'], true);
     }
 
     private function isWordElement(\DOMElement $element, string $localName): bool

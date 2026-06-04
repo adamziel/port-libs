@@ -40,6 +40,8 @@ XML],
   <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
   <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
   <Relationship Id="rIdNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+  <Relationship Id="rIdHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+  <Relationship Id="rIdFooterDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
 </Relationships>
 XML],
     ['name' => 'word/document.xml', 'data' => <<<'XML'
@@ -131,6 +133,13 @@ XML],
         </w:tc>
       </w:tr>
     </w:tbl>
+    <w:sectPr>
+      <w:headerReference w:type="default" r:id="rIdHeaderDefault"/>
+      <w:footerReference w:type="default" r:id="rIdFooterDefault"/>
+      <w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>
+      <w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="360" w:footer="360"/>
+      <w:cols w:num="2" w:space="360" w:equalWidth="0"/>
+    </w:sectPr>
   </w:body>
 </w:document>
 XML],
@@ -166,6 +175,16 @@ XML],
   </w:comment>
 </w:comments>
 XML],
+    ['name' => 'word/header1.xml', 'data' => <<<'XML'
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p><w:r><w:t>Source packet header</w:t></w:r></w:p>
+</w:hdr>
+XML],
+    ['name' => 'word/footer1.xml', 'data' => <<<'XML'
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p><w:r><w:t>Source packet footer</w:t></w:r></w:p>
+</w:ftr>
+XML],
     ['name' => 'word/media/hero.png', 'data' => 'PNGDATA'],
     ['name' => 'docProps/core.xml', 'data' => <<<'XML'
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
@@ -184,6 +203,7 @@ $summary = [
     'metadata' => $result['metadata'],
     'documentPart' => $result['documentPart'],
     'blockCount' => count($result['document']->children),
+    'sectionProperties' => $result['document']->attr('sectionProperties', []),
     'importReport' => $result['importReport'],
     'wordpressBlocks' => $blocks,
 ];
@@ -200,6 +220,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['importReport']['revisions']['insertionCount'] ?? 0) !== 1 || ($summary['importReport']['revisions']['deletionCount'] ?? 0) !== 1) {
         throw new RuntimeException('DOCX body handoff self-test missing tracked-change report');
+    }
+    if (($summary['importReport']['sections']['count'] ?? 0) !== 1) {
+        throw new RuntimeException('DOCX body handoff self-test missing section property report');
+    }
+    if (($summary['sectionProperties'][0]['pageSize']['orientation'] ?? '') !== 'landscape') {
+        throw new RuntimeException('DOCX body handoff self-test missing section page orientation');
+    }
+    if (($summary['sectionProperties'][0]['columns']['count'] ?? 0) !== 2) {
+        throw new RuntimeException('DOCX body handoff self-test missing section column count');
+    }
+    if (($summary['sectionProperties'][0]['headers'][0]['target'] ?? '') !== '/word/header1.xml') {
+        throw new RuntimeException('DOCX body handoff self-test missing section header target');
     }
     if (str_contains($blocks, 'Old reviewer draft.')) {
         throw new RuntimeException('DOCX body handoff self-test rendered deleted tracked-change text');

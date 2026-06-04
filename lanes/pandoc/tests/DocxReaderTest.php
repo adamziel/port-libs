@@ -390,6 +390,41 @@ $fieldHyperlinkDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$sectionPropertiesDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+  <Relationship Id="rIdFooterDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
+  <Relationship Id="rIdHeaderEven" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header-even.xml"/>
+</Relationships>
+XML;
+
+$sectionPropertiesDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:p>
+      <w:pPr>
+        <w:sectPr>
+          <w:headerReference w:type="default" r:id="rIdHeaderDefault"/>
+          <w:footerReference w:type="default" r:id="rIdFooterDefault"/>
+          <w:pgSz w:w="12240" w:h="15840" w:orient="portrait"/>
+          <w:pgMar w:top="1440" w:right="1080" w:bottom="1440" w:left="1080" w:header="720" w:footer="720" w:gutter="0"/>
+          <w:cols w:num="1" w:space="720"/>
+        </w:sectPr>
+      </w:pPr>
+      <w:r><w:t>Portrait packet section</w:t></w:r>
+    </w:p>
+    <w:p><w:r><w:t>Landscape continuation section.</w:t></w:r></w:p>
+    <w:sectPr>
+      <w:headerReference w:type="even" r:id="rIdHeaderEven"/>
+      <w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>
+      <w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="360" w:footer="360"/>
+      <w:cols w:num="2" w:space="360" w:equalWidth="0"/>
+    </w:sectPr>
+  </w:body>
+</w:document>
+XML;
+
 $buildDocxPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $documentXml, $footnotesXml, $corePropertiesXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -475,6 +510,23 @@ $buildFieldHyperlinkPackage = static function () use ($contentTypesXml, $package
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $fieldHyperlinkDocumentXml],
+    ]);
+};
+
+$buildSectionPropertiesPackage = static function () use (
+    $contentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $sectionPropertiesDocumentRelationshipsXml,
+    $sectionPropertiesDocumentXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $sectionPropertiesDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $sectionPropertiesDocumentRelationshipsXml],
+        ['name' => 'word/header1.xml', 'data' => '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Default header</w:t></w:r></w:p></w:hdr>'],
+        ['name' => 'word/footer1.xml', 'data' => '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Default footer</w:t></w:r></w:p></w:ftr>'],
+        ['name' => 'word/header-even.xml', 'data' => '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Even header</w:t></w:r></w:p></w:hdr>'],
     ]);
 };
 
@@ -895,6 +947,64 @@ return [
         $t->contains('<a href="#source_packet">anchor jump</a>', $blocks);
         $t->contains('<span id="source_packet" class="anchor"></span>Source packet anchor target.', $blocks);
         $t->true(!str_contains($blocks, 'HYPERLINK'), 'DOCX field instructions should not render to WordPress blocks');
+    },
+    'reports DOCX section page geometry margins columns and header footer relationships' => static function (TestRunner $t) use ($buildSectionPropertiesPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildSectionPropertiesPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($document->children));
+        $t->same('Portrait packet section', $document->children[0]->children[0]->attr('text'));
+        $t->same('Landscape continuation section.', $document->children[1]->children[0]->attr('text'));
+        $t->contains('Portrait packet section', $markdown);
+        $t->contains('Landscape continuation section.', $blocks);
+
+        $sections = $document->attr('sectionProperties');
+        $t->same(2, count($sections));
+
+        $portrait = $sections[0];
+        $t->same('paragraph', $portrait['source']);
+        $t->same(0, $portrait['index']);
+        $t->same(12240, $portrait['pageSize']['widthTwips']);
+        $t->same(15840, $portrait['pageSize']['heightTwips']);
+        $t->same('portrait', $portrait['pageSize']['orientation']);
+        $t->same(1440, $portrait['margins']['topTwips']);
+        $t->same(1080, $portrait['margins']['rightTwips']);
+        $t->same(1440, $portrait['margins']['bottomTwips']);
+        $t->same(1080, $portrait['margins']['leftTwips']);
+        $t->same(720, $portrait['margins']['headerTwips']);
+        $t->same(720, $portrait['margins']['footerTwips']);
+        $t->same(0, $portrait['margins']['gutterTwips']);
+        $t->same(1, $portrait['columns']['count']);
+        $t->same(true, $portrait['columns']['equalWidth']);
+        $t->same(720, $portrait['columns']['spaceTwips']);
+        $t->same('rIdHeaderDefault', $portrait['headers'][0]['id']);
+        $t->same('default', $portrait['headers'][0]['type']);
+        $t->same('/word/header1.xml', $portrait['headers'][0]['target']);
+        $t->same(false, $portrait['headers'][0]['external']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/header', $portrait['headers'][0]['relationshipType']);
+        $t->same('rIdFooterDefault', $portrait['footers'][0]['id']);
+        $t->same('/word/footer1.xml', $portrait['footers'][0]['target']);
+
+        $landscape = $sections[1];
+        $t->same('body', $landscape['source']);
+        $t->same(1, $landscape['index']);
+        $t->same(16838, $landscape['pageSize']['widthTwips']);
+        $t->same(11906, $landscape['pageSize']['heightTwips']);
+        $t->same('landscape', $landscape['pageSize']['orientation']);
+        $t->same(720, $landscape['margins']['topTwips']);
+        $t->same(720, $landscape['margins']['rightTwips']);
+        $t->same(2, $landscape['columns']['count']);
+        $t->same(false, $landscape['columns']['equalWidth']);
+        $t->same(360, $landscape['columns']['spaceTwips']);
+        $t->same('even', $landscape['headers'][0]['type']);
+        $t->same('/word/header-even.xml', $landscape['headers'][0]['target']);
+
+        $reportSections = $result['importReport']['sections'];
+        $t->same(2, $reportSections['count']);
+        $t->same($sections, $reportSections['items']);
     },
     'rejects malformed DOCX packages without shelling out to office tooling' => static function (TestRunner $t) use ($contentTypesXml, $documentXml): void {
         $reader = new DocxReader();
