@@ -34,6 +34,13 @@ $relativeTdPdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Length " . strlen($relativeTdContent) . " >>\nstream\n{$relativeTdContent}\nendstream\nendobj\n"
     . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
 
+$sparseWidthContent = 'BT /Fsparse 12 Tf 1 0 0 1 72 720 Tm <43> Tj 1 0 0 1 87 720 Tm <44> Tj ET';
+$sparseWidthPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fsparse 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+SparseAdvance /Encoding 6 0 R /FirstChar 65 /LastChar 68 /Widths [1000 1000 99 0 R 250] >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($sparseWidthContent) . " >>\nstream\n{$sparseWidthContent}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
+
 $verticalEncodingCMap = "/CIDInit /ProcSet findresource begin\n"
     . "12 dict begin\n"
     . "begincmap\n"
@@ -100,6 +107,14 @@ $relativeTdSpanBboxes = array_map(
     static fn (array $span): array => $span['bbox'] ?? [],
     $relativeTdSpans
 );
+$sparseWidthLines = $extractor->extractTextLines($sparseWidthPdf);
+$sparseWidthPlainText = implode("\n", $sparseWidthLines);
+$sparseWidthPages = $extractor->extractStyledTextPages($sparseWidthPdf);
+$sparseWidthSpans = $sparseWidthPages[0]['blocks'][0]['lines'][0]['spans'] ?? [];
+$sparseWidthSpanBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $sparseWidthSpans
+);
 $verticalLines = $extractor->extractTextLines($verticalPdf);
 $verticalPages = $extractor->extractStyledTextPages($verticalPdf);
 $verticalLine = $verticalPages[0]['blocks'][0]['lines'][0] ?? [];
@@ -120,6 +135,9 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'relative_td_larger_gap_still_preserved' => ($relativeTdLines[1] ?? null) === 'AB CD',
     'relative_td_false_gap_excluded' => !str_contains($relativeTdPlainText, 'AB CD' . "\n" . 'AB CD'),
     'relative_td_span_bboxes_preserved' => $relativeTdSpanBboxes === [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]],
+    'unresolved_width_slot_preserved' => $sparseWidthLines === ['CD'],
+    'unresolved_width_false_gap_excluded' => !str_contains($sparseWidthPlainText, 'C D'),
+    'unresolved_width_slot_bboxes_preserved' => $sparseWidthSpanBboxes === [[0.0, 0.0, 9.0, 12.0], [9.0, 0.0, 12.0, 12.0]],
     'vertical_w2_text_line_preserved' => $verticalLines === ['VertImport'],
     'vertical_w2_styled_bboxes_preserved' => $verticalSpanBboxes === [[0.0, 0.0, 12.0, 24.0], [12.0, 0.0, 24.0, 18.0]],
     'vertical_horizontal_fallback_excluded' => $verticalSpanBboxes !== [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 60.0, 12.0]],
@@ -127,12 +145,14 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'quote_span_bbox' => $quoteSpan['bbox'] ?? null,
     'relative_td_lines' => $relativeTdLines,
     'relative_td_span_bboxes' => $relativeTdSpanBboxes,
+    'sparse_width_lines' => $sparseWidthLines,
+    'sparse_width_span_bboxes' => $sparseWidthSpanBboxes,
     'vertical_span_bboxes' => $verticalSpanBboxes,
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $relativeTdLines, $verticalLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $relativeTdLines, $sparseWidthLines, $verticalLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

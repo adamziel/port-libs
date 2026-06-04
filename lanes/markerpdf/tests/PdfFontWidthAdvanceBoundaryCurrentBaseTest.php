@@ -40,6 +40,16 @@ $fontWidthRelativeTdAdvanceBoundaryCurrentBasePdf = static function (): string {
         . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
 };
 
+$fontWidthUnresolvedSlotBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /Fsparse 12 Tf 1 0 0 1 72 720 Tm <43> Tj 1 0 0 1 87 720 Tm <44> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fsparse 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+SparseAdvance /Encoding 6 0 R /FirstChar 65 /LastChar 68 /Widths [1000 1000 99 0 R 250] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
+};
+
 $fontVerticalWidthAdvanceBoundaryCurrentBasePdf = static function (): string {
     $encodingCMap = "/CIDInit /ProcSet findresource begin\n"
         . "12 dict begin\n"
@@ -150,6 +160,26 @@ return [
         $t->true(str_contains($plainText, 'AB CD'));
         $t->true(!str_contains($plainText, 'RelativeTdAdvance'));
         $t->true(!str_contains($plainText, 'Ftd'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'preserves unresolved simple-font width slots before current advance gap decisions' => static function (TestRunner $t) use ($fontWidthUnresolvedSlotBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthUnresolvedSlotBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['CD'], $extractor->extractTextLines($pdf));
+        $t->same(['C', 'D'], $extractor->extractTextRuns($pdf));
+        $t->same('CD', $plainText);
+        $t->same("CD\n", $extractor->naiveGetText($pdf));
+        $t->same(['C', 'D'], array_column($spans, 'text'));
+        $t->same([[0.0, 0.0, 9.0, 12.0], [9.0, 0.0, 12.0, 12.0]], array_column($spans, 'bbox'));
+        $t->same([0.0, 0.0, 12.0, 12.0], $line['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'C D'));
+        $t->true(!str_contains($plainText, 'SparseAdvance'));
+        $t->true(!str_contains($plainText, 'Fsparse'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'uses vertical CIDFont W2 advances for native styled span bboxes on current base' => static function (TestRunner $t) use ($fontVerticalWidthAdvanceBoundaryCurrentBasePdf): void {

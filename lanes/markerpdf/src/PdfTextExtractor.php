@@ -8559,7 +8559,10 @@ final class PdfTextExtractor
         }
 
         $widths = [];
-        foreach ($this->numbersFromPdfArrayResolvingObjects($widthArray, $objects) as $offset => $width) {
+        foreach ($this->nullableNumbersFromPdfArrayResolvingObjects($widthArray, $objects) as $offset => $width) {
+            if ($width === null) {
+                continue;
+            }
             $code = (int) $firstChar + $offset;
             if ($code >= 0 && $code <= 255) {
                 $widths[$code] = $width;
@@ -8600,6 +8603,20 @@ final class PdfTextExtractor
             if ($number !== null) {
                 $numbers[] = $number;
             }
+        }
+
+        return $numbers;
+    }
+
+    /**
+     * @return list<float|null>
+     * @param array<int, string> $objects
+     */
+    private function nullableNumbersFromPdfArrayResolvingObjects(string $arrayBody, array $objects): array
+    {
+        $numbers = [];
+        foreach ($this->pdfArrayItems($arrayBody) as $item) {
+            $numbers[] = $this->pdfNumberValueAt($item, 0, $objects);
         }
 
         return $numbers;
@@ -8668,7 +8685,10 @@ final class PdfTextExtractor
             }
 
             if (str_starts_with(trim($next), '[')) {
-                foreach ($this->numbersFromPdfArrayResolvingObjects(substr(trim($next), 1, -1), $objects) as $offset => $width) {
+                foreach ($this->nullableNumbersFromPdfArrayResolvingObjects(substr(trim($next), 1, -1), $objects) as $offset => $width) {
+                    if ($width === null) {
+                        continue;
+                    }
                     $cid = $firstCid + $offset;
                     if ($cid >= 0 && $cid <= 0xffff) {
                         $widths[$cid] = (float) $width;
@@ -8735,8 +8755,11 @@ final class PdfTextExtractor
             }
 
             if (str_starts_with(trim($next), '[')) {
-                $metrics = $this->numbersFromPdfArrayResolvingObjects(substr(trim($next), 1, -1), $objects);
+                $metrics = $this->nullableNumbersFromPdfArrayResolvingObjects(substr(trim($next), 1, -1), $objects);
                 for ($offset = 0, $metricCount = count($metrics); $offset + 2 < $metricCount; $offset += 3) {
+                    if ($metrics[$offset] === null || $metrics[$offset + 1] === null || $metrics[$offset + 2] === null) {
+                        continue;
+                    }
                     $cid = $firstCid + intdiv($offset, 3);
                     if ($cid >= 0 && $cid <= 0xffff) {
                         $displacements[$cid] = (float) $metrics[$offset];
