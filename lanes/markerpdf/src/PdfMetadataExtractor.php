@@ -4182,9 +4182,11 @@ final class PdfMetadataExtractor
     /**
      * @return array<string, mixed>
      */
-    private function standardPermissionMetadata(int $signed, ?int $revision): array
+    private function standardPermissionMetadata(int $declared, ?int $revision): array
     {
-        $unsigned = $signed < 0 ? $signed + 4294967296 : $signed;
+        $word = $this->standardPermissionWordValues($declared);
+        $signed = $word['signed'];
+        $unsigned = $word['unsigned'];
         $effectiveRevision = $revision ?? 6;
         $allowed = [];
         $denied = [];
@@ -4207,6 +4209,9 @@ final class PdfMetadataExtractor
         $reserved = $this->standardPermissionReservedBitsMetadata($unsigned, $effectiveRevision);
 
         return array_merge([
+            'declared' => $declared,
+            'declared_form' => $word['declared_form'],
+            'normalized_from_unsigned_decimal' => $word['normalized_from_unsigned_decimal'],
             'signed' => $signed,
             'unsigned' => $unsigned,
             'hex' => strtoupper(sprintf('%08X', $unsigned)),
@@ -4215,6 +4220,33 @@ final class PdfMetadataExtractor
             'denied' => $denied,
             'print_quality' => !$canPrint ? 'disallowed' : ($effectiveRevision >= 3 && !$highQuality ? 'low_resolution' : 'high_resolution'),
         ], $reserved);
+    }
+
+    /**
+     * Standard permission words are signed 32-bit integers, but some writers
+     * serialize the same bit pattern as an unsigned decimal.
+     *
+     * @return array{signed: int, unsigned: int, declared_form: string, normalized_from_unsigned_decimal: bool}
+     */
+    private function standardPermissionWordValues(int $declared): array
+    {
+        $unsigned32Max = 4294967295;
+        $signed32Max = 2147483647;
+        if ($declared > $signed32Max && $declared <= $unsigned32Max) {
+            return [
+                'signed' => $declared - ($unsigned32Max + 1),
+                'unsigned' => $declared,
+                'declared_form' => 'unsigned_decimal',
+                'normalized_from_unsigned_decimal' => true,
+            ];
+        }
+
+        return [
+            'signed' => $declared,
+            'unsigned' => $declared < 0 ? $declared + ($unsigned32Max + 1) : $declared,
+            'declared_form' => 'signed_decimal',
+            'normalized_from_unsigned_decimal' => false,
+        ];
     }
 
     /**
