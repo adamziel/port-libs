@@ -1646,9 +1646,10 @@ final class TableRecognizer
      */
     private function ocrLineBbox(array $ocrLine): ?array
     {
-        return $this->bboxFromValue($ocrLine['bbox'] ?? null)
+        return $this->polygonBbox($ocrLine['polygon'] ?? null)
+            ?? $this->bboxFromValue($ocrLine['bbox'] ?? null)
             ?? $this->bboxFromNamedFields($ocrLine)
-            ?? $this->polygonBbox($ocrLine['polygon'] ?? null);
+            ?? null;
     }
 
     /**
