@@ -52,6 +52,18 @@ $parserStreamFilterStackBoundaryCurrentBaseZlibStored = static function (string 
         . pack('N', ($s2 << 16) | $s1);
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseRunLength = static function (string $bytes): string {
+    $encoded = '';
+    $length = strlen($bytes);
+    for ($offset = 0; $offset < $length;) {
+        $chunk = substr($bytes, $offset, 128);
+        $encoded .= chr(strlen($chunk) - 1) . $chunk;
+        $offset += strlen($chunk);
+    }
+
+    return $encoded . chr(128);
+};
+
 $parserStreamFilterStackBoundaryCurrentBasePdf = static function () use ($parserStreamFilterStackBoundaryCurrentBaseAscii85): string {
     $before = "BT /F1 12 Tf 72 720 Td (Before ASCII85 Stack Boundary) Tj ET\n";
     while (strlen($before) % 4 !== 0) {
@@ -176,6 +188,37 @@ $parserStreamFilterStackBoundaryCurrentBaseFlateFirstPdf = static function () us
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseRunLengthPdf = static function (
+    ?int &$declaredLength = null
+) use (
+    $parserStreamFilterStackBoundaryCurrentBaseRunLength,
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $before = "BT /F1 12 Tf 72 720 Td (RunLength Flate Stack Before) Tj ET\n";
+    $after = "BT /F1 12 Tf 72 704 Td (RunLength Flate Stack After) Tj ET";
+    $encoded = $parserStreamFilterStackBoundaryCurrentBaseRunLength(
+        $parserStreamFilterStackBoundaryCurrentBaseZlibStored($before . "\nendstream\n" . $after)
+    );
+    $fakeBoundary = strpos($encoded, "\nendstream\n");
+    if ($fakeBoundary === false) {
+        throw new RuntimeException('Focused RunLength stack fixture must contain raw fake endstream bytes.');
+    }
+
+    $lengthEntry = '';
+    if ($declaredLength !== null) {
+        $declaredLength = $fakeBoundary;
+        $lengthEntry = "/Length {$fakeBoundary} ";
+    }
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< {$lengthEntry}/Filter [ /RunLengthDecode /FlateDecode ] >>\nstream\n{$encoded}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses ASCII85 EOD markers before accepting missing-Length filter-stack endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -240,5 +283,26 @@ return [
         $t->true(!str_contains($text, 'endstream'));
         $t->true(!str_contains($text, 'ASCII85Decode'));
         $t->true(!str_contains($text, "\xd6\x6c\x4a\xc5"));
+    },
+    'requires RunLength EOD before accepting missing or stale filter-stack endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseRunLengthPdf): void {
+        $extractor = new PdfTextExtractor();
+        $declaredLength = 0;
+        $missingLengthPdf = $parserStreamFilterStackBoundaryCurrentBaseRunLengthPdf();
+        $declaredLengthPdf = $parserStreamFilterStackBoundaryCurrentBaseRunLengthPdf($declaredLength);
+
+        $expected = ['RunLength Flate Stack Before', 'RunLength Flate Stack After'];
+        foreach ([$missingLengthPdf, $declaredLengthPdf] as $pdf) {
+            $text = $extractor->extractPlainText($pdf);
+            $t->same($expected, $extractor->extractTextLines($pdf));
+            $t->same($expected, $extractor->extractTextRuns($pdf));
+            $t->same("RunLength Flate Stack Before\nRunLength Flate Stack After", $text);
+            $t->same("RunLength Flate Stack Before\nRunLength Flate Stack After\n", $extractor->naiveGetText($pdf));
+            $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+            $t->same(['1'], $extractor->extractPageLabels($pdf));
+            $t->true(!str_contains($text, 'endstream'));
+            $t->true(!str_contains($text, 'RunLengthDecode'));
+            $t->true(!str_contains($text, 'FlateDecode'));
+        }
+        $t->true($declaredLength > 0);
     },
 ];

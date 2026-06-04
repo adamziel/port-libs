@@ -55,6 +55,18 @@ $zlibStored = static function (string $bytes): string {
         . pack('N', ($s2 << 16) | $s1);
 };
 
+$runLengthEncode = static function (string $bytes): string {
+    $encoded = '';
+    $length = strlen($bytes);
+    for ($offset = 0; $offset < $length;) {
+        $chunk = substr($bytes, $offset, 128);
+        $encoded .= chr(strlen($chunk) - 1) . $chunk;
+        $offset += strlen($chunk);
+    }
+
+    return $encoded . chr(128);
+};
+
 $before = "BT /F1 12 Tf 72 720 Td (Before ASCII85 Stack Boundary) Tj ET\n";
 while (strlen($before) % 4 !== 0) {
     $before .= ' ';
@@ -144,12 +156,45 @@ $flateFirstPdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
     . "%%EOF";
 
+$runLengthBefore = "BT /F1 12 Tf 72 720 Td (RunLength Flate Stack Before) Tj ET\n";
+$runLengthAfter = "BT /F1 12 Tf 72 704 Td (RunLength Flate Stack After) Tj ET";
+$runLengthEncoded = $runLengthEncode($zlibStored($runLengthBefore . "\nendstream\n" . $runLengthAfter));
+$runLengthBoundary = strpos($runLengthEncoded, "\nendstream\n");
+if ($runLengthBoundary === false) {
+    throw new RuntimeException('Focused RunLength stack smoke fixture must contain raw fake endstream bytes.');
+}
+
+$runLengthPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Filter [ /RunLengthDecode /FlateDecode ] >>\nstream\n{$runLengthEncoded}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "%%EOF";
+
+$runLengthDeclaredPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Length {$runLengthBoundary} /Filter [ /RunLengthDecode /FlateDecode ] >>\nstream\n{$runLengthEncoded}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "%%EOF";
+
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
 $stackLines = $extractor->extractTextLines($stackPdf);
 $declaredLengthLines = $extractor->extractTextLines($declaredLengthPdf);
 $flateFirstLines = $extractor->extractTextLines($flateFirstPdf);
-$allLines = [...$lines, ...$stackLines, ...$declaredLengthLines, ...$flateFirstLines];
+$runLengthLines = $extractor->extractTextLines($runLengthPdf);
+$runLengthDeclaredLines = $extractor->extractTextLines($runLengthDeclaredPdf);
+$allLines = [
+    ...$lines,
+    ...$stackLines,
+    ...$declaredLengthLines,
+    ...$flateFirstLines,
+    ...$runLengthLines,
+    ...$runLengthDeclaredLines,
+];
 $joined = implode("\n", $allLines);
 
 echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_encode([
@@ -159,10 +204,14 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         ['ASCII85Decode', 'FlateDecode'],
         ['ASCII85Decode', 'FlateDecode'],
         ['FlateDecode', 'ASCII85Decode'],
+        ['RunLengthDecode', 'FlateDecode'],
+        ['RunLengthDecode', 'FlateDecode'],
     ],
     'missing_length_stream_payload' => true,
     'declared_length_points_at_encoded_fake_endstream' => true,
+    'declared_length_points_at_runlength_fake_endstream' => true,
     'requires_ascii85_eod_before_endstream_boundary' => true,
+    'requires_runlength_eod_before_endstream_boundary' => true,
     'requires_complete_filter_stack_before_boundary' => true,
     'requires_flate_stage_before_ascii85_eod_boundary' => true,
     'fake_endstream_payload_excluded' => !str_contains($joined, 'endstream'),

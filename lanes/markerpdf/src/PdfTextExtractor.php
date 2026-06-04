@@ -6712,6 +6712,7 @@ final class PdfTextExtractor
         return match ($filter) {
             'ASCIIHexDecode', 'AHx' => strpos($stream, '>') !== false,
             'ASCII85Decode', 'A85' => strpos($stream, '~>') !== false,
+            'RunLengthDecode', 'RL' => strpos($stream, chr(128)) !== false,
             default => true,
         };
     }
