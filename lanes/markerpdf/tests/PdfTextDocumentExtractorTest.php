@@ -151,6 +151,36 @@ return [
         $t->true(!array_key_exists('pdfium_block_type', $charBlock), 'pdftext dictionary_output strips non-core block keys.');
         $t->true(!array_key_exists('baseline', $charBlock['lines'][0]), 'pdftext dictionary_output strips non-core line keys.');
     },
+    'strips non-core pdftext span payload keys from document char blocks' => static function (TestRunner $t) use ($pdftextPage): void {
+        $page = $pdftextPage(3, "Span payload boundary\r\n");
+        $page['blocks'][0]['lines'][0]['spans'][0]['rotation'] = 0;
+        $page['blocks'][0]['lines'][0]['spans'][0]['char_start_idx'] = 4;
+        $page['blocks'][0]['lines'][0]['spans'][0]['char_end_idx'] = 25;
+        $page['blocks'][0]['lines'][0]['spans'][0]['raw_image_bytes'] = "\xFF\xD8not visible text";
+        $page['blocks'][0]['lines'][0]['spans'][0]['debug_payload'] = [
+            'private_stream' => 'decoy payload should not reach char_blocks',
+        ];
+        $page['blocks'][0]['lines'][0]['spans'][0]['chars'] = [
+            ['char' => 'S', 'bbox' => [72.0, 96.0, 78.0, 110.0]],
+        ];
+
+        $result = (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1);
+        $span = $result['pages'][0]['blocks'][0]['lines'][0]['spans'][0];
+        $charSpan = $result['pages'][0]['char_blocks'][0]['lines'][0]['spans'][0];
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same('Span payload boundary', $span['text']);
+        $t->same('Span payload boundary' . "\n", $charSpan['text']);
+        $t->same(0, $span['rotation']);
+        $t->same(4, $span['char_start_idx']);
+        $t->same(25, $span['char_end_idx']);
+        $t->same(['text', 'bbox', 'font', 'rotation', 'char_start_idx', 'char_end_idx'], array_keys($charSpan));
+        $t->true(!array_key_exists('chars', $charSpan), 'keep_chars=false must remove raw character payloads from stored char_blocks.');
+        $t->true(!array_key_exists('raw_image_bytes', $charSpan), 'pdftext dictionary_output does not return arbitrary span payload bytes.');
+        $t->true(!array_key_exists('debug_payload', $charSpan), 'pdftext dictionary_output does not return arbitrary span debug payloads.');
+        $t->true(!str_contains($encoded, 'not visible text'));
+        $t->true(!str_contains($encoded, 'private_stream'));
+    },
     'normalizes pdftext dictionary_output span text before WordPress import' => static function (TestRunner $t) use ($pdftextPage): void {
         $page = $pdftextPage(2, 'placeholder');
         $page['blocks'][0]['lines'][0]['spans'][0]['text'] = "Of\u{FB01}ce docu\x02ment\u{00A0}keeps\u{FEFF}clean\x00 text\r\n";

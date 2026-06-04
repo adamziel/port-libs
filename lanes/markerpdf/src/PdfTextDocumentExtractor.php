@@ -192,8 +192,9 @@ final class PdfTextDocumentExtractor
     /**
      * Upstream markerPDF calls pdftext.dictionary_output with keep_chars=false.
      * That path keeps page-level metadata, strips block/line keys down to bbox
-     * and child collections, and removes per-character payloads from spans
-     * before marker stores char_blocks.
+     * and child collections, and returns only the core span fields emitted by
+     * pdftext inference after removing per-character payloads before marker
+     * stores char_blocks.
      *
      * @param array<string, mixed> $page
      * @return array<string, mixed>
@@ -268,10 +269,16 @@ final class PdfTextDocumentExtractor
         $sanitizedSpans = [];
         foreach ($spans as $span) {
             if (is_array($span)) {
-                if (array_key_exists('text', $span) && is_string($span['text'])) {
-                    $span['text'] = $this->normalizeDictionaryOutputText($span['text']);
+                $sanitizedSpan = [];
+                foreach (['text', 'bbox', 'font', 'rotation', 'char_start_idx', 'char_end_idx'] as $key) {
+                    if (array_key_exists($key, $span)) {
+                        $sanitizedSpan[$key] = $span[$key];
+                    }
                 }
-                unset($span['chars']);
+                if (array_key_exists('text', $span) && is_string($span['text'])) {
+                    $sanitizedSpan['text'] = $this->normalizeDictionaryOutputText($span['text']);
+                }
+                $span = $sanitizedSpan;
             }
             $sanitizedSpans[] = $span;
         }

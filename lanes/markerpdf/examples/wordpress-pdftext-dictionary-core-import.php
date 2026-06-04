@@ -23,6 +23,8 @@ $page = [
                     'font' => ['name' => null, 'flags' => (1 << 5), 'weight' => 400, 'size' => 11.0],
                     'char_start_idx' => 0,
                     'char_end_idx' => 26,
+                    'raw_image_bytes' => "\xFF\xD8decoy span payload",
+                    'debug_payload' => ['private_stream' => 'decoy span debug payload'],
                     'chars' => [
                         ['c' => 'S', 'bbox' => [72.0, 96.0, 78.0, 110.0]],
                     ],
@@ -72,7 +74,11 @@ echo '<!-- markerpdf:pdftext-dictionary-core ' . htmlspecialchars(json_encode([
     'char_end_idx' => $firstSpan['char_end_idx'],
     'raw_chars_present' => array_key_exists('chars', $firstSpan),
     'char_blocks_raw_chars_present' => array_key_exists('chars', $firstCharSpan),
+    'char_blocks_non_core_span_payload_excluded' => !array_key_exists('raw_image_bytes', $firstCharSpan)
+        && !array_key_exists('debug_payload', $firstCharSpan),
+    'non_core_span_payload_text_excluded' => !str_contains(json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '', 'decoy span payload'),
     'char_blocks_core_keys' => array_keys($firstCharBlock),
+    'span_core_keys' => array_keys($firstCharSpan),
     'line_core_keys' => array_keys($firstCharBlock['lines'][0]),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n\n";
 
