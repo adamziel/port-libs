@@ -233,7 +233,8 @@ final class BatchConverter
     ): array {
         $absoluteInputFolder = $this->absolutePath($inputFolder);
         $absoluteOutputFolder = $this->absolutePath($outputFolder);
-        $inputFiles = $this->inputFiles($absoluteInputFolder);
+        $inputListing = $this->inputDirectoryListing($absoluteInputFolder);
+        $inputFiles = $inputListing['file_paths'];
         $selectedFiles = $this->chunkFiles($inputFiles, $chunkIndex, $numChunks, $maxFiles);
         $absoluteMetadataFile = $metadataFile === null || $metadataFile === ''
             ? null
@@ -306,6 +307,20 @@ final class BatchConverter
                 'upstream_creates_output_folder' => true,
                 'native_plan_creates_output_folder' => false,
                 'output_folder_creation_required' => !is_dir($absoluteOutputFolder),
+            ],
+            'input_listing' => [
+                'source' => 'os.listdir + os.path.isfile',
+                'entry_count' => count($inputListing['entry_basenames']),
+                'entry_basenames' => $inputListing['entry_basenames'],
+                'file_count' => count($inputListing['file_basenames']),
+                'file_basenames' => $inputListing['file_basenames'],
+                'skipped_non_file_count' => count($inputListing['skipped_non_file_basenames']),
+                'skipped_non_file_basenames' => $inputListing['skipped_non_file_basenames'],
+                'file_filter' => 'os.path.isfile',
+                'extension_filter_active' => false,
+                'non_pdf_files_are_task_candidates' => $inputListing['non_pdf_file_basenames'] !== [],
+                'non_pdf_file_basenames' => $inputListing['non_pdf_file_basenames'],
+                'selected_non_pdf_filenames' => $this->nonPdfBasenames($selectedFilenames),
             ],
             'chunking' => [
                 'chunk_index' => $chunkIndex,
@@ -565,23 +580,49 @@ final class BatchConverter
      */
     private function inputFiles(string $inputFolder): array
     {
+        return $this->inputDirectoryListing($inputFolder)['file_paths'];
+    }
+
+    /**
+     * @return array{entry_basenames: list<string>, file_paths: list<string>, file_basenames: list<string>, skipped_non_file_basenames: list<string>, non_pdf_file_basenames: list<string>}
+     */
+    private function inputDirectoryListing(string $inputFolder): array
+    {
         if (!is_dir($inputFolder)) {
             throw new InvalidArgumentException('Batch input folder does not exist: ' . $inputFolder);
         }
 
-        $files = [];
+        $entryBasenames = [];
+        $filePathsByBasename = [];
+        $skippedNonFileBasenames = [];
+
         foreach (scandir($inputFolder) ?: [] as $entry) {
             if ($entry === '.' || $entry === '..') {
                 continue;
             }
+
+            $entryBasenames[] = $entry;
             $path = $inputFolder . DIRECTORY_SEPARATOR . $entry;
             if (is_file($path)) {
-                $files[] = $path;
+                $filePathsByBasename[$entry] = $path;
+                continue;
             }
-        }
-        sort($files, SORT_STRING);
 
-        return $files;
+            $skippedNonFileBasenames[] = $entry;
+        }
+
+        sort($entryBasenames, SORT_STRING);
+        ksort($filePathsByBasename, SORT_STRING);
+        sort($skippedNonFileBasenames, SORT_STRING);
+        $fileBasenames = array_keys($filePathsByBasename);
+
+        return [
+            'entry_basenames' => array_values($entryBasenames),
+            'file_paths' => array_values($filePathsByBasename),
+            'file_basenames' => array_values($fileBasenames),
+            'skipped_non_file_basenames' => array_values($skippedNonFileBasenames),
+            'non_pdf_file_basenames' => $this->nonPdfBasenames($fileBasenames),
+        ];
     }
 
     /**
@@ -771,6 +812,23 @@ final class BatchConverter
     private function pythonTruthyInteger(?int $value): bool
     {
         return $value !== null && $value !== 0;
+    }
+
+    /**
+     * @param list<string> $basenames
+     * @return list<string>
+     */
+    private function nonPdfBasenames(array $basenames): array
+    {
+        return array_values(array_filter(
+            $basenames,
+            fn (string $basename): bool => !$this->hasPdfExtension($basename)
+        ));
+    }
+
+    private function hasPdfExtension(string $basename): bool
+    {
+        return strtolower(pathinfo($basename, PATHINFO_EXTENSION)) === 'pdf';
     }
 
     /**

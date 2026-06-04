@@ -439,4 +439,42 @@ return [
             $removeTree($input);
         }
     },
+    'records convert.py os.listdir file-only boundary without extension filtering' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'metadata.json', 'omega.PDF', 'wp-upload.txt'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            mkdir($input . DIRECTORY_SEPARATOR . 'nested.pdf');
+            mkdir($input . DIRECTORY_SEPARATOR . 'preview-assets');
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 8
+            );
+
+            $listing = $plan['input_listing'];
+            $t->same('os.listdir + os.path.isfile', $listing['source']);
+            $t->same(['alpha.pdf', 'metadata.json', 'nested.pdf', 'omega.PDF', 'preview-assets', 'wp-upload.txt'], $listing['entry_basenames']);
+            $t->same(6, $listing['entry_count']);
+            $t->same(['alpha.pdf', 'metadata.json', 'omega.PDF', 'wp-upload.txt'], $listing['file_basenames']);
+            $t->same(4, $listing['file_count']);
+            $t->same(['nested.pdf', 'preview-assets'], $listing['skipped_non_file_basenames']);
+            $t->same(2, $listing['skipped_non_file_count']);
+            $t->same('os.path.isfile', $listing['file_filter']);
+            $t->same(false, $listing['extension_filter_active']);
+            $t->same(true, $listing['non_pdf_files_are_task_candidates']);
+            $t->same(['metadata.json', 'wp-upload.txt'], $listing['non_pdf_file_basenames']);
+            $t->same(['metadata.json', 'wp-upload.txt'], $listing['selected_non_pdf_filenames']);
+            $t->same(['alpha.pdf', 'metadata.json', 'omega.PDF', 'wp-upload.txt'], $plan['chunking']['selected_filenames']);
+            $t->same(4, $plan['worker_pool']['task_args_count']);
+            $t->same(4, $plan['worker_pool']['total_processes']);
+            $t->same(false, $plan['executes_python_or_models']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
 ];

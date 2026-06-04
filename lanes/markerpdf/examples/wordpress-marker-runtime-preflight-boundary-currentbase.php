@@ -46,6 +46,8 @@ try {
     $writePdf($input . DIRECTORY_SEPARATOR . 'short-text.pdf', 'Short text PDF');
     $writePdf($input . DIRECTORY_SEPARATOR . 'ready-for-marker.pdf', 'Ready for Marker conversion PDF');
     file_put_contents($input . DIRECTORY_SEPARATOR . 'extension-spoof.pdf', "PK\x03\x04not really a pdf");
+    file_put_contents($input . DIRECTORY_SEPARATOR . 'upload-notes.txt', 'WordPress sidecar notes queued by upstream before per-file preflight.');
+    mkdir($input . DIRECTORY_SEPARATOR . 'nested.pdf');
 
     (new OutputWriter())->saveMarkdown(
         $output,
@@ -137,13 +139,20 @@ try {
     if ($plans['ready-for-marker.pdf']['executes_python_or_models'] !== false || $plans['ready-for-marker.pdf']['executes_external_pdf_tools'] !== false) {
         throw new RuntimeException('Preflight smoke must not execute Python models or external PDF tools.');
     }
-    if ($runtimePlan['worker_pool']['total_processes'] !== 4 || $runtimePlan['worker_pool']['pool_launchable'] !== true) {
+    if ($runtimePlan['worker_pool']['total_processes'] !== 5 || $runtimePlan['worker_pool']['pool_launchable'] !== true) {
         throw new RuntimeException('Expected runtime main preflight to clamp worker count to selected task count.');
     }
-    if ($runtimePlan['chunking']['max_files_limit_active'] !== false || $runtimePlan['chunking']['selected_count'] !== 4) {
+    if ($runtimePlan['chunking']['max_files_limit_active'] !== false || $runtimePlan['chunking']['selected_count'] !== 5) {
         throw new RuntimeException('Expected --max=0 to behave like upstream convert.py and leave the WordPress queue uncapped.');
     }
-    if ($negativeMaxPlan['chunking']['max_files_limit_active'] !== true || $negativeMaxPlan['chunking']['selected_count'] !== 3) {
+    if (
+        $runtimePlan['input_listing']['skipped_non_file_basenames'] !== ['nested.pdf']
+        || $runtimePlan['input_listing']['extension_filter_active'] !== false
+        || $runtimePlan['input_listing']['selected_non_pdf_filenames'] !== ['upload-notes.txt']
+    ) {
+        throw new RuntimeException('Expected convert.py runtime preflight to filter only non-files and leave regular non-PDF sidecars as task candidates.');
+    }
+    if ($negativeMaxPlan['chunking']['max_files_limit_active'] !== true || $negativeMaxPlan['chunking']['selected_count'] !== 4) {
         throw new RuntimeException('Expected negative --max to behave like upstream Python slicing and drop the tail of the queue.');
     }
     if (
@@ -179,6 +188,11 @@ try {
         'runtime_main_order' => $runtimePlan['preflight_order'],
         'preflight_order' => $plans['ready-for-marker.pdf']['preflight_order'],
         'runtime_selected_filenames' => $runtimePlan['chunking']['selected_filenames'],
+        'runtime_input_entries' => $runtimePlan['input_listing']['entry_basenames'],
+        'runtime_file_candidates' => $runtimePlan['input_listing']['file_basenames'],
+        'runtime_skipped_non_file_entries' => $runtimePlan['input_listing']['skipped_non_file_basenames'],
+        'runtime_extension_filter_active' => $runtimePlan['input_listing']['extension_filter_active'],
+        'runtime_selected_non_pdf_filenames' => $runtimePlan['input_listing']['selected_non_pdf_filenames'],
         'runtime_metadata_filenames' => $runtimePlan['metadata']['metadata_filenames'],
         'runtime_missing_metadata_filenames' => $runtimePlan['metadata']['missing_metadata_filenames'],
         'runtime_total_processes' => $runtimePlan['worker_pool']['total_processes'],
