@@ -17290,7 +17290,38 @@ final class PdfTextExtractor
             return $zeroPaddedKeys;
         }
 
-        return $this->textOperandSourceKeys($hex, $widthMap);
+        $sourceKeys = $this->textOperandSourceKeys($hex, $widthMap);
+        $toUnicodeFallbackKeys = $this->toUnicodeSourceKeysForFontWidthsWhenCidMetricsMiss($sourceKeys, $hex, $toUnicodeMap);
+
+        return $toUnicodeFallbackKeys === [] ? $sourceKeys : $toUnicodeFallbackKeys;
+    }
+
+    /**
+     * @param list<string> $sourceKeys
+     * @return list<string>
+     */
+    private function toUnicodeSourceKeysForFontWidthsWhenCidMetricsMiss(array $sourceKeys, string $hex, array $toUnicodeMap): array
+    {
+        $cidCodeSpaceRanges = $toUnicodeMap['cidCodeSpaceRanges'] ?? [];
+        if (!is_array($cidCodeSpaceRanges) || $cidCodeSpaceRanges === []) {
+            return [];
+        }
+
+        $cidMap = $toUnicodeMap['cidMap'] ?? [];
+        if (is_array($cidMap) && $cidMap !== []) {
+            return [];
+        }
+
+        if ($sourceKeys === [] || $this->sourceKeysHaveAnyDirectFontMetric($sourceKeys, $toUnicodeMap)) {
+            return [];
+        }
+
+        $fallbackKeys = $this->textOperandSourceKeys($hex, $toUnicodeMap);
+        if ($fallbackKeys === [] || $fallbackKeys === $sourceKeys || count($fallbackKeys) <= count($sourceKeys)) {
+            return [];
+        }
+
+        return $this->sourceKeysHaveAllDirectFontMetrics($fallbackKeys, $toUnicodeMap) ? $fallbackKeys : [];
     }
 
     /**
@@ -17379,6 +17410,46 @@ final class PdfTextExtractor
 
         $defaultWidth = $toUnicodeMap['cidDefaultWidth'] ?? null;
         if ((is_int($defaultWidth) || is_float($defaultWidth)) && $cid >= 0 && $cid <= 0xffff) {
+            return true;
+        }
+
+        $cidSet = $toUnicodeMap['cidSet'] ?? [];
+        return is_array($cidSet) && isset($cidSet[$cid]);
+    }
+
+    /**
+     * @param list<string> $sourceKeys
+     */
+    private function sourceKeysHaveAnyDirectFontMetric(array $sourceKeys, array $toUnicodeMap): bool
+    {
+        foreach ($sourceKeys as $sourceKey) {
+            if ($this->sourceKeyHasDirectFontMetric($sourceKey, $toUnicodeMap)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $sourceKeys
+     */
+    private function sourceKeysHaveAllDirectFontMetrics(array $sourceKeys, array $toUnicodeMap): bool
+    {
+        foreach ($sourceKeys as $sourceKey) {
+            if (!$this->sourceKeyHasDirectFontMetric($sourceKey, $toUnicodeMap)) {
+                return false;
+            }
+        }
+
+        return $sourceKeys !== [];
+    }
+
+    private function sourceKeyHasDirectFontMetric(string $sourceKey, array $toUnicodeMap): bool
+    {
+        $cid = $this->cidForWidthSourceKey($sourceKey, $toUnicodeMap);
+        $cidWidths = $toUnicodeMap['cidWidths'] ?? [];
+        if (is_array($cidWidths) && array_key_exists($cid, $cidWidths)) {
             return true;
         }
 
