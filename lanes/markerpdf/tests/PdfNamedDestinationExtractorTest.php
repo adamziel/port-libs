@@ -153,6 +153,30 @@ return [
         $t->true(!in_array('BadDestDictGen', $names, true));
         $t->true(!in_array('LegacyStale', $names, true));
     },
+    'decodes PDFDocEncoding name-tree keys before WordPress named destination metadata' => static function (TestRunner $t): void {
+        $bulletName = 'wp' . chr(0x80) . ' review';
+        $quoteName = 'Deck ' . chr(0x8d) . 'draft' . chr(0x8e);
+        $euroName = 'Budget ' . chr(0xa0);
+        $quoteNameHex = strtoupper(bin2hex($quoteName));
+
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /Dests 8 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+            . "8 0 obj\n<< /Names [({$bulletName}) [3 0 R /FitH 610] <{$quoteNameHex}> [4 0 R /XYZ 72 640 0] ({$euroName}) 9 0 R] >>\nendobj\n"
+            . "9 0 obj\n<< /D [4 0 R /FitBV 140] >>\nendobj\n"
+            . "%%EOF\n";
+
+        $destinations = (new PdfNamedDestinationExtractor())->extractNamedDestinations($pdf);
+
+        $t->same(['wp' . "\u{2022}" . ' review', 'Deck ' . "\u{201c}" . 'draft' . "\u{201d}", 'Budget ' . "\u{20ac}"], array_column($destinations, 'name'));
+        $t->same([0, 1, 1], array_column($destinations, 'page'));
+        $t->same(['FitH', 'XYZ', 'FitBV'], array_column($destinations, 'fit'));
+        $t->same(['top' => 610.0], $destinations[0]['coordinates']);
+        $t->same(['left' => 72.0, 'top' => 640.0, 'zoom' => 0.0], $destinations[1]['coordinates']);
+        $t->same(['left' => 140.0], $destinations[2]['coordinates']);
+    },
     'skips malformed destination values and rejects non PDF bytes' => static function (TestRunner $t): void {
         $extractor = new PdfNamedDestinationExtractor();
         $pdf = "%PDF-1.7\n"
