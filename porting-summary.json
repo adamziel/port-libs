@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-04 11:23:11 UTC",
-    "sourceCommit": "c47f567dd150ea86cee0136367fb0248f23fe42a",
-    "sourceCommitShort": "c47f567dd150",
+    "generated": "2026-06-04 11:29:50 UTC",
+    "sourceCommit": "21ee21d46fbc877ca05919b79a3de27dab50ce9c",
+    "sourceCommitShort": "21ee21d46fbc",
     "sourceBranch": "unknown",
-    "dashboardCommit": "c47f567dd150ea86cee0136367fb0248f23fe42a",
-    "dashboardCommitShort": "c47f567dd150",
+    "dashboardCommit": "21ee21d46fbc877ca05919b79a3de27dab50ce9c",
+    "dashboardCommitShort": "21ee21d46fbc",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -137,13 +137,13 @@
             "coverage": "754 / 2,276 (33.1%)",
             "mapPercent": "33.1%",
             "unmapped": "1,522",
-            "php": "321 pass / 0 fail",
+            "php": "323 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-04 UTC shared ZIP package core slice on base ceef47806c3d0e47...",
+            "audit": "2026-06-04 UTC PDF engine handoff core slice on base c47f567dd150ea86...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
             "nextTarget": "Keep tar file entries, LZ4 frames, ZIP64/symlink/NTFS extra-f...",
             "remainingGate": "No local blocker",
-            "commit": "ceef478"
+            "commit": "c47f567"
         },
         {
             "lane": "quadrable",

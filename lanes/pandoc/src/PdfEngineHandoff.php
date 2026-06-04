@@ -31,7 +31,11 @@ final class PdfEngineHandoff
      *     output?: string,
      *     sourcePath?: string,
      *     source?: string,
-     *     engineOptions?: list<string>|string
+     *     engineOptions?: list<string>|string,
+     *     templatePath?: string,
+     *     includeInHeader?: list<string>|string,
+     *     resourcePaths?: list<string>|string,
+     *     variables?: array<string, mixed>
      * } $options
      * @return array{
      *     kind: string,
@@ -47,6 +51,12 @@ final class PdfEngineHandoff
      *     engineOptions: list<string>,
      *     sourceBytes: string|null,
      *     sourceSha256: string|null,
+     *     templateFile: string|null,
+     *     includeInHeaderFiles: list<string>,
+     *     resourcePaths: list<string>,
+     *     templateVariables: array<string, mixed>,
+     *     writerArguments: list<string>,
+     *     sourceArtifacts: list<string>,
      *     metadata: array<string, mixed>,
      *     diagnostics: list<string>
      * }
@@ -76,6 +86,21 @@ final class PdfEngineHandoff
         $sourceBytes = array_key_exists('source', $options)
             ? $this->requireString($options['source'], 'PDF intermediate source')
             : $this->renderIntermediateSource($document, $profile['intermediate']);
+        $templateFile = array_key_exists('templatePath', $options)
+            ? $this->normalizeRelativePath($this->requireString($options['templatePath'], 'PDF template path'), 'PDF template path')
+            : null;
+        $includeInHeaderFiles = $this->normalizeRelativePathList($options['includeInHeader'] ?? [], 'PDF include-in-header path');
+        $resourcePaths = $this->normalizeRelativePathList($options['resourcePaths'] ?? [], 'PDF resource path');
+        $metadata = $this->metadataSummary($document);
+        $variables = array_key_exists('variables', $options)
+            ? $this->normalizeVariables($options['variables'])
+            : [];
+        $templateVariables = array_replace($metadata, $variables);
+        $writerArguments = $this->writerArgumentsFor($templateFile, $includeInHeaderFiles, $resourcePaths, $variables);
+        $sourceArtifacts = array_values(array_filter(
+            array_merge([$templateFile], $includeInHeaderFiles),
+            static fn (?string $path): bool => $path !== null && $path !== ''
+        ));
 
         $diagnostics = ['pdf-engine-not-executed'];
         if ($sourceBytes === null) {
@@ -84,6 +109,18 @@ final class PdfEngineHandoff
             $diagnostics[] = 'intermediate-source-supplied';
         } else {
             $diagnostics[] = 'intermediate-source-rendered:' . $profile['intermediate'];
+        }
+        if ($templateFile !== null) {
+            $diagnostics[] = 'pdf-template-supplied';
+        }
+        if ($includeInHeaderFiles !== []) {
+            $diagnostics[] = 'pdf-include-in-header:' . count($includeInHeaderFiles);
+        }
+        if ($resourcePaths !== []) {
+            $diagnostics[] = 'pdf-resource-paths:' . count($resourcePaths);
+        }
+        if ($variables !== []) {
+            $diagnostics[] = 'pdf-template-variables:' . count($this->flattenVariableArguments($variables));
         }
 
         return [
@@ -100,7 +137,13 @@ final class PdfEngineHandoff
             'engineOptions' => $engineOptions,
             'sourceBytes' => $sourceBytes,
             'sourceSha256' => $sourceBytes === null ? null : hash('sha256', $sourceBytes),
-            'metadata' => $this->metadataSummary($document),
+            'templateFile' => $templateFile,
+            'includeInHeaderFiles' => $includeInHeaderFiles,
+            'resourcePaths' => $resourcePaths,
+            'templateVariables' => $templateVariables,
+            'writerArguments' => $writerArguments,
+            'sourceArtifacts' => $sourceArtifacts,
+            'metadata' => $metadata,
             'diagnostics' => $diagnostics,
         ];
     }
@@ -117,6 +160,7 @@ final class PdfEngineHandoff
      *     exitCode: int,
      *     bytes: int,
      *     sourceSha256: string|null,
+     *     sourceArtifactsSha256: array<string, string>,
      *     pdfSha256: string|null,
      *     stdout: string,
      *     stderr: string,
@@ -142,6 +186,7 @@ final class PdfEngineHandoff
 
         $sourceBytes = $plan['sourceBytes'] ?? null;
         $sourceSha256 = null;
+        $sourceArtifactsSha256 = [];
         $status = 'ok';
         $reason = null;
 
@@ -157,6 +202,22 @@ final class PdfEngineHandoff
 
         if (array_key_exists($sourceFile, $files)) {
             $sourceSha256 = hash('sha256', $files[$sourceFile]);
+        }
+
+        foreach ($this->normalizePlanStringList($plan['sourceArtifacts'] ?? [], 'PDF source artifact') as $artifactPath) {
+            if (!array_key_exists($artifactPath, $files)) {
+                if ($reason === null) {
+                    $status = 'failed';
+                    $reason = 'missing-source-artifact';
+                }
+                $diagnostics[] = 'missing-source-artifact:' . $artifactPath;
+                continue;
+            }
+
+            $sourceArtifactsSha256[$artifactPath] = hash('sha256', $files[$artifactPath]);
+        }
+        if ($sourceArtifactsSha256 !== [] && $reason === null) {
+            $diagnostics[] = 'source-artifacts-validated:' . count($sourceArtifactsSha256);
         }
 
         $pdfBytes = array_key_exists($outputFile, $files) ? $files[$outputFile] : null;
@@ -182,6 +243,7 @@ final class PdfEngineHandoff
             'exitCode' => $exitCode,
             'bytes' => is_string($pdfBytes) ? strlen($pdfBytes) : 0,
             'sourceSha256' => $sourceSha256,
+            'sourceArtifactsSha256' => $sourceArtifactsSha256,
             'pdfSha256' => is_string($pdfBytes) && str_starts_with($pdfBytes, '%PDF-') ? hash('sha256', $pdfBytes) : null,
             'stdout' => (string) ($result['stdout'] ?? ''),
             'stderr' => (string) ($result['stderr'] ?? ''),
@@ -224,6 +286,77 @@ final class PdfEngineHandoff
         }
 
         return array_merge($argv, $profile['defaultArgs'], $engineOptions, [$sourceFile]);
+    }
+
+    /**
+     * @param list<string> $includeInHeaderFiles
+     * @param list<string> $resourcePaths
+     * @param array<string, mixed> $variables
+     * @return list<string>
+     */
+    private function writerArgumentsFor(?string $templateFile, array $includeInHeaderFiles, array $resourcePaths, array $variables): array
+    {
+        $arguments = [];
+        if ($templateFile !== null) {
+            $arguments[] = '--template=' . $templateFile;
+        }
+        foreach ($includeInHeaderFiles as $path) {
+            $arguments[] = '--include-in-header=' . $path;
+        }
+        if ($resourcePaths !== []) {
+            $arguments[] = '--resource-path=' . implode(':', $resourcePaths);
+        }
+        foreach ($this->flattenVariableArguments($variables) as $argument) {
+            $arguments[] = '-V';
+            $arguments[] = $argument;
+        }
+
+        return $arguments;
+    }
+
+    /**
+     * @param array<string, mixed> $variables
+     * @return list<string>
+     */
+    private function flattenVariableArguments(array $variables, string $prefix = ''): array
+    {
+        $arguments = [];
+        foreach ($variables as $name => $value) {
+            $variableName = $prefix === '' ? (string) $name : $prefix . '.' . $name;
+            if (is_array($value) && !array_is_list($value)) {
+                array_push($arguments, ...$this->flattenVariableArguments($value, $variableName));
+                continue;
+            }
+
+            if (is_array($value)) {
+                foreach ($value as $item) {
+                    $arguments[] = $variableName . '=' . $this->templateVariableScalar($item, $variableName);
+                }
+                continue;
+            }
+
+            $arguments[] = $variableName . '=' . $this->templateVariableScalar($value, $variableName);
+        }
+
+        return $arguments;
+    }
+
+    private function templateVariableScalar(mixed $value, string $name): string
+    {
+        if ($value === null) {
+            return '';
+        }
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+        if (is_int($value) || is_float($value)) {
+            return (string) $value;
+        }
+        if (!is_string($value)) {
+            throw new \InvalidArgumentException('PDF template variable ' . $name . ' must be scalar');
+        }
+
+        return $value;
     }
 
     private function renderIntermediateSource(AstNode $document, string $intermediateFormat): ?string
@@ -320,6 +453,26 @@ final class PdfEngineHandoff
     /**
      * @return list<string>
      */
+    private function normalizeRelativePathList(mixed $value, string $label): array
+    {
+        if (is_string($value)) {
+            $value = [$value];
+        }
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException($label . ' list must contain strings');
+        }
+
+        $paths = [];
+        foreach ($value as $path) {
+            $paths[] = $this->normalizeRelativePath($this->requireString($path, $label), $label);
+        }
+
+        return $paths;
+    }
+
+    /**
+     * @return list<string>
+     */
     private function normalizeStringList(mixed $value): array
     {
         if (is_string($value)) {
@@ -338,6 +491,61 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private function normalizeVariables(mixed $value): array
+    {
+        if (!is_array($value) || array_is_list($value)) {
+            throw new \InvalidArgumentException('PDF template variables must be a keyed array');
+        }
+
+        $variables = [];
+        foreach ($value as $name => $item) {
+            if (!is_string($name)) {
+                throw new \InvalidArgumentException('PDF template variable names must be strings');
+            }
+            $this->requireTemplateVariableName($name);
+            $variables[$name] = $this->normalizeVariableValue($item, $name);
+        }
+
+        return $variables;
+    }
+
+    private function normalizeVariableValue(mixed $value, string $name): mixed
+    {
+        if ($value === null || is_bool($value) || is_int($value) || is_float($value)) {
+            return $value;
+        }
+        if (is_string($value)) {
+            if (str_contains($value, "\0")) {
+                throw new \InvalidArgumentException('PDF template variable ' . $name . ' must not contain NUL bytes');
+            }
+
+            return $value;
+        }
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException('PDF template variable ' . $name . ' must be scalar or an array');
+        }
+
+        $normalized = [];
+        foreach ($value as $key => $item) {
+            if (is_string($key)) {
+                $this->requireTemplateVariableName($key);
+            }
+            $normalized[$key] = $this->normalizeVariableValue($item, $name . '.' . $key);
+        }
+
+        return $normalized;
+    }
+
+    private function requireTemplateVariableName(string $name): void
+    {
+        if ($name === '' || preg_match('/\A[A-Za-z0-9_][A-Za-z0-9_.:-]*\z/', $name) !== 1) {
+            throw new \InvalidArgumentException('Invalid PDF template variable name: ' . $name);
+        }
+    }
+
+    /**
      * @param array<string, mixed> $files
      * @return array<string, string>
      */
@@ -349,6 +557,26 @@ final class PdfEngineHandoff
         }
 
         return $normalized;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizePlanStringList(mixed $value, string $label): array
+    {
+        if ($value === null || $value === []) {
+            return [];
+        }
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException($label . ' plan key must be a list of strings');
+        }
+
+        $strings = [];
+        foreach ($value as $item) {
+            $strings[] = $this->normalizeRelativePath($this->requireString($item, $label), $label);
+        }
+
+        return $strings;
     }
 
     private function requireString(mixed $value, string $label): string

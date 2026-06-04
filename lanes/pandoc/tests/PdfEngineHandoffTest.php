@@ -89,6 +89,56 @@ return [
         $t->contains('intermediate-writer-pending:context', implode(',', $context['diagnostics']));
     },
 
+    'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'xelatex',
+            'outputPath' => 'handoff/review.pdf',
+            'templatePath' => 'templates/review.tex',
+            'includeInHeader' => ['templates/header.tex', 'templates/fonts.tex'],
+            'resourcePaths' => ['media', 'shared assets'],
+            'variables' => [
+                'documentclass' => 'scrartcl',
+                'geometry' => ['margin=1in', 'includeheadfoot'],
+                'colorlinks' => true,
+                'draft' => false,
+                'mainfont' => 'Source Serif 4',
+            ],
+        ]);
+
+        $t->same('templates/review.tex', $plan['templateFile']);
+        $t->same(['templates/header.tex', 'templates/fonts.tex'], $plan['includeInHeaderFiles']);
+        $t->same(['templates/review.tex', 'templates/header.tex', 'templates/fonts.tex'], $plan['sourceArtifacts']);
+        $t->same(['media', 'shared assets'], $plan['resourcePaths']);
+        $t->same('PDF Handoff Packet', $plan['templateVariables']['title']);
+        $t->same(['Migration Desk', 'Content Reviewer'], $plan['templateVariables']['author']);
+        $t->same('scrartcl', $plan['templateVariables']['documentclass']);
+        $t->same(['margin=1in', 'includeheadfoot'], $plan['templateVariables']['geometry']);
+        $t->same(true, $plan['templateVariables']['colorlinks']);
+        $t->same(false, $plan['templateVariables']['draft']);
+        $t->same([
+            '--template=templates/review.tex',
+            '--include-in-header=templates/header.tex',
+            '--include-in-header=templates/fonts.tex',
+            '--resource-path=media:shared assets',
+            '-V',
+            'documentclass=scrartcl',
+            '-V',
+            'geometry=margin=1in',
+            '-V',
+            'geometry=includeheadfoot',
+            '-V',
+            'colorlinks=true',
+            '-V',
+            'draft=false',
+            '-V',
+            'mainfont=Source Serif 4',
+        ], $plan['writerArguments']);
+        $t->contains('pdf-template-supplied', implode(',', $plan['diagnostics']));
+        $t->contains('pdf-include-in-header:2', implode(',', $plan['diagnostics']));
+        $t->contains('pdf-resource-paths:2', implode(',', $plan['diagnostics']));
+    },
+
     'fake runner validates staged source and pdf-like output bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'lualatex', 'outputPath' => 'review.pdf']);
@@ -110,6 +160,39 @@ return [
         $t->same(hash('sha256', $pdfBytes), $result['pdfSha256']);
         $t->same('fake runner accepted argv', $result['stdout']);
         $t->contains('fake-runner-no-execution', implode(',', $result['diagnostics']));
+    },
+
+    'fake runner validates required pdf source artifacts without rendering' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'lualatex',
+            'outputPath' => 'review.pdf',
+            'templatePath' => 'templates/review.tex',
+            'includeInHeader' => 'templates/header.tex',
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake bounded handoff\n%%EOF\n";
+
+        $missing = $handoff->fakeRun($plan, [
+            'files' => [
+                'review.tex' => (string) $plan['sourceBytes'],
+                'review.pdf' => $pdfBytes,
+            ],
+        ]);
+        $ok = $handoff->fakeRun($plan, [
+            'files' => [
+                'review.tex' => (string) $plan['sourceBytes'],
+                'templates/review.tex' => '$body$',
+                'templates/header.tex' => '\usepackage{fontspec}',
+                'review.pdf' => $pdfBytes,
+            ],
+        ]);
+
+        $t->same(false, $missing['ok']);
+        $t->same('missing-source-artifact', $missing['reason']);
+        $t->contains('missing-source-artifact:templates/review.tex', implode(',', $missing['diagnostics']));
+        $t->same(true, $ok['ok']);
+        $t->same(hash('sha256', '$body$'), $ok['sourceArtifactsSha256']['templates/review.tex']);
+        $t->same(hash('sha256', '\usepackage{fontspec}'), $ok['sourceArtifactsSha256']['templates/header.tex']);
     },
 
     'fake runner reports missing output non pdf bytes source mismatch and engine failures' => static function (TestRunner $t) use ($document): void {
@@ -145,6 +228,11 @@ return [
         $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan($document(), ['outputPath' => '/tmp/review.pdf']));
         $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan($document(), ['sourcePath' => '../review.tex']));
         $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan($document(), ['engineOptions' => ["bad\0option"]]));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan($document(), ['templatePath' => '../templates/review.tex']));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan($document(), ['includeInHeader' => ['/tmp/header.tex']]));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan($document(), ['resourcePaths' => ['../media']]));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan($document(), ['variables' => ['bad variable' => 'value']]));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan($document(), ['variables' => ['mainfont' => "bad\0font"]]));
         $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan(new AstNode('paragraph')));
     },
 ];
