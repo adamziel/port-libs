@@ -80,6 +80,7 @@ final class PdfNamedDestinationExtractor
      */
     private function pdfObjects(string $pdfBytes): array
     {
+        $pdfBytes = $this->bytesThroughCurrentEof($pdfBytes);
         if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
             return [];
         }
@@ -94,6 +95,28 @@ final class PdfNamedDestinationExtractor
         ksort($objects, SORT_NUMERIC);
 
         return $objects;
+    }
+
+    private function bytesThroughCurrentEof(string $pdfBytes): string
+    {
+        if (preg_match_all('/\bstartxref\s+\d+/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) >= 1) {
+            $latest = end($matches[0]);
+            if (is_array($latest)) {
+                $eofOffset = strpos($pdfBytes, '%%EOF', $latest[1]);
+                if ($eofOffset !== false) {
+                    return substr($pdfBytes, 0, $eofOffset + strlen('%%EOF'));
+                }
+
+                return $pdfBytes;
+            }
+        }
+
+        $eofOffset = strrpos($pdfBytes, '%%EOF');
+        if ($eofOffset !== false) {
+            return substr($pdfBytes, 0, $eofOffset + strlen('%%EOF'));
+        }
+
+        return $pdfBytes;
     }
 
     /**
