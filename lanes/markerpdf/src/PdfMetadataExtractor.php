@@ -2555,6 +2555,7 @@ final class PdfMetadataExtractor
             $destinationsByName,
             $structureContext,
             $outlineRoot['object'],
+            $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($outlineRoot['body'], 'Last') ?? ''),
             15
         );
 
@@ -2749,6 +2750,7 @@ final class PdfMetadataExtractor
         array $destinationsByName,
         array $structureContext,
         ?int $expectedParentObject,
+        ?int $lastItemObject,
         int $maxDepth,
         int $level = 1,
         array $seen = []
@@ -2790,11 +2792,16 @@ final class PdfMetadataExtractor
                 $destinationsByName,
                 $structureContext,
                 $current,
+                $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Last') ?? ''),
                 $maxDepth,
                 $level + 1,
                 $seen
             ) as $child) {
                 $items[] = $child;
+            }
+
+            if ($lastItemObject !== null && $current === $lastItemObject) {
+                break;
             }
 
             $current = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Next') ?? '');

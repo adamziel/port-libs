@@ -46,6 +46,7 @@ final class PdfOutlineExtractor
             $pageIndexes,
             $this->destinationMap($catalog, $objects),
             $this->referenceObjectNumber($catalog['Outlines'] ?? null),
+            $this->referenceObjectNumber($outlineRoot['Last'] ?? null),
             max(1, $maxDepth)
         );
     }
@@ -75,6 +76,7 @@ final class PdfOutlineExtractor
             $objects,
             $this->destinationMap($catalog, $objects),
             $this->referenceObjectNumber($catalog['Outlines'] ?? null),
+            $this->referenceObjectNumber($outlineRoot['Last'] ?? null),
             max(1, $maxDepth)
         );
     }
@@ -184,6 +186,7 @@ final class PdfOutlineExtractor
             $pageIndexes,
             $this->destinationMap($catalog, $objects),
             $this->referenceObjectNumber($catalog['Outlines'] ?? null),
+            $this->referenceObjectNumber($outlineRoot['Last'] ?? null),
             max(1, $maxDepth)
         );
     }
@@ -237,6 +240,7 @@ final class PdfOutlineExtractor
             $this->pageReviewsByPageIndex($pageReviews),
             $this->taggedContentByPageIndex($pdfBytes),
             $this->referenceObjectNumber($catalog['Outlines'] ?? null),
+            $this->referenceObjectNumber($outlineRoot['Last'] ?? null),
             max(1, $maxDepth)
         );
     }
@@ -440,6 +444,7 @@ final class PdfOutlineExtractor
                 $pageReviewsByPage,
                 $taggedContentByPage,
                 $this->referenceObjectNumber($catalog['Outlines'] ?? null),
+                $this->referenceObjectNumber($outlineRoot['Last'] ?? null),
                 15
             ) as $item) {
                 $metadata['outline'][] = $item;
@@ -459,6 +464,7 @@ final class PdfOutlineExtractor
                 $pageReviewsByPage,
                 $taggedContentByPage,
                 $this->referenceObjectNumber($catalog['Outlines'] ?? null),
+                $this->referenceObjectNumber($outlineRoot['Last'] ?? null),
                 15
             );
             if ($outlineActionReviews !== []) {
@@ -1024,6 +1030,7 @@ final class PdfOutlineExtractor
         array $pageReviewsByPage,
         array $taggedContentByPage,
         ?int $expectedParentObject,
+        ?int $lastItemObject,
         int $maxDepth,
         int $level = 1,
         array $seen = []
@@ -1179,12 +1186,17 @@ final class PdfOutlineExtractor
                     $pageReviewsByPage,
                     $taggedContentByPage,
                     $current,
+                    $this->referenceObjectNumber($dict['Last'] ?? null),
                     $maxDepth,
                     $level + 1,
                     $seen
                 ) as $child) {
                     $items[] = $child;
                 }
+            }
+
+            if ($lastItemObject !== null && $current === $lastItemObject) {
+                break;
             }
 
             $current = $this->referenceObjectNumber($dict['Next'] ?? null);
@@ -1930,6 +1942,7 @@ final class PdfOutlineExtractor
         array $pageIndexes,
         array $destinations,
         ?int $expectedParentObject,
+        ?int $lastItemObject,
         int $maxDepth,
         int $level = 1,
         array $seen = []
@@ -1963,9 +1976,13 @@ final class PdfOutlineExtractor
             }
 
             if ($level < $maxDepth) {
-                foreach ($this->outlineItems($dict['First'] ?? null, $objects, $pageIndexes, $destinations, $current, $maxDepth, $level + 1, $seen) as $child) {
+                foreach ($this->outlineItems($dict['First'] ?? null, $objects, $pageIndexes, $destinations, $current, $this->referenceObjectNumber($dict['Last'] ?? null), $maxDepth, $level + 1, $seen) as $child) {
                     $items[] = $child;
                 }
+            }
+
+            if ($lastItemObject !== null && $current === $lastItemObject) {
+                break;
             }
 
             $current = $this->referenceObjectNumber($dict['Next'] ?? null);
@@ -1995,6 +2012,7 @@ final class PdfOutlineExtractor
         array $pageIndexes,
         array $destinations,
         ?int $expectedParentObject,
+        ?int $lastItemObject,
         int $maxDepth,
         int $level = 1,
         array $seen = []
@@ -2037,9 +2055,13 @@ final class PdfOutlineExtractor
             }
 
             if ($level < $maxDepth) {
-                foreach ($this->outlineItemsWithDestinationViews($dict['First'] ?? null, $objects, $pageIndexes, $destinations, $current, $maxDepth, $level + 1, $seen) as $child) {
+                foreach ($this->outlineItemsWithDestinationViews($dict['First'] ?? null, $objects, $pageIndexes, $destinations, $current, $this->referenceObjectNumber($dict['Last'] ?? null), $maxDepth, $level + 1, $seen) as $child) {
                     $items[] = $child;
                 }
+            }
+
+            if ($lastItemObject !== null && $current === $lastItemObject) {
+                break;
             }
 
             $current = $this->referenceObjectNumber($dict['Next'] ?? null);
@@ -2073,6 +2095,7 @@ final class PdfOutlineExtractor
         array $pageReviewsByPage,
         array $taggedContentByPage,
         ?int $expectedParentObject,
+        ?int $lastItemObject,
         int $maxDepth,
         int $level = 1,
         array $seen = []
@@ -2158,12 +2181,17 @@ final class PdfOutlineExtractor
                     $pageReviewsByPage,
                     $taggedContentByPage,
                     $current,
+                    $this->referenceObjectNumber($dict['Last'] ?? null),
                     $maxDepth,
                     $level + 1,
                     $seen
                 ) as $child) {
                     $items[] = $child;
                 }
+            }
+
+            if ($lastItemObject !== null && $current === $lastItemObject) {
+                break;
             }
 
             $current = $this->referenceObjectNumber($dict['Next'] ?? null);
@@ -2411,6 +2439,7 @@ final class PdfOutlineExtractor
         array $objects,
         array $destinations,
         ?int $expectedParentObject,
+        ?int $lastItemObject,
         int $maxDepth,
         int $level = 1,
         array $seen = []
@@ -2445,9 +2474,13 @@ final class PdfOutlineExtractor
             }
 
             if ($level < $maxDepth) {
-                foreach ($this->remoteGoToOutlineItems($dict['First'] ?? null, $objects, $destinations, $current, $maxDepth, $level + 1, $seen) as $child) {
+                foreach ($this->remoteGoToOutlineItems($dict['First'] ?? null, $objects, $destinations, $current, $this->referenceObjectNumber($dict['Last'] ?? null), $maxDepth, $level + 1, $seen) as $child) {
                     $items[] = $child;
                 }
+            }
+
+            if ($lastItemObject !== null && $current === $lastItemObject) {
+                break;
             }
 
             $current = $this->referenceObjectNumber($dict['Next'] ?? null);
