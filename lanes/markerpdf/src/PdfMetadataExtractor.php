@@ -6573,7 +6573,7 @@ final class PdfMetadataExtractor
         }
         $seenOffsets[$offset] = true;
 
-        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset);
+        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
         if ($tableSection !== null) {
             $entries = $tableSection['entries'];
             $hybridStreamOffset = $this->dictionaryIntegerValue($tableSection['trailer'], 'XRefStm');
@@ -6640,8 +6640,13 @@ final class PdfMetadataExtractor
             return null;
         }
 
+        $entries = $this->xrefTableRows(substr($pdfBytes, $sectionBodyOffset, $trailerOffset - $sectionBodyOffset));
+        if ($definitions !== null) {
+            $entries = $this->repairCurrentUpdateXrefTableRows($entries, $definitions, $trailer, $offset);
+        }
+
         return [
-            'entries' => $this->xrefTableRows(substr($pdfBytes, $sectionBodyOffset, $trailerOffset - $sectionBodyOffset)),
+            'entries' => $entries,
             'trailer' => $trailer,
         ];
     }
@@ -6696,6 +6701,46 @@ final class PdfMetadataExtractor
                     'offsetIsExplicit' => true,
                 ];
             }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<int, array{type: int, generation: int, offset: int, offsetIsExplicit: bool}> $entries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, array{type: int, generation: int, offset: int, offsetIsExplicit: bool}>
+     */
+    private function repairCurrentUpdateXrefTableRows(array $entries, array $definitions, string $trailer, int $xrefOffset): array
+    {
+        $previousOffset = $this->dictionaryIntegerValue($trailer, 'Prev');
+        if ($previousOffset === null || $previousOffset < 0) {
+            return $entries;
+        }
+
+        foreach ($entries as $objectNumber => $entry) {
+            if (($entry['type'] ?? null) !== 1) {
+                continue;
+            }
+
+            $offset = $entry['offset'] ?? null;
+            if (is_int($offset) && $this->directObjectDefinitionAtOffset($definitions, $offset) !== null) {
+                continue;
+            }
+
+            $updateOwner = $this->currentUpdateDirectObjectDefinitionForXrefRow(
+                (int) $objectNumber,
+                (int) ($entry['generation'] ?? 0),
+                $previousOffset,
+                $xrefOffset,
+                $definitions
+            );
+            if ($updateOwner === null) {
+                continue;
+            }
+
+            $entries[$objectNumber]['offset'] = $updateOwner['offset'];
+            $entries[$objectNumber]['generation'] = $updateOwner['generation'];
         }
 
         return $entries;

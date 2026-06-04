@@ -283,6 +283,80 @@ $malformedIndexPdf .= "20 0 obj\n"
     . "stream\n{$compressedMalformedIndexRows}\nendstream\nendobj\n"
     . "startxref\n{$malformedIndexCurrentXrefOffset}\n%%EOF";
 
+$classicTableStaleText = 'BT /F1 12 Tf 72 720 Td (Stale classic Prev table smoke page) Tj ET';
+$classicTableCurrentText = 'BT /F1 12 Tf 72 720 Td (Current classic Prev table smoke page) Tj ET';
+$classicTableStalePayload = '<wp-export><post id="stale-classic-prev-smoke"/></wp-export>';
+$classicTableCurrentPayload = '<wp-export><post id="current-classic-prev-smoke"/></wp-export>';
+$classicTableStaleXmp = gzcompress($xmpPacket('Stale Classic Table Smoke Title', 'Stale classic table smoke metadata'));
+$classicTableCurrentXmp = gzcompress($xmpPacket('Current Classic Table Smoke Title', 'Current classic table smoke metadata'));
+if (!is_string($classicTableStaleXmp) || !is_string($classicTableCurrentXmp)) {
+    throw new RuntimeException('Unable to compress classic-table xref Prev chain smoke fixture streams.');
+}
+
+$classicTablePdf = "%PDF-1.7\n";
+$addClassicTableObject = static function (int $objectNumber, int $generation, string $body) use (&$classicTablePdf): int {
+    $offset = strlen($classicTablePdf);
+    $classicTablePdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+
+$classicTableStaleCatalogOffset = $addClassicTableObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+$classicTableStalePagesOffset = $addClassicTableObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$classicTableStalePageOffset = $addClassicTableObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$classicTableStaleContentOffset = $addClassicTableObject(4, 0, "<< /Length " . strlen($classicTableStaleText) . " >>\nstream\n{$classicTableStaleText}\nendstream");
+$classicTableFontOffset = $addClassicTableObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+$classicTableStaleInfoOffset = $addClassicTableObject(6, 0, '<< /Title (Stale Classic Table Smoke Info) /Author (Stale Classic Smoke Author) >>');
+$classicTableStaleMetadataOffset = $addClassicTableObject(7, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($classicTableStaleXmp) . " >>\nstream\n{$classicTableStaleXmp}\nendstream");
+$classicTableStaleNameTreeOffset = $addClassicTableObject(8, 0, '<< /Names [(stale-classic-prev-smoke.xml) 10 0 R] >>');
+$classicTableStaleFileSpecOffset = $addClassicTableObject(10, 0, '<< /Type /Filespec /F (stale-classic-prev-smoke.xml) /Desc (Stale classic table smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$classicTableStaleEmbeddedOffset = $addClassicTableObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($classicTableStalePayload) . " >>\nstream\n{$classicTableStalePayload}\nendstream");
+
+$classicTablePreviousXrefOffset = strlen($classicTablePdf);
+$classicTablePdf .= "xref\n"
+    . "0 12\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($classicTableStaleCatalogOffset)
+    . $xrefTableRow($classicTableStalePagesOffset)
+    . $xrefTableRow($classicTableStalePageOffset)
+    . $xrefTableRow($classicTableStaleContentOffset)
+    . $xrefTableRow($classicTableFontOffset)
+    . $xrefTableRow($classicTableStaleInfoOffset)
+    . $xrefTableRow($classicTableStaleMetadataOffset)
+    . $xrefTableRow($classicTableStaleNameTreeOffset)
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($classicTableStaleFileSpecOffset)
+    . $xrefTableRow($classicTableStaleEmbeddedOffset)
+    . "trailer\n<< /Size 12 /Root 1 0 R /Info 6 0 R >>\n"
+    . "startxref\n{$classicTablePreviousXrefOffset}\n%%EOF\n";
+
+$addClassicTableObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+$addClassicTableObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$addClassicTableObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$addClassicTableObject(4, 0, "<< /Length " . strlen($classicTableCurrentText) . " >>\nstream\n{$classicTableCurrentText}\nendstream");
+$addClassicTableObject(6, 0, '<< /Title (Current Classic Table Smoke Info) /Author (Current Classic Smoke Author) /Producer (Current Classic Smoke Producer) >>');
+$addClassicTableObject(7, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($classicTableCurrentXmp) . " >>\nstream\n{$classicTableCurrentXmp}\nendstream");
+$addClassicTableObject(8, 0, '<< /Names [(current-classic-prev-smoke.xml) 10 0 R] >>');
+$addClassicTableObject(10, 0, '<< /Type /Filespec /F (current-classic-prev-smoke.xml) /Desc (Current classic table smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$addClassicTableObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($classicTableCurrentPayload) . " >>\nstream\n{$classicTableCurrentPayload}\nendstream");
+
+$classicTableCurrentXrefOffset = strlen($classicTablePdf);
+$classicTablePdf .= "xref\n"
+    . "1 4\n"
+    . $xrefTableRow(0)
+    . $xrefTableRow(0)
+    . $xrefTableRow(0)
+    . $xrefTableRow(0)
+    . "6 3\n"
+    . $xrefTableRow(0)
+    . $xrefTableRow(0)
+    . $xrefTableRow(0)
+    . "10 2\n"
+    . $xrefTableRow(0)
+    . $xrefTableRow(0)
+    . "trailer\n<< /Size 21 /Root 1 0 R /Info 6 0 R /Prev {$classicTablePreviousXrefOffset} >>\n"
+    . "startxref\n{$classicTableCurrentXrefOffset}\n%%EOF";
+
 $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
 $extractor = new PdfTextExtractor();
 $plainText = $extractor->extractPlainText($pdf);
@@ -300,6 +374,14 @@ $malformedIndexEncoded = json_encode([
     'metadata' => $malformedIndexMetadata,
     'text' => $malformedIndexPlainText,
     'files' => $malformedIndexFiles,
+], JSON_UNESCAPED_SLASHES);
+$classicTableMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($classicTablePdf);
+$classicTablePlainText = $extractor->extractPlainText($classicTablePdf);
+$classicTableFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($classicTablePdf);
+$classicTableEncoded = json_encode([
+    'metadata' => $classicTableMetadata,
+    'text' => $classicTablePlainText,
+    'files' => $classicTableFiles,
 ], JSON_UNESCAPED_SLASHES);
 
 echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialchars(json_encode([
@@ -326,6 +408,13 @@ echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialcha
     'malformed_index_same_generation_stale_prev_excluded' => is_string($malformedIndexEncoded)
         && !str_contains($malformedIndexEncoded, 'Stale Malformed')
         && !str_contains($malformedIndexEncoded, 'stale-malformed-index-smoke'),
+    'classic_table_same_generation_current_xmp_selected' => ($classicTableMetadata['title'] ?? null) === 'Current Classic Table Smoke Title',
+    'classic_table_same_generation_current_info_selected' => ($classicTableMetadata['info']['Title'] ?? null) === 'Current Classic Table Smoke Info',
+    'classic_table_same_generation_current_text_selected' => str_contains($classicTablePlainText, 'Current classic Prev table smoke page'),
+    'classic_table_same_generation_current_attachment_selected' => ($classicTableFiles[0]['filename'] ?? null) === 'current-classic-prev-smoke.xml',
+    'classic_table_same_generation_stale_prev_excluded' => is_string($classicTableEncoded)
+        && !str_contains($classicTableEncoded, 'Stale Classic')
+        && !str_contains($classicTableEncoded, 'stale-classic-prev-smoke'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
