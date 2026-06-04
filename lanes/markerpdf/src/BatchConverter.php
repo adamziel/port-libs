@@ -212,8 +212,8 @@ final class BatchConverter
      *
      * Upstream normalizes input/output folders with os.path.abspath(), creates
      * the output folder with exist_ok=True, slices os.listdir() results into a
-     * chunk, resolves optional metadata by basename, then builds task tuples
-     * before torch multiprocessing/model loading. This records the same
+     * chunk, resolves optional metadata by basename, prepares the model handoff
+     * branch, then builds task tuples before torch multiprocessing. This records the same
      * admission state for WordPress import review without mutating folders or
      * launching Python workers.
      *
@@ -229,7 +229,9 @@ final class BatchConverter
         array $metadataByFilename = [],
         ?int $minLength = null,
         int $workers = 5,
-        ?string $metadataFile = null
+        ?string $metadataFile = null,
+        ?string $torchDevice = null,
+        ?string $torchDeviceModel = null
     ): array {
         $absoluteInputFolder = $this->absolutePath($inputFolder);
         $absoluteOutputFolder = $this->absolutePath($outputFolder);
@@ -309,6 +311,11 @@ final class BatchConverter
                     'selected_metadata_filenames' => [],
                     'missing_metadata_filenames' => [],
                 ],
+                'model_handoff' => $this->convertMainModelHandoffPlan(
+                    $torchDevice,
+                    $torchDeviceModel,
+                    'output-folder-create-failed'
+                ),
                 'worker_pool' => [
                     'requested_workers' => $workers,
                     'total_processes' => 0,
@@ -380,6 +387,7 @@ final class BatchConverter
         } elseif (count($taskArgs) === 0) {
             $poolErrorBoundary = 'empty-task-queue';
         }
+        $modelHandoff = $this->convertMainModelHandoffPlan($torchDevice, $torchDeviceModel);
 
         return [
             'schema' => 'markerpdf.convert_main_runtime_preflight.v1',
@@ -449,6 +457,7 @@ final class BatchConverter
                 'selected_metadata_filenames' => $selectedMetadataFilenames,
                 'missing_metadata_filenames' => $missingMetadataFilenames,
             ],
+            'model_handoff' => $modelHandoff,
             'worker_pool' => [
                 'requested_workers' => $workers,
                 'total_processes' => $totalProcesses,
@@ -953,6 +962,58 @@ final class BatchConverter
     private function progressIterator(): string
     {
         return 'tqdm(pool.imap(process_single_pdf, task_args), total=len(task_args), desc="Processing PDFs", unit="pdf")';
+    }
+
+    /**
+     * @return array{
+     *     source: string,
+     *     order: string,
+     *     model_handoff_reached: bool,
+     *     blocked_by: string|null,
+     *     torch_device: string|null,
+     *     torch_device_model: string|null,
+     *     uses_mps_no_shared_memory_branch: bool,
+     *     main_load_all_models: bool,
+     *     share_memory_before_pool: bool,
+     *     model_share_memory_loop_reached: bool,
+     *     worker_init_argument: string|null,
+     *     worker_loads_models_when_init_arg_null: bool,
+     *     warning: string|null,
+     *     native_plan_loads_models: false,
+     *     upstream_model_execution_required: bool,
+     *     executes_python_or_models: false
+     * }
+     */
+    private function convertMainModelHandoffPlan(
+        ?string $torchDevice,
+        ?string $torchDeviceModel,
+        ?string $blockedBy = null
+    ): array {
+        $reached = $blockedBy === null;
+        $normalizedDevice = $torchDevice === null ? null : strtolower(trim($torchDevice));
+        $normalizedDeviceModel = $torchDeviceModel === null ? null : strtolower(trim($torchDeviceModel));
+        $usesMps = $reached && ($normalizedDevice === 'mps' || $normalizedDeviceModel === 'mps');
+
+        return [
+            'source' => 'convert.py settings.TORCH_DEVICE model handoff',
+            'order' => 'after_spawn_start_method_before_conversion_summary',
+            'model_handoff_reached' => $reached,
+            'blocked_by' => $blockedBy,
+            'torch_device' => $torchDevice,
+            'torch_device_model' => $torchDeviceModel,
+            'uses_mps_no_shared_memory_branch' => $usesMps,
+            'main_load_all_models' => $reached && !$usesMps,
+            'share_memory_before_pool' => $reached && !$usesMps,
+            'model_share_memory_loop_reached' => $reached && !$usesMps,
+            'worker_init_argument' => !$reached || $usesMps ? null : 'model_lst',
+            'worker_loads_models_when_init_arg_null' => $usesMps,
+            'warning' => $usesMps
+                ? "Cannot use MPS with torch multiprocessing share_memory. This will make things less memory efficient. If you want to share memory, you have to use CUDA or CPU.\nSet the TORCH_DEVICE environment variable to change the device."
+                : null,
+            'native_plan_loads_models' => false,
+            'upstream_model_execution_required' => $reached,
+            'executes_python_or_models' => false,
+        ];
     }
 
     /**

@@ -239,6 +239,84 @@ return [
             $removeTree($output);
         }
     },
+    'records convert.py model handoff branch before summary task args and pool launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        $blockedRoot = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'beta.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+
+            $batch = new BatchConverter();
+            $cuda = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 4,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+            $mps = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 4,
+                torchDevice: 'cpu',
+                torchDeviceModel: 'mps'
+            );
+            $blockedOutput = $blockedRoot . DIRECTORY_SEPARATOR . 'marker-output';
+            file_put_contents($blockedOutput, 'not a directory');
+            $blocked = $batch->runtimeMainPreflightPlan(
+                $input,
+                $blockedOutput,
+                workers: 4,
+                torchDevice: 'mps',
+                torchDeviceModel: 'mps'
+            );
+
+            $handoff = $cuda['model_handoff'];
+            $t->same('convert.py settings.TORCH_DEVICE model handoff', $handoff['source']);
+            $t->same(true, $handoff['model_handoff_reached']);
+            $t->same('after_spawn_start_method_before_conversion_summary', $handoff['order']);
+            $t->same('cuda', $handoff['torch_device']);
+            $t->same('cpu', $handoff['torch_device_model']);
+            $t->same(false, $handoff['uses_mps_no_shared_memory_branch']);
+            $t->same(true, $handoff['main_load_all_models']);
+            $t->same(true, $handoff['share_memory_before_pool']);
+            $t->same(true, $handoff['model_share_memory_loop_reached']);
+            $t->same('model_lst', $handoff['worker_init_argument']);
+            $t->same(false, $handoff['worker_loads_models_when_init_arg_null']);
+            $t->same(null, $handoff['warning']);
+            $t->same(true, $handoff['upstream_model_execution_required']);
+            $t->same(false, $handoff['native_plan_loads_models']);
+            $t->same(false, $handoff['executes_python_or_models']);
+            $t->same('after_model_handoff_before_task_args', $cuda['console_summary']['emission_order']);
+            $t->same(2, $cuda['worker_pool']['total_processes']);
+
+            $mpsHandoff = $mps['model_handoff'];
+            $t->same(true, $mpsHandoff['model_handoff_reached']);
+            $t->same(true, $mpsHandoff['uses_mps_no_shared_memory_branch']);
+            $t->same(false, $mpsHandoff['main_load_all_models']);
+            $t->same(false, $mpsHandoff['share_memory_before_pool']);
+            $t->same(false, $mpsHandoff['model_share_memory_loop_reached']);
+            $t->same(null, $mpsHandoff['worker_init_argument']);
+            $t->same(true, $mpsHandoff['worker_loads_models_when_init_arg_null']);
+            $t->contains('Cannot use MPS with torch multiprocessing share_memory', (string) $mpsHandoff['warning']);
+            $t->same(true, $mps['console_summary']['summary_reached']);
+            $t->same(false, $mps['executes_python_or_models']);
+
+            $blockedHandoff = $blocked['model_handoff'];
+            $t->same(false, $blockedHandoff['model_handoff_reached']);
+            $t->same('output-folder-create-failed', $blockedHandoff['blocked_by']);
+            $t->same(false, $blockedHandoff['upstream_model_execution_required']);
+            $t->same(false, $blockedHandoff['main_load_all_models']);
+            $t->same(false, $blockedHandoff['executes_python_or_models']);
+            $t->same(false, $blocked['console_summary']['summary_reached']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+            $removeTree($blockedRoot);
+        }
+    },
     'keeps convert.py input and chunk boundary errors ahead of metadata file loading' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();

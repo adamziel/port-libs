@@ -70,7 +70,17 @@ try {
             'short-text.pdf' => ['title' => 'Short Text Review'],
         ],
         minLength: 80,
-        workers: 8
+        workers: 8,
+        torchDevice: 'cuda',
+        torchDeviceModel: 'cpu'
+    );
+    $mpsRuntimePlan = $batch->runtimeMainPreflightPlan(
+        $input,
+        $output,
+        minLength: 80,
+        workers: 8,
+        torchDevice: 'cpu',
+        torchDeviceModel: 'mps'
     );
     $negativeMaxPlan = $batch->runtimeMainPreflightPlan(
         $input,
@@ -166,6 +176,24 @@ try {
         throw new RuntimeException('Expected runtime main preflight to clamp worker count to selected task count.');
     }
     if (
+        $runtimePlan['model_handoff']['model_handoff_reached'] !== true
+        || $runtimePlan['model_handoff']['main_load_all_models'] !== true
+        || $runtimePlan['model_handoff']['share_memory_before_pool'] !== true
+        || $runtimePlan['model_handoff']['worker_init_argument'] !== 'model_lst'
+        || $runtimePlan['model_handoff']['executes_python_or_models'] !== false
+    ) {
+        throw new RuntimeException('Expected CUDA/CPU runtime preflight to record parent load_all_models/share_memory handoff without execution.');
+    }
+    if (
+        $mpsRuntimePlan['model_handoff']['uses_mps_no_shared_memory_branch'] !== true
+        || $mpsRuntimePlan['model_handoff']['main_load_all_models'] !== false
+        || $mpsRuntimePlan['model_handoff']['worker_init_argument'] !== null
+        || $mpsRuntimePlan['model_handoff']['worker_loads_models_when_init_arg_null'] !== true
+        || !str_contains((string) $mpsRuntimePlan['model_handoff']['warning'], 'Cannot use MPS with torch multiprocessing share_memory')
+    ) {
+        throw new RuntimeException('Expected MPS runtime preflight to keep model loading in workers and avoid shared-memory handoff.');
+    }
+    if (
         $runtimePlan['console_summary']['summary_reached'] !== true
         || $runtimePlan['console_summary']['message_line'] !== 'Converting 5 pdfs in chunk 1/1 with 5 processes, and storing in ' . $output
         || $runtimePlan['console_summary']['emission_order'] !== 'after_model_handoff_before_task_args'
@@ -239,6 +267,14 @@ try {
         'runtime_total_processes' => $runtimePlan['worker_pool']['total_processes'],
         'runtime_pool_launchable' => $runtimePlan['worker_pool']['pool_launchable'],
         'runtime_pool_error_boundary' => $runtimePlan['worker_pool']['pool_error_boundary'],
+        'runtime_model_handoff_order' => $runtimePlan['model_handoff']['order'],
+        'runtime_parent_loads_models' => $runtimePlan['model_handoff']['main_load_all_models'],
+        'runtime_parent_share_memory_before_pool' => $runtimePlan['model_handoff']['share_memory_before_pool'],
+        'runtime_worker_init_argument' => $runtimePlan['model_handoff']['worker_init_argument'],
+        'runtime_model_handoff_executes_python_or_models' => $runtimePlan['model_handoff']['executes_python_or_models'],
+        'mps_runtime_uses_worker_model_loading' => $mpsRuntimePlan['model_handoff']['worker_loads_models_when_init_arg_null'],
+        'mps_runtime_parent_loads_models' => $mpsRuntimePlan['model_handoff']['main_load_all_models'],
+        'mps_runtime_warning_recorded' => str_contains((string) $mpsRuntimePlan['model_handoff']['warning'], 'Cannot use MPS with torch multiprocessing share_memory'),
         'runtime_conversion_summary_reached' => $runtimePlan['console_summary']['summary_reached'],
         'runtime_conversion_summary_line' => $runtimePlan['console_summary']['message_line'],
         'runtime_conversion_summary_order' => $runtimePlan['console_summary']['emission_order'],
