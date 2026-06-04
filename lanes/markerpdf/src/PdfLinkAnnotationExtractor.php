@@ -244,36 +244,7 @@ final class PdfLinkAnnotationExtractor
             return $this->valueAfterName($pageBody, $name);
         }
 
-        $offset = 0;
-        $length = strlen($dictionary);
-        while ($offset < $length) {
-            $this->skipWhitespace($dictionary, $offset);
-            if ($offset >= $length) {
-                break;
-            }
-
-            if ($dictionary[$offset] !== '/') {
-                $offset++;
-                continue;
-            }
-
-            $nameEnd = $this->skipPdfName($dictionary, $offset);
-            $key = $this->decodePdfName(substr($dictionary, $offset + 1, $nameEnd - $offset - 1));
-            $valueEnd = null;
-            $value = $this->valueStartingAtOffsetWithEnd($dictionary, $nameEnd, $valueEnd);
-            if ($value === null || $valueEnd === null || $valueEnd <= $nameEnd) {
-                $offset = max($nameEnd, $offset + 1);
-                continue;
-            }
-
-            if ($key === $name) {
-                return $value;
-            }
-
-            $offset = $valueEnd;
-        }
-
-        return null;
+        return $this->dictionaryValueAfterName($dictionary, $name);
     }
 
     /**
@@ -652,9 +623,18 @@ final class PdfLinkAnnotationExtractor
 
     private function annotationSubtype(string $annotationBody): ?string
     {
-        return preg_match('/\/Subtype\s*\/([A-Za-z0-9_.-]+)\b/', $annotationBody, $match) === 1
-            ? $match[1]
-            : null;
+        $value = $this->valueAfterName($annotationBody, 'Subtype');
+        if ($value === null) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '' || $trimmed[0] !== '/') {
+            return null;
+        }
+
+        $end = $this->skipPdfName($trimmed, 0);
+        return $this->decodePdfName(substr($trimmed, 1, $end - 1));
     }
 
     /**
@@ -1065,12 +1045,72 @@ final class PdfLinkAnnotationExtractor
 
     private function valueAfterName(string $body, string $name): ?string
     {
+        $dictionary = str_starts_with(ltrim($body), '<<') ? $this->dictionaryObjectBody($body) : null;
+        $value = $dictionary === null
+            ? $this->dictionaryValueAfterName($body, $name)
+            : $this->dictionaryValueAfterName($dictionary, $name);
+        if ($value !== null) {
+            return $value;
+        }
+
         if (preg_match('/\/' . preg_quote($name, '/') . '\b/s', $body, $match, PREG_OFFSET_CAPTURE) !== 1) {
             return null;
         }
 
         $offset = $match[0][1] + strlen($match[0][0]);
         return $this->valueStartingAtOffsetWithEnd($body, $offset);
+    }
+
+    private function dictionaryValueAfterName(string $dictionary, string $name): ?string
+    {
+        $offset = 0;
+        $length = strlen($dictionary);
+        while ($offset < $length) {
+            $this->skipWhitespaceAndComments($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($dictionary[$offset] !== '/') {
+                $offset++;
+                continue;
+            }
+
+            $nameEnd = $this->skipPdfName($dictionary, $offset);
+            $key = $this->decodePdfName(substr($dictionary, $offset + 1, $nameEnd - $offset - 1));
+            $valueEnd = null;
+            $value = $this->valueStartingAtOffsetWithEnd($dictionary, $nameEnd, $valueEnd);
+            if ($value === null || $valueEnd === null || $valueEnd <= $nameEnd) {
+                $offset = max($nameEnd, $offset + 1);
+                continue;
+            }
+
+            if ($key === $name) {
+                return $value;
+            }
+
+            $offset = $valueEnd;
+        }
+
+        return null;
+    }
+
+    private function skipWhitespaceAndComments(string $value, int &$offset): void
+    {
+        $length = strlen($value);
+        while ($offset < $length) {
+            while ($offset < $length && ctype_space($value[$offset])) {
+                $offset++;
+            }
+
+            if (($value[$offset] ?? '') !== '%') {
+                return;
+            }
+
+            while ($offset < $length && $value[$offset] !== "\n" && $value[$offset] !== "\r") {
+                $offset++;
+            }
+        }
     }
 
     private function valueStartingAtOffsetWithEnd(string $body, int $offset, ?int &$endOffset = null): ?string
