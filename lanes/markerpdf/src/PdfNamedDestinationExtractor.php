@@ -339,11 +339,17 @@ final class PdfNamedDestinationExtractor
 
         $entries = [];
         $limits = $this->nameTreeEffectiveLimits($dictionary, $objects, $cache, $inheritedLimits);
+        $childLimits = $limits;
         $names = $dictionary['Names'] ?? null;
         if (is_array($names) && array_is_list($names)) {
+            $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $cache, $limits)
+                ? $limits
+                : $inheritedLimits;
+            $childLimits = $entryLimits;
+
             for ($index = 0; $index + 1 < count($names); $index += 2) {
                 $name = $this->destinationNameValue($names[$index], $objects, $cache);
-                if ($name === null || $name === '' || !$this->nameTreeNameWithinLimits($name, $limits)) {
+                if ($name === null || $name === '' || !$this->nameTreeNameWithinLimits($name, $entryLimits)) {
                     continue;
                 }
 
@@ -355,7 +361,7 @@ final class PdfNamedDestinationExtractor
         }
 
         foreach ($this->arrayValues($dictionary['Kids'] ?? null) as $kid) {
-            foreach ($this->collectNameTreeEntries($kid, $objects, $cache, $seenObjects, $limits, $depth + 1) as $entry) {
+            foreach ($this->collectNameTreeEntries($kid, $objects, $cache, $seenObjects, $childLimits, $depth + 1) as $entry) {
                 $entries[] = $entry;
             }
         }
@@ -427,6 +433,28 @@ final class PdfNamedDestinationExtractor
         return strcmp($limits['lower'], $limits['upper']) <= 0
             && strcmp($name, $limits['lower']) >= 0
             && strcmp($name, $limits['upper']) <= 0;
+    }
+
+    /**
+     * @param list<mixed> $items
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param array<int, mixed> $cache
+     * @param array{lower: string, upper: string}|null $limits
+     */
+    private function nameTreeLimitsMatchAnyPairKey(array $items, array $objects, array &$cache, ?array $limits): bool
+    {
+        if ($limits === null || $items === []) {
+            return true;
+        }
+
+        for ($index = 0, $count = count($items); $index + 1 < $count; $index += 2) {
+            $name = $this->destinationNameValue($items[$index], $objects, $cache);
+            if ($name !== null && $this->nameTreeNameWithinLimits($name, $limits)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
