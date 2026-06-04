@@ -574,6 +574,55 @@ return [
             $removeTree($root);
         }
     },
+    'records malformed metadata json before model handoff and worker launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'beta.pdf', 'notes.txt'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata.json';
+            file_put_contents($metadataFile, '{"alpha.pdf": {"title": "Alpha Import",}');
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 5,
+                metadataFile: $metadataFile
+            );
+
+            $t->same(true, $plan['chunking']['chunking_reached']);
+            $t->same(null, $plan['chunking']['chunk_error_boundary']);
+            $t->same(3, $plan['chunking']['selected_count']);
+            $t->same(['alpha.pdf', 'beta.pdf', 'notes.txt'], $plan['chunking']['selected_filenames']);
+            $t->same(['notes.txt'], $plan['input_listing']['selected_non_pdf_filenames']);
+            $t->same('metadata_file json.load keyed by basename', $plan['metadata']['source']);
+            $t->same($metadataFile, $plan['metadata']['metadata_file']);
+            $t->same(true, $plan['metadata']['metadata_load_reached']);
+            $t->same(false, $plan['metadata']['metadata_load_success']);
+            $t->same('metadata-file-json-load-failed', $plan['metadata']['metadata_error_boundary']);
+            $t->same('JSONDecodeError', $plan['metadata']['metadata_error_class']);
+            $t->contains('valid JSON', $plan['metadata']['metadata_error_message']);
+            $t->same([], $plan['metadata']['metadata_filenames']);
+            $t->same([], $plan['metadata']['selected_metadata_filenames']);
+            $t->same([], $plan['metadata']['missing_metadata_filenames']);
+            $t->same(5, $plan['worker_pool']['requested_workers']);
+            $t->same(0, $plan['worker_pool']['task_args_count']);
+            $t->same([], $plan['worker_pool']['task_args']);
+            $t->same(0, $plan['worker_pool']['total_processes']);
+            $t->same(false, $plan['worker_pool']['pool_launchable']);
+            $t->same('metadata-file-json-load-failed', $plan['worker_pool']['pool_error_boundary']);
+            $t->same(false, $plan['console_summary']['summary_reached']);
+            $t->same(null, $plan['console_summary']['message_line']);
+            $t->same('metadata-file-json-load-failed', $plan['console_summary']['blocked_by']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'records convert.py os.listdir file-only boundary without extension filtering' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();

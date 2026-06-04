@@ -104,6 +104,14 @@ try {
         metadataFile: $missingMetadata,
         workers: 8
     );
+    $malformedMetadata = $output . DIRECTORY_SEPARATOR . 'malformed-metadata.json';
+    file_put_contents($malformedMetadata, '{"ready-for-marker.pdf": {"title": "Ready"');
+    $metadataErrorPlan = $batch->runtimeMainPreflightPlan(
+        $input,
+        $output,
+        metadataFile: $malformedMetadata,
+        workers: 8
+    );
     $plans = [];
     foreach (['already-imported.pdf', 'extension-spoof.pdf', 'short-text.pdf', 'ready-for-marker.pdf'] as $filename) {
         $plans[$filename] = $batch->processFilePreflightPlan(
@@ -211,6 +219,16 @@ try {
     ) {
         throw new RuntimeException('Expected output-folder file conflicts to block before metadata loading, conversion summary, or worker-pool planning.');
     }
+    if (
+        $metadataErrorPlan['metadata']['metadata_load_success'] !== false
+        || $metadataErrorPlan['metadata']['metadata_error_boundary'] !== 'metadata-file-json-load-failed'
+        || $metadataErrorPlan['worker_pool']['pool_error_boundary'] !== 'metadata-file-json-load-failed'
+        || $metadataErrorPlan['worker_pool']['task_args_count'] !== 0
+        || $metadataErrorPlan['console_summary']['summary_reached'] !== false
+        || $metadataErrorPlan['console_summary']['blocked_by'] !== 'metadata-file-json-load-failed'
+    ) {
+        throw new RuntimeException('Expected malformed metadata JSON to block before model handoff, task tuple construction, conversion summary, or worker-pool launch.');
+    }
     if ($runtimePlan['chunking']['max_files_limit_active'] !== false || $runtimePlan['chunking']['selected_count'] !== 5) {
         throw new RuntimeException('Expected --max=0 to behave like upstream convert.py and leave the WordPress queue uncapped.');
     }
@@ -287,6 +305,15 @@ try {
         'output_conflict_pool_error_boundary' => $outputConflictPlan['worker_pool']['pool_error_boundary'],
         'output_conflict_conversion_summary_reached' => $outputConflictPlan['console_summary']['summary_reached'],
         'output_conflict_conversion_summary_blocked_by' => $outputConflictPlan['console_summary']['blocked_by'],
+        'metadata_error_load_reached' => $metadataErrorPlan['metadata']['metadata_load_reached'],
+        'metadata_error_load_success' => $metadataErrorPlan['metadata']['metadata_load_success'],
+        'metadata_error_boundary' => $metadataErrorPlan['metadata']['metadata_error_boundary'],
+        'metadata_error_class' => $metadataErrorPlan['metadata']['metadata_error_class'],
+        'metadata_error_selected_filenames' => $metadataErrorPlan['chunking']['selected_filenames'],
+        'metadata_error_task_args_count' => $metadataErrorPlan['worker_pool']['task_args_count'],
+        'metadata_error_pool_error_boundary' => $metadataErrorPlan['worker_pool']['pool_error_boundary'],
+        'metadata_error_conversion_summary_reached' => $metadataErrorPlan['console_summary']['summary_reached'],
+        'metadata_error_conversion_summary_blocked_by' => $metadataErrorPlan['console_summary']['blocked_by'],
         'runtime_max_files_limit_active' => $runtimePlan['chunking']['max_files_limit_active'],
         'runtime_zero_max_selected_count' => $runtimePlan['chunking']['selected_count'],
         'negative_max_selected_filenames' => $negativeMaxPlan['chunking']['selected_filenames'],
