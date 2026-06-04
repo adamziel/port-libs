@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-04 09:21:42 UTC",
-    "sourceCommit": "15b7deab75f302d4a04af204fa015a039e92981e",
-    "sourceCommitShort": "15b7deab75f3",
+    "generated": "2026-06-04 09:30:02 UTC",
+    "sourceCommit": "18be2727502c11d25839bc11dd072515cc1d2b75",
+    "sourceCommitShort": "18be2727502c",
     "sourceBranch": "unknown",
-    "dashboardCommit": "15b7deab75f302d4a04af204fa015a039e92981e",
-    "dashboardCommitShort": "15b7deab75f3",
+    "dashboardCommit": "18be2727502c11d25839bc11dd072515cc1d2b75",
+    "dashboardCommitShort": "18be2727502c",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "749",
-            "coverage": "749 / 2,276 (32.9%)",
-            "mapPercent": "32.9%",
-            "unmapped": "1,527",
-            "php": "309 pass / 0 fail",
+            "mapped": "750",
+            "coverage": "750 / 2,276 (33.0%)",
+            "mapPercent": "33.0%",
+            "unmapped": "1,526",
+            "php": "310 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-03 UTC upstream-runner dependency audit on base ea0e1f5294ced...",
+            "audit": "2026-06-04 UTC math/TeX conversion slice on base 15b7deab75f302d4a04a...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
             "nextTarget": "Keep tar file entries, LZ4 frames, ZIP64/symlink/NTFS extra-f...",
             "remainingGate": "No local blocker",
-            "commit": "cb6cfe4"
+            "commit": "15b7dea"
         },
         {
             "lane": "quadrable",

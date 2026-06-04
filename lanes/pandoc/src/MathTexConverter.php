@@ -35,6 +35,18 @@ final class MathTexConverter
         'wedge' => '∧',
     ];
 
+    /** @var array<string, string> */
+    private const DELIMITER_COMMANDS = [
+        '{' => '{',
+        '}' => '}',
+        'langle' => '⟨',
+        'lbrace' => '{',
+        'rangle' => '⟩',
+        'rbrace' => '}',
+        'vert' => '|',
+        'Vert' => '‖',
+    ];
+
     public function latexFor(AstNode $node): string
     {
         $text = (string) $node->attr('text', '');
@@ -153,6 +165,10 @@ final class MathTexConverter
             return '<mtext>' . $this->esc($this->readRequiredGroupText($source, $offset)) . '</mtext>';
         }
 
+        if ($command === 'left' || $command === 'right') {
+            return $this->parseFenceCommand($source, $offset);
+        }
+
         if (isset(self::IDENTIFIER_COMMANDS[$command])) {
             return '<mi>' . self::IDENTIFIER_COMMANDS[$command] . '</mi>';
         }
@@ -161,7 +177,21 @@ final class MathTexConverter
             return '<mo>' . self::OPERATOR_COMMANDS[$command] . '</mo>';
         }
 
+        if (isset(self::DELIMITER_COMMANDS[$command])) {
+            return '<mo>' . $this->esc(self::DELIMITER_COMMANDS[$command]) . '</mo>';
+        }
+
         return '<mi>' . $this->esc('\\' . $command) . '</mi>';
+    }
+
+    private function parseFenceCommand(string $source, int &$offset): string
+    {
+        $delimiter = $this->readFenceDelimiter($source, $offset);
+        if ($delimiter === '') {
+            return '';
+        }
+
+        return '<mo fence="true" stretchy="true">' . $this->esc($delimiter) . '</mo>';
     }
 
     private function applyScripts(string $source, int &$offset, string $base): string
@@ -279,6 +309,36 @@ final class MathTexConverter
         }
 
         throw new \InvalidArgumentException('Expected TeX command name at offset ' . $offset);
+    }
+
+    private function readFenceDelimiter(string $source, int &$offset): string
+    {
+        $this->skipWhitespace($source, $offset);
+        $char = $source[$offset] ?? '';
+        if ($char === '') {
+            throw new \InvalidArgumentException('Expected TeX fence delimiter at offset ' . $offset);
+        }
+
+        if ($char === '\\') {
+            $offset++;
+            $command = $this->readCommandName($source, $offset);
+            if (isset(self::DELIMITER_COMMANDS[$command])) {
+                return self::DELIMITER_COMMANDS[$command];
+            }
+
+            throw new \InvalidArgumentException('Unsupported TeX fence delimiter command \\' . $command . ' at offset ' . $offset);
+        }
+
+        $offset++;
+        if ($char === '.') {
+            return '';
+        }
+
+        if (str_contains('()[]{}|/<>', $char)) {
+            return $char;
+        }
+
+        throw new \InvalidArgumentException('Unsupported TeX fence delimiter at offset ' . ($offset - 1));
     }
 
     private function expectGroupEnd(string $source, int &$offset): void

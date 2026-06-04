@@ -18,12 +18,25 @@ return [
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">', $textMathml);
         $t->contains('<mtext>posts &amp; media</mtext><mo>∈</mo><mi>S</mi>', $textMathml);
     },
+    'converts bounded tex delimiter commands and stretch fences to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $angleMathml = $converter->texToMathMl('\\langle x,y \\rangle');
+        $fencedMathml = $converter->texToMathMl('\\left(\\frac{x}{y}\\right) + \\left\\{a\\right\\}', true);
+        $invisibleFenceMathml = $converter->texToMathMl('\\left. x \\right|_{0}^{1}');
+
+        $t->contains('<mo>⟨</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo>⟩</mo>', $angleMathml);
+        $t->contains('<mo fence="true" stretchy="true">(</mo><mfrac><mi>x</mi><mi>y</mi></mfrac><mo fence="true" stretchy="true">)</mo>', $fencedMathml);
+        $t->contains('<mo fence="true" stretchy="true">{</mo><mi>a</mi><mo fence="true" stretchy="true">}</mo>', $fencedMathml);
+        $t->contains('<mi>x</mi><msubsup><mo fence="true" stretchy="true">|</mo><mn>0</mn><mn>1</mn></msubsup>', $invisibleFenceMathml);
+    },
     'rejects malformed bounded tex math groups without invoking a tex engine' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
 
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\frac{a}{'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sqrt'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\text{unterminated'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left\\unknown{x}'));
     },
     'renders latex writer math and raw tex without dropping source content' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);

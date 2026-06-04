@@ -23,17 +23,25 @@ MARKDOWN;
 
 $document = (new MarkdownReader())->read($markdown);
 $converter = new MathTexConverter();
+$inlineMath = null;
 $displayMath = null;
 foreach ($document->children as $block) {
     if ($block->type !== 'paragraph') {
         continue;
     }
     foreach ($block->children as $child) {
+        if ($child->type === 'math' && $child->attr('display') !== true && !$inlineMath instanceof AstNode) {
+            $inlineMath = $child;
+        }
         if ($child->type === 'math' && $child->attr('display') === true) {
             $displayMath = $child;
             break 2;
         }
     }
+}
+
+if (!$inlineMath instanceof AstNode) {
+    throw new RuntimeException('Math handoff example could not find inline math node');
 }
 
 if (!$displayMath instanceof AstNode) {
@@ -43,6 +51,7 @@ if (!$displayMath instanceof AstNode) {
 $summary = [
     'wordpressBlocks' => (new WordPressBlockWriter())->write($document),
     'latex' => (new LatexWriter())->write($document),
+    'inlineMathml' => $converter->mathMlFor($inlineMath),
     'mathml' => $converter->mathMlFor($displayMath),
 ];
 
@@ -50,6 +59,8 @@ if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         '<span class="math inline">\\(\\langle post_id,media_id \\rangle\\)</span>',
         '<span class="math display">\\[\\frac{a_1}{\\sqrt{b^2}} + \\alpha \\times \\omega\\]</span>',
+        '<mo>⟨</mo>',
+        '<mo>⟩</mo>',
         '<mfrac><msub><mi>a</mi><mn>1</mn></msub><msqrt><msup><mi>b</mi><mn>2</mn></msup></msqrt></mfrac>',
         '\\[\\frac{a_1}{\\sqrt{b^2}} + \\alpha \\times \\omega\\]',
     ] as $needle) {
