@@ -236,7 +236,7 @@ final class CitationCslProcessor
         $parts = [];
         $authors = $this->bibliographyAuthors($item);
         if ($authors !== '') {
-            $parts[] = $authors . '.';
+            $parts[] = rtrim($authors, '.') . '.';
         }
 
         $title = (string) $item['title'];
@@ -272,6 +272,11 @@ final class CitationCslProcessor
         $url = (string) $item['url'];
         if ($url !== '') {
             $parts[] = $url . '.';
+        }
+
+        $accessedDate = $item['accessedDate'] ?? null;
+        if (is_array($accessedDate) && (string) ($accessedDate['display'] ?? '') !== '') {
+            $parts[] = 'Accessed ' . (string) $accessedDate['display'] . '.';
         }
 
         return implode(' ', $parts);
@@ -322,6 +327,8 @@ final class CitationCslProcessor
             throw new \InvalidArgumentException('CSL item at index ' . $index . ' has an empty id');
         }
 
+        $issuedDate = self::dateVariable($item['issued'] ?? null, $id, 'issued');
+
         return [
             'id' => $id,
             'type' => self::stringField($item, 'type'),
@@ -331,7 +338,9 @@ final class CitationCslProcessor
             'page' => self::stringField($item, 'page'),
             'doi' => self::stringField($item, 'DOI'),
             'url' => self::stringField($item, 'URL'),
-            'issuedYear' => self::issuedYear($item['issued'] ?? null, $id),
+            'issuedDate' => $issuedDate,
+            'accessedDate' => self::dateVariable($item['accessed'] ?? null, $id, 'accessed'),
+            'issuedYear' => $issuedDate['year'],
             'authors' => self::names($item['author'] ?? [], $id, 'author'),
             'editors' => self::names($item['editor'] ?? [], $id, 'editor'),
             'raw' => $item,
@@ -356,7 +365,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return list<array{family:string, given:string, literal:string}>
+     * @return list<array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}>
      */
     private static function names(mixed $value, string $id, string $field): array
     {
@@ -377,7 +386,10 @@ final class CitationCslProcessor
             $literal = self::nameString($name['literal'] ?? '');
             $family = self::nameString($name['family'] ?? '');
             $given = self::nameString($name['given'] ?? '');
-            if ($literal === '' && $family === '' && $given === '') {
+            $nonDroppingParticle = self::nameString($name['non-dropping-particle'] ?? '');
+            $droppingParticle = self::nameString($name['dropping-particle'] ?? '');
+            $suffix = self::nameString($name['suffix'] ?? '');
+            if ($literal === '' && $family === '' && $given === '' && $nonDroppingParticle === '' && $droppingParticle === '') {
                 throw new \InvalidArgumentException('CSL item ' . $id . ' field ' . $field . '[' . $index . '] has no name content');
             }
 
@@ -385,6 +397,12 @@ final class CitationCslProcessor
                 'family' => $family,
                 'given' => $given,
                 'literal' => $literal,
+                'nonDroppingParticle' => $nonDroppingParticle,
+                'droppingParticle' => $droppingParticle,
+                'suffix' => $suffix,
+                'commaSuffix' => self::boolField($name, 'comma-suffix', false),
+                'staticOrdering' => self::boolField($name, 'static-ordering', false),
+                'parseNames' => self::boolField($name, 'parse-names', true),
             ];
         }
 
@@ -404,31 +422,95 @@ final class CitationCslProcessor
         return trim((string) $value);
     }
 
-    private static function issuedYear(mixed $issued, string $id): ?int
+    /**
+     * @return array{year:?int, parts:list<int>, display:string, literal:string}
+     */
+    private static function dateVariable(mixed $date, string $id, string $field): array
     {
-        if ($issued === null || $issued === []) {
-            return null;
+        if ($date === null || $date === []) {
+            return [
+                'year' => null,
+                'parts' => [],
+                'display' => '',
+                'literal' => '',
+            ];
         }
 
-        if (!is_array($issued)) {
-            throw new \InvalidArgumentException('CSL item ' . $id . ' issued field must be an object');
+        if (!is_array($date)) {
+            throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' field must be an object');
         }
 
-        $dateParts = $issued['date-parts'] ?? null;
+        $literal = self::stringField($date, 'literal');
+        $dateParts = $date['date-parts'] ?? null;
         if ($dateParts === null || $dateParts === []) {
-            return null;
+            return [
+                'year' => null,
+                'parts' => [],
+                'display' => $literal,
+                'literal' => $literal,
+            ];
         }
 
         if (!is_array($dateParts) || !isset($dateParts[0]) || !is_array($dateParts[0]) || !isset($dateParts[0][0])) {
-            throw new \InvalidArgumentException('CSL item ' . $id . ' issued date-parts must contain a year');
+            throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' date-parts must contain a year');
         }
 
-        $year = $dateParts[0][0];
-        if (!is_int($year) && !(is_string($year) && preg_match('/^-?\d+$/', $year) === 1)) {
-            throw new \InvalidArgumentException('CSL item ' . $id . ' issued year must be numeric');
+        $parts = [];
+        foreach (array_slice($dateParts[0], 0, 3) as $partIndex => $part) {
+            if (!is_int($part) && !(is_string($part) && preg_match('/^-?\d+$/', $part) === 1)) {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' date-parts must be numeric');
+            }
+
+            $number = (int) $part;
+            if ($partIndex === 1 && ($number < 1 || $number > 12)) {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' month must be between 1 and 12');
+            }
+
+            if ($partIndex === 2 && ($number < 1 || $number > 31)) {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' day must be between 1 and 31');
+            }
+
+            $parts[] = $number;
         }
 
-        return (int) $year;
+        return [
+            'year' => $parts[0],
+            'parts' => $parts,
+            'display' => self::formatDateParts($parts),
+            'literal' => '',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function boolField(array $item, string $key, bool $default): bool
+    {
+        if (!array_key_exists($key, $item) || $item[$key] === null) {
+            return $default;
+        }
+
+        if (!is_bool($item[$key])) {
+            throw new \InvalidArgumentException('CSL field ' . $key . ' must be boolean when present');
+        }
+
+        return $item[$key];
+    }
+
+    /**
+     * @param list<int> $parts
+     */
+    private static function formatDateParts(array $parts): string
+    {
+        if (count($parts) >= 3) {
+            return sprintf('%04d-%02d-%02d', $parts[0], $parts[1], $parts[2]);
+        }
+
+        if (count($parts) === 2) {
+            return sprintf('%04d-%02d', $parts[0], $parts[1]);
+        }
+
+        return (string) $parts[0];
     }
 
     private function mapNode(AstNode $node): AstNode
@@ -542,8 +624,9 @@ final class CitationCslProcessor
                 return $name['literal'];
             }
 
-            if ($name['family'] !== '') {
-                return $name['family'];
+            $family = trim((string) $name['nonDroppingParticle'] . ' ' . (string) $name['family']);
+            if ($family !== '') {
+                return $family;
             }
 
             return $name['given'];
@@ -565,7 +648,16 @@ final class CitationCslProcessor
      */
     private function citationYear(array $item): string
     {
-        return isset($item['issuedYear']) && $item['issuedYear'] !== null ? (string) $item['issuedYear'] : 'n.d.';
+        if (isset($item['issuedYear']) && $item['issuedYear'] !== null) {
+            return (string) $item['issuedYear'];
+        }
+
+        $date = $item['issuedDate'] ?? null;
+        if (is_array($date) && (string) ($date['literal'] ?? '') !== '') {
+            return (string) $date['literal'];
+        }
+
+        return 'n.d.';
     }
 
     /**
@@ -589,13 +681,25 @@ final class CitationCslProcessor
                 continue;
             }
 
-            $family = (string) $name['family'];
+            $family = trim((string) $name['nonDroppingParticle'] . ' ' . (string) $name['family']);
             $given = (string) $name['given'];
+            $droppingParticle = (string) $name['droppingParticle'];
+            $suffix = (string) $name['suffix'];
             if ($family !== '' && $given !== '') {
-                $parts[] = $family . ', ' . $given;
+                $entry = $family . ', ' . $given;
             } else {
-                $parts[] = $family !== '' ? $family : $given;
+                $entry = $family !== '' ? $family : $given;
             }
+
+            if ($droppingParticle !== '') {
+                $entry = trim($entry . ' ' . $droppingParticle);
+            }
+
+            if ($suffix !== '') {
+                $entry .= ($name['commaSuffix'] ? ', ' : ' ') . $suffix;
+            }
+
+            $parts[] = $entry;
         }
 
         return implode('; ', $parts);

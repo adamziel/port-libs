@@ -97,6 +97,68 @@ return [
         $t->same('[@missing]', $missingNormalized->attr('rendered'));
         $t->same(true, (bool) $missingNormalized->attr('missingCslItem', false));
     },
+    'normalizes csl date variables and name particles for bibliography handoff' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'particle-source',
+                'type' => 'webpage',
+                'title' => 'Source Packet',
+                'author' => [
+                    [
+                        'family' => 'Cruz',
+                        'given' => 'Ana Maria',
+                        'non-dropping-particle' => 'de la',
+                        'suffix' => 'Jr.',
+                        'comma-suffix' => true,
+                    ],
+                ],
+                'issued' => ['date-parts' => [[2026, 6, 4]]],
+                'accessed' => ['date-parts' => [['2026', '06', '05']]],
+                'URL' => 'https://example.test/source-packet',
+            ],
+            [
+                'id' => 'edited-manual',
+                'type' => 'book',
+                'title' => 'Edited Migration Manual',
+                'editor' => [
+                    [
+                        'family' => 'Curator',
+                        'given' => 'Eli',
+                        'suffix' => 'III',
+                        'comma-suffix' => false,
+                    ],
+                ],
+                'issued' => ['literal' => 'forthcoming'],
+                'publisher' => 'Review Press',
+            ],
+        ]);
+
+        $particle = $processor->item('particle-source');
+        $t->same([2026, 6, 4], $particle['issuedDate']['parts'] ?? null);
+        $t->same(2026, $particle['issuedDate']['year'] ?? null);
+        $t->same('2026-06-04', $particle['issuedDate']['display'] ?? null);
+        $t->same([2026, 6, 5], $particle['accessedDate']['parts'] ?? null);
+        $t->same('2026-06-05', $particle['accessedDate']['display'] ?? null);
+        $t->same('de la', $particle['authors'][0]['nonDroppingParticle'] ?? null);
+        $t->same('Jr.', $particle['authors'][0]['suffix'] ?? null);
+        $t->same(true, $particle['authors'][0]['commaSuffix'] ?? null);
+        $t->same('(de la Cruz 2026)', $processor->renderCitationCluster([$citation('particle-source', '[@particle-source]')]));
+        $t->same('de la Cruz, Ana Maria, Jr. Source Packet. 2026. https://example.test/source-packet. Accessed 2026-06-05.', $processor->renderBibliographyEntry('particle-source'));
+
+        $edited = $processor->item('edited-manual');
+        $t->same(null, $edited['issuedDate']['year'] ?? null);
+        $t->same([], $edited['issuedDate']['parts'] ?? null);
+        $t->same('forthcoming', $edited['issuedDate']['literal'] ?? null);
+        $t->same('forthcoming', $edited['issuedDate']['display'] ?? null);
+        $t->same('III', $edited['editors'][0]['suffix'] ?? null);
+        $t->same(false, $edited['editors'][0]['commaSuffix'] ?? null);
+        $t->same('(Curator forthcoming)', $processor->renderCitationCluster([$citation('edited-manual', '[@edited-manual]')]));
+        $t->same('Curator, Eli III. Edited Migration Manual. Review Press, forthcoming.', $processor->renderBibliographyEntry('edited-manual'));
+
+        $bibliography = $processor->bibliographyDefinitionList(['particle-source', 'edited-manual']);
+        $t->same('de la Cruz 2026', $bibliography->children[0]->children[0]->attr('text'));
+        $t->same('Curator forthcoming', $bibliography->children[1]->children[0]->attr('text'));
+    },
     'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
         $document = (new MarkdownReader())->read(
@@ -204,6 +266,8 @@ return [
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-author', 'author' => 'Ada']]));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-name', 'author' => [[]]]]));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-year', 'issued' => ['date-parts' => [['soon']]]]]));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-accessed-month', 'accessed' => ['date-parts' => [[2026, 13]]]]]));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-comma-suffix', 'author' => [['family' => 'Smith', 'comma-suffix' => 'yes']]]]));
 
         $processor = CitationCslProcessor::fromItems([[
             'id' => 'untitled',
