@@ -24,6 +24,11 @@ $sourceFiles = [
     $sourceRoot . '/SQLiteJsonSchemaWalPlan.php',
     $sourceRoot . '/SQLiteJsonTablePlan.php',
 ];
+foreach (glob($sourceRoot . '/SQLiteJsonb*.php') ?: [] as $file) {
+    $sourceFiles[] = $file;
+}
+$sourceFiles = array_values(array_unique($sourceFiles));
+
 $jsonbCheckFixtureFiles = [
     $libsqliteRoot . '/examples/application-jsonb-check-current-next64.php',
     $libsqliteRoot . '/examples/application-jsonb-check-current-next67.php',
@@ -36,17 +41,39 @@ $jsonbCheckFixtureFiles = [
     $libsqliteRoot . '/tests/SQLiteJsonbCheckCurrentNext69Test.php',
     $libsqliteRoot . '/tests/SQLiteJsonbGeneratedCheckIndexCurrentNext54Test.php',
 ];
+foreach (glob($libsqliteRoot . '/tests/SQLite*Jsonb*Check*.php') ?: [] as $file) {
+    $jsonbCheckFixtureFiles[] = $file;
+}
+foreach (glob($libsqliteRoot . '/examples/application-*jsonb*check*.php') ?: [] as $file) {
+    $jsonbCheckFixtureFiles[] = $file;
+}
+$jsonbCheckFixtureFiles = array_values(array_unique($jsonbCheckFixtureFiles));
 
 $legacyJsonbCheckMatches = static function () use ($sourceFiles, $libsqliteRoot): array {
     $terms = [
+        'Word' . 'Press',
+        'word' . 'press',
         'wp' . '_',
         'wp' . '_options',
         'opt' . 'ion_id',
         'opt' . 'ion_name',
         'opt' . 'ion name',
         'opt' . 'ion_value',
+        'Opt' . 'ionRow',
+        'opt' . 'ionRow',
+        'Opt' . 'ionsTable',
+        'opt' . 'ionsTable',
+        'Opt' . 'ionName',
+        'opt' . 'ionName',
+        'Opt' . 'ionValue',
+        'opt' . 'ionValue',
+        'Opt' . 'ionId',
+        'opt' . 'ionId',
         'auto' . 'load',
+        'Auto' . 'load',
         'blog' . '_id',
+        'Blog' . 'Id',
+        'blog' . 'Id',
     ];
     $pattern = '/(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
     $matches = [];
@@ -70,14 +97,29 @@ $legacyJsonbCheckMatches = static function () use ($sourceFiles, $libsqliteRoot)
 
 $legacyJsonbCheckFixtureMatches = static function () use ($jsonbCheckFixtureFiles, $libsqliteRoot): array {
     $terms = [
+        'Word' . 'Press',
+        'word' . 'press',
         'wp' . '_',
         'wp' . '_options',
         'opt' . 'ion_id',
         'opt' . 'ion_name',
         'opt' . 'ion value',
         'opt' . 'ion_value',
+        'Opt' . 'ionRow',
+        'opt' . 'ionRow',
+        'Opt' . 'ionsTable',
+        'opt' . 'ionsTable',
+        'Opt' . 'ionName',
+        'opt' . 'ionName',
+        'Opt' . 'ionValue',
+        'opt' . 'ionValue',
+        'Opt' . 'ionId',
+        'opt' . 'ionId',
         'auto' . 'load',
+        'Auto' . 'load',
         'blog' . '_id',
+        'Blog' . 'Id',
+        'blog' . 'Id',
         'plug' . 'in',
         'Plug' . 'in',
     ];
