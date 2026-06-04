@@ -148,6 +148,26 @@ $buildDeclaredColumnOverflowDocument = static function (): AstNode {
     ]);
 };
 
+$buildSourceCoordinateOverflowDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Rowspan source coordinate review',
+            'alignments' => ['left', 'right'],
+            'widths' => [0.5, 0.5],
+        ], [
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Merged source', 'rowspan' => 2, 'colspan' => 2], [new AstNode('text', ['text' => 'Merged source'])]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Unexpected source cell'], [new AstNode('text', ['text' => 'Unexpected source cell'])]),
+                    new AstNode('table_cell', ['text' => 'Second conflict'], [new AstNode('text', ['text' => 'Second conflict'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 return [
     'lays out pandoc table spans by visual columns for writer handoff' => static function (TestRunner $t) use ($buildSpannedTableDocument): void {
         $table = $buildSpannedTableDocument()->children[0];
@@ -274,5 +294,32 @@ return [
         $t->contains('| Posts                 |                Ready |               |', $markdown);
         $t->contains('|                       |          Needs media | Overflow note |', $markdown);
         $t->contains('| Full width audit note |                      |               |', $markdown);
+    },
+    'reports source cell coordinates for rowspanned declared column conflicts' => static function (TestRunner $t) use ($buildSourceCoordinateOverflowDocument): void {
+        $document = $buildSourceCoordinateOverflowDocument();
+        $table = $document->children[0];
+        $body = $table->children[0];
+        $layout = TableGeometry::layoutRows($body->children, TableGeometry::columnCount($table));
+        $diagnostics = TableGeometry::diagnostics($table);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(4, TableGeometry::columnCount($table));
+        $t->same([0], array_map(static fn (array $cell): int => $cell['sourceCell'], $layout[0]['cells']));
+        $t->same([0], array_map(static fn (array $cell): int => $cell['sourceColumn'], $layout[0]['cells']));
+        $t->same([2, 3], array_map(static fn (array $cell): int => $cell['column'], $layout[1]['cells']));
+        $t->same([0, 1], array_map(static fn (array $cell): int => $cell['sourceCell'], $layout[1]['cells']));
+        $t->same([0, 1], array_map(static fn (array $cell): int => $cell['sourceColumn'], $layout[1]['cells']));
+        $t->same(2, count($diagnostics));
+        $t->same('cell-exceeds-declared-columns', $diagnostics[0]['code'] ?? null);
+        $t->same(1, $diagnostics[0]['row'] ?? null);
+        $t->same(2, $diagnostics[0]['column'] ?? null);
+        $t->same(0, $diagnostics[0]['sourceCell'] ?? null);
+        $t->same(0, $diagnostics[0]['sourceColumn'] ?? null);
+        $t->same(3, $diagnostics[0]['endColumn'] ?? null);
+        $t->same(3, $diagnostics[1]['column'] ?? null);
+        $t->same(1, $diagnostics[1]['sourceCell'] ?? null);
+        $t->same(1, $diagnostics[1]['sourceColumn'] ?? null);
+        $t->same(4, $diagnostics[1]['endColumn'] ?? null);
+        $t->contains('<tbody><tr><td colspan="2" rowspan="2" style="text-align:left">Merged source</td></tr><tr><td>Unexpected source cell</td><td>Second conflict</td></tr></tbody>', $blocks);
     },
 ];

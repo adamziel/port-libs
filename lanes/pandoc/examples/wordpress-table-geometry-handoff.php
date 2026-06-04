@@ -99,8 +99,14 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($overflowDiagnostics[0]['code'] ?? null) !== 'cell-exceeds-declared-columns') {
         throw new RuntimeException('Table geometry self-test missing declared-column overflow diagnostic');
     }
+    if (($overflowDiagnostics[0]['sourceCell'] ?? null) !== 1 || ($overflowDiagnostics[0]['sourceColumn'] ?? null) !== 1) {
+        throw new RuntimeException('Table geometry self-test missing overflow source-cell coordinates');
+    }
     if (($overflowDiagnostics[1]['colspan'] ?? null) !== 3) {
         throw new RuntimeException('Table geometry self-test missing over-wide colspan diagnostic');
+    }
+    if (($overflowDiagnostics[1]['sourceCell'] ?? null) !== 0 || ($overflowDiagnostics[1]['sourceColumn'] ?? null) !== 0) {
+        throw new RuntimeException('Table geometry self-test missing colspan source-cell coordinates');
     }
     if (!str_contains($blocks, '<tr><td style="text-align:right">Needs media</td><td>Overflow note</td></tr><tr><th colspan="3" style="text-align:left">Full width audit note</th></tr>')) {
         throw new RuntimeException('Table geometry self-test dropped malformed declared-column overflow content');

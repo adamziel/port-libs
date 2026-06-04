@@ -72,7 +72,7 @@ final class TableGeometry
 
     /**
      * @param list<AstNode> $rows
-     * @return list<array{row:AstNode,cells:list<array{node:AstNode,column:int,colspan:int,rowspan:int}>}>
+     * @return list<array{row:AstNode,cells:list<array{node:AstNode,column:int,colspan:int,rowspan:int,sourceCell:int,sourceColumn:int}>}>
      */
     public static function layoutRows(array $rows, int $columnCount): array
     {
@@ -102,24 +102,31 @@ final class TableGeometry
             $consumedActiveColumns = [];
             $layoutCells = [];
             $column = 0;
+            $sourceCell = 0;
+            $sourceColumn = 0;
 
             foreach ($row->children as $cell) {
                 if ($cell->type !== 'table_cell') {
                     continue;
                 }
 
+                $cellSourceCell = $sourceCell;
+                $cellSourceColumn = $sourceColumn;
+                $rawColspan = self::cellColspan($cell);
                 self::skipCoveredColumns($activeRowspans, $column, $consumedActiveColumns);
                 if ($column >= $columnCount) {
                     break;
                 }
 
-                $colspan = min(self::cellColspan($cell), $columnCount - $column);
+                $colspan = min($rawColspan, $columnCount - $column);
                 $rowspan = min(self::cellRowspan($cell), max(1, $rowCount - $rowIndex));
                 $layoutCells[] = [
                     'node' => $cell,
                     'column' => $column,
                     'colspan' => $colspan,
                     'rowspan' => $rowspan,
+                    'sourceCell' => $cellSourceCell,
+                    'sourceColumn' => $cellSourceColumn,
                 ];
 
                 if ($rowspan > 1) {
@@ -127,6 +134,8 @@ final class TableGeometry
                 }
 
                 $column += $colspan;
+                $sourceColumn += $rawColspan;
+                $sourceCell++;
             }
 
             self::consumeUnusedActiveColumns($activeRowspans, $previousActiveColumns, $consumedActiveColumns);
@@ -174,6 +183,8 @@ final class TableGeometry
                         'section' => $group['section'],
                         'row' => $rowIndex,
                         'column' => $cell['column'],
+                        'sourceCell' => $cell['sourceCell'],
+                        'sourceColumn' => $cell['sourceColumn'],
                         'rowspan' => $rowspan,
                         'availableRows' => $availableRows,
                     ];
@@ -268,7 +279,7 @@ final class TableGeometry
 
     /**
      * @param list<array<string, int|string>> $diagnostics
-     * @param array{node:AstNode,column:int,colspan:int,rowspan:int} $cell
+     * @param array{node:AstNode,column:int,colspan:int,rowspan:int,sourceCell:int,sourceColumn:int} $cell
      */
     private static function appendDeclaredColumnDiagnostic(
         array &$diagnostics,
@@ -288,6 +299,8 @@ final class TableGeometry
             'section' => $section,
             'row' => $rowIndex,
             'column' => $cell['column'],
+            'sourceCell' => $cell['sourceCell'],
+            'sourceColumn' => $cell['sourceColumn'],
             'colspan' => $rawColspan,
             'declaredColumns' => $declaredColumnCount,
             'endColumn' => $endColumn,

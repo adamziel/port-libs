@@ -414,6 +414,10 @@ The upstream `test/command/rst-writer-gridtable-if-rowspans.md` row-span shape
 is now represented as well: DocBook `morerows` imports become AST row spans,
 table head/body/foot sections remain distinct, and WordPress table output keeps
 `rowspan` plus `<tfoot>` markup for reviewer-audit tables.
+Malformed rowspanned import grids that exceed their declared Pandoc colspec now
+carry source-cell/source-column coordinates in table geometry diagnostics, so a
+WordPress review queue can keep the overflow cells visible while pointing back
+to the physical source cell that caused the audit warning.
 
 ## Scenario Fixture
 
@@ -784,6 +788,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   colgroup widths, per-cell alignment, strong inline cell content, preserved
   `colspan`/`rowspan` structural metadata, and table footers without invoking
   Pandoc.
+- Rowspanned malformed import grids keep overflow cells visible in WordPress
+  output while diagnostics record source-cell/source-column coordinates for
+  reviewer audit and remediation notes.
 - Markdown review lists that contain raw HTML controls now stay attached to the
   intended list item. The fixture maps Pandoc's list issue #1154 shape with
   div/button/div children so migration review markup does not escape the list
