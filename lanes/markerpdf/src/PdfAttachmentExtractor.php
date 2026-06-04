@@ -909,6 +909,7 @@ final class PdfAttachmentExtractor
      */
     private function pdfObjects(string $pdfBytes): array
     {
+        $pdfBytes = $this->bytesThroughTerminalEof($pdfBytes);
         if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
             return [];
         }
@@ -929,6 +930,16 @@ final class PdfAttachmentExtractor
         ksort($objects, SORT_NUMERIC);
 
         return $objects;
+    }
+
+    private function bytesThroughTerminalEof(string $pdfBytes): string
+    {
+        $eof = strrpos($pdfBytes, '%%EOF');
+        if ($eof === false) {
+            return $pdfBytes;
+        }
+
+        return substr($pdfBytes, 0, $eof + strlen('%%EOF'));
     }
 
     private function streamBytesFromBody(string $body, int $index, mixed $value): ?string

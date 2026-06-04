@@ -9,12 +9,14 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 $csvPayload = "Title,Status\nDraft,Ready\n";
 $notesPayload = "Needs alt text\n";
 $stalePayload = "Title,Status\nStale,Ignore\n";
+$postEofPayload = "Title,Status\nPost EOF Stale,Ignore\n";
 $sourcePayload = '<wp-export><post id="catalog-af"/></wp-export>';
 $pagePayload = '<wp-page><attachment role="page-associated"/></wp-page>';
 $relatedPayload = '{"manifest":"catalog-related"}';
 $compressedCsv = gzcompress($csvPayload);
 $csvChecksum = md5($csvPayload);
 $staleChecksum = md5($stalePayload);
+$postEofChecksum = md5($postEofPayload);
 $sourceChecksum = md5($sourcePayload);
 $pageChecksum = md5($pagePayload);
 $relatedChecksum = md5($relatedPayload);
@@ -42,11 +44,18 @@ $pdf = "%PDF-1.7\n"
     . "16 0 obj\n<< /Type /Filespec /F (page-source.xml) /Desc (Page-associated source export) /AFRelationship /Source /EF << /F 17 0 R >> >>\nendobj\n"
     . "17 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($pagePayload) . " /CheckSum <{$pageChecksum}> /ModDate (D:20260604210100Z) >> /Length " . strlen($pagePayload) . " >>\n"
     . "stream\n{$pagePayload}\nendstream\nendobj\n"
-    . "%%EOF\n";
+    . "%%EOF\n"
+    . "5 0 obj\n<< /Type /Filespec /F (post-eof-stale.csv) /Desc (Post EOF stale import rows) /AFRelationship /Alternative /EF << /F 6 0 R >> >>\nendobj\n"
+    . "6 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($postEofPayload) . " /CheckSum <{$postEofChecksum}> >> /Length " . strlen($postEofPayload) . " >>\n"
+    . "stream\n{$postEofPayload}\nendstream\nendobj\n";
 
 $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
 $csvAttachment = $summary['attachments'][0] ?? null;
-if (!is_array($csvAttachment) || ($csvAttachment['relationship'] ?? null) !== 'Data' || ($csvAttachment['checksum_matches'] ?? null) !== true) {
+if (!is_array($csvAttachment)
+    || ($csvAttachment['filename'] ?? null) !== 'review-notes.csv'
+    || ($csvAttachment['relationship'] ?? null) !== 'Data'
+    || ($csvAttachment['checksum_matches'] ?? null) !== true
+) {
     throw new RuntimeException('Expected checksum-matched Data relationship attachment review metadata.');
 }
 $catalogAttachment = $summary['attachments'][1] ?? null;
@@ -61,6 +70,9 @@ if (str_contains(json_encode($summary, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ER
     throw new RuntimeException('Expected out-of-limits EmbeddedFiles name-tree rows to be pruned.');
 }
 $summaryJson = json_encode($summary, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+if (str_contains($summaryJson, 'post-eof-stale.csv') || str_contains($summaryJson, 'Post EOF Stale')) {
+    throw new RuntimeException('Expected post-EOF stale FileSpec objects to be ignored by attachment preflight.');
+}
 if (($catalogAttachment['related_file_count'] ?? null) !== 1
     || ($catalogAttachment['related_files'][0]['checksum_matches'] ?? null) !== true
     || str_contains($summaryJson, $relatedPayload)
@@ -87,6 +99,7 @@ echo "<!-- markerpdf-pdf-attachments-smoke " . htmlspecialchars(json_encode([
     'total_bytes' => $summary['total_bytes'],
     'filenames' => $summary['filenames'],
     'pruned_out_of_limits_name_tree_entry' => true,
+    'terminal_eof_bounds_attachment_scan' => !str_contains($summaryJson, 'post-eof-stale.csv'),
     'catalog_associated_file_preflight' => ($catalogAttachment['associated_file'] ?? false) === true,
     'page_associated_file_preflight' => ($pageAttachment['page_associated_file'] ?? false) === true,
     'related_file_preflight' => ($catalogAttachment['related_file_count'] ?? 0) === 1,
