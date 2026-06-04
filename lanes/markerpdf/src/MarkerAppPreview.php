@@ -1452,12 +1452,7 @@ final class MarkerAppPreview
             return '';
         }
 
-        $label = '';
-        while ($number > 0) {
-            $number--;
-            $label = chr(($number % 26) + 65) . $label;
-            $number = intdiv($number, 26);
-        }
+        $label = str_repeat(chr(ord('A') + (($number - 1) % 26)), intdiv($number - 1, 26) + 1);
 
         return $lowercase ? strtolower($label) : $label;
     }
