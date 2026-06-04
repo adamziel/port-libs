@@ -25,6 +25,26 @@ $ccittFaxFilterBoundaryPdf = static function (): array {
     return [$pdf, $faxPayload, $aliasPayload];
 };
 
+$ccittFaxInvalidDecodeParmsPdf = static function (): array {
+    $content = "BT /F1 12 Tf 72 720 Td (Before invalid CCITT review) Tj ET\n"
+        . "q 20 0 0 2 72 700 cm /BadFax Do Q\n"
+        . "q 10 0 0 1 72 680 cm /BadAlias Do Q\n"
+        . 'BT /F1 12 Tf 72 660 Td (After invalid CCITT review) Tj ET';
+    $faxPayload = 'BT /F1 12 Tf 72 720 Td (Invalid CCITT Fax Payload Noise) Tj ET';
+    $aliasPayload = strtoupper(bin2hex('BT /F1 12 Tf 72 700 Td (Invalid CCF Alias Payload Noise) Tj ET')) . '>';
+
+    $pdf = "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /BadFax 5 0 R /BadAlias 6 0 R >> >> >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 20 /Height 2 /ImageMask true /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /K /TwoD /Columns -4 /Rows 99 0 R /BlackIs1 /Maybe /EndOfBlock true /DamagedRowsBeforeError -1 >> /Length " . strlen($faxPayload) . " >>\nstream\n{$faxPayload}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 10 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 1 /Filter [/ASCIIHexDecode /CCF] /DecodeParms [null << /Columns /Wide /Rows -1 /EndOfLine /No >>] /Length " . strlen($aliasPayload) . " >>\nstream\n{$aliasPayload}\nendstream\nendobj\n"
+        . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+    return [$pdf, $faxPayload, $aliasPayload];
+};
+
 return [
     'records CCITT Fax image DecodeParms without rasterizing or leaking payload text' => static function (TestRunner $t) use ($ccittFaxFilterBoundaryPdf): void {
         [$pdf, $faxPayload, $aliasPayload] = $ccittFaxFilterBoundaryPdf();
@@ -107,6 +127,95 @@ return [
         $t->same("Before CCITT XObject\nAfter CCITT XObject\n", $extractor->naiveGetText($pdf));
         $t->true(!str_contains($plainText, 'CCITT Fax Payload Noise'));
         $t->true(!str_contains($plainText, 'CCF Alias Payload Noise'));
+        $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encodedReview, $faxPayload));
+        $t->true(!str_contains($encodedReview, $aliasPayload));
+    },
+    'marks malformed CCITT Fax DecodeParms fail closed without treating them as defaults' => static function (TestRunner $t) use ($ccittFaxInvalidDecodeParmsPdf): void {
+        [$pdf, $faxPayload, $aliasPayload] = $ccittFaxInvalidDecodeParmsPdf();
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(2, $review['invoked_image_xobject_count']);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+
+        $fax = $review['entries'][0];
+        $t->same('BadFax', $fax['resource_name']);
+        $t->same(['CCITTFaxDecode'], $fax['filters']);
+        $t->same(['CCITTFaxDecode'], $fax['preview_only_filters']);
+        $t->same(false, $fax['native_raster_decode']);
+        $t->same(false, $fax['decoded_with_current_filters']);
+        $t->same([
+            [
+                'filter' => 'CCITTFaxDecode',
+                'preview_only' => true,
+                'decode_parms' => [
+                    'type' => 'CCITTFaxDecode',
+                    'k' => null,
+                    'columns' => -4,
+                    'rows' => null,
+                    'black_is_1' => null,
+                    'encoded_byte_align' => null,
+                    'end_of_line' => null,
+                    'end_of_block' => true,
+                    'damaged_rows_before_error' => -1,
+                    'valid_decode_parms' => false,
+                    'invalid_decode_parms_fields' => [
+                        'k',
+                        'columns',
+                        'rows',
+                        'black_is_1',
+                        'damaged_rows_before_error',
+                    ],
+                    'decode_parms_review' => 'invalid_ccitt_decodeparms_fail_closed',
+                ],
+            ],
+        ], $fax['filter_details']);
+
+        $alias = $review['entries'][1];
+        $t->same('BadAlias', $alias['resource_name']);
+        $t->same(['ASCIIHexDecode', 'CCF'], $alias['filters']);
+        $t->same(['CCF'], $alias['preview_only_filters']);
+        $t->same(false, $alias['native_raster_decode']);
+        $t->same(false, $alias['decoded_with_current_filters']);
+        $t->same([
+            [
+                'filter' => 'ASCIIHexDecode',
+                'preview_only' => false,
+                'decode_parms' => null,
+            ],
+            [
+                'filter' => 'CCF',
+                'preview_only' => true,
+                'decode_parms' => [
+                    'type' => 'CCITTFaxDecode',
+                    'k' => null,
+                    'columns' => null,
+                    'rows' => -1,
+                    'black_is_1' => null,
+                    'encoded_byte_align' => null,
+                    'end_of_line' => null,
+                    'end_of_block' => null,
+                    'damaged_rows_before_error' => null,
+                    'valid_decode_parms' => false,
+                    'invalid_decode_parms_fields' => [
+                        'columns',
+                        'rows',
+                        'end_of_line',
+                    ],
+                    'decode_parms_review' => 'invalid_ccitt_decodeparms_fail_closed',
+                ],
+            ],
+        ], $alias['filter_details']);
+
+        $t->same(['Before invalid CCITT review', 'After invalid CCITT review'], $extractor->extractTextLines($pdf));
+        $t->same("Before invalid CCITT review\nAfter invalid CCITT review", $plainText);
+        $t->same("Before invalid CCITT review\nAfter invalid CCITT review\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Invalid CCITT Fax Payload Noise'));
+        $t->true(!str_contains($plainText, 'Invalid CCF Alias Payload Noise'));
         $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
         $t->true(!str_contains($encodedReview, $faxPayload));
         $t->true(!str_contains($encodedReview, $aliasPayload));

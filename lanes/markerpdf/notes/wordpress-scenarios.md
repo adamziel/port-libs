@@ -416,6 +416,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdftext-dictionary-source-page-currentbase.php` maps pdftext dictionary page-level source geometry into WordPress review metadata. It preserves source `page`, `bbox`, `width`, `height`, and `rotation` separately from the Marker rendered page bbox, emits a Gutenberg paragraph unchanged, and avoids Python pdftext, models, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
+`examples/wordpress-pdf-ccitt-fax-decodeparms-failclosed-currentbase.php` maps malformed CCITTFaxDecode/CCF `/DecodeParms` into a WordPress media-review path. It exposes invalid fax fields for review while keeping CCITT raster payload bytes out of Gutenberg paragraphs and without loading Python, pdftext, pypdfium/PDFium, PIL, Poppler, Ghostscript, OCR, models, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
