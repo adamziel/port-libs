@@ -27,12 +27,37 @@ final class XmlHtmlDom
 
     /** @var array<string, true> */
     private const HTML5_BOOLEAN_ATTRIBUTES = [
+        'allowfullscreen' => true,
+        'async' => true,
+        'autofocus' => true,
+        'autoplay' => true,
         'checked' => true,
+        'controls' => true,
+        'default' => true,
+        'defer' => true,
         'disabled' => true,
+        'formnovalidate' => true,
+        'hidden' => true,
+        'inert' => true,
+        'ismap' => true,
+        'itemscope' => true,
+        'loop' => true,
         'multiple' => true,
+        'muted' => true,
+        'nomodule' => true,
+        'novalidate' => true,
+        'open' => true,
+        'playsinline' => true,
         'readonly' => true,
         'required' => true,
+        'reversed' => true,
         'selected' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const HTML5_RAW_TEXT_ELEMENTS = [
+        'script' => true,
+        'style' => true,
     ];
 
     public static function loadXmlDocument(string $xml, string $label = 'XML document', bool $preserveWhiteSpace = true): \DOMDocument
@@ -114,13 +139,24 @@ final class XmlHtmlDom
     public static function serializeHtmlFragment(\DOMDocument $dom): string
     {
         $root = self::requireFragmentRoot($dom);
+
+        return self::serializeHtmlChildren($root);
+    }
+
+    public static function serializeHtmlChildren(\DOMNode $node): string
+    {
         $html = '';
 
-        foreach ($root->childNodes as $child) {
+        foreach ($node->childNodes as $child) {
             $html .= self::serializeNode($child);
         }
 
         return $html;
+    }
+
+    public static function serializeHtmlNode(\DOMNode $node): string
+    {
+        return self::serializeNode($node);
     }
 
     public static function normalizedText(\DOMNode $node): string
@@ -230,11 +266,25 @@ final class XmlHtmlDom
         }
 
         $html .= '>';
-        foreach ($node->childNodes as $child) {
-            $html .= self::serializeNode($child);
+        if (isset(self::HTML5_RAW_TEXT_ELEMENTS[$name])) {
+            $html .= self::rawTextContent($node);
+        } else {
+            foreach ($node->childNodes as $child) {
+                $html .= self::serializeNode($child);
+            }
         }
 
         return $html . '</' . $name . '>';
+    }
+
+    private static function rawTextContent(\DOMElement $element): string
+    {
+        $text = '';
+        foreach ($element->childNodes as $child) {
+            $text .= $child->nodeValue ?? '';
+        }
+
+        return $text;
     }
 
     private static function serializeAttributes(\DOMElement $element): string

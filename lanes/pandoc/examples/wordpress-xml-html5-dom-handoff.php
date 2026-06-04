@@ -13,6 +13,8 @@ $fragment = <<<'HTML'
   <h2>Source packet</h2>
   <p>Imported<br>line with &amp; entity</p>
   <figure><img src="media/review.png?rev=1&amp;post=42" alt="Review image"><figcaption>Review image</figcaption></figure>
+  <style disabled>.legacy-note > strong { color: #600; }</style>
+  <script type="application/json" data-review="metadata">{"source":"legacy <html> & notes"}</script>
 </article>
 HTML;
 
@@ -29,6 +31,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($html, '<img alt="Review image" src="media/review.png?rev=1&amp;post=42">')) {
         throw new RuntimeException('Expected deterministic img attribute escaping and void serialization');
+    }
+    if (!str_contains($html, '<style disabled>.legacy-note > strong { color: #600; }</style>')) {
+        throw new RuntimeException('Expected raw text style serialization for review packets');
+    }
+    if (!str_contains($html, '<script data-review="metadata" type="application/json">{"source":"legacy <html> & notes"}</script>')) {
+        throw new RuntimeException('Expected raw text JSON script serialization for review metadata');
     }
     if (!str_contains($blocks, '<!-- wp:html -->') || !str_contains($blocks, 'data-source="legacy-html"')) {
         throw new RuntimeException('Expected serialized fragment to hand off as a WordPress HTML block');

@@ -63,6 +63,39 @@ return [
         $t->same(['checked' => 'checked'], $summary[3]['attributes']);
         $t->same("Text\u{00A0}<span title=\"A &quot;quote&quot; &amp; source\">source &lt;em&gt;</span><!--review--><input checked>", $html);
     },
+    'serializes raw text elements and expanded html5 boolean attributes' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<script defer src="review.js">if (a < b && c > d) { window.review = "&"; }</script>'
+                . '<style disabled>.legacy > .target::before { content: "&"; }</style>',
+            'raw text HTML fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $t->same('script', $summary[0]['name']);
+        $t->same(['defer' => 'defer', 'src' => 'review.js'], $summary[0]['attributes']);
+        $t->same('if (a < b && c > d) { window.review = "&"; }', $summary[0]['text']);
+        $t->same('style', $summary[1]['name']);
+        $t->same(['disabled' => 'disabled'], $summary[1]['attributes']);
+        $t->same('.legacy > .target::before { content: "&"; }', $summary[1]['text']);
+        $t->same('<script defer src="review.js">if (a < b && c > d) { window.review = "&"; }</script><style disabled>.legacy > .target::before { content: "&"; }</style>', $html);
+    },
+    'serializes detached dom nodes and children for reader handoff' => static function (TestRunner $t): void {
+        $dom = new DOMDocument('1.0', 'UTF-8');
+        $fragment = $dom->createDocumentFragment();
+        $section = $dom->createElement('section');
+        $section->setAttribute('hidden', 'hidden');
+        $paragraph = $dom->createElement('p');
+        $paragraph->appendChild($dom->createTextNode('Detached <text> & notes'));
+        $section->appendChild($paragraph);
+        $section->appendChild($dom->createElement('br'));
+        $section->appendChild($dom->createComment('review -- source'));
+        $fragment->appendChild($section);
+
+        $t->same('<section hidden><p>Detached &lt;text&gt; &amp; notes</p><br><!--review - - source--></section>', XmlHtmlDom::serializeHtmlNode($fragment));
+        $t->same('<p>Detached &lt;text&gt; &amp; notes</p><br><!--review - - source-->', XmlHtmlDom::serializeHtmlChildren($section));
+        $t->same('<section hidden><p>Detached &lt;text&gt; &amp; notes</p><br><!--review - - source--></section>', XmlHtmlDom::serializeHtmlNode($section));
+    },
     'hands serialized HTML fragments to WordPress raw HTML blocks' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<aside data-review="source"><p>Imported<br>line &amp; reviewer notes</p></aside>',
