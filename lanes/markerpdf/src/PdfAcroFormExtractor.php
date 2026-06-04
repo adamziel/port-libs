@@ -129,6 +129,7 @@ final class PdfAcroFormExtractor
         $xfaPackets = $this->xfaPacketsFromAcroForm($acroForm, $objects);
         $fields = [];
         $fieldRefs = $this->fieldReferencesFromAcroForm($acroForm);
+        $fieldRefs = $this->fieldReferencesWithPageWidgetBoundaries($fieldRefs, $objects, $pageWidgets);
         $fieldNamesByObject = $this->fieldNamesByObject($fieldRefs, $objects);
         $fieldNamesByObject = $this->fieldNamesWithPageWidgetParents($fieldNamesByObject, $objects, $pageWidgets);
         $calculationOrder = $this->calculationOrderFromAcroForm($acroForm, $fieldNamesByObject);
@@ -8688,6 +8689,117 @@ final class PdfAcroFormExtractor
     }
 
     /**
+     * @param list<int> $fieldRefs
+     * @param array<int, string> $objects
+     * @param array<int, array{page_index: int, page_object: int, annotation_index: int}> $pageWidgets
+     * @return list<int>
+     */
+    private function fieldReferencesWithPageWidgetBoundaries(array $fieldRefs, array $objects, array $pageWidgets): array
+    {
+        $refs = array_values(array_unique($fieldRefs));
+        $reachable = $this->fieldTreeObjectNumbers($refs, $objects);
+
+        foreach (array_keys($pageWidgets) as $widgetObject) {
+            if (isset($reachable[$widgetObject]) || !isset($objects[$widgetObject])) {
+                continue;
+            }
+
+            $widgetBody = $this->dictionaryObjectBody($objects[$widgetObject]) ?? trim($objects[$widgetObject]);
+            if (!$this->isWidget($widgetBody)) {
+                continue;
+            }
+
+            $candidate = null;
+            $parentObject = $this->objectReferenceValueAfterName($widgetBody, 'Parent');
+            if ($parentObject !== null && isset($objects[$parentObject]) && !isset($reachable[$parentObject])) {
+                $candidate = $this->pageWidgetRootFieldCandidate($parentObject, $objects, $reachable);
+            } elseif ($this->isFieldWidgetDictionary($widgetBody)) {
+                $candidate = $widgetObject;
+            }
+
+            if ($candidate === null || isset($reachable[$candidate]) || in_array($candidate, $refs, true) || !isset($objects[$candidate])) {
+                continue;
+            }
+
+            $candidateBody = $this->dictionaryObjectBody($objects[$candidate]) ?? trim($objects[$candidate]);
+            if (!$this->isFieldDictionaryCandidate($candidateBody)) {
+                continue;
+            }
+
+            $refs[] = $candidate;
+            foreach ($this->fieldTreeObjectNumbers([$candidate], $objects) as $objectNumber => $_) {
+                $reachable[$objectNumber] = true;
+            }
+        }
+
+        return $refs;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $reachable
+     */
+    private function pageWidgetRootFieldCandidate(int $objectNumber, array $objects, array $reachable): ?int
+    {
+        $candidate = $objectNumber;
+        $seen = [];
+
+        while (isset($objects[$candidate]) && !isset($seen[$candidate])) {
+            $seen[$candidate] = true;
+            $body = $this->dictionaryObjectBody($objects[$candidate]) ?? trim($objects[$candidate]);
+            if (!$this->isFieldDictionaryCandidate($body)) {
+                return null;
+            }
+
+            $parentObject = $this->objectReferenceValueAfterName($body, 'Parent');
+            if ($parentObject === null || !isset($objects[$parentObject]) || isset($reachable[$parentObject])) {
+                return $candidate;
+            }
+
+            $parentBody = $this->dictionaryObjectBody($objects[$parentObject]) ?? trim($objects[$parentObject]);
+            if (!$this->isFieldDictionaryCandidate($parentBody)) {
+                return $candidate;
+            }
+
+            $candidate = $parentObject;
+        }
+
+        return $candidate;
+    }
+
+    /**
+     * @param list<int> $roots
+     * @param array<int, string> $objects
+     * @return array<int, true>
+     */
+    private function fieldTreeObjectNumbers(array $roots, array $objects): array
+    {
+        $seen = [];
+        foreach ($roots as $root) {
+            $this->collectFieldTreeObjectNumbers($root, $objects, $seen);
+        }
+
+        return $seen;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     */
+    private function collectFieldTreeObjectNumbers(int $objectNumber, array $objects, array &$seen): void
+    {
+        if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+            return;
+        }
+
+        $seen[$objectNumber] = true;
+        $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
+        foreach ($this->kidReferences($body) as $kidRef) {
+            $this->collectFieldTreeObjectNumbers($kidRef, $objects, $seen);
+        }
+    }
+
+    /**
      * @return list<int>
      */
     private function kidReferences(string $body): array
@@ -8699,6 +8811,25 @@ final class PdfAcroFormExtractor
 
         $body = $this->arrayBodyFromValue($kids);
         return $body === null ? [] : $this->objectReferences($body);
+    }
+
+    private function isFieldWidgetDictionary(string $body): bool
+    {
+        return $this->isWidget($body)
+            && (
+                $this->valueAfterName($body, 'T') !== null
+                || $this->valueAfterName($body, 'TM') !== null
+                || $this->valueAfterName($body, 'FT') !== null
+            );
+    }
+
+    private function isFieldDictionaryCandidate(string $body): bool
+    {
+        return $this->valueAfterName($body, 'T') !== null
+            || $this->valueAfterName($body, 'TM') !== null
+            || $this->valueAfterName($body, 'FT') !== null
+            || $this->valueAfterName($body, 'Kids') !== null
+            || $this->isWidget($body);
     }
 
     private function isPureWidget(string $body): bool
