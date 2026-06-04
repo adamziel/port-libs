@@ -3501,6 +3501,19 @@ final class PdfAcroFormExtractor
         $fieldHierarchy = $this->fieldHierarchyBoundary($currentHierarchyPath, $effective, $inherited, $objectNumber, $password);
         $valueState = $this->fieldValueState($fieldType, $flags, $effective, $password, $value, $defaultValue, $options, $widgets, $objects);
         $valueState['hierarchy_boundary'] = $this->fieldHierarchyValueState($fieldHierarchy);
+        $maxLengthReview = $fieldType === 'Tx'
+            ? $this->maxLengthReviewForField($objectNumber, $name, $effective, $value, $defaultValue, $password)
+            : null;
+        if ($maxLengthReview !== null) {
+            $valueState['max_length'] = $maxLengthReview['max_length'];
+            $valueState['max_length_source'] = $maxLengthReview['max_length_source'];
+            $valueState['max_length_source_object'] = $maxLengthReview['max_length_source_object'];
+            $valueState['max_length_inherited'] = $maxLengthReview['max_length_inherited'];
+            $valueState['current_value_length'] = $maxLengthReview['current_value_length'];
+            $valueState['current_value_exceeds_max_length'] = $maxLengthReview['current_value_exceeds_max_length'];
+            $valueState['max_length_enforced_on_import'] = false;
+            $valueState['current_value_truncated_for_import'] = false;
+        }
         $widgetCurrentBaseReview = $fieldType === 'Btn'
             ? $this->widgetCurrentBaseReviewForField($objectNumber, $name, $valueState, $widgets)
             : null;
@@ -3522,6 +3535,7 @@ final class PdfAcroFormExtractor
             'value' => $value,
             'value_redacted' => $password,
             'default_value' => $defaultValue,
+            'max_length' => $maxLengthReview['max_length'] ?? null,
             'value_state' => $valueState,
             'field_hierarchy' => $fieldHierarchy,
             'default_appearance' => $defaultAppearance,
@@ -3538,6 +3552,9 @@ final class PdfAcroFormExtractor
         }
         if (isset($valueState['rich_text_review']) && is_array($valueState['rich_text_review'])) {
             $field['rich_text_review'] = $valueState['rich_text_review'];
+        }
+        if ($maxLengthReview !== null) {
+            $field['max_length_review'] = $maxLengthReview;
         }
         if ($fieldType === 'Ch') {
             $field['options'] = $options;
@@ -3569,7 +3586,7 @@ final class PdfAcroFormExtractor
         $inheritedAttributes = [];
         $localAttributes = [];
         $localValueAttributes = [];
-        foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DS', 'DA', 'DR', 'Q', 'Opt', 'I'] as $name) {
+        foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DS', 'DA', 'DR', 'Q', 'Opt', 'I', 'MaxLen'] as $name) {
             if (!isset($effective[$name])) {
                 continue;
             }
@@ -3597,6 +3614,9 @@ final class PdfAcroFormExtractor
         $hasParentDefaultValue = isset($effective['DV']) && $defaultValueSourceObject !== null && $defaultValueSourceObject !== $terminalObject;
         $terminalHasCurrentValue = isset($effective['V']) && $currentValueSourceObject === $terminalObject;
         $terminalHasDefaultValue = isset($effective['DV']) && $defaultValueSourceObject === $terminalObject;
+        $maxLengthSourceObject = $effective['MaxLen']['source_object'] ?? null;
+        $hasParentMaxLength = isset($effective['MaxLen']) && $maxLengthSourceObject !== null && $maxLengthSourceObject !== $terminalObject;
+        $terminalHasMaxLength = isset($effective['MaxLen']) && $maxLengthSourceObject === $terminalObject;
 
         return [
             'source' => 'acroform_field_hierarchy_value_boundary',
@@ -3616,12 +3636,16 @@ final class PdfAcroFormExtractor
             'flags_source_object' => $effective['Ff']['source_object'] ?? null,
             'current_value_source_object' => $currentValueSourceObject,
             'default_value_source_object' => $defaultValueSourceObject,
+            'max_length_source_object' => $maxLengthSourceObject,
             'current_value_inherited' => $hasParentCurrentValue,
             'default_value_inherited' => $hasParentDefaultValue,
+            'max_length_inherited' => $hasParentMaxLength,
             'terminal_has_current_value' => $terminalHasCurrentValue,
             'terminal_has_default_value' => $terminalHasDefaultValue,
+            'terminal_has_max_length' => $terminalHasMaxLength,
             'terminal_overrides_parent_value' => $terminalHasCurrentValue && isset($inherited['V']),
             'terminal_overrides_parent_default' => $terminalHasDefaultValue && isset($inherited['DV']),
+            'terminal_overrides_parent_max_length' => $terminalHasMaxLength && isset($inherited['MaxLen']),
             'value_redacted' => $password,
             'value_used_for_import' => $password ? false : isset($effective['V']),
             'executes_form_actions' => false,
@@ -3651,16 +3675,79 @@ final class PdfAcroFormExtractor
             'current_value_source' => $currentSource,
             'current_value_source_object' => $fieldHierarchy['current_value_source_object'] ?? null,
             'default_value_source_object' => $fieldHierarchy['default_value_source_object'] ?? null,
+            'max_length_source_object' => $fieldHierarchy['max_length_source_object'] ?? null,
             'current_value_inherited' => (bool) ($fieldHierarchy['current_value_inherited'] ?? false),
             'default_value_inherited' => (bool) ($fieldHierarchy['default_value_inherited'] ?? false),
+            'max_length_inherited' => (bool) ($fieldHierarchy['max_length_inherited'] ?? false),
             'terminal_overrides_parent_value' => (bool) ($fieldHierarchy['terminal_overrides_parent_value'] ?? false),
             'terminal_overrides_parent_default' => (bool) ($fieldHierarchy['terminal_overrides_parent_default'] ?? false),
+            'terminal_overrides_parent_max_length' => (bool) ($fieldHierarchy['terminal_overrides_parent_max_length'] ?? false),
             'path_depth' => (int) ($fieldHierarchy['depth'] ?? 0),
             'value_redacted' => (bool) ($fieldHierarchy['value_redacted'] ?? false),
             'value_used_for_import' => (bool) ($fieldHierarchy['value_used_for_import'] ?? false),
             'executes_form_actions' => false,
             'executes_javascript' => false,
         ];
+    }
+
+    /**
+     * @param array<string, array{value: string, source: string, source_object: int|null}> $effective
+     * @return array<string, mixed>|null
+     */
+    private function maxLengthReviewForField(
+        int $fieldObject,
+        string $fieldName,
+        array $effective,
+        mixed $value,
+        mixed $defaultValue,
+        bool $password
+    ): ?array {
+        if (!isset($effective['MaxLen'])) {
+            return null;
+        }
+
+        $maxLength = $this->integerFromEffectiveOrNull($effective, 'MaxLen');
+        if ($maxLength === null) {
+            return null;
+        }
+
+        $sourceObject = $effective['MaxLen']['source_object'];
+        $currentText = $password ? null : $this->displayValue($value);
+        $defaultText = $password ? null : $this->displayValue($defaultValue);
+        $currentLength = $currentText === null ? null : $this->utf8CharacterLength($currentText);
+        $defaultLength = $defaultText === null ? null : $this->utf8CharacterLength($defaultText);
+        $valid = $maxLength >= 0;
+
+        return [
+            'source' => 'acroform_text_maxlen_boundary',
+            'field_name' => $fieldName,
+            'field_object' => $fieldObject,
+            'max_length' => $maxLength,
+            'max_length_valid' => $valid,
+            'max_length_source' => $effective['MaxLen']['source'],
+            'max_length_source_object' => $sourceObject,
+            'max_length_inherited' => $sourceObject !== null && $sourceObject !== $fieldObject,
+            'value_redacted' => $password,
+            'current_value_length' => $currentLength,
+            'default_value_length' => $defaultLength,
+            'current_value_exceeds_max_length' => $valid && $currentLength !== null ? $currentLength > $maxLength : null,
+            'default_value_exceeds_max_length' => $valid && $defaultLength !== null ? $defaultLength > $maxLength : null,
+            'password_value_length_exposed' => false,
+            'max_length_enforced_on_import' => false,
+            'current_value_truncated_for_import' => false,
+            'default_value_truncated_for_reset_review' => false,
+            'executes_form_actions' => false,
+            'executes_javascript' => false,
+        ];
+    }
+
+    private function utf8CharacterLength(string $value): int
+    {
+        if (preg_match_all('/./us', $value, $matches) !== false) {
+            return count($matches[0]);
+        }
+
+        return strlen($value);
     }
 
     /**
@@ -4388,7 +4475,7 @@ final class PdfAcroFormExtractor
     private function mergeFieldAttributes(string $body, array $inherited, int $objectNumber): array
     {
         $effective = $inherited;
-        foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DS', 'DA', 'DR', 'Q', 'Opt', 'I'] as $name) {
+        foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DS', 'DA', 'DR', 'Q', 'Opt', 'I', 'MaxLen'] as $name) {
             $value = $this->valueAfterName($body, $name);
             if ($value === null) {
                 continue;
@@ -4463,6 +4550,19 @@ final class PdfAcroFormExtractor
 
         $value = trim($effective[$name]['value']);
         return preg_match('/^[+-]?\d+/', $value, $match) === 1 ? (int) $match[0] : $default;
+    }
+
+    /**
+     * @param array<string, array{value: string, source: string, source_object: int|null}> $effective
+     */
+    private function integerFromEffectiveOrNull(array $effective, string $name): ?int
+    {
+        if (!isset($effective[$name])) {
+            return null;
+        }
+
+        $value = trim($effective[$name]['value']);
+        return preg_match('/^[+-]?\d+/', $value, $match) === 1 ? (int) $match[0] : null;
     }
 
     /**
