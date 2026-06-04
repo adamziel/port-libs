@@ -30,6 +30,7 @@ $documentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source-packet?post=42&amp;step=docx" TargetMode="External"/>
   <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+  <Relationship Id="rIdMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing.png"/>
   <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
 </Relationships>
 XML;
@@ -59,6 +60,10 @@ $documentXml = <<<'XML'
           <wp:inline>
             <wp:docPr id="7" name="Hero image" descr="DOCX hero alt" title="Hero title"/>
             <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdHero"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>
+          </wp:inline>
+          <wp:inline>
+            <wp:docPr id="8" name="Missing image" descr="Missing image alt"/>
+            <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdMissing"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>
           </wp:inline>
         </w:drawing>
       </w:r>
@@ -352,7 +357,7 @@ return [
         $t->same('Source packet for WordPress import review', $result['metadata']['description']);
         $t->same('2026-06-03T09:30:00Z', $result['metadata']['created']);
         $t->same('Reviewer', $result['metadata']['lastModifiedBy']);
-        $t->same(3, count($result['relationships']));
+        $t->same(4, count($result['relationships']));
 
         $heading = $document->children[0];
         $t->same('heading', $heading->type);
@@ -397,6 +402,50 @@ return [
         $t->same('Needs media review', $body->children[0]->children[1]->attr('text'));
         $t->same('Owner', $body->children[1]->children[0]->attr('text'));
         $t->same('Migration team', $body->children[1]->children[1]->attr('text'));
+    },
+    'reports DOCX media import inventory and missing media relationships' => static function (TestRunner $t) use ($buildDocxPackage): void {
+        $result = (new DocxReader())->readPackage($buildDocxPackage());
+        $report = $result['importReport'];
+
+        $t->same('/word/document.xml', $report['documentPart']);
+        $t->same('/word/_rels/document.xml.rels', $report['relationshipsPart']);
+        $t->same(4, $report['relationshipCount']);
+        $t->same(4, $report['reachableRelationshipCount']);
+        $t->same(1, count($report['relationshipIssues']));
+        $t->same('rIdMissing', $report['relationshipIssues'][0]['id']);
+        $t->same(['missing-in-package'], $report['relationshipIssues'][0]['issues']);
+
+        $media = $report['media'];
+        $t->same(2, $media['count']);
+        $t->same(1, $media['embeddedCount']);
+        $t->same(1, $media['missingCount']);
+
+        $hero = $media['items'][0];
+        $t->same('/word/document.xml', $hero['source']);
+        $t->same('rIdHero', $hero['id']);
+        $t->same('/word/media/hero.png', $hero['target']);
+        $t->same('/word/media/hero.png', $hero['targetPart']);
+        $t->same('image/png', $hero['contentType']);
+        $t->same(false, $hero['external']);
+        $t->true($hero['exists']);
+        $t->same(7, $hero['bytes']);
+        $t->same(1, $hero['usedCount']);
+        $t->same(['DOCX hero alt'], $hero['altTexts']);
+        $t->same(['Hero title'], $hero['titles']);
+        $t->same([], $hero['issues']);
+
+        $missing = $media['items'][1];
+        $t->same('rIdMissing', $missing['id']);
+        $t->same('/word/media/missing.png', $missing['target']);
+        $t->same('/word/media/missing.png', $missing['targetPart']);
+        $t->same('image/png', $missing['contentType']);
+        $t->same(false, $missing['external']);
+        $t->same(false, $missing['exists']);
+        $t->same(null, $missing['bytes']);
+        $t->same(0, $missing['usedCount']);
+        $t->same([], $missing['altTexts']);
+        $t->same([], $missing['titles']);
+        $t->same(['missing-in-package'], $missing['issues']);
     },
     'renders DOCX reader AST through Markdown and WordPress writers' => static function (TestRunner $t) use ($buildDocxPackage): void {
         $document = (new DocxReader())->readDocument($buildDocxPackage());

@@ -25,7 +25,7 @@ final class DocxReader
     public const REL_TYPE_CORE_PROPERTIES = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
 
     /**
-     * @return array{document:AstNode, metadata:array<string, mixed>, documentPart:string, relationships:list<array{id:string, type:string, target:string, contentType:?string, external:bool}>}
+     * @return array{document:AstNode, metadata:array<string, mixed>, documentPart:string, relationships:list<array{id:string, type:string, target:string, contentType:?string, external:bool}>, importReport:array<string, mixed>}
      */
     public function readPackage(ZipPackage $package): array
     {
@@ -41,6 +41,8 @@ final class DocxReader
         }
 
         $documentRelationships = $graph->relationshipsForSource($documentPart);
+        $relationshipPreflight = $graph->preflightTargetsForSource($documentPart);
+        $reachableRelationships = $graph->reachableTargetsForSource($documentPart);
         $referencedNotes = $this->loadReferencedNotes($package, $graph, $documentPart);
         $styles = $this->loadStyles($package, $graph, $documentPart);
         $numbering = $this->loadNumbering($package, $graph, $documentPart);
@@ -60,7 +62,137 @@ final class DocxReader
             'metadata' => $metadata,
             'documentPart' => $documentPart,
             'relationships' => $graph->summarizeTargetsForSource($documentPart),
+            'importReport' => $this->importReport($package, $documentPart, $documentRelationships, $relationshipPreflight, $reachableRelationships, $document),
         ];
+    }
+
+    /**
+     * @param list<array{id:string, type:string, target:string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, valid:bool, issues:list<string>}> $relationshipPreflight
+     * @param list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, valid:bool, issues:list<string>}> $reachableRelationships
+     * @return array{documentPart:string, relationshipsPart:?string, relationshipCount:int, reachableRelationshipCount:int, relationshipIssues:list<array{source:string, id:string, type:string, target:string, issues:list<string>}>, media:array{count:int, embeddedCount:int, missingCount:int, items:list<array{source:string, id:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, bytes:?int, usedCount:int, altTexts:list<string>, titles:list<string>, issues:list<string>}>}}
+     */
+    private function importReport(
+        ZipPackage $package,
+        string $documentPart,
+        ?OpcRelationships $documentRelationships,
+        array $relationshipPreflight,
+        array $reachableRelationships,
+        AstNode $document
+    ): array {
+        $relationshipIssues = [];
+        foreach ($reachableRelationships as $relationship) {
+            if ($relationship['valid']) {
+                continue;
+            }
+
+            $relationshipIssues[] = [
+                'source' => $relationship['source'],
+                'id' => $relationship['id'],
+                'type' => $relationship['type'],
+                'target' => $relationship['target'],
+                'issues' => $relationship['issues'],
+            ];
+        }
+
+        return [
+            'documentPart' => $documentPart,
+            'relationshipsPart' => $documentRelationships instanceof OpcRelationships ? $documentRelationships->relationshipPartName() : null,
+            'relationshipCount' => count($relationshipPreflight),
+            'reachableRelationshipCount' => count($reachableRelationships),
+            'relationshipIssues' => $relationshipIssues,
+            'media' => $this->mediaImportReport($package, $reachableRelationships, $document),
+        ];
+    }
+
+    /**
+     * @param list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, valid:bool, issues:list<string>}> $reachableRelationships
+     * @return array{count:int, embeddedCount:int, missingCount:int, items:list<array{source:string, id:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, bytes:?int, usedCount:int, altTexts:list<string>, titles:list<string>, issues:list<string>}>}
+     */
+    private function mediaImportReport(ZipPackage $package, array $reachableRelationships, AstNode $document): array
+    {
+        $imageNodesByPart = $this->imageNodesBySourcePart($document);
+        $items = [];
+        foreach ($reachableRelationships as $relationship) {
+            if ($relationship['type'] !== self::REL_TYPE_IMAGE) {
+                continue;
+            }
+
+            $targetPart = $relationship['targetPart'];
+            $imageNodes = $targetPart === null ? [] : ($imageNodesByPart[$targetPart] ?? []);
+            $items[] = [
+                'source' => $relationship['source'],
+                'id' => $relationship['id'],
+                'target' => $relationship['target'],
+                'targetPart' => $targetPart,
+                'contentType' => $relationship['contentType'],
+                'external' => $relationship['external'],
+                'exists' => $relationship['exists'],
+                'bytes' => $targetPart !== null && $relationship['exists'] === true ? strlen($package->read($targetPart)) : null,
+                'usedCount' => count($imageNodes),
+                'altTexts' => $this->nonEmptyImageAttrValues($imageNodes, 'alt'),
+                'titles' => $this->nonEmptyImageAttrValues($imageNodes, 'title'),
+                'issues' => $relationship['issues'],
+            ];
+        }
+
+        return [
+            'count' => count($items),
+            'embeddedCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === true,
+            )),
+            'missingCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === false,
+            )),
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @return array<string, list<AstNode>>
+     */
+    private function imageNodesBySourcePart(AstNode $node): array
+    {
+        $images = [];
+        $this->collectImageNodesBySourcePart($node, $images);
+
+        return $images;
+    }
+
+    /**
+     * @param array<string, list<AstNode>> $images
+     */
+    private function collectImageNodesBySourcePart(AstNode $node, array &$images): void
+    {
+        if ($node->type === 'image') {
+            $sourcePart = $node->attr('sourcePart');
+            if (is_string($sourcePart) && $sourcePart !== '') {
+                $images[$sourcePart] ??= [];
+                $images[$sourcePart][] = $node;
+            }
+        }
+
+        foreach ($node->children as $child) {
+            $this->collectImageNodesBySourcePart($child, $images);
+        }
+    }
+
+    /**
+     * @param list<AstNode> $imageNodes
+     * @return list<string>
+     */
+    private function nonEmptyImageAttrValues(array $imageNodes, string $attr): array
+    {
+        $values = [];
+        foreach ($imageNodes as $imageNode) {
+            $value = $imageNode->attr($attr);
+            if (is_string($value) && $value !== '') {
+                $values[$value] = true;
+            }
+        }
+
+        return array_keys($values);
     }
 
     public function readDocument(ZipPackage $package): AstNode

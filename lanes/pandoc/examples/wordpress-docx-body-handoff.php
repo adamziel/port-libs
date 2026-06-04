@@ -142,12 +142,19 @@ $summary = [
     'metadata' => $result['metadata'],
     'documentPart' => $result['documentPart'],
     'blockCount' => count($result['document']->children),
+    'importReport' => $result['importReport'],
     'wordpressBlocks' => $blocks,
 ];
 
 if (($argv[1] ?? '') === '--self-test') {
     if (($summary['metadata']['title'] ?? '') !== 'WordPress DOCX handoff') {
         throw new RuntimeException('DOCX body handoff self-test missing metadata title');
+    }
+    if (($summary['importReport']['media']['embeddedCount'] ?? 0) !== 1) {
+        throw new RuntimeException('DOCX body handoff self-test missing media import report');
+    }
+    if (($summary['importReport']['media']['items'][0]['bytes'] ?? 0) !== 7) {
+        throw new RuntimeException('DOCX body handoff self-test missing media byte count');
     }
 
     foreach ([
