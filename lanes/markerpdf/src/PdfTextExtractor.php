@@ -13920,6 +13920,7 @@ final class PdfTextExtractor
         if ($name === 'Filter' && $body !== null) {
             $body = trim($body);
             $review['token_type'] = $this->pdfOperandTokenType($body);
+            $review['dictionary_filter_operand'] = $this->filterOperandBodyContainsDictionary($body);
             $review['valid_filter_operand'] = $this->filterNamesFromValue(
                 $body,
                 $objects,
@@ -14092,8 +14093,41 @@ final class PdfTextExtractor
      */
     private function streamFilterOperandIsDictionary(array $operand): bool
     {
+        if (($operand['dictionary_filter_operand'] ?? false) === true) {
+            return true;
+        }
+
         $preview = $operand['value_preview'] ?? $operand['value'] ?? null;
-        return is_string($preview) && str_starts_with(ltrim($preview), '<<');
+        if (!is_string($preview)) {
+            return false;
+        }
+
+        return $this->filterOperandBodyContainsDictionary($preview);
+    }
+
+    private function filterOperandBodyContainsDictionary(string $body): bool
+    {
+        $body = ltrim($body);
+        if (str_starts_with($body, '<<')) {
+            return true;
+        }
+
+        if (!str_starts_with($body, '[')) {
+            return false;
+        }
+
+        $arrayBody = $this->readPdfArrayAt($body, 0);
+        if ($arrayBody === null) {
+            return false;
+        }
+
+        foreach ($this->pdfArrayItems($arrayBody) as $item) {
+            if (str_starts_with(ltrim($item), '<<')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
