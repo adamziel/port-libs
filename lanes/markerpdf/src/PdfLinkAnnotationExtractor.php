@@ -8,6 +8,9 @@ final class PdfLinkAnnotationExtractor
 {
     private const DEFAULT_PAGE_BBOX = [0.0, 0.0, 612.0, 792.0];
 
+    /** @var array<int, array<int, string>> */
+    private array $objectBodiesByGeneration = [];
+
     /**
      * Native boundary for PDF page /Annots link actions.
      *
@@ -16,6 +19,7 @@ final class PdfLinkAnnotationExtractor
     public function extractPageLinks(string $pdfBytes): array
     {
         $objects = $this->pdfObjects($pdfBytes);
+        $this->objectBodiesByGeneration = $this->pdfObjectBodiesByGeneration($pdfBytes);
         $actionReviewer = new PdfActionReviewExtractor($pdfBytes);
         $structureReviewsByAnnotationObject = $this->annotationStructureReviewsByObject($pdfBytes);
         $context = $this->linkReviewContext($pdfBytes);
@@ -269,13 +273,14 @@ final class PdfLinkAnnotationExtractor
             return [];
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1) {
-            $objectNumber = (int) $match[1];
-            if (!isset($objects[$objectNumber])) {
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference !== null) {
+            $objectNumber = $reference['object'];
+            $objectBody = $this->objectBodyForReference($objectNumber, $reference['generation'], $objects);
+            if ($objectBody === null) {
                 return [];
             }
 
-            $objectBody = trim($objects[$objectNumber]);
             if (str_starts_with($objectBody, '[')) {
                 return $this->annotationBodiesFromArray($this->arrayBodyFromValue($objectBody), $objects);
             }
@@ -329,9 +334,10 @@ final class PdfLinkAnnotationExtractor
                 continue;
             }
 
-            if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $arrayBody, $match, 0, $offset) === 1) {
+            if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $arrayBody, $match, 0, $offset) === 1) {
                 $objectNumber = (int) $match[1];
-                $dictionary = $this->dictionaryObjectBody($objects[$objectNumber] ?? '');
+                $objectBody = $this->objectBodyForReference($objectNumber, (int) $match[2], $objects);
+                $dictionary = $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
                 if ($dictionary !== null) {
                     $annotations[] = ['body' => $dictionary, 'object' => $objectNumber];
                 }
@@ -1016,12 +1022,11 @@ final class PdfLinkAnnotationExtractor
             return $arrayBody === null ? null : $this->boxFromNumbers($arrayBody);
         }
 
-        $objectNumber = $this->indirectObjectNumberFromValue($value);
-        if ($objectNumber === null || !isset($objects[$objectNumber])) {
+        $objectBody = $this->objectBodyForReferenceValue($value, $objects);
+        if ($objectBody === null) {
             return null;
         }
 
-        $objectBody = trim($objects[$objectNumber]);
         if (!str_starts_with($objectBody, '[')) {
             return null;
         }
@@ -1076,12 +1081,11 @@ final class PdfLinkAnnotationExtractor
             return (float) $match[0];
         }
 
-        $objectNumber = $this->indirectObjectNumberFromValue($value);
-        if ($objectNumber === null || !isset($objects[$objectNumber])) {
+        $objectBody = $this->objectBodyForReferenceValue($value, $objects);
+        if ($objectBody === null) {
             return null;
         }
 
-        $objectBody = trim($objects[$objectNumber]);
         return preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/', $objectBody) === 1 ? (float) $objectBody : null;
     }
 
@@ -1346,16 +1350,17 @@ final class PdfLinkAnnotationExtractor
     private function resolveIndirectObjectValue(string $value, array $objects): string
     {
         $trimmed = trim($value);
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $trimmed, $match) !== 1) {
+        $reference = $this->objectReferenceFromValue($trimmed);
+        if ($reference === null) {
             return $value;
         }
 
-        $objectNumber = (int) $match[1];
-        if (!isset($objects[$objectNumber])) {
+        $body = $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
+        if ($body === null) {
             return $value;
         }
 
-        return trim($objects[$objectNumber]);
+        return $body;
     }
 
     private function isSafeUri(string $uri): bool
@@ -1387,6 +1392,65 @@ final class PdfLinkAnnotationExtractor
         }
 
         return $objects;
+    }
+
+    /**
+     * @return array<int, array<int, string>>
+     */
+    private function pdfObjectBodiesByGeneration(string $pdfBytes): array
+    {
+        $objects = [];
+        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
+            return $objects;
+        }
+
+        foreach ($matches as $match) {
+            $objects[(int) $match[1]][(int) $match[2]] = trim($match[3]);
+        }
+
+        return $objects;
+    }
+
+    /**
+     * @return array{object: int, generation: int}|null
+     */
+    private function objectReferenceFromValue(string $value): ?array
+    {
+        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/', trim($value), $match) !== 1) {
+            return null;
+        }
+
+        return [
+            'object' => (int) $match[1],
+            'generation' => (int) $match[2],
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function objectBodyForReferenceValue(string $value, array $objects): ?string
+    {
+        $reference = $this->objectReferenceFromValue($value);
+        return $reference === null
+            ? null
+            : $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function objectBodyForReference(int $objectNumber, int $generation, array $objects): ?string
+    {
+        if (array_key_exists($generation, $this->objectBodiesByGeneration[$objectNumber] ?? [])) {
+            return $this->objectBodiesByGeneration[$objectNumber][$generation];
+        }
+
+        if ($generation === 0 && isset($objects[$objectNumber])) {
+            return trim($objects[$objectNumber]);
+        }
+
+        return null;
     }
 
     /**

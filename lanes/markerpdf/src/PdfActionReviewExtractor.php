@@ -39,6 +39,9 @@ final class PdfActionReviewExtractor
     /** @var array<int, mixed> */
     private array $objects;
 
+    /** @var array<int, array<int, mixed>> */
+    private array $objectsByGeneration = [];
+
     /** @var array<int, int> */
     private array $pageIndexes;
 
@@ -231,8 +234,11 @@ final class PdfActionReviewExtractor
             return $action === null ? [] : [$action];
         }
 
-        $actionObject = $this->referenceObjectNumber($value);
-        $identity = $actionObject === null ? 'dict:' . hash('sha256', serialize($dict)) : 'obj:' . $actionObject;
+        $actionReference = $this->referenceObject($value);
+        $actionObject = $actionReference['object'] ?? null;
+        $identity = $actionReference === null
+            ? 'dict:' . hash('sha256', serialize($dict))
+            : 'obj:' . $actionReference['object'] . ':' . $actionReference['generation'];
         if (isset($seen[$identity])) {
             return [];
         }
@@ -925,31 +931,41 @@ final class PdfActionReviewExtractor
     private function parsedObjectValues(string $pdfBytes): array
     {
         $values = [];
-        foreach ($this->rawObjects($pdfBytes) as $objectNumber => $body) {
-            $tokens = $this->tokens($this->firstObjectValue(trim($body)));
+        $this->objectsByGeneration = [];
+
+        foreach ($this->rawObjectDefinitions($pdfBytes) as $definition) {
+            $tokens = $this->tokens($this->firstObjectValue(trim($definition['body'])));
             if ($tokens === []) {
                 continue;
             }
 
             $index = 0;
-            $values[$objectNumber] = $this->parseValue($tokens, $index);
+            $value = $this->parseValue($tokens, $index);
+            $objectNumber = $definition['object'];
+            $generation = $definition['generation'];
+            $this->objectsByGeneration[$objectNumber][$generation] = $value;
+            $values[$objectNumber] = $value;
         }
 
         return $values;
     }
 
     /**
-     * @return array<int, string>
+     * @return list<array{object: int, generation: int, body: string}>
      */
-    private function rawObjects(string $pdfBytes): array
+    private function rawObjectDefinitions(string $pdfBytes): array
     {
         $objects = [];
-        if (!preg_match_all('/(\d+)\s+\d+\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
+        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
             return $objects;
         }
 
         foreach ($matches as $match) {
-            $objects[(int) $match[1]] = $match[2];
+            $objects[] = [
+                'object' => (int) $match[1],
+                'generation' => (int) $match[2],
+                'body' => $match[3],
+            ];
         }
 
         return $objects;
@@ -1274,9 +1290,14 @@ final class PdfActionReviewExtractor
             && preg_match('/^[+-]?\d+$/', (string) ($tokens[$index + 1] ?? '')) === 1
             && ($tokens[$index + 2] ?? null) === 'R'
         ) {
+            $generation = (int) $tokens[$index + 1];
             $index += 3;
 
-            return ['pdfType' => 'ref', 'object' => (int) $token];
+            return [
+                'pdfType' => 'ref',
+                'object' => (int) $token,
+                'generation' => $generation,
+            ];
         }
 
         $index++;
@@ -1360,12 +1381,22 @@ final class PdfActionReviewExtractor
 
     private function resolveValue(mixed $value, int $depth = 0): mixed
     {
-        $objectNumber = $this->referenceObjectNumber($value);
-        if ($objectNumber === null || $depth > 20 || !array_key_exists($objectNumber, $this->objects)) {
+        $reference = $this->referenceObject($value);
+        if ($reference === null || $depth > 20) {
             return $value;
         }
 
-        return $this->resolveValue($this->objects[$objectNumber], $depth + 1);
+        $objectNumber = $reference['object'];
+        $generation = $reference['generation'];
+        if (array_key_exists($generation, $this->objectsByGeneration[$objectNumber] ?? [])) {
+            return $this->resolveValue($this->objectsByGeneration[$objectNumber][$generation], $depth + 1);
+        }
+
+        if ($generation === 0 && array_key_exists($objectNumber, $this->objects)) {
+            return $this->resolveValue($this->objects[$objectNumber], $depth + 1);
+        }
+
+        return $value;
     }
 
     /**
@@ -1406,17 +1437,31 @@ final class PdfActionReviewExtractor
 
     private function referenceObjectNumber(mixed $value): ?int
     {
-        return is_array($value) && ($value['pdfType'] ?? null) === 'ref' && is_int($value['object'] ?? null)
-            ? $value['object']
-            : null;
+        $reference = $this->referenceObject($value);
+        return $reference === null ? null : $reference['object'];
     }
 
     /**
-     * @return array{pdfType: string, object: int}
+     * @return array{object: int, generation: int}|null
+     */
+    private function referenceObject(mixed $value): ?array
+    {
+        if (!is_array($value) || ($value['pdfType'] ?? null) !== 'ref' || !is_int($value['object'] ?? null)) {
+            return null;
+        }
+
+        return [
+            'object' => $value['object'],
+            'generation' => is_int($value['generation'] ?? null) ? $value['generation'] : 0,
+        ];
+    }
+
+    /**
+     * @return array{pdfType: string, object: int, generation: int}
      */
     private function refValue(int $objectNumber): array
     {
-        return ['pdfType' => 'ref', 'object' => $objectNumber];
+        return ['pdfType' => 'ref', 'object' => $objectNumber, 'generation' => 0];
     }
 
     private function nameValue(mixed $value): ?string
