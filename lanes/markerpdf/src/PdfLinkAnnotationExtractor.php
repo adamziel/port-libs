@@ -116,6 +116,17 @@ final class PdfLinkAnnotationExtractor
                         if (is_array($link['structure_parent'] ?? null)) {
                             $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_structure_parent'] = $link['structure_parent'];
                         }
+                        foreach ([
+                            'inherited_widget_link_keys' => 'link_inherited_widget_keys',
+                            'widget_field_parent_object' => 'link_widget_field_parent_object',
+                            'widget_field_chain' => 'link_widget_field_chain',
+                            'widget_link_action_source' => 'link_widget_action_source',
+                            'widget_link_field_sources' => 'link_widget_field_sources',
+                        ] as $sourceKey => $spanKey) {
+                            if (array_key_exists($sourceKey, $link)) {
+                                $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex][$spanKey] = $link[$sourceKey];
+                            }
+                        }
 
                         if (is_string($link['uri'] ?? null) && ($link['is_safe_uri'] ?? false) === true) {
                             $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_uri'] = $link['uri'];
@@ -367,13 +378,22 @@ final class PdfLinkAnnotationExtractor
             return null;
         }
 
+        $effectiveAnnotation = $subtype === 'Widget'
+            ? $this->effectiveWidgetLinkAnnotationBody($annotationBody, $objects)
+            : [
+                'body' => $annotationBody,
+                'inherited_keys' => [],
+                'field_chain' => [],
+                'field_sources' => [],
+            ];
+
         $rect = $this->rectFromAnnotation($annotationBody, $objects);
         if ($rect === null) {
             return null;
         }
         $pdftextRect = $this->pageRectToPdftextRect($rect, $pageGeometry);
 
-        $review = $actionReviewer->reviewAnnotationActions($annotationBody);
+        $review = $actionReviewer->reviewAnnotationActions($effectiveAnnotation['body']);
         $review['actions'] = $this->withLinkTargetContextRows($review['actions'], $context);
         $review['additional_actions'] = $this->withLinkTargetContextRows($review['additional_actions'], $context);
         $primary = $this->primaryLinkAction($review['actions']);
@@ -396,6 +416,17 @@ final class PdfLinkAnnotationExtractor
             'executes_on_import' => false,
         ];
 
+        if ($effectiveAnnotation['inherited_keys'] !== []) {
+            $fieldChain = $effectiveAnnotation['field_chain'];
+            $primaryFromField = in_array('A', $effectiveAnnotation['inherited_keys'], true)
+                || in_array('Dest', $effectiveAnnotation['inherited_keys'], true);
+            $link['inherited_widget_link_keys'] = $effectiveAnnotation['inherited_keys'];
+            $link['widget_field_parent_object'] = $fieldChain[0] ?? null;
+            $link['widget_field_chain'] = $fieldChain;
+            $link['widget_link_action_source'] = $primaryFromField ? 'field_parent' : 'annotation';
+            $link['widget_link_field_sources'] = $effectiveAnnotation['field_sources'];
+        }
+
         if ($annotationObject !== null && isset($structureReviewsByAnnotationObject[$annotationObject])) {
             $link += $structureReviewsByAnnotationObject[$annotationObject];
             if (is_int($link['struct_parent'] ?? null) && is_array($link['structure_parent'] ?? null)) {
@@ -415,6 +446,91 @@ final class PdfLinkAnnotationExtractor
         }
 
         return $link;
+    }
+
+    /**
+     * Split AcroForm widgets sometimes keep activation actions on the terminal
+     * field while the page /Annots entry owns the visible widget geometry.
+     * Inherit only link-relevant action keys, never page membership or payload
+     * text, so detached field-only widgets remain outside the page boundary.
+     *
+     * @param array<int, string> $objects
+     * @return array{body: string, inherited_keys: list<string>, field_chain: list<int>, field_sources: array<string, int>}
+     */
+    private function effectiveWidgetLinkAnnotationBody(string $annotationBody, array $objects): array
+    {
+        $fieldChain = $this->widgetFieldParentChain($annotationBody, $objects);
+        if ($fieldChain === []) {
+            return [
+                'body' => $annotationBody,
+                'inherited_keys' => [],
+                'field_chain' => [],
+                'field_sources' => [],
+            ];
+        }
+
+        $additions = [];
+        $fieldSources = [];
+        foreach (['A', 'AA', 'Dest'] as $key) {
+            if ($this->valueAfterName($annotationBody, $key) !== null) {
+                continue;
+            }
+
+            foreach ($fieldChain as $fieldObject) {
+                $fieldBody = isset($objects[$fieldObject])
+                    ? ($this->dictionaryObjectBody($objects[$fieldObject]) ?? trim($objects[$fieldObject]))
+                    : '';
+                if ($fieldBody === '') {
+                    continue;
+                }
+
+                $value = $this->valueAfterName($fieldBody, $key);
+                if ($value === null) {
+                    continue;
+                }
+
+                $additions[] = '/' . $key . ' ' . trim($value);
+                $fieldSources[$key] = $fieldObject;
+                break;
+            }
+        }
+
+        if ($additions === []) {
+            return [
+                'body' => $annotationBody,
+                'inherited_keys' => [],
+                'field_chain' => $fieldChain,
+                'field_sources' => [],
+            ];
+        }
+
+        return [
+            'body' => rtrim($annotationBody) . ' ' . implode(' ', $additions),
+            'inherited_keys' => array_keys($fieldSources),
+            'field_chain' => $fieldChain,
+            'field_sources' => $fieldSources,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<int>
+     */
+    private function widgetFieldParentChain(string $annotationBody, array $objects): array
+    {
+        $chain = [];
+        $seen = [];
+        $parent = $this->referenceAfterName($annotationBody, 'Parent');
+
+        while ($parent !== null && !isset($seen[$parent]) && isset($objects[$parent])) {
+            $seen[$parent] = true;
+            $chain[] = $parent;
+
+            $parentBody = $this->dictionaryObjectBody($objects[$parent]) ?? trim($objects[$parent]);
+            $parent = $this->referenceAfterName($parentBody, 'Parent');
+        }
+
+        return $chain;
     }
 
     /**
