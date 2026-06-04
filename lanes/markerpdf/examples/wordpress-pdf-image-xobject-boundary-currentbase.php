@@ -43,6 +43,7 @@ $plainText = $extractor->extractPlainText($pdf);
 if (
     ($review['image_xobject_count'] ?? 0) !== 3
     || ($review['invoked_image_xobject_count'] ?? 0) !== 1
+    || ($review['entries'][0]['image_unit_bbox'] ?? null) !== [136.0, 722.0, 648.0, 850.0]
     || str_contains($plainText, 'WordPress Image XObject Payload Noise')
     || str_contains($plainText, 'WordPress Hidden Marked Image Noise')
     || str_contains($plainText, 'WordPress Hidden Object Image Noise')
@@ -67,6 +68,10 @@ $metadata = [
     'first_resource_path' => $review['entries'][0]['resource_path'] ?? [],
     'first_parent_form_xobject_object' => $review['entries'][0]['parent_form_xobject_object'] ?? null,
     'first_form_xobject_depth' => $review['entries'][0]['form_xobject_depth'] ?? null,
+    'first_invocation_matrix' => $review['entries'][0]['invocation_matrices'][0] ?? null,
+    'first_invocation_bbox' => $review['entries'][0]['invocation_bboxes'][0] ?? null,
+    'first_image_unit_bbox' => $review['entries'][0]['image_unit_bbox'] ?? null,
+    'first_placement_review_only' => $review['entries'][0]['placement_review_only'] ?? false,
     'first_image_filters' => $review['entries'][0]['filters'] ?? [],
     'first_image_decoded_with_current_filters' => $review['entries'][0]['decoded_with_current_filters'] ?? false,
     'hidden_marked_invoked' => $entriesByName['HiddenMarked']['invoked'] ?? true,

@@ -294,6 +294,68 @@ return [
         $t->true(!str_contains($plainText, 'Hidden Marked Image Noise'));
         $t->true(!str_contains($plainText, 'Hidden Object Image Noise'));
     },
+    'records image XObject invocation CTM placement for WordPress media review' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before placed images) Tj ET\n"
+            . "q 2 0 0 2 10 20 cm q 12 0 0 8 5 6 cm /Placed#20Image Do Q Q\n"
+            . "q 0 10 -20 0 100 200 cm /RotatedImage Do Q\n"
+            . "q 30 0 0 15 150 300 cm /Logo#20Form Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After placed images) Tj ET';
+        $formContent = 'q 4 0 0 2 6 8 cm /Nested#20Placed Do Q';
+        $placedPayload = 'BT /F1 12 Tf 72 720 Td (Placed Image Payload Noise) Tj ET';
+        $rotatedPayload = 'BT /F1 12 Tf 72 720 Td (Rotated Image Payload Noise) Tj ET';
+        $nestedPayload = 'BT /F1 12 Tf 72 720 Td (Nested Placed Image Payload Noise) Tj ET';
+        $placedCompressed = gzcompress($placedPayload);
+        $rotatedCompressed = gzcompress($rotatedPayload);
+        $nestedCompressed = gzcompress($nestedPayload);
+        if (!is_string($placedCompressed) || !is_string($rotatedCompressed) || !is_string($nestedCompressed)) {
+            throw new RuntimeException('Unable to compress placed image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Placed#20Image 5 0 R /RotatedImage 6 0 R /Logo#20Form 7 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 12 /Height 8 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($placedCompressed) . " >>\nstream\n{$placedCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 20 /Height 10 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($rotatedCompressed) . " >>\nstream\n{$rotatedCompressed}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 30 15] /Matrix [1 0 0 1 3 4] /Resources << /XObject << /Nested#20Placed 8 0 R >> /Font << /F1 10 0 R >> >> /Length " . strlen($formContent) . " >>\nstream\n{$formContent}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Type /XObject /Subtype /Image /Width 4 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($nestedCompressed) . " >>\nstream\n{$nestedCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $placed = $entriesByName['Placed Image'];
+        $t->same(1, $placed['invocation_count']);
+        $t->same([[24.0, 0.0, 0.0, 16.0, 20.0, 32.0]], $placed['invocation_matrices']);
+        $t->same([[20.0, 32.0, 44.0, 48.0]], $placed['invocation_bboxes']);
+        $t->same([20.0, 32.0, 44.0, 48.0], $placed['image_unit_bbox']);
+        $t->same(true, $placed['placement_review_only']);
+
+        $rotated = $entriesByName['RotatedImage'];
+        $t->same([[0.0, 10.0, -20.0, 0.0, 100.0, 200.0]], $rotated['invocation_matrices']);
+        $t->same([[80.0, 200.0, 100.0, 210.0]], $rotated['invocation_bboxes']);
+        $t->same([80.0, 200.0, 100.0, 210.0], $rotated['image_unit_bbox']);
+
+        $nested = $entriesByName['Nested Placed'];
+        $t->same(['Logo Form', 'Nested Placed'], $nested['resource_path']);
+        $t->same(7, $nested['parent_form_xobject_object']);
+        $t->same([[120.0, 0.0, 0.0, 30.0, 420.0, 480.0]], $nested['invocation_matrices']);
+        $t->same([[420.0, 480.0, 540.0, 510.0]], $nested['invocation_bboxes']);
+        $t->same([420.0, 480.0, 540.0, 510.0], $nested['image_unit_bbox']);
+
+        $t->same(['Before placed images', 'After placed images'], $extractor->extractTextLines($pdf));
+        $t->same("Before placed images\nAfter placed images", $plainText);
+        $t->true(!str_contains($plainText, 'Placed Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Rotated Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Nested Placed Image Payload Noise'));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"

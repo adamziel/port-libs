@@ -3263,31 +3263,139 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array<string, int>
+     * @param list<list<float>> $baseMatrices
+     * @return array<string, list<array{matrix: list<float>, bbox: list<float>}>>
      */
-    private function contentXObjectInvocationCounts(string $content): array
+    private function contentXObjectInvocationDetails(string $content, array $baseMatrices = []): array
     {
+        $currentMatrices = $this->normalizedInvocationBaseMatrices($baseMatrices);
+        $graphicsStateStack = [];
         $invocations = [];
         $operands = [];
+
         foreach ($this->contentTokens($content) as $token) {
-            if ($token === 'Do') {
-                $resourceName = $this->xObjectNameOperand($operands);
-                if ($resourceName !== null) {
-                    $invocations[$resourceName] = ($invocations[$resourceName] ?? 0) + 1;
+            if (!$this->isOperator($token)) {
+                $operands[] = $token;
+                continue;
+            }
+
+            if ($token === 'q') {
+                $graphicsStateStack[] = $currentMatrices;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Q') {
+                $restoredMatrices = array_pop($graphicsStateStack);
+                if (is_array($restoredMatrices)) {
+                    $currentMatrices = $restoredMatrices;
                 }
                 $operands = [];
                 continue;
             }
 
-            if ($this->isOperator($token)) {
+            if ($token === 'cm') {
+                $matrix = $this->contentMatrixOperand($operands);
+                if ($matrix !== null) {
+                    $currentMatrices = array_map(
+                        fn (array $currentMatrix): array => $this->pdfMatrixMultiply($currentMatrix, $matrix),
+                        $currentMatrices
+                    );
+                }
                 $operands = [];
                 continue;
             }
 
-            $operands[] = $token;
+            if ($token === 'Do') {
+                $resourceName = $this->xObjectNameOperand($operands);
+                if ($resourceName !== null) {
+                    foreach ($currentMatrices as $matrix) {
+                        $normalizedMatrix = $this->normalizedPdfReviewNumbers($matrix);
+                        $invocations[$resourceName][] = [
+                            'matrix' => $normalizedMatrix,
+                            'bbox' => $this->imageUnitBboxForMatrix($normalizedMatrix),
+                        ];
+                    }
+                }
+                $operands = [];
+                continue;
+            }
+
+            $operands = [];
         }
 
         return $invocations;
+    }
+
+    /**
+     * @param list<list<float>> $baseMatrices
+     * @return list<list<float>>
+     */
+    private function normalizedInvocationBaseMatrices(array $baseMatrices): array
+    {
+        if ($baseMatrices === []) {
+            return [[1.0, 0.0, 0.0, 1.0, 0.0, 0.0]];
+        }
+
+        $normalized = [];
+        foreach ($baseMatrices as $matrix) {
+            if (!is_array($matrix) || count($matrix) < 6) {
+                continue;
+            }
+
+            $values = [];
+            foreach (array_slice($matrix, 0, 6) as $value) {
+                if (!is_int($value) && !is_float($value)) {
+                    continue 2;
+                }
+                $values[] = (float) $value;
+            }
+            $normalized[] = $values;
+        }
+
+        return $normalized === [] ? [[1.0, 0.0, 0.0, 1.0, 0.0, 0.0]] : $normalized;
+    }
+
+    /**
+     * @param list<float> $matrix
+     * @return list<float>
+     */
+    private function imageUnitBboxForMatrix(array $matrix): array
+    {
+        $points = [
+            $this->pdfMatrixTransformPoint($matrix, 0.0, 0.0),
+            $this->pdfMatrixTransformPoint($matrix, 1.0, 0.0),
+            $this->pdfMatrixTransformPoint($matrix, 0.0, 1.0),
+            $this->pdfMatrixTransformPoint($matrix, 1.0, 1.0),
+        ];
+        $xs = array_column($points, 0);
+        $ys = array_column($points, 1);
+
+        return $this->normalizedPdfReviewNumbers([
+            min($xs),
+            min($ys),
+            max($xs),
+            max($ys),
+        ]);
+    }
+
+    /**
+     * @param list<float> $values
+     * @return list<float>
+     */
+    private function normalizedPdfReviewNumbers(array $values): array
+    {
+        return array_map(
+            static function (int|float $value): float {
+                $value = (float) $value;
+                if (abs($value) < 0.000001) {
+                    return 0.0;
+                }
+
+                return round($value, 6);
+            },
+            $values
+        );
     }
 
     /**
@@ -3305,11 +3413,11 @@ final class PdfTextExtractor
         array $objects,
         array $decodedContents,
         array $optionalContentStates = [],
-        int $ownerInvocationCount = 1,
         array $resourcePath = [],
         array $activeFormObjectNumbers = [],
         ?int $parentFormObjectNumber = null,
-        bool $includeUninvokedImageResources = true
+        bool $includeUninvokedImageResources = true,
+        array $ownerInvocationMatrices = []
     ): array {
         $xObjectMap = $this->xObjectResourceObjectNumbers($resourceOwnerBody, $objects);
         if ($xObjectMap === []) {
@@ -3330,8 +3438,8 @@ final class PdfTextExtractor
 
         $invocations = [];
         foreach ($decodedContents as $content) {
-            foreach ($this->contentXObjectInvocationCounts($content) as $resourceName => $count) {
-                $invocations[$resourceName] = ($invocations[$resourceName] ?? 0) + $count;
+            foreach ($this->contentXObjectInvocationDetails($content, $ownerInvocationMatrices) as $resourceName => $details) {
+                $invocations[$resourceName] = array_merge($invocations[$resourceName] ?? [], $details);
             }
         }
 
@@ -3340,17 +3448,17 @@ final class PdfTextExtractor
             $optionalContentVisible = isset($objects[$objectNumber])
                 ? $this->optionalContentObjectVisible($objects[$objectNumber], $objects, $optionalContentStates)
                 : true;
-            $localInvocationCount = $invocations[$resourceName] ?? 0;
-            $effectiveInvocationCount = $localInvocationCount > 0 && $optionalContentVisible
-                ? $ownerInvocationCount * $localInvocationCount
-                : 0;
+            $localInvocationDetails = $invocations[$resourceName] ?? [];
+            $effectiveInvocationDetails = $localInvocationDetails !== [] && $optionalContentVisible
+                ? $localInvocationDetails
+                : [];
             $entryResourcePath = [...$resourcePath, $resourceName];
             $entry = $this->imageXObjectBoundaryEntry(
                 $pageIndex,
                 $pageObjectNumber,
                 $resourceName,
                 $objectNumber,
-                $effectiveInvocationCount,
+                $effectiveInvocationDetails,
                 $objects,
                 $entryResourcePath,
                 $parentFormObjectNumber,
@@ -3360,7 +3468,7 @@ final class PdfTextExtractor
                 $entries[] = $entry;
             }
 
-            if ($localInvocationCount <= 0 || !$optionalContentVisible || isset($activeFormObjectNumbers[$objectNumber])) {
+            if ($localInvocationDetails === [] || !$optionalContentVisible || isset($activeFormObjectNumbers[$objectNumber])) {
                 continue;
             }
 
@@ -3373,6 +3481,16 @@ final class PdfTextExtractor
             $nextActiveForms[$objectNumber] = true;
             $formHasOwnResources = $this->topLevelNameValueOffset($form['body'], 'Resources') !== null;
             $formResourceOwnerBody = $this->formXObjectResourceOwnerBody($form['body'], $resourceOwnerBody);
+            $formMatrix = $this->pdfMatrixValueAfterName($form['body'], 'Matrix', $objects)
+                ?? [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+            $formInvocationMatrices = [];
+            foreach ($localInvocationDetails as $detail) {
+                $matrix = $detail['matrix'] ?? null;
+                if (!is_array($matrix) || count($matrix) < 6) {
+                    continue;
+                }
+                $formInvocationMatrices[] = $this->pdfMatrixMultiply($matrix, $formMatrix);
+            }
             foreach ($this->imageXObjectBoundaryEntriesForResourceOwner(
                 $pageIndex,
                 $pageObjectNumber,
@@ -3380,11 +3498,11 @@ final class PdfTextExtractor
                 $objects,
                 [$form['stream']],
                 $optionalContentStates,
-                $effectiveInvocationCount,
                 $entryResourcePath,
                 $nextActiveForms,
                 $objectNumber,
-                $formHasOwnResources
+                $formHasOwnResources,
+                $formInvocationMatrices
             ) as $nestedEntry) {
                 $entries[] = $nestedEntry;
             }
@@ -3449,7 +3567,7 @@ final class PdfTextExtractor
         int $pageObjectNumber,
         string $resourceName,
         int $objectNumber,
-        int $invocationCount,
+        array $invocationDetails,
         array $objects,
         array $resourcePath = [],
         ?int $parentFormObjectNumber = null,
@@ -3479,6 +3597,23 @@ final class PdfTextExtractor
             $objects
         );
         $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
+        $invocationMatrices = [];
+        $invocationBboxes = [];
+        foreach ($invocationDetails as $detail) {
+            $matrix = $detail['matrix'] ?? null;
+            $bbox = $detail['bbox'] ?? null;
+            if (is_array($matrix) && count($matrix) >= 6) {
+                $invocationMatrices[] = $this->normalizedPdfReviewNumbers(array_slice($matrix, 0, 6));
+            }
+            if (is_array($bbox) && count($bbox) >= 4) {
+                $invocationBboxes[] = $this->normalizedPdfReviewNumbers(array_slice($bbox, 0, 4));
+            }
+        }
+        $imageUnitBbox = null;
+        foreach ($invocationBboxes as $bbox) {
+            $imageUnitBbox = $this->pdfRectangleUnion($imageUnitBbox, $bbox);
+        }
+        $imageUnitBbox = $imageUnitBbox === null ? null : $this->normalizedPdfReviewNumbers($imageUnitBbox);
 
         return [
             'page_index' => $pageIndex,
@@ -3489,8 +3624,12 @@ final class PdfTextExtractor
             'parent_form_xobject_object' => $parentFormObjectNumber,
             'object_number' => $objectNumber,
             'optional_content_visible' => $optionalContentVisible,
-            'invoked' => $invocationCount > 0,
-            'invocation_count' => $invocationCount,
+            'invoked' => $invocationMatrices !== [],
+            'invocation_count' => count($invocationMatrices),
+            'invocation_matrices' => $invocationMatrices,
+            'invocation_bboxes' => $invocationBboxes,
+            'image_unit_bbox' => $imageUnitBbox,
+            'placement_review_only' => true,
             'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
             'width' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
             'height' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects),
