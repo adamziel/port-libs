@@ -524,9 +524,10 @@ $buildSectionPropertiesPackage = static function () use (
         ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $sectionPropertiesDocumentXml],
         ['name' => 'word/_rels/document.xml.rels', 'data' => $sectionPropertiesDocumentRelationshipsXml],
-        ['name' => 'word/header1.xml', 'data' => '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Default header</w:t></w:r></w:p></w:hdr>'],
-        ['name' => 'word/footer1.xml', 'data' => '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Default footer</w:t></w:r></w:p></w:ftr>'],
-        ['name' => 'word/header-even.xml', 'data' => '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Even header</w:t></w:r></w:p></w:hdr>'],
+        ['name' => 'word/_rels/header1.xml.rels', 'data' => '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdHeaderSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/header-source" TargetMode="External"/></Relationships>'],
+        ['name' => 'word/header1.xml', 'data' => '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:p><w:r><w:t xml:space="preserve">Default header </w:t></w:r><w:hyperlink r:id="rIdHeaderSource"><w:r><w:t>source link</w:t></w:r></w:hyperlink></w:p></w:hdr>'],
+        ['name' => 'word/footer1.xml', 'data' => '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Default footer note</w:t></w:r></w:p></w:ftr>'],
+        ['name' => 'word/header-even.xml', 'data' => '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Even section header</w:t></w:r></w:p></w:hdr>'],
     ]);
 };
 
@@ -985,8 +986,10 @@ return [
         $t->same('/word/header1.xml', $portrait['headers'][0]['target']);
         $t->same(false, $portrait['headers'][0]['external']);
         $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/header', $portrait['headers'][0]['relationshipType']);
+        $t->same(true, $portrait['headers'][0]['exists']);
         $t->same('rIdFooterDefault', $portrait['footers'][0]['id']);
         $t->same('/word/footer1.xml', $portrait['footers'][0]['target']);
+        $t->same(true, $portrait['footers'][0]['exists']);
 
         $landscape = $sections[1];
         $t->same('body', $landscape['source']);
@@ -1001,10 +1004,44 @@ return [
         $t->same(360, $landscape['columns']['spaceTwips']);
         $t->same('even', $landscape['headers'][0]['type']);
         $t->same('/word/header-even.xml', $landscape['headers'][0]['target']);
+        $t->same(true, $landscape['headers'][0]['exists']);
 
         $reportSections = $result['importReport']['sections'];
         $t->same(2, $reportSections['count']);
         $t->same($sections, $reportSections['items']);
+    },
+    'imports DOCX header and footer body parts from section references' => static function (TestRunner $t) use ($buildSectionPropertiesPackage): void {
+        $result = (new DocxReader())->readPackage($buildSectionPropertiesPackage());
+        $sections = $result['importReport']['sections']['items'];
+        $portrait = $sections[0];
+        $landscape = $sections[1];
+
+        $defaultHeader = $portrait['headers'][0];
+        $t->same(true, $defaultHeader['exists']);
+        $t->same('Default header source link', $defaultHeader['text']);
+        $t->same(1, count($defaultHeader['blocks']));
+        $t->same('paragraph', $defaultHeader['blocks'][0]->type);
+        $t->same('Default header ', $defaultHeader['blocks'][0]->children[0]->attr('text'));
+        $t->same('link', $defaultHeader['blocks'][0]->children[1]->type);
+        $t->same('https://example.test/header-source', $defaultHeader['blocks'][0]->children[1]->attr('url'));
+        $t->same('source link', $defaultHeader['blocks'][0]->children[1]->children[0]->attr('text'));
+
+        $defaultFooter = $portrait['footers'][0];
+        $t->same(true, $defaultFooter['exists']);
+        $t->same('Default footer note', $defaultFooter['text']);
+        $t->same(1, count($defaultFooter['blocks']));
+        $t->same('paragraph', $defaultFooter['blocks'][0]->type);
+        $t->same('Default footer note', $defaultFooter['blocks'][0]->children[0]->attr('text'));
+
+        $evenHeader = $landscape['headers'][0];
+        $t->same(true, $evenHeader['exists']);
+        $t->same('Even section header', $evenHeader['text']);
+        $t->same('Even section header', $evenHeader['blocks'][0]->children[0]->attr('text'));
+
+        $headerBlocks = (new WordPressBlockWriter())->write(new AstNode('document', [], $defaultHeader['blocks']));
+        $footerMarkdown = (new MarkdownWriter())->write(new AstNode('document', [], $defaultFooter['blocks']));
+        $t->contains('<p>Default header <a href="https://example.test/header-source">source link</a></p>', $headerBlocks);
+        $t->contains('Default footer note', $footerMarkdown);
     },
     'rejects malformed DOCX packages without shelling out to office tooling' => static function (TestRunner $t) use ($contentTypesXml, $documentXml): void {
         $reader = new DocxReader();

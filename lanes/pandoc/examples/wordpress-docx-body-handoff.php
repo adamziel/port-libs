@@ -176,9 +176,18 @@ XML],
 </w:comments>
 XML],
     ['name' => 'word/header1.xml', 'data' => <<<'XML'
-<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:p><w:r><w:t>Source packet header</w:t></w:r></w:p>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:p>
+    <w:r><w:t xml:space="preserve">Source packet header </w:t></w:r>
+    <w:hyperlink r:id="rIdHeaderSource"><w:r><w:t>review link</w:t></w:r></w:hyperlink>
+  </w:p>
 </w:hdr>
+XML],
+    ['name' => 'word/_rels/header1.xml.rels', 'data' => <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHeaderSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/header-review?post=42" TargetMode="External"/>
+</Relationships>
 XML],
     ['name' => 'word/footer1.xml', 'data' => <<<'XML'
 <w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
@@ -232,6 +241,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['sectionProperties'][0]['headers'][0]['target'] ?? '') !== '/word/header1.xml') {
         throw new RuntimeException('DOCX body handoff self-test missing section header target');
+    }
+    if (($summary['sectionProperties'][0]['headers'][0]['text'] ?? '') !== 'Source packet header review link') {
+        throw new RuntimeException('DOCX body handoff self-test missing parsed section header text');
+    }
+    if (($summary['sectionProperties'][0]['headers'][0]['blocks'][0]->children[1]->attr('url') ?? '') !== 'https://example.test/header-review?post=42') {
+        throw new RuntimeException('DOCX body handoff self-test missing section header hyperlink target');
+    }
+    if (($summary['sectionProperties'][0]['footers'][0]['text'] ?? '') !== 'Source packet footer') {
+        throw new RuntimeException('DOCX body handoff self-test missing parsed section footer text');
     }
     if (str_contains($blocks, 'Old reviewer draft.')) {
         throw new RuntimeException('DOCX body handoff self-test rendered deleted tracked-change text');

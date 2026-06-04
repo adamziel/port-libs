@@ -246,7 +246,7 @@ final class DocxReader
             'sourceFormat' => 'docx',
             'documentPart' => $documentPart,
         ];
-        $sectionProperties = $this->sectionProperties($body, $relationships);
+        $sectionProperties = $this->sectionProperties($body, $package, $relationships, $referencedNotes, $styles, $numbering);
         if ($sectionProperties !== []) {
             $attrs['sectionProperties'] = $sectionProperties;
         }
@@ -255,9 +255,19 @@ final class DocxReader
     }
 
     /**
+     * @param array<string, AstNode> $referencedNotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
      * @return list<array<string, mixed>>
      */
-    private function sectionProperties(\DOMElement $body, ?OpcRelationships $relationships): array
+    private function sectionProperties(
+        \DOMElement $body,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes,
+        array $styles,
+        array $numbering
+    ): array
     {
         $sections = [];
         foreach ($body->childNodes as $child) {
@@ -271,13 +281,31 @@ final class DocxReader
                     ? $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'sectPr')
                     : null;
                 if ($sectionProperties instanceof \DOMElement) {
-                    $sections[] = $this->sectionPropertyAttrs($sectionProperties, 'paragraph', count($sections), $relationships);
+                    $sections[] = $this->sectionPropertyAttrs(
+                        $sectionProperties,
+                        'paragraph',
+                        count($sections),
+                        $package,
+                        $relationships,
+                        $referencedNotes,
+                        $styles,
+                        $numbering
+                    );
                 }
                 continue;
             }
 
             if ($this->isWordElement($child, 'sectPr')) {
-                $sections[] = $this->sectionPropertyAttrs($child, 'body', count($sections), $relationships);
+                $sections[] = $this->sectionPropertyAttrs(
+                    $child,
+                    'body',
+                    count($sections),
+                    $package,
+                    $relationships,
+                    $referencedNotes,
+                    $styles,
+                    $numbering
+                );
             }
         }
 
@@ -285,13 +313,20 @@ final class DocxReader
     }
 
     /**
+     * @param array<string, AstNode> $referencedNotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
      * @return array<string, mixed>
      */
     private function sectionPropertyAttrs(
         \DOMElement $sectionProperties,
         string $source,
         int $index,
-        ?OpcRelationships $relationships
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes,
+        array $styles,
+        array $numbering
     ): array {
         $attrs = [
             'source' => $source,
@@ -313,12 +348,30 @@ final class DocxReader
             $attrs['columns'] = $columns;
         }
 
-        $headers = $this->sectionReferences($sectionProperties, 'headerReference', $relationships);
+        $headers = $this->sectionReferences(
+            $sectionProperties,
+            'headerReference',
+            $package,
+            $relationships,
+            $referencedNotes,
+            $styles,
+            $numbering,
+            'hdr'
+        );
         if ($headers !== []) {
             $attrs['headers'] = $headers;
         }
 
-        $footers = $this->sectionReferences($sectionProperties, 'footerReference', $relationships);
+        $footers = $this->sectionReferences(
+            $sectionProperties,
+            'footerReference',
+            $package,
+            $relationships,
+            $referencedNotes,
+            $styles,
+            $numbering,
+            'ftr'
+        );
         if ($footers !== []) {
             $attrs['footers'] = $footers;
         }
@@ -401,10 +454,21 @@ final class DocxReader
     }
 
     /**
-     * @return list<array{id:string, type:string, target:?string, external:?bool, relationshipType:?string}>
+     * @param array<string, AstNode> $referencedNotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
+     * @return list<array<string, mixed>>
      */
-    private function sectionReferences(\DOMElement $sectionProperties, string $localName, ?OpcRelationships $relationships): array
-    {
+    private function sectionReferences(
+        \DOMElement $sectionProperties,
+        string $localName,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes,
+        array $styles,
+        array $numbering,
+        string $rootName
+    ): array {
         $references = [];
         foreach ($sectionProperties->childNodes as $child) {
             if (!$child instanceof \DOMElement || !$this->isWordElement($child, $localName)) {
@@ -417,16 +481,62 @@ final class DocxReader
             }
 
             $relationship = $relationships instanceof OpcRelationships ? $relationships->byId($relationshipId) : null;
-            $references[] = [
+            $attrs = [
                 'id' => $relationshipId,
                 'type' => (string) ($this->wordAttr($child, 'type') ?? 'default'),
                 'target' => $relationship instanceof OpcRelationship ? $relationships->resolveTarget($relationship) : null,
                 'external' => $relationship instanceof OpcRelationship ? $relationship->isExternal() : null,
                 'relationshipType' => $relationship instanceof OpcRelationship ? $relationship->type : null,
             ];
+
+            if ($relationship instanceof OpcRelationship && !$relationship->isExternal()) {
+                $targetPart = OpcPackagePath::stripQueryAndFragment($relationships->resolveTarget($relationship));
+                $attrs['exists'] = $package->has($targetPart);
+                if ($attrs['exists'] === true) {
+                    $blocks = $this->headerFooterBlocks(
+                        $package,
+                        $targetPart,
+                        $rootName,
+                        $referencedNotes,
+                        $styles,
+                        $numbering
+                    );
+                    $attrs['blocks'] = $blocks;
+                    $attrs['text'] = $this->plainBlockText($blocks);
+                }
+            }
+
+            $references[] = $attrs;
         }
 
         return $references;
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
+     * @return list<AstNode>
+     */
+    private function headerFooterBlocks(
+        ZipPackage $package,
+        string $partName,
+        string $rootName,
+        array $referencedNotes,
+        array $styles,
+        array $numbering
+    ): array {
+        $dom = self::loadXml($package->read($partName), 'DOCX ' . $rootName . ' XML');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || !$this->isWordElement($root, $rootName)) {
+            return [];
+        }
+
+        $relationships = OpcRelationships::packageHasRelationshipsForSource($package, $partName)
+            ? OpcRelationships::fromPackage($package, $partName)
+            : null;
+
+        return $this->blockContainerChildren($root, $package, $relationships, $referencedNotes, $styles, $numbering);
     }
 
     /**
@@ -444,9 +554,27 @@ final class DocxReader
         array $numbering
     ): array
     {
+        return $this->blockContainerChildren($body, $package, $relationships, $referencedNotes, $styles, $numbering);
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
+     * @return list<AstNode>
+     */
+    private function blockContainerChildren(
+        \DOMElement $container,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes,
+        array $styles,
+        array $numbering
+    ): array
+    {
         $blocks = [];
         $currentList = null;
-        foreach ($body->childNodes as $child) {
+        foreach ($container->childNodes as $child) {
             if (!$child instanceof \DOMElement) {
                 continue;
             }
