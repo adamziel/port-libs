@@ -25,7 +25,8 @@ final class PdfSecurityPreflight
         $signatureByteRangeRevisionReview = $this->signatureByteRangeRevisionReview($signatures);
         $documentSecurityStoreSignatureReview = $this->documentSecurityStoreSignatureReview($documentSecurityStore, $signatures, $objectSpans);
         $documentSecurityStoreSignatureReferenceTransformReview = $this->documentSecurityStoreSignatureReferenceTransformReview($documentSecurityStoreSignatureReview);
-        $permissionPreflight = $this->permissionPreflight($encrypted, $encryption);
+        $cryptFilterContentReview = $this->cryptFilterContentReview($encrypted, $encryption);
+        $permissionPreflight = $this->permissionPreflight($encrypted, $encryption, $cryptFilterContentReview);
         $publicKeyDssPermissionBoundaryReview = $this->publicKeyDssPermissionBoundaryReview(
             $permissionPreflight,
             $documentSecurityStore,
@@ -79,6 +80,8 @@ final class PdfSecurityPreflight
             'review_reasons' => $reviewReasons,
             'blocked_operations' => $this->blockedOperations($encrypted, $signatures, $hasDocumentSecurityStore, $documentActionReview),
             'encryption' => $this->encryptionReview($encryption),
+            'crypt_filter_content_review_count' => ($cryptFilterContentReview['present'] ?? false) === true ? 1 : 0,
+            'crypt_filter_content_review' => $cryptFilterContentReview,
             'permission_preflight' => $permissionPreflight,
             'permission_handler_review' => is_array($permissionPreflight['permission_handler_review'] ?? null)
                 ? $permissionPreflight['permission_handler_review']
@@ -149,7 +152,7 @@ final class PdfSecurityPreflight
      * @param array<string, mixed>|null $encryption
      * @return array<string, mixed>
      */
-    private function permissionPreflight(bool $encrypted, ?array $encryption): array
+    private function permissionPreflight(bool $encrypted, ?array $encryption, array $cryptFilterContentReview): array
     {
         if (!$encrypted || $encryption === null) {
             return [
@@ -246,6 +249,7 @@ final class PdfSecurityPreflight
             'public_key_crypt_filter_selection' => is_array($publicKeyRecipientReview['crypt_filter_selection'] ?? null)
                 ? $publicKeyRecipientReview['crypt_filter_selection']
                 : [],
+            'crypt_filter_content_review' => $cryptFilterContentReview,
             'requires_password_for_content_extraction' => (bool) ($encryption['requires_password_for_content_extraction'] ?? true),
             'decryption_performed' => false,
             'native_text_extraction_allowed_now' => false,
@@ -255,6 +259,259 @@ final class PdfSecurityPreflight
             'raw_key_material_exposed' => false,
             'recipient_bytes_exposed' => false,
         ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $encryption
+     * @return array<string, mixed>
+     */
+    private function cryptFilterContentReview(bool $encrypted, ?array $encryption): array
+    {
+        $base = [
+            'source' => 'encryption_crypt_filter_content_review',
+            'present' => false,
+            'encrypted_document' => $encrypted,
+            'review_only' => true,
+            'native_text_extraction_allowed_now' => !$encrypted,
+            'decryption_performed' => false,
+            'executes_decryption' => false,
+            'executes_permission_enforcement' => false,
+            'executes_external_pdf_tools' => false,
+            'roles' => [],
+        ];
+
+        if (!$encrypted || $encryption === null) {
+            return $base + [
+                'text_content_policy' => 'native_text_allowed',
+                'embedded_file_payload_policy' => 'native_review_metadata',
+            ];
+        }
+
+        $cryptFilters = is_array($encryption['crypt_filters'] ?? null) ? $encryption['crypt_filters'] : [];
+        $roles = [];
+        foreach ([
+            'document_streams' => ['key' => 'stream_filter', 'pdf_name' => 'StmF'],
+            'document_strings' => ['key' => 'string_filter', 'pdf_name' => 'StrF'],
+            'embedded_file_streams' => ['key' => 'embedded_file_filter', 'pdf_name' => 'EFF'],
+        ] as $role => $definition) {
+            $filterName = is_string($encryption[$definition['key']] ?? null)
+                ? $encryption[$definition['key']]
+                : null;
+            $roles[] = $this->cryptFilterContentRoleReview($role, $definition['pdf_name'], $filterName, $cryptFilters);
+        }
+
+        $documentTextRows = array_values(array_filter(
+            $roles,
+            static fn (array $row): bool => in_array($row['role'] ?? null, ['document_streams', 'document_strings'], true)
+        ));
+        $embeddedFileRows = array_values(array_filter(
+            $roles,
+            static fn (array $row): bool => ($row['role'] ?? null) === 'embedded_file_streams'
+        ));
+
+        return [
+            'source' => 'encryption_crypt_filter_content_review',
+            'present' => true,
+            'encrypted_document' => true,
+            'handler' => is_string($encryption['filter'] ?? null) ? $encryption['filter'] : null,
+            'subfilter' => is_string($encryption['subfilter'] ?? null) ? $encryption['subfilter'] : null,
+            'declared_crypt_filter_count' => count($cryptFilters),
+            'role_count' => count($roles),
+            'role_names' => $this->uniqueStringColumn($roles, 'role'),
+            'role_statuses' => $this->uniqueStringColumn($roles, 'status'),
+            'selected_filter_names' => $this->uniqueStringColumn($roles, 'filter_name'),
+            'identity_role_names' => $this->cryptFilterRoleNamesByStatus($roles, 'identity_crypt_filter'),
+            'encrypted_role_names' => $this->cryptFilterRoleNamesByStatus($roles, 'encrypted_crypt_filter'),
+            'missing_role_names' => $this->cryptFilterRoleNamesByStatus($roles, 'missing_declared_crypt_filter'),
+            'unsupported_role_names' => $this->cryptFilterRoleNamesByStatuses($roles, [
+                'unsupported_crypt_filter_method_fail_closed',
+                'unknown_crypt_filter_method_fail_closed',
+                'undeclared_crypt_filter_fail_closed',
+            ]),
+            'identity_filter_names' => $this->cryptFilterNamesByStatus($roles, 'identity_crypt_filter'),
+            'encrypted_filter_names' => $this->cryptFilterNamesByStatus($roles, 'encrypted_crypt_filter'),
+            'missing_filter_names' => $this->cryptFilterNamesByStatus($roles, 'missing_declared_crypt_filter'),
+            'text_content_policy' => $this->cryptFilterTextContentPolicy($documentTextRows),
+            'embedded_file_payload_policy' => $this->cryptFilterEmbeddedFilePolicy($embeddedFileRows),
+            'roles' => $roles,
+            'review_only' => true,
+            'native_text_extraction_allowed_now' => false,
+            'decryption_performed' => false,
+            'executes_decryption' => false,
+            'executes_permission_enforcement' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $cryptFilters
+     * @return array<string, mixed>
+     */
+    private function cryptFilterContentRoleReview(
+        string $role,
+        string $pdfName,
+        ?string $filterName,
+        array $cryptFilters
+    ): array {
+        $row = [
+            'source' => 'crypt_filter_content_role_review',
+            'role' => $role,
+            'pdf_name' => $pdfName,
+            'filter_name' => $filterName,
+            'crypt_filter_present' => false,
+            'method' => null,
+            'auth_event' => null,
+            'key_length_bytes' => null,
+            'content_encrypted' => true,
+            'identity_crypt_filter' => false,
+            'missing_declared_crypt_filter' => false,
+            'review_only' => true,
+            'native_import_allowed_now' => false,
+            'executes_decryption' => false,
+        ];
+
+        if ($filterName === null || $filterName === '') {
+            return array_merge($row, [
+                'status' => 'undeclared_crypt_filter_fail_closed',
+            ]);
+        }
+
+        if ($filterName === 'Identity') {
+            return array_merge($row, [
+                'crypt_filter_present' => true,
+                'method' => 'Identity',
+                'content_encrypted' => false,
+                'identity_crypt_filter' => true,
+                'status' => 'identity_crypt_filter',
+            ]);
+        }
+
+        $filter = is_array($cryptFilters[$filterName] ?? null) ? $cryptFilters[$filterName] : null;
+        if ($filter === null) {
+            return array_merge($row, [
+                'missing_declared_crypt_filter' => true,
+                'status' => 'missing_declared_crypt_filter',
+            ]);
+        }
+
+        $method = is_string($filter['method'] ?? null) ? $filter['method'] : null;
+        $status = $this->cryptFilterMethodStatus($method);
+        $identity = $status === 'identity_crypt_filter';
+
+        return array_merge($row, [
+            'crypt_filter_present' => true,
+            'method' => $method,
+            'auth_event' => is_string($filter['auth_event'] ?? null) ? $filter['auth_event'] : null,
+            'key_length_bytes' => is_int($filter['key_length_bytes'] ?? null) ? $filter['key_length_bytes'] : null,
+            'content_encrypted' => !$identity,
+            'identity_crypt_filter' => $identity,
+            'status' => $status,
+        ]);
+    }
+
+    private function cryptFilterMethodStatus(?string $method): string
+    {
+        if ($method === 'Identity') {
+            return 'identity_crypt_filter';
+        }
+        if (in_array($method, ['V2', 'AESV2', 'AESV3'], true)) {
+            return 'encrypted_crypt_filter';
+        }
+        if ($method === null || $method === '') {
+            return 'unknown_crypt_filter_method_fail_closed';
+        }
+
+        return 'unsupported_crypt_filter_method_fail_closed';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterRoleNamesByStatus(array $roles, string $status): array
+    {
+        return $this->cryptFilterRoleNamesByStatuses($roles, [$status]);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @param list<string> $statuses
+     * @return list<string>
+     */
+    private function cryptFilterRoleNamesByStatuses(array $roles, array $statuses): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            if (
+                is_string($role['role'] ?? null)
+                && in_array($role['status'] ?? null, $statuses, true)
+                && !in_array($role['role'], $names, true)
+            ) {
+                $names[] = $role['role'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterNamesByStatus(array $roles, string $status): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            if (
+                is_string($role['filter_name'] ?? null)
+                && ($role['status'] ?? null) === $status
+                && !in_array($role['filter_name'], $names, true)
+            ) {
+                $names[] = $role['filter_name'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     */
+    private function cryptFilterTextContentPolicy(array $rows): string
+    {
+        if ($rows === []) {
+            return 'encrypted_document_fail_closed';
+        }
+        foreach ($rows as $row) {
+            if (($row['status'] ?? null) === 'missing_declared_crypt_filter') {
+                return 'missing_declared_filter_fail_closed';
+            }
+            if (($row['identity_crypt_filter'] ?? false) !== true) {
+                return 'review_only_encrypted_document_boundary';
+            }
+        }
+
+        return 'identity_filters_review_only_encrypted_document_boundary';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     */
+    private function cryptFilterEmbeddedFilePolicy(array $rows): string
+    {
+        if ($rows === []) {
+            return 'encrypted_document_fail_closed';
+        }
+
+        $row = $rows[0];
+        if (($row['status'] ?? null) === 'missing_declared_crypt_filter') {
+            return 'missing_declared_filter_fail_closed';
+        }
+        if (($row['identity_crypt_filter'] ?? false) === true) {
+            return 'identity_filter_review_only_payload_boundary';
+        }
+
+        return 'encrypted_filter_requires_decryption';
     }
 
     /**
@@ -3889,6 +4146,7 @@ final class PdfSecurityPreflight
         $standardAuthenticationReview = is_array($encryption['standard_authentication_review'] ?? null)
             ? $encryption['standard_authentication_review']
             : [];
+        $cryptFilterContentReview = $this->cryptFilterContentReview(true, $encryption);
 
         return [
             'is_encrypted' => true,
@@ -3926,6 +4184,7 @@ final class PdfSecurityPreflight
             'public_key_crypt_filter_selection' => is_array($publicKeyRecipientReview['crypt_filter_selection'] ?? null)
                 ? $publicKeyRecipientReview['crypt_filter_selection']
                 : [],
+            'crypt_filter_content_review' => $cryptFilterContentReview,
             'requires_password_for_content_extraction' => (bool) ($encryption['requires_password_for_content_extraction'] ?? true),
             'review_only' => true,
             'raw_key_material_exposed' => false,
