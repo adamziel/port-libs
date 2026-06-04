@@ -557,7 +557,7 @@ final class MarkdownWriter
         $widths = array_fill(0, $columnCount, 3);
         foreach ($rows as $row) {
             foreach ($row as $index => $cell) {
-                $widths[$index] = max($widths[$index], strlen($cell));
+                $widths[$index] = max($widths[$index], UnicodeText::displayWidth($cell));
             }
         }
 
@@ -597,13 +597,7 @@ final class MarkdownWriter
 
     private function padTableCell(string $cell, int $width, string $alignment): string
     {
-        $padding = max(0, $width - strlen($cell));
-
-        return match ($alignment) {
-            'right' => str_repeat(' ', $padding) . $cell,
-            'center' => str_repeat(' ', intdiv($padding, 2)) . $cell . str_repeat(' ', $padding - intdiv($padding, 2)),
-            default => $cell . str_repeat(' ', $padding),
-        };
+        return UnicodeText::padDisplay($cell, $width, $alignment);
     }
 
     /**

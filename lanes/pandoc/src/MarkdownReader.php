@@ -35,6 +35,24 @@ final class MarkdownReader
     {
     }
 
+    public function readBytes(string $bytes, ?string $encoding = null): AstNode
+    {
+        $decoded = UnicodeText::decodeBytes($bytes, $encoding);
+        $document = $this->read($decoded['text']);
+
+        return new AstNode(
+            'document',
+            array_replace($document->attrs, [
+                'sourceEncoding' => [
+                    'encoding' => $decoded['encoding'],
+                    'bom' => $decoded['bom'],
+                    'repairs' => $decoded['repairs'],
+                ],
+            ]),
+            $document->children
+        );
+    }
+
     public function read(string $markdown): AstNode
     {
         $blocks = [];
