@@ -389,7 +389,7 @@ final class DocTemplate
     }
 
     /**
-     * @param array{name:string, separator:?string, pipes:list<string>} $partial
+     * @param array{name:string, separator:?string, pipes:list<array{name:string, args:list<int|string>}>} $partial
      * @param array<string, mixed> $context
      * @param array<string, string> $partials
      * @param list<string> $partialStack
@@ -405,7 +405,7 @@ final class DocTemplate
     }
 
     /**
-     * @param array{variable:array{name:string, separator:?string, pipes:list<string>}, partial:array{name:string, separator:?string, pipes:list<string>}} $appliedPartial
+     * @param array{variable:array{name:string, separator:?string, pipes:list<array{name:string, args:list<int|string>}>}, partial:array{name:string, separator:?string, pipes:list<array{name:string, args:list<int|string>}>}} $appliedPartial
      * @param array<string, mixed> $context
      * @param array<string, string> $partials
      * @param list<string> $partialStack
@@ -511,7 +511,7 @@ final class DocTemplate
     }
 
     /**
-     * @param array{name:string, separator:?string, pipes:list<string>} $expression
+     * @param array{name:string, separator:?string, pipes:list<array{name:string, args:list<int|string>}>} $expression
      * @param array<string, mixed> $context
      * @return array{exists:bool, value:mixed}
      */
@@ -531,7 +531,7 @@ final class DocTemplate
     }
 
     /**
-     * @return array{name:string, separator:?string, pipes:list<string>}|null
+     * @return array{name:string, separator:?string, pipes:list<array{name:string, args:list<int|string>}>>|null
      */
     private function parsePartialDirective(string $expression): ?array
     {
@@ -549,7 +549,7 @@ final class DocTemplate
     }
 
     /**
-     * @return array{variable:array{name:string, separator:?string, pipes:list<string>}, partial:array{name:string, separator:?string, pipes:list<string>}}|null
+     * @return array{variable:array{name:string, separator:?string, pipes:list<array{name:string, args:list<int|string>}>}, partial:array{name:string, separator:?string, pipes:list<array{name:string, args:list<int|string>}>}}|null
      */
     private function parseAppliedPartialDirective(string $expression): ?array
     {
@@ -570,7 +570,7 @@ final class DocTemplate
     }
 
     /**
-     * @return array{name:string, separator:?string, pipes:list<string>}
+     * @return array{name:string, separator:?string, pipes:list<array{name:string, args:list<int|string>}>}
      */
     private function parseVariableExpression(string $expression): array
     {
@@ -589,7 +589,7 @@ final class DocTemplate
 
     /**
      * @param list<string> $pipeSpecs
-     * @return list<string>
+     * @return list<array{name:string, args:list<int|string>}>
      */
     private function parsePipeSpecs(array $pipeSpecs, string $expression): array
     {
@@ -604,14 +604,96 @@ final class DocTemplate
                 throw new \UnexpectedValueException("Unsupported doctemplate pipe {$pipeSpec}");
             }
 
-            if (isset($pipeMatches[2]) && trim($pipeMatches[2]) !== '') {
-                throw new \UnexpectedValueException("Unsupported parameterized doctemplate pipe {$pipeMatches[1]}");
+            $pipeName = $pipeMatches[1];
+            $argumentSource = isset($pipeMatches[2]) ? trim($pipeMatches[2]) : '';
+            if (in_array($pipeName, ['left', 'right', 'center'], true)) {
+                $pipes[] = [
+                    'name' => $pipeName,
+                    'args' => $this->parseBlockPipeArguments($pipeName, $argumentSource),
+                ];
+                continue;
             }
 
-            $pipes[] = $pipeMatches[1];
+            if ($argumentSource !== '') {
+                throw new \UnexpectedValueException("Unsupported parameterized doctemplate pipe {$pipeName}");
+            }
+
+            $pipes[] = [
+                'name' => $pipeName,
+                'args' => [],
+            ];
         }
 
         return $pipes;
+    }
+
+    /**
+     * @return list<int|string>
+     */
+    private function parseBlockPipeArguments(string $pipeName, string $source): array
+    {
+        if ($source === '') {
+            throw new \UnexpectedValueException("Missing integer parameter for doctemplate pipe {$pipeName}");
+        }
+
+        if (!preg_match('/^([0-9]+)(.*)$/s', $source, $matches)) {
+            throw new \UnexpectedValueException("Expected integer parameter for doctemplate pipe {$pipeName}");
+        }
+
+        $width = (int) $matches[1];
+        if ($width < 1) {
+            throw new \UnexpectedValueException("Expected positive integer parameter for doctemplate pipe {$pipeName}");
+        }
+
+        $offset = 0;
+        $remaining = ltrim($matches[2], " \t\r\n");
+        $borders = [];
+        while ($remaining !== '') {
+            if ($remaining[0] !== '"') {
+                throw new \UnexpectedValueException("Expected quoted border parameter for doctemplate pipe {$pipeName}");
+            }
+
+            $borders[] = $this->parseQuotedPipeString($remaining, $offset);
+            $remaining = ltrim(substr($remaining, $offset), " \t\r\n");
+            $offset = 0;
+            if (count($borders) > 2) {
+                throw new \UnexpectedValueException("Too many border parameters for doctemplate pipe {$pipeName}");
+            }
+        }
+
+        return [$width, $borders[0] ?? '', $borders[1] ?? ''];
+    }
+
+    private function parseQuotedPipeString(string $source, int &$offset): string
+    {
+        $offset = 1;
+        $value = '';
+        $length = strlen($source);
+
+        while ($offset < $length) {
+            $char = $source[$offset];
+            if ($char === '"') {
+                $offset++;
+
+                return $value;
+            }
+
+            if ($char === '\\') {
+                $offset++;
+                if ($offset >= $length) {
+                    throw new \UnexpectedValueException('Unclosed doctemplate pipe quoted string');
+                }
+
+                $value .= $source[$offset];
+                $offset++;
+                continue;
+            }
+
+            $value .= $char;
+            $offset++;
+        }
+
+        throw new \UnexpectedValueException('Unclosed doctemplate pipe quoted string');
     }
 
     /**
@@ -622,23 +704,43 @@ final class DocTemplate
         $parts = [];
         $buffer = '';
         $bracketDepth = 0;
+        $inQuote = false;
+        $escape = false;
         $length = strlen($expression);
 
         for ($index = 0; $index < $length; $index++) {
             $char = $expression[$index];
-            if ($char === '[') {
+            if ($escape) {
+                $buffer .= $char;
+                $escape = false;
+                continue;
+            }
+
+            if ($inQuote && $char === '\\') {
+                $buffer .= $char;
+                $escape = true;
+                continue;
+            }
+
+            if ($char === '"') {
+                $inQuote = !$inQuote;
+                $buffer .= $char;
+                continue;
+            }
+
+            if (!$inQuote && $char === '[') {
                 $bracketDepth++;
                 $buffer .= $char;
                 continue;
             }
 
-            if ($char === ']' && $bracketDepth > 0) {
+            if (!$inQuote && $char === ']' && $bracketDepth > 0) {
                 $bracketDepth--;
                 $buffer .= $char;
                 continue;
             }
 
-            if ($char === '/' && $bracketDepth === 0) {
+            if (!$inQuote && $char === '/' && $bracketDepth === 0) {
                 $parts[] = $buffer;
                 $buffer = '';
                 continue;
@@ -652,12 +754,15 @@ final class DocTemplate
         return $parts;
     }
 
-    private function applyPipe(string $pipe, mixed $value): mixed
+    /**
+     * @param array{name:string, args:list<int|string>} $pipe
+     */
+    private function applyPipe(array $pipe, mixed $value): mixed
     {
-        return match ($pipe) {
+        return match ($pipe['name']) {
             'pairs' => $this->pipePairs($value),
-            'uppercase' => is_string($value) ? $this->uppercase($value) : $value,
-            'lowercase' => is_string($value) ? $this->lowercase($value) : $value,
+            'uppercase' => $this->mapTextualValue($value, fn (string $text): string => $this->uppercase($text)),
+            'lowercase' => $this->mapTextualValue($value, fn (string $text): string => $this->lowercase($text)),
             'length' => $this->pipeLength($value),
             'reverse' => $this->pipeReverse($value),
             'first' => is_array($value) && array_is_list($value) && $value !== [] ? $value[0] : $value,
@@ -666,7 +771,119 @@ final class DocTemplate
             'allbutlast' => is_array($value) && array_is_list($value) && $value !== [] ? array_slice($value, 0, -1) : $value,
             'chomp' => is_string($value) ? rtrim($value, "\r\n") : $value,
             'nowrap' => $value,
-            default => throw new \UnexpectedValueException("Unsupported doctemplate pipe {$pipe}"),
+            'alpha' => $this->mapTextualValue($value, fn (string $text): string => $this->pipeAlphaText($text)),
+            'roman' => $this->mapTextualValue($value, fn (string $text): string => $this->pipeRomanText($text)),
+            'left', 'right', 'center' => $this->pipeBlock($pipe['name'], $pipe['args'], $value),
+            default => throw new \UnexpectedValueException("Unsupported doctemplate pipe {$pipe['name']}"),
+        };
+    }
+
+    private function mapTextualValue(mixed $value, callable $callback): mixed
+    {
+        if (is_array($value)) {
+            $mapped = [];
+            foreach ($value as $key => $item) {
+                $mapped[$key] = $this->mapTextualValue($item, $callback);
+            }
+
+            return $mapped;
+        }
+
+        if (is_string($value) || is_int($value) || is_float($value)) {
+            return $callback((string) $value);
+        }
+
+        return $value;
+    }
+
+    private function pipeAlphaText(string $value): string
+    {
+        if (!preg_match('/^[0-9]+$/', $value)) {
+            return $value;
+        }
+
+        $number = (int) $value;
+        if ($number < 1) {
+            return $value;
+        }
+
+        return chr(ord('a') + (($number - 1) % 26));
+    }
+
+    private function pipeRomanText(string $value): string
+    {
+        if (!preg_match('/^[0-9]+$/', $value)) {
+            return $value;
+        }
+
+        $number = (int) $value;
+        if ($number < 1 || $number >= 4000) {
+            return $value;
+        }
+
+        $roman = '';
+        foreach ([
+            1000 => 'm',
+            900 => 'cm',
+            500 => 'd',
+            400 => 'cd',
+            100 => 'c',
+            90 => 'xc',
+            50 => 'l',
+            40 => 'xl',
+            10 => 'x',
+            9 => 'ix',
+            5 => 'v',
+            4 => 'iv',
+            1 => 'i',
+        ] as $decimal => $glyph) {
+            while ($number >= $decimal) {
+                $roman .= $glyph;
+                $number -= $decimal;
+            }
+        }
+
+        return $roman;
+    }
+
+    /**
+     * @param list<int|string> $args
+     */
+    private function pipeBlock(string $alignment, array $args, mixed $value): mixed
+    {
+        if (!is_string($value) && !is_int($value) && !is_float($value) && $value !== null) {
+            return $value;
+        }
+
+        $width = (int) ($args[0] ?? 0);
+        if ($width < 1) {
+            throw new \UnexpectedValueException("Missing integer parameter for doctemplate pipe {$alignment}");
+        }
+
+        $leftBorder = is_string($args[1] ?? null) ? $args[1] : '';
+        $rightBorder = is_string($args[2] ?? null) ? $args[2] : '';
+        $lines = preg_split('/\r\n|\n|\r/', $value === null ? '' : (string) $value);
+        if ($lines === false) {
+            $lines = [$value === null ? '' : (string) $value];
+        }
+
+        $padded = [];
+        foreach ($lines as $line) {
+            $padded[] = $leftBorder . $this->padBlockLine($line, $width, $alignment) . $rightBorder;
+        }
+
+        return implode("\n", $padded);
+    }
+
+    private function padBlockLine(string $line, int $width, string $alignment): string
+    {
+        $padding = max(0, $width - $this->stringLength($line));
+
+        return match ($alignment) {
+            'left' => $line . str_repeat(' ', $padding),
+            'right' => str_repeat(' ', $padding) . $line,
+            'center' => str_repeat(' ', intdiv($padding, 2)) . $line . str_repeat(' ', $padding - intdiv($padding, 2)),
+            default => $line,
         };
     }
 

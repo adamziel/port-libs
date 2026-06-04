@@ -25,7 +25,7 @@ HTML,
     'warning-list' => <<<'HTML'
 $if(warnings)$
 <ul class="warnings">
-$for(warnings/pairs)$<li data-index="$it.key$" data-source="$it.value.source$">$it.value.message$</li>
+$for(warnings/pairs)$<li data-index="$it.key$" data-source="$it.value.source$"><span class="marker">$it.key/alpha/uppercase$.</span> <span class="source">$it.value.source/uppercase/left 8$</span> <span class="priority">$it.value.priority/roman/uppercase/right 4$</span> $it.value.message$</li>
 $endfor$</ul>
 $endif$
 HTML,
@@ -43,8 +43,8 @@ $context = [
         ['name' => 'Content editor'],
     ],
     'warnings' => [
-        ['source' => 'media', 'message' => 'Check &amp; confirm alt text'],
-        ['source' => 'links', 'message' => 'Verify edit links before publish'],
+        ['source' => 'media', 'priority' => 1, 'message' => 'Check &amp; confirm alt text'],
+        ['source' => 'links', 'priority' => 4, 'message' => 'Verify edit links before publish'],
     ],
     'body' => implode("\n", [
         '<!-- wp:paragraph --><p>Imported body is already escaped.</p><!-- /wp:paragraph -->',
@@ -59,7 +59,8 @@ if (in_array('--self-test', $argv, true)) {
         '<h1>BATCH 42 REVIEW</h1>',
         '<p class="summary">2 warnings queued for Batch 42 Review</p>',
         '<p class="authors">Migration bot, Content editor</p>',
-        '<li data-index="1" data-source="media">Check &amp; confirm alt text</li>',
+        '<li data-index="1" data-source="media"><span class="marker">A.</span> <span class="source">MEDIA   </span> <span class="priority">   I</span> Check &amp; confirm alt text</li>',
+        '<li data-index="2" data-source="links"><span class="marker">B.</span> <span class="source">LINKS   </span> <span class="priority">  IV</span> Verify edit links before publish</li>',
         '  <!-- wp:paragraph --><p>Imported body is already escaped.</p><!-- /wp:paragraph -->',
         '  <!-- wp:paragraph --><p>Second reviewer packet line stays nested.</p><!-- /wp:paragraph -->',
     ] as $needle) {

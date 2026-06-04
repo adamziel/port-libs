@@ -207,6 +207,53 @@ TPL;
         ]), $output);
     },
 
+    'renders pandoc doctemplate parameterized enumeration and padding pipes' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+Checklist:
+$for(items/pairs)$  $it.key/alpha/uppercase$. $it.value.title/left 18 "| " " |"$ $it.value.priority/roman/uppercase/right 4$
+$endfor$Codes: $for(codes/roman)$$it$$sep$ $endfor$
+Centered: <$title/center 16 "[ " " ]"$>
+Escaped: <$title/left 17 "\" " " \\end"$>
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'title' => 'Batch 42',
+            'items' => [
+                ['title' => 'Media audit', 'priority' => 1],
+                ['title' => 'Link redirects', 'priority' => 4],
+                ['title' => 'Style review', 'priority' => 9],
+            ],
+            'codes' => [1, 5, 20],
+        ]);
+
+        $t->same(implode("\n", [
+            'Checklist:',
+            '  A. | Media audit        |    I',
+            '  B. | Link redirects     |   IV',
+            '  C. | Style review       |   IX',
+            'Codes: i v xx',
+            'Centered: <[     Batch 42     ]>',
+            'Escaped: <" Batch 42          \end>',
+        ]), $output);
+    },
+
+    'leaves non textual values unchanged for pandoc doctemplate block pipes' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+Meta: $meta/left 12 "| " " |"$
+Flags: $for(flags/center 8)$$it$$sep$, $endfor$
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'meta' => ['status' => 'draft'],
+            'flags' => [true, false],
+        ]);
+
+        $t->same(implode("\n", [
+            'Meta: true',
+            'Flags: true, false',
+        ]), $output);
+    },
+
     'renders pandoc doctemplate partials nested partials and strips final newlines' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 ${ review-header() }
@@ -338,7 +385,9 @@ TPL;
     'throws on unsupported pandoc doctemplate pipes' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 
-        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('$title/left 20$', ['title' => 'Review']));
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('$title/left$', ['title' => 'Review']));
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('$title/left a$', ['title' => 'Review']));
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('$title/uppercase 20$', ['title' => 'Review']));
         $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('$title/no-such-pipe$', ['title' => 'Review']));
     },
 ];
