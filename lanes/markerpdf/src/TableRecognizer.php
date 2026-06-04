@@ -419,7 +419,7 @@ final class TableRecognizer
      * @param list<array<string, mixed>> $rows Optional model row bands in table-image coordinates.
      * @param list<array<string, mixed>> $cols Optional model column bands in table-image coordinates.
      * @param array{width?: int|float, height?: int|float}|list<int|float>|null $imageSize Optional table crop image size for boundary clipping.
-     * @return array{rows: list<int>, cols: list<int>, column_header_rows?: list<int>, rotated: bool, orientation: string, row_axis: string, col_axis: string, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>, header_cells: list<array<string, mixed>>, data_cells: list<array<string, mixed>>, accessibility_grid: array<string, mixed>, geometry_boundary_review?: array<string, mixed>}
+     * @return array{rows: list<int>, cols: list<int>, column_header_rows?: list<int>, rotated: bool, orientation: string, row_axis: string, col_axis: string, render_cells: list<array<string, mixed>>, grid_cells: list<array<string, mixed>>, header_cells: list<array<string, mixed>>, data_cells: list<array<string, mixed>>, accessibility_grid: array<string, mixed>, geometry_boundary_review?: array<string, mixed>, cell_geometry_boundary_review?: array<string, mixed>}
      */
     public function spanningGridReview(array $cells, array $rows = [], array $cols = [], ?array $imageSize = null): array
     {
@@ -434,6 +434,8 @@ final class TableRecognizer
         $rows = $geometryBands['rows'];
         $cols = $geometryBands['cols'];
         $geometryBoundaryReview = $geometryBands['review'];
+        $cellBoundaryReview = $this->tableCellGeometryBoundary($cells, $imageSize);
+        $cells = $this->cellsWithGeometryBoundary($cells, $cellBoundaryReview);
         $rowBboxes = $this->bboxesById($rows, 'row_id');
         $colBboxes = $this->bboxesById($cols, 'col_id');
         $rotated = $rows !== [] && $cols !== [] && $this->isRotated($rows, $cols);
@@ -508,6 +510,13 @@ final class TableRecognizer
                 $entry['continuation_cells'] = $this->reviewContinuationCells(array_slice($cellGroup['cells'], 1));
             }
 
+            $cellBoundary = $this->cellGroupBoundarySummary($cellGroup['cells']);
+            if ($cellBoundary !== null) {
+                foreach ($cellBoundary as $field => $value) {
+                    $entry[$field] = $value;
+                }
+            }
+
             $gridBbox = $this->gridBboxForSpan($cellRowIds, $cellColIds, $rowBboxes, $colBboxes, $rotated);
             if ($gridBbox !== null) {
                 $entry['grid_bbox'] = $gridBbox;
@@ -571,6 +580,11 @@ final class TableRecognizer
                             $cell[$field] = $renderCell[$field];
                         }
                     }
+                    foreach (['cell_boundary_status', 'cell_boundary_active_count', 'cell_boundary_clipped_count', 'cell_boundary_excluded_count', 'bounded_cell_bbox', 'clipped_cell_bbox'] as $field) {
+                        if (array_key_exists($field, $renderCell)) {
+                            $cell[$field] = $renderCell[$field];
+                        }
+                    }
                 } elseif (isset($covered[$key])) {
                     $cell += [
                         'state' => 'covered',
@@ -599,6 +613,9 @@ final class TableRecognizer
         ];
         if ($geometryBoundaryReview !== null) {
             $review['geometry_boundary_review'] = $geometryBoundaryReview;
+        }
+        if ($cellBoundaryReview !== null) {
+            $review['cell_geometry_boundary_review'] = $cellBoundaryReview;
         }
 
         return $review;
@@ -915,6 +932,12 @@ final class TableRecognizer
             'anchor_cell_bbox',
             'continuation_count',
             'continuation_cells',
+            'cell_boundary_status',
+            'cell_boundary_active_count',
+            'cell_boundary_clipped_count',
+            'cell_boundary_excluded_count',
+            'bounded_cell_bbox',
+            'clipped_cell_bbox',
             'header_id',
             'headers',
             'column_header_ids',
@@ -2337,6 +2360,206 @@ final class TableRecognizer
     }
 
     /**
+     * Upstream keeps SpanTableCell bbox coordinates even when a model cell
+     * straddles the rendered table crop. Surface bounded review coordinates so
+     * importers can draw crop-safe overlays without changing assignment.
+     *
+     * @param list<array<string, mixed>> $cells
+     * @param array{width?: int|float, height?: int|float}|list<int|float>|null $imageSize
+     * @return array<string, mixed>|null
+     */
+    private function tableCellGeometryBoundary(array $cells, ?array $imageSize): ?array
+    {
+        if ($imageSize === null || $cells === []) {
+            return null;
+        }
+
+        $size = $this->imageSize($imageSize);
+        $reviewRows = [];
+
+        foreach ($cells as $index => $cell) {
+            $bbox = $cell['bbox'];
+            $clippedBbox = $this->clipBboxToImage($bbox, $size);
+            $originalPositive = $this->positiveArea($bbox) > 0.0;
+            $clippedPositive = $this->positiveArea($clippedBbox) > 0.0;
+            $active = $originalPositive && $clippedPositive;
+            $status = 'within_table_image';
+
+            if (!$originalPositive) {
+                $status = 'excluded_non_positive_area';
+            } elseif (!$clippedPositive) {
+                $status = 'excluded_outside_table_image';
+            } elseif ($clippedBbox !== $bbox) {
+                $status = 'clipped_to_table_image';
+            }
+
+            $rowIds = $this->nonNullSortedIds($cell['row_ids']);
+            $colIds = $this->nonNullSortedIds($cell['col_ids']);
+            $reviewRow = [
+                'cell_index' => $index,
+                'text' => (string) $cell['text'],
+                'row_ids' => $rowIds,
+                'col_ids' => $colIds,
+                'original_bbox' => $bbox,
+                'bounded_bbox' => $active ? $clippedBbox : null,
+                'clipped_bbox' => $clippedBbox,
+                'status' => $status,
+                'active' => $active,
+                'upstream_cell_bbox_retained' => true,
+            ];
+            if ($rowIds !== [] && $colIds !== []) {
+                $reviewRow['anchor'] = [
+                    'row_id' => $rowIds[0],
+                    'col_id' => $colIds[0],
+                ];
+            }
+
+            $reviewRows[] = $reviewRow;
+        }
+
+        return [
+            'review_target' => 'table_cell_geometry_boundary',
+            'upstream_boundary' => 'tabled.assignment.SpanTableCell.bbox',
+            'image_size' => $size,
+            'cell_count' => count($reviewRows),
+            'active_cell_count' => count(array_filter(
+                $reviewRows,
+                static fn (array $row): bool => ($row['active'] ?? null) === true
+            )),
+            'within_cell_count' => count(array_filter(
+                $reviewRows,
+                static fn (array $row): bool => ($row['status'] ?? null) === 'within_table_image'
+            )),
+            'clipped_cell_count' => count(array_filter(
+                $reviewRows,
+                static fn (array $row): bool => ($row['status'] ?? null) === 'clipped_to_table_image'
+            )),
+            'excluded_cell_count' => count(array_filter(
+                $reviewRows,
+                static fn (array $row): bool => isset($row['status']) && str_starts_with((string) $row['status'], 'excluded_')
+            )),
+            'cells' => $reviewRows,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $cells
+     * @param array<string, mixed>|null $cellBoundaryReview
+     * @return list<array<string, mixed>>
+     */
+    private function cellsWithGeometryBoundary(array $cells, ?array $cellBoundaryReview): array
+    {
+        if ($cellBoundaryReview === null || !isset($cellBoundaryReview['cells']) || !is_array($cellBoundaryReview['cells'])) {
+            return $cells;
+        }
+
+        $boundariesByIndex = [];
+        foreach ($cellBoundaryReview['cells'] as $boundary) {
+            if (!is_array($boundary)) {
+                continue;
+            }
+
+            $cellIndex = $this->nullableInteger($boundary['cell_index'] ?? null);
+            if ($cellIndex !== null) {
+                $boundariesByIndex[$cellIndex] = $boundary;
+            }
+        }
+
+        foreach ($cells as $index => &$cell) {
+            $boundary = $boundariesByIndex[$index] ?? null;
+            if (!is_array($boundary)) {
+                continue;
+            }
+
+            $cell['cell_boundary_status'] = (string) ($boundary['status'] ?? 'within_table_image');
+            $cell['cell_boundary_active'] = ($boundary['active'] ?? null) === true;
+            if (isset($boundary['clipped_bbox']) && is_array($boundary['clipped_bbox'])) {
+                $cell['clipped_cell_bbox'] = $boundary['clipped_bbox'];
+            }
+            if (isset($boundary['bounded_bbox']) && is_array($boundary['bounded_bbox'])) {
+                $cell['bounded_cell_bbox'] = $boundary['bounded_bbox'];
+            }
+        }
+        unset($cell);
+
+        return $cells;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $cells
+     * @return array<string, mixed>|null
+     */
+    private function cellGroupBoundarySummary(array $cells): ?array
+    {
+        $statuses = [];
+        $boundedBboxes = [];
+        $clippedBboxes = [];
+        $activeCount = 0;
+        $clippedCount = 0;
+        $excludedCount = 0;
+        $withinCount = 0;
+
+        foreach ($cells as $cell) {
+            if (!array_key_exists('cell_boundary_status', $cell)) {
+                continue;
+            }
+
+            $status = (string) $cell['cell_boundary_status'];
+            $statuses[] = $status;
+            if (($cell['cell_boundary_active'] ?? null) === true) {
+                $activeCount++;
+                if (isset($cell['bounded_cell_bbox']) && is_array($cell['bounded_cell_bbox'])) {
+                    $boundedBboxes[] = $cell['bounded_cell_bbox'];
+                }
+            }
+            if (isset($cell['clipped_cell_bbox']) && is_array($cell['clipped_cell_bbox'])) {
+                $clippedBboxes[] = $cell['clipped_cell_bbox'];
+            }
+            if ($status === 'clipped_to_table_image') {
+                $clippedCount++;
+            } elseif (str_starts_with($status, 'excluded_')) {
+                $excludedCount++;
+            } elseif ($status === 'within_table_image') {
+                $withinCount++;
+            }
+        }
+
+        if ($statuses === []) {
+            return null;
+        }
+
+        $status = 'within_table_image';
+        if ($excludedCount > 0 && $activeCount === 0) {
+            $status = $statuses[0];
+        } elseif ($excludedCount > 0) {
+            $status = 'mixed_table_image_boundary';
+        } elseif ($clippedCount > 0) {
+            $status = 'clipped_to_table_image';
+        } elseif ($withinCount === 0) {
+            $status = $statuses[0];
+        }
+
+        $summary = [
+            'cell_boundary_status' => $status,
+            'cell_boundary_active_count' => $activeCount,
+            'cell_boundary_clipped_count' => $clippedCount,
+            'cell_boundary_excluded_count' => $excludedCount,
+        ];
+
+        $boundedBbox = $this->mergedBboxList($boundedBboxes);
+        if ($boundedBbox !== null) {
+            $summary['bounded_cell_bbox'] = $boundedBbox;
+        }
+
+        $clippedBbox = $this->mergedBboxList($clippedBboxes);
+        if ($clippedBbox !== null) {
+            $summary['clipped_cell_bbox'] = $clippedBbox;
+        }
+
+        return $summary;
+    }
+
+    /**
      * @param list<float> $bbox
      * @param array{width: int, height: int} $imageSize
      * @return list<float>
@@ -2565,12 +2788,19 @@ final class TableRecognizer
     {
         $continuations = [];
         foreach ($cells as $cell) {
-            $continuations[] = [
+            $entry = [
                 'text' => (string) $cell['text'],
                 'row_ids' => $this->nonNullSortedIds($cell['row_ids']),
                 'col_ids' => $this->nonNullSortedIds($cell['col_ids']),
                 'bbox' => $cell['bbox'],
             ];
+            foreach (['cell_boundary_status', 'cell_boundary_active', 'bounded_cell_bbox', 'clipped_cell_bbox'] as $field) {
+                if (array_key_exists($field, $cell)) {
+                    $entry[$field] = $cell[$field];
+                }
+            }
+
+            $continuations[] = $entry;
         }
 
         return $continuations;
@@ -2583,6 +2813,24 @@ final class TableRecognizer
     private function mergedCellBbox(array $cells): array
     {
         $bboxes = array_column($cells, 'bbox');
+
+        return [
+            min(array_column($bboxes, 0)),
+            min(array_column($bboxes, 1)),
+            max(array_column($bboxes, 2)),
+            max(array_column($bboxes, 3)),
+        ];
+    }
+
+    /**
+     * @param list<list<float>> $bboxes
+     * @return list<float>|null
+     */
+    private function mergedBboxList(array $bboxes): ?array
+    {
+        if ($bboxes === []) {
+            return null;
+        }
 
         return [
             min(array_column($bboxes, 0)),
