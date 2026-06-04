@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-04 12:05:49 UTC",
-    "sourceCommit": "787e8dd10c1719fcb8b1124ad3ded6c5edccfe81",
-    "sourceCommitShort": "787e8dd10c17",
+    "generated": "2026-06-04 12:14:16 UTC",
+    "sourceCommit": "864eaeaef11721e5474382ed04f9c40f06aa6b12",
+    "sourceCommitShort": "864eaeaef117",
     "sourceBranch": "unknown",
-    "dashboardCommit": "787e8dd10c1719fcb8b1124ad3ded6c5edccfe81",
-    "dashboardCommitShort": "787e8dd10c17",
+    "dashboardCommit": "864eaeaef11721e5474382ed04f9c40f06aa6b12",
+    "dashboardCommitShort": "864eaeaef117",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "762",
-            "coverage": "762 / 2,276 (33.5%)",
-            "mapPercent": "33.5%",
-            "unmapped": "1,514",
-            "php": "327 pass / 0 fail",
+            "mapped": "765",
+            "coverage": "765 / 2,276 (33.6%)",
+            "mapPercent": "33.6%",
+            "unmapped": "1,511",
+            "php": "328 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-04 UTC legacy DOC/CFB core slice on base bac990a62b1368014746...",
+            "audit": "2026-06-04 UTC YAML metadata core slice on base 787e8dd10c1719fcb8b11...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "Keep CFB storage-path hierarchy, directory tree sibling trave...",
+            "nextTarget": "Keep writer-side YAML emission, YAML anchors/aliases/tags/cus...",
             "remainingGate": "No local blocker",
-            "commit": "bac990a"
+            "commit": "787e8dd"
         },
         {
             "lane": "quadrable",

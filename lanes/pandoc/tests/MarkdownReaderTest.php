@@ -976,6 +976,61 @@ return [
         $t->same('Flow body.', $document->children[0]->attr('text'));
         $t->contains('<p>Flow body.</p>', $blocks);
     },
+    'maps pandoc yaml block sequences of maps and nested date parts' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Block metadata **Packet**',
+            'authors:',
+            '  - name: Structured Reviewer',
+            '    affiliation: WordPress Migration',
+            'references:',
+            '  - id: block-ref',
+            '    type: article-journal',
+            '    title: Block Style Reference',
+            '    author:',
+            '      - family: Reviewer',
+            '        given: Alex',
+            '    issued:',
+            '      date-parts:',
+            '        - - 2026',
+            '          - 6',
+            '          - 4',
+            '  - id: follow-up',
+            '    title: Follow-up Note',
+            '    issued:',
+            '      date-parts:',
+            '        - - 2025',
+            '          - 12',
+            'review:',
+            '  checklist:',
+            '    - label: Validate block metadata',
+            '      required: true',
+            '    - label: Preserve date-parts',
+            '      required: false',
+            '...',
+            '',
+            '# Block metadata body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+
+        $t->same('Block metadata **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Structured Reviewer', $meta['authors'][0]['name']);
+        $t->same('WordPress Migration', $meta['author'][0]['affiliation']);
+        $t->same('block-ref', $meta['references'][0]['id']);
+        $t->same('article-journal', $meta['references'][0]['type']);
+        $t->same('Reviewer', $meta['references'][0]['author'][0]['family']);
+        $t->same('Alex', $meta['references'][0]['author'][0]['given']);
+        $t->same([[2026, 6, 4]], $meta['references'][0]['issued']['date-parts']);
+        $t->same('follow-up', $meta['references'][1]['id']);
+        $t->same([[2025, 12]], $meta['references'][1]['issued']['date-parts']);
+        $t->same('Validate block metadata', $meta['review']['checklist'][0]['label']);
+        $t->same(true, $meta['review']['checklist'][0]['required']);
+        $t->same(false, $meta['review']['checklist'][1]['required']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('block-metadata-body', $document->children[0]->attr('id'));
+    },
     'keeps blank-led yaml-looking fences as markdown body' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

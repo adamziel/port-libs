@@ -507,7 +507,7 @@ final class MarkdownReader
             return $this->parseYamlSequence($normalized);
         }
 
-        if ($this->looksLikeYamlMapping($normalized)) {
+        if ($this->startsWithYamlMapping($normalized)) {
             return $this->parseYamlMetadataLines($normalized);
         }
 
@@ -552,6 +552,11 @@ final class MarkdownReader
             }
 
             $childLines = $children === [] ? [] : $this->stripYamlCommonIndent($children);
+            if (preg_match('/^-[ \t]+/', $sourceValue) === 1) {
+                $items[] = $this->parseYamlSequence(array_merge([$sourceValue], $childLines));
+                continue;
+            }
+
             if ($childLines !== [] && $this->parseYamlMappingLine($sourceValue) !== null) {
                 $items[] = $this->parseYamlMetadataLines(array_merge([$sourceValue], $childLines));
                 continue;
@@ -566,21 +571,18 @@ final class MarkdownReader
     /**
      * @param list<string> $lines
      */
-    private function looksLikeYamlMapping(array $lines): bool
+    private function startsWithYamlMapping(array $lines): bool
     {
-        $sawMapping = false;
         foreach ($lines as $line) {
             $trimmed = trim($line);
             if ($trimmed === '' || str_starts_with($trimmed, '#')) {
                 continue;
             }
-            if ($this->parseYamlMappingLine($trimmed) === null) {
-                return false;
-            }
-            $sawMapping = true;
+
+            return $this->parseYamlMappingLine($trimmed) !== null;
         }
 
-        return $sawMapping;
+        return false;
     }
 
     /**
@@ -937,6 +939,12 @@ final class MarkdownReader
                         fn (string $author): array => $this->parseInlines($author),
                         $authors
                     );
+                    continue;
+                }
+
+                if (is_array($value) && $value !== []) {
+                    $meta['author'] = $value;
+                    $meta['authors'] = $value;
                 }
                 continue;
             }
