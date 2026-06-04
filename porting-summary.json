@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-04 23:09:22 UTC",
-    "sourceCommit": "fbe3fc8556507be78718a50156c3db0ac6373d94",
-    "sourceCommitShort": "fbe3fc855650",
+    "generated": "2026-06-04 23:16:53 UTC",
+    "sourceCommit": "fd0f5327abfd3b58715219a1c13c4c8295941253",
+    "sourceCommitShort": "fd0f5327abfd",
     "sourceBranch": "unknown",
-    "dashboardCommit": "fbe3fc8556507be78718a50156c3db0ac6373d94",
-    "dashboardCommitShort": "fbe3fc855650",
+    "dashboardCommit": "fd0f5327abfd3b58715219a1c13c4c8295941253",
+    "dashboardCommitShort": "fd0f5327abfd",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "846",
-            "coverage": "846 / 2,276 (37.2%)",
-            "mapPercent": "37.2%",
-            "unmapped": "1,430",
-            "php": "389 pass / 0 fail",
+            "mapped": "850",
+            "coverage": "850 / 2,276 (37.3%)",
+            "mapPercent": "37.3%",
+            "unmapped": "1,426",
+            "php": "393 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-04 UTC legacy DOC/CFB FIB preflight slice on accepted base 52...",
+            "audit": "2026-06-04 UTC XML/HTML5 DOM core slice on accepted base fbe3fc855650...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For BibTeX/CSL follow-up, keep crossref inheritance, broader...",
+            "nextTarget": "For XML/HTML5 DOM follow-up, keep full HTML5 tree-builder par...",
             "remainingGate": "No local blocker",
-            "commit": "524dc40"
+            "commit": "fbe3fc8"
         },
         {
             "lane": "quadrable",

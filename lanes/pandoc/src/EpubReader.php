@@ -725,19 +725,6 @@ final class EpubReader
 
     private static function loadXml(string $xml, string $label): \DOMDocument
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument();
-        $dom->preserveWhiteSpace = false;
-        $dom->resolveExternals = false;
-        $dom->substituteEntities = false;
-        $loaded = $dom->loadXML($xml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-
-        if (!$loaded) {
-            throw new \InvalidArgumentException('Unable to parse ' . $label);
-        }
-
-        return $dom;
+        return XmlHtmlDom::loadXmlDocument($xml, $label, preserveWhiteSpace: false);
     }
 }

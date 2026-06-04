@@ -197,18 +197,6 @@ final class OpcRelationships
 
     private static function loadXml(string $xml): \DOMDocument
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument();
-        $dom->resolveExternals = false;
-        $dom->substituteEntities = false;
-        $loaded = $dom->loadXML($xml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-
-        if (!$loaded) {
-            throw new \InvalidArgumentException('Unable to parse OPC relationships XML');
-        }
-
-        return $dom;
+        return XmlHtmlDom::loadXmlDocument($xml, 'OPC relationships XML');
     }
 }

@@ -1,0 +1,43 @@
+<?php
+
+declare(strict_types=1);
+
+require dirname(__DIR__, 3) . '/tools/bootstrap.php';
+
+use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\WordPressBlockWriter;
+use PortLibs\Pandoc\XmlHtmlDom;
+
+$fragment = <<<'HTML'
+<article data-source="legacy-html">
+  <h2>Source packet</h2>
+  <p>Imported<br>line with &amp; entity</p>
+  <figure><img src="media/review.png?rev=1&amp;post=42" alt="Review image"><figcaption>Review image</figcaption></figure>
+</article>
+HTML;
+
+$dom = XmlHtmlDom::loadHtmlFragment($fragment, 'WordPress source HTML fragment');
+$html = XmlHtmlDom::serializeHtmlFragment($dom);
+$document = new AstNode('document', [], [
+    new AstNode('raw_html', ['format' => 'html', 'html' => $html]),
+]);
+$blocks = (new WordPressBlockWriter())->write($document);
+
+if (($argv[1] ?? '') === '--self-test') {
+    if (!str_contains($html, '<br>') || str_contains($html, '</br>')) {
+        throw new RuntimeException('Expected HTML5 br void serialization');
+    }
+    if (!str_contains($html, '<img alt="Review image" src="media/review.png?rev=1&amp;post=42">')) {
+        throw new RuntimeException('Expected deterministic img attribute escaping and void serialization');
+    }
+    if (!str_contains($blocks, '<!-- wp:html -->') || !str_contains($blocks, 'data-source="legacy-html"')) {
+        throw new RuntimeException('Expected serialized fragment to hand off as a WordPress HTML block');
+    }
+
+    echo "xml/html5 dom handoff self-test ok\n";
+    exit(0);
+}
+
+echo "XML/HTML5 DOM handoff for WordPress import:\n";
+echo "fragmentHtml:\n" . $html . "\n";
+echo "wordpressBlocks:\n" . $blocks . "\n";
