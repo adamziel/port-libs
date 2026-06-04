@@ -76,6 +76,17 @@ final class MathTexConverter
         'Vert' => '‖',
     ];
 
+    /** @var array<string, array{open?: string, close?: string, columnalign?: string}> */
+    private const MATRIX_ENVIRONMENTS = [
+        'aligned' => ['columnalign' => 'right left'],
+        'bmatrix' => ['open' => '[', 'close' => ']'],
+        'Bmatrix' => ['open' => '{', 'close' => '}'],
+        'matrix' => [],
+        'pmatrix' => ['open' => '(', 'close' => ')'],
+        'vmatrix' => ['open' => '|', 'close' => '|'],
+        'Vmatrix' => ['open' => '‖', 'close' => '‖'],
+    ];
+
     public function latexFor(AstNode $node): string
     {
         $text = (string) $node->attr('text', '');
@@ -203,6 +214,14 @@ final class MathTexConverter
             return '<mi>' . $this->esc($operatorName) . '</mi>';
         }
 
+        if ($command === 'begin') {
+            return $this->parseEnvironment($source, $offset);
+        }
+
+        if ($command === 'end') {
+            throw new \InvalidArgumentException('Unexpected TeX environment end at offset ' . $offset);
+        }
+
         if ($command === 'left' || $command === 'right') {
             return $this->parseFenceCommand($source, $offset);
         }
@@ -238,6 +257,188 @@ final class MathTexConverter
         }
 
         return '<mi>' . $this->esc('\\' . $command) . '</mi>';
+    }
+
+    private function parseEnvironment(string $source, int &$offset): string
+    {
+        $environment = $this->readRequiredGroupText($source, $offset);
+        if (!isset(self::MATRIX_ENVIRONMENTS[$environment])) {
+            throw new \InvalidArgumentException('Unsupported TeX environment ' . $environment . ' at offset ' . $offset);
+        }
+
+        $content = $this->readEnvironmentContent($source, $offset, $environment);
+        $rows = $this->splitAlignmentRows($content, $environment);
+        $spec = self::MATRIX_ENVIRONMENTS[$environment];
+        $attributes = '';
+        if (isset($spec['columnalign'])) {
+            $attributes = ' columnalign="' . $this->esc($spec['columnalign']) . '"';
+        }
+
+        $table = '<mtable' . $attributes . '>';
+        foreach ($rows as $row) {
+            $table .= '<mtr>';
+            foreach ($row as $cell) {
+                $table .= '<mtd>' . $this->parseEnvironmentCell($cell) . '</mtd>';
+            }
+            $table .= '</mtr>';
+        }
+        $table .= '</mtable>';
+
+        if (isset($spec['open'], $spec['close'])) {
+            return '<mrow>'
+                . '<mo fence="true" stretchy="true">' . $this->esc($spec['open']) . '</mo>'
+                . $table
+                . '<mo fence="true" stretchy="true">' . $this->esc($spec['close']) . '</mo>'
+                . '</mrow>';
+        }
+
+        return $table;
+    }
+
+    private function readEnvironmentContent(string $source, int &$offset, string $environment): string
+    {
+        $start = $offset;
+        $length = strlen($source);
+        $depth = 1;
+
+        while ($offset < $length) {
+            if ($source[$offset] !== '\\') {
+                $offset++;
+                continue;
+            }
+
+            $commandOffset = $offset + 1;
+            $command = $this->readCommandName($source, $commandOffset);
+            if ($command !== 'begin' && $command !== 'end') {
+                $offset++;
+                continue;
+            }
+
+            $groupOffset = $commandOffset;
+            try {
+                $name = $this->readRequiredGroupText($source, $groupOffset);
+            } catch (\InvalidArgumentException) {
+                $offset++;
+                continue;
+            }
+
+            if ($name !== $environment) {
+                $offset = $groupOffset;
+                continue;
+            }
+
+            if ($command === 'begin') {
+                $depth++;
+                $offset = $groupOffset;
+                continue;
+            }
+
+            $depth--;
+            if ($depth === 0) {
+                $content = substr($source, $start, $offset - $start);
+                $offset = $groupOffset;
+
+                return $content;
+            }
+
+            $offset = $groupOffset;
+        }
+
+        throw new \InvalidArgumentException('Unclosed TeX environment ' . $environment . ' at offset ' . $start);
+    }
+
+    /**
+     * @return list<list<string>>
+     */
+    private function splitAlignmentRows(string $content, string $environment): array
+    {
+        $rows = [];
+        $row = [];
+        $cell = '';
+        $depth = 0;
+        $offset = 0;
+        $length = strlen($content);
+
+        while ($offset < $length) {
+            $char = $content[$offset];
+            if ($char === '\\') {
+                $next = $content[$offset + 1] ?? '';
+                if ($depth === 0 && $next === '\\') {
+                    $row[] = trim($cell);
+                    $cell = '';
+                    $rows[] = $row;
+                    $row = [];
+                    $offset += 2;
+                    continue;
+                }
+
+                $cell .= $char;
+                $offset++;
+                if (($content[$offset] ?? '') !== '' && !ctype_alpha($content[$offset])) {
+                    $cell .= $content[$offset];
+                    $offset++;
+                }
+                continue;
+            }
+
+            if ($char === '{') {
+                $depth++;
+                $cell .= $char;
+                $offset++;
+                continue;
+            }
+
+            if ($char === '}') {
+                if ($depth === 0) {
+                    throw new \InvalidArgumentException('Unexpected TeX group end in ' . $environment . ' environment at offset ' . $offset);
+                }
+                $depth--;
+                $cell .= $char;
+                $offset++;
+                continue;
+            }
+
+            if ($depth === 0 && $char === '&') {
+                $row[] = trim($cell);
+                $cell = '';
+                $offset++;
+                continue;
+            }
+
+            $cell .= $char;
+            $offset++;
+        }
+
+        if ($depth !== 0) {
+            throw new \InvalidArgumentException('Unclosed TeX group in ' . $environment . ' environment');
+        }
+
+        if (trim($cell) !== '' || $row !== []) {
+            $row[] = trim($cell);
+            $rows[] = $row;
+        }
+
+        if ($rows === []) {
+            throw new \InvalidArgumentException('Empty TeX environment ' . $environment);
+        }
+
+        return $rows;
+    }
+
+    private function parseEnvironmentCell(string $cell): string
+    {
+        if ($cell === '') {
+            return '';
+        }
+
+        $offset = 0;
+        $children = $this->parseExpression($cell, $offset, null);
+        $this->skipWhitespace($cell, $offset);
+        if ($offset < strlen($cell)) {
+            throw new \InvalidArgumentException('Unsupported TeX token in environment cell at offset ' . $offset);
+        }
+
+        return implode('', $children);
     }
 
     private function parseFenceCommand(string $source, int &$offset): string
