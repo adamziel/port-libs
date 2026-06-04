@@ -30,7 +30,7 @@ $documentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
   <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
-  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.PNG"/>
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero%20image.PNG"/>
   <Relationship Id="rIdReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/wp-admin/post.php?post=42&amp;action=edit" TargetMode="External"/>
 </Relationships>
 XML;
@@ -49,7 +49,7 @@ $package = ZipPackage::fromParts([
     ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
     ['name' => 'word/footnotes.xml', 'data' => '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
     ['name' => 'word/_rels/footnotes.xml.rels', 'data' => $footnotesRelationshipsXml],
-    ['name' => 'word/media/hero.PNG', 'data' => 'PNG'],
+    ['name' => 'word/media/hero image.PNG', 'data' => 'PNG'],
     ['name' => 'word/media/footnote-source.png', 'data' => 'PNG'],
     ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
 ]);
@@ -143,7 +143,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '/word/document.xml',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
         '/word/_rels/document.xml.rels',
-        '/word/media/hero.PNG',
+        '/word/media/hero image.PNG',
         'image/png',
         '/word/media/footnote-source.png',
         'https://example.test/wp-admin/post.php?post=42&action=edit',

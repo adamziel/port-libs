@@ -70,6 +70,11 @@ final class OpcPackagePath
             throw new \InvalidArgumentException('OPC relationship target path must not be empty');
         }
 
+        $path = self::decodeUriPath($path, 'OPC relationship target');
+        if (str_starts_with($path, '//')) {
+            throw new \InvalidArgumentException('OPC internal relationship target must not include a URI authority');
+        }
+
         if (str_starts_with($path, '/')) {
             return self::canonicalPartName($path) . $suffix;
         }
@@ -85,5 +90,24 @@ final class OpcPackagePath
         $split = strcspn($partName, '?#');
 
         return substr($partName, 0, $split);
+    }
+
+    private static function decodeUriPath(string $path, string $label): string
+    {
+        if (preg_match('/%(?![0-9A-Fa-f]{2})/', $path) === 1) {
+            throw new \InvalidArgumentException($label . ' contains malformed percent escape');
+        }
+
+        $segments = [];
+        foreach (explode('/', $path) as $segment) {
+            $decoded = rawurldecode($segment);
+            if (str_contains($decoded, "\0") || str_contains($decoded, '/') || str_contains($decoded, '\\')) {
+                throw new \InvalidArgumentException($label . ' contains unsafe percent-encoded path bytes');
+            }
+
+            $segments[] = $decoded;
+        }
+
+        return implode('/', $segments);
     }
 }

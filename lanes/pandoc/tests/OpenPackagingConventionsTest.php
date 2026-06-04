@@ -132,6 +132,45 @@ return [
         $t->same('Internal', $relationships->byId('rIdStyles')?->targetMode);
         $t->same(null, $relationships->byId('missing'));
     },
+    'resolves percent encoded OPC relationship target paths to package parts' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdReviewImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review%20image.PNG"/>
+  <Relationship Id="rIdUtf8Image" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/%C3%A9preuve.png#crop"/>
+  <Relationship Id="rIdExternalAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source%20packet.html?post=42#review" TargetMode="External"/>
+</Relationships>
+XML;
+        $utf8Name = "\u{00E9}" . 'preuve.png';
+        $relationships = OpcRelationships::fromXml($documentRelationshipsXml, '/word/document.xml');
+
+        $t->same('/word/media/review image.PNG', $relationships->resolveTarget('rIdReviewImage'));
+        $t->same('/word/media/' . $utf8Name . '#crop', $relationships->resolveTarget('rIdUtf8Image'));
+        $t->same('https://example.test/source%20packet.html?post=42#review', $relationships->resolveTarget('rIdExternalAudit'));
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/review image.PNG', 'data' => 'PNG'],
+            ['name' => 'word/media/' . $utf8Name, 'data' => 'PNG'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $preflight = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $preflight[$target['id']] = $target;
+        }
+
+        $t->same('/word/media/review image.PNG', $preflight['rIdReviewImage']['target']);
+        $t->same(true, $preflight['rIdReviewImage']['exists']);
+        $t->same('image/png', $preflight['rIdReviewImage']['contentType']);
+        $t->same('/word/media/' . $utf8Name . '#crop', $preflight['rIdUtf8Image']['target']);
+        $t->same('/word/media/' . $utf8Name, OpcPackagePath::stripQueryAndFragment($preflight['rIdUtf8Image']['target']));
+        $t->same(true, $preflight['rIdUtf8Image']['valid']);
+        $t->same(true, $preflight['rIdExternalAudit']['external']);
+        $t->same(null, $preflight['rIdExternalAudit']['exists']);
+    },
     'loads package and part level OPC relationship parts from zip package entries' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml): void {
         $package = ZipPackage::fromParts([
             ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -458,6 +497,20 @@ XML;
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdEscape'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdAbsoluteUri'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('missing'));
+    },
+    'rejects malformed percent escapes and URI authorities in internal OPC relationship targets' => static function (TestRunner $t): void {
+        $relationships = new OpcRelationships('/word/document.xml');
+        $relationships->add(new OpcRelationship('rIdBadEscape', 't', 'media/bad%ZZ.png'));
+        $relationships->add(new OpcRelationship('rIdAuthority', 't', '//example.test/media.png'));
+        $relationships->add(new OpcRelationship('rIdEncodedSlash', 't', 'media%2Fhidden.png'));
+        $relationships->add(new OpcRelationship('rIdEncodedBackslash', 't', 'media%5Chidden.png'));
+        $relationships->add(new OpcRelationship('rIdEncodedNul', 't', 'media%00hidden.png'));
+
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdBadEscape'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdAuthority'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdEncodedSlash'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdEncodedBackslash'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdEncodedNul'));
     },
     'rejects OPC relationship Id values outside XML NCName shape' => static function (TestRunner $t): void {
         $xml = static fn (string $id): string => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="' . $id . '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>';
