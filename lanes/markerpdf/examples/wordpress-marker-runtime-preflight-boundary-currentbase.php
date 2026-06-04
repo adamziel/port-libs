@@ -136,6 +136,19 @@ try {
     if ($plans['ready-for-marker.pdf']['status'] !== 'ready-for-conversion' || $plans['ready-for-marker.pdf']['should_invoke_converter'] !== true) {
         throw new RuntimeException('Expected ready PDF to reach the convert_single_pdf handoff boundary.');
     }
+    if (
+        $plans['already-imported.pdf']['upstream_return_value'] !== null
+        || $plans['short-text.pdf']['upstream_return_value'] !== null
+        || $plans['ready-for-marker.pdf']['upstream_return_value'] !== null
+    ) {
+        throw new RuntimeException('Expected existing, short-text, and conversion branches to preserve upstream Python None return boundaries.');
+    }
+    if (
+        $plans['extension-spoof.pdf']['upstream_return_value'] !== 0
+        || $plans['extension-spoof.pdf']['upstream_return_boundary'] !== 'unsupported-filetype-return-zero'
+    ) {
+        throw new RuntimeException('Expected unsupported filetype branch to preserve upstream return 0 boundary.');
+    }
     if ($plans['ready-for-marker.pdf']['executes_python_or_models'] !== false || $plans['ready-for-marker.pdf']['executes_external_pdf_tools'] !== false) {
         throw new RuntimeException('Preflight smoke must not execute Python models or external PDF tools.');
     }
@@ -213,6 +226,12 @@ try {
         'runtime_output_folder_creation_required' => $runtimePlan['paths']['output_folder_creation_required'],
         'status_by_filename' => array_map(static fn (array $plan): string => (string) $plan['status'], $plans),
         'skip_reasons' => array_map(static fn (array $plan): ?string => $plan['skip_reason'], $plans),
+        'upstream_return_values' => array_map(static fn (array $plan): mixed => $plan['upstream_return_value'], $plans),
+        'upstream_return_boundaries' => array_map(static fn (array $plan): string => (string) $plan['upstream_return_boundary'], $plans),
+        'unsupported_filetype_returns_zero' => $plans['extension-spoof.pdf']['upstream_return_value'] === 0,
+        'non_unsupported_branches_return_none' => $plans['already-imported.pdf']['upstream_return_value'] === null
+            && $plans['short-text.pdf']['upstream_return_value'] === null
+            && $plans['ready-for-marker.pdf']['upstream_return_value'] === null,
         'zero_min_length_gate_active' => $zeroMinLengthSpoof['min_length_gate_active'],
         'zero_min_length_spoof_status' => $zeroMinLengthSpoof['status'],
         'negative_min_length_gate_active' => $negativeMinLengthSpoof['min_length_gate_active'],

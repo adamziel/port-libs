@@ -466,6 +466,9 @@ final class BatchConverter
                 'metadata_argument_source' => 'metadata_file basename lookup',
                 'receives_metadata' => $metadata !== null,
             ],
+            'upstream_return_value' => null,
+            'upstream_return_type' => 'python-none',
+            'upstream_return_boundary' => 'conversion-or-empty-output-return-none',
             'review_only' => true,
             'executes_python_or_models' => false,
             'executes_multiprocessing' => false,
@@ -477,6 +480,7 @@ final class BatchConverter
                 ...$base,
                 'status' => 'skipped-existing',
                 'skip_reason' => 'markdown_exists',
+                'upstream_return_boundary' => 'markdown_exists-return-none',
             ];
         }
 
@@ -490,6 +494,9 @@ final class BatchConverter
                     ...$base,
                     'status' => 'skipped-unsupported-filetype',
                     'skip_reason' => 'unsupported-filetype',
+                    'upstream_return_value' => 0,
+                    'upstream_return_type' => 'int',
+                    'upstream_return_boundary' => 'unsupported-filetype-return-zero',
                 ];
             }
 
@@ -504,6 +511,7 @@ final class BatchConverter
                     ...$base,
                     'status' => 'skipped-short-text',
                     'skip_reason' => 'short-text',
+                    'upstream_return_boundary' => 'short-text-return-none',
                 ];
             }
         }

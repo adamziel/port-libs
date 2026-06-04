@@ -477,4 +477,55 @@ return [
             $removeTree($output);
         }
     },
+    'records process_single_pdf return-value boundary before converter launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['existing.pdf', 'short.pdf', 'ready.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'archive.pdf', "PK\x03\x04not really a pdf");
+
+            (new OutputWriter())->saveMarkdown(
+                $output,
+                'existing.pdf',
+                '<!-- wp:paragraph --><p>Already imported.</p><!-- /wp:paragraph -->',
+                [],
+                ['title' => 'Already Imported']
+            );
+
+            $batch = new BatchConverter();
+            $textLength = static fn (string $filepath): int => basename($filepath) === 'short.pdf' ? 12 : 180;
+
+            $existing = $batch->processFilePreflightPlan($input . DIRECTORY_SEPARATOR . 'existing.pdf', $output, null, 80, $textLength);
+            $archive = $batch->processFilePreflightPlan($input . DIRECTORY_SEPARATOR . 'archive.pdf', $output, null, 80, $textLength);
+            $short = $batch->processFilePreflightPlan($input . DIRECTORY_SEPARATOR . 'short.pdf', $output, null, 80, $textLength);
+            $ready = $batch->processFilePreflightPlan($input . DIRECTORY_SEPARATOR . 'ready.pdf', $output, ['title' => 'Ready Import'], 80, $textLength);
+
+            $t->same('skipped-existing', $existing['status']);
+            $t->same(null, $existing['upstream_return_value']);
+            $t->same('python-none', $existing['upstream_return_type']);
+            $t->same('markdown_exists-return-none', $existing['upstream_return_boundary']);
+
+            $t->same('skipped-unsupported-filetype', $archive['status']);
+            $t->same(0, $archive['upstream_return_value']);
+            $t->same('int', $archive['upstream_return_type']);
+            $t->same('unsupported-filetype-return-zero', $archive['upstream_return_boundary']);
+
+            $t->same('skipped-short-text', $short['status']);
+            $t->same(null, $short['upstream_return_value']);
+            $t->same('python-none', $short['upstream_return_type']);
+            $t->same('short-text-return-none', $short['upstream_return_boundary']);
+
+            $t->same('ready-for-conversion', $ready['status']);
+            $t->same(null, $ready['upstream_return_value']);
+            $t->same('python-none', $ready['upstream_return_type']);
+            $t->same('conversion-or-empty-output-return-none', $ready['upstream_return_boundary']);
+            $t->same(false, $ready['executes_python_or_models']);
+            $t->same(false, $ready['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
 ];
