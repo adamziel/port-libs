@@ -35,6 +35,12 @@ $documentRelationshipsXml = <<<'XML'
 </Relationships>
 XML;
 
+$footnotesRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdFootnoteImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/footnote-source.png"/>
+</Relationships>
+XML;
+
 $package = ZipPackage::fromParts([
     ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
     ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
@@ -42,7 +48,9 @@ $package = ZipPackage::fromParts([
     ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
     ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
     ['name' => 'word/footnotes.xml', 'data' => '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => 'word/_rels/footnotes.xml.rels', 'data' => $footnotesRelationshipsXml],
     ['name' => 'word/media/hero.PNG', 'data' => 'PNG'],
+    ['name' => 'word/media/footnote-source.png', 'data' => 'PNG'],
     ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
 ]);
 
@@ -76,6 +84,21 @@ foreach ($graph->preflightTargetsForSource($documentPart) as $target) {
     ];
 }
 
+$reachableTargets = [];
+foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
+    $reachableTargets[] = [
+        'source' => $target['source'],
+        'id' => $target['id'],
+        'target' => $target['target'],
+        'targetPart' => $target['targetPart'],
+        'contentType' => $target['contentType'],
+        'external' => $target['external'],
+        'depth' => $target['depth'],
+        'valid' => $target['valid'],
+        'issues' => $target['issues'],
+    ];
+}
+
 $corePropertiesPart = $graph->firstTargetOfType('http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties');
 
 $summary = [
@@ -89,22 +112,28 @@ $summary = [
         'contentType' => $corePropertiesPart === null ? null : $types->contentTypeForPart($corePropertiesPart),
     ],
     'relationships' => $relationshipSummaries,
+    'reachableRelationships' => $reachableTargets,
     'integrity' => [
         'documentRelationshipsValid' => array_reduce(
             $relationshipPreflight,
             static fn (bool $valid, array $target): bool => $valid && $target['valid'],
             true
         ),
+        'reachableRelationshipsValid' => array_reduce(
+            $reachableTargets,
+            static fn (bool $valid, array $target): bool => $valid && $target['valid'],
+            true
+        ),
         'issues' => array_filter(
-            $relationshipPreflight,
+            $reachableTargets,
             static fn (array $target): bool => $target['issues'] !== []
         ),
     ],
     'wordpressImport' => [
-        'mediaParts' => array_values(array_filter(
-            array_column($relationshipSummaries, 'target'),
-            static fn (string $target): bool => str_starts_with($target, '/word/media/')
-        )),
+        'mediaParts' => array_values(array_unique(array_filter(
+            array_map(static fn (array $target): ?string => $target['targetPart'], $reachableTargets),
+            static fn (?string $target): bool => $target !== null && str_starts_with($target, '/word/media/')
+        ))),
         'hasReviewerEditLink' => ($relationshipSummaries['rIdReviewer']['external'] ?? false) === true,
     ],
 ];
@@ -116,6 +145,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '/word/_rels/document.xml.rels',
         '/word/media/hero.PNG',
         'image/png',
+        '/word/media/footnote-source.png',
         'https://example.test/wp-admin/post.php?post=42&action=edit',
     ];
     $actual = [
@@ -124,12 +154,14 @@ if (($argv[1] ?? '') === '--self-test') {
         $summary['document']['relationshipsPart'],
         $summary['relationships']['rIdHero']['target'],
         $summary['relationships']['rIdHero']['contentType'],
+        $summary['wordpressImport']['mediaParts'][1] ?? null,
         $summary['relationships']['rIdReviewer']['target'],
     ];
     if (
         $actual !== $expected
         || $summary['wordpressImport']['hasReviewerEditLink'] !== true
         || $summary['integrity']['documentRelationshipsValid'] !== true
+        || $summary['integrity']['reachableRelationshipsValid'] !== true
         || $summary['integrity']['issues'] !== []
     ) {
         throw new RuntimeException('OPC DOCX preflight self-test failed');

@@ -292,6 +292,127 @@ XML;
         $t->same(['rIdMissingImage', 'rIdEscape'], array_column($imagePreflight, 'id'));
         $t->same([], $graph->preflightTargetsForSource('/word/missing.xml'));
     },
+    'walks reachable OPC relationship closure from office document root' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $footnotesRelationshipsXml): void {
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/footnotes.xml', 'data' => '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/footnotes.xml.rels', 'data' => $footnotesRelationshipsXml],
+            ['name' => 'word/media/review-image.PNG', 'data' => 'PNG'],
+            ['name' => 'word/media/footnote-source.png', 'data' => 'PNG'],
+            ['name' => 'customXml/item1.xml', 'data' => '<audit/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $closureById = [];
+        foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
+            $closureById[$target['id']] = $target;
+        }
+
+        $t->same([
+            'rIdDocument',
+            'rIdStyles',
+            'rIdFootnotes',
+            'rIdImage',
+            'rIdCustomXml',
+            'rIdReviewerLink',
+            'rIdNoteImage',
+            'rIdNoteSource',
+        ], array_keys($closureById));
+        $t->same('/', $closureById['rIdDocument']['source']);
+        $t->same(0, $closureById['rIdDocument']['depth']);
+        $t->same('/word/document.xml', $closureById['rIdDocument']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $closureById['rIdDocument']['contentType']);
+        $t->same('/word/document.xml', $closureById['rIdStyles']['source']);
+        $t->same(1, $closureById['rIdStyles']['depth']);
+        $t->same('/word/footnotes.xml#notes', $closureById['rIdFootnotes']['target']);
+        $t->same('/word/footnotes.xml', $closureById['rIdFootnotes']['targetPart']);
+        $t->same('/word/footnotes.xml', $closureById['rIdNoteImage']['source']);
+        $t->same(2, $closureById['rIdNoteImage']['depth']);
+        $t->same('/word/media/footnote-source.png', $closureById['rIdNoteImage']['targetPart']);
+        $t->same(null, $closureById['rIdReviewerLink']['targetPart']);
+        $t->same(true, $closureById['rIdReviewerLink']['external']);
+        $t->same(array_fill(0, 8, true), array_column($closureById, 'valid'));
+    },
+    'does not traverse missing invalid or relationship part closure targets' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdMissingFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="missing-footnotes.xml"/>
+  <Relationship Id="rIdRelsTarget" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="_rels/document.xml.rels"/>
+  <Relationship Id="rIdEscape" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../../evil.xml"/>
+</Relationships>
+XML;
+
+        $missingFootnotesRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdNeverTraversed" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/never.png"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/_rels/missing-footnotes.xml.rels', 'data' => $missingFootnotesRelationshipsXml],
+            ['name' => 'word/media/never.png', 'data' => 'PNG'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $closureById = [];
+        foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
+            $closureById[$target['id']] = $target;
+        }
+
+        $t->same(['rIdDocument', 'rIdMissingFootnotes', 'rIdRelsTarget', 'rIdEscape'], array_keys($closureById));
+        $t->same('/word/missing-footnotes.xml', $closureById['rIdMissingFootnotes']['targetPart']);
+        $t->same(false, $closureById['rIdMissingFootnotes']['exists']);
+        $t->same(['missing-in-package'], $closureById['rIdMissingFootnotes']['issues']);
+        $t->same('/word/_rels/document.xml.rels', $closureById['rIdRelsTarget']['targetPart']);
+        $t->same(true, $closureById['rIdRelsTarget']['relationshipPartTarget']);
+        $t->same(['targets-relationship-part'], $closureById['rIdRelsTarget']['issues']);
+        $t->same(null, $closureById['rIdEscape']['targetPart']);
+        $t->same(['invalid-target'], $closureById['rIdEscape']['issues']);
+        $t->same(false, isset($closureById['rIdNeverTraversed']));
+    },
+    'guards cyclic OPC relationship closure traversal' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+</Relationships>
+XML;
+
+        $commentsRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdBackToDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="document.xml#cycle"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $closureById = [];
+        foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
+            $closureById[$target['id']] = $target;
+        }
+
+        $t->same(['rIdDocument', 'rIdComments', 'rIdBackToDocument'], array_keys($closureById));
+        $t->same('/word/comments.xml', $closureById['rIdComments']['targetPart']);
+        $t->same('/word/comments.xml', $closureById['rIdBackToDocument']['source']);
+        $t->same(2, $closureById['rIdBackToDocument']['depth']);
+        $t->same('/word/document.xml#cycle', $closureById['rIdBackToDocument']['target']);
+        $t->same('/word/document.xml', $closureById['rIdBackToDocument']['targetPart']);
+    },
     'rejects malformed OPC relationship graph package inputs' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $t->throws(\RuntimeException::class, static fn (): OpcRelationshipGraph => OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
             ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],

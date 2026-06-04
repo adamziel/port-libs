@@ -211,6 +211,68 @@ final class OpcRelationshipGraph
         return $preflight;
     }
 
+    /**
+     * @return list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, valid:bool, issues:list<string>}>
+     */
+    public function reachableTargetsForSource(string $sourcePartName = '/', ?string $relationshipType = null): array
+    {
+        $sourcePartName = OpcPackagePath::canonicalPartName($sourcePartName, true);
+        $queue = [[$sourcePartName, $relationshipType, 0]];
+        $queuedSources = [$sourcePartName => true];
+        $visitedSources = [];
+        $targets = [];
+
+        while ($queue !== []) {
+            [$source, $filter, $depth] = array_shift($queue);
+            if (isset($visitedSources[$source])) {
+                continue;
+            }
+
+            $visitedSources[$source] = true;
+
+            foreach ($this->preflightTargetsForSource($source, $filter) as $target) {
+                $invalidTarget = in_array('invalid-target', $target['issues'], true);
+                $targetPart = null;
+                if (!$target['external'] && !$invalidTarget) {
+                    $targetPart = OpcPackagePath::stripQueryAndFragment($target['target']);
+                }
+
+                $targets[] = [
+                    'source' => $source,
+                    'depth' => $depth,
+                    'id' => $target['id'],
+                    'type' => $target['type'],
+                    'target' => $target['target'],
+                    'targetPart' => $targetPart,
+                    'contentType' => $target['contentType'],
+                    'external' => $target['external'],
+                    'exists' => $target['exists'],
+                    'relationshipPartTarget' => $target['relationshipPartTarget'],
+                    'valid' => $target['valid'],
+                    'issues' => $target['issues'],
+                ];
+
+                if (
+                    $targetPart === null
+                    || $target['external']
+                    || $invalidTarget
+                    || $target['exists'] !== true
+                    || $target['relationshipPartTarget']
+                    || isset($visitedSources[$targetPart])
+                    || isset($queuedSources[$targetPart])
+                    || !($this->relationshipsForSource($targetPart) instanceof OpcRelationships)
+                ) {
+                    continue;
+                }
+
+                $queuedSources[$targetPart] = true;
+                $queue[] = [$targetPart, null, $depth + 1];
+            }
+        }
+
+        return $targets;
+    }
+
     private static function isRelationshipPartName(string $name): bool
     {
         return str_ends_with($name, '.rels') && str_contains('/' . ltrim($name, '/'), '/_rels/');
