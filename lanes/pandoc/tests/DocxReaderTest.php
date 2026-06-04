@@ -341,6 +341,30 @@ $trackedChangesDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$bookmarkDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Jump to </w:t></w:r>
+      <w:hyperlink w:anchor="source_packet"><w:r><w:t>source packet</w:t></w:r></w:hyperlink>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Before hidden return </w:t></w:r>
+      <w:bookmarkStart w:id="0" w:name="_GoBack"/>
+      <w:r><w:t>visible text</w:t></w:r>
+      <w:bookmarkEnd w:id="0"/>
+    </w:p>
+    <w:p>
+      <w:bookmarkStart w:id="7" w:name="source_packet"/>
+      <w:r><w:t>Source packet target</w:t></w:r>
+      <w:bookmarkEnd w:id="7"/>
+      <w:r><w:t xml:space="preserve"> keeps reviewer context.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $buildDocxPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $documentXml, $footnotesXml, $corePropertiesXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -410,6 +434,14 @@ $buildTrackedChangesPackage = static function () use ($contentTypesXml, $package
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $trackedChangesDocumentXml],
+    ]);
+};
+
+$buildBookmarkPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $bookmarkDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $bookmarkDocumentXml],
     ]);
 };
 
@@ -760,6 +792,39 @@ return [
         $t->same('Migration Editor', $revisions['items'][1]['author']);
         $t->same('2026-06-04T17:50:00Z', $revisions['items'][1]['date']);
         $t->same('approved copy', $revisions['items'][1]['text']);
+    },
+    'preserves DOCX bookmarks as anchor spans for internal hyperlink targets' => static function (TestRunner $t) use ($buildBookmarkPackage): void {
+        $document = (new DocxReader())->readDocument($buildBookmarkPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $jump = $document->children[0];
+        $t->same('paragraph', $jump->type);
+        $t->same('Jump to ', $jump->children[0]->attr('text'));
+        $t->same('link', $jump->children[1]->type);
+        $t->same('#source_packet', $jump->children[1]->attr('url'));
+        $t->same('source packet', $jump->children[1]->children[0]->attr('text'));
+        $t->same('.', $jump->children[2]->attr('text'));
+
+        $hiddenReturn = $document->children[1];
+        $t->same(1, count($hiddenReturn->children));
+        $t->same('Before hidden return visible text', $hiddenReturn->children[0]->attr('text'));
+
+        $target = $document->children[2];
+        $anchor = $target->children[0];
+        $t->same('span', $anchor->type);
+        $t->same('source_packet', $anchor->attr('id'));
+        $t->same(['anchor'], $anchor->attr('classes'));
+        $t->same([], $anchor->children);
+        $t->same('Source packet target keeps reviewer context.', $target->children[1]->attr('text'));
+
+        $t->contains('Jump to [source packet](#source_packet).', $markdown);
+        $t->contains('[]{#source_packet .anchor}Source packet target keeps reviewer context.', $markdown);
+        $t->true(!str_contains($markdown, '_GoBack'), 'Dummy Word return bookmarks should not render to Markdown');
+
+        $t->contains('<a href="#source_packet">source packet</a>', $blocks);
+        $t->contains('<span id="source_packet" class="anchor"></span>Source packet target keeps reviewer context.', $blocks);
+        $t->true(!str_contains($blocks, '_GoBack'), 'Dummy Word return bookmarks should not render to WordPress blocks');
     },
     'rejects malformed DOCX packages without shelling out to office tooling' => static function (TestRunner $t) use ($contentTypesXml, $documentXml): void {
         $reader = new DocxReader();

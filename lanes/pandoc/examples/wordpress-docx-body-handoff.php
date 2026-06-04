@@ -57,9 +57,18 @@ XML],
     <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="12"/></w:numPr></w:pPr><w:r><w:t>Confirm source URL</w:t></w:r></w:p>
     <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="12"/></w:numPr></w:pPr><w:r><w:t>Publish packet</w:t></w:r></w:p>
     <w:p>
+      <w:r><w:t xml:space="preserve">Jump to </w:t></w:r>
+      <w:hyperlink w:anchor="source_packet_anchor"><w:r><w:t>source packet anchor</w:t></w:r></w:hyperlink>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:bookmarkStart w:id="14" w:name="source_packet_anchor"/>
+      <w:bookmarkStart w:id="15" w:name="_GoBack"/>
+      <w:bookmarkEnd w:id="15"/>
       <w:r><w:t xml:space="preserve">Import reviewer keeps </w:t></w:r>
       <w:hyperlink r:id="rIdSource"><w:r><w:t>the source link</w:t></w:r></w:hyperlink>
       <w:r><w:t xml:space="preserve"> visible.</w:t></w:r>
+      <w:bookmarkEnd w:id="14"/>
       <w:del w:id="7" w:author="Source Editor" w:date="2026-06-04T17:45:00Z">
         <w:r><w:delText>Old reviewer draft.</w:delText></w:r>
       </w:del>
@@ -192,6 +201,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<h2 id="reviewer-checklist">Reviewer checklist</h2>',
         '<ul><li>Match media IDs</li><li>Preserve alt text</li></ul>',
         '<ol start="3" type="a"><li>Confirm source URL</li><li>Publish packet</li></ol>',
+        '<a href="#source_packet_anchor">source packet anchor</a>',
+        '<span id="source_packet_anchor" class="anchor"></span>Import reviewer keeps',
         '<a href="https://example.test/source-packet?post=42">the source link</a>',
         '<span class="docx-insertion" data-docx-change="insertion" data-docx-change-id="8" data-docx-author="Migration Editor" data-docx-date="2026-06-04T17:50:00Z"> Approved tracked wording.</span>',
         '<span class="docx-comment-range" data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-04T09:55:00Z"> and reviewer comment</span>',
@@ -206,6 +217,9 @@ if (($argv[1] ?? '') === '--self-test') {
         if (!str_contains($blocks, $needle)) {
             throw new RuntimeException('DOCX body handoff self-test missing: ' . $needle);
         }
+    }
+    if (str_contains($blocks, '_GoBack')) {
+        throw new RuntimeException('DOCX body handoff self-test rendered dummy Word return bookmark');
     }
 
     echo "docx body handoff self-test ok\n";

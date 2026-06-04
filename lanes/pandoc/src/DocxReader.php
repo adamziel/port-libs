@@ -357,6 +357,21 @@ final class DocxReader
                 continue;
             }
 
+            if ($this->isWordElement($child, 'bookmarkStart')) {
+                $nodes = $this->bookmarkStartNodes($child);
+                if ($activeCommentRangeId !== null) {
+                    array_push($activeCommentRangeNodes, ...$nodes);
+                    continue;
+                }
+
+                array_push($inlines, ...$nodes);
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'bookmarkEnd')) {
+                continue;
+            }
+
             $nodes = $this->inlineNodes($child, $package, $relationships, $referencedNotes);
             if ($activeCommentRangeId !== null) {
                 array_push($activeCommentRangeNodes, ...$nodes);
@@ -371,6 +386,22 @@ final class DocxReader
         }
 
         return $this->coalesceTextNodes($inlines);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function bookmarkStartNodes(\DOMElement $bookmark): array
+    {
+        $name = $this->wordAttr($bookmark, 'name');
+        if ($name === null || $name === '' || $name === '_GoBack') {
+            return [];
+        }
+
+        return [new AstNode('span', [
+            'id' => $name,
+            'classes' => ['anchor'],
+        ])];
     }
 
     /**
