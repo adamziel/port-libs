@@ -1681,5 +1681,8 @@
     "mappedPdfParserStreamFilterStackBoundaryCurrentBaseBehaviors": 2,
     "pdfInlineImageDecodeBoundaryCurrentBase": "Inline-image candidates now require explicit ASCII85 end markers before accepting delimiter-looking EI bytes and still decode Flate DecodeParms predictor payloads before boundary acceptance, keeping image payload bytes out of WordPress paragraphs.",
     "pdfInlineImageDecodeBoundaryCurrentBaseBehaviors": 2,
-    "mappedPdfInlineImageDecodeBoundaryCurrentBaseBehaviors": 2
+    "mappedPdfInlineImageDecodeBoundaryCurrentBaseBehaviors": 2,
+    "pdfAcroFormFieldsGenerationBoundaryCurrentBase": "AcroForm field roots, field Kids, page Widget annotations, Widget Parent links, catalog AcroForm, and page-tree Kids resolve only when object generations match the N G R reference, excluding stale same-object-number field values while preserving exact nonzero-generation widgets for WordPress form review.",
+    "pdfAcroFormFieldsGenerationBoundaryCurrentBaseBehaviors": 2,
+    "mappedPdfAcroFormFieldsGenerationBoundaryCurrentBaseBehaviors": 2
 }

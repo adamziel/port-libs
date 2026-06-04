@@ -49,6 +49,38 @@ $tokenAwareAcroFormFieldsBoundaryPdf = static function (): string {
         . "%%EOF";
 };
 
+$acroFormGenerationMismatchBoundaryPdf = static function (): string {
+    $pageText = 'BT /F1 12 Tf 72 720 Td (Visible AcroForm generation mismatch body) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 1 R 12 1 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 1 R] /NeedAppearances true >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (stale.generation.listed) /V (stale listed value) /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 300 664] /P 3 0 R /F 4 >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Tx /T (stale.page.widget.parent) /V (stale parent value) /Kids [12 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Subtype /Widget /Parent 10 1 R /Rect [72 600 300 624] /P 3 0 R /F 4 >>\nendobj\n"
+        . "%%EOF";
+};
+
+$acroFormGenerationExactBoundaryPdf = static function (): string {
+    $pageText = 'BT /F1 12 Tf 72 720 Td (Visible AcroForm generation exact body) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 1 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 1 R] /NeedAppearances true >>\nendobj\n"
+        . "6 1 obj\n<< /FT /Tx /T (current.generation.email) /V (current-generation@example.test) /Kids [8 1 R] >>\nendobj\n"
+        . "8 1 obj\n<< /Subtype /Widget /Parent 6 1 R /Rect [72 640 300 664] /P 3 0 R /F 4 >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (stale.generation.email) /V (stale-generation@example.test) /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 600 300 624] /P 3 0 R /F 4 >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'repairs AcroForm field discovery from page owned widget annotations only' => static function (TestRunner $t) use ($pageWidgetFieldBoundaryPdf, $fieldsByName): void {
         $pdf = $pageWidgetFieldBoundaryPdf();
@@ -121,5 +153,51 @@ return [
         $t->true(str_contains($visibleText, 'Visible token-aware AcroForm field body'));
         $t->true(!str_contains($visibleText, 'Decoy token title'));
         $t->true(!str_contains($visibleText, 'Real token title'));
+    },
+    'rejects generation mismatched AcroForm field and page widget references' => static function (
+        TestRunner $t
+    ) use ($acroFormGenerationMismatchBoundaryPdf, $fieldsByName): void {
+        $pdf = $acroFormGenerationMismatchBoundaryPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $visibleText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($form, JSON_UNESCAPED_SLASHES);
+
+        $t->same([], array_keys($fields));
+        $t->same(0, count($form['fields']));
+        $t->same(true, $form['need_appearances']);
+        $t->true(str_contains($visibleText, 'Visible AcroForm generation mismatch body'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'stale.generation.listed'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'stale.page.widget.parent'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'stale listed value'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'stale parent value'));
+        $t->true(!str_contains($visibleText, 'stale listed value'));
+        $t->true(!str_contains($visibleText, 'stale parent value'));
+    },
+    'keeps exact nonzero generation AcroForm fields before stale same object decoys' => static function (
+        TestRunner $t
+    ) use ($acroFormGenerationExactBoundaryPdf, $fieldsByName): void {
+        $pdf = $acroFormGenerationExactBoundaryPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $visibleText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($form, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['current.generation.email'], array_keys($fields));
+        $t->same(1, count($form['fields']));
+        $t->same(true, $form['need_appearances']);
+        $current = $fields['current.generation.email'];
+        $t->same(6, $current['object']);
+        $t->same('current-generation@example.test', $current['value']);
+        $t->same([8], array_column($current['widgets'], 'object'));
+        $t->same([0], array_column($current['widgets'], 'page_index'));
+        $t->same([true], array_column($current['widgets'], 'referenced_from_page_annots'));
+        $t->same([0], array_column($current['widgets'], 'page_annotation_index'));
+        $t->same('field_terminal', $current['value_state']['hierarchy_boundary']['current_value_source']);
+        $t->true(str_contains($visibleText, 'Visible AcroForm generation exact body'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'stale.generation.email'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'stale-generation@example.test'));
+        $t->true(!str_contains($visibleText, 'current-generation@example.test'));
+        $t->true(!str_contains($visibleText, 'stale-generation@example.test'));
     },
 ];

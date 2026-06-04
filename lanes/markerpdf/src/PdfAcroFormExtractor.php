@@ -6,6 +6,11 @@ namespace PortLibs\MarkerPDF;
 
 final class PdfAcroFormExtractor
 {
+    /**
+     * @var array<int, int>
+     */
+    private array $objectGenerations = [];
+
     private const COMMON_FIELD_FLAGS = [
         1 => 'read_only',
         2 => 'required',
@@ -128,7 +133,7 @@ final class PdfAcroFormExtractor
         $defaultResources = $this->defaultResourcesFromEffective($formDefaults, $objects);
         $xfaPackets = $this->xfaPacketsFromAcroForm($acroForm, $objects);
         $fields = [];
-        $fieldRefs = $this->fieldReferencesFromAcroForm($acroForm);
+        $fieldRefs = $this->fieldReferencesFromAcroForm($acroForm, $objects);
         $fieldRefs = $this->fieldReferencesWithPageWidgetBoundaries($fieldRefs, $objects, $pageWidgets);
         $fieldNamesByObject = $this->fieldNamesByObject($fieldRefs, $objects);
         $fieldNamesByObject = $this->fieldNamesWithPageWidgetParents($fieldNamesByObject, $objects, $pageWidgets);
@@ -3440,7 +3445,7 @@ final class PdfAcroFormExtractor
             'mapping_name' => $mappingName,
         ];
 
-        $kidRefs = $this->kidReferences($body);
+        $kidRefs = $this->kidReferences($body, $objects);
         $childFieldRefs = [];
         $widgetRefs = [];
         foreach ($kidRefs as $kidRef) {
@@ -5818,7 +5823,7 @@ final class PdfAcroFormExtractor
             $seen[$widgetRef] = true;
 
             $body = $this->dictionaryObjectBody($objects[$widgetRef]) ?? trim($objects[$widgetRef]);
-            $pageObject = $this->objectReferenceValueAfterName($body, 'P') ?? ($pageWidgets[$widgetRef]['page_object'] ?? null);
+            $pageObject = $this->validObjectReferenceValueAfterName($body, 'P', $objects) ?? ($pageWidgets[$widgetRef]['page_object'] ?? null);
             $pageIndex = $pageObject !== null && isset($pageIndexes[$pageObject])
                 ? $pageIndexes[$pageObject]
                 : ($pageWidgets[$widgetRef]['page_index'] ?? null);
@@ -5933,7 +5938,7 @@ final class PdfAcroFormExtractor
             }
 
             $body = $this->dictionaryObjectBody($objects[$widgetObject]) ?? trim($objects[$widgetObject]);
-            $parentObject = $this->objectReferenceValueAfterName($body, 'Parent');
+            $parentObject = $this->validObjectReferenceValueAfterName($body, 'Parent', $objects);
             if ($parentObject === null || !isset($names[$parentObject])) {
                 continue;
             }
@@ -5959,7 +5964,7 @@ final class PdfAcroFormExtractor
             }
 
             $body = $this->dictionaryObjectBody($objects[$widgetObject]) ?? trim($objects[$widgetObject]);
-            if (!$this->isWidget($body) || $this->objectReferenceValueAfterName($body, 'Parent') !== $fieldObject) {
+            if (!$this->isWidget($body) || $this->validObjectReferenceValueAfterName($body, 'Parent', $objects) !== $fieldObject) {
                 continue;
             }
 
@@ -6045,7 +6050,7 @@ final class PdfAcroFormExtractor
             $names[$objectNumber] = $fieldName;
         }
 
-        foreach ($this->kidReferences($body) as $kidRef) {
+        foreach ($this->kidReferences($body, $objects) as $kidRef) {
             if (!isset($objects[$kidRef])) {
                 continue;
             }
@@ -8677,7 +8682,7 @@ final class PdfAcroFormExtractor
     /**
      * @return list<int>
      */
-    private function fieldReferencesFromAcroForm(string $acroForm): array
+    private function fieldReferencesFromAcroForm(string $acroForm, array $objects): array
     {
         $fields = $this->valueAfterName($acroForm, 'Fields');
         if ($fields === null || !str_starts_with(trim($fields), '[')) {
@@ -8685,7 +8690,7 @@ final class PdfAcroFormExtractor
         }
 
         $body = $this->arrayBodyFromValue($fields);
-        return $body === null ? [] : $this->objectReferences($body);
+        return $body === null ? [] : $this->validObjectReferences($body, $objects);
     }
 
     /**
@@ -8710,7 +8715,7 @@ final class PdfAcroFormExtractor
             }
 
             $candidate = null;
-            $parentObject = $this->objectReferenceValueAfterName($widgetBody, 'Parent');
+            $parentObject = $this->validObjectReferenceValueAfterName($widgetBody, 'Parent', $objects);
             if ($parentObject !== null && isset($objects[$parentObject]) && !isset($reachable[$parentObject])) {
                 $candidate = $this->pageWidgetRootFieldCandidate($parentObject, $objects, $reachable);
             } elseif ($this->isFieldWidgetDictionary($widgetBody)) {
@@ -8751,7 +8756,7 @@ final class PdfAcroFormExtractor
                 return null;
             }
 
-            $parentObject = $this->objectReferenceValueAfterName($body, 'Parent');
+            $parentObject = $this->validObjectReferenceValueAfterName($body, 'Parent', $objects);
             if ($parentObject === null || !isset($objects[$parentObject]) || isset($reachable[$parentObject])) {
                 return $candidate;
             }
@@ -8794,7 +8799,7 @@ final class PdfAcroFormExtractor
 
         $seen[$objectNumber] = true;
         $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
-        foreach ($this->kidReferences($body) as $kidRef) {
+        foreach ($this->kidReferences($body, $objects) as $kidRef) {
             $this->collectFieldTreeObjectNumbers($kidRef, $objects, $seen);
         }
     }
@@ -8802,7 +8807,7 @@ final class PdfAcroFormExtractor
     /**
      * @return list<int>
      */
-    private function kidReferences(string $body): array
+    private function kidReferences(string $body, array $objects): array
     {
         $kids = $this->valueAfterName($body, 'Kids');
         if ($kids === null || !str_starts_with(trim($kids), '[')) {
@@ -8810,7 +8815,7 @@ final class PdfAcroFormExtractor
         }
 
         $body = $this->arrayBodyFromValue($kids);
-        return $body === null ? [] : $this->objectReferences($body);
+        return $body === null ? [] : $this->validObjectReferences($body, $objects);
     }
 
     private function isFieldWidgetDictionary(string $body): bool
@@ -8891,19 +8896,19 @@ final class PdfAcroFormExtractor
     private function annotationObjectReferences(string $annots, array $objects): array
     {
         $annots = trim($annots);
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $annots, $match) === 1) {
-            $objectNumber = (int) $match[1];
-            if (!isset($objects[$objectNumber])) {
+        $reference = $this->validObjectReferenceFromValue($annots, $objects);
+        if ($reference !== null) {
+            if (!isset($objects[$reference])) {
                 return [];
             }
 
-            $objectBody = trim($objects[$objectNumber]);
+            $objectBody = trim($objects[$reference]);
             if (str_starts_with($objectBody, '[')) {
                 $arrayBody = $this->arrayBodyFromValue($objectBody);
-                return $arrayBody === null ? [] : $this->objectReferences($arrayBody);
+                return $arrayBody === null ? [] : $this->validObjectReferences($arrayBody, $objects);
             }
 
-            return [$objectNumber];
+            return [$reference];
         }
 
         if (!str_starts_with($annots, '[')) {
@@ -8911,7 +8916,7 @@ final class PdfAcroFormExtractor
         }
 
         $arrayBody = $this->arrayBodyFromValue($annots);
-        return $arrayBody === null ? [] : $this->objectReferences($arrayBody);
+        return $arrayBody === null ? [] : $this->validObjectReferences($arrayBody, $objects);
     }
 
     private function acroFormDictionaryBody(string $catalog, array $objects): ?string
@@ -8926,8 +8931,9 @@ final class PdfAcroFormExtractor
             return $this->readPdfDictionaryAt($value, 0);
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1) {
-            return $this->dictionaryObjectBody($objects[(int) $match[1]] ?? '');
+        $objectNumber = $this->validObjectReferenceFromValue($value, $objects);
+        if ($objectNumber !== null) {
+            return $this->dictionaryObjectBody($objects[$objectNumber] ?? '');
         }
 
         return null;
@@ -9109,6 +9115,50 @@ final class PdfAcroFormExtractor
         }
 
         return (int) $match[1];
+    }
+
+    private function validObjectReferenceValueAfterName(string $body, string $name, array $objects): ?int
+    {
+        return $this->validObjectReferenceFromValue($this->valueAfterName($body, $name), $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function validObjectReferenceFromValue(?string $value, array $objects): ?int
+    {
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference === null) {
+            return null;
+        }
+
+        return $this->referenceGenerationMatches($reference['object'], $reference['generation'], $objects)
+            ? $reference['object']
+            : null;
+    }
+
+    /**
+     * @return array{object: int, generation: int}|null
+     */
+    private function objectReferenceFromValue(?string $value): ?array
+    {
+        if ($value === null || preg_match('/^(\d+)\s+(\d+)\s+R\b/', trim($value), $match) !== 1) {
+            return null;
+        }
+
+        return [
+            'object' => (int) $match[1],
+            'generation' => (int) $match[2],
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function referenceGenerationMatches(int $objectNumber, int $generation, array $objects): bool
+    {
+        return isset($objects[$objectNumber])
+            && ($this->objectGenerations[$objectNumber] ?? 0) === $generation;
     }
 
     private function boolValueAfterName(string $body, string $name): ?bool
@@ -9623,12 +9673,21 @@ final class PdfAcroFormExtractor
     private function pdfObjects(string $pdfBytes): array
     {
         $objects = [];
-        if (!preg_match_all('/(\d+)\s+\d+\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
+        $this->objectGenerations = [];
+        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
             return $objects;
         }
 
         foreach ($matches as $match) {
-            $objects[(int) $match[1]] = $match[2];
+            $objectNumber = (int) $match[1];
+            $generation = (int) $match[2];
+            $selectedGeneration = $this->objectGenerations[$objectNumber] ?? null;
+            if ($selectedGeneration !== null && $generation < $selectedGeneration) {
+                continue;
+            }
+
+            $objects[$objectNumber] = $match[3];
+            $this->objectGenerations[$objectNumber] = $generation;
         }
 
         return $objects;
@@ -9655,11 +9714,16 @@ final class PdfAcroFormExtractor
     private function orderedPageObjectNumbers(array $objects): array
     {
         foreach ($objects as $body) {
-            if (preg_match('/\/Type\s*\/Catalog\b/', $body) !== 1 || preg_match('/\/Pages\s+(\d+)\s+\d+\s+R\b/s', $body, $match) !== 1) {
+            if (preg_match('/\/Type\s*\/Catalog\b/', $body) !== 1) {
                 continue;
             }
 
-            $pages = $this->pageObjectNumbersFromTree((int) $match[1], $objects);
+            $pagesObject = $this->validObjectReferenceValueAfterName($body, 'Pages', $objects);
+            if ($pagesObject === null) {
+                continue;
+            }
+
+            $pages = $this->pageObjectNumbersFromTree($pagesObject, $objects);
             if ($pages !== []) {
                 return $pages;
             }
@@ -9703,7 +9767,7 @@ final class PdfAcroFormExtractor
         }
 
         $pages = [];
-        foreach ($this->objectReferences($arrayBody) as $childObjectNumber) {
+        foreach ($this->validObjectReferences($arrayBody, $objects) as $childObjectNumber) {
             foreach ($this->pageObjectNumbersFromTree($childObjectNumber, $objects, $seen) as $pageObjectNumber) {
                 $pages[] = $pageObjectNumber;
             }
@@ -9722,6 +9786,30 @@ final class PdfAcroFormExtractor
         }
 
         return array_map('intval', $matches[1]);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<int>
+     */
+    private function validObjectReferences(string $value, array $objects): array
+    {
+        if (!preg_match_all('/(\d+)\s+(\d+)\s+R\b/', $value, $matches, PREG_SET_ORDER)) {
+            return [];
+        }
+
+        $references = [];
+        foreach ($matches as $match) {
+            $objectNumber = (int) $match[1];
+            $generation = (int) $match[2];
+            if (!$this->referenceGenerationMatches($objectNumber, $generation, $objects)) {
+                continue;
+            }
+
+            $references[] = $objectNumber;
+        }
+
+        return $references;
     }
 
     private function dictionaryObjectBody(string $objectBody): ?string
