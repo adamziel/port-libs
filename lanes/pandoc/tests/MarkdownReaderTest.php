@@ -914,6 +914,68 @@ return [
         $t->contains('<h1 id="imported-section">Imported Section</h1>', $blocks);
         $t->contains('<p>Published copy.</p>', $blocks);
     },
+    'maps pandoc yaml metadata from json object documents' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '{',
+            '  "title": "JSON **Packet**",',
+            '  "authors": ["JSON Reviewer", "WordPress Editor"],',
+            '  "review": {"status": "queued", "priority": 4},',
+            '  "references": [',
+            '    {',
+            '      "id": "json-ref",',
+            '      "type": "article-journal",',
+            '      "title": "Portable metadata",',
+            '      "issued": {"date-parts": [[2026, 6, 4]]}',
+            '    }',
+            '  ],',
+            '  "draft_": "ignored scratch field"',
+            '}',
+            '...',
+            '',
+            '# JSON metadata body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+
+        $t->same('JSON **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same(['JSON Reviewer', 'WordPress Editor'], $meta['authors']);
+        $t->same(['status' => 'queued', 'priority' => 4], $meta['review']);
+        $t->same('json-ref', $meta['references'][0]['id']);
+        $t->same([[2026, 6, 4]], $meta['references'][0]['issued']['date-parts']);
+        $t->same(null, $meta['draft_'] ?? null);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('json-metadata-body', $document->children[0]->attr('id'));
+    },
+    'maps pandoc yaml flow maps and nested flow sequences' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Flow **Packet**',
+            'review: {status: needs-review, priority: 2, labels: [migration, "Data Liberation"]}',
+            'references: [{id: flow-ref, type: article-journal, title: "Flow: Reference", author: [{family: Reviewer, given: W. P.}], issued: {date-parts: [[2026, 6, 4]]}}]',
+            'title-slide-attributes: {"data-background-image": /hero.png, data-background-size: contain}',
+            '...',
+            '',
+            'Flow body.',
+        ]));
+        $meta = $document->attr('meta');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Flow **Packet**', $meta['title']);
+        $t->same('needs-review', $meta['review']['status']);
+        $t->same(2, $meta['review']['priority']);
+        $t->same(['migration', 'Data Liberation'], $meta['review']['labels']);
+        $t->same('flow-ref', $meta['references'][0]['id']);
+        $t->same('Flow: Reference', $meta['references'][0]['title']);
+        $t->same('Reviewer', $meta['references'][0]['author'][0]['family']);
+        $t->same([[2026, 6, 4]], $meta['references'][0]['issued']['date-parts']);
+        $t->same('/hero.png', $meta['title-slide-attributes']['data-background-image']);
+        $t->same('contain', $meta['title-slide-attributes']['data-background-size']);
+        $t->same('Flow body.', $document->children[0]->attr('text'));
+        $t->contains('<p>Flow body.</p>', $blocks);
+    },
     'keeps blank-led yaml-looking fences as markdown body' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

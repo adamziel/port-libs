@@ -391,6 +391,11 @@ final class MarkdownReader
      */
     private function parseYamlMetadataLines(array $lines): array
     {
+        $jsonMetadata = $this->parseYamlJsonMetadataDocument($lines);
+        if ($jsonMetadata !== null) {
+            return $jsonMetadata;
+        }
+
         $metadata = [];
         $count = count($lines);
         for ($index = 0; $index < $count;) {
@@ -401,13 +406,13 @@ final class MarkdownReader
                 continue;
             }
 
-            if ($this->countIndentColumns($line) > 0 || preg_match('/^([A-Za-z0-9_.:-]+):(?:[ \t]*(.*))?$/', $trimmed, $m) !== 1) {
+            $mapping = $this->parseYamlMappingLine($trimmed);
+            if ($this->countIndentColumns($line) > 0 || $mapping === null) {
                 $index++;
                 continue;
             }
 
-            $key = $m[1];
-            $sourceValue = rtrim($m[2] ?? '');
+            [$key, $sourceValue] = $mapping;
             [$children, $nextIndex] = $this->collectYamlChildLines($lines, $index + 1);
 
             if ($this->isYamlLiteralBlockIndicator($sourceValue)) {
@@ -439,7 +444,7 @@ final class MarkdownReader
             if (
                 trim($line) !== ''
                 && $this->countIndentColumns($line) === 0
-                && preg_match('/^[A-Za-z0-9_.:-]+:/', trim($line)) === 1
+                && $this->parseYamlMappingLine(trim($line)) !== null
             ) {
                 break;
             }
@@ -547,7 +552,7 @@ final class MarkdownReader
             }
 
             $childLines = $children === [] ? [] : $this->stripYamlCommonIndent($children);
-            if ($childLines !== [] && preg_match('/^[A-Za-z0-9_.:-]+:/', $sourceValue) === 1) {
+            if ($childLines !== [] && $this->parseYamlMappingLine($sourceValue) !== null) {
                 $items[] = $this->parseYamlMetadataLines(array_merge([$sourceValue], $childLines));
                 continue;
             }
@@ -569,13 +574,79 @@ final class MarkdownReader
             if ($trimmed === '' || str_starts_with($trimmed, '#')) {
                 continue;
             }
-            if (preg_match('/^[A-Za-z0-9_.:-]+:/', $trimmed) !== 1) {
+            if ($this->parseYamlMappingLine($trimmed) === null) {
                 return false;
             }
             $sawMapping = true;
         }
 
         return $sawMapping;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array<string, mixed>|null
+     */
+    private function parseYamlJsonMetadataDocument(array $lines): ?array
+    {
+        $source = trim(implode("\n", $lines));
+        if ($source === '' || $source[0] !== '{' || !str_ends_with($source, '}')) {
+            return null;
+        }
+
+        try {
+            $decoded = json_decode($source, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return null;
+        }
+
+        if (!is_array($decoded) || array_is_list($decoded)) {
+            return null;
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * @return array{0:string, 1:string}|null
+     */
+    private function parseYamlMappingLine(string $line): ?array
+    {
+        $line = trim($line);
+        if ($line === '') {
+            return null;
+        }
+
+        if ($line[0] === '"' || $line[0] === "'") {
+            $quote = $line[0];
+            $length = strlen($line);
+            for ($offset = 1; $offset < $length; $offset++) {
+                $char = $line[$offset];
+                if ($quote === "'" && $char === "'" && ($line[$offset + 1] ?? '') === "'") {
+                    $offset++;
+                    continue;
+                }
+                if ($char === $quote && ($quote === "'" || $line[$offset - 1] !== '\\')) {
+                    $afterKey = ltrim(substr($line, $offset + 1));
+                    if ($afterKey === '' || $afterKey[0] !== ':') {
+                        return null;
+                    }
+
+                    return [
+                        $this->unquoteYamlScalar(substr($line, 0, $offset + 1)),
+                        ltrim(substr($afterKey, 1)),
+                    ];
+                }
+            }
+
+            return null;
+        }
+
+        if (preg_match('/^([A-Za-z0-9_.:-]+):(?:[ \t]*(.*))?$/', $line, $m) !== 1) {
+            return null;
+        }
+
+        return [$m[1], rtrim($m[2] ?? '')];
     }
 
     /**
@@ -621,6 +692,10 @@ final class MarkdownReader
             );
         }
 
+        if ($value[0] === '{' && str_ends_with($value, '}')) {
+            return $this->parseYamlInlineMap(substr($value, 1, -1));
+        }
+
         if (($value[0] === '"' && str_ends_with($value, '"')) || ($value[0] === "'" && str_ends_with($value, "'"))) {
             return $this->unquoteYamlScalar($value);
         }
@@ -638,14 +713,53 @@ final class MarkdownReader
      */
     private function splitYamlInlineList(string $source): array
     {
+        return $this->splitYamlFlowItems($source);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseYamlInlineMap(string $source): array
+    {
+        $map = [];
+        foreach ($this->splitYamlFlowItems($source) as $item) {
+            $mapping = $this->splitYamlFlowMappingItem($item);
+            if ($mapping === null) {
+                continue;
+            }
+
+            [$key, $value] = $mapping;
+            $key = $this->normalizeYamlFlowKey($key);
+            if ($key === '') {
+                continue;
+            }
+
+            $map[$key] = $this->parseYamlScalarValue($value);
+        }
+
+        return $map;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitYamlFlowItems(string $source): array
+    {
         $items = [];
         $buffer = '';
         $quote = null;
+        $squareDepth = 0;
+        $curlyDepth = 0;
         $length = strlen($source);
         for ($offset = 0; $offset < $length; $offset++) {
             $char = $source[$offset];
             if ($quote !== null) {
                 $buffer .= $char;
+                if ($quote === "'" && $char === "'" && ($source[$offset + 1] ?? '') === "'") {
+                    $offset++;
+                    $buffer .= $source[$offset];
+                    continue;
+                }
                 if ($char === $quote && ($quote === "'" || $source[$offset - 1] !== '\\')) {
                     $quote = null;
                 }
@@ -658,7 +772,31 @@ final class MarkdownReader
                 continue;
             }
 
-            if ($char === ',') {
+            if ($char === '[') {
+                $squareDepth++;
+                $buffer .= $char;
+                continue;
+            }
+
+            if ($char === ']') {
+                $squareDepth = max(0, $squareDepth - 1);
+                $buffer .= $char;
+                continue;
+            }
+
+            if ($char === '{') {
+                $curlyDepth++;
+                $buffer .= $char;
+                continue;
+            }
+
+            if ($char === '}') {
+                $curlyDepth = max(0, $curlyDepth - 1);
+                $buffer .= $char;
+                continue;
+            }
+
+            if ($char === ',' && $squareDepth === 0 && $curlyDepth === 0) {
                 $items[] = trim($buffer);
                 $buffer = '';
                 continue;
@@ -672,6 +810,80 @@ final class MarkdownReader
         }
 
         return $items;
+    }
+
+    /**
+     * @return array{0:string, 1:string}|null
+     */
+    private function splitYamlFlowMappingItem(string $item): ?array
+    {
+        $quote = null;
+        $squareDepth = 0;
+        $curlyDepth = 0;
+        $length = strlen($item);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $item[$offset];
+            if ($quote !== null) {
+                if ($quote === "'" && $char === "'" && ($item[$offset + 1] ?? '') === "'") {
+                    $offset++;
+                    continue;
+                }
+                if ($char === $quote && ($quote === "'" || $item[$offset - 1] !== '\\')) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '[') {
+                $squareDepth++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $squareDepth = max(0, $squareDepth - 1);
+                continue;
+            }
+
+            if ($char === '{') {
+                $curlyDepth++;
+                continue;
+            }
+
+            if ($char === '}') {
+                $curlyDepth = max(0, $curlyDepth - 1);
+                continue;
+            }
+
+            if ($char === ':' && $squareDepth === 0 && $curlyDepth === 0) {
+                $key = trim(substr($item, 0, $offset));
+                if ($key === '') {
+                    return null;
+                }
+
+                return [$key, trim(substr($item, $offset + 1))];
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeYamlFlowKey(string $key): string
+    {
+        $key = trim($key);
+        if ($key === '') {
+            return '';
+        }
+
+        if (($key[0] === '"' && str_ends_with($key, '"')) || ($key[0] === "'" && str_ends_with($key, "'"))) {
+            return $this->unquoteYamlScalar($key);
+        }
+
+        return $key;
     }
 
     private function unquoteYamlScalar(string $value): string
