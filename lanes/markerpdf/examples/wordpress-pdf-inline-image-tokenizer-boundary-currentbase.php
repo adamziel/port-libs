@@ -47,9 +47,24 @@ $pdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
     . "%%EOF";
 
+$ccittContent = "BT /F1 12 Tf 72 720 Td (Before CCITT Boundary) Tj ET\n"
+    . "BI /W 128 /H 1 /IM true /F /CCITTFaxDecode ID\n"
+    . "\x00\x10\x04 EI BT /F1 12 Tf 72 632 Td (CCITT Inline Payload Noise) Tj ET rawtail\n"
+    . "EI\n"
+    . "BT /F1 12 Tf 72 704 Td (After CCITT Boundary) Tj ET";
+$ccittPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($ccittContent) . " >>\nstream\n{$ccittContent}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+    . "%%EOF";
+
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
 $plainText = $extractor->extractPlainText($pdf);
+$ccittLines = $extractor->extractTextLines($ccittPdf);
+$ccittPlainText = $extractor->extractPlainText($ccittPdf);
 
 echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
@@ -64,6 +79,10 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
     'preview_only_jbig2_payload_excluded_until_safe_boundary' => !str_contains($plainText, 'JBIG2 Inline Payload Noise')
         && !str_contains($plainText, 'rawtail')
         && str_contains($plainText, 'After JBIG2 Boundary'),
+    'preview_only_ccitt_payload_excluded_until_safe_boundary' => !str_contains($ccittPlainText, 'CCITT Inline Payload Noise')
+        && !str_contains($ccittPlainText, 'rawtail')
+        && str_contains($ccittPlainText, 'Before CCITT Boundary')
+        && str_contains($ccittPlainText, 'After CCITT Boundary'),
     'wrapped_preview_filter_chain_text_preserved' => str_contains($plainText, 'After Wrapped Preview Filter')
         && str_contains($plainText, 'After JBIG2 Boundary'),
     'wrapped_preview_filter_payload_excluded' => !str_contains($plainText, 'Wrapped JPX Inline Payload Noise')
@@ -72,7 +91,7 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
         && str_contains($plainText, 'After Real Inline Image'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach ($lines as $line) {
+foreach (array_merge($lines, $ccittLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

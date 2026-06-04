@@ -16702,6 +16702,16 @@ final class PdfTextExtractor
             return true;
         }
 
+        $ccittState = $this->inlineImageUsesCcittFaxDecode($filters)
+            ? $this->inlineCcittFaxCandidateStateForFilters($dictionary, $filters, $candidate)
+            : null;
+        if ($ccittState === 'incomplete') {
+            return false;
+        }
+        if ($ccittState === 'complete') {
+            return true;
+        }
+
         $expectedLength = $this->inlineImageExpectedDecodedLength($dictionary);
         if ($filters === []) {
             return $expectedLength === null || strlen($candidate) >= $expectedLength;
@@ -16737,6 +16747,10 @@ final class PdfTextExtractor
             || (
                 $this->inlineImageUsesDctDecode($filters)
                 && $this->inlineDctCandidateStateForFilters($dictionary, $filters, $candidate) === 'incomplete'
+            )
+            || (
+                $this->inlineImageUsesCcittFaxDecode($filters)
+                && $this->inlineCcittFaxCandidateStateForFilters($dictionary, $filters, $candidate) === 'incomplete'
             );
     }
 
@@ -16775,6 +16789,20 @@ final class PdfTextExtractor
     {
         foreach ($filters as $filter) {
             if ($filter === 'DCTDecode' || $filter === 'DCT') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     */
+    private function inlineImageUsesCcittFaxDecode(array $filters): bool
+    {
+        foreach ($filters as $filter) {
+            if ($filter === 'CCITTFaxDecode' || $filter === 'CCF') {
                 return true;
             }
         }
@@ -16876,6 +16904,29 @@ final class PdfTextExtractor
         }
 
         return $this->inlineDctCandidateState($bytes);
+    }
+
+    /**
+     * CCITTFaxDecode image data is preview-only in this native port. The fax
+     * bitstream has no cheap text-safe end marker, so delimiter-looking bytes
+     * stay closed until the tokenizer reaches the final inline-image fallback.
+     */
+    private function inlineCcittFaxCandidateState(string $candidate): string
+    {
+        return rtrim($candidate, "\x00\t\n\f\r ") === '' ? 'unknown' : 'incomplete';
+    }
+
+    /**
+     * @param list<string|null> $filters
+     */
+    private function inlineCcittFaxCandidateStateForFilters(string $dictionary, array $filters, string $candidate): string
+    {
+        $bytes = $this->inlineImageBytesBeforePreviewFilter($dictionary, $filters, $candidate, ['CCITTFaxDecode', 'CCF']);
+        if ($bytes === null) {
+            return 'unknown';
+        }
+
+        return $this->inlineCcittFaxCandidateState($bytes);
     }
 
     /**
