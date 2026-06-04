@@ -531,7 +531,7 @@ final class PdfSecurityPreflight
 
     private function cryptFilterMethodStatus(?string $method): string
     {
-        if ($method === 'Identity') {
+        if ($method === 'Identity' || $method === 'None') {
             return 'identity_crypt_filter';
         }
         if (in_array($method, ['V2', 'AESV2', 'AESV3'], true)) {

@@ -479,8 +479,12 @@ final class PdfMetadataExtractor
         $stringFilter = is_string($encryption['string_filter'] ?? null) ? $encryption['string_filter'] : null;
         $streamFilter = is_string($encryption['stream_filter'] ?? null) ? $encryption['stream_filter'] : null;
         $embeddedFileFilter = is_string($encryption['embedded_file_filter'] ?? null) ? $encryption['embedded_file_filter'] : null;
-        $stringsEncrypted = $stringFilter !== 'Identity';
-        $embeddedStreamsEncrypted = $embeddedFileFilter !== 'Identity';
+        $cryptFilters = is_array($encryption['crypt_filters'] ?? null) ? $encryption['crypt_filters'] : [];
+        $stringFilterStatus = $this->encryptedAssociatedFileCryptFilterStatus($stringFilter, $cryptFilters);
+        $streamFilterStatus = $this->encryptedAssociatedFileCryptFilterStatus($streamFilter, $cryptFilters);
+        $embeddedFileFilterStatus = $this->encryptedAssociatedFileCryptFilterStatus($embeddedFileFilter, $cryptFilters);
+        $stringsEncrypted = $stringFilterStatus !== 'identity_crypt_filter';
+        $embeddedStreamsEncrypted = $embeddedFileFilterStatus !== 'identity_crypt_filter';
 
         $policy = [
             'source' => 'encrypted_associated_file_review',
@@ -504,18 +508,53 @@ final class PdfMetadataExtractor
 
         if ($stringFilter !== null) {
             $policy['string_filter'] = $stringFilter;
+            $policy['string_filter_status'] = $stringFilterStatus;
         }
         if ($streamFilter !== null) {
             $policy['stream_filter'] = $streamFilter;
+            $policy['stream_filter_status'] = $streamFilterStatus;
         }
         if ($embeddedFileFilter !== null) {
             $policy['embedded_file_filter'] = $embeddedFileFilter;
+            $policy['embedded_file_filter_status'] = $embeddedFileFilterStatus;
         }
         if (is_string($encryption['filter'] ?? null)) {
             $policy['security_handler'] = $encryption['filter'];
         }
 
         return $policy;
+    }
+
+    /**
+     * @param array<string, mixed> $cryptFilters
+     */
+    private function encryptedAssociatedFileCryptFilterStatus(?string $filterName, array $cryptFilters): string
+    {
+        if ($filterName === 'Identity') {
+            return 'identity_crypt_filter';
+        }
+
+        if ($filterName === null || $filterName === '') {
+            return 'undeclared_crypt_filter_fail_closed';
+        }
+
+        $filter = is_array($cryptFilters[$filterName] ?? null) ? $cryptFilters[$filterName] : null;
+        if ($filter === null) {
+            return 'missing_declared_crypt_filter';
+        }
+
+        $method = is_string($filter['method'] ?? null) ? $filter['method'] : null;
+        if ($method === 'Identity' || $method === 'None') {
+            return 'identity_crypt_filter';
+        }
+
+        if (in_array($method, ['V2', 'AESV2', 'AESV3'], true)) {
+            return 'encrypted_crypt_filter';
+        }
+
+        return ($method === null || $method === '')
+            ? 'unknown_crypt_filter_method_fail_closed'
+            : 'unsupported_crypt_filter_method_fail_closed';
     }
 
     /**
