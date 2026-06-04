@@ -23,6 +23,9 @@ final class MarkdownReader
     /** @var array<string, array{arity:int, template:string}> */
     private array $rawTexMacros = [];
 
+    /** @var array<string, mixed> */
+    private array $yamlMetadataAnchors = [];
+
     private bool $resolveFootnoteReferences = true;
 
     /**
@@ -371,7 +374,13 @@ final class MarkdownReader
         $count = count($lines);
         for ($cursor = $start + 1; $cursor < $count; $cursor++) {
             if (preg_match('/^(?:---|\.\.\.)[ \t]*$/', $lines[$cursor]) === 1) {
-                $metadata = $this->parseYamlMetadataLines($yamlLines);
+                $previousYamlMetadataAnchors = $this->yamlMetadataAnchors;
+                $this->yamlMetadataAnchors = [];
+                try {
+                    $metadata = $this->parseYamlMetadataLines($yamlLines);
+                } finally {
+                    $this->yamlMetadataAnchors = $previousYamlMetadataAnchors;
+                }
                 if ($metadata === []) {
                     return null;
                 }
@@ -413,16 +422,24 @@ final class MarkdownReader
             }
 
             [$key, $sourceValue] = $mapping;
+            [$sourceValue, $anchorName, $tags] = $this->parseYamlValueDirectives($sourceValue);
             [$children, $nextIndex] = $this->collectYamlChildLines($lines, $index + 1);
 
             if ($this->isYamlLiteralBlockIndicator($sourceValue)) {
-                $metadata[$key] = $this->parseYamlBlockScalar($children, '|');
+                $value = $this->parseYamlBlockScalar($children, '|');
             } elseif ($this->isYamlFoldedBlockIndicator($sourceValue)) {
-                $metadata[$key] = $this->parseYamlBlockScalar($children, '>');
+                $value = $this->parseYamlBlockScalar($children, '>');
             } elseif ($sourceValue === '') {
-                $metadata[$key] = $this->parseYamlIndentedValue($children);
+                $value = $this->parseYamlIndentedValue($children);
             } else {
-                $metadata[$key] = $this->parseYamlScalarValue($sourceValue);
+                $value = $this->parseYamlScalarValueFromDirectives($sourceValue, null, $tags);
+            }
+
+            $this->rememberYamlAnchor($anchorName, $value);
+            if ($key === '<<') {
+                $metadata = $this->mergeYamlMapValue($metadata, $value);
+            } else {
+                $metadata[$key] = $value;
             }
 
             $index = $nextIndex;
@@ -539,6 +556,7 @@ final class MarkdownReader
             }
 
             $sourceValue = rtrim($m[1]);
+            [$sourceValue, $anchorName, $tags] = $this->parseYamlValueDirectives($sourceValue);
             $children = [];
             $index++;
             while ($index < $count && preg_match('/^-[ \t]?/', $lines[$index]) !== 1) {
@@ -547,22 +565,30 @@ final class MarkdownReader
             }
 
             if ($sourceValue === '') {
-                $items[] = $this->parseYamlIndentedValue($children);
+                $value = $this->parseYamlIndentedValue($children);
+                $this->rememberYamlAnchor($anchorName, $value);
+                $items[] = $value;
                 continue;
             }
 
             $childLines = $children === [] ? [] : $this->stripYamlCommonIndent($children);
             if (preg_match('/^-[ \t]+/', $sourceValue) === 1) {
-                $items[] = $this->parseYamlSequence(array_merge([$sourceValue], $childLines));
+                $value = $this->parseYamlSequence(array_merge([$sourceValue], $childLines));
+                $this->rememberYamlAnchor($anchorName, $value);
+                $items[] = $value;
                 continue;
             }
 
             if ($childLines !== [] && $this->parseYamlMappingLine($sourceValue) !== null) {
-                $items[] = $this->parseYamlMetadataLines(array_merge([$sourceValue], $childLines));
+                $value = $this->parseYamlMetadataLines(array_merge([$sourceValue], $childLines));
+                $this->rememberYamlAnchor($anchorName, $value);
+                $items[] = $value;
                 continue;
             }
 
-            $items[] = $this->parseYamlScalarValue($sourceValue);
+            $value = $this->parseYamlScalarValueFromDirectives($sourceValue, null, $tags);
+            $this->rememberYamlAnchor($anchorName, $value);
+            $items[] = $value;
         }
 
         return $items;
@@ -617,6 +643,10 @@ final class MarkdownReader
         $line = trim($line);
         if ($line === '') {
             return null;
+        }
+
+        if (preg_match('/^(<<):(?:[ \t]*(.*))?$/', $line, $m) === 1) {
+            return [$m[1], rtrim($m[2] ?? '')];
         }
 
         if ($line[0] === '"' || $line[0] === "'") {
@@ -682,32 +712,69 @@ final class MarkdownReader
      */
     private function parseYamlScalarValue(string $value): mixed
     {
+        [$value, $anchorName, $tags] = $this->parseYamlValueDirectives($value);
+        $parsed = $this->parseYamlScalarValueFromDirectives($value, $anchorName, $tags);
+
+        return $parsed;
+    }
+
+    /**
+     * @param list<string> $tags
+     * @return mixed
+     */
+    private function parseYamlScalarValueFromDirectives(string $value, ?string $anchorName, array $tags): mixed
+    {
         $value = trim($value);
         if ($value === '') {
-            return '';
+            $parsed = '';
+            $this->rememberYamlAnchor($anchorName, $parsed);
+            return $parsed;
+        }
+
+        if ($this->isYamlAliasScalar($value)) {
+            $parsed = $this->yamlAliasValue(substr($value, 1));
+            $this->rememberYamlAnchor($anchorName, $parsed);
+            return $parsed;
+        }
+
+        if ($this->yamlTagsForceString($tags)) {
+            $parsed = (($value[0] === '"' && str_ends_with($value, '"')) || ($value[0] === "'" && str_ends_with($value, "'")))
+                ? $this->unquoteYamlScalar($value)
+                : $value;
+            $this->rememberYamlAnchor($anchorName, $parsed);
+            return $parsed;
         }
 
         if ($value[0] === '[' && str_ends_with($value, ']')) {
-            return array_map(
+            $parsed = array_map(
                 fn (string $item): mixed => $this->parseYamlScalarValue($item),
                 $this->splitYamlInlineList(substr($value, 1, -1))
             );
+            $this->rememberYamlAnchor($anchorName, $parsed);
+            return $parsed;
         }
 
         if ($value[0] === '{' && str_ends_with($value, '}')) {
-            return $this->parseYamlInlineMap(substr($value, 1, -1));
+            $parsed = $this->parseYamlInlineMap(substr($value, 1, -1));
+            $this->rememberYamlAnchor($anchorName, $parsed);
+            return $parsed;
         }
 
         if (($value[0] === '"' && str_ends_with($value, '"')) || ($value[0] === "'" && str_ends_with($value, "'"))) {
-            return $this->unquoteYamlScalar($value);
+            $parsed = $this->unquoteYamlScalar($value);
+            $this->rememberYamlAnchor($anchorName, $parsed);
+            return $parsed;
         }
 
-        return match (strtolower($value)) {
+        $parsed = match (strtolower($value)) {
             'true' => true,
             'false' => false,
             'null', '~' => null,
             default => is_numeric($value) ? $this->parseYamlNumericScalar($value) : $value,
         };
+        $this->rememberYamlAnchor($anchorName, $parsed);
+
+        return $parsed;
     }
 
     /**
@@ -736,7 +803,12 @@ final class MarkdownReader
                 continue;
             }
 
-            $map[$key] = $this->parseYamlScalarValue($value);
+            $value = $this->parseYamlScalarValue($value);
+            if ($key === '<<') {
+                $map = $this->mergeYamlMapValue($map, $value);
+            } else {
+                $map[$key] = $value;
+            }
         }
 
         return $map;
@@ -907,6 +979,114 @@ final class MarkdownReader
     private function parseYamlNumericScalar(string $value): int|float
     {
         return str_contains($value, '.') || stripos($value, 'e') !== false ? (float) $value : (int) $value;
+    }
+
+    /**
+     * @return array{0:string, 1:string|null, 2:list<string>}
+     */
+    private function parseYamlValueDirectives(string $value): array
+    {
+        $value = ltrim($value);
+        $anchorName = null;
+        $tags = [];
+
+        while ($value !== '') {
+            if (preg_match('/^&([A-Za-z0-9_.-]+)(?=$|[ \t])/', $value, $m) === 1) {
+                $anchorName = $m[1];
+                $value = ltrim(substr($value, strlen($m[0])));
+                continue;
+            }
+
+            if (preg_match('/^!<([^>]+)>(?=$|[ \t])/', $value, $m) === 1) {
+                $tags[] = $m[1];
+                $value = ltrim(substr($value, strlen($m[0])));
+                continue;
+            }
+
+            if (preg_match('/^(!{1,2}[A-Za-z0-9_.:\/-]+)(?=$|[ \t])/', $value, $m) === 1) {
+                $tags[] = $m[1];
+                $value = ltrim(substr($value, strlen($m[0])));
+                continue;
+            }
+
+            break;
+        }
+
+        return [$value, $anchorName, $tags];
+    }
+
+    private function yamlTagsForceString(array $tags): bool
+    {
+        foreach ($tags as $tag) {
+            $normalized = strtolower($tag);
+            if ($normalized === '!!str' || $normalized === '!str' || $normalized === 'tag:yaml.org,2002:str') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isYamlAliasScalar(string $value): bool
+    {
+        return preg_match('/^\*[A-Za-z0-9_.-]+$/', $value) === 1;
+    }
+
+    private function yamlAliasValue(string $anchorName): mixed
+    {
+        if (!array_key_exists($anchorName, $this->yamlMetadataAnchors)) {
+            return '*' . $anchorName;
+        }
+
+        return $this->cloneYamlMetadataValue($this->yamlMetadataAnchors[$anchorName]);
+    }
+
+    private function rememberYamlAnchor(?string $anchorName, mixed $value): void
+    {
+        if ($anchorName === null || $anchorName === '') {
+            return;
+        }
+
+        $this->yamlMetadataAnchors[$anchorName] = $this->cloneYamlMetadataValue($value);
+    }
+
+    private function cloneYamlMetadataValue(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        $copy = [];
+        foreach ($value as $key => $item) {
+            $copy[$key] = $this->cloneYamlMetadataValue($item);
+        }
+
+        return $copy;
+    }
+
+    /**
+     * @param array<string, mixed> $current
+     * @return array<string, mixed>
+     */
+    private function mergeYamlMapValue(array $current, mixed $mergeValue): array
+    {
+        $merged = [];
+        if ($this->isYamlAssociativeArray($mergeValue)) {
+            $merged = $mergeValue;
+        } elseif (is_array($mergeValue)) {
+            foreach ($mergeValue as $item) {
+                if ($this->isYamlAssociativeArray($item)) {
+                    $merged = array_replace($merged, $item);
+                }
+            }
+        }
+
+        return array_replace($merged, $current);
+    }
+
+    private function isYamlAssociativeArray(mixed $value): bool
+    {
+        return is_array($value) && $value !== [] && !array_is_list($value);
     }
 
     /**

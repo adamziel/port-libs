@@ -17,14 +17,19 @@ author:
   - WordPress import editor
 date: 2026-06-03
 keywords: [migration, wordpress, metadata]
-review:
+reviewDefaults_: &review_defaults
   status: queued
   priority: 3
-  labels:
-    - front-matter
-    - wordpress
+  labels: &review_labels [front-matter, wordpress]
+review:
+  <<: *review_defaults
+  owner: !wp-reviewer "Import Desk"
+aliases:
+  labels: *review_labels
+source-revision: !!str 007
 references:
-  - id: source-export
+  - &source_reference
+    id: source-export
     type: article-journal
     title: "Source: Metadata export"
     issued:
@@ -57,6 +62,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['references'][0]['issued']['date-parts'][0] ?? []) !== [2026, 6, 3]) {
         throw new RuntimeException('YAML metadata self-test missing block-style date-parts');
     }
+    if (($meta['aliases']['labels'] ?? []) !== ['front-matter', 'wordpress']) {
+        throw new RuntimeException('YAML metadata self-test missing anchor alias labels');
+    }
+    if (($meta['source-revision'] ?? '') !== '007') {
+        throw new RuntimeException('YAML metadata self-test missing tagged string revision');
+    }
     if (!str_contains($blocks, '<h1 id="imported-body">Imported Body</h1>')) {
         throw new RuntimeException('YAML metadata self-test missing imported body heading');
     }
@@ -70,5 +81,6 @@ echo 'Authors: ' . implode(', ', $meta['authors'] ?? []) . "\n";
 echo 'Review status: ' . ($meta['review']['status'] ?? '') . "\n";
 echo 'Review labels: ' . implode(', ', $meta['review']['labels'] ?? []) . "\n";
 echo 'Keywords: ' . implode(', ', $meta['keywords'] ?? []) . "\n\n";
+echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
 echo 'Reference: ' . ($meta['references'][0]['id'] ?? '') . ' / ' . ($meta['references'][0]['title'] ?? '') . "\n\n";
 echo $blocks . "\n";

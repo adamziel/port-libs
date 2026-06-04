@@ -1031,6 +1031,71 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('block-metadata-body', $document->children[0]->attr('id'));
     },
+    'maps pandoc yaml anchors aliases merge keys and explicit tags' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Anchored **Packet**',
+            'review-defaults: &review_defaults',
+            '  status: queued',
+            '  priority: 3',
+            '  labels: &review_labels [migration, wordpress]',
+            'review:',
+            '  <<: *review_defaults',
+            '  status: approved',
+            '  owner: !wp-reviewer "Import Desk"',
+            'aliases:',
+            '  default-review: *review_defaults',
+            '  labels: *review_labels',
+            'references:',
+            '  - &source_ref',
+            '    id: source-export',
+            '    type: article-journal',
+            '    title: !markdown "Source **Export**"',
+            '    issued: &issued',
+            '      date-parts:',
+            '        - &date_parts',
+            '          - !!str 2026',
+            '          - 6',
+            '          - 4',
+            '  - <<: *source_ref',
+            '    id: mirrored-export',
+            '    title: Mirrored Export',
+            '  - *source_ref',
+            'tagged:',
+            '  revision: !!str 007',
+            '  schema: !<tag:example.test,2026:wp-review> queued',
+            'flow-default: &flow_default {status: draft, priority: 5}',
+            'flow-review: {<<: *flow_default, priority: 4}',
+            '...',
+            '',
+            '# YAML anchor body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+
+        $t->same('Anchored **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('approved', $meta['review']['status']);
+        $t->same(3, $meta['review']['priority']);
+        $t->same(['migration', 'wordpress'], $meta['review']['labels']);
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same('queued', $meta['aliases']['default-review']['status']);
+        $t->same(['migration', 'wordpress'], $meta['aliases']['labels']);
+        $t->same('source-export', $meta['references'][0]['id']);
+        $t->same('Source **Export**', $meta['references'][0]['title']);
+        $t->same([['2026', 6, 4]], $meta['references'][0]['issued']['date-parts']);
+        $t->same('mirrored-export', $meta['references'][1]['id']);
+        $t->same('article-journal', $meta['references'][1]['type'] ?? null);
+        $t->same('Mirrored Export', $meta['references'][1]['title']);
+        $t->same('source-export', $meta['references'][2]['id']);
+        $t->same('Source **Export**', $meta['references'][2]['title']);
+        $t->same('007', $meta['tagged']['revision']);
+        $t->same('queued', $meta['tagged']['schema']);
+        $t->same('draft', $meta['flow-review']['status']);
+        $t->same(4, $meta['flow-review']['priority']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('yaml-anchor-body', $document->children[0]->attr('id'));
+    },
     'keeps blank-led yaml-looking fences as markdown body' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
