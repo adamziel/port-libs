@@ -60,6 +60,12 @@ XML],
       <w:r><w:t xml:space="preserve">Import reviewer keeps </w:t></w:r>
       <w:hyperlink r:id="rIdSource"><w:r><w:t>the source link</w:t></w:r></w:hyperlink>
       <w:r><w:t xml:space="preserve"> visible.</w:t></w:r>
+      <w:del w:id="7" w:author="Source Editor" w:date="2026-06-04T17:45:00Z">
+        <w:r><w:delText>Old reviewer draft.</w:delText></w:r>
+      </w:del>
+      <w:ins w:id="8" w:author="Migration Editor" w:date="2026-06-04T17:50:00Z">
+        <w:r><w:t xml:space="preserve"> Approved tracked wording.</w:t></w:r>
+      </w:ins>
       <w:r><w:footnoteReference w:id="2"/></w:r>
       <w:r><w:t xml:space="preserve"> Also keep endnote context</w:t></w:r>
       <w:r><w:endnoteReference w:id="5"/></w:r>
@@ -172,6 +178,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['importReport']['media']['items'][0]['bytes'] ?? 0) !== 7) {
         throw new RuntimeException('DOCX body handoff self-test missing media byte count');
     }
+    if (($summary['importReport']['revisions']['insertionCount'] ?? 0) !== 1 || ($summary['importReport']['revisions']['deletionCount'] ?? 0) !== 1) {
+        throw new RuntimeException('DOCX body handoff self-test missing tracked-change report');
+    }
+    if (str_contains($blocks, 'Old reviewer draft.')) {
+        throw new RuntimeException('DOCX body handoff self-test rendered deleted tracked-change text');
+    }
 
     foreach ([
         '<h1 id="docx-source-packet">DOCX source packet</h1>',
@@ -179,6 +191,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<ul><li>Match media IDs</li><li>Preserve alt text</li></ul>',
         '<ol start="3" type="a"><li>Confirm source URL</li><li>Publish packet</li></ol>',
         '<a href="https://example.test/source-packet?post=42">the source link</a>',
+        '<span class="docx-insertion" data-docx-change="insertion" data-docx-change-id="8" data-docx-author="Migration Editor" data-docx-date="2026-06-04T17:50:00Z"> Approved tracked wording.</span>',
         '<span class="math inline">\(x_{i} + \frac{1}{\sqrt{n}}\)</span>',
         '<img src="word/media/hero.png" alt="Source hero alt" title="Source hero"/>',
         '<td colspan="2" rowspan="2"><p>Review scope</p></td><td><p>Status</p></td>',

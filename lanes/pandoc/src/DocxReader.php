@@ -47,8 +47,9 @@ final class DocxReader
         $referencedNotes = $this->loadReferencedNotes($package, $graph, $documentPart);
         $styles = $this->loadStyles($package, $graph, $documentPart);
         $numbering = $this->loadNumbering($package, $graph, $documentPart);
+        $documentXml = $package->read($documentPart);
         $document = $this->parseDocumentXml(
-            $package->read($documentPart),
+            $documentXml,
             $documentPart,
             $package,
             $documentRelationships,
@@ -63,13 +64,14 @@ final class DocxReader
             'metadata' => $metadata,
             'documentPart' => $documentPart,
             'relationships' => $graph->summarizeTargetsForSource($documentPart),
-            'importReport' => $this->importReport($package, $documentPart, $documentRelationships, $relationshipPreflight, $reachableRelationships, $document),
+            'importReport' => $this->importReport($package, $documentPart, $documentRelationships, $relationshipPreflight, $reachableRelationships, $document, $this->revisionImportReport($documentXml)),
         ];
     }
 
     /**
      * @param list<array{id:string, type:string, target:string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, valid:bool, issues:list<string>}> $relationshipPreflight
      * @param list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, valid:bool, issues:list<string>}> $reachableRelationships
+     * @param array{insertionCount:int, deletionCount:int, items:list<array{type:string, accepted:bool, id:?string, author:?string, date:?string, text:string}>} $revisions
      * @return array{documentPart:string, relationshipsPart:?string, relationshipCount:int, reachableRelationshipCount:int, relationshipIssues:list<array{source:string, id:string, type:string, target:string, issues:list<string>}>, media:array{count:int, embeddedCount:int, missingCount:int, items:list<array{source:string, id:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, bytes:?int, usedCount:int, altTexts:list<string>, titles:list<string>, issues:list<string>}>}}
      */
     private function importReport(
@@ -78,7 +80,8 @@ final class DocxReader
         ?OpcRelationships $documentRelationships,
         array $relationshipPreflight,
         array $reachableRelationships,
-        AstNode $document
+        AstNode $document,
+        array $revisions
     ): array {
         $relationshipIssues = [];
         foreach ($reachableRelationships as $relationship) {
@@ -102,6 +105,7 @@ final class DocxReader
             'reachableRelationshipCount' => count($reachableRelationships),
             'relationshipIssues' => $relationshipIssues,
             'media' => $this->mediaImportReport($package, $reachableRelationships, $document),
+            'revisions' => $revisions,
         ];
     }
 
@@ -364,7 +368,11 @@ final class DocxReader
             return $content instanceof \DOMElement ? $this->inlineContainerNodes($content, $package, $relationships, $referencedNotes) : [];
         }
 
-        if ($this->isWordElement($element, 'ins') || $this->isWordElement($element, 'smartTag')) {
+        if ($this->isWordElement($element, 'ins')) {
+            return $this->trackedInsertionNodes($element, $package, $relationships, $referencedNotes);
+        }
+
+        if ($this->isWordElement($element, 'smartTag')) {
             return $this->inlineContainerNodes($element, $package, $relationships, $referencedNotes);
         }
 
@@ -389,6 +397,46 @@ final class DocxReader
         }
 
         return $inlines;
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @return list<AstNode>
+     */
+    private function trackedInsertionNodes(\DOMElement $insertion, ZipPackage $package, ?OpcRelationships $relationships, array $referencedNotes): array
+    {
+        $children = $this->inlineContainerNodes($insertion, $package, $relationships, $referencedNotes);
+        if ($children === []) {
+            return [];
+        }
+
+        return [new AstNode('span', $this->trackedChangeSpanAttrs($insertion, 'insertion'), $children)];
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function trackedChangeSpanAttrs(\DOMElement $change, string $type): array
+    {
+        $attributes = [
+            'data-docx-change' => $type,
+        ];
+
+        foreach ([
+            'id' => 'data-docx-change-id',
+            'author' => 'data-docx-author',
+            'date' => 'data-docx-date',
+        ] as $wordAttr => $htmlAttr) {
+            $value = $this->wordAttr($change, $wordAttr);
+            if ($value !== null && $value !== '') {
+                $attributes[$htmlAttr] = $value;
+            }
+        }
+
+        return [
+            'classes' => ['docx-' . $type],
+            'attributes' => $attributes,
+        ];
     }
 
     /**
@@ -1201,6 +1249,101 @@ final class DocxReader
         }
 
         return $properties;
+    }
+
+    /**
+     * @return array{insertionCount:int, deletionCount:int, items:list<array{type:string, accepted:bool, id:?string, author:?string, date:?string, text:string}>}
+     */
+    private function revisionImportReport(string $xml): array
+    {
+        $dom = self::loadXml($xml, 'DOCX document XML revisions');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement) {
+            return [
+                'insertionCount' => 0,
+                'deletionCount' => 0,
+                'items' => [],
+            ];
+        }
+
+        $items = [];
+        $this->collectTrackedChanges($root, $items);
+        $insertionCount = 0;
+        $deletionCount = 0;
+        foreach ($items as $item) {
+            if ($item['type'] === 'insertion') {
+                $insertionCount++;
+            } elseif ($item['type'] === 'deletion') {
+                $deletionCount++;
+            }
+        }
+
+        return [
+            'insertionCount' => $insertionCount,
+            'deletionCount' => $deletionCount,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param list<array{type:string, accepted:bool, id:?string, author:?string, date:?string, text:string}> $items
+     */
+    private function collectTrackedChanges(\DOMElement $element, array &$items): void
+    {
+        if ($this->isWordElement($element, 'ins') || $this->isWordElement($element, 'del')) {
+            $type = $this->isWordElement($element, 'ins') ? 'insertion' : 'deletion';
+            $items[] = [
+                'type' => $type,
+                'accepted' => $type === 'insertion',
+                'id' => $this->wordAttr($element, 'id'),
+                'author' => $this->wordAttr($element, 'author'),
+                'date' => $this->wordAttr($element, 'date'),
+                'text' => $this->trackedChangeText($element),
+            ];
+
+            return;
+        }
+
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $this->collectTrackedChanges($child, $items);
+            }
+        }
+    }
+
+    private function trackedChangeText(\DOMElement $element): string
+    {
+        $text = $this->trackedChangeTextRaw($element);
+
+        return trim(preg_replace('/[ \t\r\n]+/u', ' ', $text) ?? $text);
+    }
+
+    private function trackedChangeTextRaw(\DOMElement $element): string
+    {
+        if ($this->isWordElement($element, 't') || $this->isWordElement($element, 'delText')) {
+            return $element->textContent;
+        }
+        if ($this->isWordElement($element, 'tab')) {
+            return "\t";
+        }
+        if ($this->isWordElement($element, 'br')) {
+            return "\n";
+        }
+        if ($this->isWordElement($element, 'softHyphen')) {
+            return "\u{00AD}";
+        }
+        if ($this->isWordElement($element, 'noBreakHyphen')) {
+            return "\u{2011}";
+        }
+
+        $text = '';
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $text .= $this->trackedChangeTextRaw($child);
+            }
+        }
+
+        return $text;
     }
 
     /**

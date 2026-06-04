@@ -324,6 +324,23 @@ $mathDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$trackedChangesDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Import packet keeps </w:t></w:r>
+      <w:del w:id="3" w:author="Source Editor" w:date="2026-06-04T17:45:00Z">
+        <w:r><w:delText>old draft wording</w:delText></w:r>
+      </w:del>
+      <w:ins w:id="4" w:author="Migration Editor" w:date="2026-06-04T17:50:00Z">
+        <w:r><w:t>approved copy</w:t></w:r>
+      </w:ins>
+      <w:r><w:t xml:space="preserve"> for reviewer handoff.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $buildDocxPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $documentXml, $footnotesXml, $corePropertiesXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -385,6 +402,14 @@ $buildMathPackage = static function () use ($contentTypesXml, $packageRelationsh
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $mathDocumentXml],
+    ]);
+};
+
+$buildTrackedChangesPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $trackedChangesDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $trackedChangesDocumentXml],
     ]);
 };
 
@@ -660,6 +685,49 @@ return [
         $t->contains('$$E = mc^{2}$$', $markdown);
         $t->contains('<p>Formula handoff <span class="math inline">\(x_{i} + \frac{1}{\sqrt{n}}\)</span> stays native.</p>', $blocks);
         $t->contains('<p><span class="math display">\[E = mc^{2}\]</span></p>', $blocks);
+    },
+    'preserves accepted DOCX tracked insertions and reports suppressed deletions' => static function (TestRunner $t) use ($buildTrackedChangesPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildTrackedChangesPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Import packet keeps ', $paragraph->children[0]->attr('text'));
+
+        $insertion = $paragraph->children[1];
+        $t->same('span', $insertion->type);
+        $t->same(['docx-insertion'], $insertion->attr('classes'));
+        $t->same('insertion', $insertion->attr('attributes')['data-docx-change']);
+        $t->same('4', $insertion->attr('attributes')['data-docx-change-id']);
+        $t->same('Migration Editor', $insertion->attr('attributes')['data-docx-author']);
+        $t->same('2026-06-04T17:50:00Z', $insertion->attr('attributes')['data-docx-date']);
+        $t->same('approved copy', $insertion->children[0]->attr('text'));
+        $t->same(' for reviewer handoff.', $paragraph->children[2]->attr('text'));
+
+        $t->contains('Import packet keeps [approved copy]{.docx-insertion data-docx-change="insertion" data-docx-change-id="4" data-docx-author="Migration Editor" data-docx-date="2026-06-04T17:50:00Z"} for reviewer handoff.', $markdown);
+        $t->true(!str_contains($markdown, 'old draft wording'), 'Deleted DOCX text should not render to Markdown');
+        $t->contains('<p>Import packet keeps <span class="docx-insertion" data-docx-change="insertion" data-docx-change-id="4" data-docx-author="Migration Editor" data-docx-date="2026-06-04T17:50:00Z">approved copy</span> for reviewer handoff.</p>', $blocks);
+        $t->true(!str_contains($blocks, 'old draft wording'), 'Deleted DOCX text should not render to WordPress blocks');
+
+        $revisions = $result['importReport']['revisions'];
+        $t->same(1, $revisions['insertionCount']);
+        $t->same(1, $revisions['deletionCount']);
+        $t->same(2, count($revisions['items']));
+        $t->same('deletion', $revisions['items'][0]['type']);
+        $t->same(false, $revisions['items'][0]['accepted']);
+        $t->same('3', $revisions['items'][0]['id']);
+        $t->same('Source Editor', $revisions['items'][0]['author']);
+        $t->same('2026-06-04T17:45:00Z', $revisions['items'][0]['date']);
+        $t->same('old draft wording', $revisions['items'][0]['text']);
+        $t->same('insertion', $revisions['items'][1]['type']);
+        $t->same(true, $revisions['items'][1]['accepted']);
+        $t->same('4', $revisions['items'][1]['id']);
+        $t->same('Migration Editor', $revisions['items'][1]['author']);
+        $t->same('2026-06-04T17:50:00Z', $revisions['items'][1]['date']);
+        $t->same('approved copy', $revisions['items'][1]['text']);
     },
     'rejects malformed DOCX packages without shelling out to office tooling' => static function (TestRunner $t) use ($contentTypesXml, $documentXml): void {
         $reader = new DocxReader();
