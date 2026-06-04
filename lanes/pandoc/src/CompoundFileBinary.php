@@ -16,7 +16,7 @@ final class CompoundFileBinary
     /** @var list<int> */
     private array $fat;
 
-    /** @var list<array{name:string,type:int,startSector:int,size:int}> */
+    /** @var list<array{name:string,path:string,type:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}> */
     private array $entries;
 
     /** @var array<string, int> */
@@ -29,7 +29,7 @@ final class CompoundFileBinary
 
     /**
      * @param list<int> $fat
-     * @param list<array{name:string,type:int,startSector:int,size:int}> $entries
+     * @param list<array{name:string,path:string,type:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}> $entries
      * @param array<string, int> $entriesByName
      */
     private function __construct(
@@ -162,7 +162,7 @@ final class CompoundFileBinary
     }
 
     /**
-     * @return list<array{name:string,type:int,startSector:int,size:int}>
+     * @return list<array{name:string,path:string,type:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}>
      */
     public function entries(): array
     {
@@ -177,7 +177,7 @@ final class CompoundFileBinary
         $names = [];
         foreach ($this->entries as $entry) {
             if ($entry['type'] === 2) {
-                $names[] = $entry['name'];
+                $names[] = $entry['path'];
             }
         }
 
@@ -220,7 +220,7 @@ final class CompoundFileBinary
     }
 
     /**
-     * @return array{name:string,type:int,startSector:int,size:int}|null
+     * @return array{name:string,path:string,type:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}|null
      */
     private function findEntry(string $name): ?array
     {
@@ -231,7 +231,7 @@ final class CompoundFileBinary
     }
 
     /**
-     * @return array{name:string,type:int,startSector:int,size:int}
+     * @return array{name:string,path:string,type:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}
      */
     private function requireStreamEntry(string $name): array
     {
@@ -367,36 +367,108 @@ final class CompoundFileBinary
     }
 
     /**
-     * @return array{0:list<array{name:string,type:int,startSector:int,size:int}>,1:array<string,int>}
+     * @return array{0:list<array{name:string,path:string,type:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}>,1:array<string,int>}
      */
     private static function parseDirectory(string $directoryBytes): array
     {
-        $entries = [];
+        $rawEntries = [];
+        $root = null;
         $byName = [];
         for ($offset = 0, $length = strlen($directoryBytes); $offset + 128 <= $length; $offset += 128) {
+            $directoryId = intdiv($offset, 128);
             $entryBytes = substr($directoryBytes, $offset, 128);
             $type = ord($entryBytes[66]);
             if ($type === 0) {
+                $rawEntries[$directoryId] = null;
                 continue;
             }
 
             $nameLength = self::u16($entryBytes, 64);
             if ($nameLength < 2 || $nameLength > 64) {
+                $rawEntries[$directoryId] = null;
                 continue;
             }
             $nameBytes = substr($entryBytes, 0, $nameLength - 2);
             $name = self::decodeUtf16Le($nameBytes);
             $entry = [
                 'name' => $name,
+                'path' => $name,
                 'type' => $type,
                 'startSector' => self::u32($entryBytes, 116),
                 'size' => self::u64($entryBytes, 120),
+                'leftSiblingId' => self::u32($entryBytes, 68),
+                'rightSiblingId' => self::u32($entryBytes, 72),
+                'childId' => self::u32($entryBytes, 76),
+                'directoryId' => $directoryId,
             ];
-            $entries[] = $entry;
-            $byName[self::normalizeName($name)] = count($entries) - 1;
+            $rawEntries[$directoryId] = $entry;
+            if ($type === 5 && $root === null) {
+                $root = $entry;
+            }
         }
 
+        if ($root === null) {
+            throw new \RuntimeException('CFB directory is missing the Root Entry storage');
+        }
+
+        $root['path'] = '';
+        $entries = [$root];
+        $visited = [$root['directoryId'] => true];
+        self::collectDirectoryTree($root['childId'], '', $rawEntries, $entries, $byName, $visited);
+
         return [$entries, $byName];
+    }
+
+    /**
+     * @param array<int,array{name:string,path:string,type:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}|null> $rawEntries
+     * @param list<array{name:string,path:string,type:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}> $entries
+     * @param array<string,int> $byName
+     * @param array<int,bool> $visited
+     */
+    private static function collectDirectoryTree(
+        int $nodeId,
+        string $parentPath,
+        array $rawEntries,
+        array &$entries,
+        array &$byName,
+        array &$visited
+    ): void {
+        if (!self::isRegularSector($nodeId)) {
+            return;
+        }
+        if (!array_key_exists($nodeId, $rawEntries) || $rawEntries[$nodeId] === null) {
+            throw new \RuntimeException('CFB directory tree points outside the directory');
+        }
+        if (isset($visited[$nodeId])) {
+            throw new \RuntimeException('CFB directory tree contains a cycle');
+        }
+
+        $visited[$nodeId] = true;
+        $entry = $rawEntries[$nodeId];
+        self::collectDirectoryTree($entry['leftSiblingId'], $parentPath, $rawEntries, $entries, $byName, $visited);
+
+        $entry['path'] = $parentPath === '' ? $entry['name'] : $parentPath . '/' . $entry['name'];
+        $entryIndex = count($entries);
+        $entries[] = $entry;
+        if ($entry['type'] === 2) {
+            $fullName = self::normalizeName($entry['path']);
+            if (isset($byName[$fullName])) {
+                throw new \RuntimeException('CFB directory contains a duplicate stream path: ' . $entry['path']);
+            }
+            $byName[$fullName] = $entryIndex;
+            if ($parentPath === '') {
+                $rootName = self::normalizeName($entry['name']);
+                if ($rootName !== $fullName && isset($byName[$rootName])) {
+                    throw new \RuntimeException('CFB directory contains a duplicate root stream name: ' . $entry['name']);
+                }
+                $byName[$rootName] = $entryIndex;
+            }
+        }
+        if ($entry['type'] === 1) {
+            self::collectDirectoryTree($entry['childId'], $entry['path'], $rawEntries, $entries, $byName, $visited);
+        }
+
+        self::collectDirectoryTree($entry['rightSiblingId'], $parentPath, $rawEntries, $entries, $byName, $visited);
     }
 
     private static function normalizeName(string $name): string

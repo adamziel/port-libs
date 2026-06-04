@@ -25,7 +25,15 @@ $padTo = static function (string $bytes, int $size): string {
     return $remainder === 0 ? $bytes : $bytes . str_repeat("\0", $size - $remainder);
 };
 
-$directoryEntry = static function (string $name, int $type, int $startSector, int $size) use ($u16, $u32, $u64, $utf16le): string {
+$directoryEntry = static function (
+    string $name,
+    int $type,
+    int $startSector,
+    int $size,
+    int $leftSibling,
+    int $rightSibling,
+    int $child
+) use ($u16, $u32, $u64, $utf16le): string {
     $nameBytes = $utf16le($name . "\0");
     if (strlen($nameBytes) > 64) {
         throw new RuntimeException('CFB test directory name is too long');
@@ -35,9 +43,9 @@ $directoryEntry = static function (string $name, int $type, int $startSector, in
         . $u16(strlen($nameBytes))
         . chr($type)
         . "\0"
-        . $u32(0xffffffff)
-        . $u32(0xffffffff)
-        . $u32(0xffffffff)
+        . $u32($leftSibling)
+        . $u32($rightSibling)
+        . $u32($child)
         . str_repeat("\0", 16)
         . $u32(0)
         . $u64(0)
@@ -117,10 +125,81 @@ $buildCfb = static function (array $streams, bool $useMiniStreams = true) use ($
         ];
     }
 
-    $directory = $directoryEntry('Root Entry', 5, $rootMiniStart, $miniStreamSize);
-    foreach ($streams as $name => $data) {
-        $location = $streamLocations[$name];
-        $directory .= $directoryEntry((string) $name, 2, $location['startSector'], $location['size']);
+    $nodes = [
+        [
+            'name' => 'Root Entry',
+            'type' => 5,
+            'startSector' => $rootMiniStart,
+            'size' => $miniStreamSize,
+            'children' => [],
+        ],
+    ];
+    $nodeByPath = ['' => 0];
+    foreach ($streams as $name => $_data) {
+        $path = trim(str_replace('\\', '/', (string) $name), '/');
+        $segments = array_values(array_filter(explode('/', $path), static fn (string $segment): bool => $segment !== ''));
+        if ($segments === []) {
+            throw new RuntimeException('CFB test stream path is empty');
+        }
+
+        $parentIndex = 0;
+        $parentPath = '';
+        for ($index = 0, $last = count($segments) - 1; $index < $last; $index++) {
+            $storagePath = $parentPath === '' ? $segments[$index] : $parentPath . '/' . $segments[$index];
+            if (!isset($nodeByPath[$storagePath])) {
+                $nodeByPath[$storagePath] = count($nodes);
+                $nodes[] = [
+                    'name' => $segments[$index],
+                    'type' => 1,
+                    'startSector' => $end,
+                    'size' => 0,
+                    'children' => [],
+                ];
+                $nodes[$parentIndex]['children'][] = $nodeByPath[$storagePath];
+            }
+            $parentIndex = $nodeByPath[$storagePath];
+            $parentPath = $storagePath;
+        }
+
+        $leafName = $segments[count($segments) - 1];
+        $streamPath = $parentPath === '' ? $leafName : $parentPath . '/' . $leafName;
+        $location = $streamLocations[(string) $name];
+        $nodes[] = [
+            'name' => $leafName,
+            'type' => 2,
+            'startSector' => $location['startSector'],
+            'size' => $location['size'],
+            'children' => [],
+        ];
+        $nodeByPath[$streamPath] = count($nodes) - 1;
+        $nodes[$parentIndex]['children'][] = count($nodes) - 1;
+    }
+
+    $leftSiblings = [];
+    $rightSiblings = [];
+    $childIds = [];
+    foreach ($nodes as $nodeIndex => $node) {
+        $children = $node['children'];
+        if ($children !== []) {
+            $childIds[$nodeIndex] = $children[0];
+        }
+        foreach ($children as $childOffset => $childIndex) {
+            $leftSiblings[$childIndex] = $free;
+            $rightSiblings[$childIndex] = $children[$childOffset + 1] ?? $free;
+        }
+    }
+
+    $directory = '';
+    foreach ($nodes as $nodeIndex => $node) {
+        $directory .= $directoryEntry(
+            (string) $node['name'],
+            (int) $node['type'],
+            (int) $node['startSector'],
+            (int) $node['size'],
+            $leftSiblings[$nodeIndex] ?? $free,
+            $rightSiblings[$nodeIndex] ?? $free,
+            $childIds[$nodeIndex] ?? $free
+        );
     }
     $sectors[$directorySector] = $padTo($directory, $sectorSize);
 
@@ -282,6 +361,31 @@ return [
         $t->same('small stream bytes', $compoundFile->readStream('WordDocument'));
         $t->same('summary bytes', $compoundFile->readStream("\x05SummaryInformation"));
         $t->same(str_repeat('L', 5000), $compoundFile->readStream('LargePreview'));
+    },
+    'traverses CFB storage child trees for nested legacy streams' => static function (TestRunner $t) use ($buildCfb): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+            'Review/Notes' => 'nested reviewer notes',
+        ]);
+        $compoundFile = CompoundFileBinary::fromBytes($bytes);
+
+        $t->same([
+            'WordDocument',
+            'Review/Notes',
+        ], $compoundFile->streamNames());
+        $t->true($compoundFile->hasStream('Review/Notes'));
+        $t->same(false, $compoundFile->hasStream('Notes'));
+        $t->same('nested reviewer notes', $compoundFile->readStream('review/notes'));
+    },
+    'rejects cyclic CFB directory child trees before exposing streams' => static function (TestRunner $t) use ($buildCfb, $u32): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+        ]);
+        $directorySectorOffset = 512 + 512;
+        $firstStreamRightSiblingOffset = $directorySectorOffset + 128 + 72;
+        $cyclic = substr_replace($bytes, $u32(1), $firstStreamRightSiblingOffset, 4);
+
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($cyclic));
     },
     'extracts non-complex legacy DOC text and OLE SummaryInformation metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $propertySet): void {
         $docBytes = $buildCfb([

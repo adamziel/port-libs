@@ -23,16 +23,24 @@ $padTo = static function (string $bytes, int $size): string {
 
     return $remainder === 0 ? $bytes : $bytes . str_repeat("\0", $size - $remainder);
 };
-$directoryEntry = static function (string $name, int $type, int $startSector, int $size) use ($u16, $u32, $u64, $utf16le): string {
+$directoryEntry = static function (
+    string $name,
+    int $type,
+    int $startSector,
+    int $size,
+    int $leftSibling,
+    int $rightSibling,
+    int $child
+) use ($u16, $u32, $u64, $utf16le): string {
     $nameBytes = $utf16le($name . "\0");
 
     return str_pad($nameBytes, 64, "\0")
         . $u16(strlen($nameBytes))
         . chr($type)
         . "\0"
-        . $u32(0xffffffff)
-        . $u32(0xffffffff)
-        . $u32(0xffffffff)
+        . $u32($leftSibling)
+        . $u32($rightSibling)
+        . $u32($child)
         . str_repeat("\0", 16)
         . $u32(0)
         . $u64(0)
@@ -172,10 +180,29 @@ foreach ($miniStreamChunks as $index => $chunk) {
     $fat[] = $index === count($miniStreamChunks) - 1 ? $end : $sector + 1;
 }
 
-$directory = $directoryEntry('Root Entry', 5, $rootMiniStart, $miniStreamSize);
+$directory = $directoryEntry(
+    'Root Entry',
+    5,
+    $rootMiniStart,
+    $miniStreamSize,
+    $free,
+    $free,
+    count($streams) === 0 ? $free : 1
+);
+$streamIndex = 0;
+$streamCount = count($streams);
 foreach ($streams as $name => $data) {
     $location = $locations[$name];
-    $directory .= $directoryEntry((string) $name, 2, $location['startSector'], $location['size']);
+    $directory .= $directoryEntry(
+        (string) $name,
+        2,
+        $location['startSector'],
+        $location['size'],
+        $free,
+        $streamIndex === $streamCount - 1 ? $free : $streamIndex + 2,
+        $free
+    );
+    $streamIndex++;
 }
 $sectors[1] = $padTo($directory, $sectorSize);
 
