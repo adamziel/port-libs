@@ -262,6 +262,61 @@ BIB;
         $t->same('(Curator forthcoming)', $processor->renderCitationCluster([$citation('edited-manual', '[@edited-manual]')]));
         $t->same('Curator, Eli, III. Edited Migration Manual. Review Press, forthcoming.', $processor->renderBibliographyEntry('edited-manual'));
     },
+    'inherits bounded bibtex crossref fields into child csl items' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@proceedings{conf2026,
+  editor    = {Curator, Eli and de la Cruz, Ana Maria},
+  title     = {Migration Futures Conference},
+  year      = {2026},
+  publisher = {Review Press},
+  address   = {Portland}
+}
+
+@inproceedings{source-audit,
+  author   = {Smith, Ada},
+  title    = {Packet Audit Trails},
+  pages    = {12--18},
+  crossref = {conf2026}
+}
+
+@incollection{chapter-review,
+  author    = {Roe, Pat},
+  title     = {Chapter Review Notes},
+  booktitle = {Manual Override},
+  year      = {2027},
+  crossref  = {conf2026}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(3, count($items));
+        $t->same('paper-conference', $items[1]['type']);
+        $t->same('Migration Futures Conference', $items[1]['container-title']);
+        $t->same('Review Press', $items[1]['publisher']);
+        $t->same([['family' => 'Curator', 'given' => 'Eli'], ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la']], $items[1]['editor']);
+        $t->same('chapter', $items[2]['type']);
+        $t->same('Manual Override', $items[2]['container-title']);
+        $t->same(2027, $items[2]['issued']['date-parts'][0][0] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $audit = $processor->item('source-audit');
+        $t->same('Packet Audit Trails', $audit['title'] ?? null);
+        $t->same('Migration Futures Conference', $audit['containerTitle'] ?? null);
+        $t->same('Review Press', $audit['publisher'] ?? null);
+        $t->same([2026], $audit['issuedDate']['parts'] ?? null);
+        $t->same('Eli', $audit['editors'][0]['given'] ?? null);
+        $t->same('(Smith 2026; Roe 2027)', $processor->renderCitationCluster([
+            $citation('source-audit', '[@source-audit]'),
+            $citation('chapter-review', '[@chapter-review]'),
+        ]));
+        $t->same('Smith, Ada. Packet Audit Trails. Migration Futures Conference. Review Press, 2026. 12-18.', $processor->renderBibliographyEntry('source-audit'));
+
+        $document = (new MarkdownReader())->read('Review cites @source-audit and [@chapter-review].');
+        $markdown = (new MarkdownWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('Review cites Smith (2026) and (Roe 2027).', $markdown);
+        $t->contains('Smith 2026' . "\n" . ':   Smith, Ada. Packet Audit Trails. Migration Futures Conference. Review Press, 2026. 12-18.', $markdown);
+        $t->contains('Roe 2027' . "\n" . ':   Roe, Pat. Chapter Review Notes. Manual Override. Review Press, 2027.', $markdown);
+    },
     'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
         $document = (new MarkdownReader())->read(

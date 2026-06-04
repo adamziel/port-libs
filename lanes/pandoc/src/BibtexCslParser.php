@@ -31,7 +31,7 @@ final class BibtexCslParser
      */
     private function parseEntries(): array
     {
-        $items = [];
+        $entries = [];
         while (true) {
             $at = strpos($this->input, '@', $this->offset);
             if ($at === false) {
@@ -84,10 +84,14 @@ final class BibtexCslParser
                 $fields = $this->parseFields($type, $key, $close);
             }
 
-            $items[] = self::entryToCslItem($type, $key, $fields);
+            $entries[] = [
+                'type' => $type,
+                'key' => $key,
+                'fields' => $fields,
+            ];
         }
 
-        return $items;
+        return self::entriesToCslItems($entries);
     }
 
     /**
@@ -381,6 +385,107 @@ final class BibtexCslParser
     private function peek(): ?string
     {
         return $this->offset < $this->length ? $this->input[$this->offset] : null;
+    }
+
+    /**
+     * @param list<array{type:string, key:string, fields:array<string, string>}> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entriesToCslItems(array $entries): array
+    {
+        $entriesByKey = [];
+        foreach ($entries as $entry) {
+            if (isset($entriesByKey[$entry['key']])) {
+                throw new \InvalidArgumentException('Duplicate BibTeX entry key: ' . $entry['key']);
+            }
+
+            $entriesByKey[$entry['key']] = $entry;
+        }
+
+        $items = [];
+        foreach ($entries as $entry) {
+            $fields = self::resolveCrossrefFields($entry, $entriesByKey);
+            $items[] = self::entryToCslItem($entry['type'], $entry['key'], $fields);
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array{type:string, key:string, fields:array<string, string>} $entry
+     * @param array<string, array{type:string, key:string, fields:array<string, string>}> $entriesByKey
+     * @param list<string> $stack
+     * @return array<string, string>
+     */
+    private static function resolveCrossrefFields(array $entry, array $entriesByKey, array $stack = []): array
+    {
+        if (in_array($entry['key'], $stack, true)) {
+            throw new \InvalidArgumentException('BibTeX crossref cycle involving entry: ' . $entry['key']);
+        }
+
+        $fields = $entry['fields'];
+        $crossref = self::cleanBibtexText($fields['crossref'] ?? '');
+        if ($crossref === '' || !isset($entriesByKey[$crossref])) {
+            return $fields;
+        }
+
+        $parent = $entriesByKey[$crossref];
+        $parentFields = self::resolveCrossrefFields($parent, $entriesByKey, [...$stack, $entry['key']]);
+        $inherited = self::crossrefInheritedFields($entry['type'], $fields, $parentFields);
+        foreach ($inherited as $field => $value) {
+            if (!isset($fields[$field]) || trim($fields[$field]) === '') {
+                $fields[$field] = $value;
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param array<string, string> $childFields
+     * @param array<string, string> $parentFields
+     * @return array<string, string>
+     */
+    private static function crossrefInheritedFields(string $childType, array $childFields, array $parentFields): array
+    {
+        $inherited = $parentFields;
+        unset($inherited['crossref']);
+
+        $containerField = self::crossrefTitleContainerField($childType);
+        if ($containerField !== null && !self::hasAnyField($childFields, ['booktitle', 'journaltitle', 'journal'])) {
+            $parentTitle = $parentFields['booktitle'] ?? $parentFields['journaltitle'] ?? $parentFields['journal'] ?? $parentFields['title'] ?? '';
+            if (trim($parentTitle) !== '') {
+                $inherited[$containerField] = $parentTitle;
+            }
+        }
+
+        unset($inherited['title']);
+
+        return $inherited;
+    }
+
+    private static function crossrefTitleContainerField(string $childType): ?string
+    {
+        return match (strtolower($childType)) {
+            'article' => 'journal',
+            'conference', 'inbook', 'incollection', 'inproceedings' => 'booktitle',
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $names
+     */
+    private static function hasAnyField(array $fields, array $names): bool
+    {
+        foreach ($names as $name) {
+            if (isset($fields[$name]) && trim($fields[$name]) !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
