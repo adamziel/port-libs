@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-04 20:56:42 UTC",
-    "sourceCommit": "4e0b1d60470cefa557c9fb36a5e1720ad8dcfffc",
-    "sourceCommitShort": "4e0b1d60470c",
+    "generated": "2026-06-04 21:04:12 UTC",
+    "sourceCommit": "c674c1795b84c61024a12ba621d4f2f182064509",
+    "sourceCommitShort": "c674c1795b84",
     "sourceBranch": "unknown",
-    "dashboardCommit": "4e0b1d60470cefa557c9fb36a5e1720ad8dcfffc",
-    "dashboardCommitShort": "4e0b1d60470c",
+    "dashboardCommit": "c674c1795b84c61024a12ba621d4f2f182064509",
+    "dashboardCommitShort": "c674c1795b84",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "827",
-            "coverage": "827 / 2,276 (36.3%)",
-            "mapPercent": "36.3%",
-            "unmapped": "1,449",
-            "php": "370 pass / 0 fail",
+            "mapped": "831",
+            "coverage": "831 / 2,276 (36.5%)",
+            "mapPercent": "36.5%",
+            "unmapped": "1,445",
+            "php": "374 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-04 UTC DOCX/OpenXML section-property slice on accepted base 3...",
+            "audit": "2026-06-04 UTC archive-compression tar-entry slice on accepted base 4...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
             "nextTarget": "For upstream-runner dependency closure, hydrate a local Pando...",
             "remainingGate": "No local blocker",
-            "commit": "35c72aa"
+            "commit": "4e0b1d6"
         },
         {
             "lane": "quadrable",

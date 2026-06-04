@@ -5,6 +5,8 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\GzipStream;
+use PortLibs\Pandoc\TarArchive;
+use PortLibs\Pandoc\TarArchiveEntry;
 use PortLibs\Pandoc\ZipPackage;
 
 $crc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
@@ -156,6 +158,30 @@ $compressedPackage = GzipStream::build($package->bytes(), [
     'headerCrc' => true,
 ]);
 $compressedPackageMembers = GzipStream::members($compressedPackage);
+$tarPacket = TarArchive::fromEntries([
+    [
+        'name' => 'packet/',
+        'type' => TarArchiveEntry::TYPE_DIRECTORY,
+        'modifiedAt' => $documentModifiedAt,
+    ],
+    [
+        'name' => 'packet/manifest.json',
+        'data' => '{"source":"wordpress-import","container":"tar"}',
+        'modifiedAt' => $documentModifiedAt,
+    ],
+    [
+        'name' => 'packet/word/document.xml',
+        'data' => '<w:document><w:body><w:p>Tar packet WordPress source</w:p></w:body></w:document>',
+        'modifiedAt' => $documentModifiedAt,
+    ],
+]);
+$compressedTarPacket = GzipStream::build($tarPacket->bytes(), [
+    'modifiedAt' => $documentModifiedAt,
+    'filename' => 'wordpress-import-packet.tar',
+    'comment' => 'gzip tar review packet',
+    'headerCrc' => true,
+]);
+$tarPacketRoundTrip = TarArchive::fromString(GzipStream::decode($compressedTarPacket));
 $symlinkRejected = false;
 try {
     ZipPackage::fromParts([
@@ -233,6 +259,22 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected gzip extra field metadata to round-trip');
     }
 
+    if (!$tarPacketRoundTrip->has('/packet/word/document.xml')) {
+        throw new RuntimeException('Expected tar packet document part to be discoverable');
+    }
+
+    if ($tarPacketRoundTrip->read('/packet/manifest.json') !== '{"source":"wordpress-import","container":"tar"}') {
+        throw new RuntimeException('Expected tar packet manifest bytes to round-trip');
+    }
+
+    if ($tarPacketRoundTrip->read('/packet/word/document.xml') !== '<w:document><w:body><w:p>Tar packet WordPress source</w:p></w:body></w:document>') {
+        throw new RuntimeException('Expected gzip-wrapped tar document bytes to round-trip');
+    }
+
+    if (!$tarPacketRoundTrip->entry('packet/')->isDirectory()) {
+        throw new RuntimeException('Expected tar packet directory metadata to round-trip');
+    }
+
     if (!$symlinkRejected) {
         throw new RuntimeException('Expected ZIP symlink entries to be rejected before media import');
     }
@@ -263,3 +305,5 @@ echo 'symlinkPolicy=' . ($symlinkRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'gzip.filename=' . $compressedPackageMembers[0]['filename'] . "\n";
 echo 'gzip.comment=' . $compressedPackageMembers[0]['comment'] . "\n";
 echo 'gzip.compressedSize=' . $compressedPackageMembers[0]['compressedSize'] . "\n";
+echo 'tar.entries=' . implode(',', $tarPacketRoundTrip->names()) . "\n";
+echo 'tar.document.xml=' . $tarPacketRoundTrip->read('/packet/word/document.xml') . "\n";
