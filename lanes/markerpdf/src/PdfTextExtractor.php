@@ -14574,7 +14574,9 @@ final class PdfTextExtractor
         }
 
         $decodedEntryCount = strlen($decoded) % $entryWidth === 0 ? intdiv(strlen($decoded), $entryWidth) : null;
-        $previousOffset = $definitions === null ? null : $this->pdfIntegerValueAfterName($dictionary, 'Prev');
+        $previousOffset = $definitions === null
+            ? null
+            : $this->pdfIntegerValueAfterNameResolvingObjects($dictionary, 'Prev', $streamObjects);
         $xrefOffset = (int) $definition['offset'];
         $offset = 0;
         foreach ($this->xrefIndexRanges($dictionary, $decodedEntryCount, $streamObjects) as $range) {
