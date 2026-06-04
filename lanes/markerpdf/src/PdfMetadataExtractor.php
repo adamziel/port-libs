@@ -12,6 +12,11 @@ use Exception;
 
 final class PdfMetadataExtractor
 {
+    /**
+     * @var array<int, array{generation: int, body: string}>
+     */
+    private array $currentObjectReferenceOwners = [];
+
     private const VIEWER_PREFERENCE_NAME_VALUES = [
         'NonFullScreenPageMode' => ['key' => 'non_full_screen_page_mode', 'allowed' => ['UseNone', 'UseOutlines', 'UseThumbs', 'UseOC']],
         'Direction' => ['key' => 'direction', 'allowed' => ['L2R', 'R2L']],
@@ -554,12 +559,12 @@ final class PdfMetadataExtractor
             return [];
         }
 
-        $objectNumber = (int) $match[1];
-        if (!isset($objects[$objectNumber])) {
+        $objectBody = $this->objectBodyFromReferenceValue($value, $objects);
+        if ($objectBody === null) {
             return [];
         }
 
-        $stream = $this->decodeStreamEntryObject($objects[$objectNumber], $objects);
+        $stream = $this->decodeStreamEntryObject($objectBody, $objects);
         if ($stream === null || !$this->isDocumentXmpMetadataStream($stream['dictionary'], $objects)) {
             return [];
         }
@@ -594,20 +599,21 @@ final class PdfMetadataExtractor
             ];
         }
 
-        if (!isset($objects[$objectNumber])) {
+        $objectBody = $this->objectBodyFromReferenceValue($value, $objects);
+        if ($objectBody === null) {
             return $base + [
                 'status' => 'unresolved_metadata_reference',
                 'object_number' => $objectNumber,
             ];
         }
 
-        $stream = $this->decodeStreamEntryObject($objects[$objectNumber], $objects);
+        $stream = $this->decodeStreamEntryObject($objectBody, $objects);
         if ($stream === null) {
             $review = $base + [
                 'status' => 'unreadable_metadata_stream',
                 'object_number' => $objectNumber,
             ];
-            $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+            $dictionary = $this->dictionaryObjectBody($objectBody);
             if ($dictionary !== null) {
                 foreach ($this->metadataStreamDictionaryLabels($dictionary, $objects) as $key => $metadataValue) {
                     $review[$key] = $metadataValue;
@@ -6070,6 +6076,7 @@ final class PdfMetadataExtractor
      */
     private function pdfObjects(string $pdfBytes): array
     {
+        $this->currentObjectReferenceOwners = [];
         $definitions = $this->directObjectDefinitions($pdfBytes);
         if ($definitions === []) {
             return [];
@@ -6084,6 +6091,7 @@ final class PdfMetadataExtractor
         }
 
         ksort($objects, SORT_NUMERIC);
+        $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions);
         return $objects;
     }
 
@@ -6481,6 +6489,45 @@ final class PdfMetadataExtractor
     /**
      * @param array<int, string> $objects
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, array{generation: int, body: string}>
+     */
+    private function objectReferenceOwners(array $objects, array $definitions): array
+    {
+        $owners = [];
+        foreach ($objects as $objectNumber => $body) {
+            $definition = $this->directObjectDefinitionForBody($definitions[$objectNumber] ?? [], $body);
+            if ($definition === null) {
+                continue;
+            }
+
+            $owners[$objectNumber] = [
+                'generation' => $definition['generation'],
+                'body' => $definition['body'],
+            ];
+        }
+
+        return $owners;
+    }
+
+    /**
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function directObjectDefinitionForBody(array $definitions, string $body): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if ($definition['body'] === $body) {
+                $candidates[] = $definition;
+            }
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
     private function xrefEntriesFromStartxrefChain(string $pdfBytes, array $objects, array $definitions): array
@@ -6806,10 +6853,10 @@ final class PdfMetadataExtractor
     private function catalogObjectBody(string $pdfBytes, array $objects): ?string
     {
         $trailer = $this->trailerDictionaryBody($pdfBytes);
-        if ($trailer !== null && preg_match('/\/Root\s+(\d+)\s+\d+\s+R\b/s', $trailer, $match) === 1) {
-            $objectNumber = (int) $match[1];
-            if (isset($objects[$objectNumber])) {
-                return $objects[$objectNumber];
+        if ($trailer !== null) {
+            $rootReference = $this->dictionaryTopLevelRawValue($trailer, 'Root');
+            if ($rootReference !== null) {
+                return $this->objectBodyFromReferenceValue($rootReference, $objects);
             }
         }
 
@@ -8677,12 +8724,11 @@ final class PdfMetadataExtractor
     private function resolvePdfValue(string $value, array $objects): ?string
     {
         $trimmed = trim($value);
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $trimmed, $match) !== 1) {
+        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $trimmed) !== 1) {
             return $trimmed;
         }
 
-        $objectNumber = (int) $match[1];
-        return $objects[$objectNumber] ?? null;
+        return $this->objectBodyFromReferenceValue($trimmed, $objects);
     }
 
     private function dictionaryRawValue(string $dictionary, string $key): ?string
@@ -8760,14 +8806,15 @@ final class PdfMetadataExtractor
             return null;
         }
 
-        $objectNumber = $this->objectNumberFromReference($value);
-        if ($objectNumber !== null) {
-            if (!isset($objects[$objectNumber])) {
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference !== null) {
+            $objectBody = $this->objectBodyForReference($objects, $reference['objectNumber'], $reference['generation']);
+            if ($objectBody === null) {
                 return null;
             }
 
-            $body = $this->dictionaryObjectBody($objects[$objectNumber]);
-            return $body === null ? null : ['body' => $body, 'object' => $objectNumber];
+            $body = $this->dictionaryObjectBody($objectBody);
+            return $body === null ? null : ['body' => $body, 'object' => $reference['objectNumber']];
         }
 
         $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
@@ -8787,6 +8834,36 @@ final class PdfMetadataExtractor
     private function objectNumberFromReference(string $value): ?int
     {
         return preg_match('/^(\d+)\s+\d+\s+R\b/s', trim($value), $match) === 1 ? (int) $match[1] : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function objectBodyFromReferenceValue(string $value, array $objects): ?string
+    {
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference === null) {
+            return null;
+        }
+
+        return $this->objectBodyForReference($objects, $reference['objectNumber'], $reference['generation']);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function objectBodyForReference(array $objects, int $objectNumber, int $generation): ?string
+    {
+        if ($objectNumber <= 0 || $generation < 0 || !isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        $owner = $this->currentObjectReferenceOwners[$objectNumber] ?? null;
+        if ($owner !== null && $objects[$objectNumber] === $owner['body']) {
+            return $owner['generation'] === $generation ? $owner['body'] : null;
+        }
+
+        return $objects[$objectNumber];
     }
 
     /**

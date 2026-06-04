@@ -91,11 +91,78 @@ $pdf .= "20 0 obj\n"
     . "stream\n{$compressedCurrentRows}\nendstream\nendobj\n"
     . "startxref\n{$currentXrefOffset}\n%%EOF";
 
+$mismatchContent = 'BT /F1 12 Tf 72 720 Td (Current generation mismatch page) Tj T* (Metadata generation boundary) Tj ET';
+$mismatchXmp = gzcompress($xmpPacket('Wrong Generation XMP Title', 'This generation-one XMP stream is not referenced by the catalog'));
+if (!is_string($mismatchXmp)) {
+    throw new RuntimeException('Unable to compress xref Prev chain generation-mismatch smoke fixture stream.');
+}
+
+$mismatchPdf = "%PDF-1.7\n";
+$mismatchOffsets = [];
+$addMismatchObject = static function (int $objectNumber, int $generation, string $body) use (&$mismatchPdf, &$mismatchOffsets): int {
+    $offset = strlen($mismatchPdf);
+    $mismatchOffsets[$objectNumber . ':' . $generation] = $offset;
+    $mismatchPdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+
+$addMismatchObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Metadata 7 0 R /Lang (de-DE) >>');
+$addMismatchObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$addMismatchObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$addMismatchObject(4, 0, '<< /Length 0 >>');
+$addMismatchObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+$addMismatchObject(6, 0, '<< /Title (Stale Generation Info Title) /Author (Stale Generation Author) >>');
+$addMismatchObject(7, 0, '<< /Type /Metadata /Subtype /XML /Length 0 >>');
+
+$mismatchPreviousXrefOffset = strlen($mismatchPdf);
+$mismatchPdf .= "xref\n"
+    . "0 8\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($mismatchOffsets['1:0'])
+    . $xrefTableRow($mismatchOffsets['2:0'])
+    . $xrefTableRow($mismatchOffsets['3:0'])
+    . $xrefTableRow($mismatchOffsets['4:0'])
+    . $xrefTableRow($mismatchOffsets['5:0'])
+    . $xrefTableRow($mismatchOffsets['6:0'])
+    . $xrefTableRow($mismatchOffsets['7:0'])
+    . "trailer\n<< /Size 8 /Root 1 0 R /Info 6 0 R >>\n"
+    . "startxref\n{$mismatchPreviousXrefOffset}\n%%EOF\n";
+
+$addMismatchObject(1, 1, '<< /Type /Catalog /Pages 2 1 R /Metadata 7 0 R /Lang (en-US) >>');
+$addMismatchObject(2, 1, '<< /Type /Pages /Kids [3 1 R] /Count 1 >>');
+$addMismatchObject(3, 1, '<< /Type /Page /Parent 2 1 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 1 R >>');
+$addMismatchObject(4, 1, "<< /Length " . strlen($mismatchContent) . " >>\nstream\n{$mismatchContent}\nendstream");
+$addMismatchObject(6, 1, '<< /Title (Current Generation Info Title) /Author (Current Generation Author) /Producer (Current Generation Producer) >>');
+$addMismatchObject(7, 1, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($mismatchXmp) . " >>\nstream\n{$mismatchXmp}\nendstream");
+
+$mismatchRows = ''
+    . $xrefStreamRow(1, $mismatchOffsets['1:1'], 1)
+    . $xrefStreamRow(1, $mismatchOffsets['2:1'], 1)
+    . $xrefStreamRow(1, $mismatchOffsets['3:1'], 1)
+    . $xrefStreamRow(1, $mismatchOffsets['4:1'], 1)
+    . $xrefStreamRow(1, $mismatchOffsets['5:0'], 0)
+    . $xrefStreamRow(1, $mismatchOffsets['6:1'], 1)
+    . $xrefStreamRow(1, $mismatchOffsets['7:1'], 1);
+$compressedMismatchRows = gzcompress($mismatchRows);
+if (!is_string($compressedMismatchRows)) {
+    throw new RuntimeException('Unable to compress current generation-mismatch xref-stream smoke fixture.');
+}
+
+$mismatchCurrentXrefOffset = strlen($mismatchPdf);
+$mismatchPdf .= "20 0 obj\n"
+    . '<< /Type /XRef /Size 21 /Root 1 1 R /Info 6 1 R /Prev ' . $mismatchPreviousXrefOffset . ' /Index [1 7] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedMismatchRows) . " >>\n"
+    . "stream\n{$compressedMismatchRows}\nendstream\nendobj\n"
+    . "startxref\n{$mismatchCurrentXrefOffset}\n%%EOF";
+
 $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
 $extractor = new PdfTextExtractor();
 $plainText = $extractor->extractPlainText($pdf);
 $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
 $lines = $extractor->extractTextLines($pdf);
+$mismatchMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($mismatchPdf);
+$mismatchEncodedMetadata = json_encode($mismatchMetadata, JSON_UNESCAPED_SLASHES);
+$mismatchPlainText = $extractor->extractPlainText($mismatchPdf);
 
 echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialchars(json_encode([
     'native_boundary' => 'PDF xref /Prev chain current trailer generations repair damaged current in-use offsets before metadata import',
@@ -105,6 +172,10 @@ echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialcha
     'current_page_text_selected' => str_contains($plainText, 'Current Prev chain metadata page'),
     'stale_prev_metadata_excluded' => is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Stale Prev Chain'),
     'stale_prev_text_excluded' => !str_contains($plainText, 'Stale Prev chain metadata page'),
+    'generation_mismatch_xmp_excluded' => is_string($mismatchEncodedMetadata)
+        && !str_contains($mismatchEncodedMetadata, 'Wrong Generation XMP Title'),
+    'generation_mismatch_info_fallback_selected' => ($mismatchMetadata['title'] ?? null) === 'Current Generation Info Title',
+    'generation_mismatch_text_selected' => str_contains($mismatchPlainText, 'Metadata generation boundary'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
