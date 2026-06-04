@@ -338,12 +338,11 @@ final class WordPressBlockWriter
             }
         }
 
+        $columnCount = $this->tableColumnCount($node);
         $html = '<table' . $this->renderTableElementAttrs($node) . '>' . $this->renderTableColgroup($node);
         if ($head instanceof AstNode && $head->children !== []) {
             $html .= '<thead' . $this->renderStoredHtmlAttrs($head, true, []) . '>';
-            foreach ($head->children as $row) {
-                $html .= $this->renderTableRow($row, $node, true);
-            }
+            $html .= $this->renderTableRows($this->tableRowEntries($head, true), $node, $columnCount);
             $html .= '</thead>';
         }
 
@@ -352,24 +351,12 @@ final class WordPressBlockWriter
         }
         foreach ($bodies as $body) {
             $html .= '<tbody' . $this->renderStoredHtmlAttrs($body, true, []) . '>';
-            $bodyHeadRows = $body->attr('headRows', []);
-            if (is_array($bodyHeadRows)) {
-                foreach ($bodyHeadRows as $row) {
-                    if ($row instanceof AstNode) {
-                        $html .= $this->renderTableRow($row, $node, true);
-                    }
-                }
-            }
-            foreach ($body->children as $row) {
-                $html .= $this->renderTableRow($row, $node, false);
-            }
+            $html .= $this->renderTableRows($this->tableBodyRowEntries($body), $node, $columnCount);
             $html .= '</tbody>';
         }
         if ($foot instanceof AstNode && $foot->children !== []) {
             $html .= '<tfoot' . $this->renderStoredHtmlAttrs($foot, true, []) . '>';
-            foreach ($foot->children as $row) {
-                $html .= $this->renderTableRow($row, $node, false);
-            }
+            $html .= $this->renderTableRows($this->tableRowEntries($foot, false), $node, $columnCount);
             $html .= '</tfoot>';
         }
         $html .= '</table>';
@@ -443,14 +430,130 @@ final class WordPressBlockWriter
         return ($formatted === '' ? '0' : $formatted) . '%';
     }
 
-    private function renderTableRow(AstNode $row, AstNode $table, bool $header): string
+    private function tableColumnCount(AstNode $table): int
     {
-        $html = '<tr' . $this->renderStoredHtmlAttrs($row, true, []) . '>';
-        foreach ($row->children as $index => $cell) {
-            if ($cell->type !== 'table_cell') {
+        $columnCount = 0;
+        foreach ($table->children as $section) {
+            if ($section->type === 'table_body') {
+                $columnCount = max($columnCount, TableGeometry::columnCountForRows($this->tableBodyRows($section)));
                 continue;
             }
-            $attrs = $this->renderTableCellAttrs($table, $index, $cell);
+
+            if ($section->type === 'table_head' || $section->type === 'table_foot') {
+                $columnCount = max($columnCount, TableGeometry::columnCountForRows($this->tableRows($section)));
+            }
+        }
+
+        return $columnCount;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableRows(AstNode $section): array
+    {
+        $rows = [];
+        foreach ($section->children as $row) {
+            if ($row->type === 'table_row') {
+                $rows[] = $row;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableBodyRows(AstNode $body): array
+    {
+        $rows = [];
+        $bodyHeadRows = $body->attr('headRows', []);
+        if (is_array($bodyHeadRows)) {
+            foreach ($bodyHeadRows as $row) {
+                if ($row instanceof AstNode && $row->type === 'table_row') {
+                    $rows[] = $row;
+                }
+            }
+        }
+
+        array_push($rows, ...$this->tableRows($body));
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array{row:AstNode,header:bool}>
+     */
+    private function tableRowEntries(AstNode $section, bool $header): array
+    {
+        $entries = [];
+        foreach ($this->tableRows($section) as $row) {
+            $entries[] = [
+                'row' => $row,
+                'header' => $header,
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return list<array{row:AstNode,header:bool}>
+     */
+    private function tableBodyRowEntries(AstNode $body): array
+    {
+        $entries = [];
+        $bodyHeadRows = $body->attr('headRows', []);
+        if (is_array($bodyHeadRows)) {
+            foreach ($bodyHeadRows as $row) {
+                if ($row instanceof AstNode && $row->type === 'table_row') {
+                    $entries[] = [
+                        'row' => $row,
+                        'header' => true,
+                    ];
+                }
+            }
+        }
+
+        foreach ($this->tableRows($body) as $row) {
+            $entries[] = [
+                'row' => $row,
+                'header' => false,
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<array{row:AstNode,header:bool}> $rowEntries
+     */
+    private function renderTableRows(array $rowEntries, AstNode $table, int $columnCount): string
+    {
+        $rows = [];
+        foreach ($rowEntries as $entry) {
+            $rows[] = $entry['row'];
+        }
+
+        $html = '';
+        foreach (TableGeometry::layoutRows($rows, $columnCount) as $index => $layoutRow) {
+            $html .= $this->renderTableRow($layoutRow, $table, (bool) ($rowEntries[$index]['header'] ?? false));
+        }
+
+        return $html;
+    }
+
+    /**
+     * @param array{row:AstNode,cells:list<array{node:AstNode,column:int,colspan:int,rowspan:int}>} $layoutRow
+     */
+    private function renderTableRow(array $layoutRow, AstNode $table, bool $header): string
+    {
+        $row = $layoutRow['row'];
+        $html = '<tr' . $this->renderStoredHtmlAttrs($row, true, []) . '>';
+        foreach ($layoutRow['cells'] as $layoutCell) {
+            $cell = $layoutCell['node'];
+            $attrs = $this->renderTableCellAttrs($table, $layoutCell['column'], $cell);
             $tag = $header || $cell->attr('header') === true ? 'th' : 'td';
             $html .= '<' . $tag . $attrs . '>' . $this->renderTableCellContent($cell) . '</' . $tag . '>';
         }
@@ -503,7 +606,7 @@ final class WordPressBlockWriter
         ], true);
     }
 
-    private function renderTableCellAttrs(AstNode $table, int $index, AstNode $cell): string
+    private function renderTableCellAttrs(AstNode $table, int $column, AstNode $cell): string
     {
         $attrs = $this->renderStoredHtmlAttrs($cell, false, ['style']);
         $colspan = (int) $cell->attr('colspan', 1);
@@ -516,11 +619,7 @@ final class WordPressBlockWriter
             $attrs .= ' rowspan="' . $rowspan . '"';
         }
 
-        $alignments = $table->attr('alignments', []);
-        $alignment = (string) $cell->attr('align', '');
-        if ($alignment === '' && is_array($alignments)) {
-            $alignment = (string) ($alignments[$index] ?? 'default');
-        }
+        $alignment = TableGeometry::cellAlignment($table, $column, $cell);
 
         $styles = [];
         $sourceStyle = $this->storedHtmlStyle($cell);

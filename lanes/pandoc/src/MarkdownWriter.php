@@ -451,7 +451,7 @@ final class MarkdownWriter
             return [];
         }
 
-        $columnCount = $this->tableColumnCount($headRows, $bodyRows);
+        $columnCount = TableGeometry::columnCountForRows([...$headRows, ...$bodyRows]);
         if ($columnCount === 0) {
             return [];
         }
@@ -500,69 +500,16 @@ final class MarkdownWriter
     }
 
     /**
-     * @param list<AstNode> $headRows
-     * @param list<AstNode> $bodyRows
-     */
-    private function tableColumnCount(array $headRows, array $bodyRows): int
-    {
-        $count = 0;
-        foreach ([...$headRows, ...$bodyRows] as $row) {
-            $rowColumns = 0;
-            foreach ($row->children as $cell) {
-                $rowColumns += max(1, (int) $cell->attr('colspan', 1));
-            }
-            $count = max($count, $rowColumns);
-        }
-
-        return $count;
-    }
-
-    /**
      * @param list<AstNode> $rows
      * @return list<list<string>>
      */
     private function expandTableRows(array $rows, int $columnCount): array
     {
         $expandedRows = [];
-        $rowspans = array_fill(0, $columnCount, 0);
-
-        foreach ($rows as $row) {
-            $cells = [];
-            $column = 0;
-
-            foreach ($row->children as $cell) {
-                while ($column < $columnCount && $rowspans[$column] > 0) {
-                    $cells[] = '';
-                    $rowspans[$column]--;
-                    $column++;
-                }
-
-                if ($column >= $columnCount) {
-                    break;
-                }
-
-                $colspan = max(1, min($columnCount - $column, (int) $cell->attr('colspan', 1)));
-                $rowspan = max(1, (int) $cell->attr('rowspan', 1));
-                $cells[] = $this->renderTableCell($cell);
-                if ($rowspan > 1) {
-                    $rowspans[$column] = max($rowspans[$column], $rowspan - 1);
-                }
-                $column++;
-
-                for ($covered = 1; $covered < $colspan && $column < $columnCount; $covered++, $column++) {
-                    $cells[] = '';
-                    if ($rowspan > 1) {
-                        $rowspans[$column] = max($rowspans[$column], $rowspan - 1);
-                    }
-                }
-            }
-
-            while ($column < $columnCount) {
-                if ($rowspans[$column] > 0) {
-                    $rowspans[$column]--;
-                }
-                $cells[] = '';
-                $column++;
+        foreach (TableGeometry::layoutRows($rows, $columnCount) as $layoutRow) {
+            $cells = array_fill(0, $columnCount, '');
+            foreach ($layoutRow['cells'] as $layoutCell) {
+                $cells[$layoutCell['column']] = $this->renderTableCell($layoutCell['node']);
             }
 
             $expandedRows[] = $cells;
@@ -630,18 +577,7 @@ final class MarkdownWriter
      */
     private function tableAlignments(AstNode $node, int $columnCount): array
     {
-        $alignments = $node->attr('alignments', []);
-        if (!is_array($alignments)) {
-            $alignments = [];
-        }
-
-        $normalized = [];
-        for ($index = 0; $index < $columnCount; $index++) {
-            $alignment = (string) ($alignments[$index] ?? 'default');
-            $normalized[] = in_array($alignment, ['left', 'right', 'center'], true) ? $alignment : 'default';
-        }
-
-        return $normalized;
+        return TableGeometry::alignments($node, $columnCount);
     }
 
     /**

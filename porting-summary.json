@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-04 08:17:44 UTC",
-    "sourceCommit": "d4437ad64ff9f4760da71503530dfa31124f0f7c",
-    "sourceCommitShort": "d4437ad64ff9",
+    "generated": "2026-06-04 08:27:03 UTC",
+    "sourceCommit": "68ed309bdf764e315275d094e1af7ce91bb3c695",
+    "sourceCommitShort": "68ed309bdf76",
     "sourceBranch": "unknown",
-    "dashboardCommit": "d4437ad64ff9f4760da71503530dfa31124f0f7c",
-    "dashboardCommitShort": "d4437ad64ff9",
+    "dashboardCommit": "68ed309bdf764e315275d094e1af7ce91bb3c695",
+    "dashboardCommitShort": "68ed309bdf76",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "743",
-            "coverage": "743 / 2,276 (32.6%)",
-            "mapPercent": "32.6%",
-            "unmapped": "1,533",
-            "php": "302 pass / 0 fail",
+            "mapped": "744",
+            "coverage": "744 / 2,276 (32.7%)",
+            "mapPercent": "32.7%",
+            "unmapped": "1,532",
+            "php": "304 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
             "audit": "2026-06-03 UTC upstream-runner dependency audit on base ea0e1f5294ced...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "Keep richer ODT style inheritance, sections, annotations, tex...",
+            "nextTarget": "Keep richer table normalization diagnostics for malformed ove...",
             "remainingGate": "No local blocker",
-            "commit": "9f8ae4f"
+            "commit": "d4437ad"
         },
         {
             "lane": "quadrable",
