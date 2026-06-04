@@ -258,7 +258,7 @@ final class PdfLinkAnnotationExtractor
             }
 
             $nameEnd = $this->skipPdfName($dictionary, $offset);
-            $key = substr($dictionary, $offset + 1, $nameEnd - $offset - 1);
+            $key = $this->decodePdfName(substr($dictionary, $offset + 1, $nameEnd - $offset - 1));
             $valueEnd = null;
             $value = $this->valueStartingAtOffsetWithEnd($dictionary, $nameEnd, $valueEnd);
             if ($value === null || $valueEnd === null || $valueEnd <= $nameEnd) {
@@ -1547,5 +1547,10 @@ final class PdfLinkAnnotationExtractor
                 default => preg_match('/^[0-7]+$/', $match[1]) === 1 ? chr(octdec($match[1]) & 0xff) : $match[1],
             };
         }, $value) ?? $value;
+    }
+
+    private function decodePdfName(string $name): string
+    {
+        return preg_replace_callback('/#([0-9A-Fa-f]{2})/', static fn (array $match): string => chr(hexdec($match[1])), $name) ?? $name;
     }
 }

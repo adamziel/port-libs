@@ -441,7 +441,7 @@ final class PdfMarkupAnnotationExtractor
             }
 
             $nameEnd = $this->skipPdfName($dictionary, $offset);
-            $key = substr($dictionary, $offset + 1, $nameEnd - $offset - 1);
+            $key = $this->decodePdfName(substr($dictionary, $offset + 1, $nameEnd - $offset - 1));
             $valueEnd = null;
             $value = $this->valueStartingAtOffsetWithEnd($dictionary, $nameEnd, $valueEnd);
             if ($value === null || $valueEnd === null || $valueEnd <= $nameEnd) {
