@@ -225,6 +225,62 @@ $tableSpanDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$notesContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+  <Override PartName="/word/endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>
+</Types>
+XML;
+
+$notesDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="endnotes.xml"/>
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+</Relationships>
+XML;
+
+$notesDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Audit trail </w:t></w:r>
+      <w:r><w:endnoteReference w:id="5"/></w:r>
+      <w:commentRangeStart w:id="9"/>
+      <w:r><w:t xml:space="preserve"> commented source </w:t></w:r>
+      <w:commentRangeEnd w:id="9"/>
+      <w:r><w:commentReference w:id="9"/></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
+$endnotesXml = <<<'XML'
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="-1" w:type="separator"><w:p><w:r><w:t>separator</w:t></w:r></w:p></w:endnote>
+  <w:endnote w:id="5">
+    <w:p><w:r><w:t>Endnote source audit.</w:t></w:r></w:p>
+    <w:tbl>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Review table</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>kept in endnote</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:endnote>
+</w:endnotes>
+XML;
+
+$commentsXml = <<<'XML'
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:comment w:id="9" w:author="Migration Reviewer" w:initials="MR" w:date="2026-06-04T09:55:00Z">
+    <w:p><w:r><w:t>Comment source audit.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Keep reviewer context with the import.</w:t></w:r></w:p>
+  </w:comment>
+</w:comments>
+XML;
+
 $buildDocxPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $documentXml, $footnotesXml, $corePropertiesXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -260,6 +316,24 @@ $buildTableSpanPackage = static function () use ($contentTypesXml, $packageRelat
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $tableSpanDocumentXml],
+    ]);
+};
+
+$buildNotesPackage = static function () use (
+    $notesContentTypesXml,
+    $packageRelationshipsXml,
+    $notesDocumentRelationshipsXml,
+    $notesDocumentXml,
+    $endnotesXml,
+    $commentsXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $notesContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $notesDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $notesDocumentRelationshipsXml],
+        ['name' => 'word/endnotes.xml', 'data' => $endnotesXml],
+        ['name' => 'word/comments.xml', 'data' => $commentsXml],
     ]);
 };
 
@@ -423,6 +497,46 @@ return [
         $t->contains('<td colspan="2" rowspan="2"><p>Review scope</p></td><td><p>Status</p></td>', $blocks);
         $t->contains('<tr><td><p>Ready</p></td></tr>', $blocks);
         $t->contains('<td><p>Owner</p></td><td colspan="2"><p>Migration desk</p></td>', $blocks);
+    },
+    'maps DOCX endnotes and comments into note AST nodes' => static function (TestRunner $t) use ($buildNotesPackage): void {
+        $document = (new DocxReader())->readDocument($buildNotesPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Audit trail ', $paragraph->children[0]->attr('text'));
+
+        $endnote = $paragraph->children[1];
+        $t->same('note', $endnote->type);
+        $t->same('5', $endnote->attr('id'));
+        $t->same('endnote', $endnote->attr('sourceType'));
+        $t->same(2, count($endnote->children));
+        $t->same('Endnote source audit.', $endnote->children[0]->children[0]->attr('text'));
+        $t->same('table', $endnote->children[1]->type);
+        $t->same('Review table', $endnote->children[1]->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('kept in endnote', $endnote->children[1]->children[0]->children[0]->children[1]->attr('text'));
+
+        $t->same(' commented source ', $paragraph->children[2]->attr('text'));
+        $comment = $paragraph->children[3];
+        $t->same('note', $comment->type);
+        $t->same('9', $comment->attr('id'));
+        $t->same('comment', $comment->attr('sourceType'));
+        $t->same('Migration Reviewer', $comment->attr('author'));
+        $t->same('MR', $comment->attr('initials'));
+        $t->same('2026-06-04T09:55:00Z', $comment->attr('date'));
+        $t->same('Comment source audit.', $comment->children[0]->children[0]->attr('text'));
+        $t->same('Keep reviewer context with the import.', $comment->children[1]->children[0]->attr('text'));
+
+        $t->contains('Audit trail [^1] commented source [^2]', $markdown);
+        $t->contains('[^1]: Endnote source audit.', $markdown);
+        $t->contains('| Review table | kept in endnote |', $markdown);
+        $t->contains('[^2]: Comment source audit.', $markdown);
+        $t->contains('    Keep reviewer context with the import.', $markdown);
+
+        $t->contains('<p>Audit trail <sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup> commented source <sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup></p>', $blocks);
+        $t->contains('<li id="fn-1"><p>Endnote source audit.</p><table><tbody><tr><td><p>Review table</p></td><td><p>kept in endnote</p></td></tr></tbody></table> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-2"><p>Comment source audit.</p><p>Keep reviewer context with the import.</p> <a href="#fnref-2" aria-label="Back to content">Back</a></li>', $blocks);
     },
     'rejects malformed DOCX packages without shelling out to office tooling' => static function (TestRunner $t) use ($contentTypesXml, $documentXml): void {
         $reader = new DocxReader();

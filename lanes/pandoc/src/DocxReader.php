@@ -18,6 +18,8 @@ final class DocxReader
     public const REL_TYPE_HYPERLINK = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
     public const REL_TYPE_IMAGE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
     public const REL_TYPE_FOOTNOTES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
+    public const REL_TYPE_ENDNOTES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
+    public const REL_TYPE_COMMENTS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
     public const REL_TYPE_STYLES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
     public const REL_TYPE_NUMBERING = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     public const REL_TYPE_CORE_PROPERTIES = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
@@ -39,7 +41,7 @@ final class DocxReader
         }
 
         $documentRelationships = $graph->relationshipsForSource($documentPart);
-        $footnotes = $this->loadFootnotes($package, $graph, $documentPart);
+        $referencedNotes = $this->loadReferencedNotes($package, $graph, $documentPart);
         $styles = $this->loadStyles($package, $graph, $documentPart);
         $numbering = $this->loadNumbering($package, $graph, $documentPart);
         $document = $this->parseDocumentXml(
@@ -47,7 +49,7 @@ final class DocxReader
             $documentPart,
             $package,
             $documentRelationships,
-            $footnotes,
+            $referencedNotes,
             $styles,
             $numbering,
         );
@@ -67,7 +69,7 @@ final class DocxReader
     }
 
     /**
-     * @param array<string, AstNode> $footnotes
+     * @param array<string, AstNode> $referencedNotes
      * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
      * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
      */
@@ -76,7 +78,7 @@ final class DocxReader
         string $documentPart,
         ZipPackage $package,
         ?OpcRelationships $relationships,
-        array $footnotes,
+        array $referencedNotes,
         array $styles,
         array $numbering
     ): AstNode {
@@ -95,14 +97,14 @@ final class DocxReader
             $body,
             $package,
             $relationships,
-            $footnotes,
+            $referencedNotes,
             $styles,
             $numbering
         ));
     }
 
     /**
-     * @param array<string, AstNode> $footnotes
+     * @param array<string, AstNode> $referencedNotes
      * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
      * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
      * @return list<AstNode>
@@ -111,7 +113,7 @@ final class DocxReader
         \DOMElement $body,
         ZipPackage $package,
         ?OpcRelationships $relationships,
-        array $footnotes,
+        array $referencedNotes,
         array $styles,
         array $numbering
     ): array
@@ -124,7 +126,7 @@ final class DocxReader
             }
 
             if ($this->isWordElement($child, 'p')) {
-                $paragraph = $this->paragraphNode($child, $package, $relationships, $footnotes, $styles);
+                $paragraph = $this->paragraphNode($child, $package, $relationships, $referencedNotes, $styles);
                 if ($paragraph instanceof AstNode) {
                     $listDefinition = $paragraph->type === 'paragraph'
                         ? $this->listDefinitionForParagraph($child, $styles, $numbering)
@@ -142,7 +144,7 @@ final class DocxReader
 
             if ($this->isWordElement($child, 'tbl')) {
                 $currentList = null;
-                $blocks[] = $this->tableNode($child, $package, $relationships, $footnotes, $styles);
+                $blocks[] = $this->tableNode($child, $package, $relationships, $referencedNotes, $styles);
                 continue;
             }
 
@@ -153,18 +155,18 @@ final class DocxReader
     }
 
     /**
-     * @param array<string, AstNode> $footnotes
+     * @param array<string, AstNode> $referencedNotes
      * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
      */
     private function paragraphNode(
         \DOMElement $paragraph,
         ZipPackage $package,
         ?OpcRelationships $relationships,
-        array $footnotes,
+        array $referencedNotes,
         array $styles = []
     ): ?AstNode
     {
-        $children = $this->paragraphInlines($paragraph, $package, $relationships, $footnotes);
+        $children = $this->paragraphInlines($paragraph, $package, $relationships, $referencedNotes);
         $text = $this->plainInlineText($children);
         if ($children === [] && $text === '') {
             return null;
@@ -185,10 +187,10 @@ final class DocxReader
     }
 
     /**
-     * @param array<string, AstNode> $footnotes
+     * @param array<string, AstNode> $referencedNotes
      * @return list<AstNode>
      */
-    private function paragraphInlines(\DOMElement $paragraph, ZipPackage $package, ?OpcRelationships $relationships, array $footnotes): array
+    private function paragraphInlines(\DOMElement $paragraph, ZipPackage $package, ?OpcRelationships $relationships, array $referencedNotes): array
     {
         $inlines = [];
         foreach ($paragraph->childNodes as $child) {
@@ -196,33 +198,33 @@ final class DocxReader
                 continue;
             }
 
-            array_push($inlines, ...$this->inlineNodes($child, $package, $relationships, $footnotes));
+            array_push($inlines, ...$this->inlineNodes($child, $package, $relationships, $referencedNotes));
         }
 
         return $this->coalesceTextNodes($inlines);
     }
 
     /**
-     * @param array<string, AstNode> $footnotes
+     * @param array<string, AstNode> $referencedNotes
      * @return list<AstNode>
      */
-    private function inlineNodes(\DOMElement $element, ZipPackage $package, ?OpcRelationships $relationships, array $footnotes): array
+    private function inlineNodes(\DOMElement $element, ZipPackage $package, ?OpcRelationships $relationships, array $referencedNotes): array
     {
         if ($this->isWordElement($element, 'r')) {
-            return $this->runNodes($element, $package, $relationships, $footnotes);
+            return $this->runNodes($element, $package, $relationships, $referencedNotes);
         }
 
         if ($this->isWordElement($element, 'hyperlink')) {
-            return [$this->hyperlinkNode($element, $package, $relationships, $footnotes)];
+            return [$this->hyperlinkNode($element, $package, $relationships, $referencedNotes)];
         }
 
         if ($this->isWordElement($element, 'sdt')) {
             $content = $this->firstChildElement($element, self::WORDPROCESSINGML_NS, 'sdtContent');
-            return $content instanceof \DOMElement ? $this->inlineContainerNodes($content, $package, $relationships, $footnotes) : [];
+            return $content instanceof \DOMElement ? $this->inlineContainerNodes($content, $package, $relationships, $referencedNotes) : [];
         }
 
         if ($this->isWordElement($element, 'ins') || $this->isWordElement($element, 'smartTag')) {
-            return $this->inlineContainerNodes($element, $package, $relationships, $footnotes);
+            return $this->inlineContainerNodes($element, $package, $relationships, $referencedNotes);
         }
 
         if ($this->isWordElement($element, 'del')) {
@@ -233,15 +235,15 @@ final class DocxReader
     }
 
     /**
-     * @param array<string, AstNode> $footnotes
+     * @param array<string, AstNode> $referencedNotes
      * @return list<AstNode>
      */
-    private function inlineContainerNodes(\DOMElement $element, ZipPackage $package, ?OpcRelationships $relationships, array $footnotes): array
+    private function inlineContainerNodes(\DOMElement $element, ZipPackage $package, ?OpcRelationships $relationships, array $referencedNotes): array
     {
         $inlines = [];
         foreach ($element->childNodes as $child) {
             if ($child instanceof \DOMElement) {
-                array_push($inlines, ...$this->inlineNodes($child, $package, $relationships, $footnotes));
+                array_push($inlines, ...$this->inlineNodes($child, $package, $relationships, $referencedNotes));
             }
         }
 
@@ -249,10 +251,10 @@ final class DocxReader
     }
 
     /**
-     * @param array<string, AstNode> $footnotes
+     * @param array<string, AstNode> $referencedNotes
      * @return list<AstNode>
      */
-    private function runNodes(\DOMElement $run, ZipPackage $package, ?OpcRelationships $relationships, array $footnotes): array
+    private function runNodes(\DOMElement $run, ZipPackage $package, ?OpcRelationships $relationships, array $referencedNotes): array
     {
         $nodes = [];
         foreach ($run->childNodes as $child) {
@@ -286,10 +288,17 @@ final class DocxReader
             }
 
             if ($this->isWordElement($child, 'footnoteReference')) {
-                $id = $this->wordAttr($child, 'id');
-                if ($id !== null && isset($footnotes[$id])) {
-                    $nodes[] = $footnotes[$id];
-                }
+                $this->appendReferencedNote($nodes, $referencedNotes, 'footnote', $child);
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'endnoteReference')) {
+                $this->appendReferencedNote($nodes, $referencedNotes, 'endnote', $child);
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'commentReference')) {
+                $this->appendReferencedNote($nodes, $referencedNotes, 'comment', $child);
                 continue;
             }
 
@@ -299,6 +308,23 @@ final class DocxReader
         }
 
         return $this->applyRunStyle($run, $this->coalesceTextNodes($nodes));
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @param array<string, AstNode> $referencedNotes
+     */
+    private function appendReferencedNote(array &$nodes, array $referencedNotes, string $sourceType, \DOMElement $reference): void
+    {
+        $id = $this->wordAttr($reference, 'id');
+        if ($id === null) {
+            return;
+        }
+
+        $key = $sourceType . ':' . $id;
+        if (isset($referencedNotes[$key])) {
+            $nodes[] = $referencedNotes[$key];
+        }
     }
 
     /**
@@ -346,11 +372,11 @@ final class DocxReader
     }
 
     /**
-     * @param array<string, AstNode> $footnotes
+     * @param array<string, AstNode> $referencedNotes
      */
-    private function hyperlinkNode(\DOMElement $hyperlink, ZipPackage $package, ?OpcRelationships $relationships, array $footnotes): AstNode
+    private function hyperlinkNode(\DOMElement $hyperlink, ZipPackage $package, ?OpcRelationships $relationships, array $referencedNotes): AstNode
     {
-        $children = $this->inlineContainerNodes($hyperlink, $package, $relationships, $footnotes);
+        $children = $this->inlineContainerNodes($hyperlink, $package, $relationships, $referencedNotes);
         $relationshipId = $this->relationshipAttr($hyperlink, 'id');
         $anchor = $this->wordAttr($hyperlink, 'anchor');
         $url = '';
@@ -413,14 +439,14 @@ final class DocxReader
     }
 
     /**
-     * @param array<string, AstNode> $footnotes
+     * @param array<string, AstNode> $referencedNotes
      * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
      */
     private function tableNode(
         \DOMElement $table,
         ZipPackage $package,
         ?OpcRelationships $relationships,
-        array $footnotes,
+        array $referencedNotes,
         array $styles = []
     ): AstNode
     {
@@ -451,7 +477,7 @@ final class DocxReader
                 if ($colspan > 1) {
                     $attrs['colspan'] = $colspan;
                 }
-                $cellBlocks = $this->tableCellBlocks($cellElement, $package, $relationships, $footnotes, $styles);
+                $cellBlocks = $this->tableCellBlocks($cellElement, $package, $relationships, $referencedNotes, $styles);
                 $attrs['text'] = $this->plainBlockText($cellBlocks);
 
                 $cells[] = new AstNode('table_cell', $attrs, $cellBlocks);
@@ -477,7 +503,7 @@ final class DocxReader
     }
 
     /**
-     * @param array<string, AstNode> $footnotes
+     * @param array<string, AstNode> $referencedNotes
      * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
      * @return list<AstNode>
      */
@@ -485,14 +511,14 @@ final class DocxReader
         \DOMElement $cell,
         ZipPackage $package,
         ?OpcRelationships $relationships,
-        array $footnotes,
+        array $referencedNotes,
         array $styles = []
     ): array
     {
         $blocks = [];
         foreach ($cell->childNodes as $child) {
             if ($child instanceof \DOMElement && $this->isWordElement($child, 'p')) {
-                $paragraph = $this->paragraphNode($child, $package, $relationships, $footnotes, $styles);
+                $paragraph = $this->paragraphNode($child, $package, $relationships, $referencedNotes, $styles);
                 if ($paragraph instanceof AstNode) {
                     $blocks[] = $paragraph;
                 }
@@ -611,50 +637,106 @@ final class DocxReader
     /**
      * @return array<string, AstNode>
      */
-    private function loadFootnotes(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart): array
+    private function loadReferencedNotes(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart): array
     {
-        $footnotesPart = $graph->firstTargetOfType(self::REL_TYPE_FOOTNOTES, $documentPart);
-        if ($footnotesPart === null) {
+        return array_replace(
+            $this->loadNotePart($package, $graph, $documentPart, self::REL_TYPE_FOOTNOTES, 'footnotes', 'footnote', 'footnote', 'DOCX footnotes XML'),
+            $this->loadNotePart($package, $graph, $documentPart, self::REL_TYPE_ENDNOTES, 'endnotes', 'endnote', 'endnote', 'DOCX endnotes XML'),
+            $this->loadNotePart($package, $graph, $documentPart, self::REL_TYPE_COMMENTS, 'comments', 'comment', 'comment', 'DOCX comments XML'),
+        );
+    }
+
+    /**
+     * @return array<string, AstNode>
+     */
+    private function loadNotePart(
+        ZipPackage $package,
+        OpcRelationshipGraph $graph,
+        string $documentPart,
+        string $relationshipType,
+        string $rootName,
+        string $itemName,
+        string $sourceType,
+        string $label
+    ): array {
+        $part = $graph->firstTargetOfType($relationshipType, $documentPart);
+        if ($part === null) {
             return [];
         }
 
-        $footnotesPart = OpcPackagePath::stripQueryAndFragment($footnotesPart);
-        if (!$package->has($footnotesPart)) {
+        $part = OpcPackagePath::stripQueryAndFragment($part);
+        if (!$package->has($part)) {
             return [];
         }
 
-        $footnoteRelationships = $graph->relationshipsForSource($footnotesPart);
-        $dom = self::loadXml($package->read($footnotesPart), 'DOCX footnotes XML');
+        $relationships = $graph->relationshipsForSource($part);
+        $dom = self::loadXml($package->read($part), $label);
         $root = $dom->documentElement;
-        if (!$root instanceof \DOMElement || !$this->isWordElement($root, 'footnotes')) {
+        if (!$root instanceof \DOMElement || !$this->isWordElement($root, $rootName)) {
             return [];
         }
 
         $notes = [];
-        foreach ($root->getElementsByTagNameNS(self::WORDPROCESSINGML_NS, 'footnote') as $footnote) {
-            if (!$footnote instanceof \DOMElement) {
+        foreach ($root->childNodes as $note) {
+            if (!$note instanceof \DOMElement || !$this->isWordElement($note, $itemName)) {
                 continue;
             }
 
-            $id = $this->wordAttr($footnote, 'id');
-            if ($id === null || $id === '' || str_starts_with($id, '-')) {
+            $id = $this->wordAttr($note, 'id');
+            $type = strtolower((string) ($this->wordAttr($note, 'type') ?? ''));
+            if (
+                $id === null
+                || $id === ''
+                || str_starts_with($id, '-')
+                || in_array($type, ['separator', 'continuationseparator'], true)
+            ) {
                 continue;
             }
 
-            $blocks = [];
-            foreach ($footnote->childNodes as $child) {
-                if ($child instanceof \DOMElement && $this->isWordElement($child, 'p')) {
-                    $paragraph = $this->paragraphNode($child, $package, $footnoteRelationships, []);
-                    if ($paragraph instanceof AstNode) {
-                        $blocks[] = $paragraph;
+            $attrs = [
+                'id' => $id,
+                'sourceType' => $sourceType,
+            ];
+            if ($sourceType === 'comment') {
+                foreach (['author', 'initials', 'date'] as $metadataName) {
+                    $metadata = $this->wordAttr($note, $metadataName);
+                    if ($metadata !== null && $metadata !== '') {
+                        $attrs[$metadataName] = $metadata;
                     }
                 }
             }
 
-            $notes[$id] = new AstNode('note', ['id' => $id], $blocks);
+            $notes[$sourceType . ':' . $id] = new AstNode('note', $attrs, $this->noteBlocks($note, $package, $relationships));
         }
 
         return $notes;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function noteBlocks(\DOMElement $note, ZipPackage $package, ?OpcRelationships $relationships): array
+    {
+        $blocks = [];
+        foreach ($note->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'p')) {
+                $paragraph = $this->paragraphNode($child, $package, $relationships, []);
+                if ($paragraph instanceof AstNode) {
+                    $blocks[] = $paragraph;
+                }
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'tbl')) {
+                $blocks[] = $this->tableNode($child, $package, $relationships, []);
+            }
+        }
+
+        return $blocks;
     }
 
     /**

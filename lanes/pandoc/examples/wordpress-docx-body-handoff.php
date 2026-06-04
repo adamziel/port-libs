@@ -17,6 +17,8 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
   <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
   <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
+  <Override PartName="/word/endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>
+  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
   <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
 </Types>
 XML;
@@ -34,6 +36,8 @@ XML],
   <Relationship Id="rIdSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source-packet?post=42" TargetMode="External"/>
   <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
   <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
+  <Relationship Id="rIdEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="endnotes.xml"/>
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
   <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
   <Relationship Id="rIdNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
 </Relationships>
@@ -56,6 +60,10 @@ XML],
       <w:hyperlink r:id="rIdSource"><w:r><w:t>the source link</w:t></w:r></w:hyperlink>
       <w:r><w:t xml:space="preserve"> visible.</w:t></w:r>
       <w:r><w:footnoteReference w:id="2"/></w:r>
+      <w:r><w:t xml:space="preserve"> Also keep endnote context</w:t></w:r>
+      <w:r><w:endnoteReference w:id="5"/></w:r>
+      <w:r><w:t xml:space="preserve"> and reviewer comment</w:t></w:r>
+      <w:r><w:commentReference w:id="9"/></w:r>
     </w:p>
     <w:p><w:r><w:drawing><wp:inline><wp:docPr id="9" name="Hero" descr="Source hero alt" title="Source hero"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdHero"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>
     <w:tbl>
@@ -104,6 +112,18 @@ XML],
   <w:footnote w:id="2"><w:p><w:r><w:t>DOCX footnote import note.</w:t></w:r></w:p></w:footnote>
 </w:footnotes>
 XML],
+    ['name' => 'word/endnotes.xml', 'data' => <<<'XML'
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="5"><w:p><w:r><w:t>DOCX endnote import note.</w:t></w:r></w:p></w:endnote>
+</w:endnotes>
+XML],
+    ['name' => 'word/comments.xml', 'data' => <<<'XML'
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:comment w:id="9" w:author="Migration Reviewer" w:initials="MR" w:date="2026-06-04T09:55:00Z">
+    <w:p><w:r><w:t>DOCX reviewer comment import note.</w:t></w:r></w:p>
+  </w:comment>
+</w:comments>
+XML],
     ['name' => 'word/media/hero.png', 'data' => 'PNGDATA'],
     ['name' => 'docProps/core.xml', 'data' => <<<'XML'
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
@@ -140,6 +160,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<td colspan="2" rowspan="2"><p>Review scope</p></td><td><p>Status</p></td>',
         '<td><p>Owner</p></td><td colspan="2"><p>Migration desk</p></td>',
         'DOCX footnote import note.',
+        'DOCX endnote import note.',
+        'DOCX reviewer comment import note.',
     ] as $needle) {
         if (!str_contains($blocks, $needle)) {
             throw new RuntimeException('DOCX body handoff self-test missing: ' . $needle);
