@@ -259,6 +259,7 @@ final class BatchConverter
                     'load_metadata_file',
                     'set_spawn_start_method',
                     'prepare_model_handoff',
+                    'print_conversion_summary',
                     'build_task_args',
                     'pool_imap_process_single_pdf',
                 ],
@@ -319,6 +320,14 @@ final class BatchConverter
                     'task_args' => [],
                     'progress_iterator' => $this->progressIterator(),
                 ],
+                'console_summary' => $this->conversionSummaryPlan(
+                    0,
+                    $chunkIndex,
+                    $numChunks,
+                    0,
+                    $absoluteOutputFolder,
+                    'output-folder-create-failed'
+                ),
                 'conversion_boundary' => [
                     'min_length' => $minLength,
                     'per_file_preflight_function' => 'process_single_pdf',
@@ -390,6 +399,7 @@ final class BatchConverter
                 'load_metadata_file',
                 'set_spawn_start_method',
                 'prepare_model_handoff',
+                'print_conversion_summary',
                 'build_task_args',
                 'pool_imap_process_single_pdf',
             ],
@@ -450,6 +460,13 @@ final class BatchConverter
                 'task_args' => $taskArgs,
                 'progress_iterator' => $this->progressIterator(),
             ],
+            'console_summary' => $this->conversionSummaryPlan(
+                count($taskArgs),
+                $chunkIndex,
+                $numChunks,
+                $totalProcesses,
+                $absoluteOutputFolder
+            ),
             'conversion_boundary' => [
                 'min_length' => $minLength,
                 'per_file_preflight_function' => 'process_single_pdf',
@@ -936,6 +953,63 @@ final class BatchConverter
     private function progressIterator(): string
     {
         return 'tqdm(pool.imap(process_single_pdf, task_args), total=len(task_args), desc="Processing PDFs", unit="pdf")';
+    }
+
+    /**
+     * @return array{
+     *     source: string,
+     *     template: string,
+     *     summary_reached: bool,
+     *     message_line: string|null,
+     *     selected_pdf_count: int,
+     *     chunk_display_index: int|null,
+     *     num_chunks: int|null,
+     *     total_processes: int,
+     *     out_folder: string|null,
+     *     emission_order: string,
+     *     emitted_before_task_args: bool,
+     *     emitted_before_pool_launch: bool,
+     *     blocked_by: string|null
+     * }
+     */
+    private function conversionSummaryPlan(
+        int $selectedCount,
+        int $chunkIndex,
+        int $numChunks,
+        int $totalProcesses,
+        string $outFolder,
+        ?string $blockedBy = null
+    ): array {
+        $reached = $blockedBy === null;
+        $displayChunk = $chunkIndex + 1;
+        $template = 'Converting {len(files_to_convert)} pdfs in chunk {chunk_idx + 1}/{num_chunks} with {total_processes} processes, and storing in {out_folder}';
+        $message = null;
+        if ($reached) {
+            $message = sprintf(
+                'Converting %d pdfs in chunk %d/%d with %d processes, and storing in %s',
+                $selectedCount,
+                $displayChunk,
+                $numChunks,
+                $totalProcesses,
+                $outFolder
+            );
+        }
+
+        return [
+            'source' => 'convert.py stdout conversion summary',
+            'template' => $template,
+            'summary_reached' => $reached,
+            'message_line' => $message,
+            'selected_pdf_count' => $reached ? $selectedCount : 0,
+            'chunk_display_index' => $reached ? $displayChunk : null,
+            'num_chunks' => $reached ? $numChunks : null,
+            'total_processes' => $reached ? $totalProcesses : 0,
+            'out_folder' => $reached ? $outFolder : null,
+            'emission_order' => 'after_model_handoff_before_task_args',
+            'emitted_before_task_args' => $reached,
+            'emitted_before_pool_launch' => $reached,
+            'blocked_by' => $blockedBy,
+        ];
     }
 
     private function percentComplete(int $completed, int $total): float

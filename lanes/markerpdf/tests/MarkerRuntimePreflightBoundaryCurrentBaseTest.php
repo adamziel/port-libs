@@ -185,6 +185,7 @@ return [
                 'load_metadata_file',
                 'set_spawn_start_method',
                 'prepare_model_handoff',
+                'print_conversion_summary',
                 'build_task_args',
                 'pool_imap_process_single_pdf',
             ], $plan['preflight_order']);
@@ -223,6 +224,12 @@ return [
             $t->same('convert_single_pdf', $plan['conversion_boundary']['converter_function']);
             $t->same('metadata.get(os.path.basename(f))', $plan['conversion_boundary']['metadata_lookup']);
             $t->same('print_empty_file_without_save_markdown', $plan['conversion_boundary']['empty_output_policy']);
+            $t->same(true, $plan['console_summary']['summary_reached']);
+            $t->same(
+                'Converting 2 pdfs in chunk 2/2 with 2 processes, and storing in ' . $output,
+                $plan['console_summary']['message_line']
+            );
+            $t->same('after_model_handoff_before_task_args', $plan['console_summary']['emission_order']);
             $t->same(true, $plan['review_only']);
             $t->same(false, $plan['executes_python_or_models']);
             $t->same(false, $plan['executes_multiprocessing']);
@@ -479,6 +486,9 @@ return [
             $t->same(0, $plan['worker_pool']['total_processes']);
             $t->same(false, $plan['worker_pool']['pool_launchable']);
             $t->same('output-folder-create-failed', $plan['worker_pool']['pool_error_boundary']);
+            $t->same(false, $plan['console_summary']['summary_reached']);
+            $t->same(null, $plan['console_summary']['message_line']);
+            $t->same('output-folder-create-failed', $plan['console_summary']['blocked_by']);
             $t->same(false, $plan['executes_python_or_models']);
             $t->same(false, $plan['executes_multiprocessing']);
         } finally {
@@ -518,6 +528,10 @@ return [
             $t->same(['alpha.pdf', 'metadata.json', 'omega.PDF', 'wp-upload.txt'], $plan['chunking']['selected_filenames']);
             $t->same(4, $plan['worker_pool']['task_args_count']);
             $t->same(4, $plan['worker_pool']['total_processes']);
+            $t->same(
+                'Converting 4 pdfs in chunk 1/1 with 4 processes, and storing in ' . $output,
+                $plan['console_summary']['message_line']
+            );
             $t->same(false, $plan['executes_python_or_models']);
         } finally {
             $removeTree($input);
@@ -570,6 +584,74 @@ return [
             $t->same('conversion-or-empty-output-return-none', $ready['upstream_return_boundary']);
             $t->same(false, $ready['executes_python_or_models']);
             $t->same(false, $ready['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records convert.py conversion summary stdout before task args and pool launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'beta.pdf', 'gamma.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+
+            $batch = new BatchConverter();
+            $plan = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                chunkIndex: 1,
+                numChunks: 2,
+                workers: 5
+            );
+            $emptyPlan = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                chunkIndex: 4,
+                numChunks: 2,
+                workers: 5
+            );
+            $invalidWorkers = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 0
+            );
+
+            $summary = $plan['console_summary'];
+            $t->same('convert.py stdout conversion summary', $summary['source']);
+            $t->same(true, $summary['summary_reached']);
+            $t->same(1, $summary['selected_pdf_count']);
+            $t->same(2, $summary['chunk_display_index']);
+            $t->same(2, $summary['num_chunks']);
+            $t->same(1, $summary['total_processes']);
+            $t->same($output, $summary['out_folder']);
+            $t->same(
+                'Converting 1 pdfs in chunk 2/2 with 1 processes, and storing in ' . $output,
+                $summary['message_line']
+            );
+            $t->same('after_model_handoff_before_task_args', $summary['emission_order']);
+            $t->same(true, $summary['emitted_before_task_args']);
+            $t->same(true, $summary['emitted_before_pool_launch']);
+            $t->same(null, $summary['blocked_by']);
+
+            $t->same(true, $emptyPlan['console_summary']['summary_reached']);
+            $t->same(0, $emptyPlan['console_summary']['selected_pdf_count']);
+            $t->same(0, $emptyPlan['console_summary']['total_processes']);
+            $t->same(
+                'Converting 0 pdfs in chunk 5/2 with 0 processes, and storing in ' . $output,
+                $emptyPlan['console_summary']['message_line']
+            );
+            $t->same('empty-task-queue', $emptyPlan['worker_pool']['pool_error_boundary']);
+            $t->same(true, $emptyPlan['console_summary']['emitted_before_pool_launch']);
+
+            $t->same(0, $invalidWorkers['console_summary']['total_processes']);
+            $t->same(
+                'Converting 3 pdfs in chunk 1/1 with 0 processes, and storing in ' . $output,
+                $invalidWorkers['console_summary']['message_line']
+            );
+            $t->same('invalid-worker-count', $invalidWorkers['worker_pool']['pool_error_boundary']);
+            $t->same(false, $invalidWorkers['executes_multiprocessing']);
         } finally {
             $removeTree($input);
             $removeTree($output);

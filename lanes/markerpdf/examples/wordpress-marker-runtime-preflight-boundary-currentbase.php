@@ -166,13 +166,22 @@ try {
         throw new RuntimeException('Expected runtime main preflight to clamp worker count to selected task count.');
     }
     if (
+        $runtimePlan['console_summary']['summary_reached'] !== true
+        || $runtimePlan['console_summary']['message_line'] !== 'Converting 5 pdfs in chunk 1/1 with 5 processes, and storing in ' . $output
+        || $runtimePlan['console_summary']['emission_order'] !== 'after_model_handoff_before_task_args'
+    ) {
+        throw new RuntimeException('Expected convert.py conversion summary stdout to be recorded before task args and pool launch.');
+    }
+    if (
         $outputConflictPlan['paths']['output_folder_creation_blocked'] !== true
         || $outputConflictPlan['paths']['output_path_type'] !== 'file'
         || $outputConflictPlan['paths']['output_folder_creation_error_class'] !== 'FileExistsError'
         || $outputConflictPlan['metadata']['metadata_load_reached'] !== false
         || $outputConflictPlan['worker_pool']['pool_error_boundary'] !== 'output-folder-create-failed'
+        || $outputConflictPlan['console_summary']['summary_reached'] !== false
+        || $outputConflictPlan['console_summary']['blocked_by'] !== 'output-folder-create-failed'
     ) {
-        throw new RuntimeException('Expected output-folder file conflicts to block before metadata loading or worker-pool planning.');
+        throw new RuntimeException('Expected output-folder file conflicts to block before metadata loading, conversion summary, or worker-pool planning.');
     }
     if ($runtimePlan['chunking']['max_files_limit_active'] !== false || $runtimePlan['chunking']['selected_count'] !== 5) {
         throw new RuntimeException('Expected --max=0 to behave like upstream convert.py and leave the WordPress queue uncapped.');
@@ -230,11 +239,18 @@ try {
         'runtime_total_processes' => $runtimePlan['worker_pool']['total_processes'],
         'runtime_pool_launchable' => $runtimePlan['worker_pool']['pool_launchable'],
         'runtime_pool_error_boundary' => $runtimePlan['worker_pool']['pool_error_boundary'],
+        'runtime_conversion_summary_reached' => $runtimePlan['console_summary']['summary_reached'],
+        'runtime_conversion_summary_line' => $runtimePlan['console_summary']['message_line'],
+        'runtime_conversion_summary_order' => $runtimePlan['console_summary']['emission_order'],
+        'runtime_conversion_summary_before_task_args' => $runtimePlan['console_summary']['emitted_before_task_args'],
+        'runtime_conversion_summary_before_pool_launch' => $runtimePlan['console_summary']['emitted_before_pool_launch'],
         'output_conflict_creation_blocked' => $outputConflictPlan['paths']['output_folder_creation_blocked'],
         'output_conflict_path_type' => $outputConflictPlan['paths']['output_path_type'],
         'output_conflict_error_class' => $outputConflictPlan['paths']['output_folder_creation_error_class'],
         'output_conflict_metadata_load_reached' => $outputConflictPlan['metadata']['metadata_load_reached'],
         'output_conflict_pool_error_boundary' => $outputConflictPlan['worker_pool']['pool_error_boundary'],
+        'output_conflict_conversion_summary_reached' => $outputConflictPlan['console_summary']['summary_reached'],
+        'output_conflict_conversion_summary_blocked_by' => $outputConflictPlan['console_summary']['blocked_by'],
         'runtime_max_files_limit_active' => $runtimePlan['chunking']['max_files_limit_active'],
         'runtime_zero_max_selected_count' => $runtimePlan['chunking']['selected_count'],
         'negative_max_selected_filenames' => $negativeMaxPlan['chunking']['selected_filenames'],

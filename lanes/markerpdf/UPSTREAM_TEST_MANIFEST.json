@@ -536,12 +536,12 @@
             "mappedPdfOutlineStructureElementMetadataCurrentBaseBehaviors": 1,
             "mappedPdfPageResourceInheritanceCurrentBaseBehaviors": 1,
             "mappedPdfTextDictionaryLayoutOrderSuppliedRangeCurrentBaseBehaviors": 1,
-            "mappedMarkerRuntimeMainPreflightBoundaryCurrentBaseBehaviors": 2,
+            "mappedMarkerRuntimeMainPreflightBoundaryCurrentBaseBehaviors": 3,
             "mappedTableNamedBboxGeometryBoundaryCurrentBaseBehaviors": 1,
             "mappedPdfFontType3CharProcsFallbackBoundaryCurrentBaseBehaviors": 1,
             "mappedPdfLinkAnnotationPageGeometryCurrentBaseBehaviors": 1,
             "mappedPdfFontWidthAdvanceBoundaryCurrentBaseBehaviors": 3,
-            "markerRuntimeMainPreflightBoundaryCurrentBaseBehaviors": 2
+            "markerRuntimeMainPreflightBoundaryCurrentBaseBehaviors": 3
         },
         "benchmarkDocuments": [
             "multicolcnn.pdf",
@@ -1050,11 +1050,11 @@
         "pdfXrefStreamPrevHybridGenerationRecoveryCurrentBaseBehaviors": 1,
         "mappedPdfXrefStreamPrevHybridGenerationRecoveryCurrentBaseBehaviors": 1
     },
-    "nativeImplementation": "current-base native PHP markerPDF behavior includes encrypted crypt-filter content-role preflight, Image XObject CTM placement review, indirect encrypted permission operand review, XMP/current-trailer metadata, inline-image decode boundaries, xref repair, named destinations, attachment review, marker-app preview PageLabels /Limits and indirect label-operand enforcement, and optional pdftext dictionary_output(sort=true) row/column block ordering; full upstream Python/model runner parity remains unavailable under the no-GPU scope; runtime batch preflight records output-folder regular-file conflicts before metadata/model/pool planning",
+    "nativeImplementation": "current-base native PHP markerPDF behavior includes encrypted crypt-filter content-role preflight, Image XObject CTM placement review, indirect encrypted permission operand review, XMP/current-trailer metadata, inline-image decode boundaries, xref repair, named destinations, attachment review, marker-app preview PageLabels /Limits and indirect label-operand enforcement, and optional pdftext dictionary_output(sort=true) row/column block ordering; full upstream Python/model runner parity remains unavailable under the no-GPU scope; runtime batch preflight records output-folder regular-file conflicts before metadata/model/pool planning and convert.py stdout conversion-summary ordering before task tuple construction or pool launch",
     "wordpressScenario": "WordPress PDF imports now cover encrypted Standard crypt-filter content-role preflight for StmF/StrF/EFF identity, encrypted, and missing filters before import decisions, Image XObject q/Q/cm and nested Form XObject /Matrix placement bboxes for review-only media handoff, indirect encrypted permission and crypt-filter review, catalog XMP plus current-trailer Info/ID metadata, inline ASCII85/Flate image decode boundaries, classic xref rebuild, xref /Prev repair, native named-destination extraction, attachment/FileSpec summaries, marker-app preview PageLabels /Limits and indirect /S /P /St operand boundaries, pdftext dictionary_output span-text normalization and optional sort=true row/column ordering, current incremental /Prev xref content selection, single-document runtime admission review, Type3/font-width boundaries, page-resource inheritance, clipped table grid geometry, malformed BI tokenizer recovery, pdftext keep_chars=false sanitation, indirect xref-stream W/Index/Size helper resolution, and the previously accepted native no-GPU markerPDF paths while keeping model execution, raw payload bytes, action/XFA operands, image payloads, encrypted associated-file text, stale xref data, and parser noise out of visible content.",
     "nextTask": "Continue native no-GPU markerPDF/Pandoc supervision from clean origin/main worktrees, integrating ready handoffs serially only after focused verification and preserving the bounded worker swarm.",
-    "latestRunAddendum": "2026-06-04 UTC isolated encrypted crypt-filter permission preflight slice maps Standard encryption StmF/StrF/EFF content roles into review-only identity/encrypted/missing filter metadata before WordPress import decisions. Red-first focused run failed with missing crypt_filter_content_review. After patch: php tools/run-tests.php lanes/markerpdf/tests/PdfEncryptedPermissionCryptFilterPreflightCurrentBaseTest.php => 1 test file / 55 assertions / 0 failures; WordPress encrypted crypt-filter smoke passed with text blocked and no decryption/model/external-tool execution. Full markerPDF lane/root harness not run for this isolated micro-slice.",
-    "wordpressScenarios": 1092,
+    "latestRunAddendum": "2026-06-04 UTC isolated runtime conversion-summary preflight slice maps convert.py's stdout line `Converting {len(files_to_convert)} pdfs in chunk {chunk_idx + 1}/{num_chunks} with {total_processes} processes, and storing in {out_folder}` after model handoff preparation and before task tuple construction/pool launch. Red-first focused run failed with missing `print_conversion_summary` order and `console_summary` rows. After patch: php tools/run-tests.php lanes/markerpdf/tests/MarkerRuntimePreflightBoundaryCurrentBaseTest.php => 1 test file / 248 assertions / 0 failures; php tools/run-tests.php lanes/markerpdf/tests/BatchConverterTest.php lanes/markerpdf/tests/MarkerRuntimePreflightBoundaryCurrentBaseTest.php => 2 test files / 359 assertions / 0 failures; WordPress runtime preflight smoke emitted the summary line plus output-conflict summary-blocked metadata. Full markerPDF lane/root harness not run for this isolated micro-slice.",
+    "wordpressScenarios": 1095,
     "inventory": {
         "mappedInlineImageReviewBehaviors": 1,
         "mappedMultilineOcrTableHeaderBehaviors": 1,
@@ -1270,7 +1270,7 @@
         "mappedPdfNamedDestinationExtractorCurrentBaseBehaviors": 1,
         "mappedMarkerAppPreviewPageLabelsCurrentBaseBehaviors": 5,
         "mappedPdfXrefPrevIncrementalContentEvidenceCurrentBaseBehaviors": 1,
-        "mappedMarkerRuntimeMainPreflightBoundaryCurrentBaseBehaviors": 2
+        "mappedMarkerRuntimeMainPreflightBoundaryCurrentBaseBehaviors": 3
     },
     "pdfParserNameArrayCommentBoundaryCurrentBase": "PDF comments inside optional-content arrays are skipped before indirect-reference and escaped-name scanning, preventing comment-only hidden layer references from affecting WordPress text extraction.",
     "pdfParserNameArrayCommentBoundaryCurrentBaseBehaviors": 1,
@@ -1661,9 +1661,9 @@
     "pdfTextDictionaryLayoutOrderSuppliedRangeCurrentBase": "SuppliedDocumentConverter slices full-document lowres_images, layout_results, order_images, and order_results to the selected pdftext page_range before layout/order assignment, so skipped cover or appendix artifacts cannot drive WordPress paragraph order.",
     "pdfTextDictionaryLayoutOrderSuppliedRangeCurrentBaseBehaviors": 1,
     "mappedPdfTextDictionaryLayoutOrderSuppliedRangeCurrentBaseBehaviors": 1,
-    "markerRuntimeMainPreflightBoundaryCurrentBase": "Batch convert.py::main admission records absolute input/output folder normalization, os.makedirs(exist_ok=True) output-folder creation requirements and regular-file conflict boundaries, chunk/max slicing, metadata-file basename lookup, worker-count clamping, empty-task queue risk, and invalid-worker pool-risk boundaries before Python multiprocessing or model loading.",
-    "markerRuntimeMainPreflightBoundaryCurrentBaseBehaviors": 2,
-    "mappedMarkerRuntimeMainPreflightBoundaryCurrentBaseBehaviors": 2,
+    "markerRuntimeMainPreflightBoundaryCurrentBase": "Batch convert.py::main admission records absolute input/output folder normalization, os.makedirs(exist_ok=True) output-folder creation requirements and regular-file conflict boundaries, chunk/max slicing, metadata-file basename lookup, worker-count clamping, empty-task queue risk, invalid-worker pool-risk boundaries, and stdout conversion-summary ordering before task tuple construction or pool launch.",
+    "markerRuntimeMainPreflightBoundaryCurrentBaseBehaviors": 3,
+    "mappedMarkerRuntimeMainPreflightBoundaryCurrentBaseBehaviors": 3,
     "markerRuntimeNegativeChunkIndexBoundaryCurrentBase": "Batch convert.py::main negative --chunk_idx values preserve raw start/end offsets and Python slice normalization before metadata lookup, task tuple construction, worker-count clamping, and empty-task queue review.",
     "markerRuntimeNegativeChunkIndexBoundaryCurrentBaseBehaviors": 1,
     "mappedMarkerRuntimeNegativeChunkIndexBoundaryCurrentBaseBehaviors": 1,
