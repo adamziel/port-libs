@@ -15,6 +15,8 @@ Smith says @smith1899 while the import queue cites [see @wp-team, sec. 2; -@smit
 
 The reviewer packet cites @particle-source for imported source access dates.
 
+The local style renders @committee-source when source dates are missing.
+
 The source archive keeps [see @missing-source; @{https://example.com/bib?name=foobar&date=2000}, p. 33] visible for reviewer follow-up.
 MARKDOWN;
 
@@ -53,6 +55,16 @@ $cslJson = <<<'JSON'
     "URL": "https://example.test/source-packet"
   },
   {
+    "id": "committee-source",
+    "type": "report",
+    "title": "Undated Committee Packet",
+    "author": [
+      {"family": "Adams", "given": "Ari"},
+      {"family": "Baker", "given": "Bea"},
+      {"family": "Clark", "given": "Cy"}
+    ]
+  },
+  {
     "id": "https://example.com/bib?name=foobar&date=2000",
     "type": "webpage",
     "title": "URL Key Source",
@@ -62,14 +74,39 @@ $cslJson = <<<'JSON'
 ]
 JSON;
 
-$processor = CitationCslProcessor::fromJson($cslJson);
+$cslStyleXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>WordPress Review Author Date</title>
+    <id>https://example.test/styles/wordpress-review-author-date</id>
+    <updated>2026-06-04T00:00:00+00:00</updated>
+  </info>
+  <locale xml:lang="en-US">
+    <terms>
+      <term name="et-al">and others</term>
+      <term name="no date">undated</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; "/>
+  </citation>
+  <bibliography>
+    <layout/>
+  </bibliography>
+</style>
+XML;
+
+$processor = CitationCslProcessor::fromJson($cslJson)->withCslStyle($cslStyleXml);
 $document = $processor->appendBibliography((new MarkdownReader())->read($markdown), 'Works Cited');
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         '<p>The reviewer packet cites de la Cruz (2026) for imported source access dates.</p>',
+        '<p>The local style renders Adams and others (undated) when source dates are missing.</p>',
         '<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria, Jr. Source Packet. 2026. https://example.test/source-packet. Accessed 2026-06-05.</dd>',
+        '<dt>Adams and others undated</dt><dd>Adams, Ari; Baker, Bea; Clark, Cy. Undated Committee Packet.</dd>',
         '<p>The source archive keeps (see @missing-source; URL Key Source 2000, p. 33) visible for reviewer follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {

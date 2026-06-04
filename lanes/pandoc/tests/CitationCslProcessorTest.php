@@ -415,6 +415,102 @@ BIB;
         $t->contains('<dt>Doe and Roe 2020</dt><dd>Doe, Jane; Roe, Pat. Field Notes. Journal of Imports. 2020. 55-60. https://example.test/field-notes.</dd>', $blocks);
         $t->contains('<dt>WordPress Migration Team 2024</dt><dd>WordPress Migration Team. Reviewer Log. 2024. https://example.test/reviewer-log.</dd>', $blocks);
     },
+    'applies bounded csl style xml citation layout and locale terms' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'two-authors',
+                'type' => 'webpage',
+                'title' => 'Two Author Packet',
+                'author' => [
+                    ['family' => 'Mueller', 'given' => 'Mia'],
+                    ['family' => 'Schmidt', 'given' => 'Sam'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'URL' => 'https://example.test/two-authors',
+            ],
+            [
+                'id' => 'three-authors',
+                'type' => 'report',
+                'title' => 'Three Author Packet',
+                'author' => [
+                    ['family' => 'Garcia', 'given' => 'Gia'],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                    ['family' => 'Okafor', 'given' => 'Ola'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+            [
+                'id' => 'undated',
+                'type' => 'webpage',
+                'title' => 'Undated Packet',
+                'issued' => [],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="de-DE">
+  <info>
+    <title>Bounded Local Review Style</title>
+    <id>https://example.test/styles/bounded-local-review</id>
+    <updated>2026-06-04T00:00:00+00:00</updated>
+  </info>
+  <locale xml:lang="de-DE">
+    <terms>
+      <term name="et-al">u. a.</term>
+      <term name="no date">o. J.</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter=" | "/>
+  </citation>
+  <bibliography>
+    <layout/>
+  </bibliography>
+</style>
+XML,
+            [
+                <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<locale xmlns="http://purl.org/net/xbiblio/csl" xml:lang="de-DE" version="1.0">
+  <terms>
+    <term name="and">und</term>
+    <term name="no date">kein Datum</term>
+  </terms>
+</locale>
+XML,
+            ]
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Local Review Style', $summary['title'] ?? null);
+        $t->same('de-DE', $summary['defaultLocale'] ?? null);
+        $t->same('[', $summary['citationLayout']['prefix'] ?? null);
+        $t->same(' | ', $summary['citationLayout']['delimiter'] ?? null);
+
+        $document = (new MarkdownReader())->read('Review [@two-authors; @three-authors; @undated]. Missing [@missing] stays visible.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+
+        $cluster = $processed->children[0]->children[1];
+        $missing = $processed->children[0]->children[3];
+        $t->same('[Mueller und Schmidt 2024 | Garcia u. a. 2025 | Undated Packet o. J.]', $cluster->attr('rendered'));
+        $t->same('[@missing]', $missing->attr('rendered'));
+        $t->same('Mueller und Schmidt 2024', $processed->children[2]->children[0]->children[0]->attr('text'));
+        $t->same('Garcia u. a. 2025', $processed->children[2]->children[1]->children[0]->attr('text'));
+        $t->same('Undated Packet o. J.', $processed->children[2]->children[2]->children[0]->attr('text'));
+        $t->same('Mueller, Mia; Schmidt, Sam. Two Author Packet. 2024. https://example.test/two-authors.', $processor->renderBibliographyEntry('two-authors'));
+        $t->same('Undated Packet.', $processor->renderBibliographyEntry('undated'));
+
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Review [Mueller und Schmidt 2024 | Garcia u. a. 2025 | Undated Packet o. J.]. Missing [@missing] stays visible.', $markdown);
+        $t->contains('Undated Packet o. J.' . "\n" . ':   Undated Packet.', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review [Mueller und Schmidt 2024 | Garcia u. a. 2025 | Undated Packet o. J.]. Missing [@missing] stays visible.</p>', $blocks);
+        $t->contains('<dt>Undated Packet o. J.</dt><dd>Undated Packet.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle('<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text"><info/></style>'));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle('<locale xmlns="http://purl.org/net/xbiblio/csl" version="1.0"/>'));
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

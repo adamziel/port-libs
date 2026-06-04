@@ -9,12 +9,15 @@ final class CitationCslProcessor
     /** @var array<string, array<string, mixed>> */
     private array $itemsById;
 
+    private CslStyle $style;
+
     /**
      * @param array<string, array<string, mixed>> $itemsById
      */
-    private function __construct(array $itemsById)
+    private function __construct(array $itemsById, ?CslStyle $style = null)
     {
         $this->itemsById = $itemsById;
+        $this->style = $style ?? CslStyle::default();
     }
 
     public static function fromJson(string $json): self
@@ -65,6 +68,22 @@ final class CitationCslProcessor
         }
 
         return new self($itemsById);
+    }
+
+    /**
+     * @param list<string> $localeXmls
+     */
+    public function withCslStyle(string $styleXml, array $localeXmls = []): self
+    {
+        return new self($this->itemsById, CslStyle::fromXml($styleXml, $localeXmls));
+    }
+
+    /**
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, terms:array{and:string, etAl:string, noDate:string}}
+     */
+    public function cslStyleSummary(): array
+    {
+        return $this->style->summary();
     }
 
     /**
@@ -236,7 +255,9 @@ final class CitationCslProcessor
             return $entries[0];
         }
 
-        return '(' . implode('; ', $entries) . ')';
+        return $this->style->citationPrefix()
+            . implode($this->style->citationDelimiter(), $entries)
+            . $this->style->citationSuffix();
     }
 
     public function renderBibliographyEntry(string $id): string
@@ -264,11 +285,12 @@ final class CitationCslProcessor
 
         $publisher = (string) $item['publisher'];
         $year = $this->citationYear($item);
-        if ($publisher !== '' && $year !== 'n.d.') {
+        $hasDate = $this->hasIssuedDate($item);
+        if ($publisher !== '' && $hasDate) {
             $parts[] = $publisher . ', ' . $year . '.';
         } elseif ($publisher !== '') {
             $parts[] = $publisher . '.';
-        } elseif ($year !== 'n.d.') {
+        } elseif ($hasDate) {
             $parts[] = $year . '.';
         }
 
@@ -650,10 +672,10 @@ final class CitationCslProcessor
         }
 
         if (count($families) === 2) {
-            return $families[0] . ' and ' . $families[1];
+            return $families[0] . ' ' . $this->style->term('and') . ' ' . $families[1];
         }
 
-        return $families[0] . ' et al.';
+        return $families[0] . ' ' . $this->style->term('et-al');
     }
 
     /**
@@ -670,7 +692,21 @@ final class CitationCslProcessor
             return (string) $date['literal'];
         }
 
-        return 'n.d.';
+        return $this->style->term('no date');
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function hasIssuedDate(array $item): bool
+    {
+        if (isset($item['issuedYear']) && $item['issuedYear'] !== null) {
+            return true;
+        }
+
+        $date = $item['issuedDate'] ?? null;
+
+        return is_array($date) && (string) ($date['literal'] ?? '') !== '';
     }
 
     /**
