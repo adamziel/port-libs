@@ -3934,6 +3934,16 @@ final class PdfTextExtractor
             ];
         }
 
+        if ($filter === 'DCTDecode' || $filter === 'DCT') {
+            $colorTransform = $this->decodeParmsInt($value, 'ColorTransform', $objects);
+
+            return [
+                'type' => 'DCTDecode',
+                'color_transform' => $colorTransform,
+                'valid_color_transform' => $colorTransform === null || in_array($colorTransform, [0, 1, 2], true),
+            ];
+        }
+
         return ['type' => $filter];
     }
 
