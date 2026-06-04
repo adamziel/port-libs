@@ -6041,7 +6041,7 @@ final class PdfMetadataExtractor
     }
 
     /**
-     * @return array<int, list<array{generation: int, offset: int, body: string}>>
+     * @return array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>>
      */
     private function directObjectDefinitions(string $pdfBytes): array
     {
@@ -6057,6 +6057,8 @@ final class PdfMetadataExtractor
             $definitions[(int) $match[1][0]][] = [
                 'generation' => (int) $match[2][0],
                 'offset' => $match[1][1],
+                'bodyStart' => $bodyStart,
+                'bodyEnd' => $bodyEnd,
                 'body' => substr($pdfBytes, $bodyStart, $bodyEnd - $bodyStart),
             ];
             $offset = $bodyEnd + strlen('endobj');
@@ -6213,7 +6215,7 @@ final class PdfMetadataExtractor
     }
 
     /**
-     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, list<array{generation: int, offset: int, bodyStart?: int, bodyEnd?: int, body: string}>> $definitions
      * @return array<int, string>
      */
     private function latestDirectObjects(array $definitions): array
@@ -6436,7 +6438,7 @@ final class PdfMetadataExtractor
      */
     private function xrefEntriesFromStartxrefChain(string $pdfBytes, array $objects, array $definitions): array
     {
-        $offset = $this->latestStartxrefOffset($pdfBytes);
+        $offset = $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
         if ($offset === null) {
             return [];
         }
@@ -6497,10 +6499,15 @@ final class PdfMetadataExtractor
     }
 
     /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
      * @return array{entries: array<int, array{type: int, generation: int, offset: int, offsetIsExplicit: bool}>, trailer: string}|null
      */
-    private function xrefTableSectionAt(string $pdfBytes, int $offset): ?array
+    private function xrefTableSectionAt(string $pdfBytes, int $offset, ?array $definitions = null): ?array
     {
+        if ($definitions !== null && $this->offsetOwnedByDirectObjectBody($offset, $definitions)) {
+            return null;
+        }
+
         $offset = $this->skipPdfWhitespace($pdfBytes, $offset);
         if (substr($pdfBytes, $offset, 4) !== 'xref') {
             return null;
@@ -6526,6 +6533,24 @@ final class PdfMetadataExtractor
             'entries' => $this->xrefTableRows(substr($pdfBytes, $sectionBodyOffset, $trailerOffset - $sectionBodyOffset)),
             'trailer' => $trailer,
         ];
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>> $definitions
+     */
+    private function offsetOwnedByDirectObjectBody(int $offset, array $definitions): bool
+    {
+        foreach ($definitions as $entries) {
+            foreach ($entries as $definition) {
+                $bodyStart = $definition['bodyStart'] ?? null;
+                $bodyEnd = $definition['bodyEnd'] ?? null;
+                if (is_int($bodyStart) && is_int($bodyEnd) && $offset >= $bodyStart && $offset <= $bodyEnd) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -6762,7 +6787,8 @@ final class PdfMetadataExtractor
      */
     private function trailerDictionaryEntry(string $pdfBytes): ?array
     {
-        $startxrefOffset = $this->latestStartxrefOffset($pdfBytes);
+        $definitions = $this->directObjectDefinitions($pdfBytes);
+        $startxrefOffset = $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions === [] ? null : $definitions);
         if ($startxrefOffset !== null) {
             $trailer = $this->trailerDictionaryBodyAtOffset($pdfBytes, $startxrefOffset);
             if ($trailer !== null) {
@@ -6814,6 +6840,77 @@ final class PdfMetadataExtractor
         }
 
         return max(0, (int) $latest[1]);
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int, generation: int, offset: int, body: string}>>|null $definitions
+     */
+    private function startxrefOffsetWithClassicRebuild(string $pdfBytes, ?array $definitions = null): ?int
+    {
+        $offset = $this->latestStartxrefOffset($pdfBytes);
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->classicRebuildOffsetForStartxref($pdfBytes, $offset, $definitions) ?? $offset;
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int, generation: int, offset: int, body: string}>>|null $definitions
+     */
+    private function classicRebuildOffsetForStartxref(string $pdfBytes, int $offset, ?array $definitions = null): ?int
+    {
+        if ($this->xrefStreamDictionaryAtObjectOffset($pdfBytes, $offset) !== null) {
+            return null;
+        }
+
+        $latestClassicOffset = $this->latestClassicXrefTableOffset($pdfBytes, $definitions);
+        if ($latestClassicOffset === null) {
+            return null;
+        }
+
+        if ($this->xrefTableSectionAt($pdfBytes, $offset, $definitions) === null) {
+            if ($offset < strlen($pdfBytes) && $latestClassicOffset <= $offset) {
+                return null;
+            }
+
+            return $latestClassicOffset;
+        }
+
+        return $latestClassicOffset > $offset ? $latestClassicOffset : null;
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int, generation: int, offset: int, body: string}>>|null $definitions
+     */
+    private function latestClassicXrefTableOffset(string $pdfBytes, ?array $definitions = null): ?int
+    {
+        $offsets = $this->xrefTableKeywordOffsets($pdfBytes);
+        for ($index = count($offsets) - 1; $index >= 0; $index--) {
+            $offset = $offsets[$index];
+            if ($this->xrefTableSectionAt($pdfBytes, $offset, $definitions) !== null) {
+                return $offset;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function xrefTableKeywordOffsets(string $pdfBytes): array
+    {
+        $offsets = [];
+        $offset = 0;
+        while (($position = strpos($pdfBytes, 'xref', $offset)) !== false) {
+            if ($this->pdfKeywordAt($pdfBytes, $position, 'xref')) {
+                $offsets[] = $position;
+            }
+            $offset = $position + 4;
+        }
+
+        return $offsets;
     }
 
     private function trailerDictionaryBodyAtOffset(string $pdfBytes, int $offset): ?string
