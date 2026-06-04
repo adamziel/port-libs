@@ -187,6 +187,10 @@ final class PdfSecurityPreflight
         $standardAuthenticationReview = is_array($encryption['standard_authentication_review'] ?? null)
             ? $encryption['standard_authentication_review']
             : [];
+        $standardAuthenticationMaterialReview = $this->standardAuthenticationMaterialReview(
+            $standardAuthenticationReview,
+            ($handlerReview['standard_handler'] ?? false) === true
+        );
         $recipientPermissionsDeclared = (int) ($publicKeyRecipientReview['recipient_count'] ?? 0) > 0;
         $selectedRecipientCount = (int) ($publicKeyRecipientReview['selected_recipient_count'] ?? 0);
         $permissionBitsReliable = $handlerSupported && $permissionWellFormed === true;
@@ -245,6 +249,10 @@ final class PdfSecurityPreflight
             'permission_word_well_formed' => $handlerSupported ? $permissionWellFormed : null,
             'permission_handler_review' => $handlerReview,
             'standard_authentication_review' => $standardAuthenticationReview,
+            'standard_authentication_material_review' => $standardAuthenticationMaterialReview,
+            'standard_authentication_ready_for_password_attempt' => ($standardAuthenticationMaterialReview['present'] ?? false) === true
+                ? (bool) ($standardAuthenticationMaterialReview['ready_for_password_attempt'] ?? false)
+                : null,
             'public_key_recipient_review' => $publicKeyRecipientReview,
             'public_key_crypt_filter_selection' => is_array($publicKeyRecipientReview['crypt_filter_selection'] ?? null)
                 ? $publicKeyRecipientReview['crypt_filter_selection']
@@ -259,6 +267,118 @@ final class PdfSecurityPreflight
             'raw_key_material_exposed' => false,
             'recipient_bytes_exposed' => false,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $standardAuthenticationReview
+     * @return array<string, mixed>
+     */
+    private function standardAuthenticationMaterialReview(array $standardAuthenticationReview, bool $standardHandler): array
+    {
+        $base = [
+            'source' => 'standard_authentication_material_review',
+            'present' => false,
+            'standard_handler' => $standardHandler,
+            'review_only' => true,
+            'password_validation_performed' => false,
+            'permissions_authenticated' => false,
+            'decryption_performed' => false,
+            'executes_decryption' => false,
+            'executes_permission_enforcement' => false,
+            'raw_owner_user_keys_exposed' => false,
+            'raw_file_encryption_keys_exposed' => false,
+        ];
+
+        if (!$standardHandler) {
+            return $base + [
+                'status' => 'not_standard_security_handler',
+                'ready_for_password_attempt' => null,
+            ];
+        }
+
+        if ($standardAuthenticationReview === []) {
+            return $base + [
+                'status' => 'standard_authentication_review_unavailable',
+                'ready_for_password_attempt' => false,
+            ];
+        }
+
+        $entries = is_array($standardAuthenticationReview['entries'] ?? null)
+            ? $standardAuthenticationReview['entries']
+            : [];
+        $requiredEntryCount = 0;
+        $presentRequiredEntries = [];
+        $missingRequiredEntries = [];
+        $unresolvedRequiredEntries = [];
+        $lengthMismatchEntries = [];
+        $requiredEntryStatuses = [];
+
+        foreach ($entries as $name => $entry) {
+            if (!is_string($name) || !is_array($entry) || ($entry['required_for_revision'] ?? false) !== true) {
+                continue;
+            }
+
+            $requiredEntryCount++;
+            $status = is_string($entry['status'] ?? null) ? $entry['status'] : null;
+            if ($status !== null && !in_array($status, $requiredEntryStatuses, true)) {
+                $requiredEntryStatuses[] = $status;
+            }
+            if (($entry['present'] ?? false) !== true) {
+                $missingRequiredEntries[] = $name;
+                continue;
+            }
+
+            $presentRequiredEntries[] = $name;
+            if (($entry['bytes_resolved'] ?? false) !== true) {
+                $unresolvedRequiredEntries[] = $name;
+                continue;
+            }
+            if (($entry['length_valid'] ?? null) !== true) {
+                $lengthMismatchEntries[] = $name;
+            }
+        }
+
+        $permissionDigest = is_array($standardAuthenticationReview['permission_digest'] ?? null)
+            ? $standardAuthenticationReview['permission_digest']
+            : [];
+        $permissionDigestRequired = is_int($permissionDigest['expected_bytes'] ?? null);
+        $permissionDigestStatus = is_string($permissionDigest['status'] ?? null) ? $permissionDigest['status'] : null;
+        $permissionDigestReady = !$permissionDigestRequired
+            || (
+                ($permissionDigest['present'] ?? false) === true
+                && ($permissionDigest['length_valid'] ?? null) === true
+                && $permissionDigestStatus === 'permission_digest_ciphertext_review'
+            );
+        $ready = $requiredEntryCount > 0
+            && $missingRequiredEntries === []
+            && $unresolvedRequiredEntries === []
+            && $lengthMismatchEntries === []
+            && $permissionDigestReady;
+
+        return array_merge($base, [
+            'present' => true,
+            'revision' => $standardAuthenticationReview['revision'] ?? null,
+            'revision_label' => $standardAuthenticationReview['revision_label'] ?? null,
+            'algorithm' => $standardAuthenticationReview['algorithm'] ?? null,
+            'key_length_bits' => $standardAuthenticationReview['key_length_bits'] ?? null,
+            'required_entry_count' => $requiredEntryCount,
+            'present_required_entry_count' => count($presentRequiredEntries),
+            'present_required_entries' => $presentRequiredEntries,
+            'missing_required_entries' => $missingRequiredEntries,
+            'unresolved_required_entries' => $unresolvedRequiredEntries,
+            'length_mismatch_required_entries' => $lengthMismatchEntries,
+            'required_entry_statuses' => $requiredEntryStatuses,
+            'permission_digest_required' => $permissionDigestRequired,
+            'permission_digest_present' => (bool) ($permissionDigest['present'] ?? false),
+            'permission_digest_bytes' => $permissionDigest['bytes'] ?? null,
+            'permission_digest_expected_bytes' => $permissionDigest['expected_bytes'] ?? null,
+            'permission_digest_length_valid' => $permissionDigest['length_valid'] ?? null,
+            'permission_digest_status' => $permissionDigestStatus,
+            'ready_for_password_attempt' => $ready,
+            'status' => $ready
+                ? 'standard_authentication_material_ready_for_password_attempt'
+                : 'standard_authentication_material_incomplete_or_malformed_review',
+        ]);
     }
 
     /**
@@ -4146,6 +4266,10 @@ final class PdfSecurityPreflight
         $standardAuthenticationReview = is_array($encryption['standard_authentication_review'] ?? null)
             ? $encryption['standard_authentication_review']
             : [];
+        $standardAuthenticationMaterialReview = $this->standardAuthenticationMaterialReview(
+            $standardAuthenticationReview,
+            $standardHandler
+        );
         $cryptFilterContentReview = $this->cryptFilterContentReview(true, $encryption);
 
         return [
@@ -4177,6 +4301,10 @@ final class PdfSecurityPreflight
             'reserved_bit_violations' => $reservedViolations,
             'perms_hash_present' => isset($encryption['perms']['sha256']),
             'standard_authentication_review' => $standardAuthenticationReview,
+            'standard_authentication_material_review' => $standardAuthenticationMaterialReview,
+            'standard_authentication_ready_for_password_attempt' => ($standardAuthenticationMaterialReview['present'] ?? false) === true
+                ? (bool) ($standardAuthenticationMaterialReview['ready_for_password_attempt'] ?? false)
+                : null,
             'public_key_recipient_count' => (int) ($publicKeyRecipientReview['recipient_count'] ?? 0),
             'selected_public_key_recipient_count' => (int) ($publicKeyRecipientReview['selected_recipient_count'] ?? 0),
             'public_key_recipient_permission_decode_status' => $publicKeyRecipientReview['permission_decode_status'] ?? null,
