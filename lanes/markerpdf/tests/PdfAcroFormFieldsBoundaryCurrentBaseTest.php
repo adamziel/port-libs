@@ -81,6 +81,30 @@ $acroFormGenerationExactBoundaryPdf = static function (): string {
         . "%%EOF";
 };
 
+$indirectAcroFormFieldArraysBoundaryPdf = static function (): string {
+    $pageText = 'BT /F1 12 Tf 72 720 Td (Visible AcroForm indirect array boundary body) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R 15 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Fields 20 0 R /NeedAppearances true /DA (/Helv 9 Tf 0 0 0 rg) >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (article.indirect) /V (Indirect field array title) /Kids 21 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 320 664] /P 3 0 R /F 4 >>\nendobj\n"
+        . "12 0 obj\n<< /FT /Tx /T (metadata.hidden) /Ff 4 /V (Metadata-only indirect value) >>\nendobj\n"
+        . "15 0 obj\n<< /Subtype /Widget /Parent 42 0 R /Rect [72 600 320 624] /P 3 0 R /F 4 >>\nendobj\n"
+        . "20 0 obj\n[6 0 R 12 0 R 40 0 R]\nendobj\n"
+        . "21 0 obj\n[8 0 R]\nendobj\n"
+        . "40 0 obj\n<< /FT /Tx /T (profile) /V (Inherited profile value) /Kids 41 0 R >>\nendobj\n"
+        . "41 0 obj\n[42 0 R]\nendobj\n"
+        . "42 0 obj\n<< /T (name) /Kids 43 0 R >>\nendobj\n"
+        . "43 0 obj\n[15 0 R]\nendobj\n"
+        . "99 0 obj\n[101 0 R]\nendobj\n"
+        . "101 0 obj\n<< /FT /Tx /T (detached.indirect.decoy) /V (Detached indirect decoy) >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'repairs AcroForm field discovery from page owned widget annotations only' => static function (TestRunner $t) use ($pageWidgetFieldBoundaryPdf, $fieldsByName): void {
         $pdf = $pageWidgetFieldBoundaryPdf();
@@ -199,5 +223,49 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, 'stale-generation@example.test'));
         $t->true(!str_contains($visibleText, 'current-generation@example.test'));
         $t->true(!str_contains($visibleText, 'stale-generation@example.test'));
+    },
+    'resolves indirect AcroForm Fields and Kids arrays before WordPress field review' => static function (
+        TestRunner $t
+    ) use ($indirectAcroFormFieldArraysBoundaryPdf, $fieldsByName): void {
+        $pdf = $indirectAcroFormFieldArraysBoundaryPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $visibleText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($form, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['article.indirect', 'metadata.hidden', 'profile.name'], array_keys($fields));
+        $t->same(3, count($form['fields']));
+        $t->same(true, $form['need_appearances']);
+
+        $article = $fields['article.indirect'];
+        $t->same(6, $article['object']);
+        $t->same('Indirect field array title', $article['value']);
+        $t->same([8], array_column($article['widgets'], 'object'));
+        $t->same([0], array_column($article['widgets'], 'page_annotation_index'));
+        $t->same([true], array_column($article['widgets'], 'referenced_from_page_annots'));
+
+        $metadata = $fields['metadata.hidden'];
+        $t->same(12, $metadata['object']);
+        $t->same(['no_export'], $metadata['flag_names']);
+        $t->same('Metadata-only indirect value', $metadata['value']);
+        $t->same([], $metadata['widgets']);
+        $t->same('field_terminal', $metadata['value_state']['hierarchy_boundary']['current_value_source']);
+
+        $profile = $fields['profile.name'];
+        $t->same(42, $profile['object']);
+        $t->same('Inherited profile value', $profile['value']);
+        $t->same([40, 42], array_column($profile['field_hierarchy']['path'], 'object'));
+        $t->same(['profile', 'name'], array_column($profile['field_hierarchy']['path'], 'partial_name'));
+        $t->same(['FT', 'V', 'DA'], $profile['field_hierarchy']['inherited_attributes']);
+        $t->same([15], array_column($profile['widgets'], 'object'));
+        $t->same([1], array_column($profile['widgets'], 'page_annotation_index'));
+        $t->same('field_hierarchy_inherited', $profile['value_state']['hierarchy_boundary']['current_value_source']);
+
+        $t->true(is_string($encoded) && !str_contains($encoded, 'detached.indirect.decoy'));
+        $t->true(str_contains($visibleText, 'Visible AcroForm indirect array boundary body'));
+        $t->true(!str_contains($visibleText, 'Indirect field array title'));
+        $t->true(!str_contains($visibleText, 'Metadata-only indirect value'));
+        $t->true(!str_contains($visibleText, 'Inherited profile value'));
+        $t->true(!str_contains($visibleText, 'Detached indirect decoy'));
     },
 ];
