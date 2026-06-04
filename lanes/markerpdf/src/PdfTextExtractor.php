@@ -3942,17 +3942,7 @@ final class PdfTextExtractor
      */
     private function xObjectResourceDictionaryBody(string $resourceDictionary, array $objects): ?string
     {
-        if (!preg_match('/\/XObject\s*(?:(\d+)\s+\d+\s+R|<<)/s', $resourceDictionary, $match, PREG_OFFSET_CAPTURE)) {
-            return null;
-        }
-
-        if (($match[1][0] ?? '') !== '') {
-            $objectNumber = (int) $match[1][0];
-            return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
-        }
-
-        $offset = strpos($resourceDictionary, '<<', $match[0][1]);
-        return $offset === false ? null : $this->readPdfDictionaryAt($resourceDictionary, $offset);
+        return $this->resourceCategoryDictionaryBody($resourceDictionary, $objects, 'XObject');
     }
 
     /**
@@ -7892,17 +7882,7 @@ final class PdfTextExtractor
      */
     private function propertiesResourceDictionaryBody(string $resourceDictionary, array $objects): ?string
     {
-        if (!preg_match('/\/Properties\s*(?:(\d+)\s+\d+\s+R|<<)/s', $resourceDictionary, $match, PREG_OFFSET_CAPTURE)) {
-            return null;
-        }
-
-        if (($match[1][0] ?? '') !== '') {
-            $objectNumber = (int) $match[1][0];
-            return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
-        }
-
-        $offset = strpos($resourceDictionary, '<<', $match[0][1]);
-        return $offset === false ? null : $this->readPdfDictionaryAt($resourceDictionary, $offset);
+        return $this->resourceCategoryDictionaryBody($resourceDictionary, $objects, 'Properties');
     }
 
     /**
@@ -9015,17 +8995,34 @@ final class PdfTextExtractor
      */
     private function fontResourceDictionaryBody(string $resourceDictionary, array $objects): ?string
     {
-        if (!preg_match('/\/Font\s*(?:(\d+)\s+\d+\s+R|<<)/s', $resourceDictionary, $match, PREG_OFFSET_CAPTURE)) {
+        return $this->resourceCategoryDictionaryBody($resourceDictionary, $objects, 'Font');
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function resourceCategoryDictionaryBody(string $resourceDictionary, array $objects, string $category): ?string
+    {
+        $dictionary = trim($resourceDictionary);
+        if (str_starts_with($dictionary, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($dictionary, 0);
+            if ($dictionary === null) {
+                return null;
+            }
+        }
+
+        $value = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, $category);
+        if ($value === null) {
             return null;
         }
 
-        if (($match[1][0] ?? '') !== '') {
-            $objectNumber = (int) $match[1][0];
+        $value = trim($value);
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) === 1) {
+            $objectNumber = (int) $match[1];
             return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
         }
 
-        $offset = strpos($resourceDictionary, '<<', $match[0][1]);
-        return $offset === false ? null : $this->readPdfDictionaryAt($resourceDictionary, $offset);
+        return str_starts_with($value, '<<') ? $this->readPdfDictionaryAt($value, 0) : null;
     }
 
     private function dictionaryObjectBody(string $objectBody): ?string
@@ -9593,6 +9590,12 @@ final class PdfTextExtractor
     private function topLevelPdfValueAfterName(string $body, string $name): ?string
     {
         $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+
+        return $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, $name);
+    }
+
+    private function topLevelPdfValueAfterNameInDictionaryBody(string $dictionary, string $name): ?string
+    {
         $offset = 0;
         $length = strlen($dictionary);
 
