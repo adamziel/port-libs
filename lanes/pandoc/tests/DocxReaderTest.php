@@ -637,7 +637,15 @@ return [
         $t->same('Review table', $endnote->children[1]->children[0]->children[0]->children[0]->attr('text'));
         $t->same('kept in endnote', $endnote->children[1]->children[0]->children[0]->children[1]->attr('text'));
 
-        $t->same(' commented source ', $paragraph->children[2]->attr('text'));
+        $commentRange = $paragraph->children[2];
+        $t->same('span', $commentRange->type);
+        $t->same(['docx-comment-range'], $commentRange->attr('classes'));
+        $t->same('9', $commentRange->attr('attributes')['data-docx-comment-id']);
+        $t->same('Migration Reviewer', $commentRange->attr('attributes')['data-docx-comment-author']);
+        $t->same('MR', $commentRange->attr('attributes')['data-docx-comment-initials']);
+        $t->same('2026-06-04T09:55:00Z', $commentRange->attr('attributes')['data-docx-comment-date']);
+        $t->same(' commented source ', $commentRange->children[0]->attr('text'));
+
         $comment = $paragraph->children[3];
         $t->same('note', $comment->type);
         $t->same('9', $comment->attr('id'));
@@ -648,15 +656,39 @@ return [
         $t->same('Comment source audit.', $comment->children[0]->children[0]->attr('text'));
         $t->same('Keep reviewer context with the import.', $comment->children[1]->children[0]->attr('text'));
 
-        $t->contains('Audit trail [^1] commented source [^2]', $markdown);
+        $t->contains('Audit trail [^1][ commented source ]{.docx-comment-range data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-04T09:55:00Z"}[^2]', $markdown);
         $t->contains('[^1]: Endnote source audit.', $markdown);
         $t->contains('| Review table | kept in endnote |', $markdown);
         $t->contains('[^2]: Comment source audit.', $markdown);
         $t->contains('    Keep reviewer context with the import.', $markdown);
 
-        $t->contains('<p>Audit trail <sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup> commented source <sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup></p>', $blocks);
+        $t->contains('<p>Audit trail <sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup><span class="docx-comment-range" data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-04T09:55:00Z"> commented source </span><sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup></p>', $blocks);
         $t->contains('<li id="fn-1"><p>Endnote source audit.</p><table><tbody><tr><td><p>Review table</p></td><td><p>kept in endnote</p></td></tr></tbody></table> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
         $t->contains('<li id="fn-2"><p>Comment source audit.</p><p>Keep reviewer context with the import.</p> <a href="#fnref-2" aria-label="Back to content">Back</a></li>', $blocks);
+    },
+    'wraps DOCX comment ranges with reviewer metadata without replacing note references' => static function (TestRunner $t) use ($buildNotesPackage): void {
+        $document = (new DocxReader())->readDocument($buildNotesPackage());
+        $paragraph = $document->children[0];
+
+        $commentRange = $paragraph->children[2];
+        $t->same('span', $commentRange->type);
+        $t->same('docx-comment-range', $commentRange->attr('classes')[0]);
+        $t->same('9', $commentRange->attr('attributes')['data-docx-comment-id']);
+        $t->same('Migration Reviewer', $commentRange->attr('attributes')['data-docx-comment-author']);
+        $t->same('MR', $commentRange->attr('attributes')['data-docx-comment-initials']);
+        $t->same('2026-06-04T09:55:00Z', $commentRange->attr('attributes')['data-docx-comment-date']);
+        $t->same(' commented source ', $commentRange->children[0]->attr('text'));
+
+        $commentNote = $paragraph->children[3];
+        $t->same('note', $commentNote->type);
+        $t->same('comment', $commentNote->attr('sourceType'));
+        $t->same('Comment source audit.', $commentNote->children[0]->children[0]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('[ commented source ]{.docx-comment-range data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-04T09:55:00Z"}[^2]', $markdown);
+        $t->contains('<span class="docx-comment-range" data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-04T09:55:00Z"> commented source </span><sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup>', $blocks);
     },
     'maps DOCX OMML inline and display formulas into math AST nodes' => static function (TestRunner $t) use ($buildMathPackage): void {
         $document = (new DocxReader())->readDocument($buildMathPackage());

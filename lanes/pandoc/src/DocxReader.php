@@ -330,15 +330,93 @@ final class DocxReader
     private function paragraphInlines(\DOMElement $paragraph, ZipPackage $package, ?OpcRelationships $relationships, array $referencedNotes): array
     {
         $inlines = [];
+        $activeCommentRangeId = null;
+        $activeCommentRangeNodes = [];
         foreach ($paragraph->childNodes as $child) {
             if (!$child instanceof \DOMElement || $this->isWordElement($child, 'pPr')) {
                 continue;
             }
 
-            array_push($inlines, ...$this->inlineNodes($child, $package, $relationships, $referencedNotes));
+            if ($this->isWordElement($child, 'commentRangeStart')) {
+                if ($activeCommentRangeId !== null) {
+                    $this->appendCommentRangeSpan($inlines, $activeCommentRangeId, $activeCommentRangeNodes, $referencedNotes);
+                }
+
+                $activeCommentRangeId = $this->wordAttr($child, 'id');
+                $activeCommentRangeNodes = [];
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'commentRangeEnd')) {
+                $endId = $this->wordAttr($child, 'id');
+                if ($activeCommentRangeId !== null && ($endId === null || $endId === $activeCommentRangeId)) {
+                    $this->appendCommentRangeSpan($inlines, $activeCommentRangeId, $activeCommentRangeNodes, $referencedNotes);
+                    $activeCommentRangeId = null;
+                    $activeCommentRangeNodes = [];
+                }
+                continue;
+            }
+
+            $nodes = $this->inlineNodes($child, $package, $relationships, $referencedNotes);
+            if ($activeCommentRangeId !== null) {
+                array_push($activeCommentRangeNodes, ...$nodes);
+                continue;
+            }
+
+            array_push($inlines, ...$nodes);
+        }
+
+        if ($activeCommentRangeId !== null) {
+            $this->appendCommentRangeSpan($inlines, $activeCommentRangeId, $activeCommentRangeNodes, $referencedNotes);
         }
 
         return $this->coalesceTextNodes($inlines);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @param list<AstNode> $children
+     * @param array<string, AstNode> $referencedNotes
+     */
+    private function appendCommentRangeSpan(array &$inlines, ?string $commentId, array $children, array $referencedNotes): void
+    {
+        $children = $this->coalesceTextNodes($children);
+        if ($commentId === null || $commentId === '' || $children === []) {
+            array_push($inlines, ...$children);
+            return;
+        }
+
+        $inlines[] = new AstNode('span', $this->commentRangeSpanAttrs($commentId, $referencedNotes), $children);
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function commentRangeSpanAttrs(string $commentId, array $referencedNotes): array
+    {
+        $attributes = [
+            'data-docx-comment-id' => $commentId,
+        ];
+
+        $comment = $referencedNotes['comment:' . $commentId] ?? null;
+        if ($comment instanceof AstNode) {
+            foreach ([
+                'author' => 'data-docx-comment-author',
+                'initials' => 'data-docx-comment-initials',
+                'date' => 'data-docx-comment-date',
+            ] as $source => $target) {
+                $value = $comment->attr($source);
+                if (is_string($value) && $value !== '') {
+                    $attributes[$target] = $value;
+                }
+            }
+        }
+
+        return [
+            'classes' => ['docx-comment-range'],
+            'attributes' => $attributes,
+        ];
     }
 
     /**

@@ -69,7 +69,9 @@ XML],
       <w:r><w:footnoteReference w:id="2"/></w:r>
       <w:r><w:t xml:space="preserve"> Also keep endnote context</w:t></w:r>
       <w:r><w:endnoteReference w:id="5"/></w:r>
+      <w:commentRangeStart w:id="9"/>
       <w:r><w:t xml:space="preserve"> and reviewer comment</w:t></w:r>
+      <w:commentRangeEnd w:id="9"/>
       <w:r><w:commentReference w:id="9"/></w:r>
     </w:p>
     <w:p>
@@ -192,6 +194,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<ol start="3" type="a"><li>Confirm source URL</li><li>Publish packet</li></ol>',
         '<a href="https://example.test/source-packet?post=42">the source link</a>',
         '<span class="docx-insertion" data-docx-change="insertion" data-docx-change-id="8" data-docx-author="Migration Editor" data-docx-date="2026-06-04T17:50:00Z"> Approved tracked wording.</span>',
+        '<span class="docx-comment-range" data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-04T09:55:00Z"> and reviewer comment</span>',
         '<span class="math inline">\(x_{i} + \frac{1}{\sqrt{n}}\)</span>',
         '<img src="word/media/hero.png" alt="Source hero alt" title="Source hero"/>',
         '<td colspan="2" rowspan="2"><p>Review scope</p></td><td><p>Status</p></td>',

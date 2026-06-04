@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-04 18:29:13 UTC",
-    "sourceCommit": "312d941a4f6e6613cd5196ba4e0ba079c1d538ed",
-    "sourceCommitShort": "312d941a4f6e",
+    "generated": "2026-06-04 18:37:41 UTC",
+    "sourceCommit": "5854c04fa6635ad1358efc06626e090b795d2c83",
+    "sourceCommitShort": "5854c04fa663",
     "sourceBranch": "unknown",
-    "dashboardCommit": "312d941a4f6e6613cd5196ba4e0ba079c1d538ed",
-    "dashboardCommitShort": "312d941a4f6e",
+    "dashboardCommit": "5854c04fa6635ad1358efc06626e090b795d2c83",
+    "dashboardCommitShort": "5854c04fa663",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "820",
-            "coverage": "820 / 2,276 (36.0%)",
-            "mapPercent": "36.0%",
-            "unmapped": "1,456",
-            "php": "363 pass / 0 fail",
+            "mapped": "821",
+            "coverage": "821 / 2,276 (36.1%)",
+            "mapPercent": "36.1%",
+            "unmapped": "1,455",
+            "php": "364 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-04 UTC table geometry current-base slice on base 3444a792da21...",
+            "audit": "2026-06-04 UTC DOCX/OpenXML current-base slice on base 312d941a4f6e66...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
             "nextTarget": "For upstream-runner dependency closure, hydrate a local Pando...",
             "remainingGate": "No local blocker",
-            "commit": "3444a79"
+            "commit": "312d941"
         },
         {
             "lane": "quadrable",
