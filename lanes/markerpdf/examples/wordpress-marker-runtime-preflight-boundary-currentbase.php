@@ -98,6 +98,22 @@ try {
         -1,
         $textLength
     );
+    $capturePreflightError = static function (callable $callback): string {
+        try {
+            $callback();
+        } catch (InvalidArgumentException $exception) {
+            return $exception->getMessage();
+        }
+
+        return '';
+    };
+    $missingMetadata = $input . DIRECTORY_SEPARATOR . 'missing-metadata.json';
+    $missingInputError = $capturePreflightError(
+        static fn (): array => $batch->runtimeMainPreflightPlan($input . DIRECTORY_SEPARATOR . 'missing-input', $output, metadataFile: $missingMetadata)
+    );
+    $invalidChunkError = $capturePreflightError(
+        static fn (): array => $batch->runtimeMainPreflightPlan($input, $output, numChunks: 0, metadataFile: $missingMetadata)
+    );
 
     if ($plans['already-imported.pdf']['status'] !== 'skipped-existing') {
         throw new RuntimeException('Expected existing WordPress import output to skip before filetype checks.');
@@ -129,6 +145,12 @@ try {
     if ($negativeMinLengthSpoof['min_length_gate_active'] !== true || $negativeMinLengthSpoof['status'] !== 'skipped-unsupported-filetype') {
         throw new RuntimeException('Expected negative --min_length to keep the upstream filetype preflight gate active.');
     }
+    if (!str_contains($missingInputError, 'Batch input folder does not exist') || str_contains($missingInputError, 'metadata file')) {
+        throw new RuntimeException('Expected missing input folder to be reported before metadata_file loading.');
+    }
+    if (!str_contains($invalidChunkError, 'Batch chunk count must be at least one') || str_contains($invalidChunkError, 'metadata file')) {
+        throw new RuntimeException('Expected invalid chunk count to be reported before metadata_file loading.');
+    }
     if ($runtimePlan['executes_python_or_models'] !== false || $runtimePlan['executes_multiprocessing'] !== false) {
         throw new RuntimeException('Runtime main preflight smoke must not launch model workers or multiprocessing.');
     }
@@ -157,6 +179,10 @@ try {
         'zero_min_length_spoof_status' => $zeroMinLengthSpoof['status'],
         'negative_min_length_gate_active' => $negativeMinLengthSpoof['min_length_gate_active'],
         'negative_min_length_spoof_status' => $negativeMinLengthSpoof['status'],
+        'missing_input_error_precedes_metadata_file' => str_contains($missingInputError, 'Batch input folder does not exist')
+            && !str_contains($missingInputError, 'metadata file'),
+        'invalid_chunk_error_precedes_metadata_file' => str_contains($invalidChunkError, 'Batch chunk count must be at least one')
+            && !str_contains($invalidChunkError, 'metadata file'),
         'ready_text_length' => $plans['ready-for-marker.pdf']['text_length'],
         'ready_should_invoke_converter' => $plans['ready-for-marker.pdf']['should_invoke_converter'],
         'existing_filetype_checked' => $plans['already-imported.pdf']['filetype_checked'],

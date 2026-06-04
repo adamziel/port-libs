@@ -39,23 +39,9 @@ final class BatchConverter
         array $metadataByFilename = [],
         ?int $minLength = null
     ): array {
-        $tasks = [];
-        foreach ($this->chunkFiles($this->inputFiles($inputFolder), $chunkIndex, $numChunks, $maxFiles) as $filepath) {
-            $basename = basename($filepath);
-            $metadata = $metadataByFilename[$basename] ?? null;
-            if ($metadata !== null && !is_array($metadata)) {
-                throw new InvalidArgumentException('Batch metadata values must be arrays keyed by basename.');
-            }
+        $selectedFiles = $this->chunkFiles($this->inputFiles($inputFolder), $chunkIndex, $numChunks, $maxFiles);
 
-            $tasks[] = [
-                'filepath' => $filepath,
-                'out_folder' => $outputFolder,
-                'metadata' => $metadata,
-                'min_length' => $minLength,
-            ];
-        }
-
-        return $tasks;
+        return $this->tasksForFiles($selectedFiles, $outputFolder, $metadataByFilename, $minLength);
     }
 
     /**
@@ -249,23 +235,15 @@ final class BatchConverter
     ): array {
         $absoluteInputFolder = $this->absolutePath($inputFolder);
         $absoluteOutputFolder = $this->absolutePath($outputFolder);
+        $inputFiles = $this->inputFiles($absoluteInputFolder);
+        $selectedFiles = $this->chunkFiles($inputFiles, $chunkIndex, $numChunks, $maxFiles);
         $absoluteMetadataFile = $metadataFile === null || $metadataFile === ''
             ? null
             : $this->absolutePath($metadataFile);
         $runtimeMetadata = $absoluteMetadataFile === null
             ? $metadataByFilename
             : $this->loadMetadataFile($absoluteMetadataFile);
-
-        $inputFiles = $this->inputFiles($absoluteInputFolder);
-        $tasks = $this->planTasks(
-            $absoluteInputFolder,
-            $absoluteOutputFolder,
-            $chunkIndex,
-            $numChunks,
-            $maxFiles,
-            $runtimeMetadata,
-            $minLength
-        );
+        $tasks = $this->tasksForFiles($selectedFiles, $absoluteOutputFolder, $runtimeMetadata, $minLength);
 
         $taskArgs = [];
         foreach ($tasks as $task) {
@@ -598,6 +576,32 @@ final class BatchConverter
         sort($files, SORT_STRING);
 
         return $files;
+    }
+
+    /**
+     * @param list<string> $files
+     * @param array<string, array<string, mixed>> $metadataByFilename
+     * @return list<array{filepath: string, out_folder: string, metadata: array<string, mixed>|null, min_length: int|null}>
+     */
+    private function tasksForFiles(array $files, string $outputFolder, array $metadataByFilename, ?int $minLength): array
+    {
+        $tasks = [];
+        foreach ($files as $filepath) {
+            $basename = basename($filepath);
+            $metadata = $metadataByFilename[$basename] ?? null;
+            if ($metadata !== null && !is_array($metadata)) {
+                throw new InvalidArgumentException('Batch metadata values must be arrays keyed by basename.');
+            }
+
+            $tasks[] = [
+                'filepath' => $filepath,
+                'out_folder' => $outputFolder,
+                'metadata' => $metadata,
+                'min_length' => $minLength,
+            ];
+        }
+
+        return $tasks;
     }
 
     /**

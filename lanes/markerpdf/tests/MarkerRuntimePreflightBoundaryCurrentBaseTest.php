@@ -232,6 +232,46 @@ return [
             $removeTree($output);
         }
     },
+    'keeps convert.py input and chunk boundary errors ahead of metadata file loading' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'queued.pdf', "%PDF-1.4\n% queued pdf\n%%EOF");
+            $missingInput = $input . DIRECTORY_SEPARATOR . 'missing-input';
+            $missingMetadata = $input . DIRECTORY_SEPARATOR . 'missing-metadata.json';
+            $batch = new BatchConverter();
+
+            $captureMessage = static function (callable $callback): string {
+                try {
+                    $callback();
+                } catch (InvalidArgumentException $exception) {
+                    return $exception->getMessage();
+                }
+
+                return '';
+            };
+
+            $missingInputMessage = $captureMessage(
+                static fn (): array => $batch->runtimeMainPreflightPlan($missingInput, $output, metadataFile: $missingMetadata)
+            );
+            $invalidChunkMessage = $captureMessage(
+                static fn (): array => $batch->runtimeMainPreflightPlan($input, $output, numChunks: 0, metadataFile: $missingMetadata)
+            );
+            $missingMetadataMessage = $captureMessage(
+                static fn (): array => $batch->runtimeMainPreflightPlan($input, $output, metadataFile: $missingMetadata)
+            );
+
+            $t->contains('Batch input folder does not exist', $missingInputMessage);
+            $t->same(false, str_contains($missingInputMessage, 'metadata file'));
+            $t->contains('Batch chunk count must be at least one', $invalidChunkMessage);
+            $t->same(false, str_contains($invalidChunkMessage, 'metadata file'));
+            $t->contains('Batch metadata file is not readable', $missingMetadataMessage);
+            $t->same(false, $batch->runtimeMainPreflightPlan($input, $output)['executes_python_or_models']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'matches convert.py integer truthiness for max and min_length gates' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
