@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-04 16:54:50 UTC",
-    "sourceCommit": "7aa4640111cbdad613fab53686047377bbbade3a",
-    "sourceCommitShort": "7aa4640111cb",
+    "generated": "2026-06-04 17:03:27 UTC",
+    "sourceCommit": "86674db573f3a09709cdbc3485dc1e7765095d0c",
+    "sourceCommitShort": "86674db573f3",
     "sourceBranch": "unknown",
-    "dashboardCommit": "7aa4640111cbdad613fab53686047377bbbade3a",
-    "dashboardCommitShort": "7aa4640111cb",
+    "dashboardCommit": "86674db573f3a09709cdbc3485dc1e7765095d0c",
+    "dashboardCommitShort": "86674db573f3",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "809",
-            "coverage": "809 / 2,276 (35.5%)",
-            "mapPercent": "35.5%",
-            "unmapped": "1,467",
-            "php": "358 pass / 0 fail",
+            "mapped": "816",
+            "coverage": "816 / 2,276 (35.9%)",
+            "mapPercent": "35.9%",
+            "unmapped": "1,460",
+            "php": "359 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-04 UTC ZIP package NTFS extra-field current-base slice on bas...",
+            "audit": "2026-06-04 UTC math/TeX relation command current-base slice on base 7...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
             "nextTarget": "For upstream-runner dependency closure, hydrate a local Pando...",
             "remainingGate": "No local blocker",
-            "commit": "936e01b"
+            "commit": "7aa4640"
         },
         {
             "lane": "quadrable",

@@ -41,6 +41,22 @@ return [
         $t->contains('<msup><mi>sin</mi><mn>2</mn></msup><mi>θ</mi>', $functionMathml);
         $t->contains('<msub><mi>log</mi><mn>10</mn></msub><mi>x</mi><mo>+</mo><msubsup><mo>∏</mo><mrow><mi>k</mi><mo>=</mo><mn>1</mn></mrow><mn>3</mn></msubsup><mi>k</mi>', $functionMathml);
     },
+    'converts bounded tex relation set logic and arrow commands to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $setMathml = $converter->texToMathMl('\\forall p_i \\in P \\land m_i \\notin M \\Rightarrow p_i \\subseteq Q \\cup R', true);
+        $logicMathml = $converter->texToMathMl('\\exists x \\in S \\colon x \\approx y \\lor \\neg (y \\equiv z)');
+        $emptyMathml = $converter->texToMathMl('A \\cap B = \\emptyset \\iff A \\subset B \\setminus C');
+        $arrowMathml = $converter->texToMathMl('a \\leftarrow b \\leftrightarrow c \\mapsto d \\partial f');
+        $aliasMathml = $converter->texToMathMl('U \\supseteq V \\supset W \\vee a \\le b \\ge c \\ne d');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $setMathml);
+        $t->contains('<mo>∀</mo><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi>', $setMathml);
+        $t->contains('<mo>∧</mo><msub><mi>m</mi><mi>i</mi></msub><mo>∉</mo><mi>M</mi><mo>⇒</mo><msub><mi>p</mi><mi>i</mi></msub><mo>⊆</mo><mi>Q</mi><mo>∪</mo><mi>R</mi>', $setMathml);
+        $t->contains('<mo>∃</mo><mi>x</mi><mo>∈</mo><mi>S</mi><mo>:</mo><mi>x</mi><mo>≈</mo><mi>y</mi><mo>∨</mo><mo>¬</mo><mo>(</mo><mi>y</mi><mo>≡</mo><mi>z</mi><mo>)</mo>', $logicMathml);
+        $t->contains('<mi>A</mi><mo>∩</mo><mi>B</mi><mo>=</mo><mo>∅</mo><mo>⇔</mo><mi>A</mi><mo>⊂</mo><mi>B</mi><mo>∖</mo><mi>C</mi>', $emptyMathml);
+        $t->contains('<mi>a</mi><mo>←</mo><mi>b</mi><mo>↔</mo><mi>c</mi><mo>↦</mo><mi>d</mi><mo>∂</mo><mi>f</mi>', $arrowMathml);
+        $t->contains('<mi>U</mi><mo>⊇</mo><mi>V</mi><mo>⊃</mo><mi>W</mi><mo>∨</mo><mi>a</mi><mo>≤</mo><mi>b</mi><mo>≥</mo><mi>c</mi><mo>≠</mo><mi>d</mi>', $aliasMathml);
+    },
     'converts bounded tex accents overlines and underlines to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $accentMathml = $converter->texToMathMl('\\hat{x} + \\widehat{ab} + \\bar y + \\overline{AB} + \\vec{v}_i');
