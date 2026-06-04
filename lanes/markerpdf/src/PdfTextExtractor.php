@@ -3304,7 +3304,8 @@ final class PdfTextExtractor
         int $ownerInvocationCount = 1,
         array $resourcePath = [],
         array $activeFormObjectNumbers = [],
-        ?int $parentFormObjectNumber = null
+        ?int $parentFormObjectNumber = null,
+        bool $includeUninvokedImageResources = true
     ): array {
         $xObjectMap = $this->xObjectResourceObjectNumbers($resourceOwnerBody, $objects);
         if ($xObjectMap === []) {
@@ -3335,7 +3336,7 @@ final class PdfTextExtractor
                 $entryResourcePath,
                 $parentFormObjectNumber
             );
-            if ($entry !== null) {
+            if ($entry !== null && ($includeUninvokedImageResources || $entry['invoked'])) {
                 $entries[] = $entry;
             }
 
@@ -3350,22 +3351,71 @@ final class PdfTextExtractor
 
             $nextActiveForms = $activeFormObjectNumbers;
             $nextActiveForms[$objectNumber] = true;
+            $formHasOwnResources = $this->topLevelNameValueOffset($form['body'], 'Resources') !== null;
+            $formResourceOwnerBody = $this->formXObjectResourceOwnerBody($form['body'], $resourceOwnerBody);
             foreach ($this->imageXObjectBoundaryEntriesForResourceOwner(
                 $pageIndex,
                 $pageObjectNumber,
-                $form['body'],
+                $formResourceOwnerBody,
                 $objects,
                 [$form['stream']],
                 $effectiveInvocationCount,
                 $entryResourcePath,
                 $nextActiveForms,
-                $objectNumber
+                $objectNumber,
+                $formHasOwnResources
             ) as $nestedEntry) {
                 $entries[] = $nestedEntry;
             }
         }
 
-        return $entries;
+        return $this->suppressUninvokedImageResourceEntriesPaintedThroughForms($entries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private function suppressUninvokedImageResourceEntriesPaintedThroughForms(array $entries): array
+    {
+        $nestedInvokedResourceKeys = [];
+        foreach ($entries as $entry) {
+            $resourcePath = $entry['resource_path'] ?? null;
+            $objectNumber = $entry['object_number'] ?? null;
+            if (
+                ($entry['invoked'] ?? false) !== true
+                || !is_array($resourcePath)
+                || count($resourcePath) < 2
+                || !is_int($objectNumber)
+            ) {
+                continue;
+            }
+
+            $nestedInvokedResourceKeys[$objectNumber . "\0" . (string) ($entry['resource_name'] ?? '')] = true;
+        }
+
+        if ($nestedInvokedResourceKeys === []) {
+            return $entries;
+        }
+
+        $filtered = [];
+        foreach ($entries as $entry) {
+            $resourcePath = $entry['resource_path'] ?? null;
+            $objectNumber = $entry['object_number'] ?? null;
+            if (
+                ($entry['invoked'] ?? false) === false
+                && is_array($resourcePath)
+                && count($resourcePath) === 1
+                && is_int($objectNumber)
+                && isset($nestedInvokedResourceKeys[$objectNumber . "\0" . (string) ($entry['resource_name'] ?? '')])
+            ) {
+                continue;
+            }
+
+            $filtered[] = $entry;
+        }
+
+        return array_values($filtered);
     }
 
     /**

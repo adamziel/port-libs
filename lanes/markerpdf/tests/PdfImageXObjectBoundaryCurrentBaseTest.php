@@ -164,6 +164,64 @@ return [
         $t->true(!str_contains($plainText, 'Nested Form Image Payload Noise'));
         $t->true(!str_contains($plainText, 'Unused Nested Image Noise'));
     },
+    'maps image XObjects invoked by resource-less Form XObjects through inherited page resources' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before inherited form image) Tj ET\n"
+            . "q 36 0 0 18 72 680 cm /Logo#20Form Do Q\n"
+            . 'BT /F1 12 Tf 72 652 Td (After inherited form image) Tj ET';
+        $formContent = 'q 18 0 0 9 3 3 cm /Shared#20Image Do Q';
+        $sharedPayload = 'BT /F1 12 Tf 72 720 Td (Inherited Resource Image Payload Noise) Tj ET';
+        $compressedSharedPayload = gzcompress($sharedPayload);
+        if (!is_string($compressedSharedPayload)) {
+            throw new RuntimeException('Unable to compress inherited image payload.');
+        }
+        $encodedSharedPayload = strtoupper(bin2hex($compressedSharedPayload)) . '>';
+        $unusedPayload = 'BT /F1 12 Tf 72 720 Td (Unused Page Image Payload Noise) Tj ET';
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Logo#20Form 5 0 R /Shared#20Image 6 0 R /UnusedPageImage 7 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 36 18] /Length " . strlen($formContent) . " >>\nstream\n{$formContent}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/ASCIIHexDecode /FlateDecode] /Length " . strlen($encodedSharedPayload) . " >>\nstream\n{$encodedSharedPayload}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length " . strlen($unusedPayload) . " >>\nstream\n{$unusedPayload}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(1, $review['uninvoked_image_xobject_count']);
+
+        $shared = $review['entries'][0];
+        $t->same('Shared Image', $shared['resource_name']);
+        $t->same(['Logo Form', 'Shared Image'], $shared['resource_path']);
+        $t->same(5, $shared['parent_form_xobject_object']);
+        $t->same(1, $shared['form_xobject_depth']);
+        $t->same(6, $shared['object_number']);
+        $t->same(true, $shared['invoked']);
+        $t->same(1, $shared['invocation_count']);
+        $t->same(['ASCIIHexDecode', 'FlateDecode'], $shared['filters']);
+        $t->same(true, $shared['decoded_with_current_filters']);
+        $t->same(strlen($sharedPayload), $shared['decoded_length']);
+        $t->same(hash('sha256', $sharedPayload), $shared['decoded_sha256']);
+        $t->same(false, $shared['payload_in_visible_text']);
+
+        $unused = $review['entries'][1];
+        $t->same('UnusedPageImage', $unused['resource_name']);
+        $t->same(['UnusedPageImage'], $unused['resource_path']);
+        $t->same(null, $unused['parent_form_xobject_object']);
+        $t->same(false, $unused['invoked']);
+        $t->same(0, $unused['invocation_count']);
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $sharedPayload));
+        $t->true(!str_contains($plainText, 'Inherited Resource Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Unused Page Image Payload Noise'));
+        $t->same(['Before inherited form image', 'After inherited form image'], $extractor->extractTextLines($pdf));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
