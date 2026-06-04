@@ -32,6 +32,50 @@ final class PdfTextExtractor
         'RGB' => 'DeviceRGB',
         'RL' => 'RunLengthDecode',
     ];
+    private const PDF_DOC_ENCODING_OVERRIDES = [
+        0x18 => 0x02d8,
+        0x19 => 0x02c7,
+        0x1a => 0x02c6,
+        0x1b => 0x02d9,
+        0x1c => 0x02dd,
+        0x1d => 0x02db,
+        0x1e => 0x02da,
+        0x1f => 0x02dc,
+        0x7f => 0xfffd,
+        0x80 => 0x2022,
+        0x81 => 0x2020,
+        0x82 => 0x2021,
+        0x83 => 0x2026,
+        0x84 => 0x2014,
+        0x85 => 0x2013,
+        0x86 => 0x0192,
+        0x87 => 0x2044,
+        0x88 => 0x2039,
+        0x89 => 0x203a,
+        0x8a => 0x2212,
+        0x8b => 0x2030,
+        0x8c => 0x201e,
+        0x8d => 0x201c,
+        0x8e => 0x201d,
+        0x8f => 0x2018,
+        0x90 => 0x2019,
+        0x91 => 0x201a,
+        0x92 => 0x2122,
+        0x93 => 0xfb01,
+        0x94 => 0xfb02,
+        0x95 => 0x0141,
+        0x96 => 0x0152,
+        0x97 => 0x0160,
+        0x98 => 0x0178,
+        0x99 => 0x017d,
+        0x9a => 0x0131,
+        0x9b => 0x0142,
+        0x9c => 0x0153,
+        0x9d => 0x0161,
+        0x9e => 0x017e,
+        0x9f => 0xfffd,
+        0xa0 => 0x20ac,
+    ];
     private const BASE14_FONT_WIDTH_ALIASES = [
         'Courier' => 'Courier',
         'Courier-Bold' => 'Courier',
@@ -5817,7 +5861,84 @@ final class PdfTextExtractor
      */
     private function pageLabelPrefix(string $dictionary, array $objects): string
     {
-        return $this->pdfStringValueAfterName($dictionary, 'P', $objects) ?? '';
+        $value = $this->pdfValueAfterName($dictionary, 'P');
+        return $value === null ? '' : $this->pdfTextStringValue($value, $objects) ?? '';
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function pdfTextStringValue(string $value, array $objects, array $seen = []): ?string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            $generation = (int) $match[2];
+            $objectKey = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || isset($seen[$objectKey])) {
+                return null;
+            }
+
+            $objectBody = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            if ($objectBody === null) {
+                return null;
+            }
+
+            $seen[$objectKey] = true;
+            return $this->pdfTextStringValue($objectBody, $objects, $seen);
+        }
+
+        if ($value[0] === '(') {
+            $raw = $this->readPdfLiteralStringAt($value, 0);
+            return $raw === null ? null : $this->decodePdfTextStringBytes($this->decodeLiteralString($raw));
+        }
+
+        if ($value[0] === '<' && substr($value, 0, 2) !== '<<') {
+            $bytes = $this->readPdfHexStringAt($value, 0);
+            return $bytes === null ? null : $this->decodePdfTextStringBytes($bytes);
+        }
+
+        if ($value[0] === '/') {
+            $end = strcspn($value, " \t\r\n\f[]()<>{}/%", 1);
+            return $this->decodePdfName(substr($value, 1, $end));
+        }
+
+        return null;
+    }
+
+    private function decodePdfTextStringBytes(string $bytes): string
+    {
+        $prefix = strtolower(bin2hex(substr($bytes, 0, 2)));
+        if ($prefix === 'feff') {
+            $decoded = iconv('UTF-16BE', 'UTF-8//IGNORE', substr($bytes, 2));
+            return $decoded === false ? '' : $decoded;
+        }
+        if ($prefix === 'fffe') {
+            $decoded = iconv('UTF-16LE', 'UTF-8//IGNORE', substr($bytes, 2));
+            return $decoded === false ? '' : $decoded;
+        }
+
+        return $this->decodePdfDocEncoding($bytes);
+    }
+
+    private function decodePdfDocEncoding(string $bytes): string
+    {
+        $decoded = '';
+        for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset++) {
+            $byte = ord($bytes[$offset]);
+            $codepoint = self::PDF_DOC_ENCODING_OVERRIDES[$byte] ?? $byte;
+            $char = mb_chr($codepoint, 'UTF-8');
+            if ($char !== false) {
+                $decoded .= $char;
+            }
+        }
+
+        return $decoded;
     }
 
     private function formatPageLabelNumber(int $number, string $style): string
