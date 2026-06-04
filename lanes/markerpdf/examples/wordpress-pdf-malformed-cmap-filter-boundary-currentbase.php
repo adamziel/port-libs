@@ -175,6 +175,75 @@ $buildIndirectArrayDictionaryCMapFilterPdf = static function () use ($utf16beHex
     return $pdf;
 };
 
+$buildGenerationCMapFilterPdf = static function () use ($utf16beHex): string {
+    $safeText = 'Generation Safe Import';
+    $safeHex = $utf16beHex($safeText);
+    $leakingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /WPGenerationFilterBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<" . substr($safeHex, 0, 4) . "> <" . $utf16beHex('Stale Generation CMap Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($leakingCMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress generation CMap filter-boundary fixture.');
+    }
+
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    $pdf = "%PDF-1.5\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): void {
+        $offsets[$objectNumber . ':' . $generation] = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+    };
+    $xrefRow = static fn (?int $offset, int $generation = 0, string $state = 'n'): string => sprintf(
+        "%010d %05d %s \n",
+        $offset ?? 0,
+        $generation,
+        $state
+    );
+
+    $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R >>');
+    $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>');
+    $addObject(4, 0, '<< /Type /Font /Subtype /Type0 /BaseFont /WPGenerationFilterBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>');
+    $addObject(5, 0, "<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream");
+    $addObject(6, 0, "<< /Type /CMap /CMapName /WPGenerationFilterBoundary-H /Filter 7 1 R /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream");
+    $addObject(7, 0, '/FlateDecode');
+    $addObject(7, 1, '<< /Owner (current generation dictionary is not a decoder) /StaleValidFilter 7 0 R >>');
+
+    $selected = [
+        1 => ['generation' => 0, 'offset' => $offsets['1:0']],
+        2 => ['generation' => 0, 'offset' => $offsets['2:0']],
+        3 => ['generation' => 0, 'offset' => $offsets['3:0']],
+        4 => ['generation' => 0, 'offset' => $offsets['4:0']],
+        5 => ['generation' => 0, 'offset' => $offsets['5:0']],
+        6 => ['generation' => 0, 'offset' => $offsets['6:0']],
+        7 => ['generation' => 1, 'offset' => $offsets['7:1']],
+    ];
+
+    $xrefOffset = strlen($pdf);
+    $pdf .= "xref\n0 8\n" . $xrefRow(0, 65535, 'f');
+    for ($objectNumber = 1; $objectNumber <= 7; $objectNumber++) {
+        $row = $selected[$objectNumber] ?? null;
+        $pdf .= $row === null
+            ? $xrefRow(0, 65535, 'f')
+            : $xrefRow($row['offset'], $row['generation']);
+    }
+    $pdf .= "trailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n{$xrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
 $dictionaryPdf = $buildMalformedCMapFilterPdf(
     'WPMalformedFilterBoundary-H',
     'WPMalformedFilterBoundary',
@@ -191,24 +260,29 @@ $literalPdf = $buildMalformedCMapFilterPdf(
 );
 $indirectLiteralPdf = $buildIndirectLiteralCMapFilterPdf();
 $indirectArrayDictionaryPdf = $buildIndirectArrayDictionaryCMapFilterPdf();
+$generationPdf = $buildGenerationCMapFilterPdf();
 
 $extractor = new PdfTextExtractor();
 $dictionaryLines = $extractor->extractTextLines($dictionaryPdf);
 $literalLines = $extractor->extractTextLines($literalPdf);
 $indirectLiteralLines = $extractor->extractTextLines($indirectLiteralPdf);
 $indirectArrayDictionaryLines = $extractor->extractTextLines($indirectArrayDictionaryPdf);
+$generationLines = $extractor->extractTextLines($generationPdf);
 $dictionaryPlainText = implode("\n", $dictionaryLines);
 $literalPlainText = implode("\n", $literalLines);
 $indirectLiteralPlainText = implode("\n", $indirectLiteralLines);
 $indirectArrayDictionaryPlainText = implode("\n", $indirectArrayDictionaryLines);
+$generationPlainText = implode("\n", $generationLines);
 $dictionaryReview = $extractor->extractCMapStreamFilterLengthOwnerReview($dictionaryPdf);
 $literalReview = $extractor->extractCMapStreamFilterLengthOwnerReview($literalPdf);
 $indirectLiteralReview = $extractor->extractCMapStreamFilterLengthOwnerReview($indirectLiteralPdf);
 $indirectArrayDictionaryReview = $extractor->extractCMapStreamFilterLengthOwnerReview($indirectArrayDictionaryPdf);
+$generationReview = $extractor->extractCMapStreamFilterLengthOwnerReview($generationPdf);
 $dictionaryEntry = $dictionaryReview['entries'][0] ?? [];
 $literalEntry = $literalReview['entries'][0] ?? [];
 $indirectLiteralEntry = $indirectLiteralReview['entries'][0] ?? [];
 $indirectArrayDictionaryEntry = $indirectArrayDictionaryReview['entries'][0] ?? [];
+$generationEntry = $generationReview['entries'][0] ?? [];
 
 if ($dictionaryLines !== ['Safe Import']) {
     throw new RuntimeException('Expected malformed dictionary CMap filter fallback text.');
@@ -226,6 +300,10 @@ if ($indirectArrayDictionaryLines !== ['Indirect Array Safe Import']) {
     throw new RuntimeException('Expected malformed indirect-array dictionary CMap filter fallback text.');
 }
 
+if ($generationLines !== ['Generation Safe Import']) {
+    throw new RuntimeException('Expected current-generation malformed CMap filter fallback text.');
+}
+
 if (
     str_contains($dictionaryPlainText, 'Dictionary Filter Leak')
     || str_contains($dictionaryPlainText, 'Filter dictionary is not a decoder')
@@ -235,6 +313,8 @@ if (
     || str_contains($indirectLiteralPlainText, 'indirect literal filter is not a decoder')
     || str_contains($indirectArrayDictionaryPlainText, 'Indirect Array Dictionary Leak')
     || str_contains($indirectArrayDictionaryPlainText, 'indirect array dictionary is not a decoder')
+    || str_contains($generationPlainText, 'Stale Generation CMap Leak')
+    || str_contains($generationPlainText, 'current generation dictionary is not a decoder')
 ) {
     throw new RuntimeException('Expected malformed CMap filter payloads to stay excluded.');
 }
@@ -275,7 +355,23 @@ if ((($indirectArrayDictionaryEntry['filter_operands'][0]['dictionary_filter_ope
     throw new RuntimeException('Expected indirect-array filter operand to expose dictionary_filter_operand=true.');
 }
 
-$lines = array_merge($dictionaryLines, $literalLines, $indirectLiteralLines, $indirectArrayDictionaryLines);
+if (($generationEntry['filter_operand_policy'] ?? null) !== 'reject_dictionary_filter_operands') {
+    throw new RuntimeException('Expected current-generation CMap filter operand review metadata.');
+}
+
+if (($generationReview['decoded_cmap_count'] ?? null) !== 0) {
+    throw new RuntimeException('Expected current-generation malformed CMap stream not to decode.');
+}
+
+if (($generationEntry['filter_operands'][0]['generation'] ?? null) !== 1) {
+    throw new RuntimeException('Expected current-generation CMap filter operand to be selected.');
+}
+
+if (($generationEntry['filter_operands'][0]['dictionary_filter_operand'] ?? null) !== true) {
+    throw new RuntimeException('Expected current-generation filter operand to expose dictionary_filter_operand=true.');
+}
+
+$lines = array_merge($dictionaryLines, $literalLines, $indirectLiteralLines, $indirectArrayDictionaryLines, $generationLines);
 
 echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
@@ -301,10 +397,19 @@ echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlsp
     'indirect_array_dictionary_filter_operand_policy' => $indirectArrayDictionaryEntry['filter_operand_policy'] ?? null,
     'indirect_array_dictionary_owner_policy' => $indirectArrayDictionaryEntry['owner_policy'] ?? null,
     'indirect_array_dictionary_operand_classified' => ($indirectArrayDictionaryEntry['filter_operands'][0]['dictionary_filter_operand'] ?? null) === true,
+    'generation_decoded_cmap_count' => $generationReview['decoded_cmap_count'] ?? null,
+    'generation_invalid_filter_operand_count' => $generationReview['invalid_filter_operand_count'] ?? null,
+    'generation_dictionary_filter_operand_count' => $generationReview['dictionary_filter_operand_count'] ?? null,
+    'generation_filter_operand_policy' => $generationEntry['filter_operand_policy'] ?? null,
+    'generation_owner_policy' => $generationEntry['owner_policy'] ?? null,
+    'generation_filter_object_generation' => $generationEntry['filter_operands'][0]['generation'] ?? null,
+    'generation_stale_valid_filter_rejected' => ($generationReview['decoded_cmap_count'] ?? null) === 0
+        && (($generationEntry['filter_operands'][0]['generation'] ?? null) === 1),
     'leaking_cmap_text_excluded' => !str_contains($dictionaryPlainText, 'Dictionary Filter Leak')
         && !str_contains($literalPlainText, 'Literal Filter Leak')
         && !str_contains($indirectLiteralPlainText, 'Indirect Literal Filter Leak')
-        && !str_contains($indirectArrayDictionaryPlainText, 'Indirect Array Dictionary Leak'),
+        && !str_contains($indirectArrayDictionaryPlainText, 'Indirect Array Dictionary Leak')
+        && !str_contains($generationPlainText, 'Stale Generation CMap Leak'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
 foreach ($lines as $line) {
