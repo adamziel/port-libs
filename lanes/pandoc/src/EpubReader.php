@@ -13,9 +13,11 @@ final class EpubReader
     public const XHTML_NS = 'http://www.w3.org/1999/xhtml';
     public const EPUB_OPS_NS = 'http://www.idpf.org/2007/ops';
     public const NCX_NS = 'http://www.daisy.org/z3986/2005/ncx/';
+    public const XMLENC_NS = 'http://www.w3.org/2001/04/xmlenc#';
     public const OPF_MEDIA_TYPE = 'application/oebps-package+xml';
     public const XHTML_MEDIA_TYPE = 'application/xhtml+xml';
     public const NCX_MEDIA_TYPE = 'application/x-dtbncx+xml';
+    public const IDPF_FONT_OBFUSCATION_ALGORITHM = 'http://www.idpf.org/2008/embedding';
 
     /**
      * @return array{
@@ -28,6 +30,7 @@ final class EpubReader
      *     spine:list<array<string, mixed>>,
      *     nav:?array<string, mixed>,
      *     ncx:?array<string, mixed>,
+     *     encryption:array<string, mixed>,
      *     xhtmlAssets:list<array<string, mixed>>,
      *     assets:list<array<string, mixed>>,
      *     importReport:array<string, mixed>
@@ -57,6 +60,7 @@ final class EpubReader
             'spine' => $opf['spine'],
             'nav' => $opf['nav'],
             'ncx' => $opf['ncx'],
+            'encryption' => $opf['encryption'],
             'xhtmlAssets' => $opf['xhtmlAssets'],
             'assets' => $opf['assets'],
             'importReport' => [
@@ -77,6 +81,7 @@ final class EpubReader
                 ],
                 'nav' => $opf['nav'],
                 'ncx' => $opf['ncx'],
+                'encryption' => $opf['encryption'],
                 'assets' => [
                     'count' => count($opf['assets']),
                     'items' => $opf['assets'],
@@ -186,6 +191,7 @@ final class EpubReader
      *     spine:list<array<string, mixed>>,
      *     nav:?array<string, mixed>,
      *     ncx:?array<string, mixed>,
+     *     encryption:array<string, mixed>,
      *     xhtmlAssets:list<array<string, mixed>>,
      *     assets:list<array<string, mixed>>
      * }
@@ -214,6 +220,8 @@ final class EpubReader
         $uniqueIdentifier = trim($root->getAttribute('unique-identifier'));
         $metadata = $this->readMetadata($metadataElement, $uniqueIdentifier);
         $manifestById = $this->readManifest($package, $opfPart, $manifestElement);
+        $encryption = $this->readEncryption($package, $manifestById);
+        $manifestById = $this->attachEncryptionToManifest($manifestById, $encryption);
         $spine = $this->readSpine($spineElement, $manifestById);
         $manifest = array_values($manifestById);
         $navItem = $this->firstManifestItemWithProperty($manifest, 'nav');
@@ -232,6 +240,7 @@ final class EpubReader
             'spine' => $spine,
             'nav' => $navItem === null ? null : $this->readNavDocument($package, $navItem),
             'ncx' => $ncxItem === null ? null : $this->readNcxDocument($package, $ncxItem),
+            'encryption' => $encryption,
             'xhtmlAssets' => $this->xhtmlAssets($package, $manifest),
             'assets' => $this->assetReport($manifest),
         ];
@@ -349,10 +358,165 @@ final class EpubReader
                 'exists' => $exists,
                 'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
                 'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'encrypted' => false,
+                'canExposeBytes' => true,
+                'encryption' => null,
             ];
         }
 
         return $manifest;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestById
+     *
+     * @return array{
+     *     present:bool,
+     *     part:?string,
+     *     items:list<array<string, mixed>>,
+     *     encryptedParts:list<string>,
+     *     obfuscatedFonts:list<array<string, mixed>>,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private function readEncryption(ZipPackage $package, array $manifestById): array
+    {
+        $encryptionPart = '/META-INF/encryption.xml';
+        if (!$package->has($encryptionPart)) {
+            return [
+                'present' => false,
+                'part' => null,
+                'items' => [],
+                'encryptedParts' => [],
+                'obfuscatedFonts' => [],
+                'diagnostics' => [],
+            ];
+        }
+
+        $dom = self::loadXml($package->read($encryptionPart), 'EPUB OCF encryption XML');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->localName !== 'encryption' || $root->namespaceURI !== self::OCF_CONTAINER_NS) {
+            throw new \InvalidArgumentException('EPUB encryption XML must use the OCF encryption namespace');
+        }
+
+        $manifestByPart = self::manifestByPart($manifestById);
+        $items = [];
+        $diagnostics = [];
+
+        foreach (self::encryptedDataElements($dom) as $index => $encryptedData) {
+            $method = self::firstChildElement($encryptedData, 'EncryptionMethod', self::XMLENC_NS);
+            $cipherData = self::firstChildElement($encryptedData, 'CipherData', self::XMLENC_NS);
+            $cipherReference = $cipherData instanceof \DOMElement
+                ? self::firstChildElement($cipherData, 'CipherReference', self::XMLENC_NS)
+                : null;
+            $uri = $cipherReference instanceof \DOMElement ? trim($cipherReference->getAttribute('URI')) : '';
+
+            if ($uri === '') {
+                $diagnostics[] = [
+                    'type' => 'missing-cipher-reference',
+                    'index' => $index,
+                    'message' => 'EncryptedData entry is missing CipherReference URI',
+                ];
+                continue;
+            }
+
+            try {
+                $part = self::encryptionCipherPart($uri);
+            } catch (\InvalidArgumentException $exception) {
+                $diagnostics[] = [
+                    'type' => 'invalid-cipher-reference',
+                    'index' => $index,
+                    'uri' => $uri,
+                    'message' => $exception->getMessage(),
+                ];
+                continue;
+            }
+
+            $manifestItem = $manifestByPart[$part] ?? null;
+            $mediaType = is_array($manifestItem) ? (string) $manifestItem['mediaType'] : null;
+            $item = [
+                'index' => $index,
+                'uri' => $uri,
+                'part' => $part,
+                'algorithm' => $method instanceof \DOMElement ? self::nullableAttribute($method, 'Algorithm') : null,
+                'manifestId' => is_array($manifestItem) ? (string) $manifestItem['id'] : null,
+                'mediaType' => $mediaType,
+                'exists' => $package->has($part),
+                'obfuscatedFont' => self::isObfuscatedFont(
+                    $method instanceof \DOMElement ? self::nullableAttribute($method, 'Algorithm') : null,
+                    $mediaType,
+                    $part
+                ),
+                'canExposeBytes' => false,
+            ];
+
+            if (!is_array($manifestItem)) {
+                $diagnostics[] = [
+                    'type' => 'encrypted-resource-not-in-manifest',
+                    'index' => $index,
+                    'part' => $part,
+                    'message' => 'Encrypted OCF resource is not listed in the OPF manifest',
+                ];
+            }
+            if ($item['exists'] !== true) {
+                $diagnostics[] = [
+                    'type' => 'encrypted-resource-missing',
+                    'index' => $index,
+                    'part' => $part,
+                    'message' => 'Encrypted OCF resource is missing from the ZIP package',
+                ];
+            }
+
+            $items[] = $item;
+        }
+
+        return [
+            'present' => true,
+            'part' => $encryptionPart,
+            'items' => $items,
+            'encryptedParts' => array_map(static fn (array $item): string => (string) $item['part'], $items),
+            'obfuscatedFonts' => array_values(array_filter(
+                $items,
+                static fn (array $item): bool => $item['obfuscatedFont'] === true,
+            )),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestById
+     * @param array<string, mixed> $encryption
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function attachEncryptionToManifest(array $manifestById, array $encryption): array
+    {
+        $encryptionByPart = [];
+        foreach ($encryption['items'] ?? [] as $item) {
+            if (!is_array($item) || !isset($item['part'])) {
+                continue;
+            }
+
+            $encryptionByPart[(string) $item['part']][] = $item;
+        }
+
+        foreach ($manifestById as $id => $item) {
+            $entries = $encryptionByPart[(string) $item['part']] ?? [];
+            if ($entries === []) {
+                continue;
+            }
+
+            $manifestById[$id]['encrypted'] = true;
+            $manifestById[$id]['canExposeBytes'] = false;
+            $manifestById[$id]['encryption'] = [
+                'items' => $entries,
+                'algorithm' => $entries[0]['algorithm'] ?? null,
+                'obfuscatedFont' => self::containsObfuscatedFont($entries),
+                'canExposeBytes' => false,
+            ];
+        }
+
+        return $manifestById;
     }
 
     /**
@@ -386,6 +550,9 @@ final class EpubReader
                 'mediaType' => $manifestItem['mediaType'],
                 'linear' => strtolower(trim($itemref->getAttribute('linear'))) !== 'no',
                 'properties' => self::spaceDelimited($itemref->getAttribute('properties')),
+                'encrypted' => self::isEncryptedManifestItem($manifestItem),
+                'canExposeBytes' => (bool) ($manifestItem['canExposeBytes'] ?? true),
+                'encryption' => $manifestItem['encryption'] ?? null,
             ];
         }
 
@@ -443,6 +610,18 @@ final class EpubReader
      */
     private function readNavDocument(ZipPackage $package, array $item): array
     {
+        if (self::isEncryptedManifestItem($item)) {
+            return [
+                'part' => (string) $item['part'],
+                'items' => [],
+                'sections' => [],
+                'landmarks' => [],
+                'pageList' => [],
+                'encrypted' => true,
+                'encryption' => $item['encryption'] ?? null,
+            ];
+        }
+
         $dom = self::loadXml($package->read((string) $item['part']), 'EPUB navigation XHTML');
         $sections = [];
         $tocItems = null;
@@ -549,6 +728,15 @@ final class EpubReader
      */
     private function readNcxDocument(ZipPackage $package, array $item): array
     {
+        if (self::isEncryptedManifestItem($item)) {
+            return [
+                'part' => (string) $item['part'],
+                'items' => [],
+                'encrypted' => true,
+                'encryption' => $item['encryption'] ?? null,
+            ];
+        }
+
         $dom = self::loadXml($package->read((string) $item['part']), 'EPUB NCX XML');
         $root = $dom->documentElement;
         if (!$root instanceof \DOMElement || $root->localName !== 'ncx' || $root->namespaceURI !== self::NCX_NS) {
@@ -599,7 +787,11 @@ final class EpubReader
     {
         $assets = [];
         foreach ($manifest as $item) {
-            if ($item['mediaType'] !== self::XHTML_MEDIA_TYPE || ($item['exists'] ?? false) !== true) {
+            if (
+                $item['mediaType'] !== self::XHTML_MEDIA_TYPE
+                || ($item['exists'] ?? false) !== true
+                || self::isEncryptedManifestItem($item)
+            ) {
                 continue;
             }
 
@@ -638,6 +830,9 @@ final class EpubReader
                 'exists' => $item['exists'],
                 'byteLength' => $item['byteLength'],
                 'crc32' => $item['crc32'],
+                'encrypted' => self::isEncryptedManifestItem($item),
+                'canExposeBytes' => (bool) ($item['canExposeBytes'] ?? true),
+                'encryption' => $item['encryption'] ?? null,
             ];
         }
 
@@ -751,6 +946,101 @@ final class EpubReader
         }
 
         return self::spaceDelimited($type);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestById
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function manifestByPart(array $manifestById): array
+    {
+        $byPart = [];
+        foreach ($manifestById as $item) {
+            $byPart[(string) $item['part']] = $item;
+        }
+
+        return $byPart;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function encryptedDataElements(\DOMDocument $dom): array
+    {
+        $elements = [];
+        foreach ($dom->getElementsByTagNameNS(self::XMLENC_NS, 'EncryptedData') as $element) {
+            if ($element instanceof \DOMElement) {
+                $elements[] = $element;
+            }
+        }
+
+        return $elements;
+    }
+
+    private static function encryptionCipherPart(string $uri): string
+    {
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $uri) === 1) {
+            throw new \InvalidArgumentException('EPUB encryption CipherReference URI must be package-relative');
+        }
+
+        if (str_contains($uri, '?') || str_contains($uri, '#')) {
+            throw new \InvalidArgumentException('EPUB encryption CipherReference URI must identify a package part without query or fragment');
+        }
+
+        return OpcPackagePath::canonicalPartName($uri);
+    }
+
+    private static function isEncryptedManifestItem(array $item): bool
+    {
+        return ($item['encrypted'] ?? false) === true;
+    }
+
+    private static function isObfuscatedFont(?string $algorithm, ?string $mediaType, string $part): bool
+    {
+        if ($algorithm !== self::IDPF_FONT_OBFUSCATION_ALGORITHM) {
+            return false;
+        }
+
+        return self::isFontResource($mediaType, $part);
+    }
+
+    private static function isFontResource(?string $mediaType, string $part): bool
+    {
+        $normalizedMediaType = strtolower((string) $mediaType);
+        if (in_array($normalizedMediaType, [
+            'application/font-sfnt',
+            'application/font-woff',
+            'application/vnd.ms-opentype',
+            'application/x-font-opentype',
+            'application/x-font-otf',
+            'application/x-font-ttf',
+            'font/otf',
+            'font/sfnt',
+            'font/ttf',
+            'font/woff',
+            'font/woff2',
+        ], true)) {
+            return true;
+        }
+
+        $extension = strtolower(pathinfo($part, PATHINFO_EXTENSION));
+
+        return in_array($extension, ['otf', 'ttf', 'woff', 'woff2'], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     */
+    private static function containsObfuscatedFont(array $entries): bool
+    {
+        foreach ($entries as $entry) {
+            if (($entry['obfuscatedFont'] ?? false) === true) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function navHeading(\DOMElement $nav): ?string

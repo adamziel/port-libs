@@ -108,6 +108,17 @@ $ncxXml = <<<'XML'
 </ncx>
 XML;
 
+$encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/>
+    <CipherData>
+      <CipherReference URI="OEBPS/fonts/source.otf"/>
+    </CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+
 $buildEpubPackage = static function (
     ?string $overrideOpfXml = null,
     ?string $overrideContainerXml = null,
@@ -250,6 +261,47 @@ return [
         $t->same(null, $assetById['missing-audio']['crc32']);
         $t->same(2, count($result['document']->children));
         $t->contains('Review appendix', $result['document']->children[1]->attr('html'));
+    },
+    'reports OCF encryption and obfuscated font resources without dropping XHTML handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $encryptionXml): void {
+        $opfWithFont = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/><item id="font-main" href="fonts/source.otf" media-type="application/vnd.ms-opentype"/>',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithFont,
+            null,
+            [
+                ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+                ['name' => 'OEBPS/fonts/source.otf', 'data' => 'OBFUSCATED-FONT'],
+            ]
+        ));
+
+        $manifestById = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestById[$item['id']] = $item;
+        }
+        $assetById = [];
+        foreach ($result['assets'] as $asset) {
+            $assetById[$asset['id']] = $asset;
+        }
+
+        $t->same(true, $result['encryption']['present']);
+        $t->same('/META-INF/encryption.xml', $result['encryption']['part']);
+        $t->same(1, count($result['encryption']['items']));
+        $t->same('/OEBPS/fonts/source.otf', $result['encryption']['items'][0]['part']);
+        $t->same('font-main', $result['encryption']['items'][0]['manifestId']);
+        $t->same('application/vnd.ms-opentype', $result['encryption']['items'][0]['mediaType']);
+        $t->same('http://www.idpf.org/2008/embedding', $result['encryption']['items'][0]['algorithm']);
+        $t->same(true, $result['encryption']['items'][0]['obfuscatedFont']);
+        $t->same(true, $manifestById['font-main']['encrypted']);
+        $t->same(true, $assetById['font-main']['encrypted']);
+        $t->same(false, $assetById['font-main']['canExposeBytes']);
+        $t->same('/OEBPS/fonts/source.otf', $result['importReport']['encryption']['obfuscatedFonts'][0]['part']);
+        $t->same([], $result['importReport']['encryption']['diagnostics']);
+        $t->same(2, count($result['document']->children));
+        $t->contains('Chapter XHTML stays available', $result['document']->children[0]->attr('html'));
     },
     'rejects malformed EPUB packages before conversion handoff' => static function (TestRunner $t) use ($buildEpubPackage, $containerXml, $opfXml): void {
         $reader = new EpubReader();

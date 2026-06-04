@@ -30,6 +30,7 @@ $opfXml = <<<'XML'
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
     <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
     <item id="style" href="styles/review.css" media-type="text/css"/>
+    <item id="font-main" href="fonts/source.otf" media-type="application/vnd.ms-opentype"/>
     <item id="cover-image" href="images/cover.png" media-type="image/png" properties="cover-image"/>
     <item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
   </manifest>
@@ -82,13 +83,26 @@ $ncxXml = <<<'XML'
 </ncx>
 XML;
 
+$encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/>
+    <CipherData>
+      <CipherReference URI="EPUB/fonts/source.otf"/>
+    </CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+
 $package = ZipPackage::fromParts([
     ['name' => 'mimetype', 'data' => EpubReader::MIMETYPE, 'compressionMethod' => 0],
     ['name' => 'META-INF/container.xml', 'data' => $containerXml],
+    ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
     ['name' => 'EPUB/package.opf', 'data' => $opfXml],
     ['name' => 'EPUB/nav.xhtml', 'data' => $navXhtml],
     ['name' => 'EPUB/text/chapter.xhtml', 'data' => $chapterXhtml],
     ['name' => 'EPUB/styles/review.css', 'data' => 'body { color: #222; }'],
+    ['name' => 'EPUB/fonts/source.otf', 'data' => 'OBFUSCATED-FONT'],
     ['name' => 'EPUB/images/cover.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
     ['name' => 'EPUB/toc.ncx', 'data' => $ncxXml],
 ]);
@@ -116,6 +130,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['nav']['pageList'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#page-1') {
         throw new RuntimeException('Expected EPUB page-list target to resolve to the source page marker');
     }
+    if (($result['encryption']['obfuscatedFonts'][0]['part'] ?? null) !== '/EPUB/fonts/source.otf') {
+        throw new RuntimeException('Expected EPUB obfuscated font preflight to identify the package font');
+    }
+    $foundEncryptedFont = false;
+    foreach ($result['assets'] as $asset) {
+        if ($asset['id'] === 'font-main' && (($asset['encrypted'] ?? false) !== true || ($asset['canExposeBytes'] ?? true) !== false)) {
+            throw new RuntimeException('Expected obfuscated font asset bytes to require follow-up review');
+        }
+        if ($asset['id'] === 'font-main') {
+            $foundEncryptedFont = true;
+        }
+    }
+    if (!$foundEncryptedFont) {
+        throw new RuntimeException('Expected obfuscated font asset in EPUB import report');
+    }
     if (!str_contains($blocks, '<!-- wp:html -->') || !str_contains($blocks, 'EPUB XHTML content is preserved')) {
         throw new RuntimeException('Expected EPUB XHTML spine item to hand off as a WordPress HTML block');
     }
@@ -132,5 +161,6 @@ echo 'spineItems=' . count($result['spine']) . "\n";
 echo 'navTarget=' . ($result['nav']['items'][0]['target'] ?? '') . "\n";
 echo 'landmarkTarget=' . ($result['nav']['landmarks'][0]['target'] ?? '') . "\n";
 echo 'pageListTarget=' . ($result['nav']['pageList'][0]['target'] ?? '') . "\n";
+echo 'obfuscatedFonts=' . count($result['encryption']['obfuscatedFonts']) . "\n";
 echo 'assets=' . count($result['assets']) . "\n";
 echo "wordpressBlocks:\n" . $blocks . "\n";
