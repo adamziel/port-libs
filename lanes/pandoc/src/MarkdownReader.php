@@ -442,11 +442,15 @@ final class MarkdownReader
             [$key, $sourceValue] = $mapping;
             [$sourceValue, $anchorName, $tags] = $this->parseYamlValueDirectives($sourceValue);
             [$children, $nextIndex] = $this->collectYamlChildLines($lines, $index + 1);
+            $blockScalarHeader = $this->parseYamlBlockScalarHeader($sourceValue);
 
-            if ($this->isYamlLiteralBlockIndicator($sourceValue)) {
-                $value = $this->parseYamlBlockScalar($children, '|');
-            } elseif ($this->isYamlFoldedBlockIndicator($sourceValue)) {
-                $value = $this->parseYamlBlockScalar($children, '>');
+            if ($blockScalarHeader !== null) {
+                $value = $this->parseYamlBlockScalar(
+                    $children,
+                    $blockScalarHeader['style'],
+                    $blockScalarHeader['chomp'],
+                    $blockScalarHeader['indent']
+                );
             } elseif ($sourceValue === '') {
                 $value = $this->parseYamlIndentedValue($children);
             } else {
@@ -490,34 +494,72 @@ final class MarkdownReader
         return [$children, $index];
     }
 
-    private function isYamlLiteralBlockIndicator(string $value): bool
+    /**
+     * @return array{style:string, chomp:string|null, indent:int|null}|null
+     */
+    private function parseYamlBlockScalarHeader(string $value): ?array
     {
-        return preg_match('/^\|[+-]?$/', trim($value)) === 1;
-    }
+        $value = $this->stripYamlTrailingComment(trim($value));
+        if ($value === '' || ($value[0] !== '|' && $value[0] !== '>')) {
+            return null;
+        }
 
-    private function isYamlFoldedBlockIndicator(string $value): bool
-    {
-        return preg_match('/^>[+-]?$/', trim($value)) === 1;
+        $chomp = null;
+        $indent = null;
+        $rest = substr($value, 1);
+        $length = strlen($rest);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $rest[$offset];
+            if (($char === '+' || $char === '-') && $chomp === null) {
+                $chomp = $char;
+                continue;
+            }
+
+            if ($char >= '1' && $char <= '9' && $indent === null) {
+                $indent = (int) $char;
+                continue;
+            }
+
+            return null;
+        }
+
+        return [
+            'style' => $value[0],
+            'chomp' => $chomp,
+            'indent' => $indent,
+        ];
     }
 
     /**
      * @param list<string> $lines
      */
-    private function parseYamlBlockScalar(array $lines, string $style): string
+    private function parseYamlBlockScalar(array $lines, string $style, ?string $chomp = null, ?int $indent = null): string
     {
-        $normalized = $this->stripYamlCommonIndent($lines);
-        $text = rtrim(implode("\n", $normalized), "\n");
+        $normalized = $indent === null ? $this->stripYamlCommonIndent($lines) : $this->stripYamlExplicitIndent($lines, $indent);
+        $rawText = implode("\n", $normalized);
         if ($style === '|') {
-            return $text;
+            return $this->applyYamlBlockScalarChomp($rawText, $chomp);
         }
 
+        $trailingNewlines = preg_match('/\n+$/', $rawText, $m) === 1 ? $m[0] : '';
+        $text = rtrim($rawText, "\n");
         $paragraphs = preg_split('/\n{2,}/', $text) ?: [];
         $folded = array_map(
             static fn (string $paragraph): string => preg_replace('/[ \t]*\n[ \t]*/', ' ', trim($paragraph)) ?? trim($paragraph),
             $paragraphs
         );
 
-        return implode("\n\n", array_filter($folded, static fn (string $paragraph): bool => $paragraph !== ''));
+        $foldedText = implode("\n\n", array_filter($folded, static fn (string $paragraph): bool => $paragraph !== ''));
+        return $chomp === '+' ? $foldedText . $trailingNewlines : $foldedText;
+    }
+
+    private function applyYamlBlockScalarChomp(string $text, ?string $chomp): string
+    {
+        if ($chomp === '+') {
+            return $text;
+        }
+
+        return rtrim($text, "\n");
     }
 
     /**
@@ -726,6 +768,77 @@ final class MarkdownReader
     }
 
     /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function stripYamlExplicitIndent(array $lines, int $indent): array
+    {
+        $expanded = array_map(fn (string $line): string => $this->expandTabsToSpaces($line), $lines);
+
+        return array_map(
+            static fn (string $line): string => trim($line) === '' ? '' : substr($line, min($indent, strspn($line, ' '))),
+            $expanded
+        );
+    }
+
+    private function stripYamlTrailingComment(string $value): string
+    {
+        $quote = null;
+        $squareDepth = 0;
+        $curlyDepth = 0;
+        $length = strlen($value);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $value[$offset];
+            if ($quote !== null) {
+                if ($quote === "'" && $char === "'" && ($value[$offset + 1] ?? '') === "'") {
+                    $offset++;
+                    continue;
+                }
+                if ($char === $quote && ($quote === "'" || $value[$offset - 1] !== '\\')) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '[') {
+                $squareDepth++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $squareDepth = max(0, $squareDepth - 1);
+                continue;
+            }
+
+            if ($char === '{') {
+                $curlyDepth++;
+                continue;
+            }
+
+            if ($char === '}') {
+                $curlyDepth = max(0, $curlyDepth - 1);
+                continue;
+            }
+
+            if (
+                $char === '#'
+                && $squareDepth === 0
+                && $curlyDepth === 0
+                && ($offset === 0 || ctype_space($value[$offset - 1]))
+            ) {
+                return rtrim(substr($value, 0, $offset));
+            }
+        }
+
+        return $value;
+    }
+
+    /**
      * @return mixed
      */
     private function parseYamlScalarValue(string $value): mixed
@@ -742,7 +855,7 @@ final class MarkdownReader
      */
     private function parseYamlScalarValueFromDirectives(string $value, ?string $anchorName, array $tags): mixed
     {
-        $value = trim($value);
+        $value = trim($this->stripYamlTrailingComment($value));
         if ($value === '') {
             $parsed = '';
             $this->rememberYamlAnchor($anchorName, $parsed);

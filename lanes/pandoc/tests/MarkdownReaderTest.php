@@ -1096,6 +1096,47 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('yaml-anchor-body', $document->children[0]->attr('id'));
     },
+    'maps pandoc yaml comments and block scalar chomping in metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Commented **Packet** # import reviewer note',
+            'authors: [Reviewer One, "Reviewer #Two"] # handoff list comment',
+            'slug: source#fragment',
+            'review:',
+            '  status: queued # reviewer queue comment',
+            '  note: "Keep # quoted hash"',
+            '  path: /review#anchor',
+            'summary: >- # folded source comment',
+            '  Preserve reviewer',
+            '  comments',
+            '',
+            '  Keep paragraph breaks',
+            'literal: |+ # keep trailing newline for audit notes',
+            '  Keep reviewer line',
+            '',
+            'indented: |2- # explicit two-column indent',
+            '  One',
+            '    Two',
+            '...',
+            '',
+            '# YAML comments body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+
+        $t->same('Commented **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same(['Reviewer One', 'Reviewer #Two'], $meta['authors']);
+        $t->same('source#fragment', $meta['slug']);
+        $t->same('queued', $meta['review']['status']);
+        $t->same('Keep # quoted hash', $meta['review']['note']);
+        $t->same('/review#anchor', $meta['review']['path']);
+        $t->same("Preserve reviewer comments\n\nKeep paragraph breaks", $meta['summary']);
+        $t->same("Keep reviewer line\n", $meta['literal']);
+        $t->same("One\n  Two", $meta['indented']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('yaml-comments-body', $document->children[0]->attr('id'));
+    },
     'keeps blank-led yaml-looking fences as markdown body' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

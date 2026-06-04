@@ -11,12 +11,12 @@ $markdown = <<<'MARKDOWN'
 The source export starts with a migration preface before metadata.
 
 ---
-title: "Migration **Packet**"
+title: "Migration **Packet**" # source export title
 author:
   - Data Liberation reviewer
-  - WordPress import editor
+  - "WordPress #import editor"
 date: 2026-06-03
-keywords: [migration, wordpress, metadata]
+keywords: [migration, wordpress, metadata] # reviewer labels
 reviewDefaults_: &review_defaults
   status: queued
   priority: 3
@@ -24,6 +24,13 @@ reviewDefaults_: &review_defaults
 review:
   <<: *review_defaults
   owner: !wp-reviewer "Import Desk"
+source-uri: /exports/packet#front-matter
+source-summary: >- # folded source note for reviewer queue
+  Preserve front matter
+  comments before rendering.
+audit-note: |+ # keep final newline for audit packets
+  YAML parser keeps this note.
+
 aliases:
   labels: *review_labels
 source-revision: !!str 007
@@ -43,7 +50,7 @@ references:
 
 ---
 review: {status: needs-review, priority: 2, labels: [qa, follow-up]}
-summary: >
+summary: >- # later metadata block overrides the first review status
   Preserve front matter for reviewer handoff
   before rendering the imported body.
 ---
@@ -64,6 +71,21 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['aliases']['labels'] ?? []) !== ['front-matter', 'wordpress']) {
         throw new RuntimeException('YAML metadata self-test missing anchor alias labels');
+    }
+    if (($meta['authors'][1] ?? '') !== 'WordPress #import editor') {
+        throw new RuntimeException('YAML metadata self-test stripped quoted author hash');
+    }
+    if (($meta['source-summary'] ?? '') !== 'Preserve front matter comments before rendering.') {
+        throw new RuntimeException('YAML metadata self-test missing folded source comment summary');
+    }
+    if (($meta['summary'] ?? '') !== 'Preserve front matter for reviewer handoff before rendering the imported body.') {
+        throw new RuntimeException('YAML metadata self-test missing later folded comment summary');
+    }
+    if (($meta['audit-note'] ?? '') !== "YAML parser keeps this note.\n") {
+        throw new RuntimeException('YAML metadata self-test missing literal keep-chomp note');
+    }
+    if (($meta['source-uri'] ?? '') !== '/exports/packet#front-matter') {
+        throw new RuntimeException('YAML metadata self-test stripped unspaced source hash');
     }
     if (($meta['source-revision'] ?? '') !== '007') {
         throw new RuntimeException('YAML metadata self-test missing tagged string revision');
