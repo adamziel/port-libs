@@ -20,13 +20,16 @@ $outlinePdf = "%PDF-1.4\n"
     . "%%EOF";
 
 $destinationPdf = "%PDF-1.7\n"
-    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /Dests 8 0 R >> /Dests << /migration-start [4 0 R /Fit] /legacy-review [4 0 R /FitV 110] >> >>\nendobj\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /Dests 8 0 R >> /Dests << /migration-start [4 0 R /Fit] /legacy-review [4 0 R /FitV 110] /legacy-stale 13 1 R >> >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
     . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
     . "4 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
-    . "8 0 obj\n<< /Limits [(media-cleanup) (z-export)] /Kids [9 0 R 10 0 R] >>\nendobj\n"
-    . "9 0 obj\n<< /Limits [(media-cleanup) (migration-start)] /Names [(migration-start) [3 0 R /Fit] (media-cleanup) [4 0 R /XYZ 72 650 1] (stale-secret) [4 0 R /Fit]] >>\nendobj\n"
+    . "8 0 obj\n<< /Limits [(media-cleanup) (z-export)] /Kids [9 0 R 10 0 R 11 1 R] >>\nendobj\n"
+    . "9 0 obj\n<< /Limits [(media-cleanup) (migration-start)] /Names [(migration-start) [3 0 R /Fit] (media-cleanup) [4 0 R /XYZ 72 650 1] (stale-secret) [4 0 R /Fit] (stale-page-generation) [4 1 R /Fit] 12 1 R [4 0 R /Fit]] >>\nendobj\n"
     . "10 0 obj\n<< /Limits [(review-summary) (z-export)] /Names [(migration-start) [4 0 R /Fit] (review-summary) [3 0 R /FitBH 600]] >>\nendobj\n"
+    . "11 0 obj\n<< /Limits [(review-summary) (z-export)] /Names [(stale-kid-generation) [4 0 R /Fit]] >>\nendobj\n"
+    . "12 0 obj\n(stale-indirect-generation)\nendobj\n"
+    . "13 0 obj\n<< /D [4 0 R /FitH 120] >>\nendobj\n"
     . "%%EOF\n";
 
 $toc = (new PdfOutlineExtractor())->getPdfToc($outlinePdf);
@@ -39,6 +42,11 @@ if ($destinationNames !== ['migration-start', 'media-cleanup', 'review-summary',
 if (in_array('stale-secret', $destinationNames, true)) {
     throw new RuntimeException('Expected stale out-of-limits destination rows to stay hidden from WordPress output.');
 }
+foreach (['stale-page-generation', 'stale-indirect-generation', 'stale-kid-generation', 'legacy-stale'] as $staleName) {
+    if (in_array($staleName, $destinationNames, true)) {
+        throw new RuntimeException('Expected generation-mismatched destination rows to stay hidden from WordPress output.');
+    }
+}
 
 echo '<!-- markerpdf-pdf-named-destinations ' . htmlspecialchars(json_encode([
     'support_component' => 'native-pdf-outline-and-named-destination-parser',
@@ -50,6 +58,7 @@ echo '<!-- markerpdf-pdf-named-destinations ' . htmlspecialchars(json_encode([
     'outline_destination_names' => array_values(array_filter(array_column($toc, 'destination'), 'is_string')),
     'named_destinations' => $destinationNames,
     'out_of_limits_destination_filtered' => true,
+    'generation_mismatch_destinations_filtered' => true,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
 echo "<!-- wp:list -->\n<ul>\n";

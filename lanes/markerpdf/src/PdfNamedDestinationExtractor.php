@@ -144,7 +144,7 @@ final class PdfNamedDestinationExtractor
     private function pageIndexesByObjectId(array $objects, array &$cache, array $catalog): array
     {
         $pages = [];
-        $pagesObjectId = $this->refObjectId($catalog['Pages'] ?? null);
+        $pagesObjectId = $this->validRefObjectId($catalog['Pages'] ?? null, $objects);
         if ($pagesObjectId !== null) {
             $pages = $this->collectPageObjectIds($pagesObjectId, $objects, $cache);
         }
@@ -193,7 +193,7 @@ final class PdfNamedDestinationExtractor
         }
 
         $pages = [];
-        foreach ($this->arrayRefs($dictionary['Kids'] ?? null) as $kidId) {
+        foreach ($this->arrayRefs($dictionary['Kids'] ?? null, $objects) as $kidId) {
             foreach ($this->collectPageObjectIds($kidId, $objects, $cache, $seen) as $pageId) {
                 $pages[] = $pageId;
             }
@@ -242,7 +242,10 @@ final class PdfNamedDestinationExtractor
      */
     private function resolve(mixed $value, array $objects, array &$cache, array $seen = []): mixed
     {
-        $objectId = $this->refObjectId($value);
+        $objectId = $this->validRefObjectId($value, $objects);
+        if ($this->isRefValue($value) && $objectId === null) {
+            return null;
+        }
         if ($objectId === null) {
             return $value;
         }
@@ -273,7 +276,10 @@ final class PdfNamedDestinationExtractor
             return [];
         }
 
-        $nodeObjectId = $this->refObjectId($node);
+        $nodeObjectId = $this->validRefObjectId($node, $objects);
+        if ($this->isRefValue($node) && $nodeObjectId === null) {
+            return [];
+        }
         if ($nodeObjectId !== null) {
             if (in_array($nodeObjectId, $seenObjects, true)) {
                 return [];
@@ -401,12 +407,15 @@ final class PdfNamedDestinationExtractor
             return null;
         }
 
-        $pageObjectId = $this->refObjectId($destination[0]);
+        $pageOperand = $destination[0] ?? null;
+        $pageObjectId = $this->validRefObjectId($pageOperand, $objects);
         $pageIndex = null;
         if ($pageObjectId !== null) {
             $pageIndex = $pageIndexes[$pageObjectId] ?? null;
-        } elseif (is_int($destination[0])) {
-            $pageIndex = $destination[0] >= 0 ? $destination[0] : null;
+        } elseif ($this->isRefValue($pageOperand)) {
+            return null;
+        } elseif (is_int($pageOperand)) {
+            $pageIndex = $pageOperand >= 0 ? $pageOperand : null;
         }
 
         $fit = $this->nameValue($destination[1]);
@@ -478,11 +487,11 @@ final class PdfNamedDestinationExtractor
     /**
      * @return list<int>
      */
-    private function arrayRefs(mixed $value): array
+    private function arrayRefs(mixed $value, array $objects): array
     {
         $refs = [];
         foreach ($this->arrayValues($value) as $entry) {
-            $objectId = $this->refObjectId($entry);
+            $objectId = $this->validRefObjectId($entry, $objects);
             if ($objectId !== null) {
                 $refs[] = $objectId;
             }
@@ -504,6 +513,33 @@ final class PdfNamedDestinationExtractor
         return is_array($value) && isset($value['__pdf_ref']) && is_int($value['__pdf_ref'])
             ? $value['__pdf_ref']
             : null;
+    }
+
+    private function refGeneration(mixed $value): int
+    {
+        return is_array($value) && isset($value['__pdf_generation']) && is_int($value['__pdf_generation'])
+            ? $value['__pdf_generation']
+            : 0;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     */
+    private function validRefObjectId(mixed $value, array $objects): ?int
+    {
+        $objectId = $this->refObjectId($value);
+        if ($objectId === null || !isset($objects[$objectId])) {
+            return null;
+        }
+
+        return $objects[$objectId]['generation'] === $this->refGeneration($value)
+            ? $objectId
+            : null;
+    }
+
+    private function isRefValue(mixed $value): bool
+    {
+        return $this->refObjectId($value) !== null;
     }
 
     private function nameValue(mixed $value): ?string
@@ -612,11 +648,13 @@ final class PdfNamedDestinationExtractor
             && ($tokens[$index + 2]['type'] ?? null) === 'keyword'
             && ($tokens[$index + 2]['value'] ?? null) === 'R'
             && is_int($token['value'])
+            && is_int($tokens[$index + 1]['value'] ?? null)
         ) {
             $objectId = $token['value'];
+            $generation = $tokens[$index + 1]['value'];
             $index += 3;
 
-            return ['__pdf_ref' => $objectId];
+            return ['__pdf_ref' => $objectId, '__pdf_generation' => $generation];
         }
 
         $index++;
