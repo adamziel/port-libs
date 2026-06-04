@@ -50,9 +50,6 @@ final class BatchConverter
      */
     public function chunkFiles(array $files, int $chunkIndex = 0, int $numChunks = 1, ?int $maxFiles = null): array
     {
-        if ($chunkIndex < 0) {
-            throw new InvalidArgumentException('Batch chunk index must be zero or greater.');
-        }
         if ($numChunks < 1) {
             throw new InvalidArgumentException('Batch chunk count must be at least one.');
         }
@@ -63,7 +60,8 @@ final class BatchConverter
             return [];
         }
 
-        $selected = array_slice($files, $chunkIndex * $chunkSize, $chunkSize);
+        $startIndex = $chunkIndex * $chunkSize;
+        $selected = $this->pythonSlice($files, $startIndex, $startIndex + $chunkSize);
         if ($this->pythonTruthyInteger($maxFiles)) {
             $selected = array_slice($selected, 0, (int) $maxFiles);
         }
@@ -265,6 +263,11 @@ final class BatchConverter
         $chunkSize = $numChunks < 1 ? 0 : (int) ceil(count($inputFiles) / $numChunks);
         $startIndex = $chunkIndex * $chunkSize;
         $endIndex = $startIndex + $chunkSize;
+        [$pythonSliceStartIndex, $pythonSliceEndIndex] = $this->pythonSliceBounds(
+            $startIndex,
+            $endIndex,
+            count($inputFiles)
+        );
         $totalProcesses = $workers < 1 ? 0 : min(count($taskArgs), $workers);
         $poolErrorBoundary = null;
         if ($workers < 1) {
@@ -310,6 +313,9 @@ final class BatchConverter
                 'chunk_size' => $chunkSize,
                 'start_index' => $startIndex,
                 'end_index' => $endIndex,
+                'python_slice_start_index' => $pythonSliceStartIndex,
+                'python_slice_end_index' => $pythonSliceEndIndex,
+                'negative_chunk_index_active' => $chunkIndex < 0,
                 'max_files' => $maxFiles,
                 'max_files_limit_active' => $this->pythonTruthyInteger($maxFiles),
                 'input_file_count' => count($inputFiles),
@@ -765,6 +771,46 @@ final class BatchConverter
     private function pythonTruthyInteger(?int $value): bool
     {
         return $value !== null && $value !== 0;
+    }
+
+    /**
+     * @param list<string> $items
+     * @return list<string>
+     */
+    private function pythonSlice(array $items, int $start, int $end): array
+    {
+        [$start, $end] = $this->pythonSliceBounds($start, $end, count($items));
+        if ($end <= $start) {
+            return [];
+        }
+
+        return array_values(array_slice($items, $start, $end - $start));
+    }
+
+    /**
+     * @return array{0: int, 1: int}
+     */
+    private function pythonSliceBounds(int $start, int $end, int $count): array
+    {
+        return [
+            $this->pythonSliceIndex($start, $count),
+            $this->pythonSliceIndex($end, $count),
+        ];
+    }
+
+    private function pythonSliceIndex(int $index, int $count): int
+    {
+        if ($index < 0) {
+            $index += $count;
+        }
+        if ($index < 0) {
+            return 0;
+        }
+        if ($index > $count) {
+            return $count;
+        }
+
+        return $index;
     }
 
     private function absolutePath(string $path): string

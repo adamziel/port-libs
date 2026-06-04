@@ -74,6 +74,13 @@ try {
         maxFiles: -1,
         workers: 8
     );
+    $negativeChunkPlan = $batch->runtimeMainPreflightPlan(
+        $input,
+        $output,
+        chunkIndex: -2,
+        numChunks: 2,
+        workers: 8
+    );
     $plans = [];
     foreach (['already-imported.pdf', 'extension-spoof.pdf', 'short-text.pdf', 'ready-for-marker.pdf'] as $filename) {
         $plans[$filename] = $batch->processFilePreflightPlan(
@@ -139,6 +146,14 @@ try {
     if ($negativeMaxPlan['chunking']['max_files_limit_active'] !== true || $negativeMaxPlan['chunking']['selected_count'] !== 3) {
         throw new RuntimeException('Expected negative --max to behave like upstream Python slicing and drop the tail of the queue.');
     }
+    if (
+        $negativeChunkPlan['chunking']['negative_chunk_index_active'] !== true
+        || $negativeChunkPlan['chunking']['python_slice_start_index'] !== 0
+        || $negativeChunkPlan['chunking']['python_slice_end_index'] !== 2
+        || $negativeChunkPlan['chunking']['selected_filenames'] !== ['already-imported.pdf', 'extension-spoof.pdf']
+    ) {
+        throw new RuntimeException('Expected negative --chunk_idx to follow upstream Python slice normalization before task tuples are built.');
+    }
     if ($zeroMinLengthSpoof['min_length_gate_active'] !== false || $zeroMinLengthSpoof['filetype_checked'] !== false || $zeroMinLengthSpoof['status'] !== 'ready-for-conversion') {
         throw new RuntimeException('Expected --min_length=0 to leave filetype preflight inactive like upstream convert.py.');
     }
@@ -172,6 +187,15 @@ try {
         'runtime_max_files_limit_active' => $runtimePlan['chunking']['max_files_limit_active'],
         'runtime_zero_max_selected_count' => $runtimePlan['chunking']['selected_count'],
         'negative_max_selected_filenames' => $negativeMaxPlan['chunking']['selected_filenames'],
+        'negative_chunk_selected_filenames' => $negativeChunkPlan['chunking']['selected_filenames'],
+        'negative_chunk_raw_slice' => [
+            $negativeChunkPlan['chunking']['start_index'],
+            $negativeChunkPlan['chunking']['end_index'],
+        ],
+        'negative_chunk_python_slice' => [
+            $negativeChunkPlan['chunking']['python_slice_start_index'],
+            $negativeChunkPlan['chunking']['python_slice_end_index'],
+        ],
         'runtime_output_folder_creation_required' => $runtimePlan['paths']['output_folder_creation_required'],
         'status_by_filename' => array_map(static fn (array $plan): string => (string) $plan['status'], $plans),
         'skip_reasons' => array_map(static fn (array $plan): ?string => $plan['skip_reason'], $plans),
