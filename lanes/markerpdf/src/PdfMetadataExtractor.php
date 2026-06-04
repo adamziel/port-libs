@@ -3070,11 +3070,13 @@ final class PdfMetadataExtractor
             ];
         }
 
+        $actionType = $this->dictionaryNameValue($action['body'], 'S', $objects);
         $actionDestination = $this->dictionaryTopLevelRawValue($action['body'], 'D');
+
         return [
-            'value' => $actionDestination,
+            'value' => $actionType === 'GoTo' ? $actionDestination : null,
             'name' => $actionDestination === null ? null : $this->destinationNameFromRaw($actionDestination, $objects),
-            'action_type' => $this->dictionaryNameValue($action['body'], 'S', $objects),
+            'action_type' => $actionType,
             'action_object' => $action['object'],
         ];
     }

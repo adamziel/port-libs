@@ -85,6 +85,29 @@ $outlineMetadataBoundaryPdf = static function (): array {
     return [$pdf, $currentXmp, $staleXmp, $staleContent];
 };
 
+$outlineActionDestinationBoundaryPdf = static function (): string {
+    $introContent = 'BT /F1 12 Tf 72 720 Td (Outline action destination boundary intro body) Tj ET';
+    $targetContent = 'BT /F1 12 Tf 72 720 Td (Outline action destination boundary local target body) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R /Names << /Dests 20 0 R >> /PageMode /UseOutlines >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 30 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 31 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Outlines /First 6 0 R /Last 9 0 R /Count 4 >>\nendobj\n"
+        . "6 0 obj\n<< /Title (Local Action Boundary Chapter) /Parent 5 0 R /Dest /CurrentLocalTarget /Next 7 0 R >>\nendobj\n"
+        . "7 0 obj\n<< /Title (Remote Action Boundary Appendix) /Parent 5 0 R /A 12 0 R /Prev 6 0 R /Next 8 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Title (URI Action Boundary Appendix) /Parent 5 0 R /A 13 0 R /Prev 7 0 R /Next 9 0 R >>\nendobj\n"
+        . "9 0 obj\n<< /Title (Embedded Action Boundary Appendix) /Parent 5 0 R /A 14 0 R /Prev 8 0 R >>\nendobj\n"
+        . "12 0 obj\n<< /S /GoToR /F (remote-outline.pdf) /D /CurrentLocalTarget /NewWindow true >>\nendobj\n"
+        . "13 0 obj\n<< /S /URI /URI (https://example.com/remote-outline-review) /D /CurrentLocalTarget >>\nendobj\n"
+        . "14 0 obj\n<< /S /GoToE /T << /R /C /N (embedded-outline.pdf) >> /D /CurrentLocalTarget /NewWindow false >>\nendobj\n"
+        . "20 0 obj\n<< /Names [(CurrentLocalTarget) [4 0 R /FitH 680]] >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($introContent) . " >>\nstream\n{$introContent}\nendstream\nendobj\n"
+        . "31 0 obj\n<< /Length " . strlen($targetContent) . " >>\nstream\n{$targetContent}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'summarizes current xref-selected catalog Outlines in document metadata' => static function (
         TestRunner $t
@@ -202,5 +225,64 @@ return [
         $t->true(!str_contains($plainText, 'Stale Outline Metadata Boundary Title'));
         $t->true(!str_contains($plainText, 'Stale Outline Metadata Title'));
         $t->true(!str_contains($plainText, $staleContent));
+    },
+    'does not resolve remote outline action destinations as current-document metadata targets' => static function (
+        TestRunner $t
+    ) use ($outlineActionDestinationBoundaryPdf): void {
+        $pdf = $outlineActionDestinationBoundaryPdf();
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $outline = $metadata['document_outline'] ?? [];
+        $items = $outline['items'] ?? [];
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['catalog'], $metadata['source']);
+        $t->same('UseOutlines', $metadata['page_mode']);
+        $t->same('catalog_outlines', $outline['source'] ?? null);
+        $t->same(5, $outline['outline_root_object'] ?? null);
+        $t->same(6, $outline['first_item_object'] ?? null);
+        $t->same(9, $outline['last_item_object'] ?? null);
+        $t->same(4, $outline['declared_visible_count'] ?? null);
+        $t->same(4, $outline['item_count'] ?? null);
+        $t->same(1, $outline['resolved_destination_count'] ?? null);
+        $t->same(3, $outline['unresolved_destination_count'] ?? null);
+        $t->same([
+            'Local Action Boundary Chapter',
+            'Remote Action Boundary Appendix',
+            'URI Action Boundary Appendix',
+            'Embedded Action Boundary Appendix',
+        ], $outline['titles'] ?? []);
+        $t->same([6, 7, 8, 9], array_column($items, 'outline_object'));
+        $t->same([5, 5, 5, 5], array_column($items, 'parent_object'));
+        $t->same(['CurrentLocalTarget', 'CurrentLocalTarget', 'CurrentLocalTarget', 'CurrentLocalTarget'], array_column($items, 'destination'));
+
+        $t->same(true, $items[0]['destination_resolved'] ?? null);
+        $t->same(null, $items[0]['action_type'] ?? null);
+        $t->same(1, $items[0]['page'] ?? null);
+        $t->same(4, $items[0]['page_object'] ?? null);
+        $t->same('FitH', $items[0]['view_mode'] ?? null);
+        $t->same(['top' => 680.0], $items[0]['view_parameters'] ?? null);
+
+        foreach ([1 => 'GoToR', 2 => 'URI', 3 => 'GoToE'] as $index => $actionType) {
+            $t->same($actionType, $items[$index]['action_type'] ?? null);
+            $t->same(11 + $index, $items[$index]['action_object'] ?? null);
+            $t->same(false, $items[$index]['destination_resolved'] ?? null);
+            $t->true(!array_key_exists('page', $items[$index]));
+            $t->true(!array_key_exists('page_object', $items[$index]));
+            $t->true(!array_key_exists('view_mode', $items[$index]));
+            $t->true(!array_key_exists('view_parameters', $items[$index]));
+        }
+
+        $t->same("Outline action destination boundary intro body\nOutline action destination boundary local target body", $plainText);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'remote-outline.pdf'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'remote-outline-review'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'embedded-outline.pdf'));
+        $t->true(!str_contains($plainText, 'Local Action Boundary Chapter'));
+        $t->true(!str_contains($plainText, 'Remote Action Boundary Appendix'));
+        $t->true(!str_contains($plainText, 'URI Action Boundary Appendix'));
+        $t->true(!str_contains($plainText, 'Embedded Action Boundary Appendix'));
+        $t->true(!str_contains($plainText, 'remote-outline.pdf'));
+        $t->true(!str_contains($plainText, 'remote-outline-review'));
+        $t->true(!str_contains($plainText, 'embedded-outline.pdf'));
     },
 ];
