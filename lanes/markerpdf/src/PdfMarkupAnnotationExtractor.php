@@ -412,12 +412,51 @@ final class PdfMarkupAnnotationExtractor
      */
     private function annotationBodiesForPage(string $pageBody, array $objects): array
     {
-        $annots = $this->valueAfterName($pageBody, 'Annots');
+        $annots = $this->pageDictionaryValueAfterName($pageBody, 'Annots');
         if ($annots === null) {
             return [];
         }
 
         return $this->annotationBodiesFromValue($annots, $objects);
+    }
+
+    private function pageDictionaryValueAfterName(string $pageBody, string $name): ?string
+    {
+        $dictionary = $this->dictionaryObjectBody($pageBody);
+        if ($dictionary === null) {
+            return $this->valueAfterName($pageBody, $name);
+        }
+
+        $offset = 0;
+        $length = strlen($dictionary);
+        while ($offset < $length) {
+            $this->skipWhitespace($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($dictionary[$offset] !== '/') {
+                $offset++;
+                continue;
+            }
+
+            $nameEnd = $this->skipPdfName($dictionary, $offset);
+            $key = substr($dictionary, $offset + 1, $nameEnd - $offset - 1);
+            $valueEnd = null;
+            $value = $this->valueStartingAtOffsetWithEnd($dictionary, $nameEnd, $valueEnd);
+            if ($value === null || $valueEnd === null || $valueEnd <= $nameEnd) {
+                $offset = max($nameEnd, $offset + 1);
+                continue;
+            }
+
+            if ($key === $name) {
+                return $value;
+            }
+
+            $offset = $valueEnd;
+        }
+
+        return null;
     }
 
     /**
@@ -857,6 +896,11 @@ final class PdfMarkupAnnotationExtractor
         }
 
         $offset = $match[0][1] + strlen($match[0][0]);
+        return $this->valueStartingAtOffsetWithEnd($body, $offset);
+    }
+
+    private function valueStartingAtOffsetWithEnd(string $body, int $offset, ?int &$endOffset = null): ?string
+    {
         while ($offset < strlen($body) && ctype_space($body[$offset])) {
             $offset++;
         }
@@ -865,30 +909,41 @@ final class PdfMarkupAnnotationExtractor
             return null;
         }
 
+        if (preg_match('/\G\d+\s+\d+\s+R\b/s', $body, $ref, 0, $offset) === 1) {
+            $endOffset = $offset + strlen($ref[0]);
+            return $ref[0];
+        }
+
         if ($body[$offset] === '[') {
-            $endOffset = null;
-            $this->readPdfArrayAt($body, $offset, $endOffset);
-            return $endOffset === null ? null : substr($body, $offset, $endOffset - $offset);
+            $arrayEndOffset = null;
+            $this->readPdfArrayAt($body, $offset, $arrayEndOffset);
+            $endOffset = $arrayEndOffset;
+            return $arrayEndOffset === null ? null : substr($body, $offset, $arrayEndOffset - $offset);
         }
 
         if (substr($body, $offset, 2) === '<<') {
-            $endOffset = null;
-            $this->readPdfDictionaryAt($body, $offset, $endOffset);
-            return $endOffset === null ? null : substr($body, $offset, $endOffset - $offset);
+            $dictionaryEndOffset = null;
+            $this->readPdfDictionaryAt($body, $offset, $dictionaryEndOffset);
+            $endOffset = $dictionaryEndOffset;
+            return $dictionaryEndOffset === null ? null : substr($body, $offset, $dictionaryEndOffset - $offset);
         }
 
         if ($body[$offset] === '(') {
-            $endOffset = $this->skipLiteralString($body, $offset);
-            return substr($body, $offset, $endOffset - $offset);
+            $literalEndOffset = $this->skipLiteralString($body, $offset);
+            $endOffset = $literalEndOffset;
+            return substr($body, $offset, $literalEndOffset - $offset);
         }
 
         if ($body[$offset] === '<') {
-            $endOffset = $this->skipHexString($body, $offset);
-            return substr($body, $offset, $endOffset - $offset);
+            $hexEndOffset = $this->skipHexString($body, $offset);
+            $endOffset = $hexEndOffset;
+            return substr($body, $offset, $hexEndOffset - $offset);
         }
 
-        if (preg_match('/\G\d+\s+\d+\s+R\b/s', $body, $ref, 0, $offset) === 1) {
-            return $ref[0];
+        if ($body[$offset] === '/') {
+            $nameEndOffset = $this->skipPdfName($body, $offset);
+            $endOffset = $nameEndOffset;
+            return substr($body, $offset, $nameEndOffset - $offset);
         }
 
         $end = $offset;
@@ -896,6 +951,7 @@ final class PdfMarkupAnnotationExtractor
             $end++;
         }
 
+        $endOffset = $end;
         return substr($body, $offset, max(0, $end - $offset));
     }
 
@@ -1465,6 +1521,16 @@ final class PdfMarkupAnnotationExtractor
     {
         $end = strpos($value, '>', $offset + 1);
         return $end === false ? strlen($value) : $end + 1;
+    }
+
+    private function skipPdfName(string $value, int $offset): int
+    {
+        $end = $offset + 1;
+        while ($end < strlen($value) && !ctype_space($value[$end]) && !str_contains('[]()<>{}/%', $value[$end])) {
+            $end++;
+        }
+
+        return $end;
     }
 
     /**

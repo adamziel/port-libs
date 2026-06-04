@@ -1647,12 +1647,22 @@ final class PdfAnnotationExtractor
      */
     private function annotationRecordsForPage(string $pageBody, array $objects): array
     {
-        $annots = $this->valueAfterName($pageBody, 'Annots');
+        $annots = $this->pageDictionaryValueAfterName($pageBody, 'Annots');
         if ($annots === null) {
             return [];
         }
 
         return $this->annotationRecordsFromValue($annots, $objects);
+    }
+
+    private function pageDictionaryValueAfterName(string $pageBody, string $name): ?string
+    {
+        $dictionary = $this->dictionaryObjectBody($pageBody);
+        if ($dictionary !== null) {
+            return $this->dictionaryRawValue($dictionary, $name);
+        }
+
+        return $this->valueAfterName($pageBody, $name);
     }
 
     /**
