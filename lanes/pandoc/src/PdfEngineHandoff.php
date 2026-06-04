@@ -1,0 +1,380 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\Pandoc;
+
+final class PdfEngineHandoff
+{
+    /**
+     * @var array<string, array{family:string, intermediate:string, extension:string, defaultArgs:list<string>}>
+     */
+    private const ENGINE_PROFILES = [
+        'pdflatex' => ['family' => 'latex', 'intermediate' => 'latex', 'extension' => 'tex', 'defaultArgs' => ['-halt-on-error', '-interaction=nonstopmode']],
+        'lualatex' => ['family' => 'latex', 'intermediate' => 'latex', 'extension' => 'tex', 'defaultArgs' => ['-halt-on-error', '-interaction=nonstopmode']],
+        'xelatex' => ['family' => 'latex', 'intermediate' => 'latex', 'extension' => 'tex', 'defaultArgs' => ['-halt-on-error', '-interaction=nonstopmode']],
+        'latexmk' => ['family' => 'latex', 'intermediate' => 'latex', 'extension' => 'tex', 'defaultArgs' => ['-pdf', '-halt-on-error', '-interaction=nonstopmode']],
+        'tectonic' => ['family' => 'latex', 'intermediate' => 'latex', 'extension' => 'tex', 'defaultArgs' => []],
+        'context' => ['family' => 'context', 'intermediate' => 'context', 'extension' => 'tex', 'defaultArgs' => []],
+        'pdfroff' => ['family' => 'roff', 'intermediate' => 'ms', 'extension' => 'ms', 'defaultArgs' => []],
+        'wkhtmltopdf' => ['family' => 'html', 'intermediate' => 'html5', 'extension' => 'html', 'defaultArgs' => []],
+        'weasyprint' => ['family' => 'html', 'intermediate' => 'html5', 'extension' => 'html', 'defaultArgs' => []],
+        'prince' => ['family' => 'html', 'intermediate' => 'html5', 'extension' => 'html', 'defaultArgs' => []],
+        'pagedjs-cli' => ['family' => 'html', 'intermediate' => 'html5', 'extension' => 'html', 'defaultArgs' => []],
+        'typst' => ['family' => 'typst', 'intermediate' => 'typst', 'extension' => 'typ', 'defaultArgs' => []],
+    ];
+
+    /**
+     * @param array{
+     *     engine?: string,
+     *     outputPath?: string,
+     *     output?: string,
+     *     sourcePath?: string,
+     *     source?: string,
+     *     engineOptions?: list<string>|string
+     * } $options
+     * @return array{
+     *     kind: string,
+     *     target: string,
+     *     willExecute: bool,
+     *     engineProgram: string,
+     *     engine: string,
+     *     engineFamily: string,
+     *     intermediateFormat: string,
+     *     sourceFile: string,
+     *     outputFile: string,
+     *     argv: list<string>,
+     *     engineOptions: list<string>,
+     *     sourceBytes: string|null,
+     *     sourceSha256: string|null,
+     *     metadata: array<string, mixed>,
+     *     diagnostics: list<string>
+     * }
+     */
+    public function plan(AstNode $document, array $options = []): array
+    {
+        if ($document->type !== 'document') {
+            throw new \InvalidArgumentException('PDF engine handoff expects a document node');
+        }
+
+        $engineProgram = $this->requireString($options['engine'] ?? 'pdflatex', 'PDF engine');
+        $engine = $this->engineName($engineProgram);
+        if (!isset(self::ENGINE_PROFILES[$engine])) {
+            throw new \InvalidArgumentException('Unsupported PDF engine: ' . $engineProgram);
+        }
+
+        $profile = self::ENGINE_PROFILES[$engine];
+        $outputFile = $this->normalizeRelativePath((string) ($options['outputPath'] ?? $options['output'] ?? 'document.pdf'), 'PDF output path');
+        if (!preg_match('/\.pdf\z/i', $outputFile)) {
+            throw new \InvalidArgumentException('PDF output path must end with .pdf');
+        }
+
+        $sourceFile = isset($options['sourcePath'])
+            ? $this->normalizeRelativePath($this->requireString($options['sourcePath'], 'PDF source path'), 'PDF source path')
+            : $this->deriveSourcePath($outputFile, $profile['extension']);
+        $engineOptions = $this->normalizeStringList($options['engineOptions'] ?? []);
+        $sourceBytes = array_key_exists('source', $options)
+            ? $this->requireString($options['source'], 'PDF intermediate source')
+            : $this->renderIntermediateSource($document, $profile['intermediate']);
+
+        $diagnostics = ['pdf-engine-not-executed'];
+        if ($sourceBytes === null) {
+            $diagnostics[] = 'intermediate-writer-pending:' . $profile['intermediate'];
+        } elseif (array_key_exists('source', $options)) {
+            $diagnostics[] = 'intermediate-source-supplied';
+        } else {
+            $diagnostics[] = 'intermediate-source-rendered:' . $profile['intermediate'];
+        }
+
+        return [
+            'kind' => 'pandoc-pdf-engine-handoff',
+            'target' => 'pdf',
+            'willExecute' => false,
+            'engineProgram' => $engineProgram,
+            'engine' => $engine,
+            'engineFamily' => $profile['family'],
+            'intermediateFormat' => $profile['intermediate'],
+            'sourceFile' => $sourceFile,
+            'outputFile' => $outputFile,
+            'argv' => $this->argvFor($engineProgram, $engine, $profile, $sourceFile, $outputFile, $engineOptions),
+            'engineOptions' => $engineOptions,
+            'sourceBytes' => $sourceBytes,
+            'sourceSha256' => $sourceBytes === null ? null : hash('sha256', $sourceBytes),
+            'metadata' => $this->metadataSummary($document),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $plan
+     * @param array{exitCode?: int, stdout?: string, stderr?: string, files?: array<string, string>} $result
+     * @return array{
+     *     ok: bool,
+     *     status: string,
+     *     reason: string|null,
+     *     engine: string,
+     *     outputFile: string,
+     *     exitCode: int,
+     *     bytes: int,
+     *     sourceSha256: string|null,
+     *     pdfSha256: string|null,
+     *     stdout: string,
+     *     stderr: string,
+     *     diagnostics: list<string>
+     * }
+     */
+    public function fakeRun(array $plan, array $result = []): array
+    {
+        $sourceFile = $this->requirePlanString($plan, 'sourceFile');
+        $outputFile = $this->requirePlanString($plan, 'outputFile');
+        $engine = $this->requirePlanString($plan, 'engine');
+        $exitCode = (int) ($result['exitCode'] ?? 0);
+        $files = $this->normalizeFileMap($result['files'] ?? []);
+        $planDiagnostics = $plan['diagnostics'] ?? [];
+        if (!is_array($planDiagnostics)) {
+            $planDiagnostics = [];
+        }
+        $diagnostics = array_values(array_filter(
+            $planDiagnostics,
+            static fn (mixed $value): bool => is_string($value) && $value !== ''
+        ));
+        $diagnostics[] = 'fake-runner-no-execution';
+
+        $sourceBytes = $plan['sourceBytes'] ?? null;
+        $sourceSha256 = null;
+        $status = 'ok';
+        $reason = null;
+
+        if (is_string($sourceBytes)) {
+            if (!array_key_exists($sourceFile, $files)) {
+                $files[$sourceFile] = $sourceBytes;
+                $diagnostics[] = 'staged-source-from-plan';
+            } elseif ($files[$sourceFile] !== $sourceBytes) {
+                $status = 'failed';
+                $reason = 'source-mismatch';
+            }
+        }
+
+        if (array_key_exists($sourceFile, $files)) {
+            $sourceSha256 = hash('sha256', $files[$sourceFile]);
+        }
+
+        $pdfBytes = array_key_exists($outputFile, $files) ? $files[$outputFile] : null;
+        if ($reason === null && $exitCode !== 0) {
+            $status = 'failed';
+            $reason = 'engine-exit-' . $exitCode;
+        }
+        if ($reason === null && $pdfBytes === null) {
+            $status = 'failed';
+            $reason = 'missing-pdf-output';
+        }
+        if ($reason === null && !str_starts_with((string) $pdfBytes, '%PDF-')) {
+            $status = 'failed';
+            $reason = 'non-pdf-output';
+        }
+
+        return [
+            'ok' => $status === 'ok',
+            'status' => $status,
+            'reason' => $reason,
+            'engine' => $engine,
+            'outputFile' => $outputFile,
+            'exitCode' => $exitCode,
+            'bytes' => is_string($pdfBytes) ? strlen($pdfBytes) : 0,
+            'sourceSha256' => $sourceSha256,
+            'pdfSha256' => is_string($pdfBytes) && str_starts_with($pdfBytes, '%PDF-') ? hash('sha256', $pdfBytes) : null,
+            'stdout' => (string) ($result['stdout'] ?? ''),
+            'stderr' => (string) ($result['stderr'] ?? ''),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    private function engineName(string $engineProgram): string
+    {
+        $engineProgram = $this->requireString($engineProgram, 'PDF engine');
+        $normalized = str_replace('\\', '/', $engineProgram);
+        $basename = strtolower(basename($normalized));
+
+        return preg_replace('/(?:\.exe|\.bat|\.cmd)\z/i', '', $basename) ?? $basename;
+    }
+
+    /**
+     * @param array{family:string, intermediate:string, extension:string, defaultArgs:list<string>} $profile
+     * @param list<string> $engineOptions
+     * @return list<string>
+     */
+    private function argvFor(string $program, string $engine, array $profile, string $sourceFile, string $outputFile, array $engineOptions): array
+    {
+        $argv = [$program];
+
+        if ($engine === 'typst') {
+            return array_merge($argv, ['compile'], $engineOptions, [$sourceFile, $outputFile]);
+        }
+
+        if ($engine === 'pdfroff') {
+            return array_merge($argv, $engineOptions, ['-o', $outputFile, $sourceFile]);
+        }
+
+        if ($engine === 'prince' || $engine === 'pagedjs-cli') {
+            return array_merge($argv, $engineOptions, [$sourceFile, '-o', $outputFile]);
+        }
+
+        if ($profile['family'] === 'html') {
+            return array_merge($argv, $engineOptions, [$sourceFile, $outputFile]);
+        }
+
+        return array_merge($argv, $profile['defaultArgs'], $engineOptions, [$sourceFile]);
+    }
+
+    private function renderIntermediateSource(AstNode $document, string $intermediateFormat): ?string
+    {
+        if ($intermediateFormat === 'latex') {
+            return (new LatexWriter())->write($document);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function metadataSummary(AstNode $document): array
+    {
+        $metadata = $document->attr('meta', $document->attr('metadata', []));
+        if (!is_array($metadata)) {
+            return [];
+        }
+
+        $summary = [];
+        foreach (['title', 'author', 'authors', 'date', 'lang', 'papersize', 'geometry', 'documentclass'] as $key) {
+            if (array_key_exists($key, $metadata)) {
+                $summary[$key] = $this->normalizeMetadataValue($metadata[$key]);
+            }
+        }
+
+        return $summary;
+    }
+
+    private function normalizeMetadataValue(mixed $value): mixed
+    {
+        if (is_scalar($value) || $value === null) {
+            return $value;
+        }
+
+        if (is_array($value)) {
+            $normalized = [];
+            foreach ($value as $key => $item) {
+                $normalized[$key] = $this->normalizeMetadataValue($item);
+            }
+
+            return $normalized;
+        }
+
+        return (string) $value;
+    }
+
+    private function deriveSourcePath(string $outputFile, string $extension): string
+    {
+        $lastSlash = strrpos($outputFile, '/');
+        $directory = $lastSlash === false ? '' : substr($outputFile, 0, $lastSlash + 1);
+        $basename = $lastSlash === false ? $outputFile : substr($outputFile, $lastSlash + 1);
+        $stem = preg_replace('/\.pdf\z/i', '', $basename) ?? 'document';
+        if ($stem === '') {
+            $stem = 'document';
+        }
+
+        return $directory . $stem . '.' . $extension;
+    }
+
+    private function normalizeRelativePath(string $path, string $label): string
+    {
+        $path = str_replace('\\', '/', trim($path));
+        if ($path === '') {
+            throw new \InvalidArgumentException($label . ' must not be empty');
+        }
+        if (str_contains($path, "\0")) {
+            throw new \InvalidArgumentException($label . ' must not contain NUL bytes');
+        }
+        if (str_starts_with($path, '/') || preg_match('/\A[A-Za-z]:\//', $path) === 1) {
+            throw new \InvalidArgumentException($label . ' must be relative to the handoff workspace');
+        }
+
+        $parts = [];
+        foreach (explode('/', $path) as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                throw new \InvalidArgumentException($label . ' must not contain parent-directory segments');
+            }
+            $parts[] = $part;
+        }
+
+        if ($parts === []) {
+            throw new \InvalidArgumentException($label . ' must name a file');
+        }
+
+        return implode('/', $parts);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizeStringList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = [$value];
+        }
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException('PDF engine options must be strings');
+        }
+
+        $strings = [];
+        foreach ($value as $item) {
+            $strings[] = $this->requireString($item, 'PDF engine option');
+        }
+
+        return $strings;
+    }
+
+    /**
+     * @param array<string, mixed> $files
+     * @return array<string, string>
+     */
+    private function normalizeFileMap(array $files): array
+    {
+        $normalized = [];
+        foreach ($files as $path => $bytes) {
+            $normalized[$this->normalizeRelativePath((string) $path, 'fake runner file path')] = $this->requireString($bytes, 'fake runner file bytes');
+        }
+
+        return $normalized;
+    }
+
+    private function requireString(mixed $value, string $label): string
+    {
+        if (!is_string($value)) {
+            throw new \InvalidArgumentException($label . ' must be a string');
+        }
+        if ($value === '') {
+            throw new \InvalidArgumentException($label . ' must not be empty');
+        }
+        if (str_contains($value, "\0")) {
+            throw new \InvalidArgumentException($label . ' must not contain NUL bytes');
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string, mixed> $plan
+     */
+    private function requirePlanString(array $plan, string $key): string
+    {
+        if (!isset($plan[$key]) || !is_string($plan[$key]) || $plan[$key] === '') {
+            throw new \InvalidArgumentException('PDF fake runner requires plan key: ' . $key);
+        }
+
+        return $plan[$key];
+    }
+}
