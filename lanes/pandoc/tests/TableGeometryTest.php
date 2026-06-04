@@ -90,6 +90,34 @@ $buildRowHeadColumnDocument = static function (): AstNode {
     ]);
 };
 
+$buildSectionScopedRowspanDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Section boundary review',
+            'alignments' => ['left', 'right'],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope', 'rowspan' => 2], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'Status'], [new AstNode('text', ['text' => 'Status'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+            new AstNode('table_foot', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Total'], [new AstNode('text', ['text' => 'Total'])]),
+                    new AstNode('table_cell', ['text' => '1'], [new AstNode('text', ['text' => '1'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 return [
     'lays out pandoc table spans by visual columns for writer handoff' => static function (TestRunner $t) use ($buildSpannedTableDocument): void {
         $table = $buildSpannedTableDocument()->children[0];
@@ -156,5 +184,33 @@ return [
         $t->contains('| Pandoc | Table geometry |      4 |  Mapped  |', $markdown);
         $t->contains('|        | DOCX handoff   |     10 | Accepted |', $markdown);
         $t->contains(': Lane coverage review', $markdown);
+    },
+    'keeps rowspans scoped to table sections for wordpress and markdown handoff' => static function (TestRunner $t) use ($buildSectionScopedRowspanDocument): void {
+        $document = $buildSectionScopedRowspanDocument();
+        $table = $document->children[0];
+        $head = $table->children[0];
+        $body = $table->children[1];
+        $diagnostics = TableGeometry::diagnostics($table);
+        $headLayout = TableGeometry::layoutRows($head->children, 2);
+        $bodyLayout = TableGeometry::layoutRows($body->children, 2);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same(2, TableGeometry::columnCount($table));
+        $t->same('rowspan-crosses-section-boundary', $diagnostics[0]['code'] ?? null);
+        $t->same('head', $diagnostics[0]['section'] ?? null);
+        $t->same(0, $diagnostics[0]['row'] ?? null);
+        $t->same(0, $diagnostics[0]['column'] ?? null);
+        $t->same(2, $diagnostics[0]['rowspan'] ?? null);
+        $t->same(1, $diagnostics[0]['availableRows'] ?? null);
+        $t->same([0, 1], array_map(static fn (array $cell): int => $cell['column'], $headLayout[0]['cells']));
+        $t->same(1, $headLayout[0]['cells'][0]['rowspan']);
+        $t->same([0, 1], array_map(static fn (array $cell): int => $cell['column'], $bodyLayout[0]['cells']));
+        $t->contains('<thead><tr><th style="text-align:left">Scope</th><th style="text-align:right">Status</th></tr></thead><tbody><tr><td style="text-align:left">Posts</td><td style="text-align:right">Ready</td></tr></tbody><tfoot><tr><td style="text-align:left">Total</td><td style="text-align:right">1</td></tr></tfoot>', $blocks);
+        $t->contains('| Scope | Status |', $markdown);
+        $t->contains('|:----|-----:|', $markdown);
+        $t->contains('| Posts |  Ready |', $markdown);
+        $t->contains('| Total |      1 |', $markdown);
+        $t->contains(': Section boundary review', $markdown);
     },
 ];

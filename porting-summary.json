@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-04 19:50:23 UTC",
-    "sourceCommit": "c0b29c2f4df595f6436ef6c1ce550949bc31f263",
-    "sourceCommitShort": "c0b29c2f4df5",
+    "generated": "2026-06-04 19:58:15 UTC",
+    "sourceCommit": "29ff2ff42cf82b170e1a0875645c27e8fe158329",
+    "sourceCommitShort": "29ff2ff42cf8",
     "sourceBranch": "unknown",
-    "dashboardCommit": "c0b29c2f4df595f6436ef6c1ce550949bc31f263",
-    "dashboardCommitShort": "c0b29c2f4df5",
+    "dashboardCommit": "29ff2ff42cf82b170e1a0875645c27e8fe158329",
+    "dashboardCommitShort": "29ff2ff42cf8",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "823",
-            "coverage": "823 / 2,276 (36.2%)",
+            "mapped": "824",
+            "coverage": "824 / 2,276 (36.2%)",
             "mapPercent": "36.2%",
-            "unmapped": "1,453",
-            "php": "366 pass / 0 fail",
+            "unmapped": "1,452",
+            "php": "367 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-04 UTC DOCX/OpenXML field-code hyperlink slice on accepted ba...",
+            "audit": "2026-06-04 UTC table-geometry section-boundary rowspan slice on accep...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
             "nextTarget": "For upstream-runner dependency closure, hydrate a local Pando...",
             "remainingGate": "No local blocker",
-            "commit": "3e0384a"
+            "commit": "c0b29c2"
         },
         {
             "lane": "quadrable",

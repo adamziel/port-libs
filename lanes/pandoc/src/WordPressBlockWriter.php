@@ -550,7 +550,13 @@ final class WordPressBlockWriter
         $html = '<tr' . $this->renderStoredHtmlAttrs($row, true, []) . '>';
         foreach ($layoutRow['cells'] as $layoutCell) {
             $cell = $layoutCell['node'];
-            $attrs = $this->renderTableCellAttrs($table, $layoutCell['column'], $cell);
+            $attrs = $this->renderTableCellAttrs(
+                $table,
+                $layoutCell['column'],
+                $layoutCell['colspan'],
+                $layoutCell['rowspan'],
+                $cell
+            );
             $tag = $this->isTableHeaderCell($header, $rowHeadColumns, $layoutCell['column'], $cell) ? 'th' : 'td';
             $html .= '<' . $tag . $attrs . '>' . $this->renderTableCellContent($cell) . '</' . $tag . '>';
         }
@@ -608,15 +614,13 @@ final class WordPressBlockWriter
         ], true);
     }
 
-    private function renderTableCellAttrs(AstNode $table, int $column, AstNode $cell): string
+    private function renderTableCellAttrs(AstNode $table, int $column, int $colspan, int $rowspan, AstNode $cell): string
     {
         $attrs = $this->renderStoredHtmlAttrs($cell, false, ['style']);
-        $colspan = (int) $cell->attr('colspan', 1);
         if ($colspan > 1) {
             $attrs .= ' colspan="' . $colspan . '"';
         }
 
-        $rowspan = (int) $cell->attr('rowspan', 1);
         if ($rowspan > 1) {
             $attrs .= ' rowspan="' . $rowspan . '"';
         }

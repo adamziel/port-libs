@@ -8,23 +8,14 @@ final class TableGeometry
 {
     public static function columnCount(AstNode $table): int
     {
-        $rows = [];
+        $columnCount = max(
+            self::tableAttributeColumnCount($table->attr('alignments', [])),
+            self::tableAttributeColumnCount($table->attr('widths', []))
+        );
+
         foreach ($table->children as $section) {
             if ($section->type === 'table_body') {
-                $bodyHeadRows = $section->attr('headRows', []);
-                if (is_array($bodyHeadRows)) {
-                    foreach ($bodyHeadRows as $row) {
-                        if ($row instanceof AstNode && $row->type === 'table_row') {
-                            $rows[] = $row;
-                        }
-                    }
-                }
-
-                foreach ($section->children as $row) {
-                    if ($row->type === 'table_row') {
-                        $rows[] = $row;
-                    }
-                }
+                $columnCount = max($columnCount, self::columnCountForRows(self::bodyRows($section)));
                 continue;
             }
 
@@ -32,18 +23,10 @@ final class TableGeometry
                 continue;
             }
 
-            foreach ($section->children as $row) {
-                if ($row->type === 'table_row') {
-                    $rows[] = $row;
-                }
-            }
+            $columnCount = max($columnCount, self::columnCountForRows(self::sectionRows($section)));
         }
 
-        return max(
-            self::columnCountForRows($rows),
-            self::tableAttributeColumnCount($table->attr('alignments', [])),
-            self::tableAttributeColumnCount($table->attr('widths', []))
-        );
+        return $columnCount;
     }
 
     /**
@@ -93,16 +76,19 @@ final class TableGeometry
      */
     public static function layoutRows(array $rows, int $columnCount): array
     {
+        $rows = array_values(array_filter(
+            $rows,
+            static fn (AstNode $row): bool => $row->type === 'table_row'
+        ));
+        $rowCount = count($rows);
         $columnCount = max(0, $columnCount);
         if ($columnCount === 0) {
             $emptyRows = [];
             foreach ($rows as $row) {
-                if ($row->type === 'table_row') {
-                    $emptyRows[] = [
-                        'row' => $row,
-                        'cells' => [],
-                    ];
-                }
+                $emptyRows[] = [
+                    'row' => $row,
+                    'cells' => [],
+                ];
             }
 
             return $emptyRows;
@@ -111,11 +97,7 @@ final class TableGeometry
         $layoutRows = [];
         $activeRowspans = [];
 
-        foreach ($rows as $row) {
-            if ($row->type !== 'table_row') {
-                continue;
-            }
-
+        foreach ($rows as $rowIndex => $row) {
             $previousActiveColumns = self::activeColumns($activeRowspans);
             $consumedActiveColumns = [];
             $layoutCells = [];
@@ -132,7 +114,7 @@ final class TableGeometry
                 }
 
                 $colspan = min(self::cellColspan($cell), $columnCount - $column);
-                $rowspan = self::cellRowspan($cell);
+                $rowspan = min(self::cellRowspan($cell), max(1, $rowCount - $rowIndex));
                 $layoutCells[] = [
                     'node' => $cell,
                     'column' => $column,
@@ -155,6 +137,39 @@ final class TableGeometry
         }
 
         return $layoutRows;
+    }
+
+    /**
+     * @return list<array{code:string,section:string,row:int,column:int,rowspan:int,availableRows:int}>
+     */
+    public static function diagnostics(AstNode $table): array
+    {
+        $diagnostics = [];
+        foreach (self::sectionRowGroups($table) as $group) {
+            $rows = $group['rows'];
+            $rowCount = count($rows);
+            $layoutRows = self::layoutRows($rows, max(1, self::columnCountForRows($rows)));
+            foreach ($layoutRows as $rowIndex => $layoutRow) {
+                $availableRows = max(1, $rowCount - $rowIndex);
+                foreach ($layoutRow['cells'] as $cell) {
+                    $rowspan = self::cellRowspan($cell['node']);
+                    if ($rowspan <= $availableRows) {
+                        continue;
+                    }
+
+                    $diagnostics[] = [
+                        'code' => 'rowspan-crosses-section-boundary',
+                        'section' => $group['section'],
+                        'row' => $rowIndex,
+                        'column' => $cell['column'],
+                        'rowspan' => $rowspan,
+                        'availableRows' => $availableRows,
+                    ];
+                }
+            }
+        }
+
+        return $diagnostics;
     }
 
     /**
@@ -219,6 +234,73 @@ final class TableGeometry
     private static function tableAttributeColumnCount(mixed $columns): int
     {
         return is_array($columns) ? count($columns) : 0;
+    }
+
+    /**
+     * @return list<array{section:string,rows:list<AstNode>}>
+     */
+    private static function sectionRowGroups(AstNode $table): array
+    {
+        $groups = [];
+        $bodyIndex = 0;
+        foreach ($table->children as $section) {
+            if ($section->type === 'table_head') {
+                $groups[] = [
+                    'section' => 'head',
+                    'rows' => self::sectionRows($section),
+                ];
+                continue;
+            }
+
+            if ($section->type === 'table_body') {
+                $groups[] = [
+                    'section' => 'body' . ($bodyIndex === 0 ? '' : (string) $bodyIndex),
+                    'rows' => self::bodyRows($section),
+                ];
+                $bodyIndex++;
+                continue;
+            }
+
+            if ($section->type === 'table_foot') {
+                $groups[] = [
+                    'section' => 'foot',
+                    'rows' => self::sectionRows($section),
+                ];
+            }
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private static function sectionRows(AstNode $section): array
+    {
+        return array_values(array_filter(
+            $section->children,
+            static fn (AstNode $row): bool => $row->type === 'table_row'
+        ));
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private static function bodyRows(AstNode $body): array
+    {
+        $rows = [];
+        $bodyHeadRows = $body->attr('headRows', []);
+        if (is_array($bodyHeadRows)) {
+            foreach ($bodyHeadRows as $row) {
+                if ($row instanceof AstNode && $row->type === 'table_row') {
+                    $rows[] = $row;
+                }
+            }
+        }
+
+        array_push($rows, ...self::sectionRows($body));
+
+        return $rows;
     }
 
     private static function cellColspan(AstNode $cell): int

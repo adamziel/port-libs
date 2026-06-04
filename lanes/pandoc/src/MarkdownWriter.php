@@ -416,38 +416,45 @@ final class MarkdownWriter
      */
     private function renderTable(AstNode $node, int $indent): array
     {
-        $headRows = [];
-        $bodyRows = [];
+        $tableHeadRows = [];
+        $bodyGroups = [];
+        $footRows = [];
         foreach ($node->children as $child) {
             if ($child->type === 'table_head') {
                 foreach ($child->children as $row) {
                     if ($row->type === 'table_row') {
-                        $headRows[] = $row;
+                        $tableHeadRows[] = $row;
                     }
                 }
                 continue;
             }
 
             if ($child->type === 'table_body') {
-                $headRows = array_merge($headRows, $this->tableBodyHeadRows($child));
+                $groupHeadRows = $this->tableBodyHeadRows($child);
+                $groupBodyRows = [];
                 foreach ($child->children as $row) {
                     if ($row->type === 'table_row') {
-                        $bodyRows[] = $row;
+                        $groupBodyRows[] = $row;
                     }
                 }
+
+                $bodyGroups[] = [
+                    'headRows' => $groupHeadRows,
+                    'bodyRows' => $groupBodyRows,
+                ];
                 continue;
             }
 
             if ($child->type === 'table_foot') {
                 foreach ($child->children as $row) {
                     if ($row->type === 'table_row') {
-                        $bodyRows[] = $row;
+                        $footRows[] = $row;
                     }
                 }
             }
         }
 
-        if ($headRows === [] && $bodyRows === []) {
+        if ($tableHeadRows === [] && $bodyGroups === [] && $footRows === []) {
             return [];
         }
 
@@ -456,13 +463,35 @@ final class MarkdownWriter
             return [];
         }
 
-        if ($headRows === []) {
-            $headRows[] = new AstNode('table_row', ['header' => true], array_fill(0, $columnCount, new AstNode('table_cell')));
+        $hasBodyHeadRows = false;
+        foreach ($bodyGroups as $group) {
+            if ($group['headRows'] !== []) {
+                $hasBodyHeadRows = true;
+                break;
+            }
         }
 
-        $expandedRows = $this->expandTableRows([...$headRows, ...$bodyRows], $columnCount);
-        $expandedHeadRows = array_slice($expandedRows, 0, count($headRows));
-        $expandedBodyRows = array_slice($expandedRows, count($headRows));
+        if ($tableHeadRows === [] && !$hasBodyHeadRows) {
+            $tableHeadRows[] = new AstNode('table_row', ['header' => true], array_fill(0, $columnCount, new AstNode('table_cell')));
+        }
+
+        $expandedHeadRows = $this->expandTableRows($tableHeadRows, $columnCount);
+        $expandedBodyRows = [];
+        foreach ($bodyGroups as $group) {
+            $expandedGroupRows = $this->expandTableRows([...$group['headRows'], ...$group['bodyRows']], $columnCount);
+            $expandedHeadRows = [
+                ...$expandedHeadRows,
+                ...array_slice($expandedGroupRows, 0, count($group['headRows'])),
+            ];
+            $expandedBodyRows = [
+                ...$expandedBodyRows,
+                ...array_slice($expandedGroupRows, count($group['headRows'])),
+            ];
+        }
+        $expandedBodyRows = [
+            ...$expandedBodyRows,
+            ...$this->expandTableRows($footRows, $columnCount),
+        ];
         $renderedRows = [...$expandedHeadRows, ...$expandedBodyRows];
         $widths = $this->tableColumnWidths($renderedRows, $node->attr('widths', []), $columnCount);
         $alignments = $this->tableAlignments($node, $columnCount);
