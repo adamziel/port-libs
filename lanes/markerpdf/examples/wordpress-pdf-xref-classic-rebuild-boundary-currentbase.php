@@ -2,12 +2,23 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/PdfTextExtractor.php';
-
+use PortLibs\MarkerPDF\PdfMetadataExtractor;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
-$staleContent = 'BT /F1 12 Tf 72 720 Td (Stale classic rebuild page) Tj T* (Old trailer root leak) Tj ET';
-$currentContent = 'BT /F1 12 Tf 72 720 Td (Current classic rebuild page) Tj T* (Latest trailer boundary kept) Tj ET';
+require dirname(__DIR__, 3) . '/tools/bootstrap.php';
+
+$xmpPacket = static function (string $title): string {
+    return '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">' . htmlspecialchars($title, ENT_XML1) . '</rdf:li></rdf:Alt></dc:title>'
+        . '</rdf:Description></rdf:RDF></x:xmpmeta>';
+};
+
+$currentXmp = $xmpPacket('Current EOF Bounded XRef Title');
+$trailingXmp = $xmpPacket('Trailing Garbage XRef Title');
+$currentContent = 'BT /F1 12 Tf 72 720 Td (Current EOF bounded page) Tj T* (Post EOF xref ignored) Tj ET';
+$trailingContent = 'BT /F1 12 Tf 72 720 Td (Trailing garbage xref page) Tj T* (Post EOF root leak) Tj ET';
 
 $pdf = "%PDF-1.4\n";
 $offsets = [];
@@ -20,50 +31,61 @@ $addObject = static function (int $objectNumber, string $body) use (&$pdf, &$off
 };
 $xrefRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
 
-$addObject(1, '<< /Type /Catalog /Pages 2 0 R >>');
+$addObject(1, '<< /Type /Catalog /Pages 2 0 R /Metadata 6 0 R >>');
 $addObject(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
 $addObject(3, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>');
 $addObject(4, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
-$addObject(5, "<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream");
+$addObject(5, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+$addObject(6, "<< /Type /Metadata /Subtype /XML /Length " . strlen($currentXmp) . " >>\nstream\n{$currentXmp}\nendstream");
+$addObject(7, '<< /Title (Current EOF Bounded Info Title) /Author (Current Importer) >>');
 
-$previousXrefOffset = strlen($pdf);
 $pdf .= "xref\n"
-    . "0 6\n"
+    . "0 8\n"
     . $xrefRow(0, 65535, 'f')
     . $xrefRow($offsets[1])
     . $xrefRow($offsets[2])
     . $xrefRow($offsets[3])
     . $xrefRow($offsets[4])
     . $xrefRow($offsets[5])
-    . "trailer\n<< /Size 15 /Root 1 0 R >>\n"
-    . "startxref\n{$previousXrefOffset}\n%%EOF\n";
+    . $xrefRow($offsets[6])
+    . $xrefRow($offsets[7])
+    . "trailer\n<< /Size 28 /Root 1 0 R /Info 7 0 R >>\n"
+    . "startxref\n999999\n%%EOF\n";
 
-$addObject(10, '<< /Type /Catalog /Pages 11 0 R >>');
-$addObject(11, '<< /Type /Pages /Kids [12 0 R] /Count 1 >>');
-$addObject(12, '<< /Type /Page /Parent 11 0 R /Resources << /Font << /F1 13 0 R >> >> /Contents 14 0 R >>');
-$addObject(13, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
-$addObject(14, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+$addObject(20, '<< /Type /Catalog /Pages 21 0 R /Metadata 26 0 R >>');
+$addObject(21, '<< /Type /Pages /Kids [22 0 R] /Count 1 >>');
+$addObject(22, '<< /Type /Page /Parent 21 0 R /Resources << /Font << /F1 23 0 R >> >> /Contents 24 0 R >>');
+$addObject(23, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+$addObject(24, "<< /Length " . strlen($trailingContent) . " >>\nstream\n{$trailingContent}\nendstream");
+$addObject(26, "<< /Type /Metadata /Subtype /XML /Length " . strlen($trailingXmp) . " >>\nstream\n{$trailingXmp}\nendstream");
+$addObject(27, '<< /Title (Trailing Garbage Info Title) /Author (Garbage Importer) >>');
 
 $pdf .= "xref\n"
-    . "10 5\n"
-    . $xrefRow($offsets[10])
-    . $xrefRow($offsets[11])
-    . $xrefRow($offsets[12])
-    . $xrefRow($offsets[13])
-    . $xrefRow($offsets[14])
-    . "trailer\n<< /Size 15 /Root 10 0 R >>\n"
-    . "startxref\n999999\n%%EOF";
+    . "20 8\n"
+    . $xrefRow($offsets[20])
+    . $xrefRow($offsets[21])
+    . $xrefRow($offsets[22])
+    . $xrefRow($offsets[23])
+    . $xrefRow($offsets[24])
+    . $xrefRow(0, 65535, 'f')
+    . $xrefRow($offsets[26])
+    . $xrefRow($offsets[27])
+    . "trailer\n<< /Size 28 /Root 20 0 R /Info 27 0 R >>\n";
 
 $extractor = new PdfTextExtractor();
+$metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
 $plainText = $extractor->extractPlainText($pdf);
 $paragraphs = array_filter(array_map('trim', explode("\n", $plainText)));
+$encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES) ?: '';
 
 echo '<!-- markerpdf-xref-classic-rebuild-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
-    'native_boundary' => 'damaged startxref recovers the latest valid classic xref trailer root before text extraction',
-    'uses_latest_classic_trailer_root' => str_contains($plainText, 'Current classic rebuild page'),
-    'keeps_latest_trailer_boundary' => str_contains($plainText, 'Latest trailer boundary kept'),
-    'excludes_stale_classic_rebuild_page' => !str_contains($plainText, 'Stale classic rebuild page'),
-    'excludes_old_trailer_root_leak' => !str_contains($plainText, 'Old trailer root leak'),
+    'native_boundary' => 'damaged startxref rebuild ignores plausible classic xref tables appended after the selected EOF boundary',
+    'uses_current_classic_trailer_root' => str_contains($plainText, 'Current EOF bounded page'),
+    'keeps_current_metadata_root' => ($metadata['title'] ?? null) === 'Current EOF Bounded XRef Title',
+    'keeps_current_info_root' => ($metadata['info']['Title'] ?? null) === 'Current EOF Bounded Info Title',
+    'excludes_post_eof_xref_page' => !str_contains($plainText, 'Trailing garbage xref page'),
+    'excludes_post_eof_root_leak' => !str_contains($plainText, 'Post EOF root leak'),
+    'excludes_post_eof_metadata' => !str_contains($encodedMetadata, 'Trailing Garbage'),
     'page_count' => $extractor->extractOutlineMetadata($pdf)['pages'],
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,

@@ -11587,7 +11587,12 @@ final class PdfTextExtractor
             return [];
         }
 
-        $fallbackClassicOffset = $this->latestClassicXrefTableOffset($pdfBytes, $definitions);
+        $startxrefEntry = $this->latestStartxrefEntry($pdfBytes, $definitions);
+        $fallbackClassicOffset = $this->latestClassicXrefTableOffset(
+            $pdfBytes,
+            $definitions,
+            $startxrefEntry['tokenOffset'] ?? null
+        );
         $entries = $fallbackClassicOffset === null
             ? $this->xrefTableEntries($pdfBytes, $definitions)
             : $this->xrefEntriesFromOffsetChain($pdfBytes, $fallbackClassicOffset, $objects, $definitions);
@@ -12070,7 +12075,12 @@ final class PdfTextExtractor
      */
     private function trailerRootReferenceFromLatestClassicXrefTable(string $pdfBytes, array $definitions): ?array
     {
-        $offset = $this->latestClassicXrefTableOffset($pdfBytes, $definitions);
+        $startxrefEntry = $this->latestStartxrefEntry($pdfBytes, $definitions);
+        $offset = $this->latestClassicXrefTableOffset(
+            $pdfBytes,
+            $definitions,
+            $startxrefEntry['tokenOffset'] ?? null
+        );
         if ($offset === null) {
             return null;
         }
@@ -12139,6 +12149,17 @@ final class PdfTextExtractor
      */
     private function latestStartxrefOffset(string $pdfBytes, ?array $definitions = null): ?int
     {
+        $entry = $this->latestStartxrefEntry($pdfBytes, $definitions);
+
+        return $entry['offset'] ?? null;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>>|null $definitions
+     * @return array{offset: int, tokenOffset: int}|null
+     */
+    private function latestStartxrefEntry(string $pdfBytes, ?array $definitions = null): ?array
+    {
         if (preg_match_all('/\bstartxref\s+(\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) < 1) {
             return null;
         }
@@ -12160,7 +12181,10 @@ final class PdfTextExtractor
                 continue;
             }
 
-            return max(0, (int) ($match[1][0] ?? 0));
+            return [
+                'offset' => max(0, (int) ($match[1][0] ?? 0)),
+                'tokenOffset' => $tokenOffset,
+            ];
         }
 
         return null;
@@ -12176,24 +12200,33 @@ final class PdfTextExtractor
      */
     private function startxrefOffsetWithClassicRebuild(string $pdfBytes, array $definitions): ?int
     {
-        $offset = $this->latestStartxrefOffset($pdfBytes, $definitions);
-        if ($offset === null) {
+        $entry = $this->latestStartxrefEntry($pdfBytes, $definitions);
+        if ($entry === null) {
             return null;
         }
 
-        return $this->classicRebuildOffsetForStartxref($pdfBytes, $offset, $definitions) ?? $offset;
+        return $this->classicRebuildOffsetForStartxref(
+            $pdfBytes,
+            $entry['offset'],
+            $definitions,
+            $entry['tokenOffset']
+        ) ?? $entry['offset'];
     }
 
     /**
      * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
      */
-    private function classicRebuildOffsetForStartxref(string $pdfBytes, int $offset, array $definitions): ?int
-    {
+    private function classicRebuildOffsetForStartxref(
+        string $pdfBytes,
+        int $offset,
+        array $definitions,
+        ?int $candidateBeforeOffset = null
+    ): ?int {
         if ($this->xrefStreamSectionAtOffset($offset, $definitions) !== null) {
             return null;
         }
 
-        $latestClassicOffset = $this->latestClassicXrefTableOffset($pdfBytes, $definitions);
+        $latestClassicOffset = $this->latestClassicXrefTableOffset($pdfBytes, $definitions, $candidateBeforeOffset);
         if ($latestClassicOffset === null) {
             return null;
         }
@@ -12212,11 +12245,18 @@ final class PdfTextExtractor
     /**
      * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>>|null $definitions
      */
-    private function latestClassicXrefTableOffset(string $pdfBytes, ?array $definitions = null): ?int
-    {
+    private function latestClassicXrefTableOffset(
+        string $pdfBytes,
+        ?array $definitions = null,
+        ?int $candidateBeforeOffset = null
+    ): ?int {
         $offsets = $this->xrefTableKeywordOffsets($pdfBytes);
         for ($index = count($offsets) - 1; $index >= 0; $index--) {
             $offset = $offsets[$index];
+            if ($candidateBeforeOffset !== null && $offset > $candidateBeforeOffset) {
+                continue;
+            }
+
             if ($this->xrefTableSectionAt($pdfBytes, $offset, $definitions) !== null) {
                 return $offset;
             }
