@@ -28,6 +28,10 @@ final class LegacyDocReader
 
         $wordDocument = $compoundFile->readStream('WordDocument');
         $fib = $this->readFib($wordDocument);
+        if ($fib['encrypted'] === true) {
+            throw new \RuntimeException('Legacy DOC encrypted streams are not supported by the native reader');
+        }
+
         $tableStreamName = (string) $fib['tableStream'];
         $tableStream = null;
         if ($compoundFile->hasStream($tableStreamName)) {
@@ -88,6 +92,8 @@ final class LegacyDocReader
             'fcMac' => $fcMac,
             'tableStream' => ($flags & 0x0200) !== 0 ? '1Table' : '0Table',
             'complex' => ($flags & 0x0004) !== 0,
+            'encrypted' => ($flags & 0x0100) !== 0,
+            'extendedCharacters' => ($flags & 0x1000) !== 0,
         ];
     }
 
@@ -114,6 +120,16 @@ final class LegacyDocReader
         }
 
         $bytes = substr($wordDocument, $fcMin, $fcMac - $fcMin);
+        if ($fib['extendedCharacters'] === true) {
+            if (strlen($bytes) % 2 !== 0) {
+                throw new \RuntimeException('Legacy DOC Unicode text range has an odd byte length');
+            }
+
+            return [
+                'text' => $this->decodeUtf16Le($bytes),
+                'source' => 'fib-text-range',
+            ];
+        }
 
         return [
             'text' => $this->looksLikeUtf16Le($bytes) ? $this->decodeUtf16Le($bytes) : $this->decodeWindows1252($bytes),

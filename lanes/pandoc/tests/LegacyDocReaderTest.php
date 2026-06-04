@@ -195,8 +195,8 @@ $propertySet = static function (array $values) use ($u32, $typedI2, $typedLpstr)
         . $set;
 };
 
-$buildSimpleWordDocument = static function (string $text): string {
-    $textBytes = iconv('UTF-8', 'Windows-1252//TRANSLIT', $text);
+$buildSimpleWordDocument = static function (string $text, int $flags = 0, string $encoding = 'Windows-1252//TRANSLIT'): string {
+    $textBytes = iconv('UTF-8', $encoding, $text);
     if (!is_string($textBytes)) {
         throw new RuntimeException('Unable to encode simple WordDocument test text');
     }
@@ -204,6 +204,7 @@ $buildSimpleWordDocument = static function (string $text): string {
     $fib = str_repeat("\0", 512);
     $fib = substr_replace($fib, pack('v', 0xa5ec), 0, 2);
     $fib = substr_replace($fib, pack('v', 0x00c1), 2, 2);
+    $fib = substr_replace($fib, pack('v', $flags), 10, 2);
     $fib = substr_replace($fib, pack('V', 512), 24, 4);
     $fib = substr_replace($fib, pack('V', 512 + strlen($textBytes)), 28, 4);
 
@@ -281,6 +282,8 @@ return [
 
         $t->same('doc', $document->attr('sourceFormat'));
         $t->same('fib-text-range', $document->attr('textSource'));
+        $t->same(false, $result['fib']['encrypted']);
+        $t->same(false, $result['fib']['extendedCharacters']);
         $t->same('Legacy CFB Packet', $result['metadata']['title']);
         $t->same('Migration Desk', $result['metadata']['creator']);
         $t->same('Source .doc review notes', $result['metadata']['description']);
@@ -307,6 +310,29 @@ return [
         $t->same(true, $result['fib']['complex']);
         $t->same('Legacy “smart” Unicode Ω import', $document->children[0]->children[0]->attr('text'));
         $t->contains('<p>Legacy “smart” Unicode Ω import</p>', $blocks);
+    },
+    'uses FIB extended-character flag for direct Unicode WordDocument text ranges' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("ΩЖ魚\rRésumé\r", 0x1000, 'UTF-16LE'),
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $document = $result['document'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('fib-text-range', $document->attr('textSource'));
+        $t->same(false, $result['fib']['encrypted']);
+        $t->same(true, $result['fib']['extendedCharacters']);
+        $t->same('ΩЖ魚', $document->children[0]->children[0]->attr('text'));
+        $t->same('Résumé', $document->children[1]->children[0]->attr('text'));
+        $t->contains('<p>ΩЖ魚</p>', $blocks);
+    },
+    'rejects encrypted legacy DOC FIBs before exposing extracted text' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $reader = new LegacyDocReader();
+
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Encrypted payload should stay opaque\r", 0x0100),
+        ])));
     },
     'rejects malformed legacy DOC containers without shelling out to Word' => static function (TestRunner $t) use ($buildCfb): void {
         $reader = new LegacyDocReader();

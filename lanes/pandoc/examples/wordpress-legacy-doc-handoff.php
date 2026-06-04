@@ -74,8 +74,8 @@ $propertySet = static function (array $values) use ($u32, $typedI2, $typedLpstr)
         . $set;
 };
 
-$wordText = "Legacy DOC import\rReviewer notes keep hard\vbreaks for block review.\r";
-$wordTextBytes = iconv('UTF-8', 'Windows-1252//TRANSLIT', $wordText);
+$wordText = "Legacy DOC import ΩЖ魚\rReviewer notes keep hard\vbreaks for block review.\r";
+$wordTextBytes = iconv('UTF-8', 'UTF-16LE', $wordText);
 if (!is_string($wordTextBytes)) {
     throw new RuntimeException('Unable to encode legacy DOC fixture text');
 }
@@ -83,6 +83,7 @@ if (!is_string($wordTextBytes)) {
 $wordDocument = str_repeat("\0", 512);
 $wordDocument = substr_replace($wordDocument, $u16(0xa5ec), 0, 2);
 $wordDocument = substr_replace($wordDocument, $u16(0x00c1), 2, 2);
+$wordDocument = substr_replace($wordDocument, $u16(0x1000), 10, 2);
 $wordDocument = substr_replace($wordDocument, $u32(512), 24, 4);
 $wordDocument = substr_replace($wordDocument, $u32(512 + strlen($wordTextBytes)), 28, 4);
 $wordDocument .= $wordTextBytes;
@@ -185,6 +186,7 @@ $summary = [
     'metadata' => $result['metadata'],
     'streams' => $result['streams'],
     'textSource' => $result['document']->attr('textSource'),
+    'fib' => $result['fib'],
     'blockCount' => count($result['document']->children),
     'wordpressBlocks' => $blocks,
 ];
@@ -197,12 +199,15 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Legacy DOC handoff self-test missing metadata creator');
     }
     foreach ([
-        '<p>Legacy DOC import</p>',
+        '<p>Legacy DOC import ΩЖ魚</p>',
         '<p>Reviewer notes keep hard<br/>breaks for block review.</p>',
     ] as $needle) {
         if (!str_contains($blocks, $needle)) {
             throw new RuntimeException('Legacy DOC handoff self-test missing: ' . $needle);
         }
+    }
+    if (($summary['fib']['extendedCharacters'] ?? null) !== true || ($summary['fib']['encrypted'] ?? null) !== false) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing FIB preflight flags');
     }
 
     echo "legacy doc handoff self-test ok\n";
