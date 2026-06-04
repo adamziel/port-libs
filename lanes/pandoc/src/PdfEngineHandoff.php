@@ -57,6 +57,8 @@ final class PdfEngineHandoff
      *     templateVariables: array<string, mixed>,
      *     writerArguments: list<string>,
      *     sourceArtifacts: list<string>,
+     *     engineLogFile: string|null,
+     *     expectedEngineArtifacts: list<string>,
      *     metadata: array<string, mixed>,
      *     diagnostics: list<string>
      * }
@@ -101,6 +103,8 @@ final class PdfEngineHandoff
             array_merge([$templateFile], $includeInHeaderFiles),
             static fn (?string $path): bool => $path !== null && $path !== ''
         ));
+        $expectedEngineArtifacts = $this->expectedEngineArtifactsFor($engine, $profile['family'], $sourceFile);
+        $engineLogFile = $this->firstEngineLogFile($expectedEngineArtifacts);
 
         $diagnostics = ['pdf-engine-not-executed'];
         if ($sourceBytes === null) {
@@ -121,6 +125,12 @@ final class PdfEngineHandoff
         }
         if ($variables !== []) {
             $diagnostics[] = 'pdf-template-variables:' . count($this->flattenVariableArguments($variables));
+        }
+        if ($engineLogFile !== null) {
+            $diagnostics[] = 'pdf-engine-log:' . $engineLogFile;
+        }
+        if ($expectedEngineArtifacts !== []) {
+            $diagnostics[] = 'pdf-engine-artifacts:' . count($expectedEngineArtifacts);
         }
 
         return [
@@ -143,6 +153,8 @@ final class PdfEngineHandoff
             'templateVariables' => $templateVariables,
             'writerArguments' => $writerArguments,
             'sourceArtifacts' => $sourceArtifacts,
+            'engineLogFile' => $engineLogFile,
+            'expectedEngineArtifacts' => $expectedEngineArtifacts,
             'metadata' => $metadata,
             'diagnostics' => $diagnostics,
         ];
@@ -161,6 +173,11 @@ final class PdfEngineHandoff
      *     bytes: int,
      *     sourceSha256: string|null,
      *     sourceArtifactsSha256: array<string, string>,
+     *     producedArtifactsSha256: array<string, string>,
+     *     engineLogFiles: list<string>,
+     *     engineWarnings: list<string>,
+     *     engineErrors: list<string>,
+     *     rerunNeeded: bool,
      *     pdfSha256: string|null,
      *     stdout: string,
      *     stderr: string,
@@ -187,6 +204,9 @@ final class PdfEngineHandoff
         $sourceBytes = $plan['sourceBytes'] ?? null;
         $sourceSha256 = null;
         $sourceArtifactsSha256 = [];
+        $producedArtifactsSha256 = [];
+        $engineLogFiles = [];
+        $engineLogTexts = [];
         $status = 'ok';
         $reason = null;
 
@@ -220,7 +240,47 @@ final class PdfEngineHandoff
             $diagnostics[] = 'source-artifacts-validated:' . count($sourceArtifactsSha256);
         }
 
+        $expectedEngineArtifacts = $this->normalizePlanStringList($plan['expectedEngineArtifacts'] ?? [], 'PDF expected engine artifact');
+        $reservedFiles = array_fill_keys(array_merge([$sourceFile, $outputFile], array_keys($sourceArtifactsSha256)), true);
+        foreach ($files as $path => $bytes) {
+            if (isset($reservedFiles[$path])) {
+                continue;
+            }
+            if (!in_array($path, $expectedEngineArtifacts, true) && !$this->isKnownEngineArtifact($path, $sourceFile)) {
+                continue;
+            }
+
+            $producedArtifactsSha256[$path] = hash('sha256', $bytes);
+            if ($this->isEngineLogPath($path)) {
+                $engineLogFiles[] = $path;
+                $engineLogTexts[] = $bytes;
+            }
+        }
+        ksort($producedArtifactsSha256);
+        sort($engineLogFiles);
+        if ($producedArtifactsSha256 !== []) {
+            $diagnostics[] = 'produced-engine-artifacts:' . count($producedArtifactsSha256);
+        }
+
+        $engineMessages = $this->extractEngineMessages(array_merge(
+            [(string) ($result['stdout'] ?? ''), (string) ($result['stderr'] ?? '')],
+            $engineLogTexts
+        ));
+        if ($engineMessages['warnings'] !== []) {
+            $diagnostics[] = 'engine-log-warnings:' . count($engineMessages['warnings']);
+        }
+        if ($engineMessages['errors'] !== []) {
+            $diagnostics[] = 'engine-log-errors:' . count($engineMessages['errors']);
+        }
+        if ($engineMessages['rerunNeeded']) {
+            $diagnostics[] = 'engine-rerun-needed';
+        }
+
         $pdfBytes = array_key_exists($outputFile, $files) ? $files[$outputFile] : null;
+        if ($reason === null && $engineMessages['errors'] !== []) {
+            $status = 'failed';
+            $reason = 'engine-log-error';
+        }
         if ($reason === null && $exitCode !== 0) {
             $status = 'failed';
             $reason = 'engine-exit-' . $exitCode;
@@ -244,6 +304,11 @@ final class PdfEngineHandoff
             'bytes' => is_string($pdfBytes) ? strlen($pdfBytes) : 0,
             'sourceSha256' => $sourceSha256,
             'sourceArtifactsSha256' => $sourceArtifactsSha256,
+            'producedArtifactsSha256' => $producedArtifactsSha256,
+            'engineLogFiles' => $engineLogFiles,
+            'engineWarnings' => $engineMessages['warnings'],
+            'engineErrors' => $engineMessages['errors'],
+            'rerunNeeded' => $engineMessages['rerunNeeded'],
             'pdfSha256' => is_string($pdfBytes) && str_starts_with($pdfBytes, '%PDF-') ? hash('sha256', $pdfBytes) : null,
             'stdout' => (string) ($result['stdout'] ?? ''),
             'stderr' => (string) ($result['stderr'] ?? ''),
@@ -419,6 +484,142 @@ final class PdfEngineHandoff
         return $directory . $stem . '.' . $extension;
     }
 
+    /**
+     * @return list<string>
+     */
+    private function expectedEngineArtifactsFor(string $engine, string $family, string $sourceFile): array
+    {
+        $stem = $this->sourceStem($sourceFile);
+        $extensions = [];
+
+        if ($family === 'latex') {
+            $extensions = ['log', 'aux', 'out', 'toc'];
+            if ($engine === 'latexmk') {
+                $extensions[] = 'fls';
+                $extensions[] = 'fdb_latexmk';
+            }
+        } elseif ($family === 'context') {
+            $extensions = ['log', 'tuc'];
+        }
+
+        $artifacts = [];
+        foreach ($extensions as $extension) {
+            $artifacts[] = $stem . '.' . $extension;
+        }
+
+        return $artifacts;
+    }
+
+    /**
+     * @param list<string> $artifacts
+     */
+    private function firstEngineLogFile(array $artifacts): ?string
+    {
+        foreach ($artifacts as $artifact) {
+            if ($this->isEngineLogPath($artifact)) {
+                return $artifact;
+            }
+        }
+
+        return null;
+    }
+
+    private function sourceStem(string $sourceFile): string
+    {
+        $lastSlash = strrpos($sourceFile, '/');
+        $lastDot = strrpos($sourceFile, '.');
+        if ($lastDot !== false && ($lastSlash === false || $lastDot > $lastSlash)) {
+            return substr($sourceFile, 0, $lastDot);
+        }
+
+        return $sourceFile;
+    }
+
+    private function isKnownEngineArtifact(string $path, string $sourceFile): bool
+    {
+        $stem = $this->sourceStem($sourceFile);
+        if (!str_starts_with($path, $stem . '.')) {
+            return false;
+        }
+
+        $extension = substr($path, strlen($stem) + 1);
+
+        return in_array($extension, [
+            'aux',
+            'bbl',
+            'bcf',
+            'blg',
+            'fdb_latexmk',
+            'fls',
+            'log',
+            'out',
+            'run.xml',
+            'synctex.gz',
+            'toc',
+            'tuc',
+            'xdv',
+        ], true);
+    }
+
+    private function isEngineLogPath(string $path): bool
+    {
+        return preg_match('/\.log\z/i', $path) === 1;
+    }
+
+    /**
+     * @param list<string> $texts
+     * @return array{warnings:list<string>, errors:list<string>, rerunNeeded:bool}
+     */
+    private function extractEngineMessages(array $texts): array
+    {
+        $warnings = [];
+        $errors = [];
+        $rerunNeeded = false;
+
+        foreach ($texts as $text) {
+            foreach (preg_split('/\R/u', $text) ?: [] as $line) {
+                $line = trim($line);
+                if ($line === '') {
+                    continue;
+                }
+                if ($this->isEngineErrorLine($line)) {
+                    $errors[] = $line;
+                    continue;
+                }
+                if ($this->isEngineWarningLine($line)) {
+                    $warnings[] = $line;
+                }
+                if ($this->isEngineRerunLine($line)) {
+                    $rerunNeeded = true;
+                }
+            }
+        }
+
+        return [
+            'warnings' => array_values(array_unique($warnings)),
+            'errors' => array_values(array_unique($errors)),
+            'rerunNeeded' => $rerunNeeded,
+        ];
+    }
+
+    private function isEngineWarningLine(string $line): bool
+    {
+        return preg_match('/\bwarning\b|\bwarning:/i', $line) === 1
+            && preg_match('/\b0\s+warnings?\b/i', $line) !== 1;
+    }
+
+    private function isEngineErrorLine(string $line): bool
+    {
+        return preg_match('/\A! .*\bError:|\A! .*Error\b|\bFatal error\b|\bError:/i', $line) === 1
+            && preg_match('/\b0\s+errors?\b/i', $line) !== 1;
+    }
+
+    private function isEngineRerunLine(string $line): bool
+    {
+        return preg_match('/\brerun\b/i', $line) === 1
+            && preg_match('/cross-references?|bibliograph|citation|label|file .* changed|rerunfilecheck/i', $line) === 1;
+    }
+
     private function normalizeRelativePath(string $path, string $label): string
     {
         $path = str_replace('\\', '/', trim($path));
@@ -553,10 +754,19 @@ final class PdfEngineHandoff
     {
         $normalized = [];
         foreach ($files as $path => $bytes) {
-            $normalized[$this->normalizeRelativePath((string) $path, 'fake runner file path')] = $this->requireString($bytes, 'fake runner file bytes');
+            $normalized[$this->normalizeRelativePath((string) $path, 'fake runner file path')] = $this->requireFileBytes($bytes);
         }
 
         return $normalized;
+    }
+
+    private function requireFileBytes(mixed $value): string
+    {
+        if (!is_string($value)) {
+            throw new \InvalidArgumentException('fake runner file bytes must be a string');
+        }
+
+        return $value;
     }
 
     /**

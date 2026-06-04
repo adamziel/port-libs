@@ -139,6 +139,26 @@ return [
         $t->contains('pdf-resource-paths:2', implode(',', $plan['diagnostics']));
     },
 
+    'plans latex engine log and sidecar artifact paths without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'latexmk',
+            'outputPath' => 'handoff/review.pdf',
+        ]);
+
+        $t->same('handoff/review.log', $plan['engineLogFile']);
+        $t->same([
+            'handoff/review.log',
+            'handoff/review.aux',
+            'handoff/review.out',
+            'handoff/review.toc',
+            'handoff/review.fls',
+            'handoff/review.fdb_latexmk',
+        ], $plan['expectedEngineArtifacts']);
+        $t->contains('pdf-engine-log:handoff/review.log', implode(',', $plan['diagnostics']));
+        $t->contains('pdf-engine-artifacts:6', implode(',', $plan['diagnostics']));
+    },
+
     'fake runner validates staged source and pdf-like output bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'lualatex', 'outputPath' => 'review.pdf']);
@@ -193,6 +213,60 @@ return [
         $t->same(true, $ok['ok']);
         $t->same(hash('sha256', '$body$'), $ok['sourceArtifactsSha256']['templates/review.tex']);
         $t->same(hash('sha256', '\usepackage{fontspec}'), $ok['sourceArtifactsSha256']['templates/header.tex']);
+    },
+
+    'fake runner classifies engine logs sidecars warnings and rerun signals' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'lualatex', 'outputPath' => 'review.pdf']);
+        $log = implode("\n", [
+            'This is LuaHBTeX, Version 1.18.0',
+            "LaTeX Warning: Citation `packet' on page 1 undefined on input line 4.",
+            "Package rerunfilecheck Warning: File `review.out' has changed.",
+            'LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.',
+            'Output written on review.pdf (1 page, 12345 bytes).',
+            '',
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake bounded handoff\n%%EOF\n";
+        $result = $handoff->fakeRun($plan, [
+            'stderr' => "warning: reviewer font substituted\n",
+            'files' => [
+                'review.tex' => (string) $plan['sourceBytes'],
+                'review.aux' => "\\relax\n",
+                'review.out' => '',
+                'review.log' => $log,
+                'review.pdf' => $pdfBytes,
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same(['review.aux', 'review.log', 'review.out'], array_keys($result['producedArtifactsSha256']));
+        $t->same(hash('sha256', $log), $result['producedArtifactsSha256']['review.log']);
+        $t->same(['review.log'], $result['engineLogFiles']);
+        $t->same(true, $result['rerunNeeded']);
+        $t->same([], $result['engineErrors']);
+        $t->contains('Citation `packet\' on page 1 undefined', implode("\n", $result['engineWarnings']));
+        $t->contains('reviewer font substituted', implode("\n", $result['engineWarnings']));
+        $t->contains('engine-log-warnings:4', implode(',', $result['diagnostics']));
+        $t->contains('engine-rerun-needed', implode(',', $result['diagnostics']));
+        $t->contains('produced-engine-artifacts:3', implode(',', $result['diagnostics']));
+    },
+
+    'fake runner fails when engine log records a fatal renderer error' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'pdflatex', 'outputPath' => 'review.pdf']);
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'review.tex' => (string) $plan['sourceBytes'],
+                'review.log' => "! LaTeX Error: File `missing.sty' not found.\nFatal error occurred, no output PDF file produced!\n",
+                'review.pdf' => "%PDF-1.7\n%%EOF\n",
+            ],
+        ]);
+
+        $t->same(false, $result['ok']);
+        $t->same('failed', $result['status']);
+        $t->same('engine-log-error', $result['reason']);
+        $t->contains("File `missing.sty' not found", implode("\n", $result['engineErrors']));
+        $t->contains('engine-log-errors:2', implode(',', $result['diagnostics']));
     },
 
     'fake runner reports missing output non pdf bytes source mismatch and engine failures' => static function (TestRunner $t) use ($document): void {

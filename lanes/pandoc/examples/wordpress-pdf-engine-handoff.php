@@ -33,12 +33,22 @@ $plan = $handoff->plan($document, [
     ],
     'engineOptions' => ['-file-line-error'],
 ]);
+$fakeLog = implode("\n", [
+    'This is XeTeX, Version 3.141592653',
+    "LaTeX Warning: Citation `migration-log' on page 1 undefined on input line 4.",
+    'LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.',
+    'Output written on pdf-review-packet.pdf (1 page, 12345 bytes).',
+    '',
+]);
 $fakeResult = $handoff->fakeRun($plan, [
     'stdout' => 'fake xelatex runner accepted the planned argv',
     'files' => [
         $plan['sourceFile'] => (string) $plan['sourceBytes'],
         'templates/review-packet.tex' => '\documentclass{$documentclass$}' . "\n" . '$for(include-in-header)$$include-in-header$$endfor$' . "\n" . '\begin{document}$body$\end{document}',
         'templates/review-header.tex' => '\usepackage{fontspec}',
+        'handoff/pdf-review-packet.aux' => "\\relax\n",
+        'handoff/pdf-review-packet.out' => "\n",
+        'handoff/pdf-review-packet.log' => $fakeLog,
         $plan['outputFile'] => "%PDF-1.7\n% fake WordPress import review packet\n%%EOF\n",
     ],
 ]);
@@ -54,6 +64,8 @@ $summary = [
     'includeInHeaderFiles' => $plan['includeInHeaderFiles'],
     'resourcePaths' => $plan['resourcePaths'],
     'sourceArtifacts' => $plan['sourceArtifacts'],
+    'engineLogFile' => $plan['engineLogFile'],
+    'expectedEngineArtifacts' => $plan['expectedEngineArtifacts'],
     'templateVariables' => $plan['templateVariables'],
     'metadata' => $plan['metadata'],
     'sourceSha256' => $plan['sourceSha256'],
@@ -62,6 +74,11 @@ $summary = [
         'reason' => $fakeResult['reason'],
         'bytes' => $fakeResult['bytes'],
         'sourceArtifactsSha256' => $fakeResult['sourceArtifactsSha256'],
+        'producedArtifactsSha256' => $fakeResult['producedArtifactsSha256'],
+        'engineLogFiles' => $fakeResult['engineLogFiles'],
+        'engineWarnings' => $fakeResult['engineWarnings'],
+        'engineErrors' => $fakeResult['engineErrors'],
+        'rerunNeeded' => $fakeResult['rerunNeeded'],
         'diagnostics' => $fakeResult['diagnostics'],
     ],
 ];
@@ -75,10 +92,16 @@ if (in_array('--self-test', $argv, true)) {
         'PDF Review Packet',
         'templates/review-packet.tex',
         'templates/review-header.tex',
+        'handoff/pdf-review-packet.log',
+        'handoff/pdf-review-packet.aux',
         'documentclass=scrartcl',
         '--resource-path=media:review assets',
         'Source Serif 4',
         'source-artifacts-validated:2',
+        'produced-engine-artifacts:3',
+        'engine-log-warnings:2',
+        'engine-rerun-needed',
+        'migration-log',
         'fake-runner-no-execution',
     ] as $needle) {
         if (!str_contains(json_encode($summary, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES), $needle)) {
