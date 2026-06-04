@@ -351,7 +351,7 @@ final class WordPressBlockWriter
         }
         foreach ($bodies as $body) {
             $html .= '<tbody' . $this->renderStoredHtmlAttrs($body, true, []) . '>';
-            $html .= $this->renderTableRows($this->tableBodyRowEntries($body), $node, $columnCount);
+            $html .= $this->renderTableRows($this->tableBodyRowEntries($body, $columnCount), $node, $columnCount);
             $html .= '</tbody>';
         }
         if ($foot instanceof AstNode && $foot->children !== []) {
@@ -471,7 +471,7 @@ final class WordPressBlockWriter
     }
 
     /**
-     * @return list<array{row:AstNode,header:bool}>
+     * @return list<array{row:AstNode,header:bool,rowHeadColumns:int}>
      */
     private function tableRowEntries(AstNode $section, bool $header): array
     {
@@ -480,6 +480,7 @@ final class WordPressBlockWriter
             $entries[] = [
                 'row' => $row,
                 'header' => $header,
+                'rowHeadColumns' => 0,
             ];
         }
 
@@ -487,11 +488,12 @@ final class WordPressBlockWriter
     }
 
     /**
-     * @return list<array{row:AstNode,header:bool}>
+     * @return list<array{row:AstNode,header:bool,rowHeadColumns:int}>
      */
-    private function tableBodyRowEntries(AstNode $body): array
+    private function tableBodyRowEntries(AstNode $body, int $columnCount): array
     {
         $entries = [];
+        $rowHeadColumns = TableGeometry::rowHeadColumns($body, $columnCount);
         $bodyHeadRows = $body->attr('headRows', []);
         if (is_array($bodyHeadRows)) {
             foreach ($bodyHeadRows as $row) {
@@ -499,6 +501,7 @@ final class WordPressBlockWriter
                     $entries[] = [
                         'row' => $row,
                         'header' => true,
+                        'rowHeadColumns' => 0,
                     ];
                 }
             }
@@ -508,6 +511,7 @@ final class WordPressBlockWriter
             $entries[] = [
                 'row' => $row,
                 'header' => false,
+                'rowHeadColumns' => $rowHeadColumns,
             ];
         }
 
@@ -515,7 +519,7 @@ final class WordPressBlockWriter
     }
 
     /**
-     * @param list<array{row:AstNode,header:bool}> $rowEntries
+     * @param list<array{row:AstNode,header:bool,rowHeadColumns:int}> $rowEntries
      */
     private function renderTableRows(array $rowEntries, AstNode $table, int $columnCount): string
     {
@@ -526,7 +530,12 @@ final class WordPressBlockWriter
 
         $html = '';
         foreach (TableGeometry::layoutRows($rows, $columnCount) as $index => $layoutRow) {
-            $html .= $this->renderTableRow($layoutRow, $table, (bool) ($rowEntries[$index]['header'] ?? false));
+            $html .= $this->renderTableRow(
+                $layoutRow,
+                $table,
+                (bool) ($rowEntries[$index]['header'] ?? false),
+                (int) ($rowEntries[$index]['rowHeadColumns'] ?? 0)
+            );
         }
 
         return $html;
@@ -535,18 +544,23 @@ final class WordPressBlockWriter
     /**
      * @param array{row:AstNode,cells:list<array{node:AstNode,column:int,colspan:int,rowspan:int}>} $layoutRow
      */
-    private function renderTableRow(array $layoutRow, AstNode $table, bool $header): string
+    private function renderTableRow(array $layoutRow, AstNode $table, bool $header, int $rowHeadColumns): string
     {
         $row = $layoutRow['row'];
         $html = '<tr' . $this->renderStoredHtmlAttrs($row, true, []) . '>';
         foreach ($layoutRow['cells'] as $layoutCell) {
             $cell = $layoutCell['node'];
             $attrs = $this->renderTableCellAttrs($table, $layoutCell['column'], $cell);
-            $tag = $header || $cell->attr('header') === true ? 'th' : 'td';
+            $tag = $this->isTableHeaderCell($header, $rowHeadColumns, $layoutCell['column'], $cell) ? 'th' : 'td';
             $html .= '<' . $tag . $attrs . '>' . $this->renderTableCellContent($cell) . '</' . $tag . '>';
         }
 
         return $html . '</tr>';
+    }
+
+    private function isTableHeaderCell(bool $header, int $rowHeadColumns, int $column, AstNode $cell): bool
+    {
+        return $header || $cell->attr('header') === true || ($rowHeadColumns > 0 && $column < $rowHeadColumns);
     }
 
     private function renderTableCellContent(AstNode $cell): string

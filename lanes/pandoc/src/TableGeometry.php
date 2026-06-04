@@ -191,6 +191,26 @@ final class TableGeometry
         return 'default';
     }
 
+    public static function rowHeadColumns(AstNode $body, int $columnCount): int
+    {
+        $value = $body->attr('rowHeadColumns', 0);
+        if (is_string($value)) {
+            $value = trim($value);
+            if ($value === '' || !is_numeric($value)) {
+                return 0;
+            }
+        } elseif (!is_int($value) && !is_float($value)) {
+            return 0;
+        }
+
+        $count = (int) $value;
+        if ($count <= 0) {
+            return 0;
+        }
+
+        return min($count, max(0, $columnCount));
+    }
+
     private static function normalizeAlignment(string $alignment): string
     {
         return in_array($alignment, ['left', 'right', 'center'], true) ? $alignment : 'default';

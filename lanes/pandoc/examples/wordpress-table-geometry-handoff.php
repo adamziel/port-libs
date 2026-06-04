@@ -19,7 +19,7 @@ $document = new AstNode('document', [], [
                 new AstNode('table_cell', ['text' => 'Status'], [new AstNode('text', ['text' => 'Status'])]),
             ]),
         ]),
-        new AstNode('table_body', [], [
+        new AstNode('table_body', ['rowHeadColumns' => 1], [
             new AstNode('table_row', [], [
                 new AstNode('table_cell', ['text' => 'Posts', 'rowspan' => 2], [new AstNode('text', ['text' => 'Posts'])]),
                 new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
@@ -42,7 +42,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<th colspan="2" style="text-align:left">Scope</th><th style="text-align:center">Status</th>')) {
         throw new RuntimeException('Table geometry self-test missing visual-column header alignment');
     }
-    if (!str_contains($blocks, '<td rowspan="2" style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td>')) {
+    if (!str_contains($blocks, '<th rowspan="2" style="text-align:left">Posts</th><td style="text-align:right">42</td><td style="text-align:center">Ready</td>')) {
         throw new RuntimeException('Table geometry self-test missing rowspan body alignment');
     }
 

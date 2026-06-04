@@ -59,6 +59,37 @@ $buildColspecTableDocument = static function (): AstNode {
     ]);
 };
 
+$buildRowHeadColumnDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Lane coverage review',
+            'alignments' => ['left', 'left', 'right', 'center'],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Lane'], [new AstNode('text', ['text' => 'Lane'])]),
+                    new AstNode('table_cell', ['text' => 'Slice'], [new AstNode('text', ['text' => 'Slice'])]),
+                    new AstNode('table_cell', ['text' => 'Checks'], [new AstNode('text', ['text' => 'Checks'])]),
+                    new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', ['rowHeadColumns' => 2], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Pandoc', 'rowspan' => 2], [new AstNode('text', ['text' => 'Pandoc'])]),
+                    new AstNode('table_cell', ['text' => 'Table geometry'], [new AstNode('text', ['text' => 'Table geometry'])]),
+                    new AstNode('table_cell', ['text' => '4'], [new AstNode('text', ['text' => '4'])]),
+                    new AstNode('table_cell', ['text' => 'Mapped'], [new AstNode('text', ['text' => 'Mapped'])]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'DOCX handoff'], [new AstNode('text', ['text' => 'DOCX handoff'])]),
+                    new AstNode('table_cell', ['text' => '10'], [new AstNode('text', ['text' => '10'])]),
+                    new AstNode('table_cell', ['text' => 'Accepted'], [new AstNode('text', ['text' => 'Accepted'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 return [
     'lays out pandoc table spans by visual columns for writer handoff' => static function (TestRunner $t) use ($buildSpannedTableDocument): void {
         $table = $buildSpannedTableDocument()->children[0];
@@ -106,5 +137,24 @@ return [
         $t->contains('| Posts    |     42     |      Ready |              |', $markdown);
         $t->contains('<colgroup><col style="width:20%"/><col style="width:25%"/><col style="width:25%"/><col style="width:30%"/></colgroup>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">Import queue with reserved audit column</figcaption>', $blocks);
+    },
+    'renders table body row head columns by visual column for wordpress handoff' => static function (TestRunner $t) use ($buildRowHeadColumnDocument): void {
+        $document = $buildRowHeadColumnDocument();
+        $table = $document->children[0];
+        $body = $table->children[1];
+        $layout = TableGeometry::layoutRows($body->children, 4);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same(2, TableGeometry::rowHeadColumns($body, 4));
+        $t->same(1, TableGeometry::rowHeadColumns(new AstNode('table_body', ['rowHeadColumns' => '1'], []), 4));
+        $t->same(0, TableGeometry::rowHeadColumns(new AstNode('table_body', ['rowHeadColumns' => 'many'], []), 4));
+        $t->same(4, TableGeometry::rowHeadColumns(new AstNode('table_body', ['rowHeadColumns' => 9], []), 4));
+        $t->same([0, 1, 2, 3], array_map(static fn (array $cell): int => $cell['column'], $layout[0]['cells']));
+        $t->same([1, 2, 3], array_map(static fn (array $cell): int => $cell['column'], $layout[1]['cells']));
+        $t->contains('<tbody><tr><th rowspan="2" style="text-align:left">Pandoc</th><th style="text-align:left">Table geometry</th><td style="text-align:right">4</td><td style="text-align:center">Mapped</td></tr><tr><th style="text-align:left">DOCX handoff</th><td style="text-align:right">10</td><td style="text-align:center">Accepted</td></tr></tbody>', $blocks);
+        $t->contains('| Pandoc | Table geometry |      4 |  Mapped  |', $markdown);
+        $t->contains('|        | DOCX handoff   |     10 | Accepted |', $markdown);
+        $t->contains(': Lane coverage review', $markdown);
     },
 ];
