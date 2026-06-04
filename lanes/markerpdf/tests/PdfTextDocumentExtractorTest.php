@@ -456,4 +456,46 @@ return [
         $t->same(0, $result['metadata']['order_plan']['order_result_count']);
         $t->same(0, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'does not confuse page identity markers with selected source indexes' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(70, [
+                    ['text' => 'One-based cover artifact should not attach', 'bbox' => [72.0, 80.0, 300.0, 94.0]],
+                ]),
+                $pdftextLinesPage(71, [
+                    ['text' => 'Second collision column remains source ordered', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First collision column has no selected order artifact', 'bbox' => [72.0, 112.0, 270.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'page' => 1,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 286.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 560.0, 144.0]],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['page' => 1, 'image' => 'one-based-cover-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $processor = new MarkdownPostProcessor();
+        $blocks = $processor->mergeBlocks($processor->mergeSpans($result['pages']));
+
+        $t->same([1], $result['page_range']);
+        $t->same(71, $result['pages'][0]['pnum']);
+        $t->same(['Second collision column remains source ordered', 'First collision column has no selected order artifact'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('Second collision column remains source ordered First collision column has no selected order artifact', $blocks[0]['text']);
+        $t->same(0, $result['metadata']['order_plan']['image_count']);
+        $t->same(0, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(0, $result['metadata']['order_plan']['assigned_pages']);
+    },
 ];

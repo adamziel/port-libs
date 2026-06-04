@@ -141,6 +141,10 @@ final class PdfPageArtifactSelector
             return $byPageNumber[$pageNumber + 1];
         }
 
+        if ($pageNumber !== null) {
+            return null;
+        }
+
         if (array_key_exists($sourceIndex, $byPage)) {
             return $byPage[$sourceIndex];
         }
