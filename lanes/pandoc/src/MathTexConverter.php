@@ -144,7 +144,10 @@ final class MathTexConverter
         $displayMode = $display ? 'block' : 'inline';
 
         return '<math xmlns="http://www.w3.org/1998/Math/MathML" display="' . $displayMode . '">'
-            . implode('', $children)
+            . '<semantics>'
+            . $this->row($children)
+            . '<annotation encoding="application/x-tex">' . $this->esc($tex) . '</annotation>'
+            . '</semantics>'
             . '</math>';
     }
 

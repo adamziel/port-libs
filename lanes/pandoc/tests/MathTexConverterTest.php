@@ -18,6 +18,18 @@ return [
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">', $textMathml);
         $t->contains('<mtext>posts &amp; media</mtext><mo>∈</mo><mi>S</mi>', $textMathml);
     },
+    'adds source tex semantics annotations to bounded mathml handoff' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $annotated = $converter->texToMathMl('\\text{posts & media} \\in S');
+        $nodeMathml = $converter->mathMlFor(new AstNode('math', [
+            'text' => '\\frac{x}{y}',
+            'display' => true,
+        ]));
+
+        $t->contains('<semantics><mrow><mtext>posts &amp; media</mtext><mo>∈</mo><mi>S</mi></mrow><annotation encoding="application/x-tex">\\text{posts &amp; media} \\in S</annotation></semantics>', $annotated);
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mfrac><mi>x</mi><mi>y</mi></mfrac>', $nodeMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\frac{x}{y}</annotation></semantics></math>', $nodeMathml);
+    },
     'converts bounded tex delimiter commands and stretch fences to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $angleMathml = $converter->texToMathMl('\\langle x,y \\rangle');
