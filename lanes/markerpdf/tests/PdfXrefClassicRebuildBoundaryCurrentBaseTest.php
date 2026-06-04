@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\MarkerPDF\PdfEmbeddedFileExtractor;
 use PortLibs\MarkerPDF\PdfMetadataExtractor;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
@@ -179,6 +180,72 @@ $xrefClassicRebuildEofBoundedCurrentBasePdf = static function (): string {
     return $pdf;
 };
 
+$xrefClassicRebuildEmbeddedFilesCurrentBasePdf = static function (): array {
+    $stalePayload = '<wp-export><post id="stale-classic-attachment"/></wp-export>';
+    $currentPayload = '<wp-export><post id="current-classic-attachment"/></wp-export>';
+    $currentChecksum = strtoupper(hash('md5', $currentPayload));
+
+    $pdf = "%PDF-1.7\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, string $body) use (&$pdf, &$offsets): int {
+        $offset = strlen($pdf);
+        $offsets[$objectNumber] = $offset;
+        $pdf .= "{$objectNumber} 0 obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $xrefRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+
+    $addObject(1, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>');
+    $addObject(2, '<< /Type /Pages /Kids [] /Count 0 >>');
+    $addObject(6, '<< /Names [(stale-source.xml) 10 0 R] >>');
+    $addObject(10, '<< /Type /Filespec /F (stale-source.xml) /Desc (Stale classic rebuild attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+    $addObject(11, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($stalePayload) . " >>\nstream\n{$stalePayload}\nendstream");
+
+    $previousXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 12\n"
+        . $xrefRow(0, 65535, 'f')
+        . $xrefRow($offsets[1])
+        . $xrefRow($offsets[2])
+        . $xrefRow(0, 0, 'f')
+        . $xrefRow(0, 0, 'f')
+        . $xrefRow(0, 0, 'f')
+        . $xrefRow($offsets[6])
+        . $xrefRow(0, 0, 'f')
+        . $xrefRow(0, 0, 'f')
+        . $xrefRow(0, 0, 'f')
+        . $xrefRow($offsets[10])
+        . $xrefRow($offsets[11])
+        . "trailer\n<< /Size 32 /Root 1 0 R >>\n"
+        . "startxref\n{$previousXrefOffset}\n%%EOF\n";
+
+    $addObject(20, '<< /Type /Catalog /Pages 21 0 R /Names << /EmbeddedFiles 26 0 R >> >>');
+    $addObject(21, '<< /Type /Pages /Kids [] /Count 0 >>');
+    $addObject(26, '<< /Names [(current-source.xml) 30 0 R] >>');
+    $addObject(30, '<< /Type /Filespec /F (current-source.xml) /Desc (Current classic rebuild attachment) /AFRelationship /Source /EF << /F 31 0 R >> >>');
+    $addObject(31, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size ' . strlen($currentPayload) . ' /CheckSum <' . $currentChecksum . "> >> /Length " . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+    $pdf .= "xref\n"
+        . "20 12\n"
+        . $xrefRow($offsets[20])
+        . $xrefRow($offsets[21])
+        . $xrefRow(0, 0, 'f')
+        . $xrefRow(0, 0, 'f')
+        . $xrefRow(0, 0, 'f')
+        . $xrefRow(0, 0, 'f')
+        . $xrefRow($offsets[26])
+        . $xrefRow(0, 0, 'f')
+        . $xrefRow(0, 0, 'f')
+        . $xrefRow(0, 0, 'f')
+        . $xrefRow($offsets[30])
+        . $xrefRow($offsets[31])
+        . "trailer\n<< /Size 32 /Root 20 0 R >>\n"
+        . "startxref\n{$previousXrefOffset}\n%%EOF";
+
+    return [$pdf, $currentPayload, strtolower($currentChecksum)];
+};
+
 return [
     'rebuilds damaged startxref from the latest classic xref trailer boundary before WordPress text extraction' => static function (
         TestRunner $t
@@ -234,5 +301,29 @@ return [
         $t->true(!str_contains($text, 'Post EOF root leak'));
         $t->true(!str_contains(json_encode($metadata, JSON_UNESCAPED_SLASHES) ?: '', 'Trailing Garbage'));
         $t->true(!str_contains($text, "\0"));
+    },
+    'rebuilds stale classic startxref before EmbeddedFiles name-tree attachment import' => static function (
+        TestRunner $t
+    ) use ($xrefClassicRebuildEmbeddedFilesCurrentBasePdf): void {
+        [$pdf, $currentPayload, $currentChecksum] = $xrefClassicRebuildEmbeddedFilesCurrentBasePdf();
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES) ?: '';
+
+        $t->same(1, count($files));
+        $file = $files[0];
+        $t->same('catalog_names_embedded_files', $file['source']);
+        $t->same('current-source.xml', $file['name']);
+        $t->same('current-source.xml', $file['filename']);
+        $t->same('Current classic rebuild attachment', $file['description']);
+        $t->same('Source', $file['relationship']);
+        $t->same('text/xml', $file['mime_type']);
+        $t->same(30, $file['file_spec_object']);
+        $t->same(31, $file['embedded_file_object']);
+        $t->same($currentPayload, $file['content']);
+        $t->same(strlen($currentPayload), $file['declared_size']);
+        $t->same($currentChecksum, $file['checksum']);
+        $t->same(true, $file['checksum_matches']);
+        $t->true(!str_contains($encodedFiles, 'stale-source.xml'));
+        $t->true(!str_contains($encodedFiles, 'stale-classic-attachment'));
     },
 ];

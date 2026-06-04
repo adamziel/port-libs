@@ -1592,7 +1592,7 @@ final class PdfEmbeddedFileExtractor
     }
 
     /**
-     * @return array<int, list<array{generation: int, offset: int, body: string}>>
+     * @return array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>>
      */
     private function directObjectDefinitions(string $pdfBytes): array
     {
@@ -1608,6 +1608,8 @@ final class PdfEmbeddedFileExtractor
             $objects[(int) $match[1][0]][] = [
                 'generation' => (int) $match[2][0],
                 'offset' => $match[0][1],
+                'bodyStart' => $bodyStart,
+                'bodyEnd' => $bodyEnd,
                 'body' => substr($pdfBytes, $bodyStart, $bodyEnd - $bodyStart),
             ];
             $offset = $bodyEnd + strlen('endobj');
@@ -1840,7 +1842,7 @@ final class PdfEmbeddedFileExtractor
      */
     private function xrefEntriesFromStartxrefChain(string $pdfBytes, array $objects, array $definitions): array
     {
-        $offset = $this->latestStartxrefOffset($pdfBytes);
+        $offset = $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
         if ($offset === null) {
             return [];
         }
@@ -1864,7 +1866,7 @@ final class PdfEmbeddedFileExtractor
         }
         $seenOffsets[$offset] = true;
 
-        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset);
+        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
         if ($tableSection !== null) {
             $entries = $tableSection['entries'];
             $hybridStreamOffset = $this->dictionaryIntegerValue($tableSection['trailer'], 'XRefStm');
@@ -1901,10 +1903,15 @@ final class PdfEmbeddedFileExtractor
     }
 
     /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
      * @return array{entries: array<int, array{type: int, generation: int, offset: int, offsetIsExplicit: bool}>, trailer: string}|null
      */
-    private function xrefTableSectionAt(string $pdfBytes, int $offset): ?array
+    private function xrefTableSectionAt(string $pdfBytes, int $offset, ?array $definitions = null): ?array
     {
+        if ($definitions !== null && $this->offsetOwnedByDirectObjectBody($offset, $definitions)) {
+            return null;
+        }
+
         $offset = $this->skipWhitespace($pdfBytes, $offset);
         if (substr($pdfBytes, $offset, 4) !== 'xref') {
             return null;
@@ -1930,6 +1937,24 @@ final class PdfEmbeddedFileExtractor
             'entries' => $this->xrefTableRows(substr($pdfBytes, $sectionBodyOffset, $trailerOffset - $sectionBodyOffset)),
             'trailer' => $trailer['body'],
         ];
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>> $definitions
+     */
+    private function offsetOwnedByDirectObjectBody(int $offset, array $definitions): bool
+    {
+        foreach ($definitions as $entries) {
+            foreach ($entries as $definition) {
+                $bodyStart = $definition['bodyStart'] ?? null;
+                $bodyEnd = $definition['bodyEnd'] ?? null;
+                if (is_int($bodyStart) && is_int($bodyEnd) && $offset >= $bodyStart && $offset <= $bodyEnd) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -2249,7 +2274,7 @@ final class PdfEmbeddedFileExtractor
 
     private function trailerDictionaryBody(string $pdfBytes): ?string
     {
-        $startxrefOffset = $this->latestStartxrefOffset($pdfBytes);
+        $startxrefOffset = $this->startxrefOffsetWithClassicRebuild($pdfBytes);
         if ($startxrefOffset !== null) {
             $trailer = $this->trailerDictionaryBodyAtOffset($pdfBytes, $startxrefOffset);
             if ($trailer !== null) {
@@ -2275,9 +2300,12 @@ final class PdfEmbeddedFileExtractor
         return $body ?? $this->lastXrefStreamDictionaryBody($pdfBytes);
     }
 
-    private function latestStartxrefOffset(string $pdfBytes): ?int
+    /**
+     * @return array{offset: int, tokenOffset: int}|null
+     */
+    private function latestStartxrefEntry(string $pdfBytes): ?array
     {
-        if (preg_match_all('/\bstartxref\s+(\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER) < 1) {
+        if (preg_match_all('/\bstartxref\s+(\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) < 1) {
             return null;
         }
 
@@ -2286,7 +2314,100 @@ final class PdfEmbeddedFileExtractor
             return null;
         }
 
-        return max(0, (int) $latest[1]);
+        return [
+            'offset' => max(0, (int) ($latest[1][0] ?? 0)),
+            'tokenOffset' => (int) ($latest[0][1] ?? 0),
+        ];
+    }
+
+    /**
+     * Damaged producer output can append a current classic xref table while the
+     * final startxref still points at an older table. Keep embedded-file review
+     * on the latest top-level classic table before the selected startxref token.
+     *
+     * @param array<int, list<array{generation: int, offset: int, body: string}>>|null $definitions
+     */
+    private function startxrefOffsetWithClassicRebuild(string $pdfBytes, ?array $definitions = null): ?int
+    {
+        $entry = $this->latestStartxrefEntry($pdfBytes);
+        if ($entry === null) {
+            return null;
+        }
+
+        $definitions ??= $this->directObjectDefinitions($pdfBytes);
+
+        return $this->classicRebuildOffsetForStartxref(
+            $pdfBytes,
+            $entry['offset'],
+            $definitions,
+            $entry['tokenOffset']
+        ) ?? $entry['offset'];
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     */
+    private function classicRebuildOffsetForStartxref(
+        string $pdfBytes,
+        int $offset,
+        array $definitions,
+        ?int $candidateBeforeOffset = null
+    ): ?int {
+        if ($this->xrefStreamSectionAtOffset($offset, $definitions) !== null) {
+            return null;
+        }
+
+        $latestClassicOffset = $this->latestClassicXrefTableOffset($pdfBytes, $definitions, $candidateBeforeOffset);
+        if ($latestClassicOffset === null) {
+            return null;
+        }
+
+        if ($this->xrefTableSectionAt($pdfBytes, $offset, $definitions) === null) {
+            if ($offset < strlen($pdfBytes) && $latestClassicOffset <= $offset) {
+                return null;
+            }
+
+            return $latestClassicOffset;
+        }
+
+        return $latestClassicOffset > $offset ? $latestClassicOffset : null;
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>> $definitions
+     */
+    private function latestClassicXrefTableOffset(string $pdfBytes, array $definitions, ?int $candidateBeforeOffset = null): ?int
+    {
+        $offsets = $this->xrefTableKeywordOffsets($pdfBytes);
+        for ($index = count($offsets) - 1; $index >= 0; $index--) {
+            $offset = $offsets[$index];
+            if ($candidateBeforeOffset !== null && $offset > $candidateBeforeOffset) {
+                continue;
+            }
+
+            if ($this->xrefTableSectionAt($pdfBytes, $offset, $definitions) !== null) {
+                return $offset;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function xrefTableKeywordOffsets(string $pdfBytes): array
+    {
+        $offsets = [];
+        $offset = 0;
+        while (($position = strpos($pdfBytes, 'xref', $offset)) !== false) {
+            if ($this->pdfKeywordAt($pdfBytes, $position, 'xref')) {
+                $offsets[] = $position;
+            }
+            $offset = $position + 4;
+        }
+
+        return $offsets;
     }
 
     private function trailerDictionaryBodyAtOffset(string $pdfBytes, int $offset): ?string
