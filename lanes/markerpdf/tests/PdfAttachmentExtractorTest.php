@@ -205,6 +205,68 @@ return [
         $t->true(is_string($mirroredEncoded) && substr_count($mirroredEncoded, 'source.xml') >= 1);
         $t->true(is_string($mirroredEncoded) && !str_contains($mirroredEncoded, $sourcePayload));
     },
+    'summarizes related-file streams in WordPress attachment preflight without bytes' => static function (TestRunner $t): void {
+        $sourcePayload = '<wp-export><post id="preflight-related"/></wp-export>';
+        $relatedJson = '{"review":"preflight-related"}';
+        $relatedText = 'BT /F1 12 Tf 72 720 Td (Preflight Related File Leak) Tj ET';
+        $compressedJson = gzcompress($relatedJson);
+        if (!is_string($compressedJson)) {
+            throw new RuntimeException('Unable to compress preflight related-file fixture.');
+        }
+
+        $sourceChecksum = md5($sourcePayload);
+        $relatedJsonChecksum = md5($relatedJson);
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Names << /EmbeddedFiles 2 0 R >> /AF [4 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Names [(source.xml) 4 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Filespec /F (source.xml) /Desc (Source with related preflight files) /AFRelationship /Source /EF << /F 5 0 R >> /RF << /F [6 0 R 7 0 R] >> >>\nendobj\n"
+            . "5 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourcePayload) . " /CheckSum <{$sourceChecksum}> >> /Length " . strlen($sourcePayload) . " >>\n"
+            . "stream\n{$sourcePayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fjson /Filter /FlateDecode /Params << /Size " . strlen($relatedJson) . " /CheckSum <{$relatedJsonChecksum}> /CreationDate (D:20260604195521Z) >> /Length " . strlen($compressedJson) . " >>\n"
+            . "stream\n{$compressedJson}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fplain /Length " . strlen($relatedText) . " >>\n"
+            . "stream\n{$relatedText}\nendstream\nendobj\n"
+            . "%%EOF\n";
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $encoded = json_encode($summary, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $summary['attachment_count']);
+        $attachment = $summary['attachments'][0];
+        $t->same('embedded-files-name-tree', $attachment['source']);
+        $t->same(true, $attachment['associated_file']);
+        $t->same('catalog_af', $attachment['associated_file_source']);
+        $t->same('source.xml', $attachment['filename']);
+        $t->same('Source', $attachment['relationship']);
+        $t->same(2, $attachment['related_file_count']);
+
+        $related = $attachment['related_files'];
+        $t->same('filespec_related_files', $related[0]['source']);
+        $t->same('F', $related[0]['rf_key']);
+        $t->same(0, $related[0]['related_file_index']);
+        $t->same(6, $related[0]['stream_object_id']);
+        $t->same('application/json', $related[0]['content_type']);
+        $t->same(['FlateDecode'], $related[0]['filters']);
+        $t->same(strlen($relatedJson), $related[0]['byte_length']);
+        $t->same(hash('sha256', $relatedJson), $related[0]['sha256']);
+        $t->same($relatedJsonChecksum, $related[0]['checksum_hex']);
+        $t->same($relatedJsonChecksum, $related[0]['computed_checksum_hex']);
+        $t->same(true, $related[0]['checksum_matches']);
+        $t->same('D:20260604195521Z', $related[0]['created_at']);
+        $t->same(false, array_key_exists('bytes', $related[0]));
+
+        $t->same(7, $related[1]['stream_object_id']);
+        $t->same('text/plain', $related[1]['content_type']);
+        $t->same(strlen($relatedText), $related[1]['byte_length']);
+        $t->same(hash('sha256', $relatedText), $related[1]['sha256']);
+        $t->same(false, array_key_exists('bytes', $related[1]));
+
+        $t->same(false, array_key_exists('bytes', $attachment));
+        $t->true(is_string($encoded) && !str_contains($encoded, $relatedJson));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Preflight Related File Leak'));
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+    },
     'extracts page FileAttachment annotation embedded streams with page metadata' => static function (TestRunner $t) use ($fileAttachmentAnnotationPdf): void {
         [$pdf, $payload] = $fileAttachmentAnnotationPdf();
         $attachments = (new PdfAttachmentExtractor())->extractAttachments($pdf);

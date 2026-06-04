@@ -264,6 +264,85 @@ return [
         $t->same(15, $previewFile['embedded_file_object']);
         $t->same($previewText, $previewFile['content']);
     },
+    'summarizes Filespec related-file streams without exposing related payload bytes' => static function (TestRunner $t): void {
+        $sourceXml = '<wp-export><post id="related-files"/></wp-export>';
+        $relatedJson = '{"manifest":"related"}';
+        $relatedText = 'BT /F1 12 Tf 72 720 Td (Related File Payload Leak) Tj ET';
+        $relatedUnicode = "Translated related notes\n";
+        $compressedJson = gzcompress($relatedJson);
+        if (!is_string($compressedJson)) {
+            throw new RuntimeException('Unable to compress related-file JSON fixture.');
+        }
+
+        $sourceChecksum = strtoupper(hash('md5', $sourceXml));
+        $relatedJsonChecksum = strtoupper(hash('md5', $relatedJson));
+        $relatedUnicodeChecksum = strtoupper(hash('md5', $relatedUnicode));
+        $pageContent = 'BT /F1 12 Tf 72 720 Td (Related File Boundary Body) Tj ET';
+
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> /AF [10 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Names [(source.xml) 10 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (source.xml) /Desc (Source with related files) /AFRelationship /Source /EF << /F 11 0 R >> /RF << /F [12 0 R 13 0 R] /UF [14 0 R] >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourceXml) . " /CheckSum <{$sourceChecksum}> >> /Length " . strlen($sourceXml) . " >>\nstream\n{$sourceXml}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fjson /Filter /FlateDecode /Params << /Size " . strlen($relatedJson) . " /CheckSum <{$relatedJsonChecksum}> /ModDate (D:20260604195521Z) >> /Length " . strlen($compressedJson) . " >>\nstream\n{$compressedJson}\nendstream\nendobj\n"
+            . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fplain /Length " . strlen($relatedText) . " >>\nstream\n{$relatedText}\nendstream\nendobj\n"
+            . "14 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fplain /Params << /Size " . strlen($relatedUnicode) . " /CheckSum <{$relatedUnicodeChecksum}> >> /Length " . strlen($relatedUnicode) . " >>\nstream\n{$relatedUnicode}\nendstream\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $text = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, count($files));
+        $file = $files[0];
+        $t->same('source.xml', $file['filename']);
+        $t->same($sourceXml, $file['content']);
+        $t->same(3, $file['related_file_count']);
+
+        $related = $file['related_files'];
+        $t->same('filespec_related_files', $related[0]['source']);
+        $t->same('F', $related[0]['rf_key']);
+        $t->same(0, $related[0]['related_file_index']);
+        $t->same(12, $related[0]['embedded_file_object']);
+        $t->same('application/json', $related[0]['mime_type']);
+        $t->same(['FlateDecode'], $related[0]['filters']);
+        $t->same(strlen($relatedJson), $related[0]['size']);
+        $t->same(hash('sha256', $relatedJson), $related[0]['content_sha256']);
+        $t->same(strtolower($relatedJsonChecksum), $related[0]['checksum']);
+        $t->same(hash('md5', $relatedJson), $related[0]['computed_checksum']);
+        $t->same(true, $related[0]['checksum_matches']);
+        $t->same('D:20260604195521Z', $related[0]['modified_at']);
+        $t->same(false, array_key_exists('content', $related[0]));
+
+        $t->same('F', $related[1]['rf_key']);
+        $t->same(1, $related[1]['related_file_index']);
+        $t->same(13, $related[1]['embedded_file_object']);
+        $t->same('text/plain', $related[1]['mime_type']);
+        $t->same(hash('sha256', $relatedText), $related[1]['content_sha256']);
+        $t->same(false, array_key_exists('content', $related[1]));
+
+        $t->same('UF', $related[2]['rf_key']);
+        $t->same(0, $related[2]['related_file_index']);
+        $t->same(14, $related[2]['embedded_file_object']);
+        $t->same(true, $related[2]['checksum_matches']);
+
+        $provenance = $file['provenance_review'] ?? [];
+        $t->true(in_array('filespec_related_files', $provenance['sources'] ?? [], true));
+        $t->same(3, $provenance['related_files']['count'] ?? null);
+        $t->same(['F', 'UF'], $provenance['related_files']['rf_keys'] ?? []);
+        $t->same([12, 13, 14], $provenance['related_files']['embedded_file_objects'] ?? []);
+        $t->same([hash('sha256', $relatedJson), hash('sha256', $relatedText), hash('sha256', $relatedUnicode)], $provenance['related_files']['sha256'] ?? []);
+        $t->same(false, $provenance['related_files']['payload_included'] ?? null);
+
+        $t->same('Related File Boundary Body', trim($text));
+        $t->true(is_string($encoded) && !str_contains($encoded, $relatedJson));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Related File Payload Leak'));
+        $t->true(!str_contains($text, '<wp-export>'));
+        $t->true(!str_contains($text, 'Related File Payload Leak'));
+    },
     'carries portfolio collection metadata and checksum boundaries on catalog associated files' => static function (TestRunner $t): void {
         $sourceXml = '<wp-export><post id="108"/></wp-export>';
         $previewJson = '{"preview":"stale-checksum"}';

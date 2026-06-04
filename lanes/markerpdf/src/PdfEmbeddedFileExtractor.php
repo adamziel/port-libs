@@ -351,6 +351,12 @@ final class PdfEmbeddedFileExtractor
                 $file['output_intents_review'] = $outputIntentsReview;
             }
 
+            $relatedFiles = $this->relatedFileReviewRows($this->dictionaryRawValue($body, 'RF'), $objects);
+            if ($relatedFiles !== []) {
+                $file['related_file_count'] = count($relatedFiles);
+                $file['related_files'] = $relatedFiles;
+            }
+
             $portfolioFieldValues = $this->collectionFieldValueReview($portfolioMetadata, $portfolioItemValue, $objects, $file);
             if ($portfolioFieldValues !== []) {
                 $file['portfolio_field_values'] = $portfolioFieldValues;
@@ -518,6 +524,124 @@ final class PdfEmbeddedFileExtractor
     }
 
     /**
+     * FileSpec /RF related files extend a primary /EF entry. They are
+     * attachment-local review rows, not visible document text or promoted
+     * metadata payloads.
+     *
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function relatedFileReviewRows(?string $relatedFilesValue, array $objects): array
+    {
+        $relatedFiles = $this->resolveDictionaryFromValue($relatedFilesValue, $objects);
+        if ($relatedFiles === null) {
+            return [];
+        }
+
+        $rows = [];
+        foreach ($this->dictionaryEntries($relatedFiles['body']) as $rfKey => $streamValues) {
+            if (!in_array($rfKey, ['F', 'UF', 'DOS', 'Unix', 'Mac'], true)) {
+                continue;
+            }
+
+            $items = $this->arrayItemsFromValue($streamValues, $objects);
+            if ($items === []) {
+                $items = [trim($streamValues)];
+            }
+
+            foreach ($items as $relatedFileIndex => $streamValue) {
+                $stream = $this->embeddedFileStreamFromValue($streamValue, $objects);
+                if ($stream === null) {
+                    continue;
+                }
+
+                $row = [
+                    'source' => 'filespec_related_files',
+                    'rf_key' => $rfKey,
+                    'related_file_index' => $relatedFileIndex,
+                    'embedded_file_object' => $stream['object'],
+                    'size' => strlen($stream['content']),
+                    'content_sha256' => hash('sha256', $stream['content']),
+                    'payload_included' => false,
+                ];
+
+                $mimeType = $this->dictionaryNameValue($stream['dictionary'], 'Subtype', $objects);
+                if ($mimeType !== null && $mimeType !== '') {
+                    $row['mime_type'] = $mimeType;
+                }
+
+                if ($stream['filters'] !== []) {
+                    $row['filters'] = $stream['filters'];
+                }
+
+                foreach ($this->embeddedFileParams($stream['dictionary'], $objects, $stream['content']) as $key => $metadataValue) {
+                    $row[$key] = $metadataValue;
+                }
+
+                $rows[] = $row;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param mixed $relatedFiles
+     * @return array<string, mixed>
+     */
+    private function associatedFileRelatedFilesProvenance(mixed $relatedFiles): array
+    {
+        if (!is_array($relatedFiles) || $relatedFiles === []) {
+            return [];
+        }
+
+        $keys = [];
+        $objectNumbers = [];
+        $hashes = [];
+        $mimeTypes = [];
+        foreach ($relatedFiles as $relatedFile) {
+            if (!is_array($relatedFile)) {
+                continue;
+            }
+
+            $key = $relatedFile['rf_key'] ?? null;
+            if (is_string($key) && $key !== '') {
+                $keys[] = $key;
+            }
+
+            $objectNumber = $relatedFile['embedded_file_object'] ?? null;
+            if (is_int($objectNumber)) {
+                $objectNumbers[] = $objectNumber;
+            }
+
+            $hash = $relatedFile['content_sha256'] ?? null;
+            if (is_string($hash) && $hash !== '') {
+                $hashes[] = $hash;
+            }
+
+            $mimeType = $relatedFile['mime_type'] ?? null;
+            if (is_string($mimeType) && $mimeType !== '') {
+                $mimeTypes[] = $mimeType;
+            }
+        }
+
+        if ($keys === [] && $objectNumbers === [] && $hashes === [] && $mimeTypes === []) {
+            return [];
+        }
+
+        return [
+            'source' => 'filespec_related_files',
+            'review_only' => true,
+            'payload_included' => false,
+            'count' => count($relatedFiles),
+            'rf_keys' => $this->uniqueStrings($keys),
+            'embedded_file_objects' => array_values(array_unique($objectNumbers)),
+            'mime_types' => $this->uniqueStrings($mimeTypes),
+            'sha256' => $this->uniqueStrings($hashes),
+        ];
+    }
+
+    /**
      * Associated FileSpec relationship/checksum state is review metadata for
      * importers. The payload bytes may be returned by this low-level extractor,
      * but this summary only carries hashes, sizes, and checksum match state.
@@ -562,6 +686,12 @@ final class PdfEmbeddedFileExtractor
             if (array_key_exists('checksum', $payload) || array_key_exists('computed_checksum', $payload)) {
                 $sources[] = 'embedded_file_params_checksum';
             }
+        }
+
+        $relatedFiles = $this->associatedFileRelatedFilesProvenance($file['related_files'] ?? null);
+        if ($relatedFiles !== []) {
+            $metadata['related_files'] = $relatedFiles;
+            $sources[] = 'filespec_related_files';
         }
 
         if ($sources === []) {

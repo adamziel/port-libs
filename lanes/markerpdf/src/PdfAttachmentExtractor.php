@@ -569,7 +569,104 @@ final class PdfAttachmentExtractor
                 : 'unrecognized_pdf_associated_file_relationship';
         }
 
+        $relatedFiles = $this->relatedFileRows($fileSpec['RF'] ?? null, $objects);
+        if ($relatedFiles !== []) {
+            $attachment['related_file_count'] = count($relatedFiles);
+            $attachment['related_files'] = $relatedFiles;
+        }
+
         return $attachment;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function relatedFileRows(mixed $relatedFilesValue, array $objects): array
+    {
+        $relatedFiles = $this->dict($this->resolveValue($relatedFilesValue, $objects));
+        if ($relatedFiles === null) {
+            return [];
+        }
+
+        $rows = [];
+        foreach ($relatedFiles as $rfKey => $streamValues) {
+            if (!in_array($rfKey, ['F', 'UF', 'DOS', 'Unix', 'Mac'], true)) {
+                continue;
+            }
+
+            $items = $this->arrayValue($this->resolveValue($streamValues, $objects));
+            if ($items === null) {
+                $items = [$streamValues];
+            }
+
+            foreach ($items as $relatedFileIndex => $streamValue) {
+                $row = $this->relatedFileRowFromStreamValue($streamValue, $objects, $rfKey, $relatedFileIndex);
+                if ($row !== null) {
+                    $rows[] = $row;
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return array<string, mixed>|null
+     */
+    private function relatedFileRowFromStreamValue(mixed $streamValue, array $objects, string $rfKey, int $relatedFileIndex): ?array
+    {
+        $streamObjectId = $this->refObjectId($streamValue);
+        if ($streamObjectId === null || !isset($objects[$streamObjectId])) {
+            return null;
+        }
+
+        $streamObject = $objects[$streamObjectId];
+        if ($streamObject['stream'] === null) {
+            return null;
+        }
+
+        $bytes = $this->decodedStreamBytes($streamObject, $objects);
+        if ($bytes === null) {
+            return null;
+        }
+
+        $streamDict = $this->dict($streamObject['value']) ?? [];
+        $params = $this->dict($this->resolveValue($streamDict['Params'] ?? null, $objects)) ?? [];
+        $filters = $this->filterNames($streamDict['Filter'] ?? null, $objects);
+        $declaredSize = $this->intValue($this->resolveValue($params['Size'] ?? null, $objects));
+        $checksum = $this->stringBytesHex($this->resolveValue($params['CheckSum'] ?? null, $objects));
+
+        $row = [
+            'source' => 'filespec_related_files',
+            'rf_key' => $rfKey,
+            'related_file_index' => $relatedFileIndex,
+            'stream_object_id' => $streamObjectId,
+            'content_type' => $this->nameValue($this->resolveValue($streamDict['Subtype'] ?? null, $objects)),
+            'byte_length' => strlen($bytes),
+            'sha256' => hash('sha256', $bytes),
+            'created_at' => $this->stringValue($this->resolveValue($params['CreationDate'] ?? null, $objects)),
+            'modified_at' => $this->stringValue($this->resolveValue($params['ModDate'] ?? null, $objects)),
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+
+        if ($filters !== []) {
+            $row['filters'] = $filters;
+        }
+        if ($declaredSize !== null) {
+            $row['declared_size'] = $declaredSize;
+            $row['declared_size_matches'] = $declaredSize === strlen($bytes);
+        }
+        if ($checksum !== null) {
+            $computedChecksum = md5($bytes);
+            $row['checksum_hex'] = $checksum;
+            $row['computed_checksum_hex'] = $computedChecksum;
+            $row['checksum_matches'] = strtolower($checksum) === $computedChecksum;
+        }
+
+        return $row;
     }
 
     /**

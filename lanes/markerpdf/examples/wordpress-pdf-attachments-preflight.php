@@ -10,10 +10,12 @@ $csvPayload = "Title,Status\nDraft,Ready\n";
 $notesPayload = "Needs alt text\n";
 $stalePayload = "Title,Status\nStale,Ignore\n";
 $sourcePayload = '<wp-export><post id="catalog-af"/></wp-export>';
+$relatedPayload = '{"manifest":"catalog-related"}';
 $compressedCsv = gzcompress($csvPayload);
 $csvChecksum = md5($csvPayload);
 $staleChecksum = md5($stalePayload);
 $sourceChecksum = md5($sourcePayload);
+$relatedChecksum = md5($relatedPayload);
 $pdf = "%PDF-1.7\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names 7 0 R /AF [13 0 R] >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
@@ -30,9 +32,11 @@ $pdf = "%PDF-1.7\n"
     . "11 0 obj\n<< /Type /Filespec /F (zz-stale.csv) /Desc (Stale out-of-limits import rows) /AFRelationship /Data /EF << /F 12 0 R >> >>\nendobj\n"
     . "12 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($stalePayload) . " /CheckSum <{$staleChecksum}> >> /Length " . strlen($stalePayload) . " >>\n"
     . "stream\n{$stalePayload}\nendstream\nendobj\n"
-    . "13 0 obj\n<< /Type /Filespec /F (legacy-source.xml) /UF (source.xml) /Desc (Original WordPress export) /AFRelationship /Source /EF << /F 14 0 R /UF 14 0 R >> >>\nendobj\n"
+    . "13 0 obj\n<< /Type /Filespec /F (legacy-source.xml) /UF (source.xml) /Desc (Original WordPress export) /AFRelationship /Source /EF << /F 14 0 R /UF 14 0 R >> /RF << /F [15 0 R] >> >>\nendobj\n"
     . "14 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourcePayload) . " /CheckSum <{$sourceChecksum}> /ModDate (D:20260604174658Z) >> /Length " . strlen($sourcePayload) . " >>\n"
     . "stream\n{$sourcePayload}\nendstream\nendobj\n"
+    . "15 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fjson /Params << /Size " . strlen($relatedPayload) . " /CheckSum <{$relatedChecksum}> >> /Length " . strlen($relatedPayload) . " >>\n"
+    . "stream\n{$relatedPayload}\nendstream\nendobj\n"
     . "%%EOF\n";
 
 $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
@@ -51,6 +55,13 @@ if (!is_array($catalogAttachment)
 if (str_contains(json_encode($summary, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), 'zz-stale.csv')) {
     throw new RuntimeException('Expected out-of-limits EmbeddedFiles name-tree rows to be pruned.');
 }
+$summaryJson = json_encode($summary, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+if (($catalogAttachment['related_file_count'] ?? null) !== 1
+    || ($catalogAttachment['related_files'][0]['checksum_matches'] ?? null) !== true
+    || str_contains($summaryJson, $relatedPayload)
+) {
+    throw new RuntimeException('Expected related files to be summarized without exposing related payload bytes.');
+}
 
 echo "<!-- markerpdf-pdf-attachments-smoke " . htmlspecialchars(json_encode([
     'native_boundary' => 'PDF EmbeddedFiles name tree, catalog AF, and FileAttachment annotation preflight',
@@ -61,6 +72,8 @@ echo "<!-- markerpdf-pdf-attachments-smoke " . htmlspecialchars(json_encode([
     'filenames' => $summary['filenames'],
     'pruned_out_of_limits_name_tree_entry' => true,
     'catalog_associated_file_preflight' => ($catalogAttachment['associated_file'] ?? false) === true,
+    'related_file_preflight' => ($catalogAttachment['related_file_count'] ?? 0) === 1,
+    'related_file_payload_omitted' => !str_contains($summaryJson, $relatedPayload),
     'relationship_roles' => array_values(array_filter(array_map(
         static fn (array $attachment): ?string => $attachment['relationship_role'] ?? null,
         $summary['attachments']
