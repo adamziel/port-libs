@@ -1583,6 +1583,8 @@ final class PdfEmbeddedFileExtractor
         $xrefEntries = $this->xrefEntriesFromStartxrefChain($pdfBytes, $objects, $definitions);
         if ($xrefEntries !== []) {
             $objects = $this->liveDirectObjects($definitions, $xrefEntries);
+            $objects = $this->withTrailerDirectGenerationObjects($pdfBytes, $objects, $definitions);
+            $objects = $this->withReferencedDirectGenerationObjects($objects, $definitions, $xrefEntries);
         }
 
         ksort($objects, SORT_NUMERIC);
@@ -1704,6 +1706,128 @@ final class PdfEmbeddedFileExtractor
                 continue;
             }
             $candidates[] = $definition;
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
+    }
+
+    /**
+     * Incremental updates can name the current catalog generation from the
+     * latest trailer while damaged in-use rows point at invalid offsets. Keep
+     * the trailer root authoritative so attachment name trees do not fall back
+     * to stale /Prev catalog objects.
+     *
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, string>
+     */
+    private function withTrailerDirectGenerationObjects(string $pdfBytes, array $objects, array $definitions): array
+    {
+        $trailer = $this->trailerDictionaryBody($pdfBytes);
+        if ($trailer === null) {
+            return $objects;
+        }
+
+        $reference = $this->objectReferenceFromValue($this->dictionaryRawValue($trailer, 'Root'));
+        if ($reference === null || $reference['generation'] <= 0) {
+            return $objects;
+        }
+
+        $definition = $this->directObjectDefinitionForGeneration(
+            $definitions[$reference['objectNumber']] ?? [],
+            $reference['generation']
+        );
+        if ($definition === null) {
+            return $objects;
+        }
+
+        $objects[$reference['objectNumber']] = $definition['body'];
+        ksort($objects, SORT_NUMERIC);
+
+        return $objects;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
+     * @return array<int, string>
+     */
+    private function withReferencedDirectGenerationObjects(array $objects, array $definitions, array $xrefEntries): array
+    {
+        $repaired = $objects;
+
+        for ($pass = 0; $pass < 8; $pass++) {
+            $added = false;
+            foreach ($this->nonZeroGenerationObjectReferences($repaired) as $objectNumber => $generations) {
+                $xrefEntry = $xrefEntries[$objectNumber] ?? null;
+                if ($xrefEntry !== null && ($xrefEntry['type'] ?? null) !== 1) {
+                    continue;
+                }
+
+                $selected = isset($repaired[$objectNumber])
+                    ? $this->liveDirectObjectDefinition($definitions[$objectNumber] ?? [], $xrefEntry)
+                    : null;
+
+                krsort($generations, SORT_NUMERIC);
+                foreach (array_keys($generations) as $generation) {
+                    $generation = (int) $generation;
+                    if ($selected !== null && $selected['generation'] === $generation) {
+                        continue;
+                    }
+
+                    $definition = $this->directObjectDefinitionForGeneration($definitions[$objectNumber] ?? [], $generation);
+                    if ($definition === null) {
+                        continue;
+                    }
+
+                    $repaired[$objectNumber] = $definition['body'];
+                    $added = true;
+                    break;
+                }
+            }
+
+            if (!$added) {
+                break;
+            }
+        }
+
+        ksort($repaired, SORT_NUMERIC);
+        return $repaired;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<int, array<int, true>>
+     */
+    private function nonZeroGenerationObjectReferences(array $objects): array
+    {
+        $references = [];
+        foreach ($objects as $body) {
+            $source = $this->dictionaryObjectBody($body) ?? $body;
+            if (preg_match_all('/\b(\d+)\s+([1-9]\d*)\s+R\b/s', $source, $matches, PREG_SET_ORDER) < 1) {
+                continue;
+            }
+
+            foreach ($matches as $match) {
+                $references[(int) $match[1]][(int) $match[2]] = true;
+            }
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function directObjectDefinitionForGeneration(array $definitions, int $generation): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if ($definition['generation'] === $generation) {
+                $candidates[] = $definition;
+            }
         }
 
         return $this->latestDirectObjectDefinition($candidates);
@@ -2796,6 +2920,21 @@ final class PdfEmbeddedFileExtractor
     private function objectNumberFromReference(string $value): ?int
     {
         return preg_match('/^(\d+)\s+\d+\s+R\b/s', trim($value), $match) === 1 ? (int) $match[1] : null;
+    }
+
+    /**
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function objectReferenceFromValue(?string $value): ?array
+    {
+        if ($value === null || preg_match('/^(\d+)\s+(\d+)\s+R\b/s', trim($value), $match) !== 1) {
+            return null;
+        }
+
+        return [
+            'objectNumber' => (int) $match[1],
+            'generation' => (int) $match[2],
+        ];
     }
 
     /**

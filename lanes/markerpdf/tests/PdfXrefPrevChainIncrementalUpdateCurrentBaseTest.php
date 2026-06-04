@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\MarkerPDF\PdfEmbeddedFileExtractor;
 use PortLibs\MarkerPDF\PdfMetadataExtractor;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
@@ -172,6 +173,70 @@ $xrefPrevChainGenerationMismatchMetadataPdf = static function () use ($xrefPrevC
     return $pdf;
 };
 
+$xrefPrevChainEmbeddedFilesCurrentBasePdf = static function (): string {
+    $stalePayload = '<wp-export><post id="stale-prev-attachment"/></wp-export>';
+    $currentPayload = '<wp-export><post id="current-prev-attachment"/></wp-export>';
+
+    $pdf = "%PDF-1.7\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): int {
+        $offset = strlen($pdf);
+        $offsets[$objectNumber . ':' . $generation] = $offset;
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $xrefTableRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+    $xrefStreamRow = static fn (int $type, int $fieldTwo, int $fieldThree): string => chr($type) . pack('N', $fieldTwo) . chr($fieldThree);
+
+    $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>');
+    $addObject(2, 0, '<< /Type /Pages /Kids [] /Count 0 >>');
+    $addObject(6, 0, '<< /Names [(stale-source.xml) 10 0 R] >>');
+    $addObject(10, 0, '<< /Type /Filespec /F (stale-source.xml) /Desc (Stale Prev chain attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+    $addObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($stalePayload) . " >>\nstream\n{$stalePayload}\nendstream");
+
+    $previousXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 12\n"
+        . $xrefTableRow(0, 65535, 'f')
+        . $xrefTableRow($offsets['1:0'])
+        . $xrefTableRow($offsets['2:0'])
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow($offsets['6:0'])
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow($offsets['10:0'])
+        . $xrefTableRow($offsets['11:0'])
+        . "trailer\n<< /Size 12 /Root 1 0 R >>\n"
+        . "startxref\n{$previousXrefOffset}\n%%EOF\n";
+
+    $addObject(1, 1, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 1 R >> >>');
+    $addObject(6, 1, '<< /Names [(current-source.xml) 10 1 R] >>');
+    $addObject(10, 1, '<< /Type /Filespec /F (current-source.xml) /Desc (Current Prev chain attachment) /AFRelationship /Source /EF << /F 11 1 R >> >>');
+    $addObject(11, 1, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+    $currentRows = ''
+        . $xrefStreamRow(1, 0, 1)
+        . $xrefStreamRow(1, 0, 1)
+        . $xrefStreamRow(1, 0, 1)
+        . $xrefStreamRow(1, 0, 1);
+    $compressedCurrentRows = gzcompress($currentRows);
+    if (!is_string($compressedCurrentRows)) {
+        throw new RuntimeException('Unable to compress xref Prev chain embedded-file fixture stream.');
+    }
+
+    $currentXrefOffset = strlen($pdf);
+    $pdf .= "20 0 obj\n"
+        . '<< /Type /XRef /Size 21 /Root 1 1 R /Prev ' . $previousXrefOffset . ' /Index [1 1 6 1 10 2] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedCurrentRows) . " >>\n"
+        . "stream\n{$compressedCurrentRows}\nendstream\nendobj\n"
+        . "startxref\n{$currentXrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
 return [
     'repairs current metadata generation objects through damaged xref Prev chain offsets' => static function (
         TestRunner $t
@@ -215,5 +280,27 @@ return [
         $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Wrong Generation XMP Title'));
         $t->true(!str_contains($text, 'Wrong Generation XMP Title'));
         $t->true(!str_contains($text, "\0"));
+    },
+    'repairs trailer Root generation before embedded-file name-tree attachment import' => static function (
+        TestRunner $t
+    ) use ($xrefPrevChainEmbeddedFilesCurrentBasePdf): void {
+        $pdf = $xrefPrevChainEmbeddedFilesCurrentBasePdf();
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $encoded = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, count($files));
+        $t->same('catalog_names_embedded_files', $files[0]['source']);
+        $t->same('current-source.xml', $files[0]['name']);
+        $t->same('current-source.xml', $files[0]['filename']);
+        $t->same('Current Prev chain attachment', $files[0]['description']);
+        $t->same('Source', $files[0]['relationship']);
+        $t->same('text/xml', $files[0]['mime_type']);
+        $t->same(10, $files[0]['file_spec_object']);
+        $t->same(11, $files[0]['embedded_file_object']);
+        $t->same('<wp-export><post id="current-prev-attachment"/></wp-export>', $files[0]['content']);
+        $t->same(strlen('<wp-export><post id="current-prev-attachment"/></wp-export>'), $files[0]['size']);
+        $t->same(hash('sha256', '<wp-export><post id="current-prev-attachment"/></wp-export>'), $files[0]['content_sha256']);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'stale-source.xml'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'stale-prev-attachment'));
     },
 ];

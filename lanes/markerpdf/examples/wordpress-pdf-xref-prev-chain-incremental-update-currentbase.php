@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\MarkerPDF\PdfEmbeddedFileExtractor;
 use PortLibs\MarkerPDF\PdfMetadataExtractor;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
@@ -155,6 +156,63 @@ $mismatchPdf .= "20 0 obj\n"
     . "stream\n{$compressedMismatchRows}\nendstream\nendobj\n"
     . "startxref\n{$mismatchCurrentXrefOffset}\n%%EOF";
 
+$stalePayload = '<wp-export><post id="stale-prev-attachment"/></wp-export>';
+$currentPayload = '<wp-export><post id="current-prev-attachment"/></wp-export>';
+$attachmentPdf = "%PDF-1.7\n";
+$attachmentOffsets = [];
+$addAttachmentObject = static function (int $objectNumber, int $generation, string $body) use (&$attachmentPdf, &$attachmentOffsets): int {
+    $offset = strlen($attachmentPdf);
+    $attachmentOffsets[$objectNumber . ':' . $generation] = $offset;
+    $attachmentPdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+
+$addAttachmentObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>');
+$addAttachmentObject(2, 0, '<< /Type /Pages /Kids [] /Count 0 >>');
+$addAttachmentObject(6, 0, '<< /Names [(stale-source.xml) 10 0 R] >>');
+$addAttachmentObject(10, 0, '<< /Type /Filespec /F (stale-source.xml) /Desc (Stale Prev chain attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$addAttachmentObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($stalePayload) . " >>\nstream\n{$stalePayload}\nendstream");
+
+$attachmentPreviousXrefOffset = strlen($attachmentPdf);
+$attachmentPdf .= "xref\n"
+    . "0 12\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($attachmentOffsets['1:0'])
+    . $xrefTableRow($attachmentOffsets['2:0'])
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($attachmentOffsets['6:0'])
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($attachmentOffsets['10:0'])
+    . $xrefTableRow($attachmentOffsets['11:0'])
+    . "trailer\n<< /Size 12 /Root 1 0 R >>\n"
+    . "startxref\n{$attachmentPreviousXrefOffset}\n%%EOF\n";
+
+$addAttachmentObject(1, 1, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 1 R >> >>');
+$addAttachmentObject(6, 1, '<< /Names [(current-source.xml) 10 1 R] >>');
+$addAttachmentObject(10, 1, '<< /Type /Filespec /F (current-source.xml) /Desc (Current Prev chain attachment) /AFRelationship /Source /EF << /F 11 1 R >> >>');
+$addAttachmentObject(11, 1, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+$attachmentRows = ''
+    . $xrefStreamRow(1, 0, 1)
+    . $xrefStreamRow(1, 0, 1)
+    . $xrefStreamRow(1, 0, 1)
+    . $xrefStreamRow(1, 0, 1);
+$compressedAttachmentRows = gzcompress($attachmentRows);
+if (!is_string($compressedAttachmentRows)) {
+    throw new RuntimeException('Unable to compress xref Prev chain embedded-file smoke fixture.');
+}
+
+$attachmentCurrentXrefOffset = strlen($attachmentPdf);
+$attachmentPdf .= "20 0 obj\n"
+    . '<< /Type /XRef /Size 21 /Root 1 1 R /Prev ' . $attachmentPreviousXrefOffset . ' /Index [1 1 6 1 10 2] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedAttachmentRows) . " >>\n"
+    . "stream\n{$compressedAttachmentRows}\nendstream\nendobj\n"
+    . "startxref\n{$attachmentCurrentXrefOffset}\n%%EOF";
+
 $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
 $extractor = new PdfTextExtractor();
 $plainText = $extractor->extractPlainText($pdf);
@@ -163,6 +221,8 @@ $lines = $extractor->extractTextLines($pdf);
 $mismatchMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($mismatchPdf);
 $mismatchEncodedMetadata = json_encode($mismatchMetadata, JSON_UNESCAPED_SLASHES);
 $mismatchPlainText = $extractor->extractPlainText($mismatchPdf);
+$attachmentFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($attachmentPdf);
+$attachmentEncoded = json_encode($attachmentFiles, JSON_UNESCAPED_SLASHES);
 
 echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialchars(json_encode([
     'native_boundary' => 'PDF xref /Prev chain current trailer generations repair damaged current in-use offsets before metadata import',
@@ -176,6 +236,11 @@ echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialcha
         && !str_contains($mismatchEncodedMetadata, 'Wrong Generation XMP Title'),
     'generation_mismatch_info_fallback_selected' => ($mismatchMetadata['title'] ?? null) === 'Current Generation Info Title',
     'generation_mismatch_text_selected' => str_contains($mismatchPlainText, 'Metadata generation boundary'),
+    'embedded_file_current_attachment_selected' => ($attachmentFiles[0]['filename'] ?? null) === 'current-source.xml',
+    'embedded_file_current_payload_selected' => ($attachmentFiles[0]['content'] ?? null) === $currentPayload,
+    'embedded_file_stale_prev_attachment_excluded' => is_string($attachmentEncoded)
+        && !str_contains($attachmentEncoded, 'stale-prev-attachment')
+        && !str_contains($attachmentEncoded, 'stale-source.xml'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
