@@ -213,6 +213,76 @@ $attachmentPdf .= "20 0 obj\n"
     . "stream\n{$compressedAttachmentRows}\nendstream\nendobj\n"
     . "startxref\n{$attachmentCurrentXrefOffset}\n%%EOF";
 
+$malformedIndexStaleText = 'BT /F1 12 Tf 72 720 Td (Stale malformed index smoke page) Tj ET';
+$malformedIndexCurrentText = 'BT /F1 12 Tf 72 720 Td (Current malformed index smoke page) Tj ET';
+$malformedIndexStalePayload = '<wp-export><post id="stale-malformed-index-smoke"/></wp-export>';
+$malformedIndexCurrentPayload = '<wp-export><post id="current-malformed-index-smoke"/></wp-export>';
+$malformedIndexPdf = "%PDF-1.7\n";
+$addMalformedIndexObject = static function (int $objectNumber, int $generation, string $body) use (&$malformedIndexPdf): int {
+    $offset = strlen($malformedIndexPdf);
+    $malformedIndexPdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+
+$malformedIndexStaleCatalogOffset = $addMalformedIndexObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Names << /EmbeddedFiles 8 0 R >> >>');
+$malformedIndexStalePagesOffset = $addMalformedIndexObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$malformedIndexStalePageOffset = $addMalformedIndexObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$malformedIndexStaleContentOffset = $addMalformedIndexObject(4, 0, "<< /Length " . strlen($malformedIndexStaleText) . " >>\nstream\n{$malformedIndexStaleText}\nendstream");
+$malformedIndexFontOffset = $addMalformedIndexObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+$malformedIndexStaleInfoOffset = $addMalformedIndexObject(6, 0, '<< /Title (Stale Malformed Index Smoke Title) /Author (Stale Malformed Smoke Author) >>');
+$malformedIndexStaleNameTreeOffset = $addMalformedIndexObject(8, 0, '<< /Names [(stale-malformed-index-smoke.xml) 10 0 R] >>');
+$malformedIndexStaleFileSpecOffset = $addMalformedIndexObject(10, 0, '<< /Type /Filespec /F (stale-malformed-index-smoke.xml) /Desc (Stale malformed index smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$malformedIndexStaleEmbeddedOffset = $addMalformedIndexObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($malformedIndexStalePayload) . " >>\nstream\n{$malformedIndexStalePayload}\nendstream");
+
+$malformedIndexPreviousXrefOffset = strlen($malformedIndexPdf);
+$malformedIndexPdf .= "xref\n"
+    . "0 12\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($malformedIndexStaleCatalogOffset)
+    . $xrefTableRow($malformedIndexStalePagesOffset)
+    . $xrefTableRow($malformedIndexStalePageOffset)
+    . $xrefTableRow($malformedIndexStaleContentOffset)
+    . $xrefTableRow($malformedIndexFontOffset)
+    . $xrefTableRow($malformedIndexStaleInfoOffset)
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($malformedIndexStaleNameTreeOffset)
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($malformedIndexStaleFileSpecOffset)
+    . $xrefTableRow($malformedIndexStaleEmbeddedOffset)
+    . "trailer\n<< /Size 12 /Root 1 0 R /Info 6 0 R >>\n"
+    . "startxref\n{$malformedIndexPreviousXrefOffset}\n%%EOF\n";
+
+$malformedIndexCurrentCatalogOffset = $addMalformedIndexObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Names << /EmbeddedFiles 8 0 R >> >>');
+$malformedIndexCurrentPagesOffset = $addMalformedIndexObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$malformedIndexCurrentPageOffset = $addMalformedIndexObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$malformedIndexCurrentContentOffset = $addMalformedIndexObject(4, 0, "<< /Length " . strlen($malformedIndexCurrentText) . " >>\nstream\n{$malformedIndexCurrentText}\nendstream");
+$malformedIndexCurrentInfoOffset = $addMalformedIndexObject(6, 0, '<< /Title (Current Malformed Index Smoke Title) /Author (Current Malformed Smoke Author) /Producer (Current Malformed Smoke Producer) >>');
+$malformedIndexCurrentNameTreeOffset = $addMalformedIndexObject(8, 0, '<< /Names [(current-malformed-index-smoke.xml) 10 0 R] >>');
+$malformedIndexCurrentFileSpecOffset = $addMalformedIndexObject(10, 0, '<< /Type /Filespec /F (current-malformed-index-smoke.xml) /Desc (Current malformed index smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$malformedIndexCurrentEmbeddedOffset = $addMalformedIndexObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($malformedIndexCurrentPayload) . " >>\nstream\n{$malformedIndexCurrentPayload}\nendstream");
+
+$malformedIndexRows = ''
+    . $xrefStreamRow(1, $malformedIndexCurrentCatalogOffset, 0)
+    . $xrefStreamRow(1, $malformedIndexCurrentPagesOffset, 0)
+    . $xrefStreamRow(1, $malformedIndexCurrentPageOffset, 0)
+    . $xrefStreamRow(1, $malformedIndexCurrentContentOffset, 0)
+    . $xrefStreamRow(1, $malformedIndexFontOffset, 0)
+    . $xrefStreamRow(1, $malformedIndexCurrentInfoOffset, 0)
+    . $xrefStreamRow(1, $malformedIndexCurrentNameTreeOffset, 0)
+    . $xrefStreamRow(1, $malformedIndexCurrentFileSpecOffset, 0)
+    . $xrefStreamRow(1, $malformedIndexCurrentEmbeddedOffset, 0);
+$compressedMalformedIndexRows = gzcompress($malformedIndexRows);
+if (!is_string($compressedMalformedIndexRows)) {
+    throw new RuntimeException('Unable to compress malformed-index current xref-stream smoke fixture.');
+}
+
+$malformedIndexCurrentXrefOffset = strlen($malformedIndexPdf);
+$malformedIndexPdf .= "20 0 obj\n"
+    . '<< /Type /XRef /Size 40 /Root 1 0 R /Info 6 0 R /Prev ' . $malformedIndexPreviousXrefOffset . ' /Index [30 9] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedMalformedIndexRows) . " >>\n"
+    . "stream\n{$compressedMalformedIndexRows}\nendstream\nendobj\n"
+    . "startxref\n{$malformedIndexCurrentXrefOffset}\n%%EOF";
+
 $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
 $extractor = new PdfTextExtractor();
 $plainText = $extractor->extractPlainText($pdf);
@@ -223,6 +293,14 @@ $mismatchEncodedMetadata = json_encode($mismatchMetadata, JSON_UNESCAPED_SLASHES
 $mismatchPlainText = $extractor->extractPlainText($mismatchPdf);
 $attachmentFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($attachmentPdf);
 $attachmentEncoded = json_encode($attachmentFiles, JSON_UNESCAPED_SLASHES);
+$malformedIndexMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($malformedIndexPdf);
+$malformedIndexPlainText = $extractor->extractPlainText($malformedIndexPdf);
+$malformedIndexFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($malformedIndexPdf);
+$malformedIndexEncoded = json_encode([
+    'metadata' => $malformedIndexMetadata,
+    'text' => $malformedIndexPlainText,
+    'files' => $malformedIndexFiles,
+], JSON_UNESCAPED_SLASHES);
 
 echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialchars(json_encode([
     'native_boundary' => 'PDF xref /Prev chain current trailer generations repair damaged current in-use offsets before metadata import',
@@ -241,6 +319,13 @@ echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialcha
     'embedded_file_stale_prev_attachment_excluded' => is_string($attachmentEncoded)
         && !str_contains($attachmentEncoded, 'stale-prev-attachment')
         && !str_contains($attachmentEncoded, 'stale-source.xml'),
+    'malformed_index_same_generation_current_info_selected' => ($malformedIndexMetadata['title'] ?? null) === 'Current Malformed Index Smoke Title',
+    'malformed_index_same_generation_current_language_selected' => ($malformedIndexMetadata['language'] ?? null) === 'en-US',
+    'malformed_index_same_generation_current_text_selected' => str_contains($malformedIndexPlainText, 'Current malformed index smoke page'),
+    'malformed_index_same_generation_current_attachment_selected' => ($malformedIndexFiles[0]['filename'] ?? null) === 'current-malformed-index-smoke.xml',
+    'malformed_index_same_generation_stale_prev_excluded' => is_string($malformedIndexEncoded)
+        && !str_contains($malformedIndexEncoded, 'Stale Malformed')
+        && !str_contains($malformedIndexEncoded, 'stale-malformed-index-smoke'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";

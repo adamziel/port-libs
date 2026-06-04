@@ -1891,7 +1891,7 @@ final class PdfEmbeddedFileExtractor
             return [];
         }
 
-        $entries = $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects);
+        $entries = $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions);
         $previousOffset = $this->dictionaryIntegerValue($streamSection['body'], 'Prev');
         if ($previousOffset !== null && $previousOffset >= 0) {
             foreach ($this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets) as $objectNumber => $entry) {
@@ -2002,7 +2002,7 @@ final class PdfEmbeddedFileExtractor
     private function xrefStreamEntriesAtOffset(int $offset, array $objects, array $definitions): array
     {
         $section = $this->xrefStreamSectionAtOffset($offset, $definitions);
-        return $section === null ? [] : $this->xrefStreamEntriesFromDefinition($section['definition'], $objects);
+        return $section === null ? [] : $this->xrefStreamEntriesFromDefinition($section['definition'], $objects, $definitions);
     }
 
     /**
@@ -2028,9 +2028,10 @@ final class PdfEmbeddedFileExtractor
     /**
      * @param array{generation: int, offset: int, body: string} $definition
      * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>>|null $definitions
      * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
-    private function xrefStreamEntriesFromDefinition(array $definition, array $objects): array
+    private function xrefStreamEntriesFromDefinition(array $definition, array $objects, ?array $definitions = null): array
     {
         $entries = [];
         $body = $definition['body'];
@@ -2070,11 +2071,19 @@ final class PdfEmbeddedFileExtractor
                 $fieldTwo = $this->xrefFieldValue($decoded, $fieldOffset, $widths[1]);
                 $fieldThree = $this->xrefFieldValue($decoded, $fieldOffset, $widths[2]);
                 $objectNumber = $startObject + $index;
+                $generation = $fieldThree;
+                if ($type === 1 && $widths[1] > 0 && $definitions !== null) {
+                    $offsetOwner = $this->directObjectDefinitionAtOffset($definitions, $fieldTwo);
+                    if ($offsetOwner !== null) {
+                        $objectNumber = $offsetOwner['objectNumber'];
+                        $generation = $offsetOwner['generation'];
+                    }
+                }
 
                 if ($type === 0) {
                     $entries[$objectNumber] = [
                         'type' => 0,
-                        'generation' => $fieldThree,
+                        'generation' => $generation,
                         'offset' => $fieldTwo,
                         'offsetIsExplicit' => $widths[1] > 0,
                     ];
@@ -2082,7 +2091,7 @@ final class PdfEmbeddedFileExtractor
                     $entries[$objectNumber] = [
                         'type' => 1,
                         'offset' => $fieldTwo,
-                        'generation' => $fieldThree,
+                        'generation' => $generation,
                         'offsetIsExplicit' => $widths[1] > 0,
                     ];
                 } elseif ($type === 2 && $fieldTwo > 0) {
@@ -2099,6 +2108,28 @@ final class PdfEmbeddedFileExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{objectNumber: int, generation: int, offset: int, body: string}|null
+     */
+    private function directObjectDefinitionAtOffset(array $definitions, int $offset): ?array
+    {
+        foreach ($definitions as $objectNumber => $entries) {
+            foreach ($entries as $definition) {
+                if ($definition['offset'] === $offset) {
+                    return [
+                        'objectNumber' => $objectNumber,
+                        'generation' => $definition['generation'],
+                        'offset' => $definition['offset'],
+                        'body' => $definition['body'],
+                    ];
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
