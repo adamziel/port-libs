@@ -126,18 +126,25 @@ final class MathTexConverter
         return '$' . $text . '$';
     }
 
-    public function mathMlFor(AstNode $node): string
+    /**
+     * @param array<string, array{arity?: int, template?: string}> $macros
+     */
+    public function mathMlFor(AstNode $node, array $macros = []): string
     {
-        return $this->texToMathMl((string) $node->attr('text', ''), $node->attr('display') === true);
+        return $this->texToMathMl((string) $node->attr('text', ''), $node->attr('display') === true, $macros);
     }
 
-    public function texToMathMl(string $tex, bool $display = false): string
+    /**
+     * @param array<string, array{arity?: int, template?: string}> $macros
+     */
+    public function texToMathMl(string $tex, bool $display = false, array $macros = []): string
     {
+        $expandedTex = $this->expandRawTexMathMacros($tex, $this->normalizeMacroDefinitions($macros));
         $offset = 0;
-        $children = $this->parseExpression($tex, $offset, null);
-        $this->skipWhitespace($tex, $offset);
+        $children = $this->parseExpression($expandedTex, $offset, null);
+        $this->skipWhitespace($expandedTex, $offset);
 
-        if ($offset < strlen($tex)) {
+        if ($offset < strlen($expandedTex)) {
             throw new \InvalidArgumentException('Unsupported TeX token at offset ' . $offset);
         }
 
@@ -149,6 +156,217 @@ final class MathTexConverter
             . '<annotation encoding="application/x-tex">' . $this->esc($tex) . '</annotation>'
             . '</semantics>'
             . '</math>';
+    }
+
+    /**
+     * @return array<string, array{arity:int, template:string}>
+     */
+    public function macroDefinitionsFromDocument(AstNode $node): array
+    {
+        $macros = [];
+        $this->collectMacroDefinitions($node, $macros);
+
+        return $macros;
+    }
+
+    /**
+     * @param array<string, array{arity:int, template:string}> $macros
+     */
+    private function collectMacroDefinitions(AstNode $node, array &$macros): void
+    {
+        if ($node->type === 'raw_tex') {
+            $macro = $this->readRawTexMacroDefinition((string) $node->attr('tex', ''));
+            if ($macro !== null) {
+                $macros[$macro['name']] = [
+                    'arity' => $macro['arity'],
+                    'template' => $macro['template'],
+                ];
+            }
+        }
+
+        foreach ($node->children as $child) {
+            $this->collectMacroDefinitions($child, $macros);
+        }
+    }
+
+    /**
+     * @return array{name:string, arity:int, template:string}|null
+     */
+    private function readRawTexMacroDefinition(string $tex): ?array
+    {
+        if (
+            preg_match(
+                '/^\\\\(?:re)?newcommand\{\\\\([A-Za-z]+)\}(?:\[(\d+)])?(?:\[[^\]\r\n]*])?\{((?:\\\\.|[^{}])*)\}$/',
+                trim($tex),
+                $m
+            ) !== 1
+            && preg_match(
+                '/^\\\\providecommand\{\\\\([A-Za-z]+)\}(?:\[(\d+)])?(?:\[[^\]\r\n]*])?\{((?:\\\\.|[^{}])*)\}$/',
+                trim($tex),
+                $m
+            ) !== 1
+        ) {
+            return null;
+        }
+
+        return [
+            'name' => $m[1],
+            'arity' => isset($m[2]) && $m[2] !== '' ? (int) $m[2] : $this->inferMacroArity($m[3]),
+            'template' => $m[3],
+        ];
+    }
+
+    private function inferMacroArity(string $template): int
+    {
+        if (preg_match_all('/#([1-9])/', $template, $m) !== false && $m[1] !== []) {
+            return max(array_map('intval', $m[1]));
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param array<string, array{arity?: int, template?: string}> $macros
+     * @return array<string, array{arity:int, template:string}>
+     */
+    private function normalizeMacroDefinitions(array $macros): array
+    {
+        $normalized = [];
+        foreach ($macros as $name => $definition) {
+            $macroName = ltrim($name, '\\');
+            if (preg_match('/^[A-Za-z]+$/', $macroName) !== 1) {
+                throw new \InvalidArgumentException('Unsupported TeX macro name ' . $name);
+            }
+
+            if (!is_array($definition) || !isset($definition['template']) || !is_string($definition['template'])) {
+                throw new \InvalidArgumentException('Expected TeX macro template for \\' . $macroName);
+            }
+
+            $arity = $definition['arity'] ?? $this->inferMacroArity($definition['template']);
+            if (!is_int($arity) || $arity < 0 || $arity > 9) {
+                throw new \InvalidArgumentException('Unsupported TeX macro arity for \\' . $macroName);
+            }
+
+            $normalized[$macroName] = [
+                'arity' => $arity,
+                'template' => $definition['template'],
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, array{arity:int, template:string}> $macros
+     */
+    private function expandRawTexMathMacros(string $math, array $macros): string
+    {
+        if ($macros === []) {
+            return $math;
+        }
+
+        $expanded = $math;
+        for ($iteration = 0; $iteration < 5; $iteration++) {
+            $next = $this->expandRawTexMathMacrosOnce($expanded, $macros);
+            if ($next === $expanded) {
+                break;
+            }
+            $expanded = $next;
+        }
+
+        return $expanded;
+    }
+
+    /**
+     * @param array<string, array{arity:int, template:string}> $macros
+     */
+    private function expandRawTexMathMacrosOnce(string $math, array $macros): string
+    {
+        $output = '';
+        $offset = 0;
+        $length = strlen($math);
+
+        while ($offset < $length) {
+            if (
+                ($math[$offset] ?? '') === '\\'
+                && preg_match('/\G\\\\([A-Za-z]+)/', $math, $m, 0, $offset) === 1
+                && isset($macros[$m[1]])
+            ) {
+                $macro = $macros[$m[1]];
+                $cursor = $offset + strlen($m[0]);
+                $args = [];
+                for ($argument = 0; $argument < $macro['arity']; $argument++) {
+                    $this->skipWhitespace($math, $cursor);
+                    $parsed = $this->readTexBraceArgument($math, $cursor);
+                    if ($parsed === null) {
+                        break;
+                    }
+                    $args[] = $parsed['value'];
+                    $cursor = $parsed['next'];
+                }
+
+                if (count($args) === $macro['arity']) {
+                    $output .= $this->renderRawTexMacroTemplate($macro['template'], $args);
+                    $offset = $cursor;
+                    continue;
+                }
+            }
+
+            $output .= $math[$offset];
+            $offset++;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @return array{value:string, next:int}|null
+     */
+    private function readTexBraceArgument(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '{') {
+            return null;
+        }
+
+        $depth = 0;
+        $length = strlen($text);
+        for ($cursor = $offset; $cursor < $length; $cursor++) {
+            if ($text[$cursor] === '\\') {
+                $cursor++;
+                continue;
+            }
+
+            if ($text[$cursor] === '{') {
+                $depth++;
+                continue;
+            }
+
+            if ($text[$cursor] !== '}') {
+                continue;
+            }
+
+            $depth--;
+            if ($depth === 0) {
+                return [
+                    'value' => substr($text, $offset + 1, $cursor - $offset - 1),
+                    'next' => $cursor + 1,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function renderRawTexMacroTemplate(string $template, array $args): string
+    {
+        foreach ($args as $index => $argument) {
+            $template = str_replace('#' . ($index + 1), $argument, $template);
+        }
+
+        return $template;
     }
 
     /**

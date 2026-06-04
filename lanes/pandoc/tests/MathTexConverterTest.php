@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\LatexWriter;
+use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MathTexConverter;
 
 return [
@@ -29,6 +30,37 @@ return [
         $t->contains('<semantics><mrow><mtext>posts &amp; media</mtext><mo>∈</mo><mi>S</mi></mrow><annotation encoding="application/x-tex">\\text{posts &amp; media} \\in S</annotation></semantics>', $annotated);
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mfrac><mi>x</mi><mi>y</mi></mfrac>', $nodeMathml);
         $t->contains('<annotation encoding="application/x-tex">\\frac{x}{y}</annotation></semantics></math>', $nodeMathml);
+    },
+    'expands bounded raw tex macros for mathml handoff while preserving source annotations' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '\\newcommand{\\tuple}[1]{\\langle #1 \\rangle}',
+            '\\providecommand{\\pair}[2]{\\langle #1,#2 \\rangle}',
+            '',
+            '$\\tuple{x,y}$',
+        ]));
+        $macros = $converter->macroDefinitionsFromDocument($document);
+        $mathml = $converter->texToMathMl('\\tuple{x,y} + \\pair{p_i}{m_i}', false, $macros);
+        $nodeMathml = $converter->mathMlFor(new AstNode('math', [
+            'text' => '\\pair{a}{b}',
+            'display' => true,
+        ]), $macros);
+
+        $t->same([
+            'tuple' => ['arity' => 1, 'template' => '\\langle #1 \\rangle'],
+            'pair' => ['arity' => 2, 'template' => '\\langle #1,#2 \\rangle'],
+        ], $macros);
+        $t->contains('<mo>⟨</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo>⟩</mo><mo>+</mo><mo>⟨</mo><msub><mi>p</mi><mi>i</mi></msub><mo>,</mo><msub><mi>m</mi><mi>i</mi></msub><mo>⟩</mo>', $mathml);
+        $t->contains('<annotation encoding="application/x-tex">\\tuple{x,y} + \\pair{p_i}{m_i}</annotation>', $mathml);
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mo>⟨</mo><mi>a</mi><mo>,</mo><mi>b</mi><mo>⟩</mo></mrow>', $nodeMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\pair{a}{b}</annotation></semantics></math>', $nodeMathml);
+    },
+    'rejects unsupported bounded tex macro definitions before mathml conversion' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\bad{x}', false, ['bad-name' => ['arity' => 1, 'template' => '#1']]));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\bad{x}', false, ['bad' => ['arity' => 10, 'template' => '#1']]));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\bad{x}', false, ['bad' => ['arity' => 1]]));
     },
     'converts bounded tex delimiter commands and stretch fences to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
