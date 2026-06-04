@@ -45,6 +45,7 @@ $buildNtfsExtra = static function (int $modifiedAt, int $accessedAt, int $create
  *     localExtra?:string,
  *     centralExtra?:string,
  *     localName?:string,
+ *     versionMadeBy?:int,
  *     diskStart?:int,
  *     externalAttributes?:int,
  *     comment?:string
@@ -112,7 +113,7 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
         $central .= pack(
             'VvvvvvvVVVvvvvvVV',
             0x02014b50,
-            0x0314,
+            $entry['versionMadeBy'] ?? 0x0314,
             20,
             $flags,
             $method,
@@ -306,9 +307,45 @@ return [
         $t->same(19400, $entry->modifiedDosTime());
         $t->same(23747, $entry->modifiedDosDate());
         $t->same(1780479016, $entry->lastModifiedTimestamp());
+        $t->same(3, $entry->madeByHostSystem());
+        $t->same(20, $entry->madeByVersion());
+        $t->same(0x81a4, $entry->unixMode());
+        $t->same(false, $entry->isUnixSymlink());
         $t->same(0x81a40000, $entry->externalFileAttributes);
         $t->same('metadata package', $package->packageComment());
         $t->same('<w:document><w:p>metadata</w:p></w:document>', $package->read('word/document.xml'));
+    },
+
+    'rejects zip symlink entries before office package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/review.png',
+                'data' => '../embeddings/oleObject1.bin',
+                'method' => 0,
+                'externalAttributes' => 0xa1ff0000,
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            [
+                'name' => 'word/media/review.png',
+                'data' => '../embeddings/oleObject1.bin',
+                'compressionMethod' => 0,
+                'externalAttributes' => 0xa1ff0000,
+            ],
+        ]));
+
+        $fatPackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/review.png',
+                'data' => 'ordinary external attribute bytes',
+                'method' => 0,
+                'versionMadeBy' => 0x0014,
+                'externalAttributes' => 0xa1ff0000,
+            ],
+        ]));
+
+        $t->same(null, $fatPackage->entry('word/media/review.png')->unixMode());
+        $t->same(false, $fatPackage->entry('word/media/review.png')->isUnixSymlink());
     },
 
     'writes zip entry modification metadata for generated package parts' => static function (TestRunner $t): void {

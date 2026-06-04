@@ -10,6 +10,8 @@ final class ZipPackage
     private const CENTRAL_DIRECTORY_SIGNATURE = "PK\x01\x02";
     private const LOCAL_FILE_SIGNATURE = "PK\x03\x04";
     private const UTF8_GENERAL_PURPOSE_FLAG = 0x0800;
+    private const UNIX_FILE_TYPE_MASK = 0xf000;
+    private const UNIX_SYMLINK_TYPE = 0xa000;
 
     /**
      * @param array<string, ZipPackageEntry> $entriesByName
@@ -58,6 +60,7 @@ final class ZipPackage
             }
 
             self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $versionMadeBy = self::readUInt16($bytes, $cursor + 4);
             $flags = self::readUInt16($bytes, $cursor + 8);
             $method = self::readUInt16($bytes, $cursor + 10);
             $modifiedTime = self::readUInt16($bytes, $cursor + 12);
@@ -107,8 +110,12 @@ final class ZipPackage
                 $modifiedTime,
                 $modifiedDate,
                 $externalAttributes,
-                $centralExtraFieldData
+                $centralExtraFieldData,
+                $versionMadeBy
             );
+            if ($entry->isUnixSymlink()) {
+                throw new \RuntimeException("ZIP symlink entries are not supported by the pandoc package reader: {$name}");
+            }
 
             $entries[] = $entry;
             $entriesByName[$name] = $entry;
@@ -208,6 +215,9 @@ final class ZipPackage
             $externalAttributes = $part['externalAttributes'] ?? (str_ends_with($name, '/') ? 0x10 : 0);
             if (!is_int($externalAttributes)) {
                 throw new \RuntimeException("ZIP entry {$name} external attributes must be an integer");
+            }
+            if (self::isUnixSymlinkExternalAttributes($externalAttributes)) {
+                throw new \RuntimeException("ZIP symlink entries are not supported by the pandoc package writer: {$name}");
             }
 
             self::assertUInt32Value($compressedSize, "ZIP entry {$name} compressed size");
@@ -732,6 +742,13 @@ final class ZipPackage
         if ($value < 0 || $value > 0xffffffff) {
             throw new \RuntimeException("{$label} requires ZIP64 and is not supported by this bounded package writer");
         }
+    }
+
+    private static function isUnixSymlinkExternalAttributes(int $externalAttributes): bool
+    {
+        $mode = ($externalAttributes >> 16) & 0xffff;
+
+        return ($mode & self::UNIX_FILE_TYPE_MASK) === self::UNIX_SYMLINK_TYPE;
     }
 
     private static function readUInt16(string $bytes, int $offset): int

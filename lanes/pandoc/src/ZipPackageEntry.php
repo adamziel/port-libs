@@ -9,6 +9,9 @@ final class ZipPackageEntry
     private const FILETIME_UNIX_EPOCH_OFFSET_SECONDS = 11644473600;
     private const FILETIME_TICKS_PER_SECOND = 10000000;
     private const UINT32_FACTOR = 4294967296;
+    private const UNIX_HOST_SYSTEM = 3;
+    private const UNIX_FILE_TYPE_MASK = 0xf000;
+    private const UNIX_SYMLINK_TYPE = 0xa000;
 
     public function __construct(
         public readonly string $name,
@@ -23,6 +26,7 @@ final class ZipPackageEntry
         public readonly int $lastModifiedDate = 0,
         public readonly int $externalFileAttributes = 0,
         public readonly string $centralExtraFieldData = '',
+        public readonly int $versionMadeBy = 0,
     ) {
         self::parseExtraFields($this->centralExtraFieldData, "central extra fields for {$this->name}");
     }
@@ -45,6 +49,34 @@ final class ZipPackageEntry
     public function modifiedDosDate(): int
     {
         return $this->lastModifiedDate;
+    }
+
+    public function madeByHostSystem(): int
+    {
+        return ($this->versionMadeBy >> 8) & 0xff;
+    }
+
+    public function madeByVersion(): int
+    {
+        return $this->versionMadeBy & 0xff;
+    }
+
+    public function unixMode(): ?int
+    {
+        if ($this->madeByHostSystem() !== self::UNIX_HOST_SYSTEM) {
+            return null;
+        }
+
+        $mode = ($this->externalFileAttributes >> 16) & 0xffff;
+
+        return $mode === 0 ? null : $mode;
+    }
+
+    public function isUnixSymlink(): bool
+    {
+        $mode = $this->unixMode();
+
+        return $mode !== null && ($mode & self::UNIX_FILE_TYPE_MASK) === self::UNIX_SYMLINK_TYPE;
     }
 
     public function lastModifiedTimestamp(): ?int

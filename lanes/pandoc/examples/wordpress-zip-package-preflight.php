@@ -156,6 +156,19 @@ $compressedPackage = GzipStream::build($package->bytes(), [
     'headerCrc' => true,
 ]);
 $compressedPackageMembers = GzipStream::members($compressedPackage);
+$symlinkRejected = false;
+try {
+    ZipPackage::fromParts([
+        [
+            'name' => 'word/media/review.png',
+            'data' => '../embeddings/oleObject1.bin',
+            'compressionMethod' => 0,
+            'externalAttributes' => 0xa1ff0000,
+        ],
+    ]);
+} catch (RuntimeException $exception) {
+    $symlinkRejected = str_contains($exception->getMessage(), 'symlink');
+}
 
 if (in_array('--self-test', $argv, true)) {
     if (!$package->has('/word/document.xml')) {
@@ -220,6 +233,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected gzip extra field metadata to round-trip');
     }
 
+    if (!$symlinkRejected) {
+        throw new RuntimeException('Expected ZIP symlink entries to be rejected before media import');
+    }
+
     echo "zip package writer preflight self-test passed\n";
     exit(0);
 }
@@ -242,6 +259,7 @@ echo 'descriptor.comments.xml=' . $descriptorPackage->read('/word/comments.xml')
 $ntfsTimestamps = $ntfsPackage->entry('/word/media/review.png')->ntfsTimestamps();
 echo 'ntfs.review.png.modifiedAt=' . ($ntfsTimestamps['modifiedAt'] ?? 'none') . "\n";
 echo 'ntfs.review.png.localModifiedAt=' . ($ntfsPackage->localNtfsLastModifiedTimestamp('/word/media/review.png') ?? 'none') . "\n";
+echo 'symlinkPolicy=' . ($symlinkRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'gzip.filename=' . $compressedPackageMembers[0]['filename'] . "\n";
 echo 'gzip.comment=' . $compressedPackageMembers[0]['comment'] . "\n";
 echo 'gzip.compressedSize=' . $compressedPackageMembers[0]['compressedSize'] . "\n";
