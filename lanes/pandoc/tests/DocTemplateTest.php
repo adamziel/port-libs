@@ -207,6 +207,85 @@ TPL;
         ]), $output);
     },
 
+    'renders pandoc doctemplate partials nested partials and strips final newlines' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+${ review-header() }
+<section class="wp-import-body">
+  ${ review-body.html() }
+</section>
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'title' => 'Batch 42 Review',
+            'intro' => '<p>Imported paragraph needs review.</p>',
+            'warnings' => ['Check media alt text', 'Verify redirected links'],
+        ], [
+            'review-header' => '<header><h1>$title$</h1></header>' . "\n",
+            'review-body.html' => '$intro$' . "\n" . '${ warning-list() }' . "\n",
+            'warning-list' => '$if(warnings)$<ul>$for(warnings)$<li>$it$</li>$endfor$</ul>$endif$' . "\n",
+        ]);
+
+        $t->same(implode("\n", [
+            '<header><h1>Batch 42 Review</h1></header>',
+            '<section class="wp-import-body">',
+            '  <p>Imported paragraph needs review.</p>',
+            '  <ul><li>Check media alt text</li><li>Verify redirected links</li></ul>',
+            '</section>',
+        ]), $output);
+    },
+
+    'applies pandoc doctemplate partials to variables arrays and pipes' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+Cards:
+${ articles:review-card()[
+---
+] }
+Reviewer: ${ reviewer:badge()/uppercase }
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'articles' => [
+                ['source' => 'docx', 'title' => 'Imported heading', 'warning' => 'Check hierarchy'],
+                ['source' => 'html', 'title' => 'Legacy block', 'warning' => 'Review shortcode'],
+            ],
+            'reviewer' => ['name' => 'Ada Editor', 'role' => 'migration'],
+        ], [
+            'review-card' => '<article data-source="$it.source$"><h2>$it.title$</h2><p>$it.warning$</p><span>$articles.title$</span></article>' . "\n",
+            'badge' => '$it.name$ <$it.role$>',
+        ]);
+
+        $t->same(implode("\n", [
+            'Cards:',
+            '<article data-source="docx"><h2>Imported heading</h2><p>Check hierarchy</p><span></span></article>',
+            '---',
+            '<article data-source="html"><h2>Legacy block</h2><p>Review shortcode</p><span></span></article>',
+            'Reviewer: ADA EDITOR <MIGRATION>',
+        ]), $output);
+    },
+
+    'renders pandoc doctemplate partials inside explicit loops with current item context' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+Warnings:
+$for(warnings)$${ warning-row() }$sep$
+$endfor$
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'warnings' => [
+                ['source' => 'media', 'message' => 'Confirm alt text'],
+                ['source' => 'links', 'message' => 'Review redirects'],
+            ],
+        ], [
+            'warning-row' => '- $it.source/uppercase$: $it.message$' . "\n",
+        ]);
+
+        $t->same(implode("\n", [
+            'Warnings:',
+            '- MEDIA: Confirm alt text',
+            '- LINKS: Review redirects',
+        ]), $output);
+    },
+
     'renders wordpress review packet templates without output escaping' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 <article class="wp-import-review">
@@ -245,6 +324,15 @@ TPL;
 
         $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('$if(title)$missing endif', ['title' => true]));
         $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('$for(items)$missing endfor', ['items' => ['x']]));
+    },
+
+    'throws on missing and recursive pandoc doctemplate partials' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('${ missing() }', [], []));
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('${ loop() }', [], [
+            'loop' => '${ loop() }',
+        ]));
     },
 
     'throws on unsupported pandoc doctemplate pipes' => static function (TestRunner $t): void {

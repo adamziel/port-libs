@@ -8,21 +8,33 @@ use PortLibs\Pandoc\DocTemplate;
 
 $template = <<<'HTML'
 <article class="wp-import-review">
+${ review-header() }
+${ warning-list() }
+${ review-body() }
+</article>
+HTML;
+
+$partials = [
+    'review-header' => <<<'HTML'
 <header>
 <h1>$title/uppercase$</h1>
 <p class="summary">$warnings/length$ warnings queued for $title$</p>
 <p class="authors">$for(authors/pairs)$$it.value.name$$sep$, $endfor$</p>
 </header>
+HTML,
+    'warning-list' => <<<'HTML'
 $if(warnings)$
 <ul class="warnings">
 $for(warnings/pairs)$<li data-index="$it.key$" data-source="$it.value.source$">$it.value.message$</li>
 $endfor$</ul>
 $endif$
+HTML,
+    'review-body' => <<<'HTML'
 <section class="wp-import-body">
   $^$$body$
 </section>
-</article>
-HTML;
+HTML,
+];
 
 $context = [
     'title' => 'Batch 42 Review',
@@ -40,7 +52,7 @@ $context = [
     ]),
 ];
 
-$output = (new DocTemplate())->render($template, $context);
+$output = (new DocTemplate())->render($template, $context, $partials);
 
 if (in_array('--self-test', $argv, true)) {
     foreach ([

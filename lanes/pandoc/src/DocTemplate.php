@@ -6,14 +6,27 @@ namespace PortLibs\Pandoc;
 
 final class DocTemplate
 {
+    private const MAX_PARTIAL_DEPTH = 32;
+
     /**
      * @param array<string, mixed> $context
+     * @param array<string, string> $partials
      */
-    public function render(string $template, array $context): string
+    public function render(string $template, array $context, array $partials = []): string
+    {
+        return $this->renderTemplate($template, $context, $partials, []);
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @param array<string, string> $partials
+     * @param list<string> $partialStack
+     */
+    private function renderTemplate(string $template, array $context, array $partials, array $partialStack): string
     {
         $tokens = $this->tokenize($template);
 
-        return $this->renderRange($tokens, 0, count($tokens), $context);
+        return $this->renderRange($tokens, 0, count($tokens), $context, $partials, $partialStack);
     }
 
     /**
@@ -107,8 +120,10 @@ final class DocTemplate
     /**
      * @param list<array{type:string, value:string}> $tokens
      * @param array<string, mixed> $context
+     * @param array<string, string> $partials
+     * @param list<string> $partialStack
      */
-    private function renderRange(array $tokens, int $start, int $end, array $context): string
+    private function renderRange(array $tokens, int $start, int $end, array $context, array $partials, array $partialStack): string
     {
         $output = '';
         $pendingNestColumn = null;
@@ -128,7 +143,7 @@ final class DocTemplate
 
             $ifVariable = $this->controlVariable($directive, 'if');
             if ($ifVariable !== null) {
-                [$rendered, $nextIndex] = $this->renderIf($tokens, $index + 1, $end, $ifVariable, $context);
+                [$rendered, $nextIndex] = $this->renderIf($tokens, $index + 1, $end, $ifVariable, $context, $partials, $partialStack);
                 $this->appendRenderedChunk($output, $rendered, $pendingNestColumn);
                 $index = $nextIndex - 1;
                 continue;
@@ -136,7 +151,7 @@ final class DocTemplate
 
             $forVariable = $this->controlVariable($directive, 'for');
             if ($forVariable !== null) {
-                [$rendered, $nextIndex] = $this->renderFor($tokens, $index + 1, $end, $forVariable, $context);
+                [$rendered, $nextIndex] = $this->renderFor($tokens, $index + 1, $end, $forVariable, $context, $partials, $partialStack);
                 $this->appendRenderedChunk($output, $rendered, $pendingNestColumn);
                 $index = $nextIndex - 1;
                 continue;
@@ -146,7 +161,7 @@ final class DocTemplate
                 throw new \UnexpectedValueException("Unexpected doctemplate control directive {$directive}");
             }
 
-            $rendered = $this->renderVariableDirective($directive, $context);
+            $rendered = $this->renderDirective($directive, $context, $partials, $partialStack);
             if ($pendingNestColumn === null) {
                 $autoNestPrefix = $this->automaticNestPrefix($tokens, $index, $end, $output);
                 if ($autoNestPrefix !== null) {
@@ -163,16 +178,18 @@ final class DocTemplate
     /**
      * @param list<array{type:string, value:string}> $tokens
      * @param array<string, mixed> $context
+     * @param array<string, string> $partials
+     * @param list<string> $partialStack
      * @return array{0:string, 1:int}
      */
-    private function renderIf(array $tokens, int $start, int $end, string $firstVariable, array $context): array
+    private function renderIf(array $tokens, int $start, int $end, string $firstVariable, array $context, array $partials, array $partialStack): array
     {
         [$branches, $nextIndex] = $this->collectIfBranches($tokens, $start, $end, $firstVariable);
 
         foreach ($branches as $branch) {
             if ($branch['variable'] === null || $this->isTruthy($this->resolveExpression($branch['variable'], $context)['value'])) {
                 return [
-                    $this->renderRange($tokens, $branch['start'], $branch['end'], $context),
+                    $this->renderRange($tokens, $branch['start'], $branch['end'], $context, $partials, $partialStack),
                     $nextIndex,
                 ];
             }
@@ -256,9 +273,11 @@ final class DocTemplate
     /**
      * @param list<array{type:string, value:string}> $tokens
      * @param array<string, mixed> $context
+     * @param array<string, string> $partials
+     * @param list<string> $partialStack
      * @return array{0:string, 1:int}
      */
-    private function renderFor(array $tokens, int $start, int $end, string $variable, array $context): array
+    private function renderFor(array $tokens, int $start, int $end, string $variable, array $context, array $partials, array $partialStack): array
     {
         [$bodyStart, $bodyEnd, $separatorStart, $separatorEnd, $nextIndex] = $this->collectForSlices($tokens, $start, $end);
         $expression = $this->parseVariableExpression($variable);
@@ -268,7 +287,7 @@ final class DocTemplate
 
         foreach ($iterations as $item) {
             $iterationContext = $this->contextForLoopIteration($context, $expression['name'], $item);
-            $rendered[] = $this->renderRange($tokens, $bodyStart, $bodyEnd, $iterationContext);
+            $rendered[] = $this->renderRange($tokens, $bodyStart, $bodyEnd, $iterationContext, $partials, $partialStack);
         }
 
         if ($rendered === []) {
@@ -277,7 +296,7 @@ final class DocTemplate
 
         $separator = $separatorStart === null
             ? ''
-            : $this->renderRange($tokens, $separatorStart, (int) $separatorEnd, $context);
+            : $this->renderRange($tokens, $separatorStart, (int) $separatorEnd, $context, $partials, $partialStack);
 
         return [implode($separator, $rendered), $nextIndex];
     }
@@ -332,6 +351,26 @@ final class DocTemplate
 
     /**
      * @param array<string, mixed> $context
+     * @param array<string, string> $partials
+     * @param list<string> $partialStack
+     */
+    private function renderDirective(string $directive, array $context, array $partials, array $partialStack): string
+    {
+        $partial = $this->parsePartialDirective($directive);
+        if ($partial !== null) {
+            return $this->renderPartialDirective($partial, $context, $partials, $partialStack);
+        }
+
+        $appliedPartial = $this->parseAppliedPartialDirective($directive);
+        if ($appliedPartial !== null) {
+            return $this->renderAppliedPartialDirective($appliedPartial, $context, $partials, $partialStack);
+        }
+
+        return $this->renderVariableDirective($directive, $context);
+    }
+
+    /**
+     * @param array<string, mixed> $context
      */
     private function renderVariableDirective(string $directive, array $context): string
     {
@@ -347,6 +386,74 @@ final class DocTemplate
         }
 
         return $this->renderValue($resolved['value'], $expression['separator']);
+    }
+
+    /**
+     * @param array{name:string, separator:?string, pipes:list<string>} $partial
+     * @param array<string, mixed> $context
+     * @param array<string, string> $partials
+     * @param list<string> $partialStack
+     */
+    private function renderPartialDirective(array $partial, array $context, array $partials, array $partialStack): string
+    {
+        $value = $this->renderPartial($partial['name'], $context, $partials, $partialStack);
+        foreach ($partial['pipes'] as $pipe) {
+            $value = $this->applyPipe($pipe, $value);
+        }
+
+        return $this->renderValue($value, $partial['separator']);
+    }
+
+    /**
+     * @param array{variable:array{name:string, separator:?string, pipes:list<string>}, partial:array{name:string, separator:?string, pipes:list<string>}} $appliedPartial
+     * @param array<string, mixed> $context
+     * @param array<string, string> $partials
+     * @param list<string> $partialStack
+     */
+    private function renderAppliedPartialDirective(array $appliedPartial, array $context, array $partials, array $partialStack): string
+    {
+        $resolved = $this->resolveParsedExpression($appliedPartial['variable'], $context);
+        $iterations = $this->loopIterations($resolved['exists'], $resolved['value']);
+        if ($iterations === []) {
+            return '';
+        }
+
+        $rendered = [];
+        foreach ($iterations as $item) {
+            $iterationContext = $this->contextForPartialApplication($context, $item);
+            $value = $this->renderPartial($appliedPartial['partial']['name'], $iterationContext, $partials, $partialStack);
+            foreach ($appliedPartial['partial']['pipes'] as $pipe) {
+                $value = $this->applyPipe($pipe, $value);
+            }
+
+            $rendered[] = $this->renderValue($value, null);
+        }
+
+        return implode($appliedPartial['partial']['separator'] ?? '', $rendered);
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @param array<string, string> $partials
+     * @param list<string> $partialStack
+     */
+    private function renderPartial(string $name, array $context, array $partials, array $partialStack): string
+    {
+        if (!array_key_exists($name, $partials) || !is_string($partials[$name])) {
+            throw new \UnexpectedValueException("Missing doctemplate partial {$name}");
+        }
+
+        if (in_array($name, $partialStack, true)) {
+            throw new \UnexpectedValueException("Recursive doctemplate partial {$name}");
+        }
+
+        if (count($partialStack) >= self::MAX_PARTIAL_DEPTH) {
+            throw new \UnexpectedValueException('Doctemplate partial nesting limit exceeded');
+        }
+
+        $rendered = $this->renderTemplate($partials[$name], $context, $partials, [...$partialStack, $name]);
+
+        return preg_replace('/(?:\r\n|\n|\r)+$/', '', $rendered) ?? $rendered;
     }
 
     /**
@@ -424,6 +531,45 @@ final class DocTemplate
     }
 
     /**
+     * @return array{name:string, separator:?string, pipes:list<string>}|null
+     */
+    private function parsePartialDirective(string $expression): ?array
+    {
+        $parts = $this->splitPipeExpression($expression);
+        $base = array_shift($parts);
+        if ($base === null || !preg_match('/^([A-Za-z][A-Za-z0-9_.-]*)\\(\\)(?:\\[(.*)\\])?$/s', $base, $matches)) {
+            return null;
+        }
+
+        return [
+            'name' => $matches[1],
+            'separator' => array_key_exists(2, $matches) ? $matches[2] : null,
+            'pipes' => $this->parsePipeSpecs($parts, $expression),
+        ];
+    }
+
+    /**
+     * @return array{variable:array{name:string, separator:?string, pipes:list<string>}, partial:array{name:string, separator:?string, pipes:list<string>}}|null
+     */
+    private function parseAppliedPartialDirective(string $expression): ?array
+    {
+        $parts = $this->splitPipeExpression($expression);
+        $base = array_shift($parts);
+        if ($base === null || !preg_match('/^((?:it|[A-Za-z][A-Za-z0-9_.-]*)(?:\\[(.*)\\])?):([A-Za-z][A-Za-z0-9_.-]*)\\(\\)(?:\\[(.*)\\])?$/s', $base, $matches)) {
+            return null;
+        }
+
+        return [
+            'variable' => $this->parseVariableExpression($matches[1]),
+            'partial' => [
+                'name' => $matches[3],
+                'separator' => array_key_exists(4, $matches) ? $matches[4] : null,
+                'pipes' => $this->parsePipeSpecs($parts, $expression),
+            ],
+        ];
+    }
+
+    /**
      * @return array{name:string, separator:?string, pipes:list<string>}
      */
     private function parseVariableExpression(string $expression): array
@@ -434,8 +580,21 @@ final class DocTemplate
             throw new \UnexpectedValueException("Unsupported doctemplate directive {$expression}");
         }
 
+        return [
+            'name' => $matches[1],
+            'separator' => array_key_exists(2, $matches) ? $matches[2] : null,
+            'pipes' => $this->parsePipeSpecs($parts, $expression),
+        ];
+    }
+
+    /**
+     * @param list<string> $pipeSpecs
+     * @return list<string>
+     */
+    private function parsePipeSpecs(array $pipeSpecs, string $expression): array
+    {
         $pipes = [];
-        foreach ($parts as $pipeSpec) {
+        foreach ($pipeSpecs as $pipeSpec) {
             $pipeSpec = trim($pipeSpec, " \t");
             if ($pipeSpec === '') {
                 throw new \UnexpectedValueException("Unsupported doctemplate directive {$expression}");
@@ -452,11 +611,7 @@ final class DocTemplate
             $pipes[] = $pipeMatches[1];
         }
 
-        return [
-            'name' => $matches[1],
-            'separator' => array_key_exists(2, $matches) ? $matches[2] : null,
-            'pipes' => $pipes,
-        ];
+        return $pipes;
     }
 
     /**
@@ -707,6 +862,18 @@ final class DocTemplate
                 }
             }
         }
+
+        return $next;
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    private function contextForPartialApplication(array $context, mixed $item): array
+    {
+        $next = $context;
+        $next['it'] = $item;
 
         return $next;
     }
