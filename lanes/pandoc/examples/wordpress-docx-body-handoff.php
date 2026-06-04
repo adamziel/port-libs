@@ -45,6 +45,7 @@ XML],
     ['name' => 'word/document.xml', 'data' => <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
   xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
   xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
   xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
   xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
@@ -64,6 +65,21 @@ XML],
       <w:r><w:endnoteReference w:id="5"/></w:r>
       <w:r><w:t xml:space="preserve"> and reviewer comment</w:t></w:r>
       <w:r><w:commentReference w:id="9"/></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Formula handoff </w:t></w:r>
+      <m:oMath>
+        <m:sSub>
+          <m:e><m:r><m:t>x</m:t></m:r></m:e>
+          <m:sub><m:r><m:t>i</m:t></m:r></m:sub>
+        </m:sSub>
+        <m:r><m:t xml:space="preserve"> + </m:t></m:r>
+        <m:f>
+          <m:num><m:r><m:t>1</m:t></m:r></m:num>
+          <m:den><m:rad><m:e><m:r><m:t>n</m:t></m:r></m:e></m:rad></m:den>
+        </m:f>
+      </m:oMath>
+      <w:r><w:t xml:space="preserve"> stays native.</w:t></w:r>
     </w:p>
     <w:p><w:r><w:drawing><wp:inline><wp:docPr id="9" name="Hero" descr="Source hero alt" title="Source hero"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdHero"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>
     <w:tbl>
@@ -163,6 +179,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<ul><li>Match media IDs</li><li>Preserve alt text</li></ul>',
         '<ol start="3" type="a"><li>Confirm source URL</li><li>Publish packet</li></ol>',
         '<a href="https://example.test/source-packet?post=42">the source link</a>',
+        '<span class="math inline">\(x_{i} + \frac{1}{\sqrt{n}}\)</span>',
         '<img src="word/media/hero.png" alt="Source hero alt" title="Source hero"/>',
         '<td colspan="2" rowspan="2"><p>Review scope</p></td><td><p>Status</p></td>',
         '<td><p>Owner</p></td><td colspan="2"><p>Migration desk</p></td>',

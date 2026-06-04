@@ -286,6 +286,44 @@ $commentsXml = <<<'XML'
 </w:comments>
 XML;
 
+$mathDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Formula handoff </w:t></w:r>
+      <m:oMath>
+        <m:sSub>
+          <m:e><m:r><m:t>x</m:t></m:r></m:e>
+          <m:sub><m:r><m:t>i</m:t></m:r></m:sub>
+        </m:sSub>
+        <m:r><m:t xml:space="preserve"> + </m:t></m:r>
+        <m:f>
+          <m:num><m:r><m:t>1</m:t></m:r></m:num>
+          <m:den>
+            <m:rad>
+              <m:e><m:r><m:t>n</m:t></m:r></m:e>
+            </m:rad>
+          </m:den>
+        </m:f>
+      </m:oMath>
+      <w:r><w:t xml:space="preserve"> stays native.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <m:oMathPara>
+        <m:oMath>
+          <m:r><m:t xml:space="preserve">E = </m:t></m:r>
+          <m:sSup>
+            <m:e><m:r><m:t>mc</m:t></m:r></m:e>
+            <m:sup><m:r><m:t>2</m:t></m:r></m:sup>
+          </m:sSup>
+        </m:oMath>
+      </m:oMathPara>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $buildDocxPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $documentXml, $footnotesXml, $corePropertiesXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -339,6 +377,14 @@ $buildNotesPackage = static function () use (
         ['name' => 'word/_rels/document.xml.rels', 'data' => $notesDocumentRelationshipsXml],
         ['name' => 'word/endnotes.xml', 'data' => $endnotesXml],
         ['name' => 'word/comments.xml', 'data' => $commentsXml],
+    ]);
+};
+
+$buildMathPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $mathDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $mathDocumentXml],
     ]);
 };
 
@@ -586,6 +632,34 @@ return [
         $t->contains('<p>Audit trail <sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup> commented source <sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup></p>', $blocks);
         $t->contains('<li id="fn-1"><p>Endnote source audit.</p><table><tbody><tr><td><p>Review table</p></td><td><p>kept in endnote</p></td></tr></tbody></table> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
         $t->contains('<li id="fn-2"><p>Comment source audit.</p><p>Keep reviewer context with the import.</p> <a href="#fnref-2" aria-label="Back to content">Back</a></li>', $blocks);
+    },
+    'maps DOCX OMML inline and display formulas into math AST nodes' => static function (TestRunner $t) use ($buildMathPackage): void {
+        $document = (new DocxReader())->readDocument($buildMathPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($document->children));
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Formula handoff ', $paragraph->children[0]->attr('text'));
+        $inlineMath = $paragraph->children[1];
+        $t->same('math', $inlineMath->type);
+        $t->same('docx-omml', $inlineMath->attr('sourceFormat'));
+        $t->same(false, $inlineMath->attr('display'));
+        $t->same('x_{i} + \frac{1}{\sqrt{n}}', $inlineMath->attr('text'));
+        $t->same(' stays native.', $paragraph->children[2]->attr('text'));
+
+        $displayParagraph = $document->children[1];
+        $displayMath = $displayParagraph->children[0];
+        $t->same('math', $displayMath->type);
+        $t->same(true, $displayMath->attr('display'));
+        $t->same('E = mc^{2}', $displayMath->attr('text'));
+
+        $t->contains('Formula handoff $x_{i} + \frac{1}{\sqrt{n}}$ stays native.', $markdown);
+        $t->contains('$$E = mc^{2}$$', $markdown);
+        $t->contains('<p>Formula handoff <span class="math inline">\(x_{i} + \frac{1}{\sqrt{n}}\)</span> stays native.</p>', $blocks);
+        $t->contains('<p><span class="math display">\[E = mc^{2}\]</span></p>', $blocks);
     },
     'rejects malformed DOCX packages without shelling out to office tooling' => static function (TestRunner $t) use ($contentTypesXml, $documentXml): void {
         $reader = new DocxReader();

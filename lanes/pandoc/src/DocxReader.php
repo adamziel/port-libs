@@ -11,6 +11,7 @@ final class DocxReader
     public const DRAWINGML_PICTURE_NS = 'http://schemas.openxmlformats.org/drawingml/2006/picture';
     public const WORDPROCESSING_DRAWING_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     public const OFFICE_RELATIONSHIPS_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    public const OFFICE_MATH_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
     public const CORE_PROPERTIES_NS = 'http://schemas.openxmlformats.org/package/2006/metadata/core-properties';
     public const DC_NS = 'http://purl.org/dc/elements/1.1/';
     public const DCTERMS_NS = 'http://purl.org/dc/terms/';
@@ -350,6 +351,14 @@ final class DocxReader
             return [$this->hyperlinkNode($element, $package, $relationships, $referencedNotes)];
         }
 
+        if ($this->isMathElement($element, 'oMath')) {
+            return $this->mathNodes($element, false);
+        }
+
+        if ($this->isMathElement($element, 'oMathPara')) {
+            return $this->mathNodes($element, true);
+        }
+
         if ($this->isWordElement($element, 'sdt')) {
             $content = $this->firstChildElement($element, self::WORDPROCESSINGML_NS, 'sdtContent');
             return $content instanceof \DOMElement ? $this->inlineContainerNodes($content, $package, $relationships, $referencedNotes) : [];
@@ -434,12 +443,117 @@ final class DocxReader
                 continue;
             }
 
+            if ($this->isMathElement($child, 'oMath')) {
+                array_push($nodes, ...$this->mathNodes($child, false));
+                continue;
+            }
+
+            if ($this->isMathElement($child, 'oMathPara')) {
+                array_push($nodes, ...$this->mathNodes($child, true));
+                continue;
+            }
+
             if ($this->isWordElement($child, 'drawing')) {
                 array_push($nodes, ...$this->drawingNodes($child, $package, $relationships));
             }
         }
 
         return $this->applyRunStyle($run, $this->coalesceTextNodes($nodes));
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function mathNodes(\DOMElement $math, bool $display): array
+    {
+        $text = $this->ommlFormulaText($math);
+        if ($text === '') {
+            return [];
+        }
+
+        return [new AstNode('math', [
+            'text' => $text,
+            'display' => $display,
+            'sourceFormat' => 'docx-omml',
+        ])];
+    }
+
+    private function ommlFormulaText(\DOMElement $math): string
+    {
+        return trim($this->ommlText($math));
+    }
+
+    private function ommlText(\DOMElement $element): string
+    {
+        if ($element->namespaceURI !== self::OFFICE_MATH_NS) {
+            return '';
+        }
+
+        return match ($element->localName) {
+            't' => $element->textContent,
+            'sSub' => $this->ommlScriptText($element, '_', 'sub'),
+            'sSup' => $this->ommlScriptText($element, '^', 'sup'),
+            'sSubSup' => $this->ommlSubSupText($element),
+            'f' => '\\frac{' . $this->ommlRequiredChildText($element, 'num') . '}{' . $this->ommlRequiredChildText($element, 'den') . '}',
+            'rad' => $this->ommlRadicalText($element),
+            default => $this->ommlChildText($element),
+        };
+    }
+
+    private function ommlScriptText(\DOMElement $element, string $operator, string $scriptName): string
+    {
+        $base = $this->ommlRequiredChildText($element, 'e');
+        $script = $this->ommlRequiredChildText($element, $scriptName);
+
+        return $base . $operator . '{' . $script . '}';
+    }
+
+    private function ommlSubSupText(\DOMElement $element): string
+    {
+        return $this->ommlRequiredChildText($element, 'e')
+            . '_{' . $this->ommlRequiredChildText($element, 'sub') . '}'
+            . '^{' . $this->ommlRequiredChildText($element, 'sup') . '}';
+    }
+
+    private function ommlRadicalText(\DOMElement $element): string
+    {
+        $degree = $this->ommlChildNamedText($element, 'deg');
+        $body = $this->ommlRequiredChildText($element, 'e');
+
+        if ($degree === '') {
+            return '\\sqrt{' . $body . '}';
+        }
+
+        return '\\sqrt[' . $degree . ']{' . $body . '}';
+    }
+
+    private function ommlRequiredChildText(\DOMElement $element, string $localName): string
+    {
+        $text = $this->ommlChildNamedText($element, $localName);
+        if ($text === '') {
+            throw new \InvalidArgumentException('DOCX OMML ' . $element->localName . ' is missing m:' . $localName);
+        }
+
+        return $text;
+    }
+
+    private function ommlChildNamedText(\DOMElement $element, string $localName): string
+    {
+        $child = $this->firstChildElement($element, self::OFFICE_MATH_NS, $localName);
+
+        return $child instanceof \DOMElement ? trim($this->ommlChildText($child)) : '';
+    }
+
+    private function ommlChildText(\DOMElement $element): string
+    {
+        $text = '';
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $text .= $this->ommlText($child);
+            }
+        }
+
+        return $text;
     }
 
     /**
@@ -1366,6 +1480,11 @@ final class DocxReader
         return $element->namespaceURI === self::WORDPROCESSINGML_NS && $element->localName === $localName;
     }
 
+    private function isMathElement(\DOMElement $element, string $localName): bool
+    {
+        return $element->namespaceURI === self::OFFICE_MATH_NS && $element->localName === $localName;
+    }
+
     private function firstChildElement(\DOMElement $element, string $namespace, string $localName): ?\DOMElement
     {
         foreach ($element->childNodes as $child) {
@@ -1427,6 +1546,10 @@ final class DocxReader
             }
             if ($node->type === 'image') {
                 $text .= (string) $node->attr('alt', '');
+                continue;
+            }
+            if ($node->type === 'math') {
+                $text .= (string) $node->attr('text', '');
                 continue;
             }
 
