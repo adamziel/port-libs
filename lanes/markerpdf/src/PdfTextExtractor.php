@@ -15955,18 +15955,24 @@ final class PdfTextExtractor
             return true;
         }
 
-        if (
-            $this->inlineImageUsesJpxDecode($filters)
-            && $this->inlineJpxCandidateState($candidate) === 'incomplete'
-        ) {
+        $jpxState = $this->inlineImageUsesJpxDecode($filters)
+            ? $this->inlineJpxCandidateStateForFilters($dictionary, $filters, $candidate)
+            : null;
+        if ($jpxState === 'incomplete') {
             return false;
         }
+        if ($jpxState === 'complete') {
+            return true;
+        }
 
-        if (
-            $this->inlineImageUsesJbig2Decode($filters)
-            && $this->inlineJbig2CandidateState($candidate) === 'incomplete'
-        ) {
+        $jbig2State = $this->inlineImageUsesJbig2Decode($filters)
+            ? $this->inlineJbig2CandidateStateForFilters($dictionary, $filters, $candidate)
+            : null;
+        if ($jbig2State === 'incomplete') {
             return false;
+        }
+        if ($jbig2State === 'complete') {
+            return true;
         }
 
         $dctState = $this->inlineImageUsesDctDecode($filters)
@@ -16003,8 +16009,14 @@ final class PdfTextExtractor
             return false;
         }
 
-        return ($this->inlineImageUsesJpxDecode($filters) && $this->inlineJpxCandidateState($candidate) === 'incomplete')
-            || ($this->inlineImageUsesJbig2Decode($filters) && $this->inlineJbig2CandidateState($candidate) === 'incomplete')
+        return (
+            $this->inlineImageUsesJpxDecode($filters)
+            && $this->inlineJpxCandidateStateForFilters($dictionary, $filters, $candidate) === 'incomplete'
+        )
+            || (
+                $this->inlineImageUsesJbig2Decode($filters)
+                && $this->inlineJbig2CandidateStateForFilters($dictionary, $filters, $candidate) === 'incomplete'
+            )
             || (
                 $this->inlineImageUsesDctDecode($filters)
                 && $this->inlineDctCandidateStateForFilters($dictionary, $filters, $candidate) === 'incomplete'
@@ -16075,6 +16087,19 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param list<string|null> $filters
+     */
+    private function inlineJpxCandidateStateForFilters(string $dictionary, array $filters, string $candidate): string
+    {
+        $bytes = $this->inlineImageBytesBeforePreviewFilter($dictionary, $filters, $candidate, ['JPXDecode']);
+        if ($bytes === null) {
+            return 'unknown';
+        }
+
+        return $this->inlineJpxCandidateState($bytes);
+    }
+
+    /**
      * JBIG2Decode is preview-only in this native port. File-header wrapped
      * payloads expose enough structure to reject delimiter-looking `EI` bytes
      * before the final fallback boundary.
@@ -16090,6 +16115,19 @@ final class PdfTextExtractor
         }
 
         return 'incomplete';
+    }
+
+    /**
+     * @param list<string|null> $filters
+     */
+    private function inlineJbig2CandidateStateForFilters(string $dictionary, array $filters, string $candidate): string
+    {
+        $bytes = $this->inlineImageBytesBeforePreviewFilter($dictionary, $filters, $candidate, ['JBIG2Decode']);
+        if ($bytes === null) {
+            return 'unknown';
+        }
+
+        return $this->inlineJbig2CandidateState($bytes);
     }
 
     /**

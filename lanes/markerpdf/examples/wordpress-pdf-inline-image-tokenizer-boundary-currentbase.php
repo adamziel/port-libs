@@ -6,6 +6,20 @@ use PortLibs\MarkerPDF\PdfTextExtractor;
 
 require_once __DIR__ . '/../src/PdfTextExtractor.php';
 
+$runLengthEncode = static function (string $bytes): string {
+    $encoded = '';
+    for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += 128) {
+        $chunk = substr($bytes, $offset, 128);
+        $encoded .= chr(strlen($chunk) - 1) . $chunk;
+    }
+
+    return $encoded . chr(128);
+};
+
+$wrappedJpxPayload = $runLengthEncode(
+    "\xff\x4f wrapped JPX bytes EI BT /F1 12 Tf 72 636 Td (Wrapped JPX Inline Payload Noise) Tj ET \xff\xd9"
+);
+
 $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "BI BT /F1 12 Tf 72 704 Td (Stray BI Text Survives) Tj ET\n"
     . "BT /F1 12 Tf 72 688 Td (After Tokenizer Boundary) Tj ET\n"
@@ -16,6 +30,9 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "abc EI BT /F1 12 Tf 72 646 Td (Early EI Inline Payload Noise) Tj ET rawtail\n"
     . "EI\n"
     . "BT /F1 12 Tf 72 656 Td (After Early EI Boundary) Tj ET\n"
+    . "BI /W 1 /H 1 /CS /RGB /BPC 8 /F [/RL /JPXDecode] ID\n"
+    . $wrappedJpxPayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 640 Td (After Wrapped Preview Filter) Tj ET\n"
     . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
     . "\x97JB2\r\n\x1a\n EI BT /F1 12 Tf 72 644 Td (JBIG2 Inline Payload Noise) Tj ET rawtail\n"
     . "EI\n"
@@ -47,6 +64,10 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
     'preview_only_jbig2_payload_excluded_until_safe_boundary' => !str_contains($plainText, 'JBIG2 Inline Payload Noise')
         && !str_contains($plainText, 'rawtail')
         && str_contains($plainText, 'After JBIG2 Boundary'),
+    'wrapped_preview_filter_chain_text_preserved' => str_contains($plainText, 'After Wrapped Preview Filter')
+        && str_contains($plainText, 'After JBIG2 Boundary'),
+    'wrapped_preview_filter_payload_excluded' => !str_contains($plainText, 'Wrapped JPX Inline Payload Noise')
+        && !str_contains($plainText, "\xff\x4f"),
     'visible_text_imported' => str_contains($plainText, 'Before Tokenizer Boundary')
         && str_contains($plainText, 'After Real Inline Image'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";

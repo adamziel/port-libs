@@ -54,6 +54,40 @@ $inlineImageTokenizerJbig2Pdf = static function (): string {
         . "%%EOF";
 };
 
+$inlineImageTokenizerPreviewFilterChainPdf = static function (): string {
+    $runLengthEncode = static function (string $bytes): string {
+        $encoded = '';
+        for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += 128) {
+            $chunk = substr($bytes, $offset, 128);
+            $encoded .= chr(strlen($chunk) - 1) . $chunk;
+        }
+
+        return $encoded . chr(128);
+    };
+
+    $jpxPayload = $runLengthEncode(
+        "\xff\x4f wrapped JPX bytes EI BT /F1 12 Tf 72 660 Td (Wrapped JPX Inline Payload Noise) Tj ET \xff\xd9"
+    );
+    $jbig2Payload = $runLengthEncode(
+        "\x97JB2\r\n\x1a\n wrapped JBIG2 bytes EI BT /F1 12 Tf 72 640 Td (Wrapped JBIG2 Inline Payload Noise) Tj ET rawtail"
+    );
+    $content = "BT /F1 12 Tf 72 720 Td (Before Wrapped Preview Filter) Tj ET\n"
+        . "BI /W 1 /H 1 /CS /RGB /BPC 8 /F [/RL /JPXDecode] ID\n"
+        . $jpxPayload . "\nEI\n"
+        . "BT /F1 12 Tf 72 704 Td (Between Wrapped Preview Filters) Tj ET\n"
+        . "BI /W 128 /H 1 /IM true /F [/RunLengthDecode /JBIG2Decode] ID\n"
+        . $jbig2Payload . "\nEI\n"
+        . "BT /F1 12 Tf 72 688 Td (After Wrapped Preview Filters) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'keeps malformed BI tokenizer boundary from swallowing later WordPress text' => static function (TestRunner $t) use ($inlineImageTokenizerBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
@@ -111,6 +145,27 @@ return [
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
         $t->true(!str_contains($plainText, 'JBIG2 Inline Payload Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, "\x97JB2"));
+    },
+    'keeps preview-only inline image filter chains closed before WordPress text extraction' => static function (TestRunner $t) use ($inlineImageTokenizerPreviewFilterChainPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerPreviewFilterChainPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Wrapped Preview Filter',
+            'Between Wrapped Preview Filters',
+            'After Wrapped Preview Filters',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(!str_contains($plainText, 'Wrapped JPX Inline Payload Noise'));
+        $t->true(!str_contains($plainText, 'Wrapped JBIG2 Inline Payload Noise'));
         $t->true(!str_contains($plainText, 'rawtail'));
         $t->true(!str_contains($plainText, "\x97JB2"));
     },
