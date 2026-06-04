@@ -105,6 +105,39 @@ $indirectAcroFormFieldArraysBoundaryPdf = static function (): string {
         . "%%EOF";
 };
 
+$indirectAcroFormWidgetOperandBoundaryPdf = static function (): string {
+    $pageText = 'BT /F1 12 Tf 72 720 Td (Visible AcroForm indirect widget operand boundary body) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R 12 0 R 16 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 10 0 R 14 0 R] /NeedAppearances true >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (geometry.visible) /V (visible geometry value) /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [30 0 R 31 0 R 32 0 R 33 0 R] /F 34 0 R /P 3 0 R >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Tx /T (geometry.hidden) /V (hidden geometry value) /Kids [12 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [40 0 R 41 0 R 42 0 R 43 0 R] /F 44 0 R /P 3 0 R >>\nendobj\n"
+        . "14 0 obj\n<< /FT /Tx /T (geometry.no_view) /V (no-view geometry value) /Kids [16 0 R] >>\nendobj\n"
+        . "16 0 obj\n<< /Subtype /Widget /Parent 14 0 R /Rect [50 0 R 51 0 R 52 0 R 53 0 R] /F 54 0 R /P 3 0 R >>\nendobj\n"
+        . "30 0 obj\n300\nendobj\n"
+        . "31 0 obj\n664\nendobj\n"
+        . "32 0 obj\n72\nendobj\n"
+        . "33 0 obj\n640\nendobj\n"
+        . "34 0 obj\n4\nendobj\n"
+        . "40 0 obj\n260\nendobj\n"
+        . "41 0 obj\n624\nendobj\n"
+        . "42 0 obj\n72\nendobj\n"
+        . "43 0 obj\n600\nendobj\n"
+        . "44 0 obj\n2\nendobj\n"
+        . "50 0 obj\n320\nendobj\n"
+        . "51 0 obj\n584\nendobj\n"
+        . "52 0 obj\n72\nendobj\n"
+        . "53 0 obj\n560\nendobj\n"
+        . "54 0 obj\n32\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'repairs AcroForm field discovery from page owned widget annotations only' => static function (TestRunner $t) use ($pageWidgetFieldBoundaryPdf, $fieldsByName): void {
         $pdf = $pageWidgetFieldBoundaryPdf();
@@ -267,5 +300,55 @@ return [
         $t->true(!str_contains($visibleText, 'Metadata-only indirect value'));
         $t->true(!str_contains($visibleText, 'Inherited profile value'));
         $t->true(!str_contains($visibleText, 'Detached indirect decoy'));
+    },
+    'resolves indirect AcroForm widget Rect and F operands before WordPress field review' => static function (
+        TestRunner $t
+    ) use ($indirectAcroFormWidgetOperandBoundaryPdf, $fieldsByName): void {
+        $pdf = $indirectAcroFormWidgetOperandBoundaryPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $visibleText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($form, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['geometry.visible', 'geometry.hidden', 'geometry.no_view'], array_keys($fields));
+        $t->same(3, count($form['fields']));
+        $t->same(true, $form['need_appearances']);
+
+        $visible = $fields['geometry.visible']['widgets'][0];
+        $t->same([72.0, 640.0, 300.0, 664.0], $visible['rect']);
+        $t->same(4, $visible['annotation_flags']);
+        $t->same(['print'], $visible['annotation_flag_names']);
+        $t->same('visible', $visible['annotation_visibility']);
+        $t->same(true, $visible['visible']);
+        $t->same(true, $visible['printable']);
+        $t->same(false, $visible['hidden']);
+        $t->same(false, $visible['no_view']);
+
+        $hidden = $fields['geometry.hidden']['widgets'][0];
+        $t->same([72.0, 600.0, 260.0, 624.0], $hidden['rect']);
+        $t->same(2, $hidden['annotation_flags']);
+        $t->same(['hidden'], $hidden['annotation_flag_names']);
+        $t->same('hidden', $hidden['annotation_visibility']);
+        $t->same(false, $hidden['visible']);
+        $t->same(true, $hidden['hidden']);
+        $t->same(false, $hidden['printable']);
+        $t->same(false, $hidden['no_view']);
+
+        $noView = $fields['geometry.no_view']['widgets'][0];
+        $t->same([72.0, 560.0, 320.0, 584.0], $noView['rect']);
+        $t->same(32, $noView['annotation_flags']);
+        $t->same(['no_view'], $noView['annotation_flag_names']);
+        $t->same('no_view', $noView['annotation_visibility']);
+        $t->same(false, $noView['visible']);
+        $t->same(true, $noView['hidden']);
+        $t->same(false, $noView['printable']);
+        $t->same(true, $noView['no_view']);
+
+        $t->true(str_contains($visibleText, 'Visible AcroForm indirect widget operand boundary body'));
+        $t->true(!str_contains($visibleText, 'visible geometry value'));
+        $t->true(!str_contains($visibleText, 'hidden geometry value'));
+        $t->true(!str_contains($visibleText, 'no-view geometry value'));
+        $t->true(is_string($encoded) && str_contains($encoded, 'geometry.visible'));
+        $t->true(is_string($encoded) && !str_contains($encoded, '30 0 R'));
     },
 ];

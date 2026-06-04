@@ -5827,7 +5827,7 @@ final class PdfAcroFormExtractor
             $pageIndex = $pageObject !== null && isset($pageIndexes[$pageObject])
                 ? $pageIndexes[$pageObject]
                 : ($pageWidgets[$widgetRef]['page_index'] ?? null);
-            $annotationFlags = $this->numberValueAfterName($body, 'F');
+            $annotationFlags = $this->numberValueAfterNameResolvingObjects($body, 'F', $objects);
             $widgetAppearance = $this->widgetDefaultAppearance($body, $fieldDefaultAppearance, $effective, $objects, $widgetRef);
             $referencedFromPageAnnots = isset($pageWidgets[$widgetRef]);
             $appearanceState = $this->pdfNameValueAfterName($body, 'AS');
@@ -5845,7 +5845,7 @@ final class PdfAcroFormExtractor
                 'page_object' => $pageObject,
                 'page_annotation_index' => $pageWidgets[$widgetRef]['annotation_index'] ?? null,
                 'referenced_from_page_annots' => $referencedFromPageAnnots,
-                'rect' => $this->rectFromAnnotation($body),
+                'rect' => $this->rectFromAnnotation($body, $objects),
                 'annotation_flags' => $annotationFlags,
                 'annotation_flag_names' => $this->annotationFlagNames($annotationFlags ?? 0),
                 'annotation_visibility' => $this->annotationVisibility($annotationFlags ?? 0),
@@ -8966,24 +8966,31 @@ final class PdfAcroFormExtractor
     /**
      * @return list<float>|null
      */
-    private function rectFromAnnotation(string $annotationBody): ?array
+    private function rectFromAnnotation(string $annotationBody, array $objects): ?array
     {
         $value = $this->valueAfterName($annotationBody, 'Rect');
-        if ($value === null || !str_starts_with(trim($value), '[')) {
+        if ($value === null) {
             return null;
         }
 
-        $arrayBody = $this->arrayBodyFromValue($value);
+        $arrayBody = $this->arrayBodyFromValueOrReference($value, $objects);
         if ($arrayBody === null) {
             return null;
         }
 
-        $numbers = $this->numbersFromPdfArray($arrayBody);
+        $numbers = $this->numbersFromPdfArrayResolvingObjects($arrayBody, $objects);
         if (count($numbers) < 4) {
             return null;
         }
 
-        return $this->normalizeRect(array_slice($numbers, 0, 4));
+        $rect = array_slice($numbers, 0, 4);
+        foreach ($rect as $number) {
+            if (!is_float($number) && !is_int($number)) {
+                return null;
+            }
+        }
+
+        return $this->normalizeRect($rect);
     }
 
     /**
@@ -9129,6 +9136,17 @@ final class PdfAcroFormExtractor
         }
 
         return (int) $match[0];
+    }
+
+    private function numberValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?int
+    {
+        $value = $this->valueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        $number = $this->pdfNumberFromValue($value, $objects);
+        return $number === null ? null : (int) $number;
     }
 
     private function objectReferenceValueAfterName(string $body, string $name): ?int
@@ -9983,6 +10001,53 @@ final class PdfAcroFormExtractor
         }
 
         return array_map('floatval', $matches[0]);
+    }
+
+    /**
+     * @return list<float|null>
+     */
+    private function numbersFromPdfArrayResolvingObjects(string $arrayBody, array $objects): array
+    {
+        $numbers = [];
+        $offset = 0;
+        $length = strlen($arrayBody);
+        while ($offset < $length) {
+            $value = $this->readPdfValueAt($arrayBody, $offset, $endOffset);
+            if ($value === null || $endOffset === null) {
+                $offset++;
+                continue;
+            }
+
+            $numbers[] = $this->pdfNumberFromValue($value, $objects);
+            $offset = $endOffset;
+        }
+
+        return $numbers;
+    }
+
+    private function pdfNumberFromValue(string $value, array $objects, array $seen = []): ?float
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference !== null) {
+            $objectNumber = $reference['object'];
+            if (isset($seen[$objectNumber]) || !$this->referenceGenerationMatches($objectNumber, $reference['generation'], $objects)) {
+                return null;
+            }
+
+            $seen[$objectNumber] = true;
+            return $this->pdfNumberFromValue(trim($objects[$objectNumber]), $objects, $seen);
+        }
+
+        if (preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/', $value) !== 1) {
+            return null;
+        }
+
+        return (float) $value;
     }
 
     private function decodePdfName(string $name): string
