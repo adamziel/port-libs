@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-04 10:11:54 UTC",
-    "sourceCommit": "89029d158e5bcac0a04bde5f9b56f2c49a0de661",
-    "sourceCommitShort": "89029d158e5b",
+    "generated": "2026-06-04 10:21:57 UTC",
+    "sourceCommit": "2dcad45f5f8c464abc5c7974c817fd1dbeca4d73",
+    "sourceCommitShort": "2dcad45f5f8c",
     "sourceBranch": "unknown",
-    "dashboardCommit": "89029d158e5bcac0a04bde5f9b56f2c49a0de661",
-    "dashboardCommitShort": "89029d158e5b",
+    "dashboardCommit": "2dcad45f5f8c464abc5c7974c817fd1dbeca4d73",
+    "dashboardCommitShort": "2dcad45f5f8c",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -137,13 +137,13 @@
             "coverage": "752 / 2,276 (33.0%)",
             "mapPercent": "33.0%",
             "unmapped": "1,524",
-            "php": "316 pass / 0 fail",
+            "php": "319 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-04 UTC DOCX OpenXML comments/endnotes slice on base baadbbe49...",
+            "audit": "2026-06-04 UTC archive-compression streams slice on base 89029d158e5b...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
             "nextTarget": "Keep tar file entries, LZ4 frames, ZIP64/symlink/NTFS extra-f...",
             "remainingGate": "No local blocker",
-            "commit": "baadbbe"
+            "commit": "89029d1"
         },
         {
             "lane": "quadrable",
