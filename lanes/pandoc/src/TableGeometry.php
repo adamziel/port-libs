@@ -140,20 +140,32 @@ final class TableGeometry
     }
 
     /**
-     * @return list<array{code:string,section:string,row:int,column:int,rowspan:int,availableRows:int}>
+     * @return list<array<string, int|string>>
      */
     public static function diagnostics(AstNode $table): array
     {
         $diagnostics = [];
+        $declaredColumnCount = self::declaredColumnCount($table);
         foreach (self::sectionRowGroups($table) as $group) {
             $rows = $group['rows'];
             $rowCount = count($rows);
-            $layoutRows = self::layoutRows($rows, max(1, self::columnCountForRows($rows)));
+            $layoutColumnCount = max(1, $declaredColumnCount, self::columnCountForRows($rows));
+            $layoutRows = self::layoutRows($rows, $layoutColumnCount);
             foreach ($layoutRows as $rowIndex => $layoutRow) {
                 $availableRows = max(1, $rowCount - $rowIndex);
                 foreach ($layoutRow['cells'] as $cell) {
                     $rowspan = self::cellRowspan($cell['node']);
                     if ($rowspan <= $availableRows) {
+                        if ($declaredColumnCount > 0) {
+                            self::appendDeclaredColumnDiagnostic(
+                                $diagnostics,
+                                $group['section'],
+                                $rowIndex,
+                                $cell,
+                                $declaredColumnCount
+                            );
+                        }
+
                         continue;
                     }
 
@@ -165,6 +177,16 @@ final class TableGeometry
                         'rowspan' => $rowspan,
                         'availableRows' => $availableRows,
                     ];
+
+                    if ($declaredColumnCount > 0) {
+                        self::appendDeclaredColumnDiagnostic(
+                            $diagnostics,
+                            $group['section'],
+                            $rowIndex,
+                            $cell,
+                            $declaredColumnCount
+                        );
+                    }
                 }
             }
         }
@@ -234,6 +256,42 @@ final class TableGeometry
     private static function tableAttributeColumnCount(mixed $columns): int
     {
         return is_array($columns) ? count($columns) : 0;
+    }
+
+    private static function declaredColumnCount(AstNode $table): int
+    {
+        return max(
+            self::tableAttributeColumnCount($table->attr('alignments', [])),
+            self::tableAttributeColumnCount($table->attr('widths', []))
+        );
+    }
+
+    /**
+     * @param list<array<string, int|string>> $diagnostics
+     * @param array{node:AstNode,column:int,colspan:int,rowspan:int} $cell
+     */
+    private static function appendDeclaredColumnDiagnostic(
+        array &$diagnostics,
+        string $section,
+        int $rowIndex,
+        array $cell,
+        int $declaredColumnCount
+    ): void {
+        $rawColspan = self::cellColspan($cell['node']);
+        $endColumn = $cell['column'] + $rawColspan;
+        if ($endColumn <= $declaredColumnCount) {
+            return;
+        }
+
+        $diagnostics[] = [
+            'code' => 'cell-exceeds-declared-columns',
+            'section' => $section,
+            'row' => $rowIndex,
+            'column' => $cell['column'],
+            'colspan' => $rawColspan,
+            'declaredColumns' => $declaredColumnCount,
+            'endColumn' => $endColumn,
+        ];
     }
 
     /**

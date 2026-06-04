@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-04 20:19:37 UTC",
-    "sourceCommit": "43d89c982a73be25b1aa06602ec736f2cd9890c1",
-    "sourceCommitShort": "43d89c982a73",
+    "generated": "2026-06-04 20:30:25 UTC",
+    "sourceCommit": "a4e1780beea9042e5770710504694d9e38c8c798",
+    "sourceCommitShort": "a4e1780beea9",
     "sourceBranch": "unknown",
-    "dashboardCommit": "43d89c982a73be25b1aa06602ec736f2cd9890c1",
-    "dashboardCommitShort": "43d89c982a73",
+    "dashboardCommit": "a4e1780beea9042e5770710504694d9e38c8c798",
+    "dashboardCommitShort": "a4e1780beea9",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "825",
-            "coverage": "825 / 2,276 (36.2%)",
-            "mapPercent": "36.2%",
-            "unmapped": "1,451",
-            "php": "368 pass / 0 fail",
+            "mapped": "826",
+            "coverage": "826 / 2,276 (36.3%)",
+            "mapPercent": "36.3%",
+            "unmapped": "1,450",
+            "php": "369 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-04 UTC citation CSL date/name metadata slice on accepted base...",
+            "audit": "2026-06-04 UTC table geometry declared-column overflow slice on accep...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
             "nextTarget": "For upstream-runner dependency closure, hydrate a local Pando...",
             "remainingGate": "No local blocker",
-            "commit": "d869572"
+            "commit": "43d89c9"
         },
         {
             "lane": "quadrable",

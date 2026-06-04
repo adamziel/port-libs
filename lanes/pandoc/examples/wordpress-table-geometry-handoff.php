@@ -49,6 +49,31 @@ $document = new AstNode('document', [], [
             ]),
         ]),
     ]),
+    new AstNode('table', [
+        'caption' => 'Declared column overflow review',
+        'alignments' => ['left', 'right'],
+        'widths' => [0.5, 0.5],
+    ], [
+        new AstNode('table_head', [], [
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+                new AstNode('table_cell', ['text' => 'Status'], [new AstNode('text', ['text' => 'Status'])]),
+            ]),
+        ]),
+        new AstNode('table_body', ['rowHeadColumns' => 1], [
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => 'Posts', 'rowspan' => 2], [new AstNode('text', ['text' => 'Posts'])]),
+                new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+            ]),
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => 'Needs media'], [new AstNode('text', ['text' => 'Needs media'])]),
+                new AstNode('table_cell', ['text' => 'Overflow note'], [new AstNode('text', ['text' => 'Overflow note'])]),
+            ]),
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => 'Full width audit note', 'colspan' => 3], [new AstNode('text', ['text' => 'Full width audit note'])]),
+            ]),
+        ]),
+    ]),
 ]);
 
 $blocks = (new WordPressBlockWriter())->write($document);
@@ -69,6 +94,16 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<thead><tr><th style="text-align:left">Scope</th><th style="text-align:right">Status</th></tr></thead><tbody><tr><td style="text-align:left">Pages</td><td style="text-align:right">Needs review</td></tr></tbody>')) {
         throw new RuntimeException('Table geometry self-test missing section-scoped rowspan clamp');
+    }
+    $overflowDiagnostics = TableGeometry::diagnostics($document->children[2]);
+    if (($overflowDiagnostics[0]['code'] ?? null) !== 'cell-exceeds-declared-columns') {
+        throw new RuntimeException('Table geometry self-test missing declared-column overflow diagnostic');
+    }
+    if (($overflowDiagnostics[1]['colspan'] ?? null) !== 3) {
+        throw new RuntimeException('Table geometry self-test missing over-wide colspan diagnostic');
+    }
+    if (!str_contains($blocks, '<tr><td style="text-align:right">Needs media</td><td>Overflow note</td></tr><tr><th colspan="3" style="text-align:left">Full width audit note</th></tr>')) {
+        throw new RuntimeException('Table geometry self-test dropped malformed declared-column overflow content');
     }
 
     echo "table geometry handoff self-test ok\n";

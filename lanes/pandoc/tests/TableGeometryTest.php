@@ -118,6 +118,36 @@ $buildSectionScopedRowspanDocument = static function (): AstNode {
     ]);
 };
 
+$buildDeclaredColumnOverflowDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Declared column overflow review',
+            'alignments' => ['left', 'right'],
+            'widths' => [0.5, 0.5],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'Status'], [new AstNode('text', ['text' => 'Status'])]),
+                ]),
+            ]),
+            new AstNode('table_body', ['rowHeadColumns' => 1], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts', 'rowspan' => 2], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Needs media'], [new AstNode('text', ['text' => 'Needs media'])]),
+                    new AstNode('table_cell', ['text' => 'Overflow note'], [new AstNode('text', ['text' => 'Overflow note'])]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Full width audit note', 'colspan' => 3], [new AstNode('text', ['text' => 'Full width audit note'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 return [
     'lays out pandoc table spans by visual columns for writer handoff' => static function (TestRunner $t) use ($buildSpannedTableDocument): void {
         $table = $buildSpannedTableDocument()->children[0];
@@ -212,5 +242,37 @@ return [
         $t->contains('| Posts |  Ready |', $markdown);
         $t->contains('| Total |      1 |', $markdown);
         $t->contains(': Section boundary review', $markdown);
+    },
+    'diagnoses cells that exceed declared pandoc table columns without dropping content' => static function (TestRunner $t) use ($buildDeclaredColumnOverflowDocument): void {
+        $document = $buildDeclaredColumnOverflowDocument();
+        $table = $document->children[0];
+        $body = $table->children[1];
+        $diagnostics = TableGeometry::diagnostics($table);
+        $layout = TableGeometry::layoutRows($body->children, TableGeometry::columnCount($table));
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same(3, TableGeometry::columnCount($table));
+        $t->same(['left', 'right', 'default'], TableGeometry::alignments($table, 3));
+        $t->same(1, TableGeometry::rowHeadColumns($body, 3));
+        $t->same([0, 1], array_map(static fn (array $cell): int => $cell['column'], $layout[0]['cells']));
+        $t->same([1, 2], array_map(static fn (array $cell): int => $cell['column'], $layout[1]['cells']));
+        $t->same([0], array_map(static fn (array $cell): int => $cell['column'], $layout[2]['cells']));
+        $t->same(3, $layout[2]['cells'][0]['colspan']);
+        $t->same(2, count($diagnostics));
+        $t->same('cell-exceeds-declared-columns', $diagnostics[0]['code'] ?? null);
+        $t->same('body', $diagnostics[0]['section'] ?? null);
+        $t->same(1, $diagnostics[0]['row'] ?? null);
+        $t->same(2, $diagnostics[0]['column'] ?? null);
+        $t->same(1, $diagnostics[0]['colspan'] ?? null);
+        $t->same(2, $diagnostics[0]['declaredColumns'] ?? null);
+        $t->same(3, $diagnostics[0]['endColumn'] ?? null);
+        $t->same(2, $diagnostics[1]['row'] ?? null);
+        $t->same(0, $diagnostics[1]['column'] ?? null);
+        $t->same(3, $diagnostics[1]['colspan'] ?? null);
+        $t->contains('<tbody><tr><th rowspan="2" style="text-align:left">Posts</th><td style="text-align:right">Ready</td></tr><tr><td style="text-align:right">Needs media</td><td>Overflow note</td></tr><tr><th colspan="3" style="text-align:left">Full width audit note</th></tr></tbody>', $blocks);
+        $t->contains('| Posts                 |                Ready |               |', $markdown);
+        $t->contains('|                       |          Needs media | Overflow note |', $markdown);
+        $t->contains('| Full width audit note |                      |               |', $markdown);
     },
 ];
