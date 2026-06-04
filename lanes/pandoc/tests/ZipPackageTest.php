@@ -7,6 +7,21 @@ use PortLibs\Pandoc\ZipPackageEntry;
 use PortLibs\Pandoc\GzipStream;
 
 $crc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
+$packNtfsFileTime = static function (int $timestamp): string {
+    $filetime = ($timestamp + 11644473600) * 10000000;
+    $low = $filetime & 0xffffffff;
+    $high = intdiv($filetime, 0x100000000);
+
+    return pack('VV', $low, $high);
+};
+$buildNtfsExtra = static function (int $modifiedAt, int $accessedAt, int $createdAt) use ($packNtfsFileTime): string {
+    $payload = pack('Vvv', 0, 0x0001, 24)
+        . $packNtfsFileTime($modifiedAt)
+        . $packNtfsFileTime($accessedAt)
+        . $packNtfsFileTime($createdAt);
+
+    return pack('vv', 0x000a, strlen($payload)) . $payload;
+};
 
 /**
  * @param list<array{
@@ -422,6 +437,74 @@ return [
         $t->same("\x01" . pack('V', $modifiedAt), $entry->centralExtraField(0x5455));
         $t->contains(pack('vvCV', 0x5455, 5, 0x01, $modifiedAt), $package->bytes());
         $t->same('<w:document><w:p>exact modified timestamp</w:p></w:document>', $roundTrip->read('word/document.xml'));
+    },
+
+    'reads ntfs zip extra field timestamps for office package preflight' => static function (TestRunner $t) use ($buildZipPackage, $buildNtfsExtra): void {
+        $modifiedAt = 1780479017;
+        $accessedAt = 1780479018;
+        $createdAt = 1780479019;
+        $ntfsExtra = $buildNtfsExtra($modifiedAt, $accessedAt, $createdAt);
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>ntfs timestamps</w:p></w:document>',
+                'method' => 8,
+                'modifiedTime' => 19400,
+                'modifiedDate' => 23747,
+                'localExtra' => $ntfsExtra,
+                'centralExtra' => $ntfsExtra,
+            ],
+        ]));
+
+        $entry = $package->entry('word/document.xml');
+        $timestamps = [
+            'modifiedAt' => $modifiedAt,
+            'accessedAt' => $accessedAt,
+            'createdAt' => $createdAt,
+        ];
+
+        $t->same($timestamps, $entry->ntfsTimestamps());
+        $t->same($modifiedAt, $entry->ntfsLastModifiedTimestamp());
+        $t->same($modifiedAt, $entry->lastModifiedTimestamp());
+        $t->same($timestamps, $package->localNtfsTimestamps('/word/document.xml'));
+        $t->same($modifiedAt, $package->localNtfsLastModifiedTimestamp('word/document.xml'));
+        $t->same('<w:document><w:p>ntfs timestamps</w:p></w:document>', $package->read('/word/document.xml'));
+    },
+
+    'rejects malformed and mismatched ntfs zip extra field metadata' => static function (TestRunner $t) use ($buildZipPackage, $buildNtfsExtra): void {
+        $centralNtfsExtra = $buildNtfsExtra(1780479017, 1780479018, 1780479019);
+        $localNtfsExtra = $buildNtfsExtra(1780479020, 1780479018, 1780479019);
+        $mismatched = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>ntfs mismatch</w:p></w:document>',
+                'method' => 0,
+                'centralExtra' => $centralNtfsExtra,
+                'localExtra' => $localNtfsExtra,
+            ],
+        ]));
+
+        $t->throws(\RuntimeException::class, static fn (): array => $mismatched->localNtfsTimestamps('word/document.xml'));
+        $t->throws(\RuntimeException::class, static fn (): string => $mismatched->read('word/document.xml'));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/settings.xml',
+                'data' => '<w:settings/>',
+                'method' => 0,
+                'centralExtra' => pack('vvVvv', 0x000a, 12, 0, 0x0001, 20) . str_repeat("\0", 20),
+            ],
+        ])));
+        $localMalformed = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/footnotes.xml',
+                'data' => '<w:footnotes/>',
+                'method' => 0,
+                'centralExtra' => $centralNtfsExtra,
+                'localExtra' => pack('vvC', 0x000a, 4, 0),
+            ],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): array => $localMalformed->localExtraFields('word/footnotes.xml'));
     },
 
     'rejects malformed central and local zip extra fields' => static function (TestRunner $t) use ($buildZipPackage): void {

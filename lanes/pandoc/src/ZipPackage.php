@@ -355,6 +355,26 @@ final class ZipPackage
         );
     }
 
+    /**
+     * @return array{modifiedAt:int, accessedAt:int, createdAt:int}|null
+     */
+    public function localNtfsTimestamps(string $partName): ?array
+    {
+        $entry = $this->entry($partName);
+
+        return self::ntfsTimestampsFromExtraFieldData(
+            $this->readLocalHeader($entry)['extraFieldData'],
+            "local extra fields for {$entry->name}"
+        );
+    }
+
+    public function localNtfsLastModifiedTimestamp(string $partName): ?int
+    {
+        $timestamps = $this->localNtfsTimestamps($partName);
+
+        return $timestamps['modifiedAt'] ?? null;
+    }
+
     public function read(string $partName): string
     {
         $entry = $this->entry($partName);
@@ -484,6 +504,21 @@ final class ZipPackage
             );
         }
 
+        $localNtfsTimestamps = self::ntfsTimestampsFromExtraFieldData(
+            $localExtraFieldData,
+            "local extra fields for {$entry->name}"
+        );
+        $centralNtfsTimestamps = $entry->ntfsTimestamps();
+        if (
+            $localNtfsTimestamps !== null
+            && $centralNtfsTimestamps !== null
+            && $localNtfsTimestamps !== $centralNtfsTimestamps
+        ) {
+            throw new \RuntimeException(
+                "ZIP local header NTFS timestamps do not match central directory entry {$entry->name}"
+            );
+        }
+
         if (($entry->generalPurposeFlags & 0x0008) === 0) {
             if ($localCrc32 !== $entry->crc32) {
                 throw new \RuntimeException("ZIP local header CRC32 does not match central directory entry {$entry->name}");
@@ -548,6 +583,20 @@ final class ZipPackage
         foreach (ZipPackageEntry::extraFieldsFromData($extraFieldData, $label) as $field) {
             if ($field['id'] === 0x5455) {
                 return ZipPackageEntry::extendedTimestampFromExtraField($field['data'], $label);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{modifiedAt:int, accessedAt:int, createdAt:int}|null
+     */
+    private static function ntfsTimestampsFromExtraFieldData(string $extraFieldData, string $label): ?array
+    {
+        foreach (ZipPackageEntry::extraFieldsFromData($extraFieldData, $label) as $field) {
+            if ($field['id'] === 0x000a) {
+                return ZipPackageEntry::ntfsTimestampsFromExtraField($field['data'], $label);
             }
         }
 
