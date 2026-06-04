@@ -13673,17 +13673,19 @@ final class PdfTextExtractor
             }
 
             $offset = $entry['offset'] ?? null;
-            if (is_int($offset) && $this->directObjectDefinitionAtOffset($definitions, $offset) !== null) {
-                continue;
-            }
-
-            $updateOwner = $this->currentUpdateDirectObjectDefinitionForXrefRow(
+            $offsetOwner = is_int($offset) ? $this->directObjectDefinitionAtOffset($definitions, $offset) : null;
+            $updateOwner = $this->currentUpdateDirectObjectDefinitionForStaleXrefOffset(
                 (int) $objectNumber,
                 (int) ($entry['generation'] ?? 0),
+                $offsetOwner,
                 $previousOffset,
                 $xrefOffset,
                 $definitions
             );
+            if ($offsetOwner !== null && $updateOwner === null) {
+                continue;
+            }
+
             if ($updateOwner === null) {
                 continue;
             }
@@ -14589,22 +14591,26 @@ final class PdfTextExtractor
                 $objectNumber = $startObject + $index;
                 $generation = $fieldThree;
                 if ($type === 1 && $widths[1] > 0 && $definitions !== null) {
+                    $rowObjectNumber = $objectNumber;
+                    $rowGeneration = $generation;
                     $offsetOwner = $this->directObjectDefinitionAtOffset($definitions, $fieldTwo);
-                    if ($offsetOwner !== null) {
-                        $objectNumber = $offsetOwner['objectNumber'];
-                        $generation = $offsetOwner['generation'];
-                    } elseif ($previousOffset !== null && $previousOffset >= 0) {
-                        $updateOwner = $this->currentUpdateDirectObjectDefinitionForXrefRow(
-                            $objectNumber,
-                            $generation,
+                    $updateOwner = $previousOffset !== null && $previousOffset >= 0
+                        ? $this->currentUpdateDirectObjectDefinitionForStaleXrefOffset(
+                            $rowObjectNumber,
+                            $rowGeneration,
+                            $offsetOwner,
                             $previousOffset,
                             $xrefOffset,
                             $definitions
-                        );
-                        if ($updateOwner !== null) {
-                            $fieldTwo = $updateOwner['offset'];
-                            $generation = $updateOwner['generation'];
-                        }
+                        )
+                        : null;
+                    if ($updateOwner !== null) {
+                        $objectNumber = $rowObjectNumber;
+                        $fieldTwo = $updateOwner['offset'];
+                        $generation = $updateOwner['generation'];
+                    } elseif ($offsetOwner !== null) {
+                        $objectNumber = $offsetOwner['objectNumber'];
+                        $generation = $offsetOwner['generation'];
                     }
                 }
 
@@ -14818,6 +14824,36 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array{objectNumber: int, generation: int, offset: int, body: string}|null $offsetOwner
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function currentUpdateDirectObjectDefinitionForStaleXrefOffset(
+        int $objectNumber,
+        int $generation,
+        ?array $offsetOwner,
+        int $previousOffset,
+        int $xrefOffset,
+        array $definitions
+    ): ?array {
+        if (
+            $offsetOwner !== null
+            && $offsetOwner['offset'] > $previousOffset
+            && $offsetOwner['offset'] < $xrefOffset
+        ) {
+            return null;
+        }
+
+        return $this->currentUpdateDirectObjectDefinitionForXrefRow(
+            $objectNumber,
+            $generation,
+            $previousOffset,
+            $xrefOffset,
+            $definitions
+        );
     }
 
     /**

@@ -283,6 +283,76 @@ $malformedIndexPdf .= "20 0 obj\n"
     . "stream\n{$compressedMalformedIndexRows}\nendstream\nendobj\n"
     . "startxref\n{$malformedIndexCurrentXrefOffset}\n%%EOF";
 
+$staleOffsetStaleText = 'BT /F1 12 Tf 72 720 Td (Stale valid-offset smoke page) Tj ET';
+$staleOffsetCurrentText = 'BT /F1 12 Tf 72 720 Td (Current valid-offset smoke page) Tj ET';
+$staleOffsetStalePayload = '<wp-export><post id="stale-valid-offset-smoke"/></wp-export>';
+$staleOffsetCurrentPayload = '<wp-export><post id="current-valid-offset-smoke"/></wp-export>';
+$staleOffsetPdf = "%PDF-1.7\n";
+$addStaleOffsetObject = static function (int $objectNumber, int $generation, string $body) use (&$staleOffsetPdf): int {
+    $offset = strlen($staleOffsetPdf);
+    $staleOffsetPdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+
+$staleOffsetStaleCatalogOffset = $addStaleOffsetObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Names << /EmbeddedFiles 8 0 R >> >>');
+$staleOffsetStalePagesOffset = $addStaleOffsetObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$staleOffsetStalePageOffset = $addStaleOffsetObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$staleOffsetStaleContentOffset = $addStaleOffsetObject(4, 0, "<< /Length " . strlen($staleOffsetStaleText) . " >>\nstream\n{$staleOffsetStaleText}\nendstream");
+$staleOffsetFontOffset = $addStaleOffsetObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+$staleOffsetStaleInfoOffset = $addStaleOffsetObject(6, 0, '<< /Title (Stale Valid Offset Smoke Info) /Author (Stale Valid Offset Smoke Author) >>');
+$staleOffsetStaleNameTreeOffset = $addStaleOffsetObject(8, 0, '<< /Names [(stale-valid-offset-smoke.xml) 10 0 R] >>');
+$staleOffsetStaleFileSpecOffset = $addStaleOffsetObject(10, 0, '<< /Type /Filespec /F (stale-valid-offset-smoke.xml) /Desc (Stale valid-offset smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$staleOffsetStaleEmbeddedOffset = $addStaleOffsetObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($staleOffsetStalePayload) . " >>\nstream\n{$staleOffsetStalePayload}\nendstream");
+
+$staleOffsetPreviousXrefOffset = strlen($staleOffsetPdf);
+$staleOffsetPdf .= "xref\n"
+    . "0 12\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($staleOffsetStaleCatalogOffset)
+    . $xrefTableRow($staleOffsetStalePagesOffset)
+    . $xrefTableRow($staleOffsetStalePageOffset)
+    . $xrefTableRow($staleOffsetStaleContentOffset)
+    . $xrefTableRow($staleOffsetFontOffset)
+    . $xrefTableRow($staleOffsetStaleInfoOffset)
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($staleOffsetStaleNameTreeOffset)
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($staleOffsetStaleFileSpecOffset)
+    . $xrefTableRow($staleOffsetStaleEmbeddedOffset)
+    . "trailer\n<< /Size 12 /Root 1 0 R /Info 6 0 R >>\n"
+    . "startxref\n{$staleOffsetPreviousXrefOffset}\n%%EOF\n";
+
+$addStaleOffsetObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Names << /EmbeddedFiles 8 0 R >> >>');
+$addStaleOffsetObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$addStaleOffsetObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$addStaleOffsetObject(4, 0, "<< /Length " . strlen($staleOffsetCurrentText) . " >>\nstream\n{$staleOffsetCurrentText}\nendstream");
+$addStaleOffsetObject(6, 0, '<< /Title (Current Valid Offset Smoke Info) /Author (Current Valid Offset Smoke Author) /Producer (Current Valid Offset Smoke Producer) >>');
+$addStaleOffsetObject(8, 0, '<< /Names [(current-valid-offset-smoke.xml) 10 0 R] >>');
+$addStaleOffsetObject(10, 0, '<< /Type /Filespec /F (current-valid-offset-smoke.xml) /Desc (Current valid-offset smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$addStaleOffsetObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($staleOffsetCurrentPayload) . " >>\nstream\n{$staleOffsetCurrentPayload}\nendstream");
+
+$staleOffsetRows = ''
+    . $xrefStreamRow(1, $staleOffsetStaleCatalogOffset, 0)
+    . $xrefStreamRow(1, $staleOffsetStalePagesOffset, 0)
+    . $xrefStreamRow(1, $staleOffsetStalePageOffset, 0)
+    . $xrefStreamRow(1, $staleOffsetStaleContentOffset, 0)
+    . $xrefStreamRow(1, $staleOffsetFontOffset, 0)
+    . $xrefStreamRow(1, $staleOffsetStaleInfoOffset, 0)
+    . $xrefStreamRow(1, $staleOffsetStaleNameTreeOffset, 0)
+    . $xrefStreamRow(1, $staleOffsetStaleFileSpecOffset, 0)
+    . $xrefStreamRow(1, $staleOffsetStaleEmbeddedOffset, 0);
+$compressedStaleOffsetRows = gzcompress($staleOffsetRows);
+if (!is_string($compressedStaleOffsetRows)) {
+    throw new RuntimeException('Unable to compress stale-offset current xref-stream smoke fixture.');
+}
+
+$staleOffsetCurrentXrefOffset = strlen($staleOffsetPdf);
+$staleOffsetPdf .= "20 0 obj\n"
+    . '<< /Type /XRef /Size 40 /Root 1 0 R /Info 6 0 R /Prev ' . $staleOffsetPreviousXrefOffset . ' /Index [1 6 8 1 10 2] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedStaleOffsetRows) . " >>\n"
+    . "stream\n{$compressedStaleOffsetRows}\nendstream\nendobj\n"
+    . "startxref\n{$staleOffsetCurrentXrefOffset}\n%%EOF";
+
 $classicTableStaleText = 'BT /F1 12 Tf 72 720 Td (Stale classic Prev table smoke page) Tj ET';
 $classicTableCurrentText = 'BT /F1 12 Tf 72 720 Td (Current classic Prev table smoke page) Tj ET';
 $classicTableStalePayload = '<wp-export><post id="stale-classic-prev-smoke"/></wp-export>';
@@ -375,6 +445,14 @@ $malformedIndexEncoded = json_encode([
     'text' => $malformedIndexPlainText,
     'files' => $malformedIndexFiles,
 ], JSON_UNESCAPED_SLASHES);
+$staleOffsetMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($staleOffsetPdf);
+$staleOffsetPlainText = $extractor->extractPlainText($staleOffsetPdf);
+$staleOffsetFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($staleOffsetPdf);
+$staleOffsetEncoded = json_encode([
+    'metadata' => $staleOffsetMetadata,
+    'text' => $staleOffsetPlainText,
+    'files' => $staleOffsetFiles,
+], JSON_UNESCAPED_SLASHES);
 $classicTableMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($classicTablePdf);
 $classicTablePlainText = $extractor->extractPlainText($classicTablePdf);
 $classicTableFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($classicTablePdf);
@@ -408,6 +486,13 @@ echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialcha
     'malformed_index_same_generation_stale_prev_excluded' => is_string($malformedIndexEncoded)
         && !str_contains($malformedIndexEncoded, 'Stale Malformed')
         && !str_contains($malformedIndexEncoded, 'stale-malformed-index-smoke'),
+    'stale_explicit_offset_current_info_selected' => ($staleOffsetMetadata['title'] ?? null) === 'Current Valid Offset Smoke Info',
+    'stale_explicit_offset_current_language_selected' => ($staleOffsetMetadata['language'] ?? null) === 'en-US',
+    'stale_explicit_offset_current_text_selected' => str_contains($staleOffsetPlainText, 'Current valid-offset smoke page'),
+    'stale_explicit_offset_current_attachment_selected' => ($staleOffsetFiles[0]['filename'] ?? null) === 'current-valid-offset-smoke.xml',
+    'stale_explicit_offset_previous_storage_excluded' => is_string($staleOffsetEncoded)
+        && !str_contains($staleOffsetEncoded, 'Stale Valid Offset')
+        && !str_contains($staleOffsetEncoded, 'stale-valid-offset-smoke'),
     'classic_table_same_generation_current_xmp_selected' => ($classicTableMetadata['title'] ?? null) === 'Current Classic Table Smoke Title',
     'classic_table_same_generation_current_info_selected' => ($classicTableMetadata['info']['Title'] ?? null) === 'Current Classic Table Smoke Info',
     'classic_table_same_generation_current_text_selected' => str_contains($classicTablePlainText, 'Current classic Prev table smoke page'),
