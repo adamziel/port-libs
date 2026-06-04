@@ -5212,14 +5212,9 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if (preg_match('/\/PageLabels\s+(\d+)\s+\d+\s+R\b/s', $body, $match) === 1) {
-                $objectNumber = (int) $match[1];
-                return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
-            }
-
-            if (preg_match('/\/PageLabels\s*<</s', $body, $match, PREG_OFFSET_CAPTURE) === 1) {
-                $offset = strpos($body, '<<', $match[0][1]);
-                return $offset === false ? null : $this->readPdfDictionaryAt($body, $offset);
+            $value = $this->topLevelPdfValueAfterName($body, 'PageLabels');
+            if ($value !== null) {
+                return $this->pdfDictionaryFromValue($value, $objects);
             }
         }
 

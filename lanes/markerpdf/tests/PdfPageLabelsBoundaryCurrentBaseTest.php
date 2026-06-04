@@ -89,6 +89,29 @@ $indirectOperandPageLabelBoundaryPdf = static function (): string {
         . "%%EOF\n";
 };
 
+$escapedNamePageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Escaped page imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Named page imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PieceInfo << /PageLabels 40 0 R >> /Page#4Cabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /#4Eums [0 << /#53 /#44 /#50 (Real ) /#53t 7 >> 1 << /#50 (Named-) >>] >>\nendobj\n"
+        . "40 0 obj\n<< /Nums [0 << /S /D /P (stale-private-) /St 99 >> 1 << /S /D /P (stale-nested-) /St 100 >>] >>\nendobj\n"
+        . "%%EOF\n";
+};
+
 return [
     'keeps parent PageLabels Limits across indirect kid number-tree boundaries' => static function (TestRunner $t) use ($pageLabelBoundaryPdf): void {
         $pdf = $pageLabelBoundaryPdf();
@@ -140,5 +163,23 @@ return [
         $t->same(['Front matter imported', 'Front matter continued', 'Appendix imported'], array_column($entries, 'text'));
         $t->true(!in_array('', $previewLabels, true));
         $t->same('App-Z', $preview->getPageImagePlan($pdf, 3)['page_label']);
+    },
+    'keeps escaped catalog PageLabels names above nested private decoys' => static function (TestRunner $t) use ($escapedNamePageLabelBoundaryPdf): void {
+        $pdf = $escapedNamePageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Real 7', 'Named-'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Escaped page imported', 'Named page imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-private-99', $labels, true));
+        $t->true(!in_array('stale-nested-100', $previewLabels, true));
+        $t->same('Named-', $preview->getPageImagePlan($pdf, 2)['page_label']);
     },
 ];

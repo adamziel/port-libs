@@ -1379,8 +1379,10 @@ final class MarkerAppPreview
 
         $styleValue = $this->resolvedPageLabelValueAfterName($dict, 'S', $objects, $seen);
         $style = null;
-        if ($styleValue !== null && preg_match('/^\/([A-Za-z])$/', trim($styleValue), $match)) {
-            $style = in_array($match[1], ['D', 'R', 'r', 'A', 'a'], true) ? $match[1] : null;
+        $styleValue = $styleValue === null ? null : trim($styleValue);
+        if ($styleValue !== null && str_starts_with($styleValue, '/')) {
+            $styleName = $this->decodePdfName(substr($styleValue, 1));
+            $style = in_array($styleName, ['D', 'R', 'r', 'A', 'a'], true) ? $styleName : null;
         }
 
         $start = 1;
@@ -1505,6 +1507,13 @@ final class MarkerAppPreview
         return $bytes;
     }
 
+    private function decodePdfName(string $name): string
+    {
+        return preg_replace_callback('/#([\da-fA-F]{2})/', static function (array $match): string {
+            return chr(hexdec($match[1]));
+        }, $name) ?? $name;
+    }
+
     private function decodeLiteralString(string $value): string
     {
         $out = '';
@@ -1575,6 +1584,14 @@ final class MarkerAppPreview
 
     private function valueAfterName(string $body, string $name): ?string
     {
+        $body = trim($body);
+        if (str_starts_with($body, '<<')) {
+            $dictionary = $this->readBalancedDictionary($body, 0);
+            if ($dictionary !== null) {
+                $body = substr($dictionary[0], 2, -2);
+            }
+        }
+
         $length = strlen($body);
         for ($offset = 0; $offset < $length;) {
             $offset = $this->skipPdfWhitespace($body, $offset);
@@ -1599,11 +1616,11 @@ final class MarkerAppPreview
             }
 
             $offset += strlen($match[0]);
-            if ($match[1] !== $name) {
+            $value = $this->readPdfValue($body, $offset);
+            if ($this->decodePdfName($match[1]) !== $name) {
+                $offset = $value === null ? $offset : $value[1];
                 continue;
             }
-
-            $value = $this->readPdfValue($body, $offset);
 
             return $value === null ? null : $value[0];
         }
