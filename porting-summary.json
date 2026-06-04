@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-04 23:52:54 UTC",
-    "sourceCommit": "38aec44d7fcd861c4761fd3ecd284751c729d959",
-    "sourceCommitShort": "38aec44d7fcd",
+    "generated": "2026-06-04 23:53:13 UTC",
+    "sourceCommit": "823f6589f8da3f9a80dca715a2f1c4801909d3c3",
+    "sourceCommitShort": "823f6589f8da",
     "sourceBranch": "unknown",
-    "dashboardCommit": "38aec44d7fcd861c4761fd3ecd284751c729d959",
-    "dashboardCommitShort": "38aec44d7fcd",
+    "dashboardCommit": "823f6589f8da3f9a80dca715a2f1c4801909d3c3",
+    "dashboardCommitShort": "823f6589f8da",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -139,7 +139,7 @@
             "unmapped": "1,383",
             "php": "425 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-04 UTC shared ZIP package extended timestamp slice on accepte...",
+            "audit": "2026-06-04 UTC upstream-runner dependency audit slice on accepted bas...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
             "nextTarget": "For BibTeX/CSL follow-up, keep crossref inheritance, broader...",
             "remainingGate": "No local blocker",
