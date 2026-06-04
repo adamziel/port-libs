@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\PdfMetadataExtractor;
+use PortLibs\MarkerPDF\PdfOutlineExtractor;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -86,12 +87,22 @@ $pdf .= "90 0 obj\n"
     . "71 0 obj\n<< /Title (Stale Outline Review Title) /Parent 70 0 R /Dest [3 0 R /Fit] >>\nendobj\n";
 
 $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+$outlineExtractor = new PdfOutlineExtractor();
+$navigation = $outlineExtractor->getNavigationReviewMetadata($pdf);
+$toc = $outlineExtractor->getPdfTocWithDestinationViews($pdf);
 $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
 $outline = $metadata['document_outline'] ?? [];
 $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+$navigationEncoded = json_encode($navigation, JSON_UNESCAPED_SLASHES);
 
 if (($outline['titles'] ?? []) !== ['Import Runbook', 'Collapsed Review Child', 'Media Appendix']) {
     throw new RuntimeException('Expected current xref-selected outline metadata titles.');
+}
+if (array_column($toc, 'title') !== ['Import Runbook', 'Collapsed Review Child', 'Media Appendix']) {
+    throw new RuntimeException('Expected current EOF-bounded outline navigation titles.');
+}
+if (array_column($navigation['outline'] ?? [], 'title') !== ['Import Runbook', 'Collapsed Review Child', 'Media Appendix']) {
+    throw new RuntimeException('Expected current EOF-bounded navigation review titles.');
 }
 if (($outline['resolved_destination_count'] ?? null) !== 3) {
     throw new RuntimeException('Expected all current outline metadata destinations to resolve.');
@@ -101,6 +112,9 @@ if (($outline['items'][0]['text_color_hex'] ?? null) !== '#0059b3' || ($outline[
 }
 if (!is_string($encoded) || str_contains($encoded, 'Stale Outline Review Title') || str_contains($encoded, 'Stale WordPress Outline Metadata Boundary')) {
     throw new RuntimeException('Expected stale appended outline and XMP objects to stay out of metadata.');
+}
+if (!is_string($navigationEncoded) || str_contains($navigationEncoded, 'Stale Outline Review Title')) {
+    throw new RuntimeException('Expected stale appended outline objects to stay out of navigation review metadata.');
 }
 if (str_contains($plainText, 'Import Runbook')
     || str_contains($plainText, 'Collapsed Review Child')
@@ -122,8 +136,11 @@ echo '<!-- markerpdf-outline-metadata-boundary-currentbase ' . $htmlJson([
         static fn (array $item): ?string => $item['text_color_hex'] ?? null,
         $outline['items'] ?? []
     ))),
+    'navigation_titles' => array_column($navigation['outline'] ?? [], 'title'),
+    'toc_titles' => array_column($toc, 'title'),
     'resolved_destination_count' => $outline['resolved_destination_count'] ?? null,
     'stale_outline_excluded' => is_string($encoded) && !str_contains($encoded, 'Stale Outline Review Title'),
+    'stale_navigation_excluded' => is_string($navigationEncoded) && !str_contains($navigationEncoded, 'Stale Outline Review Title'),
     'visible_text_excludes_outline_metadata' => !str_contains($plainText, 'Import Runbook')
         && !str_contains($plainText, 'Collapsed Review Child')
         && !str_contains($plainText, 'Media Appendix'),
