@@ -1668,18 +1668,23 @@ final class PdfTextExtractor
         ];
 
         if ($streams !== []) {
-            $resourceOwnerBody = $this->pageResourceDictionaryBody($pageObjectNumber, $objects)
-                ?? $objects[$pageObjectNumber];
-            $expandedForms = $this->expandFormXObjectInvocations(
-                $expanded['stream'],
-                $resourceOwnerBody,
-                $objects,
-                $fontObjectMaps,
-                $expanded['fontToUnicodeMaps'],
-                $optionalContentStates
-            );
-            $expanded['stream'] = $expandedForms['stream'];
-            $expanded['fontToUnicodeMaps'] = $expandedForms['fontToUnicodeMaps'];
+            $resourceOwnerBody = $this->pageResourceDictionaryBody($pageObjectNumber, $objects);
+            if ($resourceOwnerBody === null && !$this->pageResourceDictionaryBlocksFallback($pageObjectNumber, $objects)) {
+                $resourceOwnerBody = $objects[$pageObjectNumber];
+            }
+
+            if ($resourceOwnerBody !== null) {
+                $expandedForms = $this->expandFormXObjectInvocations(
+                    $expanded['stream'],
+                    $resourceOwnerBody,
+                    $objects,
+                    $fontObjectMaps,
+                    $expanded['fontToUnicodeMaps'],
+                    $optionalContentStates
+                );
+                $expanded['stream'] = $expandedForms['stream'];
+                $expanded['fontToUnicodeMaps'] = $expandedForms['fontToUnicodeMaps'];
+            }
         }
 
         return $expanded;
@@ -7393,6 +7398,10 @@ final class PdfTextExtractor
             return $this->fontResourceMapsFromResourceDictionary($resourceDictionary, $objects, $fontObjectMaps);
         }
 
+        if ($this->pageResourceDictionaryBlocksFallback($pageObjectNumber, $objects)) {
+            return [];
+        }
+
         if (count($fontObjectMaps) === 1) {
             $onlyMap = reset($fontObjectMaps);
             return is_array($onlyMap) ? ['' => $onlyMap] : [];
@@ -7435,13 +7444,74 @@ final class PdfTextExtractor
     private function pageResourceDictionaryBody(int $pageObjectNumber, array $objects): ?string
     {
         foreach ($this->pageObjectLineage($pageObjectNumber, $objects) as $objectNumber) {
-            $resourceDictionary = $this->resourceDictionaryBody($objects[$objectNumber], $objects);
-            if ($resourceDictionary !== null) {
-                return $resourceDictionary;
+            $resolution = $this->pageResourceDictionaryResolution($objects[$objectNumber], $objects);
+            if ($resolution['state'] === 'resolved') {
+                return $resolution['body'];
+            }
+
+            if ($resolution['state'] === 'blocked') {
+                return null;
             }
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pageResourceDictionaryBlocksFallback(int $pageObjectNumber, array $objects): bool
+    {
+        foreach ($this->pageObjectLineage($pageObjectNumber, $objects) as $objectNumber) {
+            $resolution = $this->pageResourceDictionaryResolution($objects[$objectNumber], $objects);
+            if ($resolution['state'] === 'resolved') {
+                return false;
+            }
+
+            if ($resolution['state'] === 'blocked') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{state: 'inherit'}|array{state: 'blocked'}|array{state: 'resolved', body: string}
+     */
+    private function pageResourceDictionaryResolution(string $objectBody, array $objects): array
+    {
+        $value = $this->topLevelPdfValueAfterName($objectBody, 'Resources');
+        if ($value === null) {
+            return ['state' => 'inherit'];
+        }
+
+        $value = trim($value);
+        if ($value === '' || $value === 'null') {
+            return ['state' => 'inherit'];
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            if (!isset($objects[$objectNumber])) {
+                return ['state' => 'blocked'];
+            }
+
+            $body = $this->dictionaryObjectBody($objects[$objectNumber]);
+            return $body === null
+                ? ['state' => 'blocked']
+                : ['state' => 'resolved', 'body' => $body];
+        }
+
+        if (str_starts_with($value, '<<')) {
+            $body = $this->readPdfDictionaryAt($value, 0);
+            return $body === null
+                ? ['state' => 'blocked']
+                : ['state' => 'resolved', 'body' => $body];
+        }
+
+        return ['state' => 'blocked'];
     }
 
     /**

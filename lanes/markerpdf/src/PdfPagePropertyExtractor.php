@@ -1316,14 +1316,24 @@ final class PdfPagePropertyExtractor
                 continue;
             }
 
+            if ($this->pageResourceValueAllowsInheritance($resourceValue)) {
+                continue;
+            }
+
             $resources = $this->resolveDictionaryFromValue($resourceValue, $objects);
             if ($resources === null) {
-                continue;
+                return $this->malformedPageResourcesMetadata(
+                    $pageObjectNumber,
+                    $objectNumber,
+                    $resourceValue
+                );
             }
 
             $resourceBody = $resources['body'];
             $metadata = [
                 'source' => 'page_tree_resources',
+                'status' => 'resolved',
+                'resolved' => true,
                 'resource_owner_object' => $objectNumber,
                 'resource_object' => $resources['object'],
                 'inherited' => $objectNumber !== $pageObjectNumber,
@@ -1349,6 +1359,28 @@ final class PdfPagePropertyExtractor
         }
 
         return null;
+    }
+
+    private function pageResourceValueAllowsInheritance(string $value): bool
+    {
+        $trimmed = trim($value);
+        return $trimmed === '' || $trimmed === 'null';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function malformedPageResourcesMetadata(int $pageObjectNumber, int $objectNumber, string $resourceValue): array
+    {
+        return [
+            'source' => 'page_tree_resources',
+            'status' => 'unresolved_or_malformed',
+            'resolved' => false,
+            'resource_owner_object' => $objectNumber,
+            'resource_object' => $this->objectNumberFromReference($resourceValue),
+            'inherited' => $objectNumber !== $pageObjectNumber,
+            'categories' => [],
+        ];
     }
 
     /**
