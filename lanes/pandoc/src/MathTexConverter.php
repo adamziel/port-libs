@@ -26,13 +26,25 @@ final class MathTexConverter
         'cdot' => '⋅',
         'geq' => '≥',
         'in' => '∈',
+        'int' => '∫',
         'leq' => '≤',
         'lim' => 'lim',
         'neq' => '≠',
         'pm' => '±',
+        'prod' => '∏',
+        'sum' => '∑',
         'times' => '×',
         'to' => '→',
         'wedge' => '∧',
+    ];
+
+    /** @var array<string, string> */
+    private const FUNCTION_COMMANDS = [
+        'cos' => 'cos',
+        'exp' => 'exp',
+        'log' => 'log',
+        'sin' => 'sin',
+        'tan' => 'tan',
     ];
 
     /** @var array<string, string> */
@@ -165,12 +177,25 @@ final class MathTexConverter
             return '<mtext>' . $this->esc($this->readRequiredGroupText($source, $offset)) . '</mtext>';
         }
 
+        if ($command === 'operatorname') {
+            $operatorName = $this->readRequiredGroupText($source, $offset);
+            if ($operatorName === '') {
+                throw new \InvalidArgumentException('Expected TeX operator name at offset ' . $offset);
+            }
+
+            return '<mi>' . $this->esc($operatorName) . '</mi>';
+        }
+
         if ($command === 'left' || $command === 'right') {
             return $this->parseFenceCommand($source, $offset);
         }
 
         if (isset(self::IDENTIFIER_COMMANDS[$command])) {
             return '<mi>' . self::IDENTIFIER_COMMANDS[$command] . '</mi>';
+        }
+
+        if (isset(self::FUNCTION_COMMANDS[$command])) {
+            return '<mi>' . self::FUNCTION_COMMANDS[$command] . '</mi>';
         }
 
         if (isset(self::OPERATOR_COMMANDS[$command])) {

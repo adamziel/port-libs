@@ -18,7 +18,7 @@ $markdown = <<<'MARKDOWN'
 Reviewer equation $\wptuple{post_id,media_id}$ stays editable.
 
 Display audit:
-$$\frac{a_1}{\sqrt{b^2}} + \alpha \times \omega$$
+$$\sum_{i=1}^{n} \operatorname{migrate}(p_i) + \frac{a_1}{\sqrt{b^2}} + \alpha \times \omega$$
 MARKDOWN;
 
 $document = (new MarkdownReader())->read($markdown);
@@ -58,11 +58,13 @@ $summary = [
 if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         '<span class="math inline">\\(\\langle post_id,media_id \\rangle\\)</span>',
-        '<span class="math display">\\[\\frac{a_1}{\\sqrt{b^2}} + \\alpha \\times \\omega\\]</span>',
+        '<span class="math display">\\[\\sum_{i=1}^{n} \\operatorname{migrate}(p_i) + \\frac{a_1}{\\sqrt{b^2}} + \\alpha \\times \\omega\\]</span>',
         '<mo>⟨</mo>',
         '<mo>⟩</mo>',
+        '<msubsup><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></msubsup>',
+        '<mi>migrate</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>',
         '<mfrac><msub><mi>a</mi><mn>1</mn></msub><msqrt><msup><mi>b</mi><mn>2</mn></msup></msqrt></mfrac>',
-        '\\[\\frac{a_1}{\\sqrt{b^2}} + \\alpha \\times \\omega\\]',
+        '\\[\\sum_{i=1}^{n} \\operatorname{migrate}(p_i) + \\frac{a_1}{\\sqrt{b^2}} + \\alpha \\times \\omega\\]',
     ] as $needle) {
         if (!str_contains(implode("\n", $summary), $needle)) {
             throw new RuntimeException('Math TeX handoff self-test missing: ' . $needle);

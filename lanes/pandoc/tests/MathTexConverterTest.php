@@ -29,12 +29,26 @@ return [
         $t->contains('<mo fence="true" stretchy="true">{</mo><mi>a</mi><mo fence="true" stretchy="true">}</mo>', $fencedMathml);
         $t->contains('<mi>x</mi><msubsup><mo fence="true" stretchy="true">|</mo><mn>0</mn><mn>1</mn></msubsup>', $invisibleFenceMathml);
     },
+    'converts bounded tex large operators functions and operator names to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $operatorMathml = $converter->texToMathMl('\\sum_{i=1}^{n} \\operatorname{migrate}(p_i) + \\int_{0}^{1} f(x) dx', true);
+        $functionMathml = $converter->texToMathMl('\\sin^2 \\theta + \\log_{10} x + \\prod_{k=1}^{3} k');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $operatorMathml);
+        $t->contains('<msubsup><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></msubsup>', $operatorMathml);
+        $t->contains('<mi>migrate</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>', $operatorMathml);
+        $t->contains('<msubsup><mo>∫</mo><mn>0</mn><mn>1</mn></msubsup><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo><mi>d</mi><mi>x</mi>', $operatorMathml);
+        $t->contains('<msup><mi>sin</mi><mn>2</mn></msup><mi>θ</mi>', $functionMathml);
+        $t->contains('<msub><mi>log</mi><mn>10</mn></msub><mi>x</mi><mo>+</mo><msubsup><mo>∏</mo><mrow><mi>k</mi><mo>=</mo><mn>1</mn></mrow><mn>3</mn></msubsup><mi>k</mi>', $functionMathml);
+    },
     'rejects malformed bounded tex math groups without invoking a tex engine' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
 
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\frac{a}{'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sqrt'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\text{unterminated'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left\\unknown{x}'));
     },
