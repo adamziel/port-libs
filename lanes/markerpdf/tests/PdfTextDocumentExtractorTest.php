@@ -192,6 +192,45 @@ return [
         $t->same(true, $sorted['metadata']['pdftext_options']['sort']);
         $t->true(!array_key_exists('sort', $unsorted['metadata']['pdftext_options']), 'Default markerPDF get_text_blocks path should keep pdftext sort=false omitted.');
     },
+    'keeps selected blank pdftext dictionary pages without WordPress paragraph leakage' => static function (TestRunner $t) use ($pdftextPage): void {
+        $blankPage = [
+            'page' => 41,
+            'bbox' => [0.0, 0.0, 612.0, 792.0],
+            'rotation' => 0,
+            'width' => 612,
+            'height' => 792,
+            'total_chars' => 0,
+            'blocks' => [],
+        ];
+
+        $result = (new PdfTextDocumentExtractor())->getTextBlocks(
+            [
+                $pdftextPage(40, 'Skipped front page'),
+                $blankPage,
+                $pdftextPage(42, 'Skipped appendix'),
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $processor = new MarkdownPostProcessor();
+        $mergedPages = $processor->mergeSpans($result['pages']);
+        $blocks = $processor->mergeBlocks($mergedPages);
+        $paginated = $processor->mergeBlocks($mergedPages, paginateOutput: true);
+
+        $t->same([1], $result['page_range']);
+        $t->same(1, $result['metadata']['pages']);
+        $t->same(41, $result['pages'][0]['pnum']);
+        $t->same([0.0, 0.0, 612.0, 792.0], $result['pages'][0]['bbox']);
+        $t->same([], $result['pages'][0]['blocks']);
+        $t->same([], $result['pages'][0]['char_blocks']);
+        $t->same([], $blocks);
+        $t->same(1, count($paginated));
+        $t->same(true, $paginated[0]['page_start']);
+        $t->same(41, $paginated[0]['pnum']);
+        $t->true(!str_contains(json_encode($result, JSON_UNESCAPED_SLASHES) ?: '', 'Skipped front page'));
+        $t->true(!str_contains(json_encode($result, JSON_UNESCAPED_SLASHES) ?: '', 'Skipped appendix'));
+    },
     'rejects out of range page slices before WordPress import' => static function (TestRunner $t) use ($pdftextPage): void {
         $extractor = new PdfTextDocumentExtractor();
 
