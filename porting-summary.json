@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-04 12:20:16 UTC",
-    "sourceCommit": "7345fec3551b0fdad805ab47effb693107b830f7",
-    "sourceCommitShort": "7345fec3551b",
+    "generated": "2026-06-04 12:32:01 UTC",
+    "sourceCommit": "bd54fb7d930532514192670615b391c021f2db96",
+    "sourceCommitShort": "bd54fb7d9305",
     "sourceBranch": "unknown",
-    "dashboardCommit": "7345fec3551b0fdad805ab47effb693107b830f7",
-    "dashboardCommitShort": "7345fec3551b",
+    "dashboardCommit": "bd54fb7d930532514192670615b391c021f2db96",
+    "dashboardCommitShort": "bd54fb7d9305",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -137,13 +137,13 @@
             "coverage": "765 / 2,276 (33.6%)",
             "mapPercent": "33.6%",
             "unmapped": "1,511",
-            "php": "328 pass / 0 fail",
+            "php": "329 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-04 UTC YAML metadata core slice on base 787e8dd10c1719fcb8b11...",
+            "audit": "2026-06-04 UTC table geometry current-base slice on base bd54fb7d9305...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
             "nextTarget": "Keep writer-side YAML emission, YAML anchors/aliases/tags/cus...",
             "remainingGate": "No local blocker",
-            "commit": "787e8dd"
+            "commit": "bd54fb7"
         },
         {
             "lane": "quadrable",

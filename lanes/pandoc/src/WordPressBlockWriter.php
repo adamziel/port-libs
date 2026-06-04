@@ -432,19 +432,7 @@ final class WordPressBlockWriter
 
     private function tableColumnCount(AstNode $table): int
     {
-        $columnCount = 0;
-        foreach ($table->children as $section) {
-            if ($section->type === 'table_body') {
-                $columnCount = max($columnCount, TableGeometry::columnCountForRows($this->tableBodyRows($section)));
-                continue;
-            }
-
-            if ($section->type === 'table_head' || $section->type === 'table_foot') {
-                $columnCount = max($columnCount, TableGeometry::columnCountForRows($this->tableRows($section)));
-            }
-        }
-
-        return $columnCount;
+        return TableGeometry::columnCount($table);
     }
 
     /**

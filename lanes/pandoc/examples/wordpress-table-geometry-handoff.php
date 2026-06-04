@@ -10,7 +10,8 @@ use PortLibs\Pandoc\WordPressBlockWriter;
 $document = new AstNode('document', [], [
     new AstNode('table', [
         'caption' => 'Migration review grid',
-        'alignments' => ['left', 'right', 'center'],
+        'alignments' => ['left', 'right', 'center', 'default'],
+        'widths' => [0.25, 0.25, 0.25, 0.25],
     ], [
         new AstNode('table_head', [], [
             new AstNode('table_row', [], [
@@ -32,4 +33,21 @@ $document = new AstNode('document', [], [
     ]),
 ]);
 
-echo (new WordPressBlockWriter())->write($document) . "\n";
+$blocks = (new WordPressBlockWriter())->write($document);
+
+if (($argv[1] ?? '') === '--self-test') {
+    if (!str_contains($blocks, '<colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:25%"/><col style="width:25%"/></colgroup>')) {
+        throw new RuntimeException('Table geometry self-test missing trailing colspec width');
+    }
+    if (!str_contains($blocks, '<th colspan="2" style="text-align:left">Scope</th><th style="text-align:center">Status</th>')) {
+        throw new RuntimeException('Table geometry self-test missing visual-column header alignment');
+    }
+    if (!str_contains($blocks, '<td rowspan="2" style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td>')) {
+        throw new RuntimeException('Table geometry self-test missing rowspan body alignment');
+    }
+
+    echo "table geometry handoff self-test ok\n";
+    return;
+}
+
+echo $blocks . "\n";

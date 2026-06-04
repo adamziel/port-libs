@@ -34,6 +34,31 @@ $buildSpannedTableDocument = static function (): AstNode {
     ]);
 };
 
+$buildColspecTableDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Import queue with reserved audit column',
+            'alignments' => ['left', 'center', 'right', 'left'],
+            'widths' => [0.2, 0.25, 0.25, 0.3],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'Items'], [new AstNode('text', ['text' => 'Items'])]),
+                    new AstNode('table_cell', ['text' => 'Status'], [new AstNode('text', ['text' => 'Status'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 return [
     'lays out pandoc table spans by visual columns for writer handoff' => static function (TestRunner $t) use ($buildSpannedTableDocument): void {
         $table = $buildSpannedTableDocument()->children[0];
@@ -66,5 +91,20 @@ return [
         $t->contains('| Posts |  42 | Ready  |', $markdown);
         $t->contains('|       |   7 | Review |', $markdown);
         $t->contains(': Migration review grid', $markdown);
+    },
+    'preserves pandoc table colspec columns beyond physical row cells' => static function (TestRunner $t) use ($buildColspecTableDocument): void {
+        $document = $buildColspecTableDocument();
+        $table = $document->children[0];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(4, TableGeometry::columnCount($table));
+        $t->same(3, TableGeometry::columnCountForRows($table->children[0]->children));
+        $t->same(['left', 'center', 'right', 'left'], TableGeometry::alignments($table, 4));
+        $t->contains('| Scope    |   Items    |     Status |              |', $markdown);
+        $t->contains('|:-------|:--------:|---------:|:-----------|', $markdown);
+        $t->contains('| Posts    |     42     |      Ready |              |', $markdown);
+        $t->contains('<colgroup><col style="width:20%"/><col style="width:25%"/><col style="width:25%"/><col style="width:30%"/></colgroup>', $blocks);
+        $t->contains('<figcaption class="wp-element-caption">Import queue with reserved audit column</figcaption>', $blocks);
     },
 ];

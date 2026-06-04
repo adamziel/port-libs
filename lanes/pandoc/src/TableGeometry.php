@@ -6,6 +6,46 @@ namespace PortLibs\Pandoc;
 
 final class TableGeometry
 {
+    public static function columnCount(AstNode $table): int
+    {
+        $rows = [];
+        foreach ($table->children as $section) {
+            if ($section->type === 'table_body') {
+                $bodyHeadRows = $section->attr('headRows', []);
+                if (is_array($bodyHeadRows)) {
+                    foreach ($bodyHeadRows as $row) {
+                        if ($row instanceof AstNode && $row->type === 'table_row') {
+                            $rows[] = $row;
+                        }
+                    }
+                }
+
+                foreach ($section->children as $row) {
+                    if ($row->type === 'table_row') {
+                        $rows[] = $row;
+                    }
+                }
+                continue;
+            }
+
+            if ($section->type !== 'table_head' && $section->type !== 'table_foot') {
+                continue;
+            }
+
+            foreach ($section->children as $row) {
+                if ($row->type === 'table_row') {
+                    $rows[] = $row;
+                }
+            }
+        }
+
+        return max(
+            self::columnCountForRows($rows),
+            self::tableAttributeColumnCount($table->attr('alignments', [])),
+            self::tableAttributeColumnCount($table->attr('widths', []))
+        );
+    }
+
     /**
      * @param list<AstNode> $rows
      */
@@ -154,6 +194,11 @@ final class TableGeometry
     private static function normalizeAlignment(string $alignment): string
     {
         return in_array($alignment, ['left', 'right', 'center'], true) ? $alignment : 'default';
+    }
+
+    private static function tableAttributeColumnCount(mixed $columns): int
+    {
+        return is_array($columns) ? count($columns) : 0;
     }
 
     private static function cellColspan(AstNode $cell): int

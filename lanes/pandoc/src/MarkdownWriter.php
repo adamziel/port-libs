@@ -451,7 +451,7 @@ final class MarkdownWriter
             return [];
         }
 
-        $columnCount = TableGeometry::columnCountForRows([...$headRows, ...$bodyRows]);
+        $columnCount = TableGeometry::columnCount($node);
         if ($columnCount === 0) {
             return [];
         }
