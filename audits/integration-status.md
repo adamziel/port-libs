@@ -1,5 +1,16 @@
 # Integration Status
 
+## Integration skipped - no clean handoff applies - 2026-06-03T23:58:31Z
+
+- Current detached integration HEAD: `59ad35343f0b979589ac3a508925c996eae4a547` (`Integrate markerPDF classic stale startxref rebuild`).
+- Queue scan: ready queue was live during the pass (`1560` markers before the full scan, `1561` after); prioritized `pandoc` and `markerpdf`, then scanned the remaining lanes; no candidate in the pass passed `git apply --check`.
+- First priority skips:
+  - `pandoc-yaml-metadata-core-current-base-20260603T234749Z`: `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:12` does not apply.
+  - `pandoc-citation-csl-core-current-base-20260603T234749Z`: `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:12` does not apply.
+  - `pandoc-doctemplates-core-current-base-20260603T234446Z`: `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:12` does not apply.
+- First non-priority skips: `gitoxide-loose-ref-lockfile-transaction-current-base-20260602T0259Z`, `lightningcss-media-query-nesting-cascade-current-base-20260602T0259Z`, and `gitoxide-packfile-thin-delta-resolution-current-base-20260602T0234Z` also failed direct apply.
+- Decision: queue left intact; no patch applied, no commit made.
+
 ## Integration accepted - markerPDF/Pandoc 09:30 handoff batch - 2026-06-03T13:55:00Z
 
 - Accepted source commit: `d3507537968c50e510a4c0a301d3ce06601ee20b` (`Integrate markerPDF Pandoc 0930 handoff batch`).
