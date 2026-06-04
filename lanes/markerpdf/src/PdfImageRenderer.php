@@ -572,6 +572,7 @@ final class PdfImageRenderer
         }
         foreach ($previewOnlyFilters as $filter) {
             $notes[] = match ($filter) {
+                'DCTDecode', 'DCT' => 'dctdecode_image_filter_review_only',
                 'JBIG2Decode' => 'jbig2_image_filter_review_only',
                 'JPXDecode' => 'jpx_image_filter_review_only',
                 'CCITTFaxDecode', 'CCF' => 'ccitt_fax_image_filter_review_only',
@@ -853,6 +854,9 @@ final class PdfImageRenderer
         }
         if (in_array('JPXDecode', $filters, true)) {
             $plan['notes'][] = 'inline_jpx_image_filter_review_only';
+        }
+        if (in_array('DCTDecode', $filters, true) || in_array('DCT', $filters, true)) {
+            $plan['notes'][] = 'inline_dct_image_filter_review_only';
         }
         if (
             ($plan['inline_image']['soft_mask_present'] ?? false) === true
@@ -4094,7 +4098,7 @@ final class PdfImageRenderer
 
     private function isPreviewOnlyImageFilter(string $filter): bool
     {
-        return in_array($filter, ['JPXDecode', 'JBIG2Decode', 'CCITTFaxDecode', 'CCF'], true);
+        return in_array($filter, ['DCTDecode', 'DCT', 'JPXDecode', 'JBIG2Decode', 'CCITTFaxDecode', 'CCF'], true);
     }
 
     /**
