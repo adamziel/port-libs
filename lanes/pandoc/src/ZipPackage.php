@@ -317,6 +317,44 @@ final class ZipPackage
         return $this->entriesByName[$name];
     }
 
+    /**
+     * @return list<array{id:int, data:string}>
+     */
+    public function localExtraFields(string $partName): array
+    {
+        $entry = $this->entry($partName);
+
+        return ZipPackageEntry::extraFieldsFromData(
+            $this->readLocalHeader($entry)['extraFieldData'],
+            "local extra fields for {$entry->name}"
+        );
+    }
+
+    public function localExtraField(string $partName, int $id): ?string
+    {
+        if ($id < 0 || $id > 0xffff) {
+            throw new \InvalidArgumentException('ZIP extra field id must fit in an unsigned 16-bit field');
+        }
+
+        foreach ($this->localExtraFields($partName) as $field) {
+            if ($field['id'] === $id) {
+                return $field['data'];
+            }
+        }
+
+        return null;
+    }
+
+    public function localExtendedLastModifiedTimestamp(string $partName): ?int
+    {
+        $entry = $this->entry($partName);
+
+        return ZipPackageEntry::extendedTimestampFromExtraField(
+            $this->localExtraField($entry->name, 0x5455),
+            "local extra fields for {$entry->name}"
+        );
+    }
+
     public function read(string $partName): string
     {
         $entry = $this->entry($partName);
@@ -374,6 +412,26 @@ final class ZipPackage
 
     private function readCompressedEntryBytes(ZipPackageEntry $entry): string
     {
+        $localHeader = $this->readLocalHeader($entry);
+        $dataStart = $localHeader['dataStart'];
+        self::assertRange($this->bytes, $dataStart, $entry->compressedSize, "compressed data for {$entry->name}");
+
+        if ($dataStart + $entry->compressedSize > $this->centralDirectoryOffset) {
+            throw new \RuntimeException("ZIP compressed data for {$entry->name} overlaps the central directory");
+        }
+
+        if (($entry->generalPurposeFlags & 0x0008) !== 0) {
+            $this->validateDataDescriptor($entry, $dataStart + $entry->compressedSize);
+        }
+
+        return substr($this->bytes, $dataStart, $entry->compressedSize);
+    }
+
+    /**
+     * @return array{extraFieldData:string, dataStart:int}
+     */
+    private function readLocalHeader(ZipPackageEntry $entry): array
+    {
         self::assertRange($this->bytes, $entry->localHeaderOffset, 30, 'local file header');
         if (substr($this->bytes, $entry->localHeaderOffset, 4) !== self::LOCAL_FILE_SIGNATURE) {
             throw new \RuntimeException("Invalid ZIP local file header for entry {$entry->name}");
@@ -411,6 +469,21 @@ final class ZipPackage
             throw new \RuntimeException("ZIP local header modification time does not match central directory entry {$entry->name}");
         }
 
+        $localExtendedTimestamp = self::extendedTimestampFromExtraFieldData(
+            $localExtraFieldData,
+            "local extra fields for {$entry->name}"
+        );
+        $centralExtendedTimestamp = $entry->extendedLastModifiedTimestamp();
+        if (
+            $localExtendedTimestamp !== null
+            && $centralExtendedTimestamp !== null
+            && $localExtendedTimestamp !== $centralExtendedTimestamp
+        ) {
+            throw new \RuntimeException(
+                "ZIP local header extended timestamp does not match central directory entry {$entry->name}"
+            );
+        }
+
         if (($entry->generalPurposeFlags & 0x0008) === 0) {
             if ($localCrc32 !== $entry->crc32) {
                 throw new \RuntimeException("ZIP local header CRC32 does not match central directory entry {$entry->name}");
@@ -421,18 +494,10 @@ final class ZipPackage
             }
         }
 
-        $dataStart = $nameStart + $nameLength + $extraLength;
-        self::assertRange($this->bytes, $dataStart, $entry->compressedSize, "compressed data for {$entry->name}");
-
-        if ($dataStart + $entry->compressedSize > $this->centralDirectoryOffset) {
-            throw new \RuntimeException("ZIP compressed data for {$entry->name} overlaps the central directory");
-        }
-
-        if (($entry->generalPurposeFlags & 0x0008) !== 0) {
-            $this->validateDataDescriptor($entry, $dataStart + $entry->compressedSize);
-        }
-
-        return substr($this->bytes, $dataStart, $entry->compressedSize);
+        return [
+            'extraFieldData' => $localExtraFieldData,
+            'dataStart' => $nameStart + $nameLength + $extraLength,
+        ];
     }
 
     private function validateDataDescriptor(ZipPackageEntry $entry, int $offset): void
@@ -476,6 +541,17 @@ final class ZipPackage
         self::assertSafePartName($name);
 
         return $name;
+    }
+
+    private static function extendedTimestampFromExtraFieldData(string $extraFieldData, string $label): ?int
+    {
+        foreach (ZipPackageEntry::extraFieldsFromData($extraFieldData, $label) as $field) {
+            if ($field['id'] === 0x5455) {
+                return ZipPackageEntry::extendedTimestampFromExtraField($field['data'], $label);
+            }
+        }
+
+        return null;
     }
 
     /**

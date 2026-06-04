@@ -357,6 +357,51 @@ return [
         $t->same('<w:document><w:p>extra fields</w:p></w:document>', $package->read('/word/document.xml'));
     },
 
+    'exposes local zip extra fields for package preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $extendedTimestamp = 1780479017;
+        $timestampExtra = pack('vvCV', 0x5455, 5, 0x01, $extendedTimestamp);
+        $localVendorExtra = pack('vva*', 0xcafe, 5, 'local');
+        $centralVendorExtra = pack('vva*', 0xcafe, 7, 'central');
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>local metadata</w:p></w:document>',
+                'method' => 8,
+                'localExtra' => $timestampExtra . $localVendorExtra,
+                'centralExtra' => $timestampExtra . $centralVendorExtra,
+            ],
+        ]));
+
+        $entry = $package->entry('word/document.xml');
+
+        $t->same('central', $entry->centralExtraField(0xcafe));
+        $t->same('local', $package->localExtraField('/word/document.xml', 0xcafe));
+        $t->same($extendedTimestamp, $package->localExtendedLastModifiedTimestamp('word/document.xml'));
+        $t->same([
+            ['id' => 0x5455, 'data' => "\x01" . pack('V', $extendedTimestamp)],
+            ['id' => 0xcafe, 'data' => 'local'],
+        ], $package->localExtraFields('word/document.xml'));
+        $t->same('<w:document><w:p>local metadata</w:p></w:document>', $package->read('/word/document.xml'));
+    },
+
+    'rejects local extended timestamp mismatches before returning package bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $centralTimestampExtra = pack('vvCV', 0x5455, 5, 0x01, 1780479017);
+        $localTimestampExtra = pack('vvCV', 0x5455, 5, 0x01, 1780479018);
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>mismatch</w:p></w:document>',
+                'method' => 8,
+                'localExtra' => $localTimestampExtra,
+                'centralExtra' => $centralTimestampExtra,
+            ],
+        ]));
+
+        $t->throws(\RuntimeException::class, static fn (): array => $package->localExtraFields('word/document.xml'));
+        $t->throws(\RuntimeException::class, static fn (): string => $package->read('word/document.xml'));
+    },
+
     'writes extended timestamp extra fields for generated package parts' => static function (TestRunner $t): void {
         $modifiedAt = 1780479017;
         $package = ZipPackage::fromParts([

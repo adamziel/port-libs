@@ -104,7 +104,22 @@ final class ZipPackageEntry
 
     public function extendedLastModifiedTimestamp(): ?int
     {
-        $data = $this->centralExtraField(0x5455);
+        return self::extendedTimestampFromExtraField(
+            $this->centralExtraField(0x5455),
+            $this->name
+        );
+    }
+
+    /**
+     * @return list<array{id:int, data:string}>
+     */
+    public static function extraFieldsFromData(string $bytes, string $label): array
+    {
+        return self::parseExtraFields($bytes, $label);
+    }
+
+    public static function extendedTimestampFromExtraField(?string $data, string $label): ?int
+    {
         if ($data === null || strlen($data) < 1) {
             return null;
         }
@@ -115,12 +130,12 @@ final class ZipPackageEntry
         }
 
         if (strlen($data) < 5) {
-            throw new \RuntimeException("ZIP extended timestamp extra field for {$this->name} is truncated");
+            throw new \RuntimeException("ZIP extended timestamp extra field for {$label} is truncated");
         }
 
         $values = unpack('Vtimestamp', substr($data, 1, 4));
         if (!is_array($values)) {
-            throw new \RuntimeException("Unable to read ZIP extended timestamp extra field for {$this->name}");
+            throw new \RuntimeException("Unable to read ZIP extended timestamp extra field for {$label}");
         }
 
         return (int) $values['timestamp'];

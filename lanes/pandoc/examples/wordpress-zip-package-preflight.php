@@ -114,6 +114,14 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected document part ZIP extended timestamp extra field to round-trip');
     }
 
+    if ($package->localExtendedLastModifiedTimestamp('/word/document.xml') !== $documentModifiedAt) {
+        throw new RuntimeException('Expected document part local ZIP extended timestamp extra field to round-trip');
+    }
+
+    if ($package->localExtraField('/word/document.xml', 0x5455) === null) {
+        throw new RuntimeException('Expected document part local ZIP extra fields to be inspectable');
+    }
+
     if ($descriptorPackage->read('/word/comments.xml') !== '<w:comments><w:comment>Reviewer note from migration packet</w:comment></w:comments>') {
         throw new RuntimeException('Expected descriptor-backed comments part bytes to round-trip from the ZIP package');
     }
@@ -144,6 +152,7 @@ foreach ($package->entries() as $entry) {
         . ' modifiedAt=' . ($modifiedAt === null ? 'none' : (string) $modifiedAt)
         . ' externalAttributes=' . sprintf('0x%08x', $entry->externalFileAttributes)
         . ' extraFields=' . count($entry->centralExtraFields())
+        . ' localExtraFields=' . count($package->localExtraFields($entry->name))
         . "\n";
 }
 echo 'document.xml=' . $package->read('/word/document.xml') . "\n";

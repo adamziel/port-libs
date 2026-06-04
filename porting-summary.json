@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-04 10:47:22 UTC",
-    "sourceCommit": "ceef47806c3d0e479408d9ba3cd04205f40c9bee",
-    "sourceCommitShort": "ceef47806c3d",
+    "generated": "2026-06-04 10:56:56 UTC",
+    "sourceCommit": "bd1adef6c04707fd913812d11bba085d56bdc8a6",
+    "sourceCommitShort": "bd1adef6c047",
     "sourceBranch": "unknown",
-    "dashboardCommit": "ceef47806c3d0e479408d9ba3cd04205f40c9bee",
-    "dashboardCommitShort": "ceef47806c3d",
+    "dashboardCommit": "bd1adef6c04707fd913812d11bba085d56bdc8a6",
+    "dashboardCommitShort": "bd1adef6c047",
     "averageProgressPercent": "91.6",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "752",
-            "coverage": "752 / 2,276 (33.0%)",
-            "mapPercent": "33.0%",
-            "unmapped": "1,524",
-            "php": "319 pass / 0 fail",
+            "mapped": "754",
+            "coverage": "754 / 2,276 (33.1%)",
+            "mapPercent": "33.1%",
+            "unmapped": "1,522",
+            "php": "321 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-04 UTC archive-compression streams slice on base 89029d158e5b...",
+            "audit": "2026-06-04 UTC shared ZIP package core slice on base ceef47806c3d0e47...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
             "nextTarget": "Keep tar file entries, LZ4 frames, ZIP64/symlink/NTFS extra-f...",
             "remainingGate": "No local blocker",
-            "commit": "89029d1"
+            "commit": "ceef478"
         },
         {
             "lane": "quadrable",
