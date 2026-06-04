@@ -8419,17 +8419,24 @@ final class PdfTextExtractor
      */
     private function charProcsDictionaryBody(string $fontBody, array $objects): ?string
     {
-        if (!preg_match('/\/CharProcs\s*(?:(\d+)\s+\d+\s+R|<<)/s', $fontBody, $match, PREG_OFFSET_CAPTURE)) {
+        $offset = $this->nameValueOffset($fontBody, 'CharProcs');
+        if ($offset === null) {
             return null;
         }
 
-        if (($match[1][0] ?? '') !== '') {
-            $objectNumber = (int) $match[1][0];
-            return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
+        $reference = $this->objectReferenceAfterName($fontBody, 'CharProcs');
+        if ($reference !== null) {
+            $objectBody = $this->objectBodyForExactReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            );
+
+            return $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
         }
 
-        $offset = strpos($fontBody, '<<', $match[0][1]);
-        return $offset === false ? null : $this->readPdfDictionaryAt($fontBody, $offset);
+        $offset = $this->skipPdfWhitespace($fontBody, $offset);
+        return substr($fontBody, $offset, 2) === '<<' ? $this->readPdfDictionaryAt($fontBody, $offset) : null;
     }
 
     /**
