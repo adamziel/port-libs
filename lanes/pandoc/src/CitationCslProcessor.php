@@ -31,6 +31,19 @@ final class CitationCslProcessor
         return self::fromItems($decoded);
     }
 
+    public static function fromBibtex(string $bibtex): self
+    {
+        return self::fromItems(self::bibtexItems($bibtex));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function bibtexItems(string $bibtex): array
+    {
+        return BibtexCslParser::parse($bibtex);
+    }
+
     /**
      * @param list<array<string, mixed>> $items
      */

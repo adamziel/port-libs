@@ -159,6 +159,109 @@ return [
         $t->same('de la Cruz 2026', $bibliography->children[0]->children[0]->attr('text'));
         $t->same('Curator forthcoming', $bibliography->children[1]->children[0]->attr('text'));
     },
+    'parses bounded bibtex and biblatex entries into csl bibliography items' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@comment{ignored by the bounded bibliography handoff}
+
+@book{smith1899,
+  author    = {Smith, Ada},
+  title     = {Migration Patterns},
+  year      = {1899},
+  publisher = {Archive Press},
+  doi       = {10.1234/source}
+}
+
+@article{doe2020,
+  author       = {Doe, Jane and Roe, Pat},
+  title        = {Field Notes},
+  journaltitle = {Journal of Imports},
+  date         = {2020-06-01},
+  pages        = {55--60},
+  url          = {https://example.test/field-notes},
+  urldate      = {2026-06-04}
+}
+
+@online{wp-team,
+  author = {{WordPress Migration Team}},
+  title  = {Reviewer Log},
+  date   = {2024},
+  url    = {https://example.test/reviewer-log}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(3, count($items));
+        $t->same('smith1899', $items[0]['id']);
+        $t->same('book', $items[0]['type']);
+        $t->same('article-journal', $items[1]['type']);
+        $t->same('Journal of Imports', $items[1]['container-title']);
+        $t->same('55-60', $items[1]['page']);
+        $t->same('webpage', $items[2]['type']);
+        $t->same([['literal' => 'WordPress Migration Team']], $items[2]['author']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $journal = $processor->item('doe2020');
+        $t->same([2020, 6, 1], $journal['issuedDate']['parts'] ?? null);
+        $t->same('2020-06-01', $journal['issuedDate']['display'] ?? null);
+        $t->same([2026, 6, 4], $journal['accessedDate']['parts'] ?? null);
+        $t->same('Doe and Roe', $journal === null ? null : $processor->normalizeCitation($citation('doe2020', '[@doe2020]'))->attr('cslLabel'));
+        $t->same('(Smith 1899; Doe and Roe 2020; WordPress Migration Team 2024)', $processor->renderCitationCluster([
+            $citation('smith1899', '[@smith1899]'),
+            $citation('doe2020', '[@doe2020]'),
+            $citation('wp-team', '[@wp-team]'),
+        ]));
+        $t->same('Doe, Jane; Roe, Pat. Field Notes. Journal of Imports. 2020. 55-60. https://example.test/field-notes. Accessed 2026-06-04.', $processor->renderBibliographyEntry('doe2020'));
+
+        $document = (new MarkdownReader())->read('Review cites [see @smith1899; @doe2020, pp. 55-60] and @wp-team.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Review cites (see Smith 1899; Doe and Roe 2020, pp. 55-60) and WordPress Migration Team (2024).', $markdown);
+        $t->contains('Smith 1899' . "\n" . ':   Smith, Ada. Migration Patterns. Archive Press, 1899. DOI 10.1234/source.', $markdown);
+        $t->contains('WordPress Migration Team 2024' . "\n" . ':   WordPress Migration Team. Reviewer Log. 2024. https://example.test/reviewer-log.', $markdown);
+    },
+    'maps bibtex strings particles suffixes and literal dates into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@string{packet = "Packet"}
+
+@misc{particle-source,
+  author = {de la Cruz, Ana Maria, Jr. and Eli Curator},
+  editor = {Curator, Eli, III},
+  title  = "Source " # packet,
+  year   = {2026},
+  month  = jun,
+  day    = {4},
+  url    = {https://example.test/source-packet}
+}
+
+@book{edited-manual,
+  editor    = {Curator, Eli, III},
+  title     = {Edited Migration Manual},
+  publisher = {Review Press},
+  year      = {forthcoming}
+}
+BIB;
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $particle = $processor->item('particle-source');
+        $t->same('Source Packet', $particle['title'] ?? null);
+        $t->same([2026, 6, 4], $particle['issuedDate']['parts'] ?? null);
+        $t->same('de la', $particle['authors'][0]['nonDroppingParticle'] ?? null);
+        $t->same('Cruz', $particle['authors'][0]['family'] ?? null);
+        $t->same('Ana Maria', $particle['authors'][0]['given'] ?? null);
+        $t->same('Jr.', $particle['authors'][0]['suffix'] ?? null);
+        $t->same(true, $particle['authors'][0]['commaSuffix'] ?? null);
+        $t->same('Curator', $particle['authors'][1]['family'] ?? null);
+        $t->same('(de la Cruz and Curator 2026)', $processor->renderCitationCluster([$citation('particle-source', '[@particle-source]')]));
+        $t->same('de la Cruz, Ana Maria, Jr.; Curator, Eli. Source Packet. 2026. https://example.test/source-packet.', $processor->renderBibliographyEntry('particle-source'));
+
+        $edited = $processor->item('edited-manual');
+        $t->same('forthcoming', $edited['issuedDate']['literal'] ?? null);
+        $t->same('forthcoming', $edited['issuedDate']['display'] ?? null);
+        $t->same('III', $edited['editors'][0]['suffix'] ?? null);
+        $t->same(true, $edited['editors'][0]['commaSuffix'] ?? null);
+        $t->same('(Curator forthcoming)', $processor->renderCitationCluster([$citation('edited-manual', '[@edited-manual]')]));
+        $t->same('Curator, Eli, III. Edited Migration Manual. Review Press, forthcoming.', $processor->renderBibliographyEntry('edited-manual'));
+    },
     'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
         $document = (new MarkdownReader())->read(
@@ -268,6 +371,11 @@ return [
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-year', 'issued' => ['date-parts' => [['soon']]]]]));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-accessed-month', 'accessed' => ['date-parts' => [[2026, 13]]]]]));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-comma-suffix', 'author' => [['family' => 'Smith', 'comma-suffix' => 'yes']]]]));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@book{missing, title={Bad}'));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@book{dup,title={A}} @article{dup,title={B}}'));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@online{bad,date={2026-13-01}}'));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@misc{bad,year={2026},month={13}}'));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@book{bad,title {Missing Equals}}'));
 
         $processor = CitationCslProcessor::fromItems([[
             'id' => 'untitled',
