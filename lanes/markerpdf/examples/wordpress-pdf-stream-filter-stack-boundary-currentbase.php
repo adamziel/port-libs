@@ -121,11 +121,35 @@ $declaredLengthPdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
     . "%%EOF";
 
+$flateFirstBefore = "BT /F1 12 Tf 72 720 Td (Flate First Stack Before) Tj ET\n";
+while (strlen($flateFirstBefore) % 4 !== 0) {
+    $flateFirstBefore .= ' ';
+}
+$flateFirstAfter = "\nBT /F1 12 Tf 72 704 Td (Flate First Stack After) Tj ET";
+$flateFirstAscii85 = $ascii85Encode($flateFirstBefore . $fakeEndstreamBytes . $flateFirstAfter) . '~>';
+if (!str_contains($flateFirstAscii85, 'endstream!')) {
+    throw new RuntimeException('Focused Flate-first stack smoke fixture must contain the fake endstream marker.');
+}
+$flateFirstAscii85 = str_replace('endstream!', "\nendstream\n!", $flateFirstAscii85);
+$flateFirstCompressed = $zlibStored($flateFirstAscii85);
+if (!str_contains($flateFirstCompressed, "\nendstream\n!")) {
+    throw new RuntimeException('Focused Flate-first stack smoke fixture must expose a fake compressed endstream boundary.');
+}
+
+$flateFirstPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Filter [ /FlateDecode /ASCII85Decode ] >>\nstream\n{$flateFirstCompressed}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "%%EOF";
+
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
 $stackLines = $extractor->extractTextLines($stackPdf);
 $declaredLengthLines = $extractor->extractTextLines($declaredLengthPdf);
-$allLines = [...$lines, ...$stackLines, ...$declaredLengthLines];
+$flateFirstLines = $extractor->extractTextLines($flateFirstPdf);
+$allLines = [...$lines, ...$stackLines, ...$declaredLengthLines, ...$flateFirstLines];
 $joined = implode("\n", $allLines);
 
 echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_encode([
@@ -134,11 +158,13 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         [null, 'ASCII85Decode'],
         ['ASCII85Decode', 'FlateDecode'],
         ['ASCII85Decode', 'FlateDecode'],
+        ['FlateDecode', 'ASCII85Decode'],
     ],
     'missing_length_stream_payload' => true,
     'declared_length_points_at_encoded_fake_endstream' => true,
     'requires_ascii85_eod_before_endstream_boundary' => true,
     'requires_complete_filter_stack_before_boundary' => true,
+    'requires_flate_stage_before_ascii85_eod_boundary' => true,
     'fake_endstream_payload_excluded' => !str_contains($joined, 'endstream'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,

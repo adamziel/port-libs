@@ -141,6 +141,41 @@ $parserStreamFilterStackBoundaryCurrentBaseStaleLengthPdf = static function () u
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseFlateFirstPdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBaseAscii85,
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $fakeEndstreamBytes = hex2bin('d66c4ac5fe8a5a71');
+    if ($fakeEndstreamBytes === false) {
+        throw new RuntimeException('Unable to build focused Flate-first fake endstream byte sequence.');
+    }
+
+    $before = "BT /F1 12 Tf 72 720 Td (Flate First Stack Before) Tj ET\n";
+    while (strlen($before) % 4 !== 0) {
+        $before .= ' ';
+    }
+
+    $after = "\nBT /F1 12 Tf 72 704 Td (Flate First Stack After) Tj ET";
+    $encodedAscii85 = $parserStreamFilterStackBoundaryCurrentBaseAscii85($before . $fakeEndstreamBytes . $after) . '~>';
+    if (!str_contains($encodedAscii85, 'endstream!')) {
+        throw new RuntimeException('Focused Flate-first stack fixture must contain the fake endstream marker.');
+    }
+
+    $encodedAscii85 = str_replace('endstream!', "\nendstream\n!", $encodedAscii85);
+    $compressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($encodedAscii85);
+    if (!str_contains($compressed, "\nendstream\n!")) {
+        throw new RuntimeException('Focused Flate-first stack fixture must expose a fake compressed endstream boundary.');
+    }
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Filter [ /FlateDecode /ASCII85Decode ] >>\nstream\n{$compressed}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses ASCII85 EOD markers before accepting missing-Length filter-stack endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -188,6 +223,22 @@ return [
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->true(!str_contains($text, 'endstream'));
         $t->true(!str_contains($text, 'FlateDecode'));
+        $t->true(!str_contains($text, "\xd6\x6c\x4a\xc5"));
+    },
+    'uses a complete Flate then ASCII85 stack before accepting compressed fake endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseFlateFirstPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseFlateFirstPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = ['Flate First Stack Before', 'Flate First Stack After'];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same("Flate First Stack Before\nFlate First Stack After", $text);
+        $t->same("Flate First Stack Before\nFlate First Stack After\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'endstream'));
+        $t->true(!str_contains($text, 'ASCII85Decode'));
         $t->true(!str_contains($text, "\xd6\x6c\x4a\xc5"));
     },
 ];
