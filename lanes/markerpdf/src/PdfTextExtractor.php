@@ -3723,6 +3723,7 @@ final class PdfTextExtractor
             $objects
         );
         $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
+        $metadataStream = $this->imageXObjectMetadataStreamReview($stream['dict'], $objects);
         $invocationMatrices = [];
         $invocationBboxes = [];
         $invocationClipBboxes = [];
@@ -3794,6 +3795,12 @@ final class PdfTextExtractor
             'color_space' => $colorSpace,
             'bits_per_component' => $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent,
             'image_mask' => $imageMask,
+            'interpolate' => $this->pdfBooleanValueAfterNameResolvingObjects($stream['dict'], 'Interpolate', $objects),
+            'rendering_intent' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Intent', $objects),
+            'image_name' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Name', $objects),
+            'struct_parent' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'StructParent', $objects),
+            'struct_parents' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'StructParents', $objects),
+            'metadata_stream' => $metadataStream,
             'soft_mask_object' => $this->objectReferenceValueAfterName($stream['dict'], 'SMask'),
             'filters_resolved' => $filters !== null,
             'filters' => $resolvedFilters,
@@ -3806,6 +3813,53 @@ final class PdfTextExtractor
             'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
             'payload_in_visible_text' => false,
             'rgb_preview_boundary' => 'marker.pdf.images.render_image',
+            'review_only' => true,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{
+     *     object_number: int,
+     *     subtype: string|null,
+     *     filters: list<string>,
+     *     preview_only_filters: list<string>,
+     *     raw_length: int,
+     *     decoded_with_current_filters: bool,
+     *     decoded_length: int|null,
+     *     decoded_sha256: string|null,
+     *     payload_in_visible_text: false,
+     *     review_only: true
+     * }|null
+     */
+    private function imageXObjectMetadataStreamReview(string $imageDictionary, array $objects): ?array
+    {
+        $metadataObjectNumber = $this->objectReferenceValueAfterName($imageDictionary, 'Metadata');
+        if ($metadataObjectNumber === null || !isset($objects[$metadataObjectNumber])) {
+            return null;
+        }
+
+        $stream = $this->streamDictionaryAndPayload($objects[$metadataObjectNumber], $objects);
+        if ($stream === null) {
+            return null;
+        }
+
+        $filters = $this->streamFilters($stream['dict'], $objects);
+        $resolvedFilters = $filters === null
+            ? []
+            : array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+        $decoded = $filters === null ? null : $this->decodeStream($stream['dict'], $stream['stream'], $objects);
+
+        return [
+            'object_number' => $metadataObjectNumber,
+            'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects),
+            'filters' => $resolvedFilters,
+            'preview_only_filters' => $this->previewOnlyImageXObjectFilters($resolvedFilters),
+            'raw_length' => strlen($stream['stream']),
+            'decoded_with_current_filters' => $decoded !== null,
+            'decoded_length' => $decoded === null ? null : strlen($decoded),
+            'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
+            'payload_in_visible_text' => false,
             'review_only' => true,
         ];
     }
@@ -16884,6 +16938,44 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function pdfBooleanValueAfterNameResolvingObjects(string $body, string $name, array $objects, array $seen = []): ?bool
+    {
+        $offset = $this->nameValueOffset($body, $name);
+        if ($offset === null) {
+            return null;
+        }
+
+        $offset = $this->skipPdfWhitespace($body, $offset);
+        if (preg_match('/\Gtrue\b/s', $body, $match, 0, $offset) === 1) {
+            return true;
+        }
+        if (preg_match('/\Gfalse\b/s', $body, $match, 0, $offset) === 1) {
+            return false;
+        }
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $body, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $objectNumber = (int) $match[1];
+        $generation = (int) $match[2];
+        $key = $objectNumber . ':' . $generation;
+        if ($objectNumber <= 0 || isset($seen[$key])) {
+            return null;
+        }
+
+        $objectBody = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+        if ($objectBody === null) {
+            return null;
+        }
+
+        $seen[$key] = true;
+        return $this->pdfBooleanValueAfterNameResolvingObjects('/Value ' . trim($objectBody), 'Value', $objects, $seen);
     }
 
     private function skipContentWhitespaceAndComments(string $stream, int &$index): void

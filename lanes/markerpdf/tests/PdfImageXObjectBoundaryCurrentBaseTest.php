@@ -436,6 +436,58 @@ return [
         $t->true(!str_contains($plainText, 'Outside Clip Image Payload Noise'));
         $t->true(!str_contains($plainText, 'Nested Clipped Image Payload Noise'));
     },
+    'records image XObject dictionary metadata without leaking metadata streams into text' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before image metadata) Tj ET\n"
+            . "q 18 0 0 9 72 690 cm /Meta#20Image Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After image metadata) Tj ET';
+        $imagePayload = 'BT /F1 12 Tf 72 720 Td (Image Metadata Payload Noise) Tj ET';
+        $metadataPayload = '<x:xmpmeta>Image XObject Metadata Stream Noise</x:xmpmeta>';
+        $compressedImagePayload = gzcompress($imagePayload);
+        $compressedMetadataPayload = gzcompress($metadataPayload);
+        if (!is_string($compressedImagePayload) || !is_string($compressedMetadataPayload)) {
+            throw new RuntimeException('Unable to compress image metadata fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Meta#20Image 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 3 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Interpolate true /Intent /RelativeColorimetric /Name /Hero#20Image /StructParent 12 /StructParents 34 /Metadata 9 0 R /Length " . strlen($compressedImagePayload) . " >>\nstream\n{$compressedImagePayload}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($compressedMetadataPayload) . " >>\nstream\n{$compressedMetadataPayload}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+        $entry = $review['entries'][0];
+
+        $t->same('Meta Image', $entry['resource_name']);
+        $t->same(true, $entry['interpolate']);
+        $t->same('RelativeColorimetric', $entry['rendering_intent']);
+        $t->same('Hero Image', $entry['image_name']);
+        $t->same(12, $entry['struct_parent']);
+        $t->same(34, $entry['struct_parents']);
+        $t->same([
+            'object_number' => 9,
+            'subtype' => 'XML',
+            'filters' => ['FlateDecode'],
+            'preview_only_filters' => [],
+            'raw_length' => strlen($compressedMetadataPayload),
+            'decoded_with_current_filters' => true,
+            'decoded_length' => strlen($metadataPayload),
+            'decoded_sha256' => hash('sha256', $metadataPayload),
+            'payload_in_visible_text' => false,
+            'review_only' => true,
+        ], $entry['metadata_stream']);
+        $t->same(['Before image metadata', 'After image metadata'], $extractor->extractTextLines($pdf));
+        $t->same("Before image metadata\nAfter image metadata", $plainText);
+        $t->true(!str_contains($plainText, 'Image Metadata Payload Noise'));
+        $t->true(!str_contains($plainText, 'Image XObject Metadata Stream Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $metadataPayload));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
