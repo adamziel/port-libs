@@ -24,17 +24,17 @@ final class PdfPageArtifactSelector
             return $artifacts;
         }
 
+        $keyed = $this->selectByPageMarkers($artifacts, $pageRange, $selectedPageNumbers);
+        if ($keyed !== null) {
+            return $keyed;
+        }
+
         if (count($artifacts) === $selectedPageCount) {
             return $artifacts;
         }
 
         if (count($artifacts) === $sourcePageCount) {
             return array_slice($artifacts, $pageRange[0], $selectedPageCount);
-        }
-
-        $keyed = $this->selectByPageMarkers($artifacts, $pageRange, $selectedPageNumbers);
-        if ($keyed !== null) {
-            return $keyed;
         }
 
         return $artifacts;

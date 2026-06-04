@@ -414,4 +414,46 @@ return [
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'does not positionally assign selected-count keyed order artifacts for skipped pdftext pages' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(40, [
+                    ['text' => 'Single keyed cover artifact skipped', 'bbox' => [72.0, 80.0, 260.0, 94.0]],
+                ]),
+                $pdftextLinesPage(41, [
+                    ['text' => 'Second mismatch selected column', 'bbox' => [330.0, 112.0, 540.0, 126.0]],
+                    ['text' => 'First mismatch selected column', 'bbox' => [72.0, 112.0, 270.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'page' => 40,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 286.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 560.0, 144.0]],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['page' => 40, 'image' => 'only-cover-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $processor = new MarkdownPostProcessor();
+        $blocks = $processor->mergeBlocks($processor->mergeSpans($result['pages']));
+
+        $t->same([1], $result['page_range']);
+        $t->same(41, $result['pages'][0]['pnum']);
+        $t->same(['Second mismatch selected column', 'First mismatch selected column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('Second mismatch selected column First mismatch selected column', $blocks[0]['text']);
+        $t->same(0, $result['metadata']['order_plan']['image_count']);
+        $t->same(0, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(0, $result['metadata']['order_plan']['assigned_pages']);
+    },
 ];

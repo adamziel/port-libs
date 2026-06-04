@@ -373,6 +373,63 @@ return [
             unlink($path);
         }
     },
+    'ignores selected-count keyed layout and order artifacts for unselected pdftext pages' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-supplied-layout-order-keyed-mismatch-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% supplied keyed layout order mismatch boundary\n%%EOF");
+        try {
+            $coverPage = $pdftextPage(50, [
+                ['text' => 'Mismatched keyed cover page artifact.', 'bbox' => [72.0, 80.0, 280.0, 94.0]],
+            ]);
+            $selectedPage = $pdftextPage(51, [
+                ['text' => 'Second selected mismatch column remains source ordered.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                ['text' => 'First selected mismatch column lacks matching order.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+            ]);
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$coverPage, $selectedPage],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['page' => 50, 'image' => 'mismatched-cover-layout-render'],
+                    ],
+                    'layout_results' => [[
+                        'page' => 50,
+                        'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                        'bboxes' => [
+                            ['label' => 'Picture', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                            ['label' => 'Picture', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                        ],
+                    ]],
+                    'order_images' => [
+                        ['page' => 50, 'image' => 'mismatched-cover-order-render'],
+                    ],
+                    'order_results' => [[
+                        'page' => 50,
+                        'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                        'bboxes' => [
+                            ['position' => 1, 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                            ['position' => 2, 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                        ],
+                    ]],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $t->same([1], $result['metadata']['page_range']);
+            $t->same([], $result['metadata']['supplied_boundaries']);
+            $t->true(!array_key_exists('layout_plan', $result['metadata']));
+            $t->true(!array_key_exists('order_plan', $result['metadata']));
+            $t->contains('Second selected mismatch column remains source ordered.', $result['text']);
+            $t->contains('First selected mismatch column lacks matching order.', $result['text']);
+            $t->true(strpos($result['text'], 'Second selected mismatch column remains source ordered.') < strpos($result['text'], 'First selected mismatch column lacks matching order.'));
+            $t->true(!str_contains($result['text'], 'Mismatched keyed cover page artifact.'));
+        } finally {
+            unlink($path);
+        }
+    },
     'routes forced OCR table cells through supplied detector output before formatting' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-forced-ocr-table-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% forced OCR table supplied pipeline\n%%EOF");
