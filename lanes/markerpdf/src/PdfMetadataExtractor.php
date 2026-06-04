@@ -5613,6 +5613,9 @@ final class PdfMetadataExtractor
                 if ($candidate['encoding_fallback']) {
                     $metadata['encoding_fallback'] = true;
                 }
+                if ($candidate['packet_boundary_applied']) {
+                    $metadata['packet_boundary_applied'] = true;
+                }
             }
 
             return $metadata;
@@ -5837,7 +5840,7 @@ final class PdfMetadataExtractor
     }
 
     /**
-     * @return list<array{xml: string, packet_encoding: string, encoding_fallback: bool, decoded_to_utf8: bool}>
+     * @return list<array{xml: string, packet_encoding: string, encoding_fallback: bool, decoded_to_utf8: bool, packet_boundary_applied: bool}>
      */
     private function xmpXmlCandidates(string $xml): array
     {
@@ -5892,9 +5895,16 @@ final class PdfMetadataExtractor
     }
 
     /**
-     * @param list<array{xml: string, packet_encoding: string, encoding_fallback: bool, decoded_to_utf8: bool}> $candidates
+     * @param list<array{xml: string, packet_encoding: string, encoding_fallback: bool, decoded_to_utf8: bool, packet_boundary_applied: bool}> $candidates
      */
-    private function addXmpXmlCandidate(array &$candidates, string $xml, string $packetEncoding, bool $encodingFallback, bool $decodedToUtf8): void
+    private function addXmpXmlCandidate(
+        array &$candidates,
+        string $xml,
+        string $packetEncoding,
+        bool $encodingFallback,
+        bool $decodedToUtf8,
+        bool $packetBoundaryApplied = false
+    ): void
     {
         if ($xml === '') {
             return;
@@ -5911,7 +5921,60 @@ final class PdfMetadataExtractor
             'packet_encoding' => $this->canonicalXmlEncodingLabel($packetEncoding),
             'encoding_fallback' => $encodingFallback,
             'decoded_to_utf8' => $decodedToUtf8,
+            'packet_boundary_applied' => $packetBoundaryApplied,
         ];
+
+        if ($packetBoundaryApplied) {
+            return;
+        }
+
+        foreach ($this->boundedXmpXmlRootCandidates($xml) as $boundedXml) {
+            $this->addXmpXmlCandidate($candidates, $boundedXml, $packetEncoding, $encodingFallback, $decodedToUtf8, true);
+        }
+    }
+
+    /**
+     * XMP metadata streams commonly include xpacket processing instructions,
+     * packet padding, or stale appended bytes. DOMDocument must see a single
+     * XML root, so keep the current x:xmpmeta/rdf:RDF root as a fallback
+     * candidate before any trailing padding or decoy packet.
+     *
+     * @return list<string>
+     */
+    private function boundedXmpXmlRootCandidates(string $xml): array
+    {
+        $candidate = $this->boundedXmlRootCandidate($xml, 'xmpmeta');
+        if ($candidate !== null) {
+            return [$candidate];
+        }
+
+        $candidate = $this->boundedXmlRootCandidate($xml, 'RDF');
+        return $candidate === null ? [] : [$candidate];
+    }
+
+    private function boundedXmlRootCandidate(string $xml, string $localName): ?string
+    {
+        $pattern = '/<((?:[A-Za-z_][A-Za-z0-9_.-]*:)?' . preg_quote($localName, '/') . ')\b[^>]*>/s';
+        if (preg_match($pattern, $xml, $match, PREG_OFFSET_CAPTURE) !== 1) {
+            return null;
+        }
+
+        $openTag = $match[0][0];
+        $tagName = $match[1][0];
+        $start = $match[0][1];
+        $openEnd = $start + strlen($openTag);
+        if (str_ends_with(rtrim($openTag), '/>')) {
+            return substr($xml, $start, $openEnd - $start);
+        }
+
+        $closingPattern = '/<\/\s*' . preg_quote($tagName, '/') . '\s*>/s';
+        if (preg_match($closingPattern, $xml, $closingMatch, PREG_OFFSET_CAPTURE, $openEnd) !== 1) {
+            return null;
+        }
+
+        $end = $closingMatch[0][1] + strlen($closingMatch[0][0]);
+        $bounded = substr($xml, $start, $end - $start);
+        return $bounded === $xml ? null : $bounded;
     }
 
     /**
@@ -8599,6 +8662,9 @@ final class PdfMetadataExtractor
         }
         if (($parsed['encoding_fallback'] ?? false) === true) {
             $summary['encoding_fallback'] = true;
+        }
+        if (($parsed['packet_boundary_applied'] ?? false) === true) {
+            $summary['packet_boundary_applied'] = true;
         }
         if ($datesUtc !== []) {
             $summary['dates_utc'] = $datesUtc;
