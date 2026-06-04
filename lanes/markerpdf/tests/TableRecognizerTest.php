@@ -1394,6 +1394,66 @@ return [
         $t->same([0.0, 40.0, 100.0, 70.0], $gridByPosition['1:0']['grid_bbox']);
         $t->same([120.0, 40.0, 240.0, 70.0], $gridByPosition['1:1']['grid_bbox']);
     },
+    'coerces serialized numeric string table geometry before crop boundary review' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $result = [
+            'rows' => [
+                ['row_id' => '10', 'bbox' => ['-4.0', '-2.0', '245.0', '30.0']],
+                ['row_id' => '11', 'bbox' => ['0.0', '40.0', '240.0', '70.0']],
+                ['row_id' => '12', 'bbox' => ['0.0', '92.0', '240.0', '118.0']],
+            ],
+            'cols' => [
+                ['col_id' => '20', 'bbox' => ['0.0', '0.0', '100.0', '90.0']],
+                ['col_id' => '21', 'bbox' => ['120.0', '0.0', '260.0', '90.0']],
+                ['col_id' => '22', 'bbox' => ['270.0', '0.0', '290.0', '80.0']],
+            ],
+            'cells' => [
+                ['bbox' => ['10.0', '5.0', '90.0', '25.0'], 'text' => 'Block'],
+                ['bbox' => ['130.0', '5.0', '230.0', '25.0'], 'text' => 'Status'],
+                ['bbox' => ['10.0', '45.0', '90.0', '65.0'], 'text' => 'Intro'],
+                ['bbox' => ['130.0', '45.0', '230.0', '65.0'], 'text' => 'Published'],
+            ],
+        ];
+
+        $assigned = $recognizer->assignRowsColumns($result, ['width' => '240', 'height' => '80']);
+        $assignedByText = [];
+        foreach ($assigned as $cell) {
+            $assignedByText[$cell['text']] = $cell;
+        }
+
+        $t->same([10], $assignedByText['Block']['row_ids']);
+        $t->same([20], $assignedByText['Block']['col_ids']);
+        $t->same([10], $assignedByText['Status']['row_ids']);
+        $t->same([21], $assignedByText['Status']['col_ids']);
+        $t->same([11], $assignedByText['Intro']['row_ids']);
+        $t->same([20], $assignedByText['Intro']['col_ids']);
+        $t->same([11], $assignedByText['Published']['row_ids']);
+        $t->same([21], $assignedByText['Published']['col_ids']);
+        $t->same("| Block | Status    |\n|-------|-----------|\n| Intro | Published |", $recognizer->markdownFormat($assigned));
+
+        $review = $recognizer->spanningGridReview($assigned, $result['rows'], $result['cols'], ['width' => '240', 'height' => '80']);
+        $boundary = $review['geometry_boundary_review'];
+        $gridByPosition = [];
+        foreach ($review['grid_cells'] as $gridCell) {
+            $gridByPosition[$gridCell['row_id'] . ':' . $gridCell['col_id']] = $gridCell;
+        }
+
+        $t->same('table_grid_geometry_boundary', $boundary['review_target']);
+        $t->same(['width' => 240, 'height' => 80], $boundary['image_size']);
+        $t->same(2, $boundary['active_row_band_count']);
+        $t->same(2, $boundary['active_col_band_count']);
+        $t->same(3, $boundary['clipped_band_count']);
+        $t->same(2, $boundary['excluded_band_count']);
+        $t->same('bbox_array', $boundary['row_bands'][0]['coordinate_source']);
+        $t->same([0.0, 0.0, 240.0, 30.0], $boundary['row_bands'][0]['bounded_bbox']);
+        $t->same([120.0, 0.0, 240.0, 80.0], $boundary['col_bands'][1]['bounded_bbox']);
+        $t->same('excluded_outside_table_image', $boundary['row_bands'][2]['status']);
+        $t->same('excluded_outside_table_image', $boundary['col_bands'][2]['status']);
+        $t->same([0.0, 0.0, 100.0, 30.0], $gridByPosition['10:20']['grid_bbox']);
+        $t->same([120.0, 0.0, 240.0, 30.0], $gridByPosition['10:21']['grid_bbox']);
+        $t->same([0.0, 40.0, 100.0, 70.0], $gridByPosition['11:20']['grid_bbox']);
+        $t->same([120.0, 40.0, 240.0, 70.0], $gridByPosition['11:21']['grid_bbox']);
+    },
     'links OCR border conflicts to spanning-grid render cells' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $rows = [

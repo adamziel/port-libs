@@ -1628,13 +1628,16 @@ final class TableRecognizer
         }
 
         $values = array_values($bbox);
+        $out = [];
         foreach ($values as $value) {
-            if (!is_int($value) && !is_float($value)) {
+            $number = $this->numericScalar($value);
+            if ($number === null) {
                 return null;
             }
+            $out[] = $number;
         }
 
-        return array_map(static fn (int|float $value): float => (float) $value, $values);
+        return $out;
     }
 
     /**
@@ -1669,11 +1672,13 @@ final class TableRecognizer
                 return null;
             }
             $values = array_values($point);
-            if ((!is_int($values[0]) && !is_float($values[0])) || (!is_int($values[1]) && !is_float($values[1]))) {
+            $x = $this->numericScalar($values[0]);
+            $y = $this->numericScalar($values[1]);
+            if ($x === null || $y === null) {
                 return null;
             }
-            $xs[] = (float) $values[0];
-            $ys[] = (float) $values[1];
+            $xs[] = $x;
+            $ys[] = $y;
         }
 
         return [
@@ -3582,13 +3587,16 @@ final class TableRecognizer
             }
 
             $values = [$record[$x1], $record[$y1], $record[$x2], $record[$y2]];
+            $out = [];
             foreach ($values as $value) {
-                if (!is_int($value) && !is_float($value)) {
+                $number = $this->numericScalar($value);
+                if ($number === null) {
                     return null;
                 }
+                $out[] = $number;
             }
 
-            return array_map(static fn (int|float $value): float => (float) $value, $values);
+            return $out;
         }
 
         return null;
@@ -3634,13 +3642,30 @@ final class TableRecognizer
      */
     private function imageSize(array $imageSize): array
     {
-        $width = $imageSize['width'] ?? $imageSize[0] ?? null;
-        $height = $imageSize['height'] ?? $imageSize[1] ?? null;
-        if ((!is_int($width) && !is_float($width)) || (!is_int($height) && !is_float($height)) || $width <= 0 || $height <= 0) {
+        $width = $this->numericScalar($imageSize['width'] ?? $imageSize[0] ?? null);
+        $height = $this->numericScalar($imageSize['height'] ?? $imageSize[1] ?? null);
+        if ($width === null || $height === null || $width <= 0.0 || $height <= 0.0) {
             throw new InvalidArgumentException('Table image sizes must include positive width and height.');
         }
 
         return ['width' => (int) round($width), 'height' => (int) round($height)];
+    }
+
+    private function numericScalar(mixed $value): ?float
+    {
+        if (is_int($value) || is_float($value)) {
+            return is_finite((float) $value) ? (float) $value : null;
+        }
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if ($trimmed !== '' && is_numeric($trimmed)) {
+                $number = (float) $trimmed;
+
+                return is_finite($number) ? $number : null;
+            }
+        }
+
+        return null;
     }
 
     /**
