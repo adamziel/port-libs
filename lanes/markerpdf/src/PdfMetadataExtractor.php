@@ -2555,7 +2555,7 @@ final class PdfMetadataExtractor
             $destinationsByName,
             $structureContext,
             $outlineRoot['object'],
-            $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($outlineRoot['body'], 'Last') ?? ''),
+            $this->validObjectNumberFromReference($this->dictionaryTopLevelRawValue($outlineRoot['body'], 'Last'), $objects),
             15
         );
 
@@ -2760,14 +2760,14 @@ final class PdfMetadataExtractor
         }
 
         $items = [];
-        $current = $firstItemValue === null ? null : $this->objectNumberFromReference($firstItemValue);
+        $current = $this->validObjectNumberFromReference($firstItemValue, $objects);
         while ($current !== null && !isset($seen[$current])) {
             $seen[$current] = true;
             $dictionary = isset($objects[$current]) ? $this->dictionaryObjectBody($objects[$current]) : null;
             if ($dictionary === null) {
                 break;
             }
-            if (!$this->documentOutlineItemParentMatches($dictionary, $expectedParentObject)) {
+            if (!$this->documentOutlineItemParentMatches($dictionary, $objects, $expectedParentObject)) {
                 break;
             }
 
@@ -2792,7 +2792,7 @@ final class PdfMetadataExtractor
                 $destinationsByName,
                 $structureContext,
                 $current,
-                $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Last') ?? ''),
+                $this->validObjectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Last'), $objects),
                 $maxDepth,
                 $level + 1,
                 $seen
@@ -2804,21 +2804,26 @@ final class PdfMetadataExtractor
                 break;
             }
 
-            $current = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Next') ?? '');
+            $current = $this->validObjectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Next'), $objects);
         }
 
         return $items;
     }
 
-    private function documentOutlineItemParentMatches(string $dictionary, ?int $expectedParentObject): bool
+    private function documentOutlineItemParentMatches(string $dictionary, array $objects, ?int $expectedParentObject): bool
     {
         if ($expectedParentObject === null) {
             return true;
         }
 
-        $parent = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Parent') ?? '');
+        $parentValue = $this->dictionaryTopLevelRawValue($dictionary, 'Parent');
+        if ($parentValue === null) {
+            return true;
+        }
 
-        return $parent === null || $parent === $expectedParentObject;
+        $parent = $this->validObjectNumberFromReference($parentValue, $objects);
+
+        return $parent === $expectedParentObject;
     }
 
     /**
@@ -3081,7 +3086,7 @@ final class PdfMetadataExtractor
     private function orderedDestinationPageObjectNumbers(string $catalog, array $objects): array
     {
         $pagesValue = $this->dictionaryTopLevelRawValue($catalog, 'Pages');
-        $pagesRoot = $pagesValue === null ? null : $this->objectNumberFromReference($pagesValue);
+        $pagesRoot = $this->validObjectNumberFromReference($pagesValue, $objects);
         if ($pagesRoot !== null) {
             $pages = $this->destinationPageObjectNumbersFromTree($pagesRoot, $objects);
             if ($pages !== []) {
@@ -3129,7 +3134,7 @@ final class PdfMetadataExtractor
 
         $pages = [];
         foreach ($kids as $kid) {
-            $kidObjectNumber = $this->objectNumberFromReference($kid);
+            $kidObjectNumber = $this->validObjectNumberFromReference($kid, $objects);
             if ($kidObjectNumber === null) {
                 continue;
             }
@@ -3681,7 +3686,7 @@ final class PdfMetadataExtractor
             return null;
         }
 
-        $objectNumber = $this->objectNumberFromReference($trimmed);
+        $objectNumber = $this->validObjectNumberFromReference($trimmed, $objects);
         if ($objectNumber !== null && isset($pageIndexes[$objectNumber])) {
             return [
                 'page' => $pageIndexes[$objectNumber],
@@ -3690,7 +3695,7 @@ final class PdfMetadataExtractor
         }
 
         $resolved = trim($this->resolvePdfValue($trimmed, $objects) ?? $trimmed);
-        $resolvedObjectNumber = $this->objectNumberFromReference($resolved);
+        $resolvedObjectNumber = $this->validObjectNumberFromReference($resolved, $objects);
         if ($resolvedObjectNumber !== null && isset($pageIndexes[$resolvedObjectNumber])) {
             return [
                 'page' => $pageIndexes[$resolvedObjectNumber],
@@ -9040,6 +9045,21 @@ final class PdfMetadataExtractor
     private function objectNumberFromReference(string $value): ?int
     {
         return preg_match('/^(\d+)\s+\d+\s+R\b/s', trim($value), $match) === 1 ? (int) $match[1] : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function validObjectNumberFromReference(?string $value, array $objects): ?int
+    {
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference === null) {
+            return null;
+        }
+
+        return $this->objectBodyForReference($objects, $reference['objectNumber'], $reference['generation']) === null
+            ? null
+            : $reference['objectNumber'];
     }
 
     /**
