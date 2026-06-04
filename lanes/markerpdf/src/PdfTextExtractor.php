@@ -13834,6 +13834,8 @@ final class PdfTextExtractor
         }
 
         $decodedEntryCount = strlen($decoded) % $entryWidth === 0 ? intdiv(strlen($decoded), $entryWidth) : null;
+        $previousOffset = $definitions === null ? null : $this->pdfIntegerValueAfterName($dictionary, 'Prev');
+        $xrefOffset = (int) $definition['offset'];
         $offset = 0;
         foreach ($this->xrefIndexRanges($dictionary, $decodedEntryCount, $streamObjects) as $range) {
             [$startObject, $count] = $range;
@@ -13853,6 +13855,18 @@ final class PdfTextExtractor
                     if ($offsetOwner !== null) {
                         $objectNumber = $offsetOwner['objectNumber'];
                         $generation = $offsetOwner['generation'];
+                    } elseif ($previousOffset !== null && $previousOffset >= 0) {
+                        $updateOwner = $this->currentUpdateDirectObjectDefinitionForXrefRow(
+                            $objectNumber,
+                            $generation,
+                            $previousOffset,
+                            $xrefOffset,
+                            $definitions
+                        );
+                        if ($updateOwner !== null) {
+                            $fieldTwo = $updateOwner['offset'];
+                            $generation = $updateOwner['generation'];
+                        }
                     }
                 }
 
@@ -14066,6 +14080,37 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function currentUpdateDirectObjectDefinitionForXrefRow(
+        int $objectNumber,
+        int $generation,
+        int $previousOffset,
+        int $xrefOffset,
+        array $definitions
+    ): ?array {
+        if ($objectNumber <= 0 || $previousOffset < 0 || $xrefOffset <= $previousOffset) {
+            return null;
+        }
+
+        $candidates = [];
+        foreach ($definitions[$objectNumber] ?? [] as $definition) {
+            if (
+                $definition['generation'] !== $generation
+                || $definition['offset'] <= $previousOffset
+                || $definition['offset'] >= $xrefOffset
+            ) {
+                continue;
+            }
+
+            $candidates[] = $definition;
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
     }
 
     /**
