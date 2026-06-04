@@ -439,6 +439,53 @@ return [
             $removeTree($input);
         }
     },
+    'records output-folder file conflicts before metadata and worker launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $root = $makeTempDir();
+        try {
+            foreach (['queued.pdf', 'sidecar.txt'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $blockedOutput = $root . DIRECTORY_SEPARATOR . 'marker-output';
+            $missingMetadata = $root . DIRECTORY_SEPARATOR . 'missing-metadata.json';
+            file_put_contents($blockedOutput, 'not a directory');
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $blockedOutput,
+                workers: 4,
+                metadataFile: $missingMetadata
+            );
+
+            $t->same('os.makedirs(out_folder, exist_ok=True)', $plan['paths']['output_folder_creation_call']);
+            $t->same('after_list_input_files_before_chunk_files', $plan['paths']['output_folder_creation_order']);
+            $t->same(true, $plan['paths']['output_path_exists']);
+            $t->same('file', $plan['paths']['output_path_type']);
+            $t->same(false, $plan['paths']['output_folder_exists']);
+            $t->same(true, $plan['paths']['output_folder_creation_required']);
+            $t->same(true, $plan['paths']['output_folder_creation_blocked']);
+            $t->same('FileExistsError', $plan['paths']['output_folder_creation_error_class']);
+            $t->contains('File exists', (string) $plan['paths']['output_folder_creation_error_message']);
+            $t->same('queued.pdf', $plan['input_listing']['file_basenames'][0]);
+            $t->same('sidecar.txt', $plan['input_listing']['file_basenames'][1]);
+            $t->same('output-folder-create-failed', $plan['chunking']['chunk_error_boundary']);
+            $t->same(false, $plan['chunking']['chunking_reached']);
+            $t->same(0, $plan['chunking']['selected_count']);
+            $t->same([], $plan['chunking']['selected_filenames']);
+            $t->same(false, $plan['metadata']['metadata_load_reached']);
+            $t->same($missingMetadata, $plan['metadata']['metadata_file']);
+            $t->same([], $plan['metadata']['metadata_filenames']);
+            $t->same(0, $plan['worker_pool']['task_args_count']);
+            $t->same(0, $plan['worker_pool']['total_processes']);
+            $t->same(false, $plan['worker_pool']['pool_launchable']);
+            $t->same('output-folder-create-failed', $plan['worker_pool']['pool_error_boundary']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+        } finally {
+            $removeTree($input);
+            $removeTree($root);
+        }
+    },
     'records convert.py os.listdir file-only boundary without extension filtering' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();

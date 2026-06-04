@@ -235,10 +235,105 @@ final class BatchConverter
         $absoluteOutputFolder = $this->absolutePath($outputFolder);
         $inputListing = $this->inputDirectoryListing($absoluteInputFolder);
         $inputFiles = $inputListing['file_paths'];
-        $selectedFiles = $this->chunkFiles($inputFiles, $chunkIndex, $numChunks, $maxFiles);
+        $outputCreation = $this->outputFolderCreationPlan($absoluteOutputFolder);
         $absoluteMetadataFile = $metadataFile === null || $metadataFile === ''
             ? null
             : $this->absolutePath($metadataFile);
+
+        if ($outputCreation['output_folder_creation_blocked']) {
+            return [
+                'schema' => 'markerpdf.convert_main_runtime_preflight.v1',
+                'source' => 'sddai/markerPDF convert.py::main + os.path.abspath + os.makedirs(exist_ok=True) + task_args + torch.multiprocessing.Pool',
+                'environment' => [
+                    'PYTORCH_ENABLE_MPS_FALLBACK' => '1',
+                    'IN_STREAMLIT' => 'true',
+                    'PDFTEXT_CPU_WORKERS' => '1',
+                ],
+                'preflight_order' => [
+                    'configure_logging',
+                    'parse_args',
+                    'abspath_input_output',
+                    'list_input_files',
+                    'makedirs_output_exist_ok',
+                    'chunk_files',
+                    'load_metadata_file',
+                    'set_spawn_start_method',
+                    'prepare_model_handoff',
+                    'build_task_args',
+                    'pool_imap_process_single_pdf',
+                ],
+                'paths' => [
+                    'input_folder' => $inputFolder,
+                    'output_folder' => $outputFolder,
+                    'absolute_input_folder' => $absoluteInputFolder,
+                    'absolute_output_folder' => $absoluteOutputFolder,
+                    ...$outputCreation,
+                ],
+                'input_listing' => [
+                    'source' => 'os.listdir + os.path.isfile',
+                    'entry_count' => count($inputListing['entry_basenames']),
+                    'entry_basenames' => $inputListing['entry_basenames'],
+                    'file_count' => count($inputListing['file_basenames']),
+                    'file_basenames' => $inputListing['file_basenames'],
+                    'skipped_non_file_count' => count($inputListing['skipped_non_file_basenames']),
+                    'skipped_non_file_basenames' => $inputListing['skipped_non_file_basenames'],
+                    'file_filter' => 'os.path.isfile',
+                    'extension_filter_active' => false,
+                    'non_pdf_files_are_task_candidates' => $inputListing['non_pdf_file_basenames'] !== [],
+                    'non_pdf_file_basenames' => $inputListing['non_pdf_file_basenames'],
+                    'selected_non_pdf_filenames' => [],
+                ],
+                'chunking' => [
+                    'chunk_index' => $chunkIndex,
+                    'num_chunks' => $numChunks,
+                    'chunk_size' => 0,
+                    'start_index' => 0,
+                    'end_index' => 0,
+                    'python_slice_start_index' => 0,
+                    'python_slice_end_index' => 0,
+                    'negative_chunk_index_active' => $chunkIndex < 0,
+                    'max_files' => $maxFiles,
+                    'max_files_limit_active' => $this->pythonTruthyInteger($maxFiles),
+                    'input_file_count' => count($inputFiles),
+                    'selected_count' => 0,
+                    'selected_filenames' => [],
+                    'chunking_reached' => false,
+                    'chunk_error_boundary' => 'output-folder-create-failed',
+                ],
+                'metadata' => [
+                    'source' => $absoluteMetadataFile === null ? 'metadataByFilename argument' : 'metadata_file json.load keyed by basename',
+                    'metadata_file' => $absoluteMetadataFile,
+                    'metadata_load_reached' => false,
+                    'metadata_filenames' => [],
+                    'selected_metadata_filenames' => [],
+                    'missing_metadata_filenames' => [],
+                ],
+                'worker_pool' => [
+                    'requested_workers' => $workers,
+                    'total_processes' => 0,
+                    'pool_launchable' => false,
+                    'pool_error_boundary' => 'output-folder-create-failed',
+                    'start_method' => 'spawn',
+                    'process_function' => 'process_single_pdf',
+                    'task_args_count' => 0,
+                    'task_args' => [],
+                    'progress_iterator' => $this->progressIterator(),
+                ],
+                'conversion_boundary' => [
+                    'min_length' => $minLength,
+                    'per_file_preflight_function' => 'process_single_pdf',
+                    'converter_function' => 'convert_single_pdf',
+                    'metadata_lookup' => 'metadata.get(os.path.basename(f))',
+                    'empty_output_policy' => 'print_empty_file_without_save_markdown',
+                ],
+                'review_only' => true,
+                'executes_python_or_models' => false,
+                'executes_multiprocessing' => false,
+                'executes_external_pdf_tools' => false,
+            ];
+        }
+
+        $selectedFiles = $this->chunkFiles($inputFiles, $chunkIndex, $numChunks, $maxFiles);
         $runtimeMetadata = $absoluteMetadataFile === null
             ? $metadataByFilename
             : $this->loadMetadataFile($absoluteMetadataFile);
@@ -303,10 +398,7 @@ final class BatchConverter
                 'output_folder' => $outputFolder,
                 'absolute_input_folder' => $absoluteInputFolder,
                 'absolute_output_folder' => $absoluteOutputFolder,
-                'output_folder_exists' => is_dir($absoluteOutputFolder),
-                'upstream_creates_output_folder' => true,
-                'native_plan_creates_output_folder' => false,
-                'output_folder_creation_required' => !is_dir($absoluteOutputFolder),
+                ...$outputCreation,
             ],
             'input_listing' => [
                 'source' => 'os.listdir + os.path.isfile',
@@ -336,10 +428,13 @@ final class BatchConverter
                 'input_file_count' => count($inputFiles),
                 'selected_count' => count($tasks),
                 'selected_filenames' => $selectedFilenames,
+                'chunking_reached' => true,
+                'chunk_error_boundary' => null,
             ],
             'metadata' => [
                 'source' => $absoluteMetadataFile === null ? 'metadataByFilename argument' : 'metadata_file json.load keyed by basename',
                 'metadata_file' => $absoluteMetadataFile,
+                'metadata_load_reached' => true,
                 'metadata_filenames' => $metadataFilenames,
                 'selected_metadata_filenames' => $selectedMetadataFilenames,
                 'missing_metadata_filenames' => $missingMetadataFilenames,
@@ -589,6 +684,41 @@ final class BatchConverter
     private function inputFiles(string $inputFolder): array
     {
         return $this->inputDirectoryListing($inputFolder)['file_paths'];
+    }
+
+    /**
+     * @return array{output_path_exists: bool, output_path_type: string, output_folder_exists: bool, upstream_creates_output_folder: true, native_plan_creates_output_folder: false, output_folder_creation_required: bool, output_folder_creation_call: string, output_folder_creation_order: string, output_folder_creation_blocked: bool, output_folder_creation_error_class: string|null, output_folder_creation_error_message: string|null}
+     */
+    private function outputFolderCreationPlan(string $absoluteOutputFolder): array
+    {
+        $exists = file_exists($absoluteOutputFolder);
+        $isDirectory = is_dir($absoluteOutputFolder);
+        $pathType = 'missing';
+        if ($isDirectory) {
+            $pathType = 'directory';
+        } elseif (is_file($absoluteOutputFolder)) {
+            $pathType = 'file';
+        } elseif ($exists) {
+            $pathType = 'other';
+        }
+
+        $blocked = $exists && !$isDirectory;
+
+        return [
+            'output_path_exists' => $exists,
+            'output_path_type' => $pathType,
+            'output_folder_exists' => $isDirectory,
+            'upstream_creates_output_folder' => true,
+            'native_plan_creates_output_folder' => false,
+            'output_folder_creation_required' => !$isDirectory,
+            'output_folder_creation_call' => 'os.makedirs(out_folder, exist_ok=True)',
+            'output_folder_creation_order' => 'after_list_input_files_before_chunk_files',
+            'output_folder_creation_blocked' => $blocked,
+            'output_folder_creation_error_class' => $blocked ? 'FileExistsError' : null,
+            'output_folder_creation_error_message' => $blocked
+                ? "[Errno 17] File exists: '" . $absoluteOutputFolder . "'"
+                : null,
+        ];
     }
 
     /**

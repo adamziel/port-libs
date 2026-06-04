@@ -10,8 +10,10 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 $runId = bin2hex(random_bytes(4));
 $input = sys_get_temp_dir() . '/markerpdf-runtime-preflight-input-' . $runId;
 $output = sys_get_temp_dir() . '/markerpdf-runtime-preflight-output-' . $runId;
+$blockedOutputRoot = sys_get_temp_dir() . '/markerpdf-runtime-preflight-blocked-output-' . $runId;
 @mkdir($input, 0777, true);
 @mkdir($output, 0777, true);
+@mkdir($blockedOutputRoot, 0777, true);
 
 $removeTree = static function (string $path) use (&$removeTree): void {
     if (!is_dir($path)) {
@@ -83,6 +85,15 @@ try {
         numChunks: 2,
         workers: 8
     );
+    $missingMetadata = $input . DIRECTORY_SEPARATOR . 'missing-metadata.json';
+    $blockedOutput = $blockedOutputRoot . DIRECTORY_SEPARATOR . 'marker-output';
+    file_put_contents($blockedOutput, 'not a directory');
+    $outputConflictPlan = $batch->runtimeMainPreflightPlan(
+        $input,
+        $blockedOutput,
+        metadataFile: $missingMetadata,
+        workers: 8
+    );
     $plans = [];
     foreach (['already-imported.pdf', 'extension-spoof.pdf', 'short-text.pdf', 'ready-for-marker.pdf'] as $filename) {
         $plans[$filename] = $batch->processFilePreflightPlan(
@@ -116,7 +127,6 @@ try {
 
         return '';
     };
-    $missingMetadata = $input . DIRECTORY_SEPARATOR . 'missing-metadata.json';
     $missingInputError = $capturePreflightError(
         static fn (): array => $batch->runtimeMainPreflightPlan($input . DIRECTORY_SEPARATOR . 'missing-input', $output, metadataFile: $missingMetadata)
     );
@@ -154,6 +164,15 @@ try {
     }
     if ($runtimePlan['worker_pool']['total_processes'] !== 5 || $runtimePlan['worker_pool']['pool_launchable'] !== true) {
         throw new RuntimeException('Expected runtime main preflight to clamp worker count to selected task count.');
+    }
+    if (
+        $outputConflictPlan['paths']['output_folder_creation_blocked'] !== true
+        || $outputConflictPlan['paths']['output_path_type'] !== 'file'
+        || $outputConflictPlan['paths']['output_folder_creation_error_class'] !== 'FileExistsError'
+        || $outputConflictPlan['metadata']['metadata_load_reached'] !== false
+        || $outputConflictPlan['worker_pool']['pool_error_boundary'] !== 'output-folder-create-failed'
+    ) {
+        throw new RuntimeException('Expected output-folder file conflicts to block before metadata loading or worker-pool planning.');
     }
     if ($runtimePlan['chunking']['max_files_limit_active'] !== false || $runtimePlan['chunking']['selected_count'] !== 5) {
         throw new RuntimeException('Expected --max=0 to behave like upstream convert.py and leave the WordPress queue uncapped.');
@@ -211,6 +230,11 @@ try {
         'runtime_total_processes' => $runtimePlan['worker_pool']['total_processes'],
         'runtime_pool_launchable' => $runtimePlan['worker_pool']['pool_launchable'],
         'runtime_pool_error_boundary' => $runtimePlan['worker_pool']['pool_error_boundary'],
+        'output_conflict_creation_blocked' => $outputConflictPlan['paths']['output_folder_creation_blocked'],
+        'output_conflict_path_type' => $outputConflictPlan['paths']['output_path_type'],
+        'output_conflict_error_class' => $outputConflictPlan['paths']['output_folder_creation_error_class'],
+        'output_conflict_metadata_load_reached' => $outputConflictPlan['metadata']['metadata_load_reached'],
+        'output_conflict_pool_error_boundary' => $outputConflictPlan['worker_pool']['pool_error_boundary'],
         'runtime_max_files_limit_active' => $runtimePlan['chunking']['max_files_limit_active'],
         'runtime_zero_max_selected_count' => $runtimePlan['chunking']['selected_count'],
         'negative_max_selected_filenames' => $negativeMaxPlan['chunking']['selected_filenames'],
@@ -252,4 +276,5 @@ try {
 } finally {
     $removeTree($input);
     $removeTree($output);
+    $removeTree($blockedOutputRoot);
 }
