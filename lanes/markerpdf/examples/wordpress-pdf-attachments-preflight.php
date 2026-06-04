@@ -10,16 +10,18 @@ $csvPayload = "Title,Status\nDraft,Ready\n";
 $notesPayload = "Needs alt text\n";
 $stalePayload = "Title,Status\nStale,Ignore\n";
 $sourcePayload = '<wp-export><post id="catalog-af"/></wp-export>';
+$pagePayload = '<wp-page><attachment role="page-associated"/></wp-page>';
 $relatedPayload = '{"manifest":"catalog-related"}';
 $compressedCsv = gzcompress($csvPayload);
 $csvChecksum = md5($csvPayload);
 $staleChecksum = md5($stalePayload);
 $sourceChecksum = md5($sourcePayload);
+$pageChecksum = md5($pagePayload);
 $relatedChecksum = md5($relatedPayload);
 $pdf = "%PDF-1.7\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names 7 0 R /AF [13 0 R] >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
-    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Annots [4 0 R] >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /AF [16 0 R] /Annots [4 0 R] >>\nendobj\n"
     . "4 0 obj\n<< /Type /Annot /Subtype /FileAttachment /Rect [72 700 90 718] /Contents (Reviewer notes) /FS 8 0 R >>\nendobj\n"
     . "5 0 obj\n<< /Type /Filespec /F (review-notes.csv) /Desc (WordPress import rows) /AFRelationship /Data /EF << /F 6 0 R >> >>\nendobj\n"
     . "6 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter /FlateDecode /Params << /Size " . strlen($csvPayload) . " /ModDate (D:20260603082617Z) /CheckSum <{$csvChecksum}> >> /Length " . strlen($compressedCsv) . " >>\n"
@@ -37,6 +39,9 @@ $pdf = "%PDF-1.7\n"
     . "stream\n{$sourcePayload}\nendstream\nendobj\n"
     . "15 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fjson /Params << /Size " . strlen($relatedPayload) . " /CheckSum <{$relatedChecksum}> >> /Length " . strlen($relatedPayload) . " >>\n"
     . "stream\n{$relatedPayload}\nendstream\nendobj\n"
+    . "16 0 obj\n<< /Type /Filespec /F (page-source.xml) /Desc (Page-associated source export) /AFRelationship /Source /EF << /F 17 0 R >> >>\nendobj\n"
+    . "17 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($pagePayload) . " /CheckSum <{$pageChecksum}> /ModDate (D:20260604210100Z) >> /Length " . strlen($pagePayload) . " >>\n"
+    . "stream\n{$pagePayload}\nendstream\nendobj\n"
     . "%%EOF\n";
 
 $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
@@ -62,9 +67,20 @@ if (($catalogAttachment['related_file_count'] ?? null) !== 1
 ) {
     throw new RuntimeException('Expected related files to be summarized without exposing related payload bytes.');
 }
+$pageAttachment = $summary['attachments'][2] ?? null;
+if (!is_array($pageAttachment)
+    || ($pageAttachment['source'] ?? null) !== 'page-associated-file'
+    || ($pageAttachment['page_associated_file'] ?? null) !== true
+    || ($pageAttachment['page_number'] ?? null) !== 1
+    || ($pageAttachment['relationship'] ?? null) !== 'Source'
+    || ($pageAttachment['checksum_matches'] ?? null) !== true
+    || str_contains($summaryJson, $pagePayload)
+) {
+    throw new RuntimeException('Expected page associated source attachment review metadata without payload bytes.');
+}
 
 echo "<!-- markerpdf-pdf-attachments-smoke " . htmlspecialchars(json_encode([
-    'native_boundary' => 'PDF EmbeddedFiles name tree, catalog AF, and FileAttachment annotation preflight',
+    'native_boundary' => 'PDF EmbeddedFiles name tree, catalog AF, page AF, and FileAttachment annotation preflight',
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
     'attachment_count' => $summary['attachment_count'],
@@ -72,8 +88,10 @@ echo "<!-- markerpdf-pdf-attachments-smoke " . htmlspecialchars(json_encode([
     'filenames' => $summary['filenames'],
     'pruned_out_of_limits_name_tree_entry' => true,
     'catalog_associated_file_preflight' => ($catalogAttachment['associated_file'] ?? false) === true,
+    'page_associated_file_preflight' => ($pageAttachment['page_associated_file'] ?? false) === true,
     'related_file_preflight' => ($catalogAttachment['related_file_count'] ?? 0) === 1,
     'related_file_payload_omitted' => !str_contains($summaryJson, $relatedPayload),
+    'page_associated_file_payload_omitted' => !str_contains($summaryJson, $pagePayload),
     'relationship_roles' => array_values(array_filter(array_map(
         static fn (array $attachment): ?string => $attachment['relationship_role'] ?? null,
         $summary['attachments']

@@ -75,6 +75,37 @@ final class PdfAttachmentExtractor
             $attachments[] = $attachment;
         }
 
+        foreach ($this->pageAssociatedFileEntries($objects) as $entry) {
+            $attachment = $this->attachmentFromFileSpecValue(
+                $entry['fileSpec'],
+                $objects,
+                'page-associated-file',
+                [
+                    'associated_file' => true,
+                    'page_associated_file' => true,
+                    'page_associated_file_index' => $entry['associatedFileIndex'],
+                    'page_number' => $entry['pageNumber'],
+                    'page_object_id' => $entry['pageObjectId'],
+                ]
+            );
+            if ($attachment === null) {
+                continue;
+            }
+
+            $duplicateIndex = $this->documentAttachmentIndex($attachments, $attachment);
+            if ($duplicateIndex !== null) {
+                $attachments[$duplicateIndex]['associated_file'] = true;
+                $attachments[$duplicateIndex]['page_associated_file'] = true;
+                $attachments[$duplicateIndex]['page_associated_file_source'] = 'page_af';
+                $attachments[$duplicateIndex]['page_associated_file_index'] = $entry['associatedFileIndex'];
+                $attachments[$duplicateIndex]['page_number'] = $entry['pageNumber'];
+                $attachments[$duplicateIndex]['page_object_id'] = $entry['pageObjectId'];
+                continue;
+            }
+
+            $attachments[] = $attachment;
+        }
+
         foreach ($this->fileAttachmentAnnotationEntries($objects) as $entry) {
             $attachment = $this->attachmentFromFileSpecValue(
                 $entry['fileSpec'],
@@ -348,6 +379,41 @@ final class PdfAttachmentExtractor
         }
 
         return false;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return list<array{pageNumber: int, pageObjectId: int, associatedFileIndex: int, fileSpec: mixed}>
+     */
+    private function pageAssociatedFileEntries(array $objects): array
+    {
+        $entries = [];
+        foreach ($this->pageObjectIds($objects) as $pageIndex => $pageObjectId) {
+            if (!isset($objects[$pageObjectId])) {
+                continue;
+            }
+
+            $page = $this->dict($objects[$pageObjectId]['value']);
+            if ($page === null) {
+                continue;
+            }
+
+            $associatedFiles = $this->arrayValue($this->resolveValue($page['AF'] ?? null, $objects));
+            if ($associatedFiles === null) {
+                continue;
+            }
+
+            foreach ($associatedFiles as $index => $fileSpec) {
+                $entries[] = [
+                    'pageNumber' => $pageIndex + 1,
+                    'pageObjectId' => $pageObjectId,
+                    'associatedFileIndex' => $index,
+                    'fileSpec' => $fileSpec,
+                ];
+            }
+        }
+
+        return $entries;
     }
 
     /**

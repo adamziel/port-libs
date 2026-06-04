@@ -205,6 +205,74 @@ return [
         $t->true(is_string($mirroredEncoded) && substr_count($mirroredEncoded, 'source.xml') >= 1);
         $t->true(is_string($mirroredEncoded) && !str_contains($mirroredEncoded, $sourcePayload));
     },
+    'summarizes page associated FileSpec attachments and marks EmbeddedFiles mirrors' => static function (TestRunner $t): void {
+        $pagePayload = '<wp-page><attachment role="page-associated"/></wp-page>';
+        $pageChecksum = md5($pagePayload);
+
+        $pageOnlyPdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /AF [4 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Filespec /F (page-source.xml) /Desc (Page source export) /AFRelationship /Source /EF << /F 5 0 R >> >>\nendobj\n"
+            . "5 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($pagePayload) . " /CheckSum <{$pageChecksum}> /ModDate (D:20260604210100Z) >> /Length " . strlen($pagePayload) . " >>\n"
+            . "stream\n{$pagePayload}\nendstream\nendobj\n"
+            . "%%EOF\n";
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pageOnlyPdf);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(['page-source.xml'], $summary['filenames']);
+
+        $attachment = $summary['attachments'][0];
+        $t->same('page-associated-file', $attachment['source']);
+        $t->same(true, $attachment['associated_file']);
+        $t->same(true, $attachment['page_associated_file']);
+        $t->same(1, $attachment['page_number']);
+        $t->same(3, $attachment['page_object_id']);
+        $t->same(0, $attachment['page_associated_file_index']);
+        $t->same(4, $attachment['file_spec_object_id']);
+        $t->same(5, $attachment['stream_object_id']);
+        $t->same('page-source.xml', $attachment['filename']);
+        $t->same('Page source export', $attachment['description']);
+        $t->same('Source', $attachment['relationship']);
+        $t->same('original_source', $attachment['relationship_role']);
+        $t->same('text/xml', $attachment['content_type']);
+        $t->same(strlen($pagePayload), $attachment['byte_length']);
+        $t->same(true, $attachment['declared_size_matches']);
+        $t->same($pageChecksum, $attachment['checksum_hex']);
+        $t->same($pageChecksum, $attachment['computed_checksum_hex']);
+        $t->same(true, $attachment['checksum_matches']);
+        $t->same('D:20260604210100Z', $attachment['modified_at']);
+        $t->same(false, array_key_exists('bytes', $attachment));
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+
+        $mirroredPdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /AF [4 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Filespec /F (page-source.xml) /Desc (Mirrored page source export) /AFRelationship /Source /EF << /F 5 0 R >> >>\nendobj\n"
+            . "5 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($pagePayload) . " /CheckSum <{$pageChecksum}> >> /Length " . strlen($pagePayload) . " >>\n"
+            . "stream\n{$pagePayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Names [(page-source.xml) 4 0 R] >>\nendobj\n"
+            . "%%EOF\n";
+
+        $mirrored = (new PdfAttachmentExtractor())->attachmentSummary($mirroredPdf);
+        $mirroredEncoded = json_encode($mirrored, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $mirrored['attachment_count']);
+        $t->same(['page-source.xml'], $mirrored['filenames']);
+        $t->same('embedded-files-name-tree', $mirrored['attachments'][0]['source']);
+        $t->same(true, $mirrored['attachments'][0]['page_associated_file']);
+        $t->same('page_af', $mirrored['attachments'][0]['page_associated_file_source']);
+        $t->same(1, $mirrored['attachments'][0]['page_number']);
+        $t->same(3, $mirrored['attachments'][0]['page_object_id']);
+        $t->same(0, $mirrored['attachments'][0]['page_associated_file_index']);
+        $t->same(strlen($pagePayload), $mirrored['attachments'][0]['byte_length']);
+        $t->same(false, array_key_exists('bytes', $mirrored['attachments'][0]));
+        $t->true(is_string($mirroredEncoded) && substr_count($mirroredEncoded, 'page-source.xml') >= 1);
+        $t->true(is_string($mirroredEncoded) && !str_contains($mirroredEncoded, $pagePayload));
+    },
     'summarizes related-file streams in WordPress attachment preflight without bytes' => static function (TestRunner $t): void {
         $sourcePayload = '<wp-export><post id="preflight-related"/></wp-export>';
         $relatedJson = '{"review":"preflight-related"}';
