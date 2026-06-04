@@ -45,6 +45,13 @@ $metricMissPdf = "%PDF-1.4\n"
     . "3 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($metricMissContent) . " >>\nstream\n{$metricMissContent}\nendstream\nendobj\n"
     . "5 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /IdentityMetricMissFallback /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 1000 /W [65 68 1000 69 72 250] >>\nendobj\n%%EOF";
+$tjGapContent = 'BT /Fcid 12 Tf 1 0 0 1 72 720 Tm [<41424344> -1000 <45464748>] TJ ET';
+$tjGapPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /TjSourceWidthFallback /Encoding /Identity-H /DescendantFonts [5 0 R] /ToUnicode 3 0 R >>\nendobj\n"
+    . "3 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($tjGapContent) . " >>\nstream\n{$tjGapContent}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /TjSourceWidthFallback /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 1000 /W [65 68 1000 69 72 250] >>\nendobj\n%%EOF";
 
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
@@ -53,20 +60,26 @@ $spans = $pages[0]['blocks'][0]['lines'][0]['spans'] ?? [];
 $metricMissLines = $extractor->extractTextLines($metricMissPdf);
 $metricMissPages = $extractor->extractStyledTextPages($metricMissPdf);
 $metricMissSpans = $metricMissPages[0]['blocks'][0]['lines'][0]['spans'] ?? [];
+$tjGapLines = $extractor->extractTextLines($tjGapPdf);
+$tjGapPages = $extractor->extractStyledTextPages($tjGapPdf);
+$tjGapSpans = $tjGapPages[0]['blocks'][0]['lines'][0]['spans'] ?? [];
 
 echo "<!-- markerpdf-cmap-source-width-fallback-smoke " . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'predefined Identity-H source-width fallback with CIDFont default and metric-miss ToUnicode width fallback before Gutenberg paragraph rendering',
+    'native_boundary' => 'predefined Identity-H source-width fallback with CIDFont default, metric-miss ToUnicode width fallback, and TJ adjustment gap recovery before Gutenberg paragraph rendering',
     'default_width_source_fallback_applied' => $lines === ['ABCD EFGH'],
     'predefined_identity_source_width_applied' => $lines === ['ABCD EFGH'],
     'padding_bytes_not_counted_as_glyphs' => ($spans[0]['bbox'][2] ?? null) === 48.0,
     'identity_metric_miss_tounicode_widths_applied' => $metricMissLines === ['ABCDEFGH'],
     'identity_metric_miss_false_gap_excluded' => !in_array('ABCD EFGH', $metricMissLines, true),
     'identity_metric_miss_span_widths' => array_column($metricMissSpans, 'bbox') === [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 60.0, 12.0]],
+    'tj_adjustment_source_width_gap_applied' => $tjGapLines === ['ABCD EFGH'],
+    'tj_adjustment_false_join_excluded' => !in_array('ABCDEFGH', $tjGapLines, true),
+    'tj_adjustment_span_bbox_preserved' => ($tjGapSpans[0]['bbox'] ?? null) === [0.0, 0.0, 72.0, 12.0],
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $metricMissLines) as $line) {
+foreach (array_merge($lines, $metricMissLines, $tjGapLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

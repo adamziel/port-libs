@@ -15635,7 +15635,14 @@ final class PdfTextExtractor
                             : $markedContentStack[$replacementIndex]['replacement'];
                         $markedContentStack[$replacementIndex]['emitted'] = true;
                     } else {
-                        $decoded = $this->decodeTextOperand($operand, $toUnicodeMap);
+                        $decoded = $this->decodePositionedTextOperand(
+                            $operand,
+                            $toUnicodeMap,
+                            $currentFontSize,
+                            $characterSpacing,
+                            $wordSpacing,
+                            $horizontalScale * $currentTextMatrixHorizontalScale
+                        );
                     }
 
                     $this->appendNativeTextSpan(
@@ -16134,7 +16141,14 @@ final class PdfTextExtractor
                             : $markedContentStack[$replacementIndex]['replacement'];
                         $markedContentStack[$replacementIndex]['emitted'] = true;
                     } else {
-                        $decoded = $this->decodeTextOperand($operand, $toUnicodeMap);
+                        $decoded = $this->decodePositionedTextOperand(
+                            $operand,
+                            $toUnicodeMap,
+                            $currentFontSize,
+                            $characterSpacing,
+                            $wordSpacing,
+                            $horizontalScale * $currentTextMatrixHorizontalScale
+                        );
                     }
                     if ($insideActiveClip && $this->isVisibleTextRenderingMode($textRenderingMode)) {
                         $this->appendPositionedText($currentLine, $decoded, $pendingPositionWordGap);
@@ -18384,6 +18398,69 @@ final class PdfTextExtractor
         }
 
         return $this->decodePdfStringBytes($decoded);
+    }
+
+    /**
+     * @param array{map?: array<string, string>, codeSpaceRanges?: list<array{start: int, end: int, width: int}>}|null $toUnicodeMap
+     */
+    private function decodePositionedTextOperand(
+        string $operand,
+        ?array $toUnicodeMap,
+        ?float $fontSize,
+        float $characterSpacing,
+        float $wordSpacing,
+        float $horizontalScale
+    ): string {
+        $operand = trim($operand);
+        if (
+            !str_starts_with($operand, '[')
+            || $toUnicodeMap === null
+            || $this->mapWritingMode($toUnicodeMap) === 1
+            || !$this->hasSourceBoundaryDataForGlyphAdvance($toUnicodeMap)
+        ) {
+            return $this->decodeTextOperand($operand, $toUnicodeMap);
+        }
+
+        $text = '';
+        $endX = 0.0;
+        $pendingWordGap = false;
+        foreach ($this->textArrayElements($operand) as $element) {
+            if ($element['type'] === 'text') {
+                $textOperand = (string) $element['value'];
+                $decoded = $this->decodeTextOperand($textOperand, $toUnicodeMap);
+                if ($decoded !== '') {
+                    if ($pendingWordGap && !$this->endsWithWhitespace($text) && !$this->startsWithWhitespace($decoded)) {
+                        $text .= ' ';
+                    }
+                    $text .= $decoded;
+                    $pendingWordGap = false;
+                }
+
+                $endX = $this->advanceTextEndX(
+                    $endX,
+                    $decoded,
+                    $fontSize,
+                    $characterSpacing,
+                    $wordSpacing,
+                    $horizontalScale,
+                    $this->glyphWidthsForTextOperand($textOperand, $toUnicodeMap),
+                    $this->sourceSpaceCountForTextOperand($textOperand, $toUnicodeMap)
+                ) ?? $endX;
+                continue;
+            }
+
+            $previousEndX = $endX;
+            $adjustedEndX = $this->adjustTextEndX($endX, (float) $element['value'], $fontSize, $horizontalScale);
+            if ($adjustedEndX === null) {
+                continue;
+            }
+            if ($adjustedEndX - $previousEndX >= self::POSITIONED_TEXT_WORD_GAP) {
+                $pendingWordGap = $text !== '';
+            }
+            $endX = $adjustedEndX;
+        }
+
+        return $text;
     }
 
     /**
