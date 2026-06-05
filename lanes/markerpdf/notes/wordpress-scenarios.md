@@ -440,6 +440,8 @@ The 2026-06-05 named-destination indirect view-operand slice extends that smoke 
 
 `examples/wordpress-pdf-xref-object-stream-attachment-header-comment-currentbase.php` maps xref-stream type-2 compressed FileSpec attachment preflight through an `/ObjStm` header that contains commented numeric decoys. It keeps the explicit member index aligned to the current compressed FileSpec, excludes the stale direct FileSpec and comment-decoy member, omits embedded payload bytes, and avoids Python, pdftext, pypdfium/PDFium execution, Poppler, Ghostscript, models, OCR, and external PDF tools.
 
+`examples/wordpress-pdftext-dictionary-layout-order-zero-area-currentbase.php` maps supplied pdftext dictionary layout/order handoff when zero-width or zero-height order boxes are returned by an adapter/model boundary. It preserves selected-page source order, excludes unusable order geometry and raw payload markers, keeps the cover page out of Gutenberg paragraphs, and avoids Python, pdftext, pypdfium/PDFium execution, Surya/Torch models, OCR, and external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

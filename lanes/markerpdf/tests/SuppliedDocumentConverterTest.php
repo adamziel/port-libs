@@ -4206,4 +4206,68 @@ return [
             unlink($path);
         }
     },
+    'rejects zero area order geometry before supplied document WordPress import' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-supplied-layout-order-zero-area-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% supplied zero-area order geometry boundary\n%%EOF");
+        try {
+            $coverPage = $pdftextPage(900, [
+                ['text' => 'Zero-area supplied order cover page artifact.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+            ]);
+            $selectedPage = $pdftextPage(901, [
+                ['text' => 'Second zero-area supplied column remains source ordered.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                ['text' => 'First zero-area supplied column has no trusted order.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+            ]);
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$coverPage, $selectedPage],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['page' => 901, 'image' => 'selected-layout-render'],
+                    ],
+                    'layout_results' => [[
+                        'page' => 901,
+                        'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                        'bboxes' => [
+                            ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                            ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                        ],
+                    ]],
+                    'order_images' => [
+                        ['page' => 901, 'image' => 'zero-area-order-render'],
+                    ],
+                    'order_results' => [[
+                        'page' => 901,
+                        'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                        'bboxes' => [
+                            ['position' => 1, 'bbox' => [60.0, 96.0, 60.0, 144.0], 'raw_payload' => 'zero width supplied order box'],
+                            ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 96.0], 'raw_payload' => 'zero height supplied order box'],
+                        ],
+                    ]],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $text = $result['text'];
+            $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+            $t->same([1], $result['metadata']['page_range']);
+            $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries']);
+            $t->same(1, $result['metadata']['layout_plan']['image_count']);
+            $t->same(1, $result['metadata']['layout_plan']['layout_result_count']);
+            $t->same(1, $result['metadata']['order_plan']['image_count']);
+            $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+            $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+            $t->contains('Second zero-area supplied column remains source ordered.', $text);
+            $t->contains('First zero-area supplied column has no trusted order.', $text);
+            $t->true(strpos($text, 'Second zero-area supplied column remains source ordered.') < strpos($text, 'First zero-area supplied column has no trusted order.'));
+            $t->true(!str_contains($text, 'Zero-area supplied order cover page artifact.'));
+            $t->true(!str_contains($encoded, 'zero width supplied order box'));
+            $t->true(!str_contains($encoded, 'zero height supplied order box'));
+        } finally {
+            unlink($path);
+        }
+    },
 ];

@@ -1593,4 +1593,51 @@ return [
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'rejects zero area order geometry before selected pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(900, [
+                    ['text' => 'Zero-area order cover page skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(901, [
+                    ['text' => 'Second zero-area order column remains source ordered', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First zero-area order column has no trusted order', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'page' => 901,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 60.0, 144.0], 'raw_payload' => 'zero width order box must be ignored'],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 96.0], 'raw_payload' => 'zero height order box must be ignored'],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['page' => 901, 'image' => 'zero-area-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $processor = new MarkdownPostProcessor();
+        $blocks = $processor->mergeBlocks($processor->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([1], $result['page_range']);
+        $t->same(901, $result['pages'][0]['pnum']);
+        $t->same(['Second zero-area order column remains source ordered', 'First zero-area order column has no trusted order'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('Second zero-area order column remains source ordered First zero-area order column has no trusted order', $blocks[0]['text']);
+        $t->same(901, $result['pages'][0]['order']['page']);
+        $t->same([], $result['pages'][0]['order']['bboxes']);
+        $t->true(!str_contains($encoded, 'zero width order box must be ignored'));
+        $t->true(!str_contains($encoded, 'zero height order box must be ignored'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
 ];
