@@ -57,6 +57,15 @@ $defaultMetricMissPdf = "%PDF-1.4\n"
     . "3 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($metricMissContent) . " >>\nstream\n{$metricMissContent}\nendstream\nendobj\n"
     . "5 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /IdentityDefaultMetricMissFallback /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 1000 >>\nendobj\n%%EOF";
+$partialMetricMissContent = 'BT /Fcid 12 Tf '
+    . '1 0 0 1 72 720 Tm <41424344> Tj '
+    . '1 0 0 1 102 720 Tm <45464748> Tj ET';
+$partialMetricMissPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /IdentityPartialMetricMissFallback /Encoding /Identity-H /DescendantFonts [5 0 R] /ToUnicode 3 0 R >>\nendobj\n"
+    . "3 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($partialMetricMissContent) . " >>\nstream\n{$partialMetricMissContent}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /IdentityPartialMetricMissFallback /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 1000 /W [65 68 250 69 72 250 16706 16706 1000] >>\nendobj\n%%EOF";
 $tjGapContent = 'BT /Fcid 12 Tf 1 0 0 1 72 720 Tm [<41424344> -1000 <45464748>] TJ ET';
 $tjGapPdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 4 0 R >>\nendobj\n"
@@ -145,6 +154,9 @@ $metricMissSpans = $metricMissPages[0]['blocks'][0]['lines'][0]['spans'] ?? [];
 $defaultMetricMissLines = $extractor->extractTextLines($defaultMetricMissPdf);
 $defaultMetricMissPages = $extractor->extractStyledTextPages($defaultMetricMissPdf);
 $defaultMetricMissSpans = $defaultMetricMissPages[0]['blocks'][0]['lines'][0]['spans'] ?? [];
+$partialMetricMissLines = $extractor->extractTextLines($partialMetricMissPdf);
+$partialMetricMissPages = $extractor->extractStyledTextPages($partialMetricMissPdf);
+$partialMetricMissSpans = $partialMetricMissPages[0]['blocks'][0]['lines'][0]['spans'] ?? [];
 $tjGapLines = $extractor->extractTextLines($tjGapPdf);
 $tjGapRuns = $extractor->extractTextRuns($tjGapPdf);
 $tjGapPages = $extractor->extractStyledTextPages($tjGapPdf);
@@ -164,7 +176,7 @@ $codespacePaddingSpans = $codespacePaddingPages[0]['blocks'][0]['lines'][0]['spa
 echo "<!-- markerpdf-cmap-source-width-fallback-smoke " . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'predefined Identity-H/UCS2-H source-width fallback with CIDFont default, metric-miss ToUnicode width fallback, DW-only metric-miss fallback, horizontal and vertical TJ adjustment gap recovery, odd hex right-padding, and one-byte ToUnicode codespace padding fallback before Gutenberg paragraph rendering',
+    'native_boundary' => 'predefined Identity-H/UCS2-H source-width fallback with CIDFont default, metric-miss ToUnicode width fallback, partial metric-miss chunk fallback, DW-only metric-miss fallback, horizontal and vertical TJ adjustment gap recovery, odd hex right-padding, and one-byte ToUnicode codespace padding fallback before Gutenberg paragraph rendering',
     'default_width_source_fallback_applied' => $lines === ['ABCD EFGH'],
     'predefined_identity_source_width_applied' => $lines === ['ABCD EFGH'],
     'padding_bytes_not_counted_as_glyphs' => ($spans[0]['bbox'][2] ?? null) === 48.0,
@@ -177,6 +189,10 @@ echo "<!-- markerpdf-cmap-source-width-fallback-smoke " . htmlspecialchars(json_
     'identity_default_metric_miss_tounicode_widths_applied' => $defaultMetricMissLines === ['ABCDEFGH'],
     'identity_default_metric_miss_false_gap_excluded' => !in_array('ABCD EFGH', $defaultMetricMissLines, true),
     'identity_default_metric_miss_span_widths' => array_column($defaultMetricMissSpans, 'bbox') === [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 96.0, 12.0]],
+    'identity_partial_metric_miss_tounicode_chunks_applied' => $partialMetricMissLines === ['ABCD EFGH'],
+    'identity_partial_metric_miss_direct_cid_width_preserved' => ($partialMetricMissSpans[0]['bbox'] ?? null) === [0.0, 0.0, 18.0, 12.0],
+    'identity_partial_metric_miss_false_join_excluded' => !in_array('ABCDEFGH', $partialMetricMissLines, true),
+    'identity_partial_metric_miss_span_widths' => array_column($partialMetricMissSpans, 'bbox') === [[0.0, 0.0, 18.0, 12.0], [18.0, 0.0, 30.0, 12.0]],
     'tj_adjustment_source_width_gap_applied' => $tjGapLines === ['ABCD EFGH'],
     'tj_adjustment_source_width_runs_gap_applied' => $tjGapRuns === ['ABCD EFGH'],
     'tj_adjustment_false_join_excluded' => !in_array('ABCDEFGH', $tjGapLines, true),
@@ -196,7 +212,7 @@ echo "<!-- markerpdf-cmap-source-width-fallback-smoke " . htmlspecialchars(json_
     'codespace_padding_span_widths' => array_column($codespacePaddingSpans, 'bbox') === [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 60.0, 12.0]],
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $predefinedUcs2Lines, $metricMissLines, $defaultMetricMissLines, $tjGapLines, $verticalTjGapLines, $oddHexLines, $codespacePaddingLines) as $line) {
+foreach (array_merge($lines, $predefinedUcs2Lines, $metricMissLines, $defaultMetricMissLines, $partialMetricMissLines, $tjGapLines, $verticalTjGapLines, $oddHexLines, $codespacePaddingLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

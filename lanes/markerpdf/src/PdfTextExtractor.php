@@ -21645,7 +21645,7 @@ final class PdfTextExtractor
             return [];
         }
 
-        if ($sourceKeys === [] || $this->sourceKeysHaveAnyDirectFontMetric($sourceKeys, $toUnicodeMap)) {
+        if ($sourceKeys === []) {
             return [];
         }
 
@@ -21657,7 +21657,55 @@ final class PdfTextExtractor
             return [];
         }
 
-        return $this->sourceKeysHaveAllFontWidthEvidence($fallbackKeys, $toUnicodeMap) ? $fallbackKeys : [];
+        if (!$this->sourceKeysHaveAnyDirectFontMetric($sourceKeys, $toUnicodeMap)) {
+            return $this->sourceKeysHaveAllFontWidthEvidence($fallbackKeys, $toUnicodeMap) ? $fallbackKeys : [];
+        }
+
+        return $this->toUnicodeSourceKeysForPartialCidMetricMiss($sourceKeys, $hex, $toUnicodeMap);
+    }
+
+    /**
+     * @param list<string> $sourceKeys
+     * @return list<string>
+     */
+    private function toUnicodeSourceKeysForPartialCidMetricMiss(array $sourceKeys, string $hex, array $toUnicodeMap): array
+    {
+        $normalized = $this->normalizeHexKey($hex);
+        if ($normalized === '') {
+            return [];
+        }
+
+        $keys = [];
+        $offset = 0;
+        $replaced = false;
+        foreach ($sourceKeys as $sourceKey) {
+            $sourceLength = strlen($sourceKey);
+            if ($sourceLength <= 0 || substr($normalized, $offset, $sourceLength) !== $sourceKey) {
+                return [];
+            }
+
+            if ($this->sourceKeyHasDirectFontMetric($sourceKey, $toUnicodeMap)) {
+                $keys[] = $sourceKey;
+                $offset += $sourceLength;
+                continue;
+            }
+
+            $fallbackKeys = $this->textOperandSourceKeys($sourceKey, $toUnicodeMap);
+            if (
+                $fallbackKeys === []
+                || $fallbackKeys === [$sourceKey]
+                || !$this->sourceKeysAreMapped($fallbackKeys, $toUnicodeMap)
+                || !$this->sourceKeysHaveAllFontWidthEvidence($fallbackKeys, $toUnicodeMap)
+            ) {
+                return [];
+            }
+
+            array_push($keys, ...$fallbackKeys);
+            $offset += $sourceLength;
+            $replaced = true;
+        }
+
+        return $replaced && $offset === strlen($normalized) && count($keys) > count($sourceKeys) ? $keys : [];
     }
 
     /**
