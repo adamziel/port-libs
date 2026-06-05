@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\Pandoc\ArchiveCompressionStream;
 use PortLibs\Pandoc\DeflateStream;
 use PortLibs\Pandoc\GzipStream;
 use PortLibs\Pandoc\Lz4Frame;
@@ -255,6 +256,59 @@ return [
         $t->same("# Imported archive\n\nReady for block review.\n", $roundTrip->read('/packet/content.md'));
     },
 
+    'opens tar package fixtures through explicit compression stream formats' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"compressed-stream","target":"wordpress"}',
+                'modifiedAt' => 1780479031,
+            ],
+            [
+                'name' => 'packet/word/document.xml',
+                'data' => '<w:document><w:body><w:p>Explicit archive stream dispatch</w:p></w:body></w:document>',
+                'modifiedAt' => 1780479032,
+            ],
+        ]);
+
+        $streams = [
+            ArchiveCompressionStream::FORMAT_TAR => $archive->bytes(),
+            ArchiveCompressionStream::FORMAT_GZIP_TAR => GzipStream::build($archive->bytes(), [
+                'filename' => 'wordpress-import-packet.tar',
+                'comment' => 'gzip stream dispatch',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_TAR => DeflateStream::build($archive->bytes(), [
+                'format' => DeflateStream::FORMAT_ZLIB,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_TAR => DeflateStream::build($archive->bytes(), [
+                'format' => DeflateStream::FORMAT_RAW,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_TAR => Lz4Frame::skippableFrame('review metadata', 4)
+                . Lz4Frame::build($archive->bytes(), [
+                    'blockChecksum' => true,
+                    'contentChecksum' => true,
+                    'contentSize' => true,
+                ]),
+        ];
+
+        $t->same([
+            ArchiveCompressionStream::FORMAT_TAR,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            ArchiveCompressionStream::FORMAT_ZLIB_TAR,
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_TAR,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+        ], ArchiveCompressionStream::supportedTarFormats());
+
+        foreach ($streams as $format => $bytes) {
+            $roundTrip = ArchiveCompressionStream::openTar($bytes, $format, strlen($archive->bytes()), strlen($archive->read('packet/word/document.xml')) + 64);
+
+            $t->same(['packet/manifest.json', 'packet/word/document.xml'], $roundTrip->names());
+            $t->same('{"source":"compressed-stream","target":"wordpress"}', $roundTrip->read('/packet/manifest.json'));
+            $t->same('<w:document><w:body><w:p>Explicit archive stream dispatch</w:p></w:body></w:document>', $roundTrip->read('/packet/word/document.xml'));
+            $t->same($archive->bytes(), ArchiveCompressionStream::decodeTarBytes($bytes, $format, strlen($archive->bytes())));
+        }
+    },
+
     'builds and reads bounded raw and zlib deflate package fixture streams' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [
@@ -316,6 +370,26 @@ return [
         $t->throws(\RuntimeException::class, static fn (): string => DeflateStream::decode($raw, DeflateStream::FORMAT_ZLIB));
         $t->throws(\RuntimeException::class, static fn (): string => DeflateStream::build('x', ['format' => 'zip']));
         $t->throws(\RuntimeException::class, static fn (): string => DeflateStream::build('x', ['compressionLevel' => 10]));
+    },
+
+    'rejects unsupported archive stream formats and bounded tar dispatch overflows' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"bounded-stream"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# Bounded archive\n\nReady for import.\n",
+            ],
+        ]);
+        $gzip = GzipStream::build($archive->bytes());
+
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => ArchiveCompressionStream::openTar($gzip, 'zip'));
+        $t->throws(\RuntimeException::class, static fn (): string => ArchiveCompressionStream::decodeTarBytes($archive->bytes(), ArchiveCompressionStream::FORMAT_TAR, strlen($archive->bytes()) - 1));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => ArchiveCompressionStream::openTar($gzip, ArchiveCompressionStream::FORMAT_GZIP_TAR, strlen($archive->bytes()) - 1));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => ArchiveCompressionStream::openTar($gzip, ArchiveCompressionStream::FORMAT_GZIP_TAR, null, strlen($archive->read('packet/content.md')) - 1));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => ArchiveCompressionStream::openTar($archive->bytes(), ArchiveCompressionStream::FORMAT_TAR, -1));
     },
 
     'builds and reads bounded lz4 frames around package fixture bytes' => static function (TestRunner $t): void {

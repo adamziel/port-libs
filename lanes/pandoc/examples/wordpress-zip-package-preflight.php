@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
+use PortLibs\Pandoc\ArchiveCompressionStream;
 use PortLibs\Pandoc\DeflateStream;
 use PortLibs\Pandoc\GzipStream;
 use PortLibs\Pandoc\Lz4Frame;
@@ -474,6 +475,12 @@ $compressedTarPacket = GzipStream::build($tarPacket->bytes(), [
     'headerCrc' => true,
 ]);
 $tarPacketRoundTrip = TarArchive::fromString(GzipStream::decode($compressedTarPacket));
+$streamDispatchedTarPacket = ArchiveCompressionStream::openTar(
+    $compressedTarPacket,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($tarPacket->bytes()),
+    strlen($tarPacket->read('/packet/manifest.json')) + strlen($tarPacket->read('/packet/word/document.xml'))
+);
 $gnuLongDocumentName = 'packet/' . str_repeat('migration-review-', 7) . 'word/document.xml';
 $gnuLongNameTar = $buildRawTarRecord('././@LongLink', 'L', $gnuLongDocumentName . "\0", $documentModifiedAt)
     . $buildRawTarRecord(
@@ -643,6 +650,10 @@ if (in_array('--self-test', $argv, true)) {
 
     if ($tarPacketRoundTrip->read('/packet/word/document.xml') !== '<w:document><w:body><w:p>Tar packet WordPress source</w:p></w:body></w:document>') {
         throw new RuntimeException('Expected gzip-wrapped tar document bytes to round-trip');
+    }
+
+    if ($streamDispatchedTarPacket->read('/packet/word/document.xml') !== '<w:document><w:body><w:p>Tar packet WordPress source</w:p></w:body></w:document>') {
+        throw new RuntimeException('Expected archive stream dispatcher to open gzip-wrapped tar packets');
     }
 
     if ($gnuLongNamePacket->read('/' . $gnuLongDocumentName) !== '<w:document><w:body><w:p>GNU long-name tar source</w:p></w:body></w:document>') {
