@@ -6082,6 +6082,15 @@ final class PdfMetadataExtractor
             return $candidates;
         }
 
+        $sniffedUtf16Encoding = $this->sniffBomlessUtf16XmlEncoding($xml);
+        if ($sniffedUtf16Encoding !== null) {
+            $candidate = $this->convertedXmpXmlCandidate($xml, $sniffedUtf16Encoding, false);
+            if ($candidate !== null) {
+                $this->addXmpXmlCandidate($candidates, $candidate['xml'], $candidate['packet_encoding'], false, true);
+                return $candidates;
+            }
+        }
+
         $declaredEncoding = $this->declaredXmlEncoding($xml);
         $this->addXmpXmlCandidate($candidates, $xml, $declaredEncoding ?? 'UTF-8', false, false);
 
@@ -6351,6 +6360,44 @@ final class PdfMetadataExtractor
     private function isValidUtf8(string $value): bool
     {
         return preg_match('//u', $value) === 1;
+    }
+
+    private function sniffBomlessUtf16XmlEncoding(string $xml): ?string
+    {
+        $length = min(strlen($xml), 256);
+        if ($length < 8) {
+            return null;
+        }
+
+        $beScore = 0;
+        $leScore = 0;
+        $hasBeXmlStart = false;
+        $hasLeXmlStart = false;
+        for ($index = 0; $index + 1 < $length; $index += 2) {
+            $first = $xml[$index];
+            $second = $xml[$index + 1];
+            if ($first === "\0" && $second !== "\0") {
+                $beScore++;
+            }
+            if ($first !== "\0" && $second === "\0") {
+                $leScore++;
+            }
+            if ($first === "\0" && $second === '<') {
+                $hasBeXmlStart = true;
+            }
+            if ($first === '<' && $second === "\0") {
+                $hasLeXmlStart = true;
+            }
+        }
+
+        if ($hasBeXmlStart && $beScore >= 4 && $beScore > ($leScore * 2)) {
+            return 'UTF-16BE';
+        }
+        if ($hasLeXmlStart && $leScore >= 4 && $leScore > ($beScore * 2)) {
+            return 'UTF-16LE';
+        }
+
+        return null;
     }
 
     private function forceUtf8XmlDeclaration(string $xml): string
