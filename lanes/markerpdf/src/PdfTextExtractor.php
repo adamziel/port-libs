@@ -15232,7 +15232,7 @@ final class PdfTextExtractor
         $hasVerticalWidthArray = false;
 
         foreach ($this->type3CharProcWidths($fontBody, $objects) as $code => $width) {
-            $metric = $this->finiteFontAdvanceMetric($width);
+            $metric = $this->finiteHorizontalFontAdvanceMetric($width);
             if ($metric !== null) {
                 $widths[$code] = $metric;
             }
@@ -15246,7 +15246,7 @@ final class PdfTextExtractor
             $bodyIsType3Font = $this->isType3FontBody($body);
             $simpleWidths = $this->simpleFontWidthMetrics($body, $objects);
             foreach ($simpleWidths as $code => $width) {
-                $metric = $this->finiteFontAdvanceMetric($width);
+                $metric = $this->finiteHorizontalFontAdvanceMetric($width);
                 if ($metric === null) {
                     continue;
                 }
@@ -15259,13 +15259,14 @@ final class PdfTextExtractor
 
             if ($this->isSimpleFontBody($body)) {
                 $missingWidth = $this->fontDescriptorMissingWidth($body, $objects);
+                $missingWidth = $this->finiteHorizontalFontAdvanceMetric($missingWidth);
                 if ($bodyIsType3Font && $missingWidth !== null) {
                     $missingWidth = $this->type3FontMatrixScalarWidthExtentAdvance(
                         $missingWidth,
                         $this->type3FontMatrix($body, $objects)
                     );
                 }
-                $missingWidth = $this->finiteFontAdvanceMetric($missingWidth);
+                $missingWidth = $this->finiteHorizontalFontAdvanceMetric($missingWidth);
                 if ($missingWidth !== null) {
                     $defaultWidth = $missingWidth;
                 } elseif ($simpleWidths !== [] && !$bodyIsType3Font) {
@@ -15281,7 +15282,7 @@ final class PdfTextExtractor
                 }
             }
 
-            $bodyDefaultWidth = $this->finiteFontAdvanceMetric($this->pdfNumberValueAfterNameResolvingObjects($body, 'DW', $objects));
+            $bodyDefaultWidth = $this->finiteHorizontalFontAdvanceMetric($this->pdfNumberValueAfterNameResolvingObjects($body, 'DW', $objects));
             if ($bodyDefaultWidth !== null) {
                 $defaultWidth = $bodyDefaultWidth;
             }
@@ -16196,7 +16197,7 @@ final class PdfTextExtractor
 
         $widths = [];
         foreach ($this->nullableNumbersFromPdfArrayResolvingObjects($widthArray, $objects) as $offset => $width) {
-            $metric = $this->finiteFontAdvanceMetric($width);
+            $metric = $this->finiteHorizontalFontAdvanceMetric($width);
             if ($metric === null) {
                 continue;
             }
@@ -16213,7 +16214,7 @@ final class PdfTextExtractor
             $fontMatrix = $this->type3FontMatrix($fontBody, $objects);
             $transformedWidths = [];
             foreach ($widths as $code => $width) {
-                $metric = $this->finiteFontAdvanceMetric($this->type3FontMatrixScalarWidthExtentAdvance($width, $fontMatrix));
+                $metric = $this->finiteHorizontalFontAdvanceMetric($this->type3FontMatrixScalarWidthExtentAdvance($width, $fontMatrix));
                 if ($metric !== null) {
                     $transformedWidths[$code] = $metric;
                 }
@@ -16227,6 +16228,11 @@ final class PdfTextExtractor
     private function finiteFontAdvanceMetric(?float $value): ?float
     {
         return $value !== null && is_finite($value) ? $value : null;
+    }
+
+    private function finiteHorizontalFontAdvanceMetric(?float $value): ?float
+    {
+        return $value !== null && is_finite($value) && $value >= 0.0 ? $value : null;
     }
 
     private function simpleFontWidthRangeCode(?float $value): ?int
@@ -16363,7 +16369,7 @@ final class PdfTextExtractor
                 }
 
                 foreach ($this->nullableNumbersFromPdfArrayResolvingObjects($widthList, $objects) as $offset => $width) {
-                    $metric = $this->finiteFontAdvanceMetric($width);
+                    $metric = $this->finiteHorizontalFontAdvanceMetric($width);
                     if ($metric === null) {
                         continue;
                     }
@@ -16377,7 +16383,7 @@ final class PdfTextExtractor
             }
 
             $lastCid = $this->cidWidthArrayInteger($next, $objects);
-            $width = $this->finiteFontAdvanceMetric($this->pdfNumberValueAt($tokens[$index + 1] ?? '', 0, $objects));
+            $width = $this->finiteHorizontalFontAdvanceMetric($this->pdfNumberValueAt($tokens[$index + 1] ?? '', 0, $objects));
             if ($lastCid === null || $width === null) {
                 $index++;
                 continue;
@@ -27441,7 +27447,10 @@ final class PdfTextExtractor
         }
 
         $defaultWidth = $toUnicodeMap['cidDefaultWidth'] ?? null;
-        if ((is_int($defaultWidth) || is_float($defaultWidth)) && is_finite((float) $defaultWidth)) {
+        if (
+            (is_int($defaultWidth) || is_float($defaultWidth))
+            && $this->finiteHorizontalFontAdvanceMetric((float) $defaultWidth) !== null
+        ) {
             return true;
         }
 
@@ -31844,7 +31853,7 @@ final class PdfTextExtractor
         foreach ($sourceKeys as $key) {
             $cid = $this->cidForWidthSourceKey($key, $toUnicodeMap);
             if (is_array($cidWidths) && array_key_exists($cid, $cidWidths)) {
-                $metric = $this->finiteFontAdvanceMetric((float) $cidWidths[$cid]);
+                $metric = $this->finiteHorizontalFontAdvanceMetric((float) $cidWidths[$cid]);
                 if ($metric !== null) {
                     $widths[] = $metric;
                     continue;
@@ -31854,7 +31863,7 @@ final class PdfTextExtractor
                 $widths[] = 500.0;
                 continue;
             }
-            $widths[] = $this->finiteFontAdvanceMetric(is_int($defaultWidth) || is_float($defaultWidth) ? (float) $defaultWidth : null) ?? 500.0;
+            $widths[] = $this->finiteHorizontalFontAdvanceMetric(is_int($defaultWidth) || is_float($defaultWidth) ? (float) $defaultWidth : null) ?? 500.0;
         }
 
         return $widths;
@@ -32481,7 +32490,7 @@ final class PdfTextExtractor
         if (
             is_array($cidWidths)
             && array_key_exists($cid, $cidWidths)
-            && $this->finiteFontAdvanceMetric((float) $cidWidths[$cid]) !== null
+            && $this->finiteHorizontalFontAdvanceMetric((float) $cidWidths[$cid]) !== null
         ) {
             return true;
         }
@@ -32489,7 +32498,7 @@ final class PdfTextExtractor
         $defaultWidth = $toUnicodeMap['cidDefaultWidth'] ?? null;
         if (
             (is_int($defaultWidth) || is_float($defaultWidth))
-            && $this->finiteFontAdvanceMetric((float) $defaultWidth) !== null
+            && $this->finiteHorizontalFontAdvanceMetric((float) $defaultWidth) !== null
             && $cid >= 0
             && $cid <= 0xffff
         ) {
@@ -32580,7 +32589,7 @@ final class PdfTextExtractor
         $defaultWidth = $toUnicodeMap['cidDefaultWidth'] ?? null;
         $cid = $this->cidForWidthSourceKey($sourceKey, $toUnicodeMap);
         return (is_int($defaultWidth) || is_float($defaultWidth))
-            && $this->finiteFontAdvanceMetric((float) $defaultWidth) !== null
+            && $this->finiteHorizontalFontAdvanceMetric((float) $defaultWidth) !== null
             && $cid >= 0
             && $cid <= 0xffff;
     }
@@ -32592,7 +32601,7 @@ final class PdfTextExtractor
         if (
             is_array($cidWidths)
             && array_key_exists($cid, $cidWidths)
-            && $this->finiteFontAdvanceMetric((float) $cidWidths[$cid]) !== null
+            && $this->finiteHorizontalFontAdvanceMetric((float) $cidWidths[$cid]) !== null
         ) {
             return true;
         }
