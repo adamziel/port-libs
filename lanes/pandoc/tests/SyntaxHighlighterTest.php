@@ -37,6 +37,11 @@ return [
         $t->same('dot', SyntaxHighlighter::normalizeLanguage('dot'));
         $t->same('dot', SyntaxHighlighter::normalizeLanguage('graphviz'));
         $t->same('dot', SyntaxHighlighter::normalizeLanguage('gv'));
+        $t->same('apache', SyntaxHighlighter::normalizeLanguage('apache'));
+        $t->same('apache', SyntaxHighlighter::normalizeLanguage('apacheconf'));
+        $t->same('apache', SyntaxHighlighter::normalizeLanguage('apache-config'));
+        $t->same('apache', SyntaxHighlighter::normalizeLanguage('htaccess'));
+        $t->same('apache', SyntaxHighlighter::normalizeLanguage('httpd-conf'));
         $t->same('html', SyntaxHighlighter::normalizeLanguage('HTML5'));
         $t->same('javascript', SyntaxHighlighter::normalizeLanguage('language-js'));
         $t->same('javascript', SyntaxHighlighter::normalizeLanguage('mjs'));
@@ -759,6 +764,49 @@ return [
         $t->contains('<span class="kw">DO</span> <span class="st">$$ BEGIN RAISE NOTICE &#039;Imported %&#039;, 42; END $$</span><span class="op">;</span>', $directPgsql['html']);
         $t->same('sql', $taggedDollar['language']);
         $t->contains('<span class="kw">SELECT</span> <span class="st">$wp_import$&lt;!-- wp:paragraph --&gt;&lt;p&gt;Imported&lt;/p&gt;&lt;!-- /wp:paragraph --&gt;$wp_import$</span><span class="op">::</span><span class="dt">text</span><span class="op">;</span>', $taggedDollar['html']);
+    },
+    'highlights apache htaccess rewrite snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[32] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include an htaccess rewrite code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'kate');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'kate');
+        $directApache = $highlighter->highlight(
+            'Header always set X-Frame-Options "SAMEORIGIN"',
+            'apacheconf'
+        );
+
+        $t->same('htaccess', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('apache', SyntaxHighlighter::normalizeLanguage('htaccess'));
+        $t->same('apache', SyntaxHighlighter::normalizeLanguage('apacheconf'));
+        $t->same('apache', $highlighted['language']);
+        $t->same('htaccess', $highlighted['requestedLanguage']);
+        $t->same('kate', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(270, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource htaccess numberLines"><code class="sourceCode apache" style="counter-reset: source-line 269;">', $highlighted['html']);
+        $t->contains('<span id="htaccess-review-270"><a href="#htaccess-review-270"></a><span class="co"># WordPress permalink review</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;IfModule</span> <span class="dt">mod_rewrite.c</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">RewriteEngine</span> <span class="cn">On</span>', $highlighted['html']);
+        $t->contains('<span class="kw">RewriteBase</span> <span class="st">/</span>', $highlighted['html']);
+        $t->contains('<span class="kw">RewriteCond</span> <span class="va">%{REQUEST_FILENAME}</span> <span class="op">!-f</span>', $highlighted['html']);
+        $t->contains('<span class="kw">RewriteRule</span> <span class="op">.</span> <span class="st">/index.php</span> <span class="ot">[L]</span>', $highlighted['html']);
+        $t->contains('<span class="kw">Header</span> <span class="kw">set</span> <span class="va">X-Import-Source</span> <span class="st">&quot;legacy&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;/IfModule</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="kate">', $wordpressBlock);
+        $t->contains('<span class="kw">RewriteRule</span> <span class="op">.</span> <span class="st">/index.php</span>', $wordpressBlock);
+        $t->same('apache', $directApache['language']);
+        $t->same('apacheconf', $directApache['requestedLanguage']);
+        $t->contains('<span class="kw">Header</span> <span class="kw">always</span> <span class="kw">set</span> <span class="va">X-Frame-Options</span> <span class="st">&quot;SAMEORIGIN&quot;</span>', $directApache['html']);
     },
     'highlights haskell and literate haskell review snippets' => static function (TestRunner $t): void {
         $codeBlock = new AstNode('code_block', [

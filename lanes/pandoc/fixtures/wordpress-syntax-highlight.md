@@ -485,3 +485,15 @@ CREATE TRIGGER wp_review_before_insert
 BEFORE INSERT ON wp_posts
 FOR EACH ROW EXECUTE FUNCTION wp_review_notice();
 ```
+
+``` {.htaccess #htaccess-review .numberLines startFrom=270}
+# WordPress permalink review
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.php [L]
+Header set X-Import-Source "legacy"
+</IfModule>
+```

@@ -232,6 +232,12 @@ if (!$postgresqlCodeBlock instanceof PortLibs\Pandoc\AstNode || $postgresqlCodeB
 }
 $postgresql = $highlighter->highlightCodeBlock($postgresqlCodeBlock, 'breezedark');
 $postgresqlWordpressBlock = $highlighter->wordpressHtmlBlock($postgresqlCodeBlock, 'breezedark');
+$apacheCodeBlock = $document->children[32] ?? null;
+if (!$apacheCodeBlock instanceof PortLibs\Pandoc\AstNode || $apacheCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include an htaccess rewrite code block');
+}
+$apache = $highlighter->highlightCodeBlock($apacheCodeBlock, 'kate');
+$apacheWordpressBlock = $highlighter->wordpressHtmlBlock($apacheCodeBlock, 'kate');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -953,6 +959,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($postgresqlWordpressBlock, '<span class="st">$review$</span><span class="op">;</span>')) {
         throw new RuntimeException('Expected PostgreSQL dollar-quoted closer handoff');
     }
+    if (($apache['language'] ?? '') !== 'apache') {
+        throw new RuntimeException('Expected htaccess alias to normalize to Apache highlighting');
+    }
+    if (($apache['lineNumbering']['start'] ?? null) !== 270) {
+        throw new RuntimeException('Expected htaccess source startFrom line-number handoff');
+    }
+    if (!str_contains($apache['html'], '<span class="kw">&lt;IfModule</span> <span class="dt">mod_rewrite.c</span><span class="op">&gt;</span>')) {
+        throw new RuntimeException('Expected Apache IfModule token handoff');
+    }
+    if (!str_contains($apache['html'], '<span class="kw">RewriteCond</span> <span class="va">%{REQUEST_FILENAME}</span> <span class="op">!-f</span>')) {
+        throw new RuntimeException('Expected Apache rewrite condition token handoff');
+    }
+    if (!str_contains($apache['html'], '<span class="kw">RewriteRule</span> <span class="op">.</span> <span class="st">/index.php</span> <span class="ot">[L]</span>')) {
+        throw new RuntimeException('Expected Apache rewrite rule target and flag token handoff');
+    }
+    if (!str_contains($apache['html'], '<span class="kw">Header</span> <span class="kw">set</span> <span class="va">X-Import-Source</span> <span class="st">&quot;legacy&quot;</span>')) {
+        throw new RuntimeException('Expected Apache Header directive token handoff');
+    }
+    if (!str_contains($apacheWordpressBlock, '<style data-pandoc-highlight-style="kate">')) {
+        throw new RuntimeException('Expected Apache WordPress style metadata');
+    }
+    if (!str_contains($apacheWordpressBlock, '<span class="kw">&lt;/IfModule</span><span class="op">&gt;</span>')) {
+        throw new RuntimeException('Expected Apache closing section token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1009,6 +1039,7 @@ echo "javascriptHighlightedHtml:\n" . $javascript['html'] . "\n";
 echo "csharpHighlightedHtml:\n" . $csharp['html'] . "\n";
 echo "sqlHighlightedHtml:\n" . $sql['html'] . "\n";
 echo "postgresqlHighlightedHtml:\n" . $postgresql['html'] . "\n";
+echo "apacheHighlightedHtml:\n" . $apache['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1036,4 +1067,5 @@ echo "javascriptWordpressBlock:\n" . $javascriptWordpressBlock . "\n";
 echo "csharpWordpressBlock:\n" . $csharpWordpressBlock . "\n";
 echo "sqlWordpressBlock:\n" . $sqlWordpressBlock . "\n";
 echo "postgresqlWordpressBlock:\n" . $postgresqlWordpressBlock . "\n";
+echo "apacheWordpressBlock:\n" . $apacheWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

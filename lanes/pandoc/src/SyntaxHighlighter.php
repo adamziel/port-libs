@@ -41,6 +41,11 @@ final class SyntaxHighlighter
     ];
 
     private const LANGUAGE_ALIASES = [
+        'apache' => 'apache',
+        'apache-conf' => 'apache',
+        'apache-config' => 'apache',
+        'apache2' => 'apache',
+        'apacheconf' => 'apache',
         'bash' => 'bash',
         'c' => 'c',
         'cargo-lock' => 'toml',
@@ -68,8 +73,11 @@ final class SyntaxHighlighter
         'hxx' => 'cpp',
         'html' => 'html',
         'html5' => 'html',
+        'htaccess' => 'apache',
         'haskell' => 'haskell',
         'hs' => 'haskell',
+        'httpd' => 'apache',
+        'httpd-conf' => 'apache',
         'atom' => 'xml',
         'cjs' => 'javascript',
         'cfg' => 'ini',
@@ -575,6 +583,7 @@ final class SyntaxHighlighter
     private function tokenize(string $code, string $language): array
     {
         return match ($language) {
+            'apache' => $this->tokenizeApacheConfig($code),
             'bash' => $this->tokenizeBash($code),
             'c', 'cpp' => $this->tokenizeC($code),
             'csharp' => $this->tokenizeCSharp($code),
@@ -611,6 +620,28 @@ final class SyntaxHighlighter
             'yaml' => $this->tokenizeYaml($code),
             default => [['type' => 'text', 'text' => $code, 'class' => '']],
         };
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeApacheConfig(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^#[^\\n]*/'],
+            ['keyword', '/^<\\/?(?:Directory|Files|If|IfDefine|IfModule|Location|VirtualHost)\\b/i'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['variable', '/^%\\{[A-Za-z_][A-Za-z0-9_:-]*\\}/'],
+            ['attribute', '/^\\[[A-Za-z0-9_,=! -]+\\]/'],
+            ['datatype', '/^\\bmod_[A-Za-z0-9_]+\\.c\\b/i'],
+            ['keyword', '/^\\b(?:AddType|AllowOverride|AuthName|AuthType|BrowserMatch|CustomLog|Deny|DirectoryIndex|ErrorDocument|Header|IfModule|Include|Listen|LogFormat|Options|Order|Redirect|RedirectMatch|Require|RewriteBase|RewriteCond|RewriteEngine|RewriteRule|ServerAlias|ServerName|SetEnv|SetEnvIf|SetEnvIfNoCase|SetHandler|SetOutputFilter|SetInputFilter|Set|Unset|append|always|early|edit|edit\\*|env|expr|merge|onsuccess|set|unset)\\b/i'],
+            ['constant', '/^\\b(?:All|Any|Denied|FollowSymLinks|Indexes|None|Off|On|SAMEORIGIN|Require|all|denied|forbidden|granted|last|redirect|skip)\\b/i'],
+            ['string', '/^(?:\\/|\\.\\.?\\/)[^\\s\\[\\]#]*/'],
+            ['number', '/^\\b\\d{3}\\b|^-?\\b\\d+(?:\\.\\d+)?\\b/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_.:-]*\\b/'],
+            ['operator', '/^(?:!-?[A-Za-z]|-[A-Za-z]|!=|==|<=|>=|\\/?>|[{}()[\\];,.+*\\/%=!<>?:|&^-])/'],
+        ]);
     }
 
     /**
