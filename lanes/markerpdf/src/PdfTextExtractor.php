@@ -4468,6 +4468,12 @@ final class PdfTextExtractor
                 $decodedContents
             );
         }
+        if ($decodedContents !== []) {
+            $decodedContents = array_map(
+                fn (string $content): string => $this->filterArtifactMarkedContentBlocks($content),
+                $decodedContents
+            );
+        }
 
         $graphicsStateResourceReviews = $this->extGStateResourceReviews($resourceOwnerBody, $objects);
         $invocations = [];
@@ -7075,6 +7081,93 @@ final class PdfTextExtractor
         }
 
         return implode(' ', $filtered);
+    }
+
+    private function filterArtifactMarkedContentBlocks(string $content): string
+    {
+        if (!str_contains($content, 'BMC') && !str_contains($content, 'BDC')) {
+            return $content;
+        }
+
+        $filtered = [];
+        $operands = [];
+        $hiddenDepth = 0;
+
+        foreach ($this->contentTokens($content) as $token) {
+            if ($token === 'BMC' || $token === 'BDC') {
+                $hidden = $hiddenDepth > 0 || $this->markedContentTagIsArtifact($operands);
+                if ($hidden) {
+                    $hiddenDepth++;
+                    $operands = [];
+                    continue;
+                }
+
+                foreach ($operands as $operand) {
+                    $filtered[] = $operand;
+                }
+                $filtered[] = $token;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'EMC') {
+                if ($hiddenDepth > 0) {
+                    $hiddenDepth--;
+                    $operands = [];
+                    continue;
+                }
+
+                foreach ($operands as $operand) {
+                    $filtered[] = $operand;
+                }
+                $filtered[] = $token;
+                $operands = [];
+                continue;
+            }
+
+            if ($hiddenDepth > 0) {
+                if ($this->isOperator($token)) {
+                    $operands = [];
+                    continue;
+                }
+
+                $operands[] = $token;
+                continue;
+            }
+
+            if ($this->isOperator($token)) {
+                foreach ($operands as $operand) {
+                    $filtered[] = $operand;
+                }
+                $filtered[] = $token;
+                $operands = [];
+                continue;
+            }
+
+            $operands[] = $token;
+        }
+
+        if ($hiddenDepth === 0) {
+            foreach ($operands as $operand) {
+                $filtered[] = $operand;
+            }
+        }
+
+        return implode(' ', $filtered);
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function markedContentTagIsArtifact(array $operands): bool
+    {
+        foreach ($operands as $operand) {
+            if (is_string($operand) && str_starts_with($operand, '/')) {
+                return $this->decodePdfName(substr($operand, 1)) === 'Artifact';
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -1705,6 +1705,81 @@ return [
         $t->true(!str_contains($encoded, $rotatedPayload));
         $t->true(!str_contains($encoded, $clippedPayload));
     },
+    'keeps artifact-marked image XObject invocations as unpainted review metadata' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before artifact images) Tj ET\n"
+            . "/Artifact BMC q 16 0 0 8 72 690 cm /Decorative#20Image Do Q EMC\n"
+            . "/Artifact << /Subtype /Background /MCID 5 >> BDC q 12 0 0 6 96 690 cm /Background#20Image Do Q EMC\n"
+            . "q 10 0 0 5 120 690 cm /Content#20Image Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After artifact images) Tj ET';
+        $decorativePayload = 'BT /F1 12 Tf 72 720 Td (Decorative Artifact Image Noise) Tj ET';
+        $backgroundPayload = 'BT /F1 12 Tf 72 720 Td (Background Artifact Image Noise) Tj ET';
+        $contentPayload = 'BT /F1 12 Tf 72 720 Td (Content Image Noise) Tj ET';
+        $decorativeCompressed = gzcompress($decorativePayload);
+        $backgroundCompressed = gzcompress($backgroundPayload);
+        $contentCompressed = gzcompress($contentPayload);
+        if (!is_string($decorativeCompressed) || !is_string($backgroundCompressed) || !is_string($contentCompressed)) {
+            throw new RuntimeException('Unable to compress artifact image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Decorative#20Image 5 0 R /Background#20Image 6 0 R /Content#20Image 7 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($decorativeCompressed) . " >>\nstream\n{$decorativeCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 3 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($backgroundCompressed) . " >>\nstream\n{$backgroundCompressed}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /XObject /Subtype /Image /Width 4 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($contentCompressed) . " >>\nstream\n{$contentCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(3, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(2, $review['uninvoked_image_xobject_count']);
+
+        $decorative = $entriesByName['Decorative Image'];
+        $t->same(false, $decorative['invoked']);
+        $t->same(0, $decorative['invocation_count']);
+        $t->same([], $decorative['invocation_matrices']);
+        $t->same(true, $decorative['decoded_with_current_filters']);
+        $t->same(hash('sha256', $decorativePayload), $decorative['decoded_sha256']);
+        $t->same(false, $decorative['payload_in_visible_text']);
+
+        $background = $entriesByName['Background Image'];
+        $t->same(false, $background['invoked']);
+        $t->same(0, $background['invocation_count']);
+        $t->same([], $background['invocation_matrices']);
+        $t->same(true, $background['decoded_with_current_filters']);
+        $t->same(hash('sha256', $backgroundPayload), $background['decoded_sha256']);
+        $t->same(false, $background['payload_in_visible_text']);
+
+        $content = $entriesByName['Content Image'];
+        $t->same(true, $content['invoked']);
+        $t->same(1, $content['invocation_count']);
+        $t->same([[10.0, 0.0, 0.0, 5.0, 120.0, 690.0]], $content['invocation_matrices']);
+        $t->same([120.0, 690.0, 130.0, 695.0], $content['image_unit_bbox']);
+        $t->same(true, $content['decoded_with_current_filters']);
+        $t->same(hash('sha256', $contentPayload), $content['decoded_sha256']);
+        $t->same(false, $content['payload_in_visible_text']);
+
+        $t->same(['Before artifact images', 'After artifact images'], $extractor->extractTextLines($pdf));
+        $t->same("Before artifact images\nAfter artifact images", $plainText);
+        $t->true(!str_contains($plainText, 'Decorative Artifact Image Noise'));
+        $t->true(!str_contains($plainText, 'Background Artifact Image Noise'));
+        $t->true(!str_contains($plainText, 'Content Image Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $decorativePayload));
+        $t->true(!str_contains($encoded, $backgroundPayload));
+        $t->true(!str_contains($encoded, $contentPayload));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
