@@ -334,6 +334,35 @@ return [
             $t->true(UnicodeText::displayWidth($line) <= 10, 'Soft-break wrapped line exceeds requested width');
         }
     },
+    'wraps unicode separator classes without treating no break spaces as breakpoints' => static function (TestRunner $t): void {
+        $ideographicSpace = "\u{3000}";
+        $emSpace = "\u{2003}";
+        $lineSeparator = "\u{2028}";
+        $paragraphSeparator = "\u{2029}";
+        $noBreak = "keep\u{00A0}together";
+        $narrowNoBreak = "page\u{202F}12";
+        $wrapped = UnicodeText::wrapByDisplayWidth(
+            "CJK{$ideographicSpace}review{$emSpace}queue{$lineSeparator}Hard reset{$paragraphSeparator}\u{9B5A}{$ideographicSpace}\u{9B5A} tail",
+            10,
+            '  '
+        );
+
+        $t->same([
+            'CJK',
+            '  review',
+            '  queue',
+            'Hard reset',
+            "\u{9B5A}\u{3000}\u{9B5A}",
+            '  tail',
+        ], $wrapped);
+        $t->same(["A{$ideographicSpace}B"], UnicodeText::wrapByDisplayWidth("A{$ideographicSpace}B", 10));
+        $t->same(['keep', "  {$noBreak}"], UnicodeText::wrapByDisplayWidth("keep {$noBreak}", 15, '  '));
+        $t->same([$narrowNoBreak, '  tail'], UnicodeText::wrapByDisplayWidth("{$narrowNoBreak} tail", 8, '  '));
+        $t->same('', implode('', array_intersect(UnicodeText::characters(implode('', $wrapped)), [$lineSeparator, $paragraphSeparator])));
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 10, 'Unicode separator wrapped line exceeds requested width');
+        }
+    },
     'keeps default ignorable controls zero width for display accounting' => static function (TestRunner $t): void {
         $softHyphen = "soft\u{00AD}hyphen";
         $leadingBom = "\u{FEFF}Title";

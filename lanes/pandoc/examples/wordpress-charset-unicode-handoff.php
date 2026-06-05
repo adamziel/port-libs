@@ -20,6 +20,11 @@ $wrappedAuditLines = UnicodeText::wrapByDisplayWidth(
     '  '
 );
 $softBreakAuditLines = UnicodeText::wrapByDisplayWidth("Zero\u{200B}width\u{200B}breaks soft\u{00AD}hyphen \u{9B5A}\u{200B}\u{9B5A} tail", 10, '  ');
+$unicodeSeparatorAuditLines = UnicodeText::wrapByDisplayWidth(
+    "CJK\u{3000}review\u{2003}queue\u{2028}Hard reset\u{2029}\u{9B5A}\u{3000}\u{9B5A} tail",
+    10,
+    '  '
+);
 $emojiCheckbox = "\u{2611}\u{FE0F}";
 $emojiKeycap = "1\u{FE0F}\u{20E3}";
 $emojiThumb = "\u{1F44D}\u{1F3FD}";
@@ -75,6 +80,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Soft breaks'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $softBreakAuditLines)])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $softBreakAuditLines))])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Unicode separators'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $unicodeSeparatorAuditLines)])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $unicodeSeparatorAuditLines))])]),
         ]),
         new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Emoji checkbox'])]),
@@ -165,6 +175,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>Soft breaks</td><td>Zerowidth /   breaks /   soft- /   hyphen /   \u{9B5A}\u{9B5A} /   tail</td><td>9,8,7,8,6,6</td>")) {
         throw new RuntimeException('charset handoff self-test missing soft-break wrap audit');
+    }
+    if (!str_contains($blocks, "<td>Unicode separators</td><td>CJK /   review /   queue / Hard reset / \u{9B5A}\u{3000}\u{9B5A} /   tail</td><td>3,8,7,10,6,6</td>")) {
+        throw new RuntimeException('charset handoff self-test missing Unicode separator wrap audit');
     }
     if (!str_contains($blocks, "<td>Emoji slices</td><td>\u{2611}\u{FE0F} / 1\u{FE0F}\u{20E3} / \u{1F44D}\u{1F3FD} / \u{1F1FA}\u{1F1F8}</td><td>2,2,2,2</td>")) {
         throw new RuntimeException('charset handoff self-test missing emoji display-width audit');

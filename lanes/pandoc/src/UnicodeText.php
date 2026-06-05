@@ -290,8 +290,9 @@ final class UnicodeText
     /**
      * Wrap text to display columns without splitting grapheme clusters.
      *
-     * This is intentionally bounded: horizontal ASCII whitespace is a soft
-     * break opportunity and existing hard line breaks reset indentation.
+     * This is intentionally bounded: horizontal whitespace and selected
+     * Unicode space separators are soft break opportunities, while Unicode hard
+     * line separators reset indentation.
      *
      * @return list<string>
      */
@@ -302,8 +303,13 @@ final class UnicodeText
             return explode("\n", $text);
         }
 
+        $physicalLines = preg_split('/\R/u', $text);
+        if ($physicalLines === false) {
+            $physicalLines = explode("\n", $text);
+        }
+
         $wrapped = [];
-        foreach (explode("\n", $text) as $line) {
+        foreach ($physicalLines as $line) {
             foreach (self::wrapDisplayLine($line, $width, $subsequentIndent, $ambiguousWidth) as $wrappedLine) {
                 $wrapped[] = $wrappedLine;
             }
@@ -392,7 +398,7 @@ final class UnicodeText
                 continue;
             }
 
-            $candidate = $current . self::wrapSeparatorText($fragment['separator']) . $text;
+            $candidate = $current . self::wrapSeparatorText($fragment['separator'], $fragment['separatorText']) . $text;
             if (self::displayWidth($candidate, $ambiguousWidth) <= self::wrapContentWidth(count($lines), $width, $subsequentIndent, $ambiguousWidth)) {
                 $current = $candidate;
                 continue;
@@ -411,7 +417,7 @@ final class UnicodeText
     }
 
     /**
-     * @return list<array{text:string, separator:string}>
+     * @return list<array{text:string, separator:string, separatorText:string}>
      */
     private static function wrapFragments(string $line): array
     {
@@ -423,38 +429,42 @@ final class UnicodeText
         $fragments = [];
         $buffer = '';
         $separator = 'none';
+        $separatorText = '';
         foreach (self::characters($line) as $char) {
             $codepoint = self::codepoint($char);
             if (self::isWrapWhitespace($codepoint)) {
-                self::appendWrapFragment($fragments, $separator, $buffer);
+                self::appendWrapFragment($fragments, $separator, $separatorText, $buffer);
                 $buffer = '';
                 $separator = 'space';
+                $separatorText = self::wrapWhitespaceSeparatorText($codepoint, $char);
                 continue;
             }
             if ($codepoint === 0x200b) {
-                self::appendWrapFragment($fragments, $separator, $buffer);
+                self::appendWrapFragment($fragments, $separator, $separatorText, $buffer);
                 $buffer = '';
                 $separator = 'soft';
+                $separatorText = '';
                 continue;
             }
             if ($codepoint === 0x00ad) {
-                self::appendWrapFragment($fragments, $separator, $buffer);
+                self::appendWrapFragment($fragments, $separator, $separatorText, $buffer);
                 $buffer = '';
                 $separator = 'soft-hyphen';
+                $separatorText = '';
                 continue;
             }
 
             $buffer .= $char;
         }
-        self::appendWrapFragment($fragments, $separator, $buffer);
+        self::appendWrapFragment($fragments, $separator, $separatorText, $buffer);
 
         return $fragments;
     }
 
     /**
-     * @param list<array{text:string, separator:string}> $fragments
+     * @param list<array{text:string, separator:string, separatorText:string}> $fragments
      */
-    private static function appendWrapFragment(array &$fragments, string $separator, string $buffer): void
+    private static function appendWrapFragment(array &$fragments, string $separator, string $separatorText, string $buffer): void
     {
         if ($buffer === '') {
             return;
@@ -463,12 +473,18 @@ final class UnicodeText
         $fragments[] = [
             'text' => $buffer,
             'separator' => $separator,
+            'separatorText' => $separatorText,
         ];
     }
 
-    private static function wrapSeparatorText(string $separator): string
+    private static function wrapSeparatorText(string $separator, string $separatorText): string
     {
-        return $separator === 'space' ? ' ' : '';
+        return $separator === 'space' ? $separatorText : '';
+    }
+
+    private static function wrapWhitespaceSeparatorText(int $codepoint, string $char): string
+    {
+        return $codepoint <= 0x20 ? ' ' : $char;
     }
 
     private static function wrapBreakLineText(
@@ -496,7 +512,11 @@ final class UnicodeText
         return $codepoint === 0x20
             || $codepoint === 0x09
             || $codepoint === 0x0c
-            || $codepoint === 0x0b;
+            || $codepoint === 0x0b
+            || $codepoint === 0x1680
+            || ($codepoint >= 0x2000 && $codepoint <= 0x200a && $codepoint !== 0x2007)
+            || $codepoint === 0x205f
+            || $codepoint === 0x3000;
     }
 
     /**
