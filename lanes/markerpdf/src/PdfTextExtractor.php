@@ -9925,6 +9925,16 @@ final class PdfTextExtractor
                 if ($ccittFaxTerminator !== null) {
                     return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $ccittFaxTerminator - $streamStart));
                 }
+                $overdeclaredFilterStackTerminator = $this->overdeclaredFilterStackTerminatorOffset(
+                    $value,
+                    $streamStart,
+                    $dict,
+                    $objects,
+                    $declaredEnd
+                );
+                if ($overdeclaredFilterStackTerminator !== null) {
+                    return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $overdeclaredFilterStackTerminator - $streamStart));
+                }
 
                 $end = $this->filteredEndstreamTerminatorOffset($value, $streamStart, $dict, $objects, $declaredEnd)
                     ?? $this->contentStreamEndstreamTerminatorOffset($value, $streamStart, $dict)
@@ -10100,6 +10110,25 @@ final class PdfTextExtractor
         return $filteredTerminator !== null && $filteredTerminator > $declaredTerminator
             ? $filteredTerminator
             : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function overdeclaredFilterStackTerminatorOffset(
+        string $value,
+        int $streamStart,
+        string $dict,
+        array $objects,
+        int $declaredEnd
+    ): ?int {
+        $filters = $this->streamFilters($dict, $objects);
+        if ($filters === null || !$this->hasVerifiableStreamFilter($filters)) {
+            return null;
+        }
+
+        $terminator = $this->filteredEndstreamTerminatorOffset($value, $streamStart, $dict, $objects);
+        return $terminator !== null && $terminator < $declaredEnd ? $terminator : null;
     }
 
     private function streamLengthTerminatorOffset(string $value, int $declaredEnd): ?int
@@ -17062,8 +17091,17 @@ final class PdfTextExtractor
         if ($declaredLength !== null && $declaredLength >= 0) {
             $declaredEnd = $streamStart + $declaredLength;
             if ($declaredEnd <= strlen($pdfBytes)) {
-                $streamEnd = $this->streamLengthTerminatorOffset($pdfBytes, $declaredEnd)
-                    ?? $this->filteredEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict, $objects, $declaredEnd)
+                $streamEnd = $this->streamLengthTerminatorOffset($pdfBytes, $declaredEnd);
+                if ($streamEnd === null) {
+                    $streamEnd = $this->overdeclaredFilterStackTerminatorOffset(
+                        $pdfBytes,
+                        $streamStart,
+                        $dict,
+                        $objects,
+                        $declaredEnd
+                    );
+                }
+                $streamEnd ??= $this->filteredEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict, $objects, $declaredEnd)
                     ?? $this->contentStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict)
                     ?? $this->endstreamTerminatorOffset($pdfBytes, $streamStart, $declaredEnd);
                 $dctJpegTerminator = $this->dctStreamEndstreamTerminatorOffset(
@@ -17551,6 +17589,17 @@ final class PdfTextExtractor
                         }
                     }
                     if ($dict !== null && $dctJpegTerminator === null) {
+                        $overdeclaredFilterStackTerminator = $this->overdeclaredFilterStackTerminatorOffset(
+                            $pdfBytes,
+                            $streamStart,
+                            $dict,
+                            $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart),
+                            $declaredEnd
+                        );
+                        if ($overdeclaredFilterStackTerminator !== null) {
+                            $index = $overdeclaredFilterStackTerminator + strlen('endstream');
+                            continue;
+                        }
                         $overdeclaredDctJpegTerminator = $this->dctStreamEndstreamTerminatorOffset(
                             $pdfBytes,
                             $streamStart,
