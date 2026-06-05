@@ -42,6 +42,7 @@ $defaultIgnorableWidth = UnicodeText::displayWidth("soft\u{00AD}hyphen") . ',' .
 $lineEndingConversions = $source->attr('sourceLineEndings')['conversions'] ?? 0;
 $normalizedSource = (new MarkdownReader())->readBytes("# Cafe\xCC\x81 Review\n\nLegacy \xE2\x84\xAB source", 'utf-8', 'nfc');
 $compatibilityNormalization = UnicodeText::normalize("\u{2460} \u{FB01} Cafe\u{0301} \u{212B}", 'nfkc');
+$fallbackNormalization = UnicodeText::normalize("d\u{0307}\u{0323} Cafe\u{0301} \u{212B}", 'nfc', 'fallback');
 $bomOverrideSource = (new MarkdownReader())->readBytes("\xFE\xFF\x00#\x00 \x8A\x08\x75\x3B\x00\x0A\x00\x0A\x00B\x00E", 'windows-1252');
 $table = new AstNode('table', [
     'caption' => 'Unicode width audit',
@@ -146,6 +147,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $compatibilityNormalization['form'] . ':' . ($compatibilityNormalization['changed'] ? 'changed' : 'unchanged')])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Fallback NFC'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $fallbackNormalization['text']])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $fallbackNormalization['implementation'] . ':' . (($fallbackNormalization['changed'] ?? false) ? 'changed' : 'unchanged')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'BOM override'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $bomOverrideSource->children[0]->attr('text') . ' / ' . $bomOverrideSource->children[1]->attr('text')])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($bomOverrideSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . ($bomOverrideSource->attr('sourceEncoding')['bom'] ?? '')])]),
@@ -220,6 +226,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>NFKC audit</td><td>1 fi Café Å</td><td>nfkc:changed</td>")) {
         throw new RuntimeException('charset handoff self-test missing NFKC normalization audit row');
+    }
+    if (!str_contains($blocks, "<td>Fallback NFC</td><td>\u{1E0D}\u{0307} Café Å</td><td>fallback:changed</td>")) {
+        throw new RuntimeException('charset handoff self-test missing fallback NFC normalization audit row');
     }
     if (($bomOverrideSource->attr('sourceEncoding')['encoding'] ?? '') !== 'utf-16be') {
         throw new RuntimeException('charset handoff self-test missing BOM override source encoding');

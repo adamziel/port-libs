@@ -10,17 +10,61 @@ final class UnicodeText
 
     /** @var array<string, string> */
     private const CANONICAL_DECOMPOSITIONS = [
+        "\u{00C0}" => "A\u{0300}",
+        "\u{00C1}" => "A\u{0301}",
+        "\u{00C2}" => "A\u{0302}",
+        "\u{00C3}" => "A\u{0303}",
+        "\u{00C4}" => "A\u{0308}",
         "\u{00C5}" => "A\u{030A}",
+        "\u{00C7}" => "C\u{0327}",
         "\u{00C9}" => "E\u{0301}",
+        "\u{00D1}" => "N\u{0303}",
+        "\u{00D6}" => "O\u{0308}",
+        "\u{00DC}" => "U\u{0308}",
+        "\u{00E0}" => "a\u{0300}",
+        "\u{00E1}" => "a\u{0301}",
+        "\u{00E2}" => "a\u{0302}",
+        "\u{00E3}" => "a\u{0303}",
+        "\u{00E4}" => "a\u{0308}",
+        "\u{00E5}" => "a\u{030A}",
+        "\u{00E7}" => "c\u{0327}",
         "\u{00E9}" => "e\u{0301}",
+        "\u{00F1}" => "n\u{0303}",
+        "\u{00F6}" => "o\u{0308}",
+        "\u{00FC}" => "u\u{0308}",
         "\u{212B}" => "A\u{030A}",
+        "\u{1E0B}" => "d\u{0307}",
+        "\u{1E0C}" => "D\u{0323}",
+        "\u{1E0D}" => "d\u{0323}",
     ];
 
     /** @var array<string, string> */
     private const COMPOSITIONS = [
+        "A\u{0300}" => "\u{00C0}",
+        "A\u{0301}" => "\u{00C1}",
+        "A\u{0302}" => "\u{00C2}",
+        "A\u{0303}" => "\u{00C3}",
+        "A\u{0308}" => "\u{00C4}",
         "A\u{030A}" => "\u{00C5}",
+        "C\u{0327}" => "\u{00C7}",
+        "D\u{0323}" => "\u{1E0C}",
         "E\u{0301}" => "\u{00C9}",
+        "N\u{0303}" => "\u{00D1}",
+        "O\u{0308}" => "\u{00D6}",
+        "U\u{0308}" => "\u{00DC}",
+        "a\u{0300}" => "\u{00E0}",
+        "a\u{0301}" => "\u{00E1}",
+        "a\u{0302}" => "\u{00E2}",
+        "a\u{0303}" => "\u{00E3}",
+        "a\u{0308}" => "\u{00E4}",
+        "a\u{030A}" => "\u{00E5}",
+        "c\u{0327}" => "\u{00E7}",
+        "d\u{0307}" => "\u{1E0B}",
+        "d\u{0323}" => "\u{1E0D}",
         "e\u{0301}" => "\u{00E9}",
+        "n\u{0303}" => "\u{00F1}",
+        "o\u{0308}" => "\u{00F6}",
+        "u\u{0308}" => "\u{00FC}",
     ];
 
     /** @var array<string, string> */
@@ -160,22 +204,28 @@ final class UnicodeText
     /**
      * @return array{text:string, form:string, changed:bool, implementation:string}
      */
-    public static function normalize(string $text, string $form = 'nfc'): array
+    public static function normalize(string $text, string $form = 'nfc', string $implementation = 'auto'): array
     {
         $form = self::normalizeNormalizationForm($form);
+        $implementation = self::normalizeNormalizationImplementation($implementation);
         $text = self::repair($text);
-        $normalized = self::normalizeWithIntl($text, $form);
-        $implementation = 'intl';
+        $normalized = null;
+        $usedImplementation = 'fallback';
+        if ($implementation !== 'fallback') {
+            $normalized = self::normalizeWithIntl($text, $form);
+            if ($normalized !== null) {
+                $usedImplementation = 'intl';
+            }
+        }
         if ($normalized === null) {
             $normalized = self::normalizeWithFallback($text, $form);
-            $implementation = 'fallback';
         }
 
         return [
             'text' => $normalized,
             'form' => $form,
             'changed' => $normalized !== $text,
-            'implementation' => $implementation,
+            'implementation' => $usedImplementation,
         ];
     }
 
@@ -587,6 +637,18 @@ final class UnicodeText
         };
     }
 
+    private static function normalizeNormalizationImplementation(string $implementation): string
+    {
+        $key = strtolower(str_replace(['-', '_', ' '], '', trim($implementation)));
+
+        return match ($key) {
+            '', 'auto', 'native', 'default' => 'auto',
+            'intl', 'normalizer' => 'intl',
+            'fallback', 'php', 'boundedphp' => 'fallback',
+            default => throw new \InvalidArgumentException("Unsupported Unicode normalization implementation: {$implementation}"),
+        };
+    }
+
     private static function normalizeWithIntl(string $text, string $form): ?string
     {
         if (!class_exists(\Normalizer::class)) {
@@ -627,33 +689,89 @@ final class UnicodeText
             $decomposed .= self::CANONICAL_DECOMPOSITIONS[$char] ?? $char;
         }
 
-        return $decomposed;
+        return self::orderCanonicalCombiningMarks($decomposed);
     }
 
     private static function composeFallback(string $text): string
     {
-        $out = '';
+        $out = [];
+        $starterIndex = null;
+        $lastCombiningClass = 0;
         foreach (self::characters($text) as $char) {
-            if ($out !== '') {
-                $tail = self::lastCharacter($out);
-                $candidate = $tail . $char;
-                if (isset(self::COMPOSITIONS[$candidate])) {
-                    $out = substr($out, 0, -strlen($tail)) . self::COMPOSITIONS[$candidate];
+            $combiningClass = self::canonicalCombiningClass(self::codepoint($char));
+            if ($starterIndex !== null && $combiningClass > 0) {
+                $candidate = $out[$starterIndex] . $char;
+                if (isset(self::COMPOSITIONS[$candidate]) && ($lastCombiningClass === 0 || $lastCombiningClass < $combiningClass)) {
+                    $out[$starterIndex] = self::COMPOSITIONS[$candidate];
                     continue;
                 }
             }
 
-            $out .= $char;
+            $out[] = $char;
+            if ($combiningClass === 0) {
+                $starterIndex = count($out) - 1;
+                $lastCombiningClass = 0;
+            } else {
+                $lastCombiningClass = $combiningClass;
+            }
         }
 
-        return $out;
+        return implode('', $out);
     }
 
-    private static function lastCharacter(string $text): string
+    private static function orderCanonicalCombiningMarks(string $text): string
     {
-        $characters = self::characters($text);
+        $out = '';
+        $starter = '';
+        $marks = [];
+        foreach (self::characters($text) as $char) {
+            $combiningClass = self::canonicalCombiningClass(self::codepoint($char));
+            if ($combiningClass === 0) {
+                $out .= self::orderedCanonicalCluster($starter, $marks);
+                $starter = $char;
+                $marks = [];
+                continue;
+            }
 
-        return $characters[count($characters) - 1] ?? '';
+            $marks[] = ['char' => $char, 'class' => $combiningClass, 'order' => count($marks)];
+        }
+
+        return $out . self::orderedCanonicalCluster($starter, $marks);
+    }
+
+    /**
+     * @param list<array{char:string, class:int, order:int}> $marks
+     */
+    private static function orderedCanonicalCluster(string $starter, array $marks): string
+    {
+        if ($marks === []) {
+            return $starter;
+        }
+
+        usort($marks, static fn (array $a, array $b): int => $a['class'] <=> $b['class'] ?: $a['order'] <=> $b['order']);
+        $cluster = $starter;
+        foreach ($marks as $mark) {
+            $cluster .= $mark['char'];
+        }
+
+        return $cluster;
+    }
+
+    private static function canonicalCombiningClass(int $codepoint): int
+    {
+        return match ($codepoint) {
+            0x0315, 0x031B, 0x0321, 0x0322, 0x0327, 0x0328 => 202,
+            0x0316, 0x0317, 0x0318, 0x0319, 0x031C, 0x031D, 0x031E, 0x031F,
+            0x0320, 0x0323, 0x0324, 0x0325, 0x0326, 0x0329, 0x032A, 0x032B, 0x032C,
+            0x032D, 0x032E, 0x032F, 0x0330, 0x0331, 0x0332, 0x0333, 0x0339,
+            0x033A, 0x033B, 0x033C, 0x0345 => 220,
+            0x0300, 0x0301, 0x0302, 0x0303, 0x0304, 0x0305, 0x0306, 0x0307,
+            0x0308, 0x0309, 0x030A, 0x030B, 0x030C, 0x030D, 0x030E, 0x030F,
+            0x0310, 0x0311, 0x0312, 0x0313, 0x0314, 0x033D, 0x033E, 0x033F,
+            0x0340, 0x0341, 0x0342, 0x0343, 0x0344, 0x0346, 0x034A, 0x034B,
+            0x034C, 0x0350, 0x0351, 0x0352, 0x0357 => 230,
+            default => 0,
+        };
     }
 
     /**

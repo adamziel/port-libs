@@ -191,6 +191,27 @@ return [
         $t->contains('<p>Legacy Å source</p>', $blocks);
         $t->throws(\InvalidArgumentException::class, static fn (): array => UnicodeText::normalize('text', 'nfz'));
     },
+    'orders combining marks in fallback unicode normalization' => static function (TestRunner $t): void {
+        $source = "d\u{0307}\u{0323} Cafe\u{0301} \u{212B}";
+        $nfd = UnicodeText::normalize($source, 'nfd', 'fallback');
+        $nfc = UnicodeText::normalize($source, 'nfc', 'fallback');
+        $nfkd = UnicodeText::normalize("\u{2460}\u{00A0}\u{FB01} \u{00E7}ade", 'nfkd', 'fallback');
+
+        $t->same("d\u{0323}\u{0307} Cafe\u{0301} A\u{030A}", $nfd['text']);
+        $t->same('nfd', $nfd['form']);
+        $t->same(true, $nfd['changed']);
+        $t->same('fallback', $nfd['implementation']);
+        $t->same("\u{1E0D}\u{0307} Café Å", $nfc['text']);
+        $t->same('nfc', $nfc['form']);
+        $t->same(true, $nfc['changed']);
+        $t->same('fallback', $nfc['implementation']);
+        $t->same("1 fi c\u{0327}ade", $nfkd['text']);
+        $t->same('nfkd', $nfkd['form']);
+        $t->same('fallback', $nfkd['implementation']);
+        $t->same(8, UnicodeText::displayWidth($nfc['text']));
+        $t->same(["\u{1E0D}\u{0307}", ' ', 'C', 'a', 'f', 'é', ' ', 'Å'], UnicodeText::graphemes($nfc['text']));
+        $t->throws(\InvalidArgumentException::class, static fn (): array => UnicodeText::normalize('text', 'nfc', 'remote'));
+    },
     'measures display width for cjk combining emoji and zero width marks' => static function (TestRunner $t): void {
         $accent = "A\u{0301}";
         $persian = "\u{0645}\u{06CC}\u{200C}\u{062E}\u{0648}\u{0627}\u{0647}\u{0645}";
