@@ -237,6 +237,48 @@ return [
             'height' => 792.0,
         ], $result['pages'][0]['pdftext_source']);
     },
+    'scales off page normalized pdftext dictionary bboxes before WordPress import' => static function (TestRunner $t): void {
+        $font = ['name' => 'Helvetica', 'flags' => null, 'weight' => 400, 'size' => 11.0];
+        $page = [
+            'page' => 6,
+            'bbox' => [0.0, 0.0, 612.0, 792.0],
+            'width' => 612.0,
+            'height' => 792.0,
+            'rotation' => 0,
+            'blocks' => [[
+                'bbox' => [-0.06, 0.10, 1.32, 0.14],
+                'lines' => [[
+                    'bbox' => [-0.06, 0.10, 1.32, 0.14],
+                    'spans' => [[
+                        'text' => 'Off-page glyph boxes remain reviewable',
+                        'bbox' => [-0.04, 0.105, 1.30, 0.135],
+                        'font' => $font,
+                        'chars' => [[
+                            'char' => 'x',
+                            'bbox' => [1.28, 0.106, 1.30, 0.135],
+                            'rotation' => 0,
+                            'font' => $font,
+                            'char_idx' => 37,
+                        ]],
+                    ]],
+                ]],
+            ]],
+        ];
+
+        $result = (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1, keepChars: true);
+        $span = $result['pages'][0]['blocks'][0]['lines'][0]['spans'][0];
+        $charBlock = $result['pages'][0]['char_blocks'][0];
+        $charSpan = $charBlock['lines'][0]['spans'][0];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+
+        $t->same([-36.7, 79.2, 807.8, 110.9], $charBlock['bbox']);
+        $t->same([-36.7, 79.2, 807.8, 110.9], $charBlock['lines'][0]['bbox']);
+        $t->same([-24.5, 83.2, 795.6, 106.9], $span['bbox']);
+        $t->same([-24.5, 83.2, 795.6, 106.9], $charSpan['bbox']);
+        $t->same([783.4, 84.0, 795.6, 106.9], $span['chars'][0]['bbox']);
+        $t->same('Off-page glyph boxes remain reviewable', $blocks[0]['text']);
+        $t->same(true, $result['metadata']['pdftext_options']['keep_chars']);
+    },
     'optionally sorts supplied pdftext dictionary blocks like dictionary_output sort' => static function (TestRunner $t): void {
         $block = static function (string $text, array $bbox): array {
             return [

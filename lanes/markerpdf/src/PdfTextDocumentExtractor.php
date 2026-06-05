@@ -506,12 +506,12 @@ final class PdfTextDocumentExtractor
     private function isNormalizedDictionaryOutputBbox(array $bbox): bool
     {
         foreach ($bbox as $part) {
-            if ($part < -0.25 || $part > 1.25) {
+            if ($part < -0.5 || $part > 1.5) {
                 return false;
             }
         }
 
-        return abs($bbox[2] - $bbox[0]) <= 1.5 && abs($bbox[3] - $bbox[1]) <= 1.5;
+        return abs($bbox[2] - $bbox[0]) <= 2.0 && abs($bbox[3] - $bbox[1]) <= 2.0;
     }
 
     /**
