@@ -55,6 +55,12 @@ final class CompoundFileBinary
         if (strlen($bytes) < 512 || substr($bytes, 0, 8) !== self::SIGNATURE) {
             throw new \InvalidArgumentException('CFB file is missing the compound-file signature');
         }
+        if (substr($bytes, 8, 16) !== str_repeat("\0", 16)) {
+            throw new \RuntimeException('CFB header CLSID must be CLSID_NULL');
+        }
+        if (substr($bytes, 34, 6) !== str_repeat("\0", 6)) {
+            throw new \RuntimeException('CFB header reserved bytes must be zero');
+        }
 
         $majorVersion = self::u16($bytes, 26);
         $byteOrder = self::u16($bytes, 28);
@@ -91,6 +97,9 @@ final class CompoundFileBinary
         $difatSectorCount = self::u32($bytes, 72);
         if ($majorVersion === 3 && $directorySectorCount !== 0) {
             throw new \RuntimeException('CFB version 3 files must not declare directory sectors in the header');
+        }
+        if ($miniStreamCutoff !== 4096) {
+            throw new \RuntimeException('CFB mini stream cutoff size must be 4096 bytes');
         }
 
         $difat = [];
@@ -434,6 +443,13 @@ final class CompoundFileBinary
 
         if ($root === null) {
             throw new \RuntimeException('CFB directory is missing the Root Entry storage');
+        }
+        $root = $rawEntries[0] ?? null;
+        if ($root === null || $root['type'] !== 5) {
+            throw new \RuntimeException('CFB directory must begin with the Root Entry storage');
+        }
+        if ($root['name'] !== 'Root Entry') {
+            throw new \RuntimeException('CFB root storage name must be Root Entry');
         }
 
         $root['path'] = '';

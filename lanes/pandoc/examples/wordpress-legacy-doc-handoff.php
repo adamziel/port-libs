@@ -949,6 +949,10 @@ if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         'unsupported CFB major version' => substr_replace($docBytes, $u16(5), 26, 2),
         'version 3 CFB directory-sector count' => substr_replace($docBytes, $u32(1), 40, 4),
+        'non-null CFB header CLSID' => substr_replace($docBytes, "\x01", 8, 1),
+        'nonzero CFB header reserved bytes' => substr_replace($docBytes, "\x01\0\0\0\0\0", 34, 6),
+        'invalid CFB mini stream cutoff' => substr_replace($docBytes, $u32(2048), 56, 4),
+        'invalid CFB root storage name' => substr_replace($docBytes, "X\0", 1024, 2),
     ] as $label => $corruptDocBytes) {
         try {
             (new LegacyDocReader())->readBytes($corruptDocBytes);

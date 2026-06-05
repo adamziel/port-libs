@@ -928,6 +928,21 @@ return [
         $versionThreeWithDirectoryCount = substr_replace($bytes, $u32(1), 40, 4);
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($versionThreeWithDirectoryCount));
     },
+    'rejects reserved CFB header fields and invalid root storage identity before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+        ]);
+        $directorySectorOffset = 512 + 512;
+
+        foreach ([
+            'non-null header CLSID' => substr_replace($bytes, "\x01", 8, 1),
+            'nonzero reserved header bytes' => substr_replace($bytes, "\x01\0\0\0\0\0", 34, 6),
+            'invalid mini stream cutoff' => substr_replace($bytes, $u32(2048), 56, 4),
+            'invalid root storage name' => substr_replace($bytes, "X\0", $directorySectorOffset, 2),
+        ] as $corruptDocBytes) {
+            $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptDocBytes));
+        }
+    },
     'extracts non-complex legacy DOC text and OLE SummaryInformation metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $propertySet): void {
         $docBytes = $buildCfb([
             'WordDocument' => $buildSimpleWordDocument("Legacy import title\rReviewer notes keep hard\vbreaks.\r"),
