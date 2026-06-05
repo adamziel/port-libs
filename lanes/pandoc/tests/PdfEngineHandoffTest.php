@@ -300,6 +300,68 @@ MARKDOWN);
         $t->same($ok['engineOutputFiles'], $sequence['finalEngineOutputFiles']);
     },
 
+    'fake runner parses latex transcript include graph without recorder files' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'xelatex',
+            'outputPath' => 'handoff/transcript.pdf',
+            'engineOptions' => ['-file-line-error'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake bounded handoff with transcript inputs\n%%EOF\n";
+        $log = implode("\n", [
+            'This is XeTeX, Version 3.141592653',
+            '(./handoff/transcript.tex',
+            '(./styles/review-header.tex',
+            '(/usr/share/texlive/texmf-dist/tex/latex/base/article.cls)',
+            '(./media/logo.png)',
+            'Output written on handoff/transcript.pdf (1 page, ' . strlen($pdfBytes) . ' bytes).',
+            '',
+        ]);
+
+        $missing = $handoff->fakeRun($plan, [
+            'files' => [
+                'handoff/transcript.log' => $log,
+                'handoff/transcript.pdf' => $pdfBytes,
+            ],
+        ]);
+        $ok = $handoff->fakeRun($plan, [
+            'files' => [
+                'styles/review-header.tex' => '\usepackage{fontspec}',
+                'media/logo.png' => 'fake logo bytes',
+                'handoff/transcript.log' => $log,
+                'handoff/transcript.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'styles/review-header.tex' => '\usepackage{fontspec}',
+                    'media/logo.png' => 'fake logo bytes',
+                    'handoff/transcript.log' => $log,
+                    'handoff/transcript.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same(false, $missing['ok']);
+        $t->same('missing-engine-transcript-input-file', $missing['reason']);
+        $t->same(['media/logo.png', 'styles/review-header.tex'], $missing['missingEngineTranscriptInputFiles']);
+        $t->contains('missing-engine-transcript-input-file:styles/review-header.tex', implode(',', $missing['diagnostics']));
+        $t->same(true, $ok['ok']);
+        $t->same([
+            'handoff/transcript.tex',
+            'media/logo.png',
+            'styles/review-header.tex',
+        ], $ok['engineTranscriptInputFiles']);
+        $t->same(['article.cls'], $ok['engineTranscriptExternalInputFiles']);
+        $t->same([], $ok['missingEngineTranscriptInputFiles']);
+        $t->contains('engine-transcript-input-files:3', implode(',', $ok['diagnostics']));
+        $t->contains('engine-transcript-external-input-files:1', implode(',', $ok['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($ok['engineTranscriptInputFiles'], $sequence['finalEngineTranscriptInputFiles']);
+        $t->same($ok['engineTranscriptExternalInputFiles'], $sequence['finalEngineTranscriptExternalInputFiles']);
+    },
+
     'plans and parses synctex source map sidecars without executing engines' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

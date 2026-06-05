@@ -9,6 +9,7 @@ final class PdfEngineHandoff
     private const MAX_SOURCE_MAP_BYTES = 1048576;
     private const MAX_DEPENDENCY_FILE_BYTES = 1048576;
     private const MAX_PDF_OUTPUT_INSPECTION_BYTES = 1048576;
+    private const MAX_TRANSCRIPT_BYTES = 1048576;
 
     /**
      * @var array<string, array{family:string, intermediate:string, extension:string, defaultArgs:list<string>}>
@@ -219,7 +220,10 @@ final class PdfEngineHandoff
      *     engineInputFiles: list<string>,
      *     engineExternalInputFiles: list<string>,
      *     engineOutputFiles: list<string>,
+     *     engineTranscriptInputFiles: list<string>,
+     *     engineTranscriptExternalInputFiles: list<string>,
      *     missingEngineInputFiles: list<string>,
+     *     missingEngineTranscriptInputFiles: list<string>,
      *     bibliographyArtifactsSha256: array<string, string>,
      *     bibliographyLogFiles: list<string>,
      *     sourceMapArtifactsSha256: array<string, string>,
@@ -278,6 +282,9 @@ final class PdfEngineHandoff
         $engineExternalInputFiles = [];
         $engineOutputFiles = [];
         $missingEngineInputFiles = [];
+        $engineTranscriptInputFiles = [];
+        $engineTranscriptExternalInputFiles = [];
+        $missingEngineTranscriptInputFiles = [];
         $bibliographyArtifactsSha256 = [];
         $bibliographyLogFiles = [];
         $bibliographyLogTexts = [];
@@ -505,6 +512,44 @@ final class PdfEngineHandoff
             [(string) ($result['stdout'] ?? ''), (string) ($result['stderr'] ?? '')],
             $engineLogTexts
         );
+        try {
+            $transcriptInputs = $this->extractEngineTranscriptInputs($engineTexts);
+            foreach ($transcriptInputs['inputFiles'] as $inputFile) {
+                $engineTranscriptInputFiles[$inputFile] = true;
+            }
+            foreach ($transcriptInputs['externalInputFiles'] as $externalInputFile) {
+                $engineTranscriptExternalInputFiles[$externalInputFile] = true;
+            }
+        } catch (\RuntimeException $exception) {
+            if ($reason === null) {
+                $status = 'failed';
+                $reason = 'engine-transcript-decode-error';
+            }
+            $diagnostics[] = 'engine-transcript-decode-error:' . $exception->getMessage();
+        }
+        $engineTranscriptInputFileList = array_keys($engineTranscriptInputFiles);
+        sort($engineTranscriptInputFileList);
+        $engineTranscriptExternalInputFileList = array_keys($engineTranscriptExternalInputFiles);
+        sort($engineTranscriptExternalInputFileList);
+        foreach ($engineTranscriptInputFileList as $inputFile) {
+            if (array_key_exists($inputFile, $files)) {
+                continue;
+            }
+
+            $missingEngineTranscriptInputFiles[] = $inputFile;
+            if ($reason === null) {
+                $status = 'failed';
+                $reason = 'missing-engine-transcript-input-file';
+            }
+            $diagnostics[] = 'missing-engine-transcript-input-file:' . $inputFile;
+        }
+        if ($engineTranscriptInputFileList !== []) {
+            $diagnostics[] = 'engine-transcript-input-files:' . count($engineTranscriptInputFileList);
+        }
+        if ($engineTranscriptExternalInputFileList !== []) {
+            $diagnostics[] = 'engine-transcript-external-input-files:' . count($engineTranscriptExternalInputFileList);
+        }
+
         $missingProgram = $this->extractMissingEngineProgram(
             $engineProgram,
             $exitCode,
@@ -664,7 +709,10 @@ final class PdfEngineHandoff
             'engineInputFiles' => $engineInputFileList,
             'engineExternalInputFiles' => $engineExternalInputFileList,
             'engineOutputFiles' => $engineOutputFileList,
+            'engineTranscriptInputFiles' => $engineTranscriptInputFileList,
+            'engineTranscriptExternalInputFiles' => $engineTranscriptExternalInputFileList,
             'missingEngineInputFiles' => $missingEngineInputFiles,
+            'missingEngineTranscriptInputFiles' => $missingEngineTranscriptInputFiles,
             'bibliographyArtifactsSha256' => $bibliographyArtifactsSha256,
             'bibliographyLogFiles' => $bibliographyLogFiles,
             'sourceMapArtifactsSha256' => $sourceMapArtifactsSha256,
@@ -720,6 +768,8 @@ final class PdfEngineHandoff
      *     finalEngineInputFiles: list<string>,
      *     finalEngineExternalInputFiles: list<string>,
      *     finalEngineOutputFiles: list<string>,
+     *     finalEngineTranscriptInputFiles: list<string>,
+     *     finalEngineTranscriptExternalInputFiles: list<string>,
      *     finalBibliographyArtifactsSha256: array<string, string>,
      *     finalSourceMapArtifactsSha256: array<string, string>,
      *     finalSourceMapFiles: list<string>,
@@ -729,6 +779,7 @@ final class PdfEngineHandoff
      *     finalSourceMapLineRanges: list<array{tag:int, path:string, minLine:int, maxLine:int, references:int}>,
      *     missingResourceFiles: list<string>,
      *     missingEngineInputFiles: list<string>,
+     *     missingEngineTranscriptInputFiles: list<string>,
      *     engineMissingProgram: bool,
      *     engineMissingProgramName: string|null,
      *     engineWarnings: list<string>,
@@ -859,6 +910,8 @@ final class PdfEngineHandoff
             'finalEngineInputFiles' => is_array($finalRun) && is_array($finalRun['engineInputFiles'] ?? null) ? $finalRun['engineInputFiles'] : [],
             'finalEngineExternalInputFiles' => is_array($finalRun) && is_array($finalRun['engineExternalInputFiles'] ?? null) ? $finalRun['engineExternalInputFiles'] : [],
             'finalEngineOutputFiles' => is_array($finalRun) && is_array($finalRun['engineOutputFiles'] ?? null) ? $finalRun['engineOutputFiles'] : [],
+            'finalEngineTranscriptInputFiles' => is_array($finalRun) && is_array($finalRun['engineTranscriptInputFiles'] ?? null) ? $finalRun['engineTranscriptInputFiles'] : [],
+            'finalEngineTranscriptExternalInputFiles' => is_array($finalRun) && is_array($finalRun['engineTranscriptExternalInputFiles'] ?? null) ? $finalRun['engineTranscriptExternalInputFiles'] : [],
             'finalBibliographyArtifactsSha256' => is_array($finalRun) && is_array($finalRun['bibliographyArtifactsSha256'] ?? null) ? $finalRun['bibliographyArtifactsSha256'] : [],
             'finalSourceMapArtifactsSha256' => is_array($finalRun) && is_array($finalRun['sourceMapArtifactsSha256'] ?? null) ? $finalRun['sourceMapArtifactsSha256'] : [],
             'finalSourceMapFiles' => is_array($finalRun) && is_array($finalRun['sourceMapFiles'] ?? null) ? $finalRun['sourceMapFiles'] : [],
@@ -868,6 +921,7 @@ final class PdfEngineHandoff
             'finalSourceMapLineRanges' => is_array($finalRun) && is_array($finalRun['sourceMapLineRanges'] ?? null) ? $finalRun['sourceMapLineRanges'] : [],
             'missingResourceFiles' => is_array($finalRun) && is_array($finalRun['missingResourceFiles'] ?? null) ? $finalRun['missingResourceFiles'] : [],
             'missingEngineInputFiles' => is_array($finalRun) && is_array($finalRun['missingEngineInputFiles'] ?? null) ? $finalRun['missingEngineInputFiles'] : [],
+            'missingEngineTranscriptInputFiles' => is_array($finalRun) && is_array($finalRun['missingEngineTranscriptInputFiles'] ?? null) ? $finalRun['missingEngineTranscriptInputFiles'] : [],
             'engineMissingProgram' => is_array($finalRun) && ($finalRun['engineMissingProgram'] ?? false) === true,
             'engineMissingProgramName' => is_array($finalRun) && is_string($finalRun['engineMissingProgramName'] ?? null) ? $finalRun['engineMissingProgramName'] : null,
             'engineWarnings' => array_values(array_unique($warnings)),
@@ -1344,6 +1398,82 @@ final class PdfEngineHandoff
     private function isEngineLogPath(string $path): bool
     {
         return preg_match('/\.log\z/i', $path) === 1;
+    }
+
+    /**
+     * @param list<string> $texts
+     * @return array{inputFiles:list<string>, externalInputFiles:list<string>}
+     */
+    private function extractEngineTranscriptInputs(array $texts): array
+    {
+        $inputFiles = [];
+        $externalInputFiles = [];
+
+        foreach ($texts as $text) {
+            if (strlen($text) > self::MAX_TRANSCRIPT_BYTES) {
+                throw new \RuntimeException('engine transcript exceeds bounded byte limit');
+            }
+
+            foreach (preg_split('/\R/u', $text) ?: [] as $line) {
+                foreach ($this->engineTranscriptPathCandidates($line) as $candidate) {
+                    $classified = $this->normalizeEngineDependencyPath($candidate, 'engine transcript');
+                    if ($classified['local']) {
+                        $inputFiles[$classified['path']] = true;
+                    } else {
+                        $externalInputFiles[$classified['path']] = true;
+                    }
+                }
+            }
+        }
+
+        $inputFileList = array_keys($inputFiles);
+        sort($inputFileList);
+        $externalInputFileList = array_keys($externalInputFiles);
+        sort($externalInputFileList);
+
+        return [
+            'inputFiles' => $inputFileList,
+            'externalInputFiles' => $externalInputFileList,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function engineTranscriptPathCandidates(string $line): array
+    {
+        if (!str_contains($line, '(')) {
+            return [];
+        }
+
+        if (preg_match_all('/\((?:"([^"]+)"|\'([^\']+)\'|([^\s()]+))/u', $line, $matches, PREG_SET_ORDER) < 1) {
+            return [];
+        }
+
+        $candidates = [];
+        foreach ($matches as $match) {
+            $candidate = '';
+            foreach ([1, 2, 3] as $index) {
+                if (isset($match[$index]) && $match[$index] !== '') {
+                    $candidate = $match[$index];
+                    break;
+                }
+            }
+
+            $candidate = trim($candidate, " \t\n\r\0\x0B'\"`()[]{}<>");
+            if ($candidate === '' || !$this->isLikelyEngineTranscriptPath($candidate)) {
+                continue;
+            }
+
+            $candidates[] = $candidate;
+        }
+
+        return array_values(array_unique($candidates));
+    }
+
+    private function isLikelyEngineTranscriptPath(string $candidate): bool
+    {
+        return preg_match('/\.(?:tex|sty|cls|clo|def|cfg|fd|map|enc|mf|tfm|otf|ttf|bib|bst|bbx|cbx|lbx|aux|out|toc|lof|lot|bbl|bcf|run\.xml|png|jpe?g|pdf|eps|svg|xdv)\z/i', $candidate) === 1;
     }
 
     /**
