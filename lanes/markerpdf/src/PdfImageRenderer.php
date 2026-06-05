@@ -5940,7 +5940,7 @@ final class PdfImageRenderer
             return $this->decodedInlineImageStreamPreviewBoundary($dictionary, null, $objects);
         }
 
-        $boundary = $this->decodedInlineImageStreamPreviewBoundary($dictionary, $stream, $objects);
+        $boundary = $this->decodedInlineImageStreamPreviewBoundary($dictionary, $stream, $objects, false, true);
         if (
             $this->imageFilterOperandBoundaryFilters($boundary['filters']) !== []
             && $this->dctPreviewStreamPayloadBytes($imageObject, $objects) !== null
@@ -5959,7 +5959,8 @@ final class PdfImageRenderer
         string $dictionary,
         ?string $stream,
         array $objects,
-        bool $requireExplicitFilterEndMarkers = false
+        bool $requireExplicitFilterEndMarkers = false,
+        bool $recordNativePrefixBoundary = false
     ): array
     {
         $filters = $this->imageFilterNames($dictionary, $objects);
@@ -5975,7 +5976,7 @@ final class PdfImageRenderer
                 $stream,
                 $objects,
                 $requireExplicitFilterEndMarkers,
-                $requireExplicitFilterEndMarkers
+                $requireExplicitFilterEndMarkers || $recordNativePrefixBoundary
             );
             $decoded = $decodeResult['decoded'];
             $unsupportedFilters = $decodeResult['unsupported_filters'];
@@ -6217,7 +6218,7 @@ final class PdfImageRenderer
                     'unsupported_filters' => $unsupportedFilters,
                     'decode_failed' => !$isPreviewOnlyFilter,
                 ];
-                if ($recordPreviewOnlyPrefix && $isPreviewOnlyFilter && $decodedNativeFilterCount > 0) {
+                if ($recordPreviewOnlyPrefix && $decodedNativeFilterCount > 0) {
                     $result['native_prefix_decoded_bytes'] = $stream;
                     $result['stopped_before_filter'] = $filter;
                 }
@@ -6250,12 +6251,17 @@ final class PdfImageRenderer
 
             if ($decoded === null) {
                 $unsupportedFilters[] = $filter;
-
-                return [
+                $result = [
                     'decoded' => null,
                     'unsupported_filters' => $unsupportedFilters,
                     'decode_failed' => true,
                 ];
+                if ($recordPreviewOnlyPrefix && $decodedNativeFilterCount > 0) {
+                    $result['native_prefix_decoded_bytes'] = $stream;
+                    $result['stopped_before_filter'] = $filter;
+                }
+
+                return $result;
             }
 
             $stream = $decoded;
@@ -7155,6 +7161,16 @@ final class PdfImageRenderer
                 $filters,
                 $dctFilterIndex
             );
+            if ($jpegBytes === null) {
+                $jpegBytes = $this->decodeImageStreamBeforeUnsupportedFilterBeforeDct(
+                    $dictionary,
+                    $payload,
+                    $objects,
+                    $filters,
+                    $firstFilterIndex,
+                    $dctFilterIndex
+                );
+            }
             if ($jpegBytes !== null && $this->dctPreviewBytesAreCompleteJpeg($jpegBytes)) {
                 $lastCompleteTerminator = $terminator;
             }
@@ -7230,6 +7246,56 @@ final class PdfImageRenderer
         }
 
         return $stream;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string|null> $filters
+     */
+    private function decodeImageStreamBeforeUnsupportedFilterBeforeDct(
+        string $dictionary,
+        string $stream,
+        array $objects,
+        array $filters,
+        int $firstFilterIndex,
+        int $dctFilterIndex
+    ): ?string {
+        $decodeParms = $this->imageDecodeParmsValues($dictionary, $objects);
+        $decodedNativeFilterCount = 0;
+
+        for ($index = $firstFilterIndex; $index < $dctFilterIndex; $index++) {
+            $filter = $filters[$index] ?? null;
+            if ($filter === null) {
+                continue;
+            }
+
+            $decodeParmsValue = $this->decodeParmsValueForImageFilterIndex($filters, $decodeParms, $index);
+            $resolvedDecodeParms = $this->resolvedDecodeParmsDictionary($decodeParmsValue, $objects);
+            if (
+                !$this->canApplyImageDecodeParms($filter, $resolvedDecodeParms, $objects)
+                || !$this->streamFilterInputHasExplicitEndMarker($filter, $stream)
+            ) {
+                return $decodedNativeFilterCount > 0 ? $stream : null;
+            }
+
+            $decoded = match ($filter) {
+                'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
+                'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
+                'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
+                'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $resolvedDecodeParms, $objects),
+                'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $resolvedDecodeParms, $objects),
+                'Crypt' => $this->decodeCryptIdentityStream($stream, $resolvedDecodeParms, $objects),
+                default => null,
+            };
+            if ($decoded === null) {
+                return $decodedNativeFilterCount > 0 ? $stream : null;
+            }
+
+            $stream = $decoded;
+            $decodedNativeFilterCount++;
+        }
+
+        return null;
     }
 
     private function dctPreviewBytesAreCompleteJpeg(string $bytes): bool
