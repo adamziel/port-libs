@@ -326,6 +326,7 @@ final class PdfTextExtractor
      *     strict_dependency_rejection_count: int,
      *     stream_member_rejection_count: int,
      *     duplicate_member_offset_rejection_count: int,
+     *     invalid_member_offset_rejection_count: int,
      *     malformed_xref_stream_width_count: int,
      *     direct_xref_stream_owner_cycle_count: int,
      *     suppressed_hybrid_type2_entry_count: int,
@@ -355,6 +356,7 @@ final class PdfTextExtractor
             'strict_dependency_rejection_count' => 0,
             'stream_member_rejection_count' => 0,
             'duplicate_member_offset_rejection_count' => 0,
+            'invalid_member_offset_rejection_count' => 0,
             'malformed_xref_stream_width_count' => 0,
             'direct_xref_stream_owner_cycle_count' => 0,
             'suppressed_hybrid_type2_entry_count' => 0,
@@ -479,7 +481,17 @@ final class PdfTextExtractor
             if ($selectedMemberDuplicateOffset) {
                 $review['duplicate_member_offset_rejection_count']++;
             }
-            $selectedMemberBody = $memberTable !== null && $selectedMember !== null && !$selectedMemberDuplicateOffset
+            $selectedMemberHasTokenBoundary = $memberTable !== null
+                && $selectedMember !== null
+                && $this->objectStreamMemberOffsetHasTokenBoundary($memberTable, $selectedMember);
+            $selectedMemberInvalidOffset = $selectedMember !== null && !$selectedMemberHasTokenBoundary;
+            if ($selectedMemberInvalidOffset) {
+                $review['invalid_member_offset_rejection_count']++;
+            }
+            $selectedMemberBody = $memberTable !== null
+                && $selectedMember !== null
+                && !$selectedMemberDuplicateOffset
+                && !$selectedMemberInvalidOffset
                 ? $this->objectStreamMemberBody($memberTable, $selectedMember)
                 : null;
             $selectedMemberIsStream = $selectedMemberBody !== null
@@ -528,6 +540,7 @@ final class PdfTextExtractor
                     : ($memberOffsetCounts[$selectedMember['offset']] ?? 0),
                 'duplicate_header_object_number' => $matchingHeaderObjectNumberCount > 1,
                 'duplicate_member_offset' => $selectedMemberDuplicateOffset,
+                'member_offset_token_boundary' => $selectedMemberHasTokenBoundary,
                 'compressed_member_generation' => 0,
                 'selected_object_generation' => $selectedGeneration,
                 'nonzero_referenced_generations' => $referencedGenerations,
@@ -541,6 +554,7 @@ final class PdfTextExtractor
                 'object_stream_member_is_stream' => $selectedMemberIsStream,
                 'stream_member_rejected' => $streamMemberRejected,
                 'duplicate_member_offset_rejected' => $selectedMemberDuplicateOffset,
+                'invalid_member_offset_rejected' => $selectedMemberInvalidOffset,
                 'direct_xref_stream_owner' => $directXrefStreamOwner !== null,
                 'owner_cycle_rejected' => $ownerCycleRejected,
                 'owner_policy' => $ownerCycleRejected
@@ -551,7 +565,8 @@ final class PdfTextExtractor
                     $strictMemberMatch,
                     $matchingHeaderObjectNumberCount > 0,
                     $ambiguousZeroWidthMember,
-                    $selectedMemberDuplicateOffset
+                    $selectedMemberDuplicateOffset,
+                    $selectedMemberInvalidOffset
                 ),
                 'review_only' => true,
             ];
@@ -16354,6 +16369,10 @@ final class PdfTextExtractor
      */
     private function objectStreamMemberBody(array $memberTable, array $member): ?string
     {
+        if (!$this->objectStreamMemberOffsetHasTokenBoundary($memberTable, $member)) {
+            return null;
+        }
+
         $objectDataLength = strlen($memberTable['decoded']) - $memberTable['first'];
         $nextOffset = $this->objectStreamMemberEndOffset(
             $memberTable['members'],
@@ -16369,6 +16388,63 @@ final class PdfTextExtractor
             $memberTable['first'] + $member['offset'],
             $nextOffset - $member['offset']
         ));
+    }
+
+    /**
+     * @param array{decoded: string, first: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
+     * @param array{objectNumber: int, offset: int, index: int} $member
+     */
+    private function objectStreamMemberOffsetHasTokenBoundary(array $memberTable, array $member): bool
+    {
+        $decoded = $memberTable['decoded'];
+        $absoluteOffset = $memberTable['first'] + $member['offset'];
+        if ($member['offset'] < 0 || $absoluteOffset < $memberTable['first'] || $absoluteOffset >= strlen($decoded)) {
+            return false;
+        }
+
+        if ($absoluteOffset === $memberTable['first']) {
+            return true;
+        }
+
+        $index = $memberTable['first'];
+        $length = strlen($decoded);
+        while ($index < $absoluteOffset && $index < $length) {
+            $char = $decoded[$index];
+            if ($char === '(') {
+                $start = $index;
+                $this->readLiteralToken($decoded, $index);
+                if ($absoluteOffset < $index || $index === $start) {
+                    return false;
+                }
+                continue;
+            }
+
+            if ($char === '<' && ($index + 1 >= $length || $decoded[$index + 1] !== '<')) {
+                $start = $index;
+                $this->readHexToken($decoded, $index);
+                if ($absoluteOffset < $index || $index === $start) {
+                    return false;
+                }
+                continue;
+            }
+
+            if ($char === '%') {
+                $start = $index;
+                $this->skipPdfComment($decoded, $index);
+                if ($absoluteOffset < $index || $index === $start) {
+                    return false;
+                }
+                continue;
+            }
+
+            $index++;
+        }
+
+        if ($index !== $absoluteOffset) {
+            return false;
+        }
+
+        return $this->isDelimiter($decoded[$absoluteOffset - 1]);
     }
 
     private function objectStreamMemberIsTopLevelStreamObject(string $memberBody): bool
@@ -16402,9 +16478,14 @@ final class PdfTextExtractor
         bool $strictMemberMatch,
         bool $memberExists,
         bool $ambiguousZeroWidthMember = false,
-        bool $duplicateMemberOffset = false
+        bool $duplicateMemberOffset = false,
+        bool $invalidMemberOffset = false
     ): string
     {
+        if ($invalidMemberOffset) {
+            return 'invalid_object_stream_member_offset';
+        }
+
         if ($duplicateMemberOffset) {
             return 'duplicate_object_stream_member_offset';
         }
