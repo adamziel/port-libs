@@ -789,6 +789,34 @@ $cMapMalformedBroadToUnicodeCodespaceSourceWidthCurrentBasePdf = static function
         . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
 };
 
+$cMapMixedExplicitBroadCodespaceSourceWidthCurrentBasePdf = static function (): string {
+    $toUnicode = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "4 beginbfchar\n"
+        . "<41> <0041>\n"
+        . "<42> <0042>\n"
+        . "<43> <0043>\n"
+        . "<44> <0044>\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $content = 'BT /Fcid 12 Tf 1 0 0 1 72 720 Tm <4142434400450046> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /MixedExplicitBroadCodespace /Encoding /MissingCustom-H /DescendantFonts [4 0 R] /ToUnicode 3 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /MixedExplicitBroadCodespace /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 1000 /W [65 68 1000 69 70 250] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+};
+
 $cMapCidNotdefRangeSourceWidthCurrentBasePdf = static function (): string {
     $encodingCMap = "/CIDInit /ProcSet findresource begin\n"
         . "12 dict begin\n"
@@ -1256,6 +1284,26 @@ return [
         $t->true(!str_contains($plainText, '䅂'));
         $t->true(!str_contains($plainText, '䍄'));
         $t->true(!str_contains($plainText, 'ABCDEFGH'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'uses explicit CMap source rows before broad fallback codespace on mixed current-base text' => static function (TestRunner $t) use ($cMapMixedExplicitBroadCodespaceSourceWidthCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $cMapMixedExplicitBroadCodespaceSourceWidthCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $runs = $extractor->extractTextRuns($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['ABCDEF'], $extractor->extractTextLines($pdf));
+        $t->same(['ABCDEF'], $runs);
+        $t->same('ABCDEF', $plainText);
+        $t->same("ABCDEF\n", $extractor->naiveGetText($pdf));
+        $t->same(['ABCDEF'], array_column($spans, 'text'));
+        $t->same([0.0, 0.0, 54.0, 12.0], $spans[0]['bbox'] ?? null);
+        $t->same([0.0, 0.0, 54.0, 12.0], $line['bbox'] ?? null);
+        $t->true(!str_contains($plainText, '䅂'));
+        $t->true(!str_contains($plainText, '䍄'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'uses Encoding CMap notdef ranges before source-width fallback on current base' => static function (TestRunner $t) use ($cMapCidNotdefRangeSourceWidthCurrentBasePdf): void {

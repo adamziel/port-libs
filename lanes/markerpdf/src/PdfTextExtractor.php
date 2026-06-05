@@ -27290,9 +27290,12 @@ final class PdfTextExtractor
 
         if (
             !$this->sourceKeysAreMapped($fallbackKeys, $toUnicodeMap)
-            || $this->sourceKeysHaveAnyDirectFontMetric($sourceKeys, $toUnicodeMap)
         ) {
-            return [];
+            return $this->mappedSourceKeysForPartialMetricMiss($sourceKeys, $hex, $toUnicodeMap);
+        }
+
+        if ($this->sourceKeysHaveAnyDirectFontMetric($sourceKeys, $toUnicodeMap)) {
+            return $this->mappedSourceKeysForPartialMetricMiss($sourceKeys, $hex, $toUnicodeMap);
         }
 
         return $this->sourceKeysHaveAllFontWidthEvidence($fallbackKeys, $toUnicodeMap) ? $fallbackKeys : [];
@@ -27325,6 +27328,58 @@ final class PdfTextExtractor
             }
 
             $fallbackKeys = $this->textOperandSourceKeys($sourceKey, $toUnicodeMap);
+            if (
+                $fallbackKeys === []
+                || $fallbackKeys === [$sourceKey]
+                || !$this->sourceKeysAreMapped($fallbackKeys, $toUnicodeMap)
+                || !$this->sourceKeysHaveAllFontWidthEvidence($fallbackKeys, $toUnicodeMap)
+            ) {
+                return [];
+            }
+
+            array_push($keys, ...$fallbackKeys);
+            $offset += $sourceLength;
+            $replaced = true;
+        }
+
+        return $replaced && $offset === strlen($normalized) && count($keys) > count($sourceKeys) ? $keys : [];
+    }
+
+    /**
+     * @param list<string> $sourceKeys
+     * @return list<string>
+     */
+    private function mappedSourceKeysForPartialMetricMiss(array $sourceKeys, string $hex, array $toUnicodeMap): array
+    {
+        $mappings = $toUnicodeMap['map'] ?? [];
+        if (!is_array($mappings) || $mappings === []) {
+            return [];
+        }
+
+        $normalized = $this->normalizeHexKey($hex);
+        if ($normalized === '') {
+            return [];
+        }
+
+        $keys = [];
+        $offset = 0;
+        $replaced = false;
+        foreach ($sourceKeys as $sourceKey) {
+            $sourceLength = strlen($sourceKey);
+            if ($sourceLength <= 0 || substr($normalized, $offset, $sourceLength) !== $sourceKey) {
+                return [];
+            }
+
+            if ($this->sourceKeyHasDirectFontMetric($sourceKey, $toUnicodeMap)) {
+                $keys[] = $sourceKey;
+                $offset += $sourceLength;
+                continue;
+            }
+
+            $fallbackKeys = $this->textOperandSourceKeys($sourceKey, [
+                'map' => $mappings,
+                'codeSpaceRanges' => [],
+            ]);
             if (
                 $fallbackKeys === []
                 || $fallbackKeys === [$sourceKey]
@@ -27913,7 +27968,8 @@ final class PdfTextExtractor
                 $mappings,
                 $normalized,
                 $offset,
-                $preferMappedLength
+                $preferMappedLength,
+                true
             );
             $key = substr($normalized, $offset, $sourceLength);
             $text .= array_key_exists($key, $mappings)
@@ -27971,7 +28027,8 @@ final class PdfTextExtractor
         array $mappings,
         string $normalized,
         int $offset,
-        bool $preferMappedLength = false
+        bool $preferMappedLength = false,
+        bool $preferMappedPrefixBeforeUnmappedCodeSpace = false
     ): int {
         $mappedLength = null;
         foreach ($keyLengths as $keyLength) {
@@ -28006,6 +28063,22 @@ final class PdfTextExtractor
         if ($mappedLength !== null && ($codeSpaceLength === null || $mappedLength >= $codeSpaceLength)) {
             return $mappedLength;
         }
+        if (
+            $preferMappedPrefixBeforeUnmappedCodeSpace
+            &&
+            $mappedLength !== null
+            && $codeSpaceLength !== null
+            && $mappedLength < $codeSpaceLength
+            && $this->shouldPreferMappedCMapSourcePrefix(
+                $normalized,
+                $offset,
+                $mappedLength,
+                $codeSpaceLength,
+                $mappings
+            )
+        ) {
+            return $mappedLength;
+        }
         if ($codeSpaceLength !== null) {
             return $codeSpaceLength;
         }
@@ -28017,6 +28090,29 @@ final class PdfTextExtractor
         rsort($usableLengths, SORT_NUMERIC);
 
         return $usableLengths[0] ?? min(2, max(1, $remainingHexLength));
+    }
+
+    /**
+     * @param array<string, string> $mappings
+     */
+    private function shouldPreferMappedCMapSourcePrefix(
+        string $normalized,
+        int $offset,
+        int $mappedLength,
+        int $codeSpaceLength,
+        array $mappings
+    ): bool {
+        $mappedSource = substr($normalized, $offset, $mappedLength);
+        if ($mappedSource === '' || preg_match('/^(?:00)+$/', $mappedSource) === 1) {
+            return false;
+        }
+
+        $codeSpaceSource = substr($normalized, $offset, $codeSpaceLength);
+        if ($codeSpaceSource === '' || array_key_exists($codeSpaceSource, $mappings)) {
+            return false;
+        }
+
+        return true;
     }
 
     private function decodeUnmappedToUnicodeSource(string $hex): string
