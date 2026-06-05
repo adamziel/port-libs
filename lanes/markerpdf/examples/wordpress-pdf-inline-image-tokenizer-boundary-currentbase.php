@@ -37,6 +37,10 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "\x97JB2\r\n\x1a\n EI BT /F1 12 Tf 72 644 Td (JBIG2 Inline Payload Noise) Tj ET rawtail\n"
     . "EI\n"
     . "BT /F1 12 Tf 72 648 Td (After JBIG2 Boundary) Tj ET\n"
+    . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
+    . "\x00\x01\x02 EI BT /F1 12 Tf 72 642 Td (Raw JBIG2 Inline Payload Noise) Tj ET rawtail\n"
+    . "EI\n"
+    . "BT /F1 12 Tf 72 644 Td (After Raw JBIG2 Boundary) Tj ET\n"
     . "BT /F1 12 Tf 72 672 Td (After Real Inline Image) Tj ET";
 
 $pdf = "%PDF-1.4\n"
@@ -98,6 +102,9 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
     'preview_only_jbig2_payload_excluded_until_safe_boundary' => !str_contains($plainText, 'JBIG2 Inline Payload Noise')
         && !str_contains($plainText, 'rawtail')
         && str_contains($plainText, 'After JBIG2 Boundary'),
+    'raw_jbig2_segment_payload_excluded_until_safe_boundary' => !str_contains($plainText, 'Raw JBIG2 Inline Payload Noise')
+        && !str_contains($plainText, 'rawtail')
+        && str_contains($plainText, 'After Raw JBIG2 Boundary'),
     'preview_only_ccitt_payload_excluded_until_safe_boundary' => !str_contains($ccittPlainText, 'CCITT Inline Payload Noise')
         && !str_contains($ccittPlainText, 'rawtail')
         && str_contains($ccittPlainText, 'Before CCITT Boundary')

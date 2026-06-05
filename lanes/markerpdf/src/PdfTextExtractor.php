@@ -17879,17 +17879,13 @@ final class PdfTextExtractor
     }
 
     /**
-     * JBIG2Decode is preview-only in this native port. File-header wrapped
-     * payloads expose enough structure to reject delimiter-looking `EI` bytes
-     * before the final fallback boundary.
+     * JBIG2Decode is preview-only in this native port. PDF inline JBIG2 data
+     * may be raw segments without the JBIG2 file header, so any non-empty
+     * candidate remains open until the final fallback boundary.
      */
     private function inlineJbig2CandidateState(string $candidate): string
     {
         if (rtrim($candidate, "\x00\t\n\f\r ") === '') {
-            return 'unknown';
-        }
-
-        if (!str_starts_with($candidate, "\x97JB2\r\n\x1a\n")) {
             return 'unknown';
         }
 
