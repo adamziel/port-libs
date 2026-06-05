@@ -26,6 +26,16 @@ final class LayoutOrderer
         'trimmed_page_number',
         'relative_page_number',
     ];
+    private const ORDER_RESULT_PAGE_MARKER_METADATA_WRAPPERS = [
+        'metadata',
+        'page_metadata',
+        'page_meta',
+        'page_info',
+        'page_data',
+        'page_result',
+        'result_metadata',
+        'artifact_metadata',
+    ];
     private const ORDER_RESULT_PAGE_MARKER_WRAPPERS = [
         'metadata',
         'page_metadata',
@@ -52,7 +62,6 @@ final class LayoutOrderer
         'model_output',
         'output',
     ];
-    private const PDFTEXT_PAYLOAD_WRAPPER = 'pdftext';
     private const ORDER_RESULT_PAGE_MARKER_FIELD_GROUPS = [
         ['page_index', 'doc_page_index', 'document_page_index', 'source_page_index'],
         ['selected_page_index', 'trimmed_page_index', 'relative_page_index'],
@@ -275,14 +284,14 @@ final class LayoutOrderer
     private function orderResultPageMarkerSources(array $orderResult): array
     {
         $sources = [];
-        $this->collectOrderResultPageMarkerSources($orderResult, $sources, 0, false);
+        $this->collectOrderResultPageMarkerSources($orderResult, $sources, 0, self::ORDER_RESULT_PAGE_MARKER_METADATA_WRAPPERS);
 
         if ($this->orderResultPageMarkerSourcesHaveMarkers($sources)) {
             return $sources;
         }
 
         $sources = [];
-        $this->collectOrderResultPageMarkerSources($orderResult, $sources, 0, true);
+        $this->collectOrderResultPageMarkerSources($orderResult, $sources, 0, self::ORDER_RESULT_PAGE_MARKER_WRAPPERS);
 
         return $sources;
     }
@@ -290,28 +299,22 @@ final class LayoutOrderer
     /**
      * @param array<string, mixed> $artifact
      * @param list<array<string, mixed>> $sources
+     * @param list<string> $wrapperKeys
      */
-    private function collectOrderResultPageMarkerSources(array $artifact, array &$sources, int $depth = 0, bool $includePdftextPayload = true): void
+    private function collectOrderResultPageMarkerSources(array $artifact, array &$sources, int $depth, array $wrapperKeys): void
     {
         $sources[] = $artifact;
         if ($depth >= 2) {
             return;
         }
 
-        foreach (self::ORDER_RESULT_PAGE_MARKER_WRAPPERS as $key) {
-            if ($key === self::PDFTEXT_PAYLOAD_WRAPPER && !$includePdftextPayload) {
-                continue;
-            }
-
+        foreach ($wrapperKeys as $key) {
             $value = $artifact[$key] ?? null;
             if (!is_array($value)) {
                 continue;
             }
             foreach ($this->dictionaryWrapperValues($value) as $wrapperValue) {
-                if (!$includePdftextPayload && $this->isCopiedPdftextPayload($wrapperValue)) {
-                    continue;
-                }
-                $this->collectOrderResultPageMarkerSources($wrapperValue, $sources, $depth + 1, $includePdftextPayload);
+                $this->collectOrderResultPageMarkerSources($wrapperValue, $sources, $depth + 1, $wrapperKeys);
             }
         }
     }
@@ -337,22 +340,10 @@ final class LayoutOrderer
     }
 
     /**
-     * @param array<string, mixed> $value
-     */
-    private function isCopiedPdftextPayload(array $value): bool
-    {
-        foreach (['blocks', 'lines', 'text_lines', 'chars'] as $key) {
-            if (array_key_exists($key, $value) && is_array($value[$key])) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
      * A nested pdftext dictionary is usually a copied page payload. Use its page
      * markers only as a fallback when adapter metadata has no page identity.
+     * Typed ordering payload wrappers follow the same rule so stale model
+     * payload page markers cannot override trusted adapter metadata.
      *
      * @param list<array<string, mixed>> $sources
      */

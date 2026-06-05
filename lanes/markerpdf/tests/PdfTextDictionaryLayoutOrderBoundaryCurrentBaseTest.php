@@ -614,4 +614,142 @@ return [
         $t->true(!str_contains($encoded, 'typed cover order payload'));
         $t->true(!str_contains($encoded, 'typed selected order payload'));
     },
+    'prefers trusted adapter metadata over stale typed order-result page markers before layout assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(2000, [
+                    ['text' => 'Trusted metadata stale payload cover skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(2001, [
+                    ['text' => 'Second stale typed payload column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First trusted metadata column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'metadata' => ['document_page' => 2001],
+                    'order_result' => [
+                        'page' => 2000,
+                        'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                        'bboxes' => [
+                            ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                            ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                        ],
+                    ],
+                    'raw_payload' => 'stale typed order payload must stay hidden',
+                ],
+            ],
+            orderImages: [
+                [
+                    'metadata' => ['document_page' => 2001],
+                    'order_result' => ['page' => 2000],
+                    'image' => 'trusted-metadata-stale-order-render',
+                ],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $order = $result['pages'][0]['order'] ?? [];
+
+        $t->same([1], $result['page_range']);
+        $t->same(2001, $result['pages'][0]['pnum']);
+        $t->same(['First trusted metadata column', 'Second stale typed payload column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First trusted metadata column Second stale typed payload column', $blocks[0]['text']);
+        $t->same(2001, $order['document_page'] ?? null);
+        $t->true(!array_key_exists('page', $order), 'Stale order_result.page must not be preserved beside trusted metadata.document_page.');
+        $t->true(!array_key_exists('order_result', $order));
+        $t->true(!str_contains($encoded, 'stale typed order payload'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
+    'keeps stale typed layout and order payload page markers fallback-only for WordPress imports' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-trusted-metadata-stale-typed-payload-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% trusted metadata stale typed payload layout order boundary\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [
+                    $pdftextLinesPage(2100, [
+                        ['text' => 'Trusted metadata converter cover should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                    $pdftextLinesPage(2101, [
+                        ['text' => 'Second converter stale typed payload column.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                        ['text' => 'First converter trusted metadata column.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+                    ]),
+                ],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        [
+                            'metadata' => ['document_page' => 2101],
+                            'layout_result' => ['page' => 2100],
+                            'image' => 'trusted-metadata-layout-render',
+                        ],
+                    ],
+                    'layout_results' => [[
+                        'metadata' => ['document_page' => 2101],
+                        'layout_result' => [
+                            'page' => 2100,
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                                ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                            ],
+                        ],
+                        'raw_payload' => 'stale typed layout payload must stay hidden',
+                    ]],
+                    'order_images' => [
+                        [
+                            'metadata' => ['document_page' => 2101],
+                            'order_result' => ['page' => 2100],
+                            'image' => 'trusted-metadata-order-render',
+                        ],
+                    ],
+                    'order_results' => [[
+                        'metadata' => ['document_page' => 2101],
+                        'order_result' => [
+                            'page' => 2100,
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                            ],
+                        ],
+                        'raw_payload' => 'stale typed order payload must stay hidden',
+                    ]],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+        } finally {
+            unlink($path);
+        }
+
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $text = $result['text'];
+
+        $t->same([1], $result['metadata']['page_range'] ?? null);
+        $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['layout_result_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['assigned_pages'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages'] ?? null);
+        $t->contains('First converter trusted metadata column.', $text);
+        $t->contains('Second converter stale typed payload column.', $text);
+        $t->true(strpos($text, 'First converter trusted metadata column.') < strpos($text, 'Second converter stale typed payload column.'));
+        $t->true(!str_contains($text, 'Trusted metadata converter cover should stay skipped.'));
+        $t->true(!str_contains($encoded, 'stale typed layout payload'));
+        $t->true(!str_contains($encoded, 'stale typed order payload'));
+    },
 ];

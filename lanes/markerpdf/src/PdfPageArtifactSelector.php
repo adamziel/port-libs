@@ -7,6 +7,16 @@ namespace PortLibs\MarkerPDF;
 final class PdfPageArtifactSelector
 {
     private const MISSING_PAGE_ARTIFACT = '__markerpdf_missing_page_artifact';
+    private const PAGE_MARKER_METADATA_WRAPPERS = [
+        'metadata',
+        'page_metadata',
+        'page_meta',
+        'page_info',
+        'page_data',
+        'page_result',
+        'result_metadata',
+        'artifact_metadata',
+    ];
     private const PAGE_MARKER_WRAPPERS = [
         'metadata',
         'page_metadata',
@@ -27,7 +37,6 @@ final class PdfPageArtifactSelector
         'source',
         'pdftext',
     ];
-    private const PDFTEXT_PAYLOAD_WRAPPER = 'pdftext';
     private const PAGE_MARKER_FIELD_GROUPS = [
         ['page_index', 'doc_page_index', 'document_page_index', 'source_page_index'],
         ['selected_page_index', 'trimmed_page_index', 'relative_page_index'],
@@ -209,14 +218,14 @@ final class PdfPageArtifactSelector
     private function pageMarkerSources(array $artifact): array
     {
         $sources = [];
-        $this->collectPageMarkerSources($artifact, $sources, 0, false);
+        $this->collectPageMarkerSources($artifact, $sources, 0, self::PAGE_MARKER_METADATA_WRAPPERS);
 
         if ($this->pageMarkerSourcesHaveMarkers($sources)) {
             return $sources;
         }
 
         $sources = [];
-        $this->collectPageMarkerSources($artifact, $sources, 0, true);
+        $this->collectPageMarkerSources($artifact, $sources, 0, self::PAGE_MARKER_WRAPPERS);
 
         return $sources;
     }
@@ -227,28 +236,22 @@ final class PdfPageArtifactSelector
      *
      * @param array<string, mixed> $artifact
      * @param list<array<string, mixed>> $sources
+     * @param list<string> $wrapperKeys
      */
-    private function collectPageMarkerSources(array $artifact, array &$sources, int $depth = 0, bool $includePdftextPayload = true): void
+    private function collectPageMarkerSources(array $artifact, array &$sources, int $depth, array $wrapperKeys): void
     {
         $sources[] = $artifact;
         if ($depth >= 2) {
             return;
         }
 
-        foreach (self::PAGE_MARKER_WRAPPERS as $key) {
-            if ($key === self::PDFTEXT_PAYLOAD_WRAPPER && !$includePdftextPayload) {
-                continue;
-            }
-
+        foreach ($wrapperKeys as $key) {
             $value = $artifact[$key] ?? null;
             if (!is_array($value)) {
                 continue;
             }
             foreach ($this->dictionaryWrapperValues($value) as $wrapperValue) {
-                if (!$includePdftextPayload && $this->isCopiedPdftextPayload($wrapperValue)) {
-                    continue;
-                }
-                $this->collectPageMarkerSources($wrapperValue, $sources, $depth + 1, $includePdftextPayload);
+                $this->collectPageMarkerSources($wrapperValue, $sources, $depth + 1, $wrapperKeys);
             }
         }
     }
@@ -274,27 +277,10 @@ final class PdfPageArtifactSelector
     }
 
     /**
-     * Adapter metadata may include a copied pdftext page dictionary under
-     * generic wrappers such as "source". Treat those page payload markers as
-     * fallback-only so they cannot override trusted adapter metadata.
-     *
-     * @param array<string, mixed> $value
-     */
-    private function isCopiedPdftextPayload(array $value): bool
-    {
-        foreach (['blocks', 'lines', 'text_lines', 'chars'] as $key) {
-            if (array_key_exists($key, $value) && is_array($value[$key])) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
      * A nested pdftext dictionary is often a payload copy rather than adapter
-     * identity. Use it for matching only when no normal metadata wrapper carries
-     * page markers.
+     * identity. Typed model-result payloads can also carry stale page copies,
+     * so payload-wrapper markers are used only when no root or metadata wrapper
+     * carries page identity.
      *
      * @param list<array<string, mixed>> $sources
      */
