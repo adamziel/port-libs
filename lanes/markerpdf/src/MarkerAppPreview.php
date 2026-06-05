@@ -1541,7 +1541,12 @@ final class MarkerAppPreview
         }
 
         if ($pdfBytes !== null) {
-            $textLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
+            $textExtractor = new PdfTextExtractor();
+            if ($textExtractor->isEncrypted($pdfBytes)) {
+                return $this->defaultPageLabels($pageCount);
+            }
+
+            $textLabels = $textExtractor->extractPageLabels($pdfBytes);
             if (count($textLabels) === $pageCount) {
                 return $textLabels;
             }
@@ -1551,15 +1556,25 @@ final class MarkerAppPreview
     }
 
     /**
-     * @param array<int, array{generation: int, body: string}> $objects
      * @return list<string>
      */
-    private function pageLabelsFromCatalog(?string $catalogBody, array $objects, int $pageCount): array
+    private function defaultPageLabels(int $pageCount): array
     {
         $labels = [];
         for ($index = 0; $index < $pageCount; $index++) {
             $labels[$index] = (string) ($index + 1);
         }
+
+        return $labels;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @return list<string>
+     */
+    private function pageLabelsFromCatalog(?string $catalogBody, array $objects, int $pageCount): array
+    {
+        $labels = $this->defaultPageLabels($pageCount);
 
         if ($catalogBody === null || $pageCount === 0) {
             return $labels;

@@ -266,6 +266,14 @@ final class PdfTextExtractor
     }
 
     /**
+     * Native encrypted-PDF preflight shared by preview metadata paths.
+     */
+    public function isEncrypted(string $pdfBytes): bool
+    {
+        return $this->hasEncryptedTrailer($pdfBytes);
+    }
+
+    /**
      * Native review boundary for page resource image XObjects.
      *
      * Upstream markerPDF gets page text from pdftext/PDFium text pages, while
