@@ -316,36 +316,40 @@ final class PdfLinkAnnotationExtractor
         $length = strlen($arrayBody);
 
         while ($offset < $length) {
-            $this->skipWhitespace($arrayBody, $offset);
+            $this->skipWhitespaceAndComments($arrayBody, $offset);
             if ($offset >= $length) {
                 break;
             }
 
-            if (substr($arrayBody, $offset, 2) === '<<') {
-                $endOffset = null;
-                $dictionary = $this->readPdfDictionaryAt($arrayBody, $offset, $endOffset);
-                if ($dictionary === null || $endOffset === null) {
-                    $offset++;
-                    continue;
-                }
+            $endOffset = null;
+            $value = $this->valueStartingAtOffsetWithEnd($arrayBody, $offset, $endOffset);
+            if ($value === null || $endOffset === null || $endOffset <= $offset) {
+                $offset++;
+                continue;
+            }
 
-                $annotations[] = ['body' => $dictionary, 'object' => null];
+            $value = trim($value);
+            if (str_starts_with($value, '<<')) {
+                $dictionary = $this->readPdfDictionaryAt($value, 0);
+                if ($dictionary !== null) {
+                    $annotations[] = ['body' => $dictionary, 'object' => null];
+                }
                 $offset = $endOffset;
                 continue;
             }
 
-            if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $arrayBody, $match, 0, $offset) === 1) {
+            if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) === 1) {
                 $objectNumber = (int) $match[1];
                 $objectBody = $this->objectBodyForReference($objectNumber, (int) $match[2], $objects);
                 $dictionary = $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
                 if ($dictionary !== null) {
                     $annotations[] = ['body' => $dictionary, 'object' => $objectNumber];
                 }
-                $offset += strlen($match[0]);
+                $offset = $endOffset;
                 continue;
             }
 
-            $offset++;
+            $offset = $endOffset;
         }
 
         return $annotations;
@@ -1619,6 +1623,12 @@ final class PdfLinkAnnotationExtractor
             $char = $value[$index];
             if ($char === '(') {
                 $index = $this->skipLiteralString($value, $index) - 1;
+                continue;
+            }
+            if ($char === '%') {
+                while ($index < $length && $value[$index] !== "\n" && $value[$index] !== "\r") {
+                    $index++;
+                }
                 continue;
             }
             if ($char === '<' && substr($value, $index, 2) === '<<') {

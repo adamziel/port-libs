@@ -1716,35 +1716,39 @@ final class PdfAnnotationExtractor
         $length = strlen($body);
 
         while ($offset < $length) {
-            $this->skipWhitespace($body, $offset);
+            $this->skipWhitespaceAndComments($body, $offset);
             if ($offset >= $length) {
                 break;
             }
 
-            if (substr($body, $offset, 2) === '<<') {
-                $endOffset = null;
-                $dictionary = $this->readPdfDictionaryAt($body, $offset, $endOffset);
-                if ($dictionary === null || $endOffset === null) {
-                    $offset++;
-                    continue;
-                }
+            $endOffset = null;
+            $value = $this->valueStartingAtOffsetWithEnd($body, $offset, $endOffset);
+            if ($value === null || $endOffset === null || $endOffset <= $offset) {
+                $offset++;
+                continue;
+            }
 
-                $records[] = ['body' => $dictionary, 'object' => null];
+            $value = trim($value);
+            if (str_starts_with($value, '<<')) {
+                $dictionary = $this->readPdfDictionaryAt($value, 0);
+                if ($dictionary !== null) {
+                    $records[] = ['body' => $dictionary, 'object' => null];
+                }
                 $offset = $endOffset;
                 continue;
             }
 
-            if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $body, $match, 0, $offset) === 1) {
+            if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) === 1) {
                 $objectNumber = (int) $match[1];
                 $dictionary = $this->dictionaryObjectBody($objects[$objectNumber] ?? '');
                 if ($dictionary !== null) {
                     $records[] = ['body' => $dictionary, 'object' => $objectNumber];
                 }
-                $offset += strlen($match[0]);
+                $offset = $endOffset;
                 continue;
             }
 
-            $offset++;
+            $offset = $endOffset;
         }
 
         return $records;
@@ -2817,6 +2821,12 @@ final class PdfAnnotationExtractor
                 $index = $this->skipLiteralString($value, $index) - 1;
                 continue;
             }
+            if ($char === '%') {
+                while ($index < $length && $value[$index] !== "\n" && $value[$index] !== "\r") {
+                    $index++;
+                }
+                continue;
+            }
             if ($char === '<' && substr($value, $index, 2) === '<<') {
                 $endDictionary = null;
                 $this->readPdfDictionaryAt($value, $index, $endDictionary);
@@ -2851,6 +2861,24 @@ final class PdfAnnotationExtractor
     {
         while ($offset < strlen($body) && ctype_space($body[$offset])) {
             $offset++;
+        }
+    }
+
+    private function skipWhitespaceAndComments(string $body, int &$offset): void
+    {
+        $length = strlen($body);
+        while ($offset < $length) {
+            while ($offset < $length && ctype_space($body[$offset])) {
+                $offset++;
+            }
+
+            if (($body[$offset] ?? '') !== '%') {
+                return;
+            }
+
+            while ($offset < $length && $body[$offset] !== "\n" && $body[$offset] !== "\r") {
+                $offset++;
+            }
         }
     }
 
