@@ -44,6 +44,7 @@ final class EpubReader
      *     mediaDurations:array<string, mixed>,
      *     pageBreaks:array<string, mixed>,
      *     xhtmlAssets:list<array<string, mixed>>,
+     *     xhtmlResourceReport:array<string, mixed>,
      *     assets:list<array<string, mixed>>,
      *     assetReport:array<string, mixed>,
      *     importReport:array<string, mixed>
@@ -70,6 +71,7 @@ final class EpubReader
             $opf['resourceProperties'],
             $opf['mediaDurations'],
             $opf['pageBreaks'],
+            $opf['xhtmlResourceReport'],
             $renditions
         );
 
@@ -95,6 +97,7 @@ final class EpubReader
             'mediaDurations' => $opf['mediaDurations'],
             'pageBreaks' => $opf['pageBreaks'],
             'xhtmlAssets' => $opf['xhtmlAssets'],
+            'xhtmlResourceReport' => $opf['xhtmlResourceReport'],
             'assets' => $opf['assets'],
             'assetReport' => $opf['assetReport'],
             'importReport' => [
@@ -127,6 +130,7 @@ final class EpubReader
                 'bindings' => $opf['bindings'],
                 'accessibility' => $opf['accessibility'],
                 'resourceProperties' => $opf['resourceProperties'],
+                'xhtmlResourceReport' => $opf['xhtmlResourceReport'],
                 'encryption' => $opf['encryption'],
                 'mediaOverlays' => $opf['mediaOverlays'],
                 'mediaDurations' => $opf['mediaDurations'],
@@ -260,6 +264,7 @@ final class EpubReader
      *     mediaDurations:array<string, mixed>,
      *     pageBreaks:array<string, mixed>,
      *     xhtmlAssets:list<array<string, mixed>>,
+     *     xhtmlResourceReport:array<string, mixed>,
      *     assets:list<array<string, mixed>>,
      *     assetReport:array<string, mixed>
      * }
@@ -311,6 +316,8 @@ final class EpubReader
         $nav = $navItem === null ? null : $this->readNavDocument($package, $navItem);
         $ncx = $ncxItem === null ? null : $this->readNcxDocument($package, $ncxItem);
         $pageBreaks = self::pageBreakReport($nav, $spine);
+        $xhtmlAssets = $this->xhtmlAssets($package, $manifest, self::manifestByPart($manifestById));
+        $xhtmlResourceReport = self::xhtmlResourceReport($xhtmlAssets);
 
         return [
             'metadata' => $metadata,
@@ -340,7 +347,8 @@ final class EpubReader
             'mediaOverlays' => $mediaOverlays,
             'mediaDurations' => $mediaDurations,
             'pageBreaks' => $pageBreaks,
-            'xhtmlAssets' => $this->xhtmlAssets($package, $manifest),
+            'xhtmlAssets' => $xhtmlAssets,
+            'xhtmlResourceReport' => $xhtmlResourceReport,
             'assets' => $assetReport['items'],
             'assetReport' => $assetReport,
         ];
@@ -3269,10 +3277,11 @@ final class EpubReader
 
     /**
      * @param list<array<string, mixed>> $manifest
+     * @param array<string, array<string, mixed>> $manifestByPart
      *
      * @return list<array<string, mixed>>
      */
-    private function xhtmlAssets(ZipPackage $package, array $manifest): array
+    private function xhtmlAssets(ZipPackage $package, array $manifest, array $manifestByPart): array
     {
         $assets = [];
         foreach ($manifest as $item) {
@@ -3284,20 +3293,425 @@ final class EpubReader
                 continue;
             }
 
+            $part = (string) $item['part'];
+            $html = $package->read($part);
+            $contentReport = $this->xhtmlContentResourceReport($package, $part, $html, $manifestByPart);
             $assets[] = [
                 'id' => $item['id'],
                 'href' => $item['href'],
                 'target' => $item['target'],
-                'part' => $item['part'],
+                'part' => $part,
                 'properties' => $item['properties'],
                 'resourceFlags' => $item['resourceFlags'] ?? self::resourcePropertyFlags($item['properties'] ?? []),
                 'resourceReviewFlags' => $item['resourceReviewFlags'] ?? [],
                 'mediaOverlay' => $item['mediaOverlay'],
-                'html' => $package->read((string) $item['part']),
+                'html' => $html,
+                'contentResourceReport' => $contentReport,
+                'contentResourceFlags' => $contentReport['flags'],
+                'contentResourceReviewFlags' => $contentReport['reviewFlags'],
+                'contentReferences' => $contentReport['references'],
+                'contentDiagnostics' => $contentReport['diagnostics'],
             ];
         }
 
         return $assets;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xhtmlAssets
+     *
+     * @return array<string, mixed>
+     */
+    private static function xhtmlResourceReport(array $xhtmlAssets): array
+    {
+        $items = [];
+        $itemsByPart = [];
+        $externalReferences = [];
+        $missingReferences = [];
+        $encryptedReferences = [];
+        $diagnostics = [];
+        $mathmlAssetCount = 0;
+        $svgAssetCount = 0;
+        $scriptedAssetCount = 0;
+        $reviewRequiredCount = 0;
+        $referenceCount = 0;
+
+        foreach ($xhtmlAssets as $asset) {
+            $report = is_array($asset['contentResourceReport'] ?? null) ? $asset['contentResourceReport'] : null;
+            if ($report === null) {
+                continue;
+            }
+
+            $part = (string) ($asset['part'] ?? $report['part'] ?? '');
+            $item = [
+                'id' => (string) ($asset['id'] ?? ''),
+                'part' => $part,
+                'href' => (string) ($asset['href'] ?? ''),
+                'manifestProperties' => is_array($asset['properties'] ?? null) ? array_values($asset['properties']) : [],
+                'flags' => is_array($report['flags'] ?? null) ? $report['flags'] : [],
+                'reviewFlags' => is_array($report['reviewFlags'] ?? null) ? array_values($report['reviewFlags']) : [],
+                'referenceCount' => count(is_array($report['references'] ?? null) ? $report['references'] : []),
+                'references' => is_array($report['references'] ?? null) ? array_values($report['references']) : [],
+                'diagnostics' => is_array($report['diagnostics'] ?? null) ? array_values($report['diagnostics']) : [],
+            ];
+
+            $referenceCount += $item['referenceCount'];
+            if (($item['flags']['mathml'] ?? false) === true) {
+                ++$mathmlAssetCount;
+            }
+            if (($item['flags']['svg'] ?? false) === true) {
+                ++$svgAssetCount;
+            }
+            if (($item['flags']['scripted'] ?? false) === true) {
+                ++$scriptedAssetCount;
+            }
+            if ($item['reviewFlags'] !== []) {
+                ++$reviewRequiredCount;
+            }
+
+            foreach ($item['references'] as $reference) {
+                if (($reference['external'] ?? false) === true) {
+                    $externalReferences[] = $reference;
+                }
+                if (($reference['exists'] ?? true) !== true && ($reference['external'] ?? false) !== true) {
+                    $missingReferences[] = $reference;
+                }
+                if (($reference['encrypted'] ?? false) === true) {
+                    $encryptedReferences[] = $reference;
+                }
+            }
+
+            foreach ($item['diagnostics'] as $diagnostic) {
+                $diagnostics[] = [
+                    'part' => $part,
+                ] + $diagnostic;
+            }
+
+            $items[] = $item;
+            if ($part !== '') {
+                $itemsByPart[$part] = $item;
+            }
+        }
+
+        return [
+            'present' => $items !== [],
+            'assetCount' => count($items),
+            'referenceCount' => $referenceCount,
+            'externalReferenceCount' => count($externalReferences),
+            'missingReferenceCount' => count($missingReferences),
+            'encryptedReferenceCount' => count($encryptedReferences),
+            'mathmlAssetCount' => $mathmlAssetCount,
+            'svgAssetCount' => $svgAssetCount,
+            'scriptedAssetCount' => $scriptedAssetCount,
+            'reviewRequiredCount' => $reviewRequiredCount,
+            'items' => $items,
+            'itemsByPart' => $itemsByPart,
+            'externalReferences' => $externalReferences,
+            'missingReferences' => $missingReferences,
+            'encryptedReferences' => $encryptedReferences,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array<string, mixed>
+     */
+    private function xhtmlContentResourceReport(
+        ZipPackage $package,
+        string $part,
+        string $html,
+        array $manifestByPart
+    ): array {
+        $flags = self::emptyXhtmlContentResourceFlags();
+        $references = [];
+        $diagnostics = [];
+
+        try {
+            $dom = self::loadXml($html, 'EPUB XHTML content document');
+        } catch (\Throwable $exception) {
+            return [
+                'part' => $part,
+                'flags' => $flags,
+                'reviewFlags' => [],
+                'references' => [],
+                'diagnostics' => [[
+                    'type' => 'xhtml-content-resource-scan-failed',
+                    'part' => $part,
+                    'message' => $exception->getMessage(),
+                ]],
+            ];
+        }
+
+        $root = $dom->documentElement;
+        if ($root instanceof \DOMElement) {
+            $this->scanXhtmlContentElement($package, $part, $root, $manifestByPart, $flags, $references);
+        }
+
+        foreach ($references as $reference) {
+            foreach ($reference['diagnostics'] as $diagnostic) {
+                $diagnostics[] = [
+                    'index' => $reference['index'],
+                    'element' => $reference['element'],
+                    'attribute' => $reference['attribute'],
+                    'href' => $reference['href'],
+                ] + $diagnostic;
+            }
+        }
+
+        return [
+            'part' => $part,
+            'flags' => $flags,
+            'reviewFlags' => self::xhtmlContentReviewFlags($flags),
+            'references' => $references,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     * @param array<string, bool> $flags
+     * @param list<array<string, mixed>> $references
+     */
+    private function scanXhtmlContentElement(
+        ZipPackage $package,
+        string $part,
+        \DOMElement $element,
+        array $manifestByPart,
+        array &$flags,
+        array &$references
+    ): void {
+        $namespace = (string) $element->namespaceURI;
+        $localName = strtolower($element->localName);
+        if ($namespace === 'http://www.w3.org/1998/Math/MathML' || $localName === 'math') {
+            $flags['mathml'] = true;
+        }
+        if ($namespace === 'http://www.w3.org/2000/svg' || $localName === 'svg') {
+            $flags['svg'] = true;
+        }
+        if ($namespace === self::XHTML_NS && $localName === 'script') {
+            $flags['scripted'] = true;
+        }
+
+        foreach (self::xhtmlEventHandlerAttributes($element) as $attributeName) {
+            $flags['scripted'] = true;
+            $references[] = [
+                'index' => count($references),
+                'element' => $element->localName,
+                'attribute' => $attributeName,
+                'href' => null,
+                'target' => null,
+                'part' => $part,
+                'fragment' => null,
+                'external' => false,
+                'exists' => true,
+                'byteLength' => null,
+                'crc32' => null,
+                'manifestId' => $manifestByPart[$part]['id'] ?? null,
+                'mediaType' => $manifestByPart[$part]['mediaType'] ?? self::XHTML_MEDIA_TYPE,
+                'encrypted' => false,
+                'canExposeBytes' => true,
+                'diagnostics' => [[
+                    'type' => 'scripted-xhtml-content-attribute',
+                    'attribute' => $attributeName,
+                    'message' => 'EPUB XHTML content carries an inline script event handler that requires review',
+                ]],
+            ];
+        }
+
+        foreach (self::xhtmlReferenceAttributes($element) as $attribute) {
+            $href = trim($attribute['href']);
+            if ($href === '') {
+                continue;
+            }
+            if (preg_match('/^javascript:/i', $href) === 1) {
+                $flags['scripted'] = true;
+            }
+
+            $references[] = $this->xhtmlContentReference(
+                $package,
+                $part,
+                $element->localName,
+                $attribute['attribute'],
+                $href,
+                $manifestByPart,
+                count($references),
+                $flags
+            );
+        }
+
+        foreach (self::childElements($element) as $child) {
+            $this->scanXhtmlContentElement($package, $part, $child, $manifestByPart, $flags, $references);
+        }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     * @param array<string, bool> $flags
+     *
+     * @return array<string, mixed>
+     */
+    private function xhtmlContentReference(
+        ZipPackage $package,
+        string $part,
+        string $element,
+        string $attribute,
+        string $href,
+        array $manifestByPart,
+        int $index,
+        array &$flags
+    ): array {
+        $reference = $this->packageReference($package, $part, $href, $manifestByPart, 'xhtml-content');
+        $diagnostics = $reference['diagnostics'];
+        if (($reference['external'] ?? false) === true) {
+            $flags['remoteResources'] = true;
+        }
+        if (($reference['exists'] ?? true) !== true && ($reference['external'] ?? false) !== true) {
+            $flags['missingReferences'] = true;
+        }
+        if (($reference['encrypted'] ?? false) === true) {
+            $flags['encryptedReferences'] = true;
+            $diagnostics[] = [
+                'type' => 'encrypted-xhtml-content-reference',
+                'part' => $reference['part'],
+                'message' => 'EPUB XHTML content references an encrypted package part that cannot be exposed directly',
+            ];
+        }
+
+        return [
+            'index' => $index,
+            'element' => $element,
+            'attribute' => $attribute,
+            'href' => $href,
+            'target' => $reference['target'],
+            'part' => $reference['part'],
+            'fragment' => self::targetFragment($reference['target']),
+            'external' => $reference['external'],
+            'exists' => $reference['exists'],
+            'byteLength' => $reference['byteLength'],
+            'crc32' => $reference['crc32'],
+            'manifestId' => $reference['manifestId'],
+            'mediaType' => $reference['mediaType'],
+            'encrypted' => $reference['encrypted'],
+            'canExposeBytes' => $reference['canExposeBytes'],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array{mathml:bool, svg:bool, scripted:bool, remoteResources:bool, missingReferences:bool, encryptedReferences:bool}
+     */
+    private static function emptyXhtmlContentResourceFlags(): array
+    {
+        return [
+            'mathml' => false,
+            'svg' => false,
+            'scripted' => false,
+            'remoteResources' => false,
+            'missingReferences' => false,
+            'encryptedReferences' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, bool> $flags
+     *
+     * @return list<string>
+     */
+    private static function xhtmlContentReviewFlags(array $flags): array
+    {
+        $reviewFlags = [];
+        foreach ([
+            'mathml' => 'mathml',
+            'svg' => 'svg',
+            'scripted' => 'scripted',
+            'remoteResources' => 'remote-resources',
+            'missingReferences' => 'missing-references',
+            'encryptedReferences' => 'encrypted-references',
+        ] as $flag => $reviewFlag) {
+            if (($flags[$flag] ?? false) === true) {
+                $reviewFlags[] = $reviewFlag;
+            }
+        }
+
+        return $reviewFlags;
+    }
+
+    /**
+     * @return list<array{attribute:string, href:string}>
+     */
+    private static function xhtmlReferenceAttributes(\DOMElement $element): array
+    {
+        $localName = strtolower($element->localName);
+        $attributes = [];
+        foreach ([
+            'a' => ['href'],
+            'audio' => ['src'],
+            'embed' => ['src'],
+            'iframe' => ['src'],
+            'image' => ['href', 'xlink:href'],
+            'img' => ['src'],
+            'link' => ['href'],
+            'object' => ['data'],
+            'script' => ['src'],
+            'source' => ['src'],
+            'track' => ['src'],
+            'use' => ['href', 'xlink:href'],
+            'video' => ['src', 'poster'],
+        ][$localName] ?? [] as $attributeName) {
+            $value = self::xhtmlAttributeValue($element, $attributeName);
+            if ($value === null || trim($value) === '') {
+                continue;
+            }
+
+            $attributes[] = [
+                'attribute' => $attributeName,
+                'href' => $value,
+            ];
+        }
+
+        return $attributes;
+    }
+
+    private static function xhtmlAttributeValue(\DOMElement $element, string $attributeName): ?string
+    {
+        if ($attributeName === 'xlink:href') {
+            $value = trim($element->getAttributeNS('http://www.w3.org/1999/xlink', 'href'));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        if (!$element->hasAttribute($attributeName)) {
+            return null;
+        }
+
+        return trim($element->getAttribute($attributeName));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function xhtmlEventHandlerAttributes(\DOMElement $element): array
+    {
+        $attributes = [];
+        if (!$element->hasAttributes()) {
+            return $attributes;
+        }
+
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            $name = strtolower($attribute->name);
+            if (str_starts_with($name, 'on')) {
+                $attributes[] = $attribute->name;
+            }
+        }
+
+        return $attributes;
     }
 
     /**
@@ -3635,6 +4049,7 @@ final class EpubReader
      * @param array<string, mixed> $resourceProperties
      * @param array<string, mixed> $mediaDurations
      * @param array<string, mixed> $pageBreaks
+     * @param array<string, mixed> $xhtmlResourceReport
      * @param array<string, mixed> $renditions
      */
     private function documentNode(
@@ -3650,6 +4065,7 @@ final class EpubReader
         array $resourceProperties,
         array $mediaDurations,
         array $pageBreaks,
+        array $xhtmlResourceReport,
         array $renditions
     ): AstNode {
         $assetsByPart = [];
@@ -3696,6 +4112,10 @@ final class EpubReader
                     : 0,
                 'resourceFlags' => $asset['resourceFlags'] ?? [],
                 'resourceReviewFlags' => $asset['resourceReviewFlags'] ?? [],
+                'contentResourceFlags' => $asset['contentResourceFlags'] ?? [],
+                'contentResourceReviewFlags' => $asset['contentResourceReviewFlags'] ?? [],
+                'contentReferences' => $asset['contentReferences'] ?? [],
+                'contentDiagnostics' => $asset['contentDiagnostics'] ?? [],
                 'source' => $isFallback ? 'epub3-spine-fallback' : 'epub3-spine',
             ];
 
@@ -3723,6 +4143,7 @@ final class EpubReader
             'accessibility' => $accessibility,
             'spineProperties' => $spineProperties,
             'resourceProperties' => $resourceProperties,
+            'xhtmlResourceReport' => $xhtmlResourceReport,
             'mediaDurations' => $mediaDurations,
             'pageBreaks' => $pageBreaks,
             'renditions' => $renditions,

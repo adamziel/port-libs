@@ -1242,6 +1242,96 @@ XML;
         $t->same(['mathml', 'svg', 'remote-resources'], $result['document']->children[0]->attr('resourceReviewFlags'));
         $t->same(['scripted', 'switch'], $result['document']->children[1]->attr('resourceReviewFlags'));
     },
+    'scans EPUB XHTML content resources without fetching remote references' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $contentScanXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:svg="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <body>
+    <h1 id="local">Content resource scan</h1>
+    <p><a href="#local">Local anchor</a></p>
+    <p><a href="chapter1.xhtml#intro">Source chapter link</a></p>
+    <p><img src="../images/cover.png" alt="cover"/></p>
+    <p><img src="https://cdn.example.test/epub/remote.png" alt="remote"/></p>
+    <p><img src="../images/missing.png" alt="missing"/></p>
+    <script>window.epubReview = true;</script>
+    <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi><mo>=</mo><mn>1</mn></math>
+    <svg:svg viewBox="0 0 10 10"><svg:image xlink:href="../images/cover.png"/></svg:svg>
+  </body>
+</html>
+XML;
+        $opfWithContentScan = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/><item id="content-scan" href="text/content-scan.xhtml" media-type="application/xhtml+xml"/>',
+            $opfXml
+        );
+        $opfWithContentScan = str_replace(
+            '</spine>',
+            '<itemref idref="content-scan"/></spine>',
+            $opfWithContentScan
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithContentScan,
+            null,
+            [
+                ['name' => 'OEBPS/text/content-scan.xhtml', 'data' => $contentScanXhtml],
+            ]
+        ));
+
+        $report = $result['xhtmlResourceReport'];
+        $asset = $report['itemsByPart']['/OEBPS/text/content-scan.xhtml'];
+        $referencesByHref = [];
+        foreach ($asset['references'] as $reference) {
+            $referencesByHref[$reference['href']] = $reference;
+        }
+
+        $t->same(true, $report['present']);
+        $t->same(4, $report['assetCount']);
+        $t->same(6, $asset['referenceCount']);
+        $t->same(1, $report['externalReferenceCount']);
+        $t->same(1, $report['missingReferenceCount']);
+        $t->same(1, $report['mathmlAssetCount']);
+        $t->same(1, $report['svgAssetCount']);
+        $t->same(1, $report['scriptedAssetCount']);
+        $t->same(['mathml', 'svg', 'scripted', 'remote-resources', 'missing-references'], $asset['reviewFlags']);
+        $t->same(true, $asset['flags']['mathml']);
+        $t->same(true, $asset['flags']['svg']);
+        $t->same(true, $asset['flags']['scripted']);
+        $t->same(true, $asset['flags']['remoteResources']);
+        $t->same(true, $asset['flags']['missingReferences']);
+        $t->same(false, $asset['flags']['encryptedReferences']);
+
+        $t->same('/OEBPS/text/content-scan.xhtml#local', $referencesByHref['#local']['target']);
+        $t->same('/OEBPS/text/content-scan.xhtml', $referencesByHref['#local']['part']);
+        $t->same('content-scan', $referencesByHref['#local']['manifestId']);
+        $t->same('/OEBPS/text/chapter1.xhtml#intro', $referencesByHref['chapter1.xhtml#intro']['target']);
+        $t->same('chapter-1', $referencesByHref['chapter1.xhtml#intro']['manifestId']);
+        $t->same('/OEBPS/images/cover.png', $referencesByHref['../images/cover.png']['target']);
+        $t->same('cover-image', $referencesByHref['../images/cover.png']['manifestId']);
+        $t->same(7, $referencesByHref['../images/cover.png']['byteLength']);
+
+        $remote = $referencesByHref['https://cdn.example.test/epub/remote.png'];
+        $t->same(true, $remote['external']);
+        $t->same(false, $remote['exists']);
+        $t->same(null, $remote['part']);
+        $t->same('external-xhtml-content-reference', $remote['diagnostics'][0]['type']);
+
+        $missing = $referencesByHref['../images/missing.png'];
+        $t->same(false, $missing['external']);
+        $t->same(false, $missing['exists']);
+        $t->same('/OEBPS/images/missing.png', $missing['part']);
+        $t->same('missing-xhtml-content-reference', $missing['diagnostics'][0]['type']);
+        $t->same('missing-xhtml-content-reference', $report['missingReferences'][0]['diagnostics'][0]['type']);
+        $t->same('external-xhtml-content-reference', $report['externalReferences'][0]['diagnostics'][0]['type']);
+        $t->same($report, $result['importReport']['xhtmlResourceReport']);
+        $t->same($report, $result['document']->attr('xhtmlResourceReport'));
+
+        $scanBlock = $result['document']->children[2];
+        $t->same('/OEBPS/text/content-scan.xhtml', $scanBlock->attr('part'));
+        $t->same($asset['flags'], $scanBlock->attr('contentResourceFlags'));
+        $t->same($asset['reviewFlags'], $scanBlock->attr('contentResourceReviewFlags'));
+        $t->same($asset['references'], $scanBlock->attr('contentReferences'));
+        $t->same($asset['diagnostics'], $scanBlock->attr('contentDiagnostics'));
+    },
     'reports cover image attachment candidates and unmanifested package assets' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $result = (new EpubReader())->readPackage($buildEpubPackage(
             null,
