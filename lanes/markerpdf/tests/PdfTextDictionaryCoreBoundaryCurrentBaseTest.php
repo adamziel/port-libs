@@ -475,6 +475,26 @@ return [
         unset($missingCharFlags['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['font']['flags']);
         $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$missingCharFlags], maxPages: 1, keepChars: true));
     },
+    'rejects fractional pdftext font flags before WordPress style metadata' => static function (TestRunner $t) use ($pdftextLinkedPage, $pdftextCharsPage): void {
+        $fractionalSpanFlags = $pdftextLinkedPage();
+        $fractionalSpanFlags['blocks'][0]['lines'][0]['spans'][0]['font']['flags'] = 1.5;
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$fractionalSpanFlags], maxPages: 1));
+
+        $fractionalCharFlags = $pdftextCharsPage();
+        $fractionalCharFlags['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['font']['flags'] = 33.25;
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$fractionalCharFlags], maxPages: 1, keepChars: true));
+
+        $integralFloatFlags = $pdftextCharsPage();
+        $integralFloatFlags['blocks'][0]['lines'][0]['spans'][0]['font']['flags'] = 33.0;
+        $integralFloatFlags['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['font']['flags'] = 33.0;
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$integralFloatFlags], maxPages: 1, keepChars: true);
+        $span = $document['pages'][0]['blocks'][0]['lines'][0]['spans'][0];
+        $charSpan = $document['pages'][0]['char_blocks'][0]['lines'][0]['spans'][0];
+
+        $t->same('Helvetica_fixed_pitch_non_symbolic', $span['font']);
+        $t->same(33, $charSpan['font']['flags']);
+        $t->same(33, $span['chars'][0]['font']['flags']);
+    },
     'preserves pdftext superscript and subscript flags at the core boundary' => static function (TestRunner $t) use ($pdftextScriptPage): void {
         $document = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextScriptPage()], maxPages: 1);
         $spans = $document['pages'][0]['blocks'][0]['lines'][0]['spans'];

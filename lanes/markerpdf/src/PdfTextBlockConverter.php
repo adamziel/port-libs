@@ -208,7 +208,7 @@ final class PdfTextBlockConverter
                         $this->assertNumeric($span['font'][$fontKey] ?? null, "blocks[{$blockIndex}].lines[{$lineIndex}].spans[{$spanIndex}].font.{$fontKey}");
                     }
                     if (array_key_exists('flags', $span['font']) && $span['font']['flags'] !== null) {
-                        $this->assertNumeric($span['font']['flags'], "blocks[{$blockIndex}].lines[{$lineIndex}].spans[{$spanIndex}].font.flags");
+                        $this->integerMetadata($span['font']['flags'], "blocks[{$blockIndex}].lines[{$lineIndex}].spans[{$spanIndex}].font.flags");
                     }
                     if (array_key_exists('rotation', $span) && !is_int($span['rotation']) && !is_float($span['rotation'])) {
                         throw new InvalidArgumentException('pdftext span rotation must be numeric when supplied.');

@@ -369,6 +369,9 @@ final class PdfTextDocumentExtractor
                 $sanitizedFont[$key] = $font[$key];
             }
         }
+        if (array_key_exists('flags', $sanitizedFont) && $sanitizedFont['flags'] !== null) {
+            $sanitizedFont['flags'] = $this->dictionaryOutputIntegerMetadata($sanitizedFont['flags'], 'font.flags');
+        }
 
         return $sanitizedFont;
     }
@@ -476,7 +479,7 @@ final class PdfTextDocumentExtractor
         }
 
         if (array_key_exists('flags', $font) && $font['flags'] !== null) {
-            $this->assertNumeric($font['flags'], "{$field}.flags");
+            $this->dictionaryOutputIntegerMetadata($font['flags'], "{$field}.flags");
         }
     }
 

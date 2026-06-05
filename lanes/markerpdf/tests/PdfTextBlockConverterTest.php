@@ -177,6 +177,18 @@ return [
         $t->same(3, $span['char_start_idx']);
         $t->same(14, $span['char_end_idx']);
     },
+    'rejects fractional pdftext font flags at the converter boundary' => static function (TestRunner $t) use ($pdftextPage): void {
+        $converter = new PdfTextBlockConverter();
+        $page = $pdftextPage();
+        $page['blocks'][0]['lines'][0]['spans'][0]['font']['flags'] = 1.5;
+
+        $t->throws(InvalidArgumentException::class, static fn () => $converter->pdftextFormatToPage($page, 0));
+
+        $page['blocks'][0]['lines'][0]['spans'][0]['font']['flags'] = 33.0;
+        $span = $converter->pdftextFormatToPage($page, 0)['blocks'][0]['lines'][0]['spans'][0];
+
+        $t->same('TimesNewRomanPS_fixed_pitch_non_symbolic', $span['font']);
+    },
     'requires pdftext span text strings at the core dictionary boundary' => static function (TestRunner $t) use ($pdftextPage): void {
         $converter = new PdfTextBlockConverter();
 

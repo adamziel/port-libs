@@ -94,6 +94,34 @@ try {
     $missingCharFlagsRejected = true;
 }
 
+$fractionalSpanFlagsPage = $page;
+$fractionalSpanFlagsPage['blocks'][0]['lines'][0]['spans'][0]['font']['flags'] = 1.5;
+$fractionalSpanFlagsRejected = false;
+try {
+    (new PdfTextDocumentExtractor())->getTextBlocks([$fractionalSpanFlagsPage], maxPages: 1, keepChars: true);
+} catch (InvalidArgumentException) {
+    $fractionalSpanFlagsRejected = true;
+}
+
+$fractionalCharFlagsPage = $page;
+$fractionalCharFlagsPage['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['font']['flags'] = 33.25;
+$fractionalCharFlagsRejected = false;
+try {
+    (new PdfTextDocumentExtractor())->getTextBlocks([$fractionalCharFlagsPage], maxPages: 1, keepChars: true);
+} catch (InvalidArgumentException) {
+    $fractionalCharFlagsRejected = true;
+}
+
+$integralFloatFlagsPage = $page;
+$integralFloatFlagsPage['blocks'][0]['lines'][0]['spans'][0]['font']['flags'] = 33.0;
+$integralFloatFlagsPage['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['font']['flags'] = 33.0;
+$integralFloatFlagsDocument = (new PdfTextDocumentExtractor())->getTextBlocks([$integralFloatFlagsPage], maxPages: 1, keepChars: true);
+$integralFloatSpan = $integralFloatFlagsDocument['pages'][0]['blocks'][0]['lines'][0]['spans'][0] ?? [];
+$integralFloatCharSpan = $integralFloatFlagsDocument['pages'][0]['char_blocks'][0]['lines'][0]['spans'][0] ?? [];
+$integralFloatFlagsAccepted = ($integralFloatSpan['font'] ?? null) === 'Helvetica_fixed_pitch_non_symbolic'
+    && ($integralFloatCharSpan['font']['flags'] ?? null) === 33
+    && ($integralFloatSpan['chars'][0]['font']['flags'] ?? null) === 33;
+
 if (array_key_exists('c', $span['chars'][0] ?? [])
     || str_contains($encoded, 'legacy alias should not cross the boundary')
     || str_contains($encoded, 'embedded_font_program')
@@ -103,6 +131,9 @@ if (array_key_exists('c', $span['chars'][0] ?? [])
     || !$missingCharsRejected
     || !$missingSpanFlagsRejected
     || !$missingCharFlagsRejected
+    || !$fractionalSpanFlagsRejected
+    || !$fractionalCharFlagsRejected
+    || !$integralFloatFlagsAccepted
 ) {
     throw new RuntimeException('Expected pdftext keep_chars character dictionaries to keep only upstream-shaped keys.');
 }
@@ -127,6 +158,9 @@ echo '<!-- markerpdf-pdftext-dictionary-char-core-boundary-currentbase ' . htmls
     'missing_keep_chars_array_rejected' => $missingCharsRejected,
     'missing_span_font_flags_rejected' => $missingSpanFlagsRejected,
     'missing_char_font_flags_rejected' => $missingCharFlagsRejected,
+    'fractional_span_font_flags_rejected' => $fractionalSpanFlagsRejected,
+    'fractional_char_font_flags_rejected' => $fractionalCharFlagsRejected,
+    'integral_float_font_flags_accepted' => $integralFloatFlagsAccepted,
     'executes_python_pdftext' => false,
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
