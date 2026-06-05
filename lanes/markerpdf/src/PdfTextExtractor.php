@@ -14779,12 +14779,12 @@ final class PdfTextExtractor
         for ($index = 0; $index < $count; $index++) {
             $objectNumber = $this->readPdfUnsignedIntegerToken($header, $offset);
             if ($objectNumber === null) {
-                break;
+                return [];
             }
 
             $objectOffset = $this->readPdfUnsignedIntegerToken($header, $offset);
             if ($objectOffset === null) {
-                break;
+                return [];
             }
 
             if ($objectNumber === 0) {
