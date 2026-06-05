@@ -6683,7 +6683,7 @@ final class PdfTextExtractor
      */
     private function pageLabelKidObjectReferences(string $dictionary, array $objects): array
     {
-        $arrayBody = $this->pdfArrayValueAfterNameResolved($dictionary, 'Kids', $objects);
+        $arrayBody = $this->pageLabelArrayValueAfterNameResolved($dictionary, 'Kids', $objects);
         if ($arrayBody === null) {
             return [];
         }
@@ -6710,7 +6710,7 @@ final class PdfTextExtractor
      */
     private function pageLabelNumsEntries(string $dictionary, array $objects, ?array $limits, int $pageCount): array
     {
-        $arrayBody = $this->pdfArrayValueAfterNameResolved($dictionary, 'Nums', $objects);
+        $arrayBody = $this->pageLabelArrayValueAfterNameResolved($dictionary, 'Nums', $objects);
         if ($arrayBody === null) {
             return [];
         }
@@ -6780,7 +6780,7 @@ final class PdfTextExtractor
      */
     private function pageLabelLimits(string $dictionary, array $objects): ?array
     {
-        $arrayBody = $this->pdfArrayValueAfterNameResolved($dictionary, 'Limits', $objects);
+        $arrayBody = $this->pageLabelArrayValueAfterNameResolved($dictionary, 'Limits', $objects);
         if ($arrayBody === null) {
             return null;
         }
@@ -6842,6 +6842,15 @@ final class PdfTextExtractor
      */
     private function pageLabelDictionaryFromValue(string $value, array $objects): ?string
     {
+        return $this->pageLabelDictionaryFromValueResolved($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function pageLabelDictionaryFromValueResolved(string $value, array $objects, array $seen = []): ?string
+    {
         $value = trim($value);
         if (str_starts_with($value, '<<')) {
             $offset = 0;
@@ -6854,8 +6863,18 @@ final class PdfTextExtractor
 
         $objectNumber = (int) $match[1];
         $generation = (int) $match[2];
+        $objectKey = $objectNumber . ':' . $generation;
+        if ($objectNumber <= 0 || isset($seen[$objectKey])) {
+            return null;
+        }
+
         $body = $this->pageLabelObjectBodyForReference($objects, $objectNumber, $generation);
-        return $body === null ? null : $this->dictionaryObjectBody($body);
+        if ($body === null) {
+            return null;
+        }
+
+        $seen[$objectKey] = true;
+        return $this->pageLabelDictionaryFromValueResolved($body, $objects, $seen);
     }
 
     /**
@@ -6870,6 +6889,46 @@ final class PdfTextExtractor
         }
 
         return $directExactBody ?? $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pageLabelArrayValueAfterNameResolved(string $body, string $name, array $objects): ?string
+    {
+        $value = $this->pdfValueAfterName($body, $name);
+        return $value === null ? null : $this->pageLabelArrayFromValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function pageLabelArrayFromValue(string $value, array $objects, array $seen = []): ?string
+    {
+        $offset = $this->skipPdfWhitespace($value, 0);
+        if (($value[$offset] ?? '') === '[') {
+            return $this->readPdfArrayAt($value, $offset);
+        }
+
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $objectNumber = (int) $match[1];
+        $generation = (int) $match[2];
+        $objectKey = $objectNumber . ':' . $generation;
+        if ($objectNumber <= 0 || isset($seen[$objectKey])) {
+            return null;
+        }
+
+        $body = $this->pageLabelObjectBodyForReference($objects, $objectNumber, $generation);
+        if ($body === null) {
+            return null;
+        }
+
+        $seen[$objectKey] = true;
+        return $this->pageLabelArrayFromValue($body, $objects, $seen);
     }
 
     /**

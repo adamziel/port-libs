@@ -1302,7 +1302,7 @@ final class MarkerAppPreview
         ?array $inheritedLimits = null
     ): array
     {
-        $value = trim($this->resolvePdfValue($value, $objects, $seen));
+        $value = trim($this->resolvePageLabelPdfValue($value, $objects, $seen));
         if (!str_starts_with($value, '<<')) {
             return [];
         }
@@ -1325,7 +1325,7 @@ final class MarkerAppPreview
 
         $nums = $this->valueAfterName($value, 'Nums');
         if ($nums !== null) {
-            $nums = trim($this->resolvePdfValue($nums, $objects, $seen));
+            $nums = trim($this->resolvePageLabelPdfValue($nums, $objects, $seen));
             foreach ($this->pageLabelSectionsFromNums($nums, $objects, $seen, $limits) as $section) {
                 $sections[] = $section;
             }
@@ -1333,7 +1333,7 @@ final class MarkerAppPreview
 
         $kids = $this->valueAfterName($value, 'Kids');
         if ($kids !== null) {
-            $kids = trim($this->resolvePdfValue($kids, $objects, $seen));
+            $kids = trim($this->resolvePageLabelPdfValue($kids, $objects, $seen));
             foreach ($this->arrayElements($kids) as $kid) {
                 if (!preg_match('/^(\d+)\s+(\d+)\s+R$/', trim($kid), $match)) {
                     continue;
@@ -1429,7 +1429,7 @@ final class MarkerAppPreview
             return null;
         }
 
-        $elements = $this->arrayElements(trim($this->resolvePdfValue($limits, $objects, $seen)));
+        $elements = $this->arrayElements(trim($this->resolvePageLabelPdfValue($limits, $objects, $seen)));
         if (count($elements) < 2) {
             return null;
         }
@@ -1475,7 +1475,7 @@ final class MarkerAppPreview
      */
     private function parsePageLabelDictionary(string $value, array $objects, array $seen): ?array
     {
-        $dict = trim($this->resolvePdfValue($value, $objects, $seen));
+        $dict = trim($this->resolvePageLabelPdfValue($value, $objects, $seen));
         if (!str_starts_with($dict, '<<')) {
             return null;
         }
@@ -1514,7 +1514,38 @@ final class MarkerAppPreview
     private function resolvedPageLabelValueAfterName(string $dict, string $name, array $objects, array $seen): ?string
     {
         $value = $this->valueAfterName($dict, $name);
-        return $value === null ? null : $this->resolvePdfValue($value, $objects, $seen);
+        return $value === null ? null : $this->resolvePageLabelPdfValue($value, $objects, $seen);
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param list<int|string> $seen
+     */
+    private function resolvePageLabelPdfValue(string $value, array $objects, array $seen = []): string
+    {
+        $value = trim($value);
+        if (preg_match('/^(\d+)\s+(\d+)\s+R$/', $value, $match) !== 1) {
+            return $value;
+        }
+
+        $objectId = (int) $match[1];
+        $generation = (int) $match[2];
+        $objectKey = $objectId . ':' . $generation;
+        if (
+            $objectId <= 0
+            || $generation < 0
+            || in_array($objectId, $seen, true)
+            || in_array($objectKey, $seen, true)
+        ) {
+            return $value;
+        }
+
+        $body = $this->objectBodyForReference($objects, $objectId, $generation, $seen);
+        if ($body === null) {
+            return $value;
+        }
+
+        return $this->resolvePageLabelPdfValue($body, $objects, [...$seen, $objectId, $objectKey]);
     }
 
     private function formatPageLabel(string $prefix, ?string $style, int $number): string
