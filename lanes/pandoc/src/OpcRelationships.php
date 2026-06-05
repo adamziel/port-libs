@@ -38,6 +38,8 @@ final class OpcRelationships
                 throw new \InvalidArgumentException('OPC relationships XML may only contain Relationship children');
             }
 
+            self::assertRelationshipElementShape($child);
+
             $relationships->add(new OpcRelationship(
                 $child->getAttribute('Id'),
                 $child->getAttribute('Type'),
@@ -214,6 +216,34 @@ final class OpcRelationships
     {
         if ($sourcePartName !== '/' && self::isRelationshipPartName($sourcePartName)) {
             throw new \InvalidArgumentException('OPC relationship parts must not be relationship sources');
+        }
+    }
+
+    private static function assertRelationshipElementShape(\DOMElement $element): void
+    {
+        $allowedAttributes = ['Id', 'Type', 'Target', 'TargetMode'];
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            if ($attribute->namespaceURI === 'http://www.w3.org/2000/xmlns/') {
+                continue;
+            }
+
+            if (($attribute->namespaceURI ?? '') !== '' || !in_array($attribute->name, $allowedAttributes, true)) {
+                throw new \InvalidArgumentException('OPC Relationship record contains unsupported attribute: ' . $attribute->name);
+            }
+        }
+
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                throw new \InvalidArgumentException('OPC Relationship record must be an empty element');
+            }
+
+            if (($child instanceof \DOMText || $child instanceof \DOMCdataSection) && trim($child->nodeValue ?? '') !== '') {
+                throw new \InvalidArgumentException('OPC Relationship record must be an empty element');
+            }
         }
     }
 }

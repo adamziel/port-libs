@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
+use PortLibs\Pandoc\OpcContentTypes;
 use PortLibs\Pandoc\OpcRelationshipGraph;
+use PortLibs\Pandoc\OpcRelationships;
 use PortLibs\Pandoc\ZipPackage;
 
 $contentTypesXml = <<<'XML'
@@ -183,6 +185,20 @@ foreach ($digitalSignatures as $origin) {
 $digitalSignatureParts = array_values(array_unique($digitalSignatureParts));
 
 $corePropertiesPart = $graph->firstTargetOfType('http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties');
+$strictXmlShapeGuards = [
+    'contentTypeUnexpectedAttributeRejected' => false,
+    'relationshipChildContentRejected' => false,
+];
+try {
+    OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension="xml" ContentType="application/xml" Extra="1"/></Types>');
+} catch (InvalidArgumentException) {
+    $strictXmlShapeGuards['contentTypeUnexpectedAttributeRejected'] = true;
+}
+try {
+    OpcRelationships::fromXml('<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdBad" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"><Child/></Relationship></Relationships>', '/word/document.xml');
+} catch (InvalidArgumentException) {
+    $strictXmlShapeGuards['relationshipChildContentRejected'] = true;
+}
 
 $summary = [
     'document' => [
@@ -220,6 +236,7 @@ $summary = [
             $reachableTargets,
             static fn (array $target): bool => $target['issues'] !== []
         )),
+        'strictXmlShapeGuards' => $strictXmlShapeGuards,
     ],
     'wordpressImport' => [
         'mediaParts' => array_values(array_unique(array_filter(
@@ -303,6 +320,8 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['digitalSignatures'][0]['signatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml'
         || ($summary['digitalSignatures'][0]['valid'] ?? null) !== true
         || $summary['integrity']['packagePartsValid'] !== true
+        || ($summary['integrity']['strictXmlShapeGuards']['contentTypeUnexpectedAttributeRejected'] ?? null) !== true
+        || ($summary['integrity']['strictXmlShapeGuards']['relationshipChildContentRejected'] ?? null) !== true
         || $summary['packageParts']['/_rels/.rels']['relationshipSource'] !== '/'
         || $summary['packageParts']['/_rels/.rels']['relationshipSourceIsRelationshipPart'] !== false
         || $summary['packageParts']['/word/_rels/document.xml.rels']['relationshipSource'] !== '/word/document.xml'

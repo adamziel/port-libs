@@ -192,6 +192,19 @@ XML;
         $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="/word/document.xml" ContentType="application/xml"/><Override PartName="word/document.xml" ContentType="application/xml"/></Types>'));
         $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="../evil.xml" ContentType="application/xml"/></Types>'));
     },
+    'rejects OPC content type records with unexpected attributes or child content' => static function (TestRunner $t): void {
+        $validWithWhitespace = OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension="xml" ContentType="application/xml">   </Default><Override PartName="/word/document.xml" ContentType="application/xml"/></Types>');
+        $t->same('application/xml', $validWithWhitespace->contentTypeForPart('/word/document.xml'));
+
+        foreach ([
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension="xml" ContentType="application/xml" Extra="1"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension="xml" ContentType="application/xml"><Child/></Default></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="/word/document.xml" ContentType="application/xml" Extra="1"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="/word/document.xml" ContentType="application/xml">text</Override></Types>',
+        ] as $xml) {
+            $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml($xml));
+        }
+    },
     'maps OPC source parts and relationship part names' => static function (TestRunner $t): void {
         $t->same('/_rels/.rels', OpcRelationships::relationshipPartNameForSource('/'));
         $t->same('/_rels/.rels', OpcRelationships::relationshipPartNameForSource('/.'));
@@ -1146,6 +1159,18 @@ XML;
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdEscape'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdAbsoluteUri'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('missing'));
+    },
+    'rejects OPC relationship records with unexpected attributes or child content' => static function (TestRunner $t): void {
+        $validWithWhitespace = OpcRelationships::fromXml('<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png">   </Relationship></Relationships>', '/word/document.xml');
+        $t->same('/word/media/image.png', $validWithWhitespace->resolveTarget('rId1'));
+
+        foreach ([
+            '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png" Extra="1"/></Relationships>',
+            '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"><Child/></Relationship></Relationships>',
+            '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png">text</Relationship></Relationships>',
+        ] as $xml) {
+            $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => OpcRelationships::fromXml($xml, '/word/document.xml'));
+        }
     },
     'rejects malformed percent escapes and URI authorities in internal OPC relationship targets' => static function (TestRunner $t): void {
         $relationships = new OpcRelationships('/word/document.xml');

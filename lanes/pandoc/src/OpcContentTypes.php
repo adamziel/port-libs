@@ -33,11 +33,13 @@ final class OpcContentTypes
             }
 
             if ($child->localName === 'Default') {
+                self::assertRecordShape($child, ['Extension', 'ContentType'], 'OPC Default content-type record');
                 $types->addDefault($child->getAttribute('Extension'), $child->getAttribute('ContentType'));
                 continue;
             }
 
             if ($child->localName === 'Override') {
+                self::assertRecordShape($child, ['PartName', 'ContentType'], 'OPC Override content-type record');
                 $types->addOverride($child->getAttribute('PartName'), $child->getAttribute('ContentType'));
                 continue;
             }
@@ -171,6 +173,36 @@ final class OpcContentTypes
             }
 
             $rest = substr($rest, strlen($parameter[0]));
+        }
+    }
+
+    /**
+     * @param list<string> $allowedAttributes
+     */
+    private static function assertRecordShape(\DOMElement $element, array $allowedAttributes, string $label): void
+    {
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            if ($attribute->namespaceURI === 'http://www.w3.org/2000/xmlns/') {
+                continue;
+            }
+
+            if (($attribute->namespaceURI ?? '') !== '' || !in_array($attribute->name, $allowedAttributes, true)) {
+                throw new \InvalidArgumentException($label . ' contains unsupported attribute: ' . $attribute->name);
+            }
+        }
+
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                throw new \InvalidArgumentException($label . ' must be an empty element');
+            }
+
+            if (($child instanceof \DOMText || $child instanceof \DOMCdataSection) && trim($child->nodeValue ?? '') !== '') {
+                throw new \InvalidArgumentException($label . ' must be an empty element');
+            }
         }
     }
 
