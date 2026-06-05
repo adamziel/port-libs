@@ -11109,6 +11109,9 @@ final class PdfTextExtractor
         if ($firstChar === null) {
             return [];
         }
+        $firstCode = (int) $firstChar;
+        $lastChar = $this->pdfNumberValueAfterNameResolvingObjects($fontBody, 'LastChar', $objects);
+        $lastCode = $lastChar === null ? null : (int) $lastChar;
 
         $widthArray = $this->pdfArrayValueAfterNameResolvingObjects($fontBody, 'Widths', $objects);
         if ($widthArray === null) {
@@ -11120,7 +11123,10 @@ final class PdfTextExtractor
             if ($width === null) {
                 continue;
             }
-            $code = (int) $firstChar + $offset;
+            $code = $firstCode + $offset;
+            if ($lastCode !== null && $code > $lastCode) {
+                continue;
+            }
             if ($code >= 0 && $code <= 255) {
                 $widths[$code] = $width;
             }

@@ -80,6 +80,15 @@ $sparseWidthPdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Length " . strlen($sparseWidthContent) . " >>\nstream\n{$sparseWidthContent}\nendstream\nendobj\n"
     . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
 
+$lastCharContent = 'BT /Flast 12 Tf '
+    . '1 0 0 1 72 720 Tm <43> Tj 1 0 0 1 86 720 Tm <44> Tj '
+    . 'T* 1 0 0 1 72 704 Tm <43> Tj 1 0 0 1 100 704 Tm <44> Tj ET';
+$lastCharPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Flast 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+LastCharAdvance /Encoding 6 0 R /FirstChar 65 /LastChar 66 /Widths [1000 1000 100] >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($lastCharContent) . " >>\nstream\n{$lastCharContent}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
+
 $rotatedTextMatrixContent = 'BT /Frot 12 Tf '
     . '0 1 -1 0 72 720 Tm <4142> Tj '
     . '0.6 0.8 0 1 96 720 Tm <4344> Tj ET';
@@ -210,6 +219,14 @@ $sparseWidthSpanBboxes = array_map(
     static fn (array $span): array => $span['bbox'] ?? [],
     $sparseWidthSpans
 );
+$lastCharLines = $extractor->extractTextLines($lastCharPdf);
+$lastCharPlainText = implode("\n", $lastCharLines);
+$lastCharPages = $extractor->extractStyledTextPages($lastCharPdf);
+$lastCharFirstLine = $lastCharPages[0]['blocks'][0]['lines'][0] ?? [];
+$lastCharSpanBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $lastCharFirstLine['spans'] ?? []
+);
 $rotatedTextMatrixLines = $extractor->extractTextLines($rotatedTextMatrixPdf);
 $rotatedTextMatrixPages = $extractor->extractStyledTextPages($rotatedTextMatrixPdf);
 $rotatedTextMatrixLine = $rotatedTextMatrixPages[0]['blocks'][0]['lines'][0] ?? [];
@@ -244,7 +261,7 @@ $verticalSpanBboxes = array_map(
 
 echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-font-width-advance-boundary-currentbase',
-    'source' => 'native-pdf-simple-font-average-positive-quote-relative-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-and-vertical-width-advance',
+    'source' => 'native-pdf-simple-font-average-positive-lastchar-quote-relative-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-and-vertical-width-advance',
     'average_width_preserves_joined_word' => str_contains($plainText, 'WideBlock'),
     'generic_500_width_gap_excluded' => !str_contains($plainText, 'Wide Block'),
     'narrow_positioned_gap_still_preserved' => str_contains($plainText, 'Blo ck'),
@@ -277,6 +294,10 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'unresolved_width_slot_preserved' => $sparseWidthLines === ['CD'],
     'unresolved_width_false_gap_excluded' => !str_contains($sparseWidthPlainText, 'C D'),
     'unresolved_width_slot_bboxes_preserved' => $sparseWidthSpanBboxes === [[0.0, 0.0, 9.0, 12.0], [9.0, 0.0, 12.0, 12.0]],
+    'lastchar_width_decoy_gap_excluded' => ($lastCharLines[0] ?? null) === 'CD',
+    'lastchar_real_positioned_gap_preserved' => ($lastCharLines[1] ?? null) === 'C D',
+    'lastchar_double_gap_output_excluded' => !str_contains($lastCharPlainText, 'C D' . "\n" . 'C D'),
+    'lastchar_styled_bboxes_preserved' => $lastCharSpanBboxes === [[0.0, 0.0, 12.0, 12.0], [12.0, 0.0, 24.0, 12.0]],
     'rotated_text_matrix_horizontal_vector_line_preserved' => $rotatedTextMatrixLines === ['AB CD'],
     'rotated_text_matrix_horizontal_vector_bboxes_preserved' => $rotatedTextMatrixSpanBboxes === [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]],
     'rotated_text_matrix_collapsed_bbox_excluded' => $rotatedTextMatrixSpanBboxes !== [[0.0, 0.0, 1.0, 12.0], [1.0, 0.0, 15.4, 12.0]],
@@ -306,6 +327,8 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'tj_backtrack_line_bbox' => $tjBacktrackLine['bbox'] ?? null,
     'sparse_width_lines' => $sparseWidthLines,
     'sparse_width_span_bboxes' => $sparseWidthSpanBboxes,
+    'lastchar_lines' => $lastCharLines,
+    'lastchar_span_bboxes' => $lastCharSpanBboxes,
     'rotated_text_matrix_lines' => $rotatedTextMatrixLines,
     'rotated_text_matrix_span_bboxes' => $rotatedTextMatrixSpanBboxes,
     'text_object_reset_lines' => $textObjectResetLines,
@@ -316,7 +339,7 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $relativeTdLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $sparseWidthLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $relativeTdLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $sparseWidthLines, $lastCharLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

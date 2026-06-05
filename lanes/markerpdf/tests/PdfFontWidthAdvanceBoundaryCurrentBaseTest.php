@@ -104,6 +104,18 @@ $fontWidthUnresolvedSlotBoundaryCurrentBasePdf = static function (): string {
         . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
 };
 
+$fontWidthLastCharBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /Flast 12 Tf '
+        . '1 0 0 1 72 720 Tm <43> Tj 1 0 0 1 86 720 Tm <44> Tj '
+        . 'T* 1 0 0 1 72 704 Tm <43> Tj 1 0 0 1 100 704 Tm <44> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Flast 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+LastCharAdvance /Encoding 6 0 R /FirstChar 65 /LastChar 66 /Widths [1000 1000 100] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
+};
+
 $fontWidthRotatedTextMatrixBoundaryCurrentBasePdf = static function (): string {
     $content = 'BT /Frot 12 Tf '
         . '0 1 -1 0 72 720 Tm <4142> Tj '
@@ -358,6 +370,27 @@ return [
         $t->true(!str_contains($plainText, 'C D'));
         $t->true(!str_contains($plainText, 'SparseAdvance'));
         $t->true(!str_contains($plainText, 'Fsparse'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'clips simple-font Widths entries to LastChar before positioned word gaps on current base' => static function (TestRunner $t) use ($fontWidthLastCharBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthLastCharBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $firstLine = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $firstSpans = $firstLine['spans'] ?? [];
+
+        $t->same(['CD', 'C D'], $extractor->extractTextLines($pdf));
+        $t->same(['C', 'D', 'C', 'D'], $extractor->extractTextRuns($pdf));
+        $t->same("CD\nC D", $plainText);
+        $t->same("CD\nC D\n", $extractor->naiveGetText($pdf));
+        $t->same(['C', 'D'], array_column($firstSpans, 'text'));
+        $t->same([[0.0, 0.0, 12.0, 12.0], [12.0, 0.0, 24.0, 12.0]], array_column($firstSpans, 'bbox'));
+        $t->same([0.0, 0.0, 24.0, 12.0], $firstLine['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'C D' . "\n" . 'C D'));
+        $t->true(str_contains($plainText, 'C D'));
+        $t->true(!str_contains($plainText, 'LastCharAdvance'));
+        $t->true(!str_contains($plainText, 'Flast'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'uses rotated text matrix horizontal vector for native styled font advance bboxes on current base' => static function (TestRunner $t) use ($fontWidthRotatedTextMatrixBoundaryCurrentBasePdf): void {
