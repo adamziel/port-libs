@@ -433,6 +433,57 @@ return [
         $t->true(!str_contains($plainText, 'Rotated Image Payload Noise'));
         $t->true(!str_contains($plainText, 'Nested Placed Image Payload Noise'));
     },
+    'resolves indirect Form XObject Matrix operands before nested image placement review' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before indirect matrix image) Tj ET\n"
+            . "q 30 0 0 15 100 200 cm /Matrix#20Form Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After indirect matrix image) Tj ET';
+        $formContent = 'q 4 0 0 2 6 8 cm /Nested#20Matrix#20Image Do Q';
+        $nestedPayload = 'BT /F1 12 Tf 72 720 Td (Indirect Matrix Image Payload Noise) Tj ET';
+        $nestedCompressed = gzcompress($nestedPayload);
+        if (!is_string($nestedCompressed)) {
+            throw new RuntimeException('Unable to compress indirect matrix image fixture payload.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Matrix#20Form 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 30 15] /Matrix [21 0 R 22 0 R 23 0 R 24 0 R 25 0 R 26 0 R] /Resources << /XObject << /Nested#20Matrix#20Image 8 0 R >> /Font << /F1 10 0 R >> >> /Length " . strlen($formContent) . " >>\nstream\n{$formContent}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Type /XObject /Subtype /Image /Width 4 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($nestedCompressed) . " >>\nstream\n{$nestedCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "21 0 obj\n1\nendobj\n"
+            . "22 0 obj\n0\nendobj\n"
+            . "23 0 obj\n0\nendobj\n"
+            . "24 0 obj\n1\nendobj\n"
+            . "25 0 obj\n3\nendobj\n"
+            . "26 0 obj\n4\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+        $entry = $review['entries'][0];
+
+        $t->same(1, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+        $t->same('Nested Matrix Image', $entry['resource_name']);
+        $t->same(['Matrix Form', 'Nested Matrix Image'], $entry['resource_path']);
+        $t->same(5, $entry['parent_form_xobject_object']);
+        $t->same(1, $entry['form_xobject_depth']);
+        $t->same(1, $entry['invocation_count']);
+        $t->same([[120.0, 0.0, 0.0, 30.0, 370.0, 380.0]], $entry['invocation_matrices']);
+        $t->same([[370.0, 380.0, 490.0, 410.0]], $entry['invocation_bboxes']);
+        $t->same([370.0, 380.0, 490.0, 410.0], $entry['image_unit_bbox']);
+        $t->same(true, $entry['placement_review_only']);
+        $t->same(hash('sha256', $nestedPayload), $entry['decoded_sha256']);
+        $t->same(['Before indirect matrix image', 'After indirect matrix image'], $extractor->extractTextLines($pdf));
+        $t->same("Before indirect matrix image\nAfter indirect matrix image", $plainText);
+        $t->true(!str_contains($plainText, 'Indirect Matrix Image Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $nestedPayload));
+    },
     'preserves graphics state across page Contents arrays for image XObject placement review' => static function (TestRunner $t): void {
         $firstContent = "BT /F1 12 Tf 72 720 Td (Before split image state) Tj ET\n"
             . 'q 10 0 0 5 100 200 cm ';

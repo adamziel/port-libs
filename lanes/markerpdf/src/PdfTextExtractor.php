@@ -14342,7 +14342,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $numbers = $this->numbersFromPdfArray($arrayBody);
+        $numbers = $this->numbersFromPdfArrayResolvingObjects($arrayBody, $objects);
         if (count($numbers) < 6) {
             return null;
         }
