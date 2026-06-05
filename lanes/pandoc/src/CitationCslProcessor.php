@@ -306,6 +306,11 @@ final class CitationCslProcessor
             $parts[] = $page . '.';
         }
 
+        $legalPatentMetadata = $this->legalPatentBibliographyParts($item);
+        foreach ($legalPatentMetadata as $part) {
+            $parts[] = $part;
+        }
+
         $translators = $this->bibliographyTranslators($item);
         if ($translators !== '') {
             $parts[] = 'Translated by ' . rtrim($translators, '.') . '.';
@@ -425,7 +430,13 @@ final class CitationCslProcessor
             'title' => self::stringField($item, 'title'),
             'containerTitle' => self::stringField($item, 'container-title'),
             'publisher' => self::stringField($item, 'publisher'),
+            'publisherPlace' => self::stringField($item, 'publisher-place'),
             'page' => self::stringField($item, 'page'),
+            'number' => self::stringField($item, 'number'),
+            'genre' => self::stringField($item, 'genre'),
+            'authority' => self::stringField($item, 'authority'),
+            'jurisdiction' => self::stringField($item, 'jurisdiction'),
+            'status' => self::stringField($item, 'status'),
             'doi' => self::stringField($item, 'DOI'),
             'url' => self::stringField($item, 'URL'),
             'language' => self::stringField($item, 'language'),
@@ -440,9 +451,11 @@ final class CitationCslProcessor
             'originalPublisherPlace' => self::stringField($item, 'original-publisher-place'),
             'originalLanguage' => self::stringField($item, 'original-language'),
             'originalDate' => self::dateVariable($item['original-date'] ?? null, $id, 'original-date'),
+            'eventDate' => self::dateVariable($item['event-date'] ?? null, $id, 'event-date'),
             'issuedYear' => $issuedDate['year'],
             'authors' => self::names($item['author'] ?? [], $id, 'author'),
             'editors' => self::names($item['editor'] ?? [], $id, 'editor'),
+            'holders' => self::names($item['holder'] ?? [], $id, 'holder'),
             'translators' => self::names($item['translator'] ?? [], $id, 'translator'),
             'raw' => $item,
         ];
@@ -1284,6 +1297,53 @@ final class CitationCslProcessor
     }
 
     /**
+     * @param array<string, mixed> $item
+     * @return list<string>
+     */
+    private function legalPatentBibliographyParts(array $item): array
+    {
+        $type = (string) ($item['type'] ?? '');
+        if (!in_array($type, ['patent', 'legislation', 'legal_case'], true)) {
+            return [];
+        }
+
+        $parts = [];
+        $genre = (string) ($item['genre'] ?? '');
+        $number = (string) ($item['number'] ?? '');
+        if ($genre !== '' || $number !== '') {
+            $label = $genre !== '' ? ucfirst($genre) : ucfirst(str_replace('_', ' ', $type));
+            $parts[] = trim($label . ' ' . $number) . '.';
+        }
+
+        $authority = (string) ($item['authority'] ?? '');
+        if ($authority !== '') {
+            $parts[] = 'Authority: ' . rtrim($authority, '.') . '.';
+        }
+
+        $jurisdiction = (string) ($item['jurisdiction'] ?? '');
+        if ($jurisdiction !== '') {
+            $parts[] = 'Jurisdiction: ' . rtrim($jurisdiction, '.') . '.';
+        }
+
+        $holders = $item['holders'] ?? [];
+        if (is_array($holders) && $holders !== []) {
+            $parts[] = 'Holder: ' . rtrim($this->renderNameList($holders, $this->style->bibliographyNameRendering(), true), '.') . '.';
+        }
+
+        $eventDate = $item['eventDate'] ?? null;
+        if (is_array($eventDate) && (string) ($eventDate['display'] ?? '') !== '') {
+            $parts[] = 'Event date ' . (string) $eventDate['display'] . '.';
+        }
+
+        $status = (string) ($item['status'] ?? '');
+        if ($status !== '') {
+            $parts[] = 'Status: ' . rtrim($status, '.') . '.';
+        }
+
+        return $parts;
+    }
+
+    /**
      * @param list<array<string, mixed>> $elements
      * @param array<string, mixed> $item
      */
@@ -1662,16 +1722,24 @@ final class CitationCslProcessor
             'title' => (string) $item['title'],
             'container-title' => (string) $item['containerTitle'],
             'publisher' => (string) $item['publisher'],
+            'publisher-place' => (string) $item['publisherPlace'],
             'page' => (string) $item['page'],
+            'number' => (string) $item['number'],
+            'genre' => (string) $item['genre'],
+            'authority' => (string) $item['authority'],
+            'jurisdiction' => (string) $item['jurisdiction'],
+            'status' => (string) $item['status'],
             'doi' => (string) $item['doi'],
             'url' => (string) $item['url'],
             'language' => (string) $item['language'],
             'abstract' => (string) $item['abstract'],
             'keyword' => implode(', ', is_array($item['keywords'] ?? null) ? $item['keywords'] : []),
             'issued', 'date' => $this->renderDateVariable($item['issuedDate'] ?? null, $scope, 'issued'),
+            'event-date' => $this->renderDateVariable($item['eventDate'] ?? null, $scope, 'event-date'),
             'accessed' => $this->renderDateVariable($item['accessedDate'] ?? null, $scope, 'accessed'),
             'author' => $this->renderNamesElement(['variable' => 'author'], $item, $scope),
             'editor' => $this->renderNamesElement(['variable' => 'editor'], $item, $scope),
+            'holder' => $this->renderNamesElement(['variable' => 'holder'], $item, $scope),
             default => $this->rawVariableValue($item, $variable),
         };
     }
@@ -1739,6 +1807,7 @@ final class CitationCslProcessor
             $names = match ($nameVariable) {
                 'author' => $item['authors'] ?? [],
                 'editor' => $item['editors'] ?? [],
+                'holder' => $item['holders'] ?? [],
                 default => [],
             };
             if (is_array($names) && $names !== []) {
@@ -1760,6 +1829,7 @@ final class CitationCslProcessor
         return match ($normalized) {
             'issued', 'date' => is_array($item['issuedDate'] ?? null) ? $item['issuedDate'] : null,
             'accessed' => is_array($item['accessedDate'] ?? null) ? $item['accessedDate'] : null,
+            'event-date' => is_array($item['eventDate'] ?? null) ? $item['eventDate'] : null,
             default => null,
         };
     }

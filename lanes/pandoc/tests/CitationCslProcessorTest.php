@@ -609,6 +609,112 @@ BIB;
         $t->contains('<p>Review cites translated source García (2026) for original publication audit.</p>', $blocks);
         $t->contains('<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>', $blocks);
     },
+    'maps bounded biblatex patent legislation and jurisdiction metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@patent{import-patent,
+  author    = {M{\"u}ller, Mia},
+  holder    = {{WordPress Foundation}},
+  title     = {Block Import Review Patent},
+  number    = {US-123456},
+  type      = {patent},
+  location  = {US},
+  date      = {2026-06-05},
+  eventdate = {2024-01-15},
+  status    = {granted},
+  url       = {https://example.test/patents/us-123456}
+}
+
+@legislation{review-act,
+  title        = {WordPress Import Review Act},
+  number       = {HB 42},
+  type         = {statute},
+  organization = {Oregon Legislature},
+  location     = {Oregon},
+  date         = {2025-05-01},
+  eventdate    = {2025-06-01}
+}
+
+@jurisdiction{queue-case,
+  title     = {Import Queue v. Source Packet},
+  number    = {No. 24-100},
+  type      = {decision},
+  court     = {Migration Review Court},
+  location  = {9th Cir.},
+  date      = {2024-12-12},
+  eventdate = {2025-01-02}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(3, count($items));
+        $t->same('patent', $items[0]['type']);
+        $t->same('US-123456', $items[0]['number']);
+        $t->same('patent', $items[0]['genre']);
+        $t->same('US', $items[0]['jurisdiction']);
+        $t->same('US', $items[0]['publisher-place']);
+        $t->same(['date-parts' => [[2024, 1, 15]]], $items[0]['event-date']);
+        $t->same([['literal' => 'WordPress Foundation']], $items[0]['holder']);
+        $t->same('legislation', $items[1]['type']);
+        $t->same('Oregon Legislature', $items[1]['authority']);
+        $t->same('legal_case', $items[2]['type']);
+        $t->same('Migration Review Court', $items[2]['authority']);
+        $t->same('9th Cir.', $items[2]['jurisdiction']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $patent = $processor->item('import-patent');
+        $t->same('patent', $patent['type'] ?? null);
+        $t->same('US-123456', $patent['number'] ?? null);
+        $t->same('WordPress Foundation', $patent['holders'][0]['literal'] ?? null);
+        $t->same([2024, 1, 15], $patent['eventDate']['parts'] ?? null);
+        $t->same('granted', $patent['status'] ?? null);
+        $t->same('(Müller 2026; WordPress Import Review Act 2025; Import Queue v. Source Packet 2024)', $processor->renderCitationCluster([
+            $citation('import-patent', '[@import-patent]'),
+            $citation('review-act', '[@review-act]'),
+            $citation('queue-case', '[@queue-case]'),
+        ]));
+        $t->same('Müller, Mia. Block Import Review Patent. 2026. Patent US-123456. Jurisdiction: US. Holder: WordPress Foundation. Event date 2024-01-15. Status: granted. https://example.test/patents/us-123456.', $processor->renderBibliographyEntry('import-patent'));
+        $t->same('WordPress Import Review Act. Oregon Legislature, 2025. Statute HB 42. Authority: Oregon Legislature. Jurisdiction: Oregon. Event date 2025-06-01.', $processor->renderBibliographyEntry('review-act'));
+        $t->same('Import Queue v. Source Packet. 2024. Decision No. 24-100. Authority: Migration Review Court. Jurisdiction: 9th Cir. Event date 2025-01-02.', $processor->renderBibliographyEntry('queue-case'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legal Review</title>
+    <id>https://example.test/styles/bounded-legal-review</id>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" ">
+        <text variable="authority"/>
+        <text variable="number"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". ">
+      <text variable="title"/>
+      <text variable="genre"/>
+      <text variable="number"/>
+      <date variable="event-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[US-123456; Oregon Legislature HB 42; Migration Review Court No. 24-100]', $styled->renderCitationCluster([
+            $citation('import-patent', '[@import-patent]'),
+            $citation('review-act', '[@review-act]'),
+            $citation('queue-case', '[@queue-case]'),
+        ]));
+        $t->same('WordPress Import Review Act. statute. HB 42. 2025-06-01', $styled->renderBibliographyEntry('review-act'));
+
+        $document = (new MarkdownReader())->read('Review cites @import-patent, @review-act, and @queue-case for legal source audit.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Review cites Müller (2026), WordPress Import Review Act (2025), and Import Queue v. Source Packet (2024) for legal source audit.</p>', $blocks);
+        $t->contains('<dt>Müller 2026</dt><dd>Müller, Mia. Block Import Review Patent. 2026. Patent US-123456. Jurisdiction: US. Holder: WordPress Foundation. Event date 2024-01-15. Status: granted. https://example.test/patents/us-123456.</dd>', $blocks);
+        $t->contains('<dt>WordPress Import Review Act 2025</dt><dd>WordPress Import Review Act. Oregon Legislature, 2025. Statute HB 42. Authority: Oregon Legislature. Jurisdiction: Oregon. Event date 2025-06-01.</dd>', $blocks);
+        $t->contains('<dt>Import Queue v. Source Packet 2024</dt><dd>Import Queue v. Source Packet. 2024. Decision No. 24-100. Authority: Migration Review Court. Jurisdiction: 9th Cir. Event date 2025-01-02.</dd>', $blocks);
+    },
     'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
         $document = (new MarkdownReader())->read(

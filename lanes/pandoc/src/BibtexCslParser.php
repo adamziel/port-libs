@@ -571,7 +571,13 @@ final class BibtexCslParser
             'title' => self::firstField($fields, ['title']),
             'container-title' => self::firstField($fields, ['journaltitle', 'journal', 'booktitle']),
             'publisher' => self::firstField($fields, ['publisher', 'institution', 'school', 'organization']),
+            'publisher-place' => self::firstField($fields, ['location', 'address', 'venue']),
             'page' => self::normalizePages(self::firstField($fields, ['pages', 'page'])),
+            'number' => self::firstField($fields, ['number']),
+            'genre' => self::firstField($fields, ['type', 'entrysubtype']),
+            'authority' => self::firstField($fields, ['authority', 'court', 'institution', 'organization']),
+            'jurisdiction' => self::firstField($fields, ['jurisdiction', 'location', 'address']),
+            'status' => self::firstField($fields, ['status']),
             'DOI' => self::firstField($fields, ['doi']),
             'URL' => self::firstField($fields, ['url']),
             'language' => self::firstField($fields, ['langid', 'language', 'hyphenation']),
@@ -612,6 +618,11 @@ final class BibtexCslParser
             $item['editor'] = $editor;
         }
 
+        $holder = self::namesFromBibtex($fields['holder'] ?? '');
+        if ($holder !== []) {
+            $item['holder'] = $holder;
+        }
+
         $translator = self::namesFromBibtex($fields['translator'] ?? '');
         if ($translator !== []) {
             $item['translator'] = $translator;
@@ -625,6 +636,11 @@ final class BibtexCslParser
         $originalDate = self::dateFromFields($fields, ['origdate'], ['origyear', 'origmonth', 'origday']);
         if ($originalDate !== null) {
             $item['original-date'] = $originalDate;
+        }
+
+        $eventDate = self::dateFromFields($fields, ['eventdate'], ['eventyear', 'eventmonth', 'eventday']);
+        if ($eventDate !== null) {
+            $item['event-date'] = $eventDate;
         }
 
         $accessed = self::dateFromFields($fields, ['urldate', 'accessed', 'accessdate'], []);
@@ -727,6 +743,9 @@ final class BibtexCslParser
             'collection', 'mvcollection', 'mvbook', 'mvproceedings', 'mvreference', 'proceedings', 'reference' => 'book',
             'phdthesis', 'mastersthesis' => 'thesis',
             'report', 'techreport' => 'report',
+            'patent' => 'patent',
+            'legislation', 'legal' => 'legislation',
+            'jurisdiction' => 'legal_case',
             'software' => 'software',
             'dataset' => 'dataset',
             'online', 'www', 'electronic' => 'webpage',

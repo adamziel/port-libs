@@ -27,6 +27,8 @@ The related manual @related-manual keeps companion entry metadata attached to th
 
 A translated source @translated-manual preserves original publication metadata for source review.
 
+Patent and legal sources @import-patent and @review-act preserve legal review metadata.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -156,6 +158,29 @@ $bibtex = <<<'BIB'
   language      = {english},
   origlanguage  = {spanish}
 }
+
+@patent{import-patent,
+  author    = {M{\"u}ller, Mia},
+  holder    = {{WordPress Foundation}},
+  title     = {Block Import Review Patent},
+  number    = {US-123456},
+  type      = {patent},
+  location  = {US},
+  date      = {2026-06-05},
+  eventdate = {2024-01-15},
+  status    = {granted},
+  url       = {https://example.test/patents/us-123456}
+}
+
+@legislation{review-act,
+  title        = {WordPress Import Review Act},
+  number       = {HB 42},
+  type         = {statute},
+  organization = {Oregon Legislature},
+  location     = {Oregon},
+  date         = {2025-05-01},
+  eventdate    = {2025-06-01}
+}
 BIB;
 
 $processor = CitationCslProcessor::fromBibtex($bibtex);
@@ -206,6 +231,23 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($translatedManual['translators'][1]['nonDroppingParticle'] ?? null) !== 'de la') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve translated manual translator particles');
     }
+    $importPatent = $processor->item('import-patent');
+    if (($importPatent['number'] ?? null) !== 'US-123456') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve patent number');
+    }
+    if (($importPatent['holders'][0]['literal'] ?? null) !== 'WordPress Foundation') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve patent holder');
+    }
+    if (($importPatent['eventDate']['display'] ?? null) !== '2024-01-15') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve patent event date');
+    }
+    $reviewAct = $processor->item('review-act');
+    if (($reviewAct['authority'] ?? null) !== 'Oregon Legislature') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve legislation authority');
+    }
+    if (($reviewAct['eventDate']['display'] ?? null) !== '2025-06-01') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve legislation event date');
+    }
 
     foreach ([
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
@@ -216,6 +258,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>A BibLaTeX entry set Migration Review Set (2026) keeps data-only member summaries available for review.</p>',
         '<p>The related manual Curator (2024) keeps companion entry metadata attached to the source packet.</p>',
         '<p>A translated source García (2026) preserves original publication metadata for source review.</p>',
+        '<p>Patent and legal sources Müller (2026) and WordPress Import Review Act (2025) preserve legal review metadata.</p>',
         '<dt>Doe and Roe 2020</dt><dd>Doe, Jane; Roe, Pat. Field Notes. Journal of Imports. 2020. 55-60. https://example.test/field-notes. Accessed 2026-06-04.</dd>',
         '<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria, Jr. Source Packet. 2026. https://example.test/source-packet.</dd>',
         '<dt>Smith 2026</dt><dd>Smith, Ada. Packet Audit Trails. Migration Futures Conference. Review Press, 2026. 12-18.</dd>',
@@ -224,6 +267,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<dt>Migration Review Set 2026</dt><dd>Migration Review Set. 2026.</dd>',
         '<dt>Curator 2024</dt><dd>Curator, Eli. Migration Manual. 2024.</dd>',
         '<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>',
+        '<dt>Müller 2026</dt><dd>Müller, Mia. Block Import Review Patent. 2026. Patent US-123456. Jurisdiction: US. Holder: WordPress Foundation. Event date 2024-01-15. Status: granted. https://example.test/patents/us-123456.</dd>',
+        '<dt>WordPress Import Review Act 2025</dt><dd>WordPress Import Review Act. Oregon Legislature, 2025. Statute HB 42. Authority: Oregon Legislature. Jurisdiction: Oregon. Event date 2025-06-01.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {
