@@ -75,6 +75,27 @@ final class Html5DomFragment
         ],
     ];
 
+    /** @var array<string, true> */
+    private const HTML_FRAGMENT_INACTIVE_BASE_ANCESTORS = [
+        'applet' => true,
+        'button' => true,
+        'form' => true,
+        'iframe' => true,
+        'math' => true,
+        'noembed' => true,
+        'noframes' => true,
+        'noscript' => true,
+        'object' => true,
+        'optgroup' => true,
+        'option' => true,
+        'plaintext' => true,
+        'select' => true,
+        'svg' => true,
+        'template' => true,
+        'textarea' => true,
+        'xmp' => true,
+    ];
+
     /** @var list<array<string, mixed>> */
     private array $nodes;
 
@@ -1341,6 +1362,9 @@ final class Html5DomFragment
             if (!$baseElement instanceof \DOMElement || !$baseElement->hasAttribute('href')) {
                 continue;
             }
+            if (self::isInactiveFragmentBaseElement($baseElement)) {
+                continue;
+            }
 
             $href = trim($baseElement->getAttribute('href'));
             if ($href === '') {
@@ -1356,6 +1380,21 @@ final class Html5DomFragment
         }
 
         return $documentBaseUrl;
+    }
+
+    private static function isInactiveFragmentBaseElement(\DOMElement $element): bool
+    {
+        $parent = $element->parentNode;
+        while ($parent instanceof \DOMElement) {
+            $name = strtolower($parent->localName);
+            if (isset(self::HTML_FRAGMENT_INACTIVE_BASE_ANCESTORS[$name])) {
+                return true;
+            }
+
+            $parent = $parent->parentNode;
+        }
+
+        return false;
     }
 
     private static function normalizeCallerBaseUrl(?string $baseUrl): ?string

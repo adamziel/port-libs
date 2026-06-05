@@ -867,6 +867,49 @@ return [
         $t->same('<img src="https://example.test/import/assets/cover.png" srcset="https://example.test/import/assets/cover.png 1x, https://example.test/import/assets/cover@2x.png 2x" alt="Cover">', $relativeHtml);
         $t->throws(InvalidArgumentException::class, static fn (): Html5DomFragment => Html5DomFragment::fromHtml('<a href="/review">review</a>', 'file:///tmp/source.html'));
     },
+    'ignores inactive fallback base elements before resolving reviewer URLs' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<template><base href="https://inactive.example/assets/"><a href="template-note.html">template note</a></template>'
+            . '<noscript><base href="https://noscript.example/assets/"><a href="noscript-note.html">noscript note</a></noscript>'
+            . '<base href="https://source.example.test/import/posts/post.html">'
+            . '<article><a href="doc.html">doc</a><img src="./cover.png" alt="Cover"></article>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/inactive-base-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<a href="https://source.example.test/import/posts/template-note.html">template note</a>'
+            . '<a href="https://source.example.test/import/posts/noscript-note.html">noscript note</a>'
+            . '<article><a href="https://source.example.test/import/posts/doc.html">doc</a>'
+            . '<img src="https://source.example.test/import/posts/cover.png" alt="Cover"></article>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same(['base', 'noscript', 'template'], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag'], $policyDiagnostics);
+        $t->same('a', $nodes[0]['name']);
+        $t->same('https://source.example.test/import/posts/template-note.html', $nodes[0]['attrs']['href']);
+        $t->same('a', $nodes[1]['name']);
+        $t->same('https://source.example.test/import/posts/noscript-note.html', $nodes[1]['attrs']['href']);
+        $t->same('article', $nodes[2]['name']);
+        $t->same('https://source.example.test/import/posts/doc.html', $nodes[2]['children'][0]['attrs']['href']);
+        $t->same('https://source.example.test/import/posts/cover.png', $nodes[2]['children'][1]['attrs']['src']);
+        $t->same('/migration/inactive-base-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, 'inactive.example'), 'Expected inactive template base URL to be ignored');
+        $t->true(!str_contains($html, 'noscript.example'), 'Expected inactive noscript base URL to be ignored');
+        $t->true(!str_contains($html, '<base'), 'Expected base elements to be stripped from sanitized output');
+    },
     'filters obsolete media URL attributes while preserving local image map references' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<p>'

@@ -15,6 +15,7 @@ $srcdoc = htmlspecialchars(
 );
 
 $source = <<<HTML
+<template><base href="https://inactive.example/assets/"><a href="template-note.html">Template fallback note</a></template>
 <base href="https://source.example.test/import/posts/post-42.html?draft=1">
 <article id="legacy-post-42" data-source="html-export">
   <h1>Imported source packet</h1>
@@ -34,7 +35,7 @@ $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
-    foreach (['Imported source packet', 'AT&T <review> text', 'source note', 'Embedded srcdoc packet', 'frame note', 'Cover image'] as $textSnippet) {
+    foreach (['Template fallback note', 'Imported source packet', 'AT&T <review> text', 'source note', 'Embedded srcdoc packet', 'frame note', 'Cover image'] as $textSnippet) {
         if (!str_contains($fragment->textContent(), $textSnippet)) {
             throw new RuntimeException('HTML5 DOM fragment self-test missing reviewer text: ' . $textSnippet);
         }
@@ -43,6 +44,7 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('HTML5 DOM fragment self-test missing base URL');
     }
     foreach ([
+        '<a href="https://source.example.test/import/posts/template-note.html">Template fallback note</a>',
         '<a href="https://source.example.test/import/media/source.html#note">source note</a>',
         '<article><h2>Embedded srcdoc packet</h2><a href="https://source.example.test/import/posts/embedded/note.html">frame note</a><img src="https://source.example.test/import/posts/embedded/frame.png" alt="Frame"></article>',
         '<svg><desc>Legacy &lt;source&gt; &amp; review notes</desc><defs><clipPath id="review-clip"><path d="M0 0"></path></clipPath></defs><g clip-path="url(#review-clip)" mask="url(https://source.example.test/import/posts/masks/review.svg#mask)"><path d="M0 0" fill="url(#paint)"></path></g></svg>',
@@ -56,7 +58,7 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('HTML5 DOM fragment self-test missing expected snippet: ' . $expected);
         }
     }
-    foreach (['<base', '<iframe', 'srcdoc=', '<script', 'javascript:', 'mailto:bad@example.test', '(max-width: 47em)', '<![CDATA[', '--->'] as $blocked) {
+    foreach (['<base', '<iframe', 'srcdoc=', '<script', 'javascript:', 'inactive.example', 'mailto:bad@example.test', '(max-width: 47em)', '<![CDATA[', '--->'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM fragment self-test retained blocked content: ' . $blocked);
         }
