@@ -872,11 +872,46 @@ final class OdfReader
             'sourceFormat' => 'odt',
             'caption' => '',
         ];
+        $tableName = self::attr($table, self::TABLE_NS, 'name');
+        if ($tableName !== '') {
+            $attrs['caption'] = $tableName;
+            $attrs['tableName'] = $tableName;
+            $attrs['htmlAttributes'] = [
+                'data-odf-table-name' => $tableName,
+            ];
+        }
+
+        $styleName = self::attr($table, self::TABLE_NS, 'style-name');
+        if ($styleName !== '') {
+            $attrs['styleName'] = $styleName;
+            $attrs['htmlAttributes']['data-odf-table-style-name'] = $styleName;
+        }
+
+        $protectedValue = strtolower(self::attr($table, self::TABLE_NS, 'protected'));
+        if ($protectedValue !== '') {
+            $protected = in_array($protectedValue, ['true', '1'], true);
+            $attrs['protected'] = $protected;
+            $attrs['htmlAttributes']['data-odf-table-protected'] = $protected ? 'true' : 'false';
+        }
+
+        $protectionKey = self::attr($table, self::TABLE_NS, 'protection-key');
+        if ($protectionKey !== '') {
+            $attrs['protectionKeyPresent'] = true;
+            $attrs['htmlAttributes']['data-odf-table-protection-key-present'] = 'true';
+        }
+
+        $digestAlgorithm = self::attr($table, self::TABLE_NS, 'protection-key-digest-algorithm');
+        if ($digestAlgorithm !== '') {
+            $attrs['protectionKeyDigestAlgorithm'] = $digestAlgorithm;
+            $attrs['htmlAttributes']['data-odf-table-protection-key-digest-algorithm'] = $digestAlgorithm;
+        }
         if ($columnWidths !== []) {
             $attrs['widths'] = $columnWidths;
         }
 
-        return new AstNode('table', $attrs, $children);
+        return TableGeometry::withReviewPacket(new AstNode('table', $attrs, $children), [
+            'idPrefix' => $tableName === '' ? 'odf-table' : $tableName,
+        ]);
     }
 
     /**

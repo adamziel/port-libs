@@ -118,7 +118,7 @@ $contentXml = <<<'XML'
           <svg:desc>ODT source hero alt</svg:desc>
         </draw:image>
       </draw:frame>
-      <table:table table:name="Review">
+      <table:table table:name="Review" table:style-name="ReviewTable" table:protected="true" table:protection-key="opaque-review-key" table:protection-key-digest-algorithm="urn:odf:sha1">
         <table:table-row>
           <table:table-cell><text:p>Item</text:p></table:table-cell>
           <table:table-cell><text:p>Status</text:p></table:table-cell>
@@ -340,6 +340,22 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td colspan="2"><p>Ready for block import review</p></td>')) {
         throw new RuntimeException('Expected ODT table colspan to survive WordPress table handoff');
+    }
+    $reviewTable = null;
+    foreach ($result['document']->children as $block) {
+        if ($block instanceof \PortLibs\Pandoc\AstNode && $block->type === 'table') {
+            $reviewTable = $block;
+            break;
+        }
+    }
+    if (!$reviewTable instanceof \PortLibs\Pandoc\AstNode || ($reviewTable->attr('tableGeometry')['caption'] ?? '') !== 'Review') {
+        throw new RuntimeException('Expected ODT table name to survive table geometry review packets');
+    }
+    if (!str_contains($blocks, '<table data-odf-table-name="Review" data-odf-table-style-name="ReviewTable" data-odf-table-protected="true" data-odf-table-protection-key-present="true" data-odf-table-protection-key-digest-algorithm="urn:odf:sha1">')) {
+        throw new RuntimeException('Expected ODT named protected table metadata to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, '<figcaption class="wp-element-caption">Review</figcaption>')) {
+        throw new RuntimeException('Expected ODT table name to render as the review table caption');
     }
 
     echo "odf open document handoff self-test ok\n";

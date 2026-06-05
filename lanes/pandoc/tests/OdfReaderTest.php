@@ -414,6 +414,63 @@ XML;
         $t->same(2, $table->children[1]->children[0]->children[0]->attr('colspan'));
         $t->same('Ready for review', $table->children[1]->children[0]->children[0]->attr('text'));
     },
+    'maps ODT table names and protection metadata into review table handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithNamedProtectedTable = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:table
+        table:name="Protected Review Matrix"
+        table:style-name="ReviewTable"
+        table:protected="true"
+        table:protection-key="opaque-source-key"
+        table:protection-key-digest-algorithm="urn:odf:sha1">
+        <table:table-row>
+          <table:table-cell><text:p>Owner</text:p></table:table-cell>
+          <table:table-cell><text:p>Status</text:p></table:table-cell>
+        </table:table-row>
+        <table:table-row>
+          <table:table-cell><text:p>Migration desk</text:p></table:table-cell>
+          <table:table-cell><text:p>Ready</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithNamedProtectedTable));
+        $table = $result['document']->children[0];
+        $geometry = $table->attr('tableGeometry');
+
+        $t->same('table', $table->type);
+        $t->same('Protected Review Matrix', $table->attr('caption'));
+        $t->same('Protected Review Matrix', $table->attr('tableName'));
+        $t->same('ReviewTable', $table->attr('styleName'));
+        $t->same(true, $table->attr('protected'));
+        $t->same(true, $table->attr('protectionKeyPresent'));
+        $t->same('urn:odf:sha1', $table->attr('protectionKeyDigestAlgorithm'));
+        $t->same('Protected Review Matrix', $table->attr('htmlAttributes')['data-odf-table-name']);
+        $t->same('ReviewTable', $table->attr('htmlAttributes')['data-odf-table-style-name']);
+        $t->same('true', $table->attr('htmlAttributes')['data-odf-table-protected']);
+        $t->same('true', $table->attr('htmlAttributes')['data-odf-table-protection-key-present']);
+        $t->same('urn:odf:sha1', $table->attr('htmlAttributes')['data-odf-table-protection-key-digest-algorithm']);
+        $t->true(is_array($geometry));
+        $geometry = is_array($geometry) ? $geometry : [];
+        $t->same('Protected Review Matrix', $geometry['caption'] ?? null);
+        $t->same(2, $geometry['columnCount'] ?? null);
+        $t->same(2, $geometry['summary']['rowCount'] ?? null);
+        $t->same('Migration desk', $geometry['coverage'][2]['text'] ?? null);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains(': Protected Review Matrix', $markdown);
+        $t->contains('<table data-odf-table-name="Protected Review Matrix" data-odf-table-style-name="ReviewTable" data-odf-table-protected="true" data-odf-table-protection-key-present="true" data-odf-table-protection-key-digest-algorithm="urn:odf:sha1">', $blocksHtml);
+        $t->contains('<figcaption class="wp-element-caption">Protected Review Matrix</figcaption>', $blocksHtml);
+    },
     'maps ODT text-position styles into superscript and subscript spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithVerticalText = <<<'XML'
 <office:document-styles
