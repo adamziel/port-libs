@@ -6037,13 +6037,29 @@ final class PdfTextExtractor
             return $this->readPdfDictionaryTokenAt($arrayBody, $index);
         }
 
-        if (preg_match('/(\d+)\s+\d+\s+R\b/A', substr($arrayBody, $index), $match) !== 1) {
+        if (preg_match('/(\d+)\s+(\d+)\s+R\b/A', substr($arrayBody, $index), $match) !== 1) {
             return null;
         }
 
         $index += strlen($match[0]);
         $objectNumber = (int) $match[1];
-        return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
+        $generation = (int) $match[2];
+        $body = $this->pageLabelObjectBodyForReference($objects, $objectNumber, $generation);
+        return $body === null ? null : $this->dictionaryObjectBody($body);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pageLabelObjectBodyForReference(array $objects, int $objectNumber, int $generation): ?string
+    {
+        $directExactBody = $this->currentDirectObjectBodiesByGeneration[$objectNumber][$generation] ?? null;
+        $owner = $this->currentObjectReferenceOwners[$objectNumber] ?? null;
+        if ($owner !== null && isset($objects[$objectNumber]) && $objects[$objectNumber] === $owner['body']) {
+            return $owner['generation'] === $generation ? $owner['body'] : $directExactBody;
+        }
+
+        return $directExactBody ?? $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
     }
 
     /**

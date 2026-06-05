@@ -170,6 +170,33 @@ $pdfDocEncodingPageLabelBoundaryPdf = static function (): string {
         . "%%EOF\n";
 };
 
+$generationBoundaryPageLabelPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Current cover imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Current body imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Current appendix imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums [0 30 0 R 1 31 0 R] >>\nendobj\n"
+        . "30 0 obj\n<< /P (Cover-) >>\nendobj\n"
+        . "30 1 obj\n<< /S /D /P (stale-high-generation-) /St 99 >>\nendobj\n"
+        . "31 0 obj\n<< /S /D /P (Body ) /St 4 >>\nendobj\n"
+        . "%%EOF\n";
+};
+
 return [
     'keeps parent PageLabels Limits across indirect kid number-tree boundaries' => static function (TestRunner $t) use ($pageLabelBoundaryPdf): void {
         $pdf = $pageLabelBoundaryPdf();
@@ -275,5 +302,23 @@ return [
         $t->same(['Encoded prefix page imported', 'Hex prefix page imported', 'Indirect prefix page imported'], array_column($entries, 'text'));
         $t->true(!in_array('WP' . chr(0x80) . '-Import' . chr(0x81) . ' 3', $previewLabels, true));
         $t->same("Appendix\u{FB01}\u{FB02} Z", $preview->getPageImagePlan($pdf, 3)['page_label']);
+    },
+    'keeps generation-exact indirect PageLabels dictionaries before WordPress page metadata' => static function (TestRunner $t) use ($generationBoundaryPageLabelPdf): void {
+        $pdf = $generationBoundaryPageLabelPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Cover-', 'Body 4', 'Body 5'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Current cover imported', 'Current body imported', 'Current appendix imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-high-generation-99', $labels, true));
+        $t->true(!in_array('stale-high-generation-100', $previewLabels, true));
+        $t->same('Body 5', $preview->getPageImagePlan($pdf, 3)['page_label']);
     },
 ];

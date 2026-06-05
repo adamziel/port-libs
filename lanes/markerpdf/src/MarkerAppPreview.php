@@ -56,6 +56,11 @@ final class MarkerAppPreview
 
     private PdfImageRenderer $renderer;
 
+    /**
+     * @var array<int, array<int, string>>
+     */
+    private array $directObjectBodiesByGeneration = [];
+
     public function __construct(?PdfImageRenderer $renderer = null)
     {
         $this->renderer = $renderer ?? new PdfImageRenderer();
@@ -798,15 +803,20 @@ final class MarkerAppPreview
      */
     private function pdfObjects(string $pdfBytes): array
     {
+        $this->directObjectBodiesByGeneration = [];
         if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
             return [];
         }
 
         $objects = [];
         foreach ($matches as $match) {
-            $objects[(int) $match[1]] = [
-                'generation' => (int) $match[2],
-                'body' => $match[3],
+            $objectId = (int) $match[1];
+            $generation = (int) $match[2];
+            $body = $match[3];
+            $this->directObjectBodiesByGeneration[$objectId][$generation] = $body;
+            $objects[$objectId] = [
+                'generation' => $generation,
+                'body' => $body,
             ];
         }
         ksort($objects, SORT_NUMERIC);
@@ -1324,16 +1334,18 @@ final class MarkerAppPreview
         if ($kids !== null) {
             $kids = trim($this->resolvePdfValue($kids, $objects, $seen));
             foreach ($this->arrayElements($kids) as $kid) {
-                if (!preg_match('/^(\d+)\s+\d+\s+R$/', trim($kid), $match)) {
+                if (!preg_match('/^(\d+)\s+(\d+)\s+R$/', trim($kid), $match)) {
                     continue;
                 }
 
                 $objectId = (int) $match[1];
-                if (in_array($objectId, $seen, true) || !isset($objects[$objectId])) {
+                $generation = (int) $match[2];
+                $kidBody = $this->objectBodyForReference($objects, $objectId, $generation, $seen);
+                if ($kidBody === null) {
                     continue;
                 }
 
-                foreach ($this->pageLabelSections($objects[$objectId]['body'], $objects, [...$seen, $objectId], $limits) as $section) {
+                foreach ($this->pageLabelSections($kidBody, $objects, [...$seen, $objectId], $limits) as $section) {
                     $sections[] = $section;
                 }
             }
@@ -1417,16 +1429,18 @@ final class MarkerAppPreview
             return (int) $value;
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R$/', $value, $match) !== 1) {
+        if (preg_match('/^(\d+)\s+(\d+)\s+R$/', $value, $match) !== 1) {
             return null;
         }
 
         $objectId = (int) $match[1];
-        if ($objectId <= 0 || in_array($objectId, $seen, true) || !isset($objects[$objectId])) {
+        $generation = (int) $match[2];
+        $body = $this->objectBodyForReference($objects, $objectId, $generation, $seen);
+        if ($body === null) {
             return null;
         }
 
-        return $this->pageLabelLimitOperand($objects[$objectId]['body'], $objects, [...$seen, $objectId]);
+        return $this->pageLabelLimitOperand($body, $objects, [...$seen, $objectId]);
     }
 
     /**
@@ -1651,14 +1665,30 @@ final class MarkerAppPreview
     private function resolvePdfValue(string $value, array $objects, array $seen = []): string
     {
         $value = trim($value);
-        if (preg_match('/^(\d+)\s+\d+\s+R$/', $value, $match) === 1) {
+        if (preg_match('/^(\d+)\s+(\d+)\s+R$/', $value, $match) === 1) {
             $objectId = (int) $match[1];
-            if (!in_array($objectId, $seen, true) && isset($objects[$objectId])) {
-                return $objects[$objectId]['body'];
+            $generation = (int) $match[2];
+            $body = $this->objectBodyForReference($objects, $objectId, $generation, $seen);
+            if ($body !== null) {
+                return $body;
             }
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param list<int> $seen
+     */
+    private function objectBodyForReference(array $objects, int $objectId, int $generation, array $seen): ?string
+    {
+        if ($objectId <= 0 || $generation < 0 || in_array($objectId, $seen, true)) {
+            return null;
+        }
+
+        return $this->directObjectBodiesByGeneration[$objectId][$generation]
+            ?? ($objects[$objectId]['body'] ?? null);
     }
 
     private function valueAfterName(string $body, string $name): ?string
