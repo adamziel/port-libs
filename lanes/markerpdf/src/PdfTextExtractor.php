@@ -19507,8 +19507,11 @@ final class PdfTextExtractor
         if ($fallbackKeys === [] || $fallbackKeys === $sourceKeys || count($fallbackKeys) <= count($sourceKeys)) {
             return [];
         }
+        if (!$this->sourceKeysAreMapped($fallbackKeys, $toUnicodeMap)) {
+            return [];
+        }
 
-        return $this->sourceKeysHaveAllDirectFontMetrics($fallbackKeys, $toUnicodeMap) ? $fallbackKeys : [];
+        return $this->sourceKeysHaveAllFontWidthEvidence($fallbackKeys, $toUnicodeMap) ? $fallbackKeys : [];
     }
 
     /**
@@ -19621,15 +19624,47 @@ final class PdfTextExtractor
     /**
      * @param list<string> $sourceKeys
      */
-    private function sourceKeysHaveAllDirectFontMetrics(array $sourceKeys, array $toUnicodeMap): bool
+    private function sourceKeysAreMapped(array $sourceKeys, array $toUnicodeMap): bool
     {
+        $mappings = $toUnicodeMap['map'] ?? [];
+        if (!is_array($mappings) || $mappings === []) {
+            return false;
+        }
+
         foreach ($sourceKeys as $sourceKey) {
-            if (!$this->sourceKeyHasDirectFontMetric($sourceKey, $toUnicodeMap)) {
+            if (!array_key_exists($sourceKey, $mappings)) {
                 return false;
             }
         }
 
         return $sourceKeys !== [];
+    }
+
+    /**
+     * @param list<string> $sourceKeys
+     */
+    private function sourceKeysHaveAllFontWidthEvidence(array $sourceKeys, array $toUnicodeMap): bool
+    {
+        foreach ($sourceKeys as $sourceKey) {
+            if (!$this->sourceKeyHasFontWidthEvidence($sourceKey, $toUnicodeMap)) {
+                return false;
+            }
+        }
+
+        return $sourceKeys !== [];
+    }
+
+    private function sourceKeyHasFontWidthEvidence(string $sourceKey, array $toUnicodeMap): bool
+    {
+        if ($this->sourceKeyHasDirectFontMetric($sourceKey, $toUnicodeMap)) {
+            return true;
+        }
+
+        $defaultWidth = $toUnicodeMap['cidDefaultWidth'] ?? null;
+        $cid = $this->cidForWidthSourceKey($sourceKey, $toUnicodeMap);
+        return (is_int($defaultWidth) || is_float($defaultWidth))
+            && $cid >= 0
+            && $cid <= 0xffff;
     }
 
     private function sourceKeyHasDirectFontMetric(string $sourceKey, array $toUnicodeMap): bool
