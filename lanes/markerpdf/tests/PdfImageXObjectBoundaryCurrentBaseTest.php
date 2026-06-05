@@ -2601,6 +2601,82 @@ return [
         $t->true(str_contains($encoded, hash('sha256', $tilePayload)));
         $t->true(str_contains($encoded, hash('sha256', $unusedPayload)));
     },
+    'maps image XObjects painted from stroking tiling pattern streams as review-only metadata' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before stroking pattern image) Tj ET\n"
+            . "2 w /Pattern CS /Stroke#20Tile SCN 0 0 m 20 0 l 20 10 l S\n"
+            . 'BT /F1 12 Tf 72 660 Td (After stroking pattern image) Tj ET';
+        $patternContent = 'q 5 0 0 2 2 1 cm /Stroke#20Image Do Q';
+        $strokePayload = 'BT /F1 12 Tf 72 720 Td (Stroke Pattern Image Payload Noise) Tj ET';
+        $unusedPayload = 'BT /F1 12 Tf 72 720 Td (Unused Stroke Pattern Image Payload Noise) Tj ET';
+        $strokeCompressed = gzcompress($strokePayload);
+        $unusedCompressed = gzcompress($unusedPayload);
+        if (!is_string($strokeCompressed) || !is_string($unusedCompressed)) {
+            throw new RuntimeException('Unable to compress stroking tiling pattern image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /Pattern << /Stroke#20Tile 11 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 5 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($strokeCompressed) . " >>\nstream\n{$strokeCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($unusedCompressed) . " >>\nstream\n{$unusedCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "11 0 obj\n<< /Type /Pattern /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 25 12] /XStep 25 /YStep 12 /Matrix [1 0 0 1 4 5] /Resources << /XObject << /Stroke#20Image 5 0 R /Unused#20Stroke#20Pattern#20Image 6 0 R >> >> /Length " . strlen($patternContent) . " >>\nstream\n{$patternContent}\nendstream\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(1, $review['uninvoked_image_xobject_count']);
+
+        $stroke = $entriesByName['Stroke Image'];
+        $t->same('Stroke Tile', $stroke['pattern_resource_name'] ?? null);
+        $t->same(11, $stroke['parent_pattern_object'] ?? null);
+        $t->same(0, $stroke['parent_pattern_generation'] ?? null);
+        $t->same(1, $stroke['pattern_paint_count'] ?? null);
+        $t->same([[1.0, 0.0, 0.0, 1.0, 4.0, 5.0]], $stroke['pattern_matrices'] ?? null);
+        $t->same([[0.0, 0.0, 20.0, 10.0]], $stroke['pattern_bboxes'] ?? null);
+        $t->same([[0.0, 0.0, 20.0, 10.0]], $stroke['pattern_visible_bboxes'] ?? null);
+        $t->same(true, $stroke['pattern_review_only'] ?? null);
+        $t->same(['Stroke Tile', 'Stroke Image'], $stroke['resource_path']);
+        $t->same(true, $stroke['invoked']);
+        $t->same(1, $stroke['invocation_count']);
+        $t->same([[5.0, 0.0, 0.0, 2.0, 6.0, 6.0]], $stroke['invocation_matrices']);
+        $t->same([[6.0, 6.0, 11.0, 8.0]], $stroke['invocation_bboxes']);
+        $t->same([[4.0, 5.0, 20.0, 10.0]], $stroke['invocation_clip_bboxes']);
+        $t->same([[6.0, 6.0, 11.0, 8.0]], $stroke['invocation_visible_bboxes']);
+        $t->same([6.0, 6.0, 11.0, 8.0], $stroke['image_unit_bbox']);
+        $t->same([6.0, 6.0, 11.0, 8.0], $stroke['image_visible_bbox']);
+        $t->same(true, $stroke['decoded_with_current_filters']);
+        $t->same(hash('sha256', $strokePayload), $stroke['decoded_sha256']);
+        $t->same(false, $stroke['payload_in_visible_text']);
+
+        $unused = $entriesByName['Unused Stroke Pattern Image'];
+        $t->same('Stroke Tile', $unused['pattern_resource_name'] ?? null);
+        $t->same(false, $unused['invoked']);
+        $t->same(0, $unused['invocation_count']);
+        $t->same([], $unused['invocation_matrices']);
+        $t->same(hash('sha256', $unusedPayload), $unused['decoded_sha256']);
+
+        $t->same(['Before stroking pattern image', 'After stroking pattern image'], $extractor->extractTextLines($pdf));
+        $t->same("Before stroking pattern image\nAfter stroking pattern image", $plainText);
+        $t->true(!str_contains($plainText, 'Stroke Pattern Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Unused Stroke Pattern Image Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $strokePayload));
+        $t->true(!str_contains($encoded, $unusedPayload));
+        $t->true(str_contains($encoded, hash('sha256', $strokePayload)));
+        $t->true(str_contains($encoded, hash('sha256', $unusedPayload)));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"

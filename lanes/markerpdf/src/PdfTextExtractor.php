@@ -4582,29 +4582,34 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if ($this->isNonstrokingPatternPaintOperator($token)) {
+            $patternPaintKinds = $this->patternPaintKindsForOperator($token);
+            if ($patternPaintKinds !== []) {
                 foreach ($currentStates as $index => $state) {
                     $graphicsState = $this->normalizeInvocationGraphicsState($state['graphics_state'] ?? null);
-                    $patternName = is_string($graphicsState['nonstroking_pattern_name'] ?? null)
-                        ? $graphicsState['nonstroking_pattern_name']
-                        : null;
-                    $pathBbox = $this->normalizedPdfRectangleOrNull($state['path_bbox'] ?? null);
-                    if (
-                        $patternName !== null
-                        && ($graphicsState['nonstroking_color_space'] ?? null) === 'Pattern'
-                        && $pathBbox !== null
-                    ) {
-                        $clipRectangle = $this->normalizedPdfRectangleOrNull($state['clip_bbox'] ?? null);
-                        $visibleBbox = $this->visibleImageInvocationBbox($pathBbox, $clipRectangle);
-                        $paints[$patternName][] = [
-                            'matrix' => $this->normalizedPdfReviewNumbers($state['matrix']),
-                            'bbox' => $pathBbox,
-                            'clip_bbox' => $clipRectangle,
-                            'visible_bbox' => $visibleBbox,
-                            'clipped' => $clipRectangle !== null
-                                && ($visibleBbox === null || !$this->pdfRectanglesEqual($pathBbox, $visibleBbox)),
-                            'graphics_state' => $graphicsState,
-                        ];
+                    foreach ($patternPaintKinds as $paintKind) {
+                        $colorSpaceKey = $paintKind . '_color_space';
+                        $patternNameKey = $paintKind . '_pattern_name';
+                        $patternName = is_string($graphicsState[$patternNameKey] ?? null)
+                            ? $graphicsState[$patternNameKey]
+                            : null;
+                        $pathBbox = $this->normalizedPdfRectangleOrNull($state['path_bbox'] ?? null);
+                        if (
+                            $patternName !== null
+                            && ($graphicsState[$colorSpaceKey] ?? null) === 'Pattern'
+                            && $pathBbox !== null
+                        ) {
+                            $clipRectangle = $this->normalizedPdfRectangleOrNull($state['clip_bbox'] ?? null);
+                            $visibleBbox = $this->visibleImageInvocationBbox($pathBbox, $clipRectangle);
+                            $paints[$patternName][] = [
+                                'matrix' => $this->normalizedPdfReviewNumbers($state['matrix']),
+                                'bbox' => $pathBbox,
+                                'clip_bbox' => $clipRectangle,
+                                'visible_bbox' => $visibleBbox,
+                                'clipped' => $clipRectangle !== null
+                                    && ($visibleBbox === null || !$this->pdfRectanglesEqual($pathBbox, $visibleBbox)),
+                                'graphics_state' => $graphicsState,
+                            ];
+                        }
                     }
 
                     $currentStates[$index]['path_bbox'] = null;
@@ -4645,6 +4650,11 @@ final class PdfTextExtractor
             }
 
             if ($this->applyNonstrokingColorStateOperator($token, $operands, $currentStates)) {
+                $operands = [];
+                continue;
+            }
+
+            if ($this->applyStrokingColorStateOperator($token, $operands, $currentStates)) {
                 $operands = [];
                 continue;
             }
@@ -4844,6 +4854,10 @@ final class PdfTextExtractor
             'alpha_source' => null,
             'blend_modes' => [],
             'soft_mask' => null,
+            'stroking_color_space' => 'DeviceGray',
+            'stroking_color_components' => [0.0],
+            'stroking_pattern_name' => null,
+            'stroking_color_operator' => 'default',
             'nonstroking_color_space' => 'DeviceGray',
             'nonstroking_color_components' => [0.0],
             'nonstroking_pattern_name' => null,
@@ -4885,28 +4899,34 @@ final class PdfTextExtractor
         if (is_array($state['soft_mask'] ?? null)) {
             $default['soft_mask'] = $state['soft_mask'];
         }
-        if (is_string($state['nonstroking_color_space'] ?? null) && $state['nonstroking_color_space'] !== '') {
-            $default['nonstroking_color_space'] = $state['nonstroking_color_space'];
-        }
-        if (is_array($state['nonstroking_color_components'] ?? null)) {
-            $components = [];
-            $validComponents = true;
-            foreach ($state['nonstroking_color_components'] as $component) {
-                if (!is_int($component) && !is_float($component)) {
-                    $validComponents = false;
-                    break;
+        foreach (['stroking', 'nonstroking'] as $paintKind) {
+            $colorSpaceKey = $paintKind . '_color_space';
+            $componentsKey = $paintKind . '_color_components';
+            $patternNameKey = $paintKind . '_pattern_name';
+            $operatorKey = $paintKind . '_color_operator';
+            if (is_string($state[$colorSpaceKey] ?? null) && $state[$colorSpaceKey] !== '') {
+                $default[$colorSpaceKey] = $state[$colorSpaceKey];
+            }
+            if (is_array($state[$componentsKey] ?? null)) {
+                $components = [];
+                $validComponents = true;
+                foreach ($state[$componentsKey] as $component) {
+                    if (!is_int($component) && !is_float($component)) {
+                        $validComponents = false;
+                        break;
+                    }
+                    $components[] = (float) $component;
                 }
-                $components[] = (float) $component;
+                if ($validComponents) {
+                    $default[$componentsKey] = $components;
+                }
             }
-            if ($validComponents) {
-                $default['nonstroking_color_components'] = $components;
+            if (is_string($state[$patternNameKey] ?? null) && $state[$patternNameKey] !== '') {
+                $default[$patternNameKey] = $state[$patternNameKey];
             }
-        }
-        if (is_string($state['nonstroking_pattern_name'] ?? null) && $state['nonstroking_pattern_name'] !== '') {
-            $default['nonstroking_pattern_name'] = $state['nonstroking_pattern_name'];
-        }
-        if (is_string($state['nonstroking_color_operator'] ?? null) && $state['nonstroking_color_operator'] !== '') {
-            $default['nonstroking_color_operator'] = $state['nonstroking_color_operator'];
+            if (is_string($state[$operatorKey] ?? null) && $state[$operatorKey] !== '') {
+                $default[$operatorKey] = $state[$operatorKey];
+            }
         }
 
         return $default;
@@ -4938,7 +4958,7 @@ final class PdfTextExtractor
                 }
                 $graphicsState = $this->normalizeInvocationGraphicsState($state['graphics_state'] ?? null);
                 $graphicsState['nonstroking_color_space'] = $name;
-                $graphicsState['nonstroking_color_components'] = $this->defaultNonstrokingColorComponents($name);
+                $graphicsState['nonstroking_color_components'] = $this->defaultColorComponents($name);
                 $graphicsState['nonstroking_pattern_name'] = null;
                 $graphicsState['nonstroking_color_operator'] = 'cs';
                 $currentStates[$index]['graphics_state'] = $graphicsState;
@@ -4946,7 +4966,7 @@ final class PdfTextExtractor
 
             return true;
         } elseif ($operator === 'sc' || $operator === 'scn') {
-            [$components, $patternName] = $this->nonstrokingSpecialColorOperands($operands, $operator === 'scn');
+            [$components, $patternName] = $this->specialColorOperands($operands, $operator === 'scn');
         } else {
             return false;
         }
@@ -4961,6 +4981,61 @@ final class PdfTextExtractor
             $graphicsState['nonstroking_color_components'] = $components;
             $graphicsState['nonstroking_pattern_name'] = $patternName;
             $graphicsState['nonstroking_color_operator'] = $operator;
+            $currentStates[$index]['graphics_state'] = $graphicsState;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<string> $operands
+     * @param list<array<string, mixed>> $currentStates
+     */
+    private function applyStrokingColorStateOperator(string $operator, array $operands, array &$currentStates): bool
+    {
+        $colorSpace = null;
+        $components = null;
+        $patternName = null;
+        if ($operator === 'G') {
+            $components = $this->numericColorOperands($operands, 1);
+            $colorSpace = 'DeviceGray';
+        } elseif ($operator === 'RG') {
+            $components = $this->numericColorOperands($operands, 3);
+            $colorSpace = 'DeviceRGB';
+        } elseif ($operator === 'K') {
+            $components = $this->numericColorOperands($operands, 4);
+            $colorSpace = 'DeviceCMYK';
+        } elseif ($operator === 'CS') {
+            $name = $this->xObjectNameOperand($operands);
+            foreach ($currentStates as $index => $state) {
+                if ($name === null) {
+                    continue;
+                }
+                $graphicsState = $this->normalizeInvocationGraphicsState($state['graphics_state'] ?? null);
+                $graphicsState['stroking_color_space'] = $name;
+                $graphicsState['stroking_color_components'] = $this->defaultColorComponents($name);
+                $graphicsState['stroking_pattern_name'] = null;
+                $graphicsState['stroking_color_operator'] = 'CS';
+                $currentStates[$index]['graphics_state'] = $graphicsState;
+            }
+
+            return true;
+        } elseif ($operator === 'SC' || $operator === 'SCN') {
+            [$components, $patternName] = $this->specialColorOperands($operands, $operator === 'SCN');
+        } else {
+            return false;
+        }
+
+        if ($components === null) {
+            return true;
+        }
+
+        foreach ($currentStates as $index => $state) {
+            $graphicsState = $this->normalizeInvocationGraphicsState($state['graphics_state'] ?? null);
+            $graphicsState['stroking_color_space'] = $colorSpace ?? $graphicsState['stroking_color_space'];
+            $graphicsState['stroking_color_components'] = $components;
+            $graphicsState['stroking_pattern_name'] = $patternName;
+            $graphicsState['stroking_color_operator'] = $operator;
             $currentStates[$index]['graphics_state'] = $graphicsState;
         }
 
@@ -4993,7 +5068,7 @@ final class PdfTextExtractor
      * @param list<string> $operands
      * @return array{0: list<float>|null, 1: string|null}
      */
-    private function nonstrokingSpecialColorOperands(array $operands, bool $allowPatternName): array
+    private function specialColorOperands(array $operands, bool $allowPatternName): array
     {
         if ($operands === []) {
             return [null, null];
@@ -5025,7 +5100,7 @@ final class PdfTextExtractor
     /**
      * @return list<float>
      */
-    private function defaultNonstrokingColorComponents(string $colorSpace): array
+    private function defaultColorComponents(string $colorSpace): array
     {
         return match ($colorSpace) {
             'DeviceRGB', 'RGB' => [0.0, 0.0, 0.0],
@@ -17149,9 +17224,17 @@ final class PdfTextExtractor
         return in_array($operator, ['n', 'S', 's', 'f', 'F', 'f*', 'B', 'B*', 'b', 'b*'], true);
     }
 
-    private function isNonstrokingPatternPaintOperator(string $operator): bool
+    /**
+     * @return list<'nonstroking'|'stroking'>
+     */
+    private function patternPaintKindsForOperator(string $operator): array
     {
-        return in_array($operator, ['f', 'F', 'f*', 'B', 'B*', 'b', 'b*'], true);
+        return match ($operator) {
+            'f', 'F', 'f*' => ['nonstroking'],
+            'S', 's' => ['stroking'],
+            'B', 'B*', 'b', 'b*' => ['nonstroking', 'stroking'],
+            default => [],
+        };
     }
 
     private function pdfNumberValueAfterName(string $body, string $name): ?float
