@@ -44,9 +44,13 @@ final class SyntaxHighlighter
         'bash' => 'bash',
         'c' => 'c',
         'cargo-lock' => 'toml',
+        'c#' => 'csharp',
         'cc' => 'cpp',
         'cpp' => 'cpp',
         'c++' => 'cpp',
+        'cs' => 'csharp',
+        'csharp' => 'csharp',
+        'csx' => 'csharp',
         'cxx' => 'cpp',
         'console' => 'bash',
         'containerfile' => 'dockerfile',
@@ -567,6 +571,7 @@ final class SyntaxHighlighter
         return match ($language) {
             'bash' => $this->tokenizeBash($code),
             'c', 'cpp' => $this->tokenizeC($code),
+            'csharp' => $this->tokenizeCSharp($code),
             'css' => $this->tokenizeCss($code),
             'diff' => $this->tokenizeDiff($code),
             'dot' => $this->tokenizeDot($code),
@@ -724,6 +729,31 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:::|->|>>>?=?|<<=?|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|\\.\\.\\.|[{}()[\\];,.+*\\/%=!<>?:&|^~-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeCSharp(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['preprocessor', '/^#[ \\t]*(?:define|elif|else|endif|endregion|error|if|line|nullable|pragma|region|undef|warning)\\b[^\\n]*/'],
+            ['string', '/^(?:\\$@|@\\$|\\$|@)?"(?:""|\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])'/s"],
+            ['attribute', '/^\\[(?:[A-Za-z_][A-Za-z0-9_]*:\\s*)?[A-Za-z_][A-Za-z0-9_.]*(?:\\([^\\]\\n]*\\))?\\]/'],
+            ['keyword', '/^\\b(?:abstract|as|async|await|base|break|case|catch|checked|class|const|continue|default|delegate|do|else|enum|event|explicit|extern|finally|fixed|for|foreach|get|global|goto|if|implicit|in|init|interface|internal|is|lock|namespace|new|operator|out|override|params|partial|private|protected|public|readonly|record|ref|required|return|sealed|set|sizeof|stackalloc|static|struct|switch|this|throw|try|typeof|unchecked|unsafe|using|var|virtual|volatile|when|where|while|with|yield)\\b/'],
+            ['constant', '/^\\b(?:false|null|true)\\b/'],
+            ['datatype', '/^\\b(?:bool|byte|char|decimal|double|dynamic|float|int|long|nint|nuint|object|sbyte|short|string|uint|ulong|ushort|void)\\b/'],
+            ['number', '/^\\b(?:0[xX][0-9A-Fa-f](?:_?[0-9A-Fa-f])*|0[bB][01](?:_?[01])*|\\d(?:_?\\d)*(?:\\.\\d(?:_?\\d)*)?(?:[eE][+-]?\\d(?:_?\\d)*)?)[mMdDfFlLuU]*\\b/'],
+            ['datatype', '/^\\b(?:Action|CancellationToken|Console|DateTime|Dictionary|Exception|Func|Guid|IEnumerable|IReadOnlyList|JsonDocument|JsonElement|JsonPropertyName|JsonSerializer|List|Math|Memory|Nullable|Regex|ReadOnlySpan|Span|StringBuilder|Task|Uri)\\b/'],
+            ['function', '/^\\b(?:Deserialize|IsNullOrWhiteSpace|RenderAsync|Trim|WriteLineAsync)\\b(?=\\s*(?:<[^>\\n]+>\\s*)?\\()/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[<({.]|\\b))/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:=>|\\?\\?|\\?\\.|::|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|<<=?|>>=?|\\.\\.\\.?|[{}()[\\];,.+*\\/%=!<>?:&|^~-])/'],
         ]);
     }
 

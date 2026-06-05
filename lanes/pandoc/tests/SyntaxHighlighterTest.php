@@ -53,6 +53,11 @@ return [
         $t->same('cpp', SyntaxHighlighter::normalizeLanguage('cpp'));
         $t->same('cpp', SyntaxHighlighter::normalizeLanguage('cxx'));
         $t->same('cpp', SyntaxHighlighter::normalizeLanguage('hpp'));
+        $t->same('csharp', SyntaxHighlighter::normalizeLanguage('cs'));
+        $t->same('csharp', SyntaxHighlighter::normalizeLanguage('csharp'));
+        $t->same('csharp', SyntaxHighlighter::normalizeLanguage('C#'));
+        $t->same('csharp', SyntaxHighlighter::normalizeLanguage('csx'));
+        $t->same('csharp', SyntaxHighlighter::normalizeLanguage('language-cs'));
         $t->same('tex', SyntaxHighlighter::normalizeLanguage('latex'));
         $t->same('tex', SyntaxHighlighter::normalizeLanguage('TeX'));
         $t->same('ini', SyntaxHighlighter::normalizeLanguage('ini'));
@@ -605,6 +610,47 @@ return [
         $t->same('javascript', $directCjs['language']);
         $t->same('cjs', $directCjs['requestedLanguage']);
         $t->contains('<span class="va">module</span><span class="op">.</span><span class="va">exports</span> <span class="op">=</span> <span class="fu">require</span><span class="op">(</span><span class="st">&quot;@wordpress/scripts&quot;</span><span class="op">);</span>', $directCjs['html']);
+    },
+    'highlights csharp aspnet review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[29] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a C# code block');
+        }
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'haddock');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'haddock');
+        $directCsharp = (new SyntaxHighlighter())->highlight('await Console.Out.WriteLineAsync("ok");', 'csharp');
+
+        $t->same('cs', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('csharp', $highlighted['language']);
+        $t->same('cs', $highlighted['requestedLanguage']);
+        $t->same('haddock', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(210, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource cs numberLines"><code class="sourceCode csharp" style="counter-reset: source-line 209;">', $highlighted['html']);
+        $t->contains('<span id="csharp-review-210"><a href="#csharp-review-210"></a><span class="co">// ASP.NET legacy import packet review</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">using</span> <span class="dt">System</span><span class="op">.</span><span class="dt">Text</span><span class="op">.</span><span class="dt">Json</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">namespace</span> <span class="dt">Legacy</span><span class="op">.</span><span class="dt">Import</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">public</span> <span class="kw">sealed</span> <span class="kw">record</span> <span class="dt">ReviewPacket</span><span class="op">(</span>', $highlighted['html']);
+        $t->contains('<span class="ot">[property: JsonPropertyName(&quot;title&quot;)]</span> <span class="dt">string</span><span class="op">?</span> <span class="dt">Title</span>', $highlighted['html']);
+        $t->contains('<span class="kw">public</span> <span class="kw">static</span> <span class="kw">async</span> <span class="dt">Task</span><span class="op">&lt;</span><span class="dt">string</span><span class="op">&gt;</span> <span class="fu">RenderAsync</span>', $highlighted['html']);
+        $t->contains('<span class="dt">JsonSerializer</span><span class="op">.</span><span class="fu">Deserialize</span><span class="op">&lt;</span><span class="dt">ReviewPacket</span><span class="op">&gt;(</span><span class="va">rawJson</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<span class="va">packet</span><span class="op">?.</span><span class="dt">Title</span> <span class="op">??</span> <span class="st">&quot;Untitled&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="op">(</span><span class="dt">string</span><span class="op">.</span><span class="fu">IsNullOrWhiteSpace</span><span class="op">(</span><span class="va">title</span><span class="op">))</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="st">$&quot;&lt;!-- wp:paragraph --&gt;&lt;p&gt;Import {packet?.SourceId}&lt;/p&gt;&lt;!-- /wp:paragraph --&gt;&quot;</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">await</span> <span class="dt">Console</span><span class="op">.</span><span class="dt">Out</span><span class="op">.</span><span class="fu">WriteLineAsync</span><span class="op">(</span><span class="va">title</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="va">title</span><span class="op">.</span><span class="fu">Trim</span><span class="op">();</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="haddock">', $wordpressBlock);
+        $t->contains('<span class="st">$&quot;&lt;!-- wp:paragraph --&gt;&lt;p&gt;Import {packet?.SourceId}&lt;/p&gt;&lt;!-- /wp:paragraph --&gt;&quot;</span>', $wordpressBlock);
+        $t->same('csharp', $directCsharp['language']);
+        $t->same('csharp', $directCsharp['requestedLanguage']);
+        $t->contains('<span class="kw">await</span> <span class="dt">Console</span><span class="op">.</span><span class="dt">Out</span><span class="op">.</span><span class="fu">WriteLineAsync</span><span class="op">(</span><span class="st">&quot;ok&quot;</span><span class="op">);</span>', $directCsharp['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

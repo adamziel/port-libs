@@ -421,3 +421,32 @@ export async function registerImportBlock(sourceId) {
   });
 }
 ```
+
+``` {.cs #csharp-review .numberLines startFrom=210}
+// ASP.NET legacy import packet review
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace Legacy.Import;
+
+public sealed record ReviewPacket(
+    [property: JsonPropertyName("title")] string? Title,
+    [property: JsonPropertyName("sourceId")] long SourceId
+);
+
+public static class WordPressBlockNormalizer
+{
+    public static async Task<string> RenderAsync(string rawJson)
+    {
+        var packet = JsonSerializer.Deserialize<ReviewPacket>(rawJson);
+        var title = packet?.Title ?? "Untitled";
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return $"<!-- wp:paragraph --><p>Import {packet?.SourceId}</p><!-- /wp:paragraph -->";
+        }
+
+        await Console.Out.WriteLineAsync(title);
+        return title.Trim();
+    }
+}
+```

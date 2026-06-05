@@ -214,6 +214,12 @@ if (!$javascriptCodeBlock instanceof PortLibs\Pandoc\AstNode || $javascriptCodeB
 }
 $javascript = $highlighter->highlightCodeBlock($javascriptCodeBlock, 'kate');
 $javascriptWordpressBlock = $highlighter->wordpressHtmlBlock($javascriptCodeBlock, 'kate');
+$csharpCodeBlock = $document->children[29] ?? null;
+if (!$csharpCodeBlock instanceof PortLibs\Pandoc\AstNode || $csharpCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a C# code block');
+}
+$csharp = $highlighter->highlightCodeBlock($csharpCodeBlock, 'haddock');
+$csharpWordpressBlock = $highlighter->wordpressHtmlBlock($csharpCodeBlock, 'haddock');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -866,6 +872,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($javascriptWordpressBlock, '<span class="fu">registerBlockType</span><span class="op">(</span><span class="st">&quot;legacy/import-review&quot;</span>')) {
         throw new RuntimeException('Expected JavaScript Gutenberg registration token handoff');
     }
+    if (($csharp['language'] ?? '') !== 'csharp') {
+        throw new RuntimeException('Expected C# alias to normalize to CSharp highlighting');
+    }
+    if (($csharp['lineNumbering']['start'] ?? null) !== 210) {
+        throw new RuntimeException('Expected C# source startFrom line-number handoff');
+    }
+    if (!str_contains($csharp['html'], '<span class="kw">public</span> <span class="kw">sealed</span> <span class="kw">record</span> <span class="dt">ReviewPacket</span>')) {
+        throw new RuntimeException('Expected C# record token handoff');
+    }
+    if (!str_contains($csharp['html'], '<span class="ot">[property: JsonPropertyName(&quot;title&quot;)]</span> <span class="dt">string</span><span class="op">?</span>')) {
+        throw new RuntimeException('Expected C# targeted attribute and nullable token handoff');
+    }
+    if (!str_contains($csharp['html'], '<span class="dt">JsonSerializer</span><span class="op">.</span><span class="fu">Deserialize</span><span class="op">&lt;</span><span class="dt">ReviewPacket</span>')) {
+        throw new RuntimeException('Expected C# generic deserialize token handoff');
+    }
+    if (!str_contains($csharp['html'], '<span class="op">??</span> <span class="st">&quot;Untitled&quot;</span>')) {
+        throw new RuntimeException('Expected C# null-coalescing token handoff');
+    }
+    if (!str_contains($csharpWordpressBlock, '<style data-pandoc-highlight-style="haddock">')) {
+        throw new RuntimeException('Expected C# WordPress style metadata');
+    }
+    if (!str_contains($csharpWordpressBlock, '<span class="st">$&quot;&lt;!-- wp:paragraph --&gt;&lt;p&gt;Import {packet?.SourceId}&lt;/p&gt;&lt;!-- /wp:paragraph --&gt;&quot;</span>')) {
+        throw new RuntimeException('Expected C# interpolated WordPress block string handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -919,6 +949,7 @@ echo "goHighlightedHtml:\n" . $go['html'] . "\n";
 echo "powershellHighlightedHtml:\n" . $powershell['html'] . "\n";
 echo "dotHighlightedHtml:\n" . $dot['html'] . "\n";
 echo "javascriptHighlightedHtml:\n" . $javascript['html'] . "\n";
+echo "csharpHighlightedHtml:\n" . $csharp['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -943,4 +974,5 @@ echo "goWordpressBlock:\n" . $goWordpressBlock . "\n";
 echo "powershellWordpressBlock:\n" . $powershellWordpressBlock . "\n";
 echo "dotWordpressBlock:\n" . $dotWordpressBlock . "\n";
 echo "javascriptWordpressBlock:\n" . $javascriptWordpressBlock . "\n";
+echo "csharpWordpressBlock:\n" . $csharpWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";
