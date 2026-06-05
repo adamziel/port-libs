@@ -1273,6 +1273,7 @@ final class UpstreamRunnerDependencyAudit
      */
     private static function parseCabalImportNames(string $raw): array
     {
+        $raw = self::stripCabalLineComments($raw);
         $names = [];
         foreach (preg_split('/[\s,]+/', trim($raw)) ?: [] as $name) {
             if ($name !== '' && !in_array($name, $names, true)) {
@@ -1307,14 +1308,25 @@ final class UpstreamRunnerDependencyAudit
         return $base;
     }
 
+    private static function stripCabalLineComments(string $raw): string
+    {
+        $lines = [];
+        foreach (preg_split('/\R/', $raw) ?: [] as $line) {
+            $lines[] = preg_replace('/--.*$/', '', $line) ?? $line;
+        }
+
+        return implode("\n", $lines);
+    }
+
     /**
      * @return list<string>
      */
     private static function extractCabalDependencyNames(string $raw): array
     {
+        $raw = self::stripCabalLineComments($raw);
         $dependencies = [];
         foreach (explode(',', str_replace("\n", ' ', $raw)) as $part) {
-            $part = trim(preg_replace('/--.*$/', '', $part) ?? $part);
+            $part = trim($part);
             if ($part === '') {
                 continue;
             }
@@ -1333,9 +1345,10 @@ final class UpstreamRunnerDependencyAudit
      */
     private static function extractCabalModuleNames(string $raw): array
     {
+        $raw = self::stripCabalLineComments($raw);
         $modules = [];
         foreach (preg_split('/[\s,]+/', str_replace("\n", ' ', trim($raw))) ?: [] as $module) {
-            $module = trim(preg_replace('/--.*$/', '', $module) ?? $module);
+            $module = trim($module);
             if ($module !== '' && preg_match('/^[A-Z][A-Za-z0-9_]*(?:\.[A-Z][A-Za-z0-9_]*)*$/', $module) === 1 && !in_array($module, $modules, true)) {
                 $modules[] = $module;
             }
@@ -1350,6 +1363,7 @@ final class UpstreamRunnerDependencyAudit
      */
     private static function splitWords(string $raw): array
     {
+        $raw = self::stripCabalLineComments($raw);
         $words = [];
         foreach (preg_split('/\s+/', trim(str_replace("\n", ' ', $raw))) ?: [] as $word) {
             if ($word !== '' && !in_array($word, $words, true)) {

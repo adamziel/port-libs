@@ -877,4 +877,64 @@ return [
         $t->contains('Haskell2010 default-language closure', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
+    'normalizes cabal line comments before resolving runner fields' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] = str_replace(
+            "    Diff,\n    Glob,",
+            "    Diff,\n    -- comment must not swallow the following dependency\n    Glob,",
+            $files['pandoc.cabal']
+        );
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = str_replace(
+            "    bytestring,\n    directory,",
+            "    bytestring,\n    -- comment must not hide directory from the parser\n    directory,",
+            $files['pandoc-lua-engine/pandoc-lua-engine.cabal']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(true, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
+        $t->same([], $audit['blockedReasons']);
+    },
+    'does not count commented runner fields as present before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] = str_replace(
+            '  ghc-options: -rtsopts -with-rtsopts=-A8m -threaded',
+            "  ghc-options: -rtsopts -with-rtsopts=-A8m\n  -- -threaded is intentionally commented out",
+            $files['pandoc.cabal']
+        );
+        $files['pandoc.cabal'] = str_replace(
+            "    Tests.Command,\n",
+            "    -- Tests.Command is intentionally commented out\n",
+            $files['pandoc.cabal']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same(['-threaded'], $audit['runnerDependencyClosure']['missingExecutableOptions']['test:test-pandoc']);
+        $t->same(['Tests.Command'], $audit['runnerDependencyClosure']['missingOtherModules']['test:test-pandoc']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing Cabal runner executable options: test:test-pandoc (-threaded)', $blocked);
+        $t->contains('missing Cabal runner other-modules: test:test-pandoc (Tests.Command)', $blocked);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
 ];
