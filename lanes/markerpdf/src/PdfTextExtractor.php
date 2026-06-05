@@ -12919,6 +12919,9 @@ final class PdfTextExtractor
             'rg',
             'K',
             'k',
+            'BMC',
+            'BDC',
+            'EMC',
         ], true);
     }
 
