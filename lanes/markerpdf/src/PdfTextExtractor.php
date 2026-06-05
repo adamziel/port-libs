@@ -27336,6 +27336,11 @@ final class PdfTextExtractor
                         $candidate,
                         $expectedLength
                     )
+                    || $this->inlineRunLengthCandidateReachesSampleFloorBeforePostEodSurplus(
+                        $filters,
+                        $candidate,
+                        $expectedLength
+                    )
                     || $this->inlineNativeFilterStackCandidateReachesSampleFloorBeforeFirstFilterSurplus(
                         $filters,
                         $dictionary,
@@ -27519,6 +27524,42 @@ final class PdfTextExtractor
         }
 
         $decoded = $this->decodeLzwStream(substr($candidate, 0, $eodByteOffset), $filterDecodeParms, []);
+        return $decoded !== null && strlen($decoded) >= $expectedLength;
+    }
+
+    /**
+     * RunLength streams terminate at control byte 128. When malformed surplus
+     * after that EOD contains delimiter-looking `EI`, keep it image-owned until
+     * a later real inline-image terminator.
+     *
+     * @param list<string|null> $filters
+     */
+    private function inlineRunLengthCandidateReachesSampleFloorBeforePostEodSurplus(
+        array $filters,
+        string $candidate,
+        int $expectedLength
+    ): bool {
+        $nonNullFilters = array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+        if ($expectedLength < 1 || !in_array($nonNullFilters, [['RunLengthDecode'], ['RL']], true)) {
+            return false;
+        }
+
+        $eodOffset = $this->runLengthExplicitEndOffset($candidate);
+        if ($eodOffset === null) {
+            return false;
+        }
+
+        $postEodOffset = $eodOffset + 1;
+        $postEod = substr($candidate, $postEodOffset);
+        if (
+            $postEod === ''
+            || $this->streamHasOnlyWhitespaceAfterOffset($candidate, $postEodOffset)
+            || preg_match('/(?:^|[\x00\t\n\f\r ])EI(?:$|[\x00\t\n\f\r \/\[\]\(\)<>{}%])/', $postEod) !== 1
+        ) {
+            return false;
+        }
+
+        $decoded = $this->decodeRunLengthStream(substr($candidate, 0, $postEodOffset));
         return $decoded !== null && strlen($decoded) >= $expectedLength;
     }
 

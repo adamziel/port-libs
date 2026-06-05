@@ -810,6 +810,32 @@ return [
             )
         );
     },
+    'keeps RunLength post-EOD inline image surplus closed until the real EI terminator' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf, $runLengthLiteralEncode): void {
+        $extractor = new PdfTextExtractor();
+        $encodedImage = $runLengthLiteralEncode('Z', true);
+        $postEodSurplus = 'ZZ EI BT /F1 12 Tf 72 690 Td (RunLength Post EOD Inline Noise) Tj ET rawtail';
+        $content = "BT /F1 12 Tf 72 720 Td (Before RunLength Post EOD Inline Image) Tj ET\n"
+            . 'BI /W 1 /H 1 /CS /G /BPC 8 /F /RL ID '
+            . $encodedImage . $postEodSurplus . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After RunLength Post EOD Inline Image) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $expected = [
+            'Before RunLength Post EOD Inline Image',
+            'After RunLength Post EOD Inline Image',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->true(str_contains($postEodSurplus, ' EI '));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(!str_contains($plainText, 'RunLength Post EOD Inline Noise'));
+        $t->true(!str_contains($plainText, 'ZZ EI'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+    },
     'fails closed on inline filter EOD surplus before native image previews' => static function (TestRunner $t) use ($lzwLiteralEncode): void {
         $renderer = new PdfImageRenderer();
         $dictionary = '/W 4 /H 1 /CS /G /BPC 8 /D [0 1]';

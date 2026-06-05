@@ -158,6 +158,8 @@ $ascii85PostEodSurplusPayload = 'z~>ZZ EI BT /F1 12 Tf 72 652 Td (A85 Post EOD I
 $asciiHexSurplusPayload = '414243 EI BT /F1 12 Tf 72 635 Td (ASCIIHex Surplus Inline Noise) Tj ET >';
 $runLengthImageRow = 'RL EI BT /F1 12 Tf 72 618 Td (RunLength Inline Noise) Tj ET';
 $runLengthPayload = $runLengthLiteralEncode($runLengthImageRow, true);
+$runLengthPostEodSurplusPayload = $runLengthLiteralEncode('Z', true)
+    . 'ZZ EI BT /F1 12 Tf 72 582 Td (RunLength Post EOD Inline Noise) Tj ET rawtail';
 $lzwPostEodSurplusPayload = $lzwLiteralEncode('X', 0) . 'X EI BT /F1 12 Tf 72 586 Td (LZW Post EOD Inline Noise) Tj ET rawtail';
 $malformedFilterPayload = 'abc EI BT /F1 12 Tf 72 574 Td (Malformed Filter Inline Noise) Tj ET rawtail';
 $unresolvedFilterPayload = 'abc EI BT /F1 12 Tf 72 546 Td (Unresolved Filter Inline Noise) Tj ET rawtail';
@@ -229,6 +231,10 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . 'BI /W ' . strlen($runLengthImageRow) . ' /H 1 /CS /G /BPC 8 /F /RL ID '
     . $runLengthPayload . "\nEI\n"
     . "BT /F1 12 Tf 72 592 Td (After RunLength Inline Image) Tj ET\n"
+    . "BT /F1 12 Tf 72 588 Td (Before RunLength Post EOD Inline Image) Tj ET\n"
+    . "BI /W 1 /H 1 /CS /G /BPC 8 /F /RL ID "
+    . $runLengthPostEodSurplusPayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 581 Td (After RunLength Post EOD Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 590 Td (Before LZW Post EOD Inline Image) Tj ET\n"
     . "BI /W 1 /H 1 /CS /G /BPC 8 /F /LZW /DP << /EarlyChange 0 >> ID "
     . $lzwPostEodSurplusPayload . "\nEI\n"
@@ -547,6 +553,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'fake_ei_inside_asciihex_surplus_payload' => str_contains($asciiHexSurplusPayload, ' EI '),
     'fake_ei_inside_wrapped_jpx_prefix_surplus_payload' => str_contains($wrappedJpxPrefixSurplusPayload, ' EI '),
     'fake_ei_inside_stacked_native_filter_surplus_payload' => str_contains($stackedNativeFilterSurplusPayload, ' EI '),
+    'fake_ei_inside_runlength_post_eod_surplus_payload' => str_contains($runLengthPostEodSurplusPayload, ' EI '),
     'asciihex_surplus_eod_present' => str_contains($asciiHexSurplusPayload, '>'),
     'wrapped_jpx_prefix_surplus_first_eod_present' => str_contains($wrappedJpxPrefixSurplusPayload, '>ZZ EI'),
     'stacked_native_filter_first_eod_present' => str_contains($stackedNativeFilterSurplusPayload, '>ZZ EI'),
@@ -577,6 +584,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After Stacked Native Inline',
         'Before RunLength Inline Image',
         'After RunLength Inline Image',
+        'Before RunLength Post EOD Inline Image',
+        'After RunLength Post EOD Inline Image',
         'Before LZW Post EOD Inline Image',
         'After LZW Post EOD Inline Image',
         'Before Malformed Filter Inline',
@@ -668,6 +677,9 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && ($runLengthIndexedReview['image_stream']['decoded_preview_hex'] ?? null) === '1C',
     'runlength_inline_palette_indexes' => array_column($runLengthIndexedReview['pixels'] ?? [], 'palette_index'),
     'runlength_missing_eod_supplied_sample_bypass_rejected' => $runLengthSuppliedSampleBypassRejected,
+    'runlength_post_eod_surplus_payload_excluded_until_real_ei' => in_array('After RunLength Post EOD Inline Image', $lines, true)
+        && !str_contains($plainText, 'RunLength Post EOD Inline Noise')
+        && !str_contains($plainText, 'rawtail'),
     'malformed_inline_filter_operand_payload_excluded_until_safe_boundary' => !str_contains($plainText, 'Malformed Filter Inline Noise')
         && !str_contains($plainText, 'rawtail'),
     'unresolved_inline_filter_operand_payload_excluded_until_safe_boundary' => !str_contains($plainText, 'Unresolved Filter Inline Noise')
@@ -714,6 +726,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'Stacked Native Inline Noise')
         && !str_contains($plainText, 'RunLength Inline Noise')
         && !str_contains($plainText, 'RL EI')
+        && !str_contains($plainText, 'RunLength Post EOD Inline Noise')
         && !str_contains($plainText, 'LZW Post EOD Inline Noise')
         && !str_contains($plainText, 'Malformed Filter Inline Noise')
         && !str_contains($plainText, 'Unresolved Filter Inline Noise')
