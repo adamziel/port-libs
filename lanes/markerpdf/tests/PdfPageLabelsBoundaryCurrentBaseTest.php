@@ -557,6 +557,32 @@ $malformedLimitsDictionaryPageLabelPdf = static function (): string {
         . "%%EOF\n";
 };
 
+$malformedLimitsExtraOperandPageLabelPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Extra limits cover imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Extra limits body imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Extra limits appendix imported) Tj ET',
+        13 => 'BT /F1 12 Tf 72 720 Td (Extra limits back matter imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R 6 0 R] /Count 4 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 13 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Limits [1 2 99] /Nums [0 << /P (Cover-) >> 1 << /P (Body ) /S /D /St 4 >> 2 << /P (App-) /S /A /St 26 >> 3 << /P (Back-) /S /D /St 9 >>] >>\nendobj\n"
+        . "%%EOF\n";
+};
+
 $duplicateNumsKeyPageLabelBoundaryPdf = static function (): string {
     $contents = [
         10 => 'BT /F1 12 Tf 72 720 Td (Duplicate key cover imported) Tj ET',
@@ -1154,6 +1180,25 @@ return [
         $t->same(['Malformed limits cover imported', 'Malformed limits body imported', 'Malformed limits appendix imported', 'Malformed limits back matter imported'], array_column($entries, 'text'));
         $t->true(!in_array('1', $labels, true));
         $t->true(!in_array('App-AA', $previewLabels, true));
+        $t->same('Back-9', $preview->getPageImagePlan($pdf, 4)['page_label']);
+    },
+    'rejects malformed PageLabels Limits extra operands before clipping valid labels' => static function (TestRunner $t) use ($malformedLimitsExtraOperandPageLabelPdf): void {
+        $pdf = $malformedLimitsExtraOperandPageLabelPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Cover-', 'Body 4', 'App-Z', 'Back-9'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Extra limits cover imported', 'Extra limits body imported', 'Extra limits appendix imported', 'Extra limits back matter imported'], array_column($entries, 'text'));
+        $t->true(!in_array('1', $labels, true));
+        $t->true(!in_array('App-AA', $previewLabels, true));
+        $t->same('Cover-', $summary['pages'][0]['page_label'] ?? null);
         $t->same('Back-9', $preview->getPageImagePlan($pdf, 4)['page_label']);
     },
     'keeps first valid duplicate PageLabels Nums key before stale relabeling' => static function (TestRunner $t) use ($duplicateNumsKeyPageLabelBoundaryPdf): void {

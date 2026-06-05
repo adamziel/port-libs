@@ -1780,7 +1780,7 @@ final class MarkerAppPreview
         }
 
         $elements = $this->arrayElements(trim($this->resolvePageLabelPdfValue($limits, $objects, $seen)));
-        if (count($elements) < 2) {
+        if (count($elements) !== 2) {
             return null;
         }
 

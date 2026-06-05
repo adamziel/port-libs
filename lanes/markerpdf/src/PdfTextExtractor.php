@@ -8962,17 +8962,17 @@ final class PdfTextExtractor
         }
 
         $items = $this->pdfArrayItems($arrayBody);
-        if (count($items) >= 2) {
-            $lower = $this->pageLabelLimitOperand($items[0], $objects);
-            $upper = $this->pageLabelLimitOperand($items[1], $objects);
-            if ($lower === null || $upper === null) {
-                return null;
-            }
-
-            return $lower <= $upper ? [$lower, $upper] : null;
+        if (count($items) !== 2) {
+            return null;
         }
 
-        return null;
+        $lower = $this->pageLabelLimitOperand($items[0], $objects);
+        $upper = $this->pageLabelLimitOperand($items[1], $objects);
+        if ($lower === null || $upper === null) {
+            return null;
+        }
+
+        return $lower <= $upper ? [$lower, $upper] : null;
     }
 
     /**
