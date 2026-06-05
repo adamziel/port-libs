@@ -33,6 +33,7 @@ final class DocxReader
     public const REL_TYPE_NUMBERING = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     public const REL_TYPE_SETTINGS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
     public const REL_TYPE_ATTACHED_TEMPLATE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate';
+    public const REL_TYPE_GLOSSARY_DOCUMENT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument';
     public const REL_TYPE_CORE_PROPERTIES = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
     public const REL_TYPE_ALTERNATIVE_FORMAT_IMPORT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
     public const REL_TYPE_CHART = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
@@ -115,9 +116,13 @@ final class DocxReader
             $styles,
             $numbering,
         );
+        $glossary = $this->readGlossaryDocument($package, $graph, $documentPart, $referencedNotes, $styles, $numbering);
         $metadata = $this->readCoreProperties($package, $graph);
         if ($settings !== []) {
             $metadata['docxSettings'] = $settings;
+        }
+        if ($glossary !== []) {
+            $metadata['docxGlossary'] = $glossary;
         }
 
         return [
@@ -135,6 +140,7 @@ final class DocxReader
                 $this->revisionImportReport($documentXml),
                 $this->alternativeFormatImportReport($documentXml, $package, $documentRelationships),
                 $settings,
+                $glossary,
             ),
         ];
     }
@@ -145,6 +151,7 @@ final class DocxReader
      * @param array{insertionCount:int, deletionCount:int, formattingCount:int, items:list<array{type:string, accepted:bool, id:?string, author:?string, date:?string, text:string}>} $revisions
      * @param array<string, mixed> $alternativeFormats
      * @param array<string, mixed> $settings
+     * @param array<string, mixed> $glossary
      * @return array<string, mixed>
      */
     private function importReport(
@@ -156,7 +163,8 @@ final class DocxReader
         AstNode $document,
         array $revisions,
         array $alternativeFormats,
-        array $settings
+        array $settings,
+        array $glossary
     ): array {
         $relationshipIssues = [];
         foreach ($reachableRelationships as $relationship) {
@@ -185,6 +193,7 @@ final class DocxReader
             'notes' => $this->notesImportReport($document),
             'revisions' => $revisions,
             'settings' => $settings,
+            'glossary' => $glossary,
             'sections' => [
                 'count' => count($document->attr('sectionProperties', [])),
                 'items' => $document->attr('sectionProperties', []),
@@ -2654,6 +2663,10 @@ final class DocxReader
                     }
                 }
             }
+
+            foreach ($this->structuredDocumentTagDocPartAttrs($properties) as $name => $value) {
+                $attributes[$name] = $value;
+            }
         }
 
         $classes = ['docx-content-control'];
@@ -2665,6 +2678,44 @@ final class DocxReader
             'classes' => $classes,
             'attributes' => $attributes,
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function structuredDocumentTagDocPartAttrs(\DOMElement $properties): array
+    {
+        foreach ([
+            'docPartObj' => 'object',
+            'docPartList' => 'list',
+        ] as $localName => $kind) {
+            $docPart = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, $localName);
+            if (!$docPart instanceof \DOMElement) {
+                continue;
+            }
+
+            $attributes = [
+                'data-docx-sdt-doc-part-kind' => $kind,
+            ];
+            $gallery = $this->wordChildValue($docPart, 'docPartGallery');
+            if ($gallery !== null) {
+                $attributes['data-docx-sdt-doc-part-gallery'] = $gallery;
+            }
+
+            $category = $this->wordChildValue($docPart, 'docPartCategory');
+            if ($category !== null) {
+                $attributes['data-docx-sdt-doc-part-category'] = $category;
+            }
+
+            $unique = $this->firstChildElement($docPart, self::WORDPROCESSINGML_NS, 'docPartUnique');
+            if ($unique instanceof \DOMElement) {
+                $attributes['data-docx-sdt-doc-part-unique'] = $this->onOffWordAttr($unique, 'val', true) ? 'true' : 'false';
+            }
+
+            return $attributes;
+        }
+
+        return [];
     }
 
     private function structuredDocumentTagPropertyValue(\DOMElement $properties, string $localName): ?string
@@ -5688,6 +5739,205 @@ final class DocxReader
         }
 
         return $summary;
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
+     * @return array<string, mixed>
+     */
+    private function readGlossaryDocument(
+        ZipPackage $package,
+        OpcRelationshipGraph $graph,
+        string $documentPart,
+        array $referencedNotes,
+        array $styles,
+        array $numbering
+    ): array {
+        $documentRelationships = $graph->relationshipsForSource($documentPart);
+        if (!$documentRelationships instanceof OpcRelationships) {
+            return [];
+        }
+
+        $relationship = $documentRelationships->firstOfType(self::REL_TYPE_GLOSSARY_DOCUMENT);
+        if (!$relationship instanceof OpcRelationship) {
+            return [];
+        }
+
+        $relationshipSummary = $this->internalSupportPartRelationshipSummary(
+            $relationship,
+            $package,
+            $documentRelationships,
+        );
+        $glossary = [
+            'part' => $relationshipSummary['targetPart'],
+            'contentType' => $relationshipSummary['contentType'],
+            'relationship' => $relationshipSummary,
+            'docPartCount' => 0,
+            'items' => [],
+            'issues' => $relationshipSummary['issues'],
+        ];
+
+        if (
+            $relationshipSummary['contentType'] !== null
+            && $relationshipSummary['contentType'] !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml'
+        ) {
+            $glossary['issues'][] = 'unexpected-content-type';
+        }
+
+        if ($relationshipSummary['exists'] !== true || !is_string($relationshipSummary['targetPart'])) {
+            $glossary['issues'] = array_values(array_unique($glossary['issues']));
+
+            return $glossary;
+        }
+
+        $relationships = $graph->relationshipsForSource($relationshipSummary['targetPart']);
+        $dom = self::loadXml($package->read($relationshipSummary['targetPart']), 'DOCX glossary document XML');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || !$this->isWordElement($root, 'glossaryDocument')) {
+            $glossary['issues'][] = 'invalid-glossary-root';
+            $glossary['issues'] = array_values(array_unique($glossary['issues']));
+
+            return $glossary;
+        }
+
+        $items = [];
+        $docParts = $this->firstChildElement($root, self::WORDPROCESSINGML_NS, 'docParts');
+        $docPartContainer = $docParts instanceof \DOMElement ? $docParts : $root;
+        foreach ($docPartContainer->childNodes as $docPart) {
+            if (!$docPart instanceof \DOMElement || !$this->isWordElement($docPart, 'docPart')) {
+                continue;
+            }
+
+            $items[] = $this->glossaryDocPartItem(
+                $docPart,
+                $package,
+                $relationships,
+                $referencedNotes,
+                $styles,
+                $numbering
+            );
+        }
+
+        $glossary['items'] = $items;
+        $glossary['docPartCount'] = count($items);
+        $glossary['issues'] = array_values(array_unique($glossary['issues']));
+
+        return $glossary;
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
+     * @return array{name:?string, style:?string, category:?string, gallery:?string, types:list<string>, description:?string, guid:?string, blockCount:int, text:string}
+     */
+    private function glossaryDocPartItem(
+        \DOMElement $docPart,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes,
+        array $styles,
+        array $numbering
+    ): array {
+        $properties = $this->firstChildElement($docPart, self::WORDPROCESSINGML_NS, 'docPartPr');
+        $body = $this->firstChildElement($docPart, self::WORDPROCESSINGML_NS, 'docPartBody');
+        $blocks = [];
+        if ($body instanceof \DOMElement) {
+            $previousNoteReferenceState = $this->noteReferenceState;
+            try {
+                $blocks = $this->blockContainerChildren($body, $package, $relationships, $referencedNotes, $styles, $numbering);
+            } finally {
+                $this->noteReferenceState = $previousNoteReferenceState;
+            }
+        }
+
+        $metadata = $properties instanceof \DOMElement ? $this->glossaryDocPartProperties($properties) : [
+            'name' => null,
+            'style' => null,
+            'category' => null,
+            'gallery' => null,
+            'types' => [],
+            'description' => null,
+            'guid' => null,
+        ];
+
+        return $metadata + [
+            'blockCount' => count($blocks),
+            'text' => $this->plainBlockText($blocks),
+        ];
+    }
+
+    /**
+     * @return array{name:?string, style:?string, category:?string, gallery:?string, types:list<string>, description:?string, guid:?string}
+     */
+    private function glossaryDocPartProperties(\DOMElement $properties): array
+    {
+        $category = $this->glossaryDocPartCategory($properties);
+
+        return [
+            'name' => $this->wordChildValue($properties, 'name'),
+            'style' => $this->wordChildValue($properties, 'style'),
+            'category' => $category['name'],
+            'gallery' => $category['gallery'],
+            'types' => $this->glossaryDocPartTypes($properties),
+            'description' => $this->wordChildValue($properties, 'description'),
+            'guid' => $this->wordChildValue($properties, 'guid'),
+        ];
+    }
+
+    /**
+     * @return array{name:?string, gallery:?string}
+     */
+    private function glossaryDocPartCategory(\DOMElement $properties): array
+    {
+        $category = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'category');
+        if (!$category instanceof \DOMElement) {
+            return ['name' => null, 'gallery' => null];
+        }
+
+        return [
+            'name' => $this->wordChildValue($category, 'name'),
+            'gallery' => $this->wordChildValue($category, 'gallery'),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function glossaryDocPartTypes(\DOMElement $properties): array
+    {
+        $types = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'types');
+        if (!$types instanceof \DOMElement) {
+            return [];
+        }
+
+        $values = [];
+        foreach ($types->childNodes as $child) {
+            if (!$child instanceof \DOMElement || !$this->isWordElement($child, 'type')) {
+                continue;
+            }
+
+            $value = $this->wordAttr($child, 'val');
+            if ($value !== null && $value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        return $values;
+    }
+
+    private function wordChildValue(\DOMElement $element, string $localName): ?string
+    {
+        $child = $this->firstChildElement($element, self::WORDPROCESSINGML_NS, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = $this->wordAttr($child, 'val');
+
+        return $value === null || $value === '' ? null : $value;
     }
 
     private function settingsOnOff(\DOMElement $settings, string $localName): bool

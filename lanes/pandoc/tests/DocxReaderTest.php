@@ -1059,6 +1059,110 @@ $structuredDocumentTagXml = <<<'XML'
 </w:document>
 XML;
 
+$glossaryContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/glossary/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml"/>
+</Types>
+XML;
+
+$glossaryDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdGlossary" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument" Target="glossary/document.xml"/>
+</Relationships>
+XML;
+
+$glossaryDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Glossary picker </w:t></w:r>
+      <w:sdt>
+        <w:sdtPr>
+          <w:id w:val="120"/>
+          <w:alias w:val="Source Glossary Placeholder"/>
+          <w:tag w:val="source_glossary"/>
+          <w:docPartObj>
+            <w:docPartGallery w:val="Quick Parts"/>
+            <w:docPartCategory w:val="Migration Review"/>
+            <w:docPartUnique/>
+          </w:docPartObj>
+          <w:placeholder><w:docPart w:val="SourceGlossaryPlaceholder"/></w:placeholder>
+        </w:sdtPr>
+        <w:sdtContent>
+          <w:r><w:t>Choose glossary term</w:t></w:r>
+        </w:sdtContent>
+      </w:sdt>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+    <w:sdt>
+      <w:sdtPr>
+        <w:id w:val="121"/>
+        <w:alias w:val="Reusable Glossary List"/>
+        <w:tag w:val="reusable_glossary"/>
+        <w:docPartList>
+          <w:docPartGallery w:val="AutoText"/>
+          <w:docPartCategory w:val="Migration Review"/>
+        </w:docPartList>
+      </w:sdtPr>
+      <w:sdtContent>
+        <w:p><w:r><w:t>Reusable reviewer glossary entry.</w:t></w:r></w:p>
+      </w:sdtContent>
+    </w:sdt>
+  </w:body>
+</w:document>
+XML;
+
+$glossaryPartXml = <<<'XML'
+<w:glossaryDocument xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docParts>
+    <w:docPart>
+      <w:docPartPr>
+        <w:name w:val="SourceGlossaryPlaceholder"/>
+        <w:style w:val="PlaceholderText"/>
+        <w:category>
+          <w:name w:val="Migration Review"/>
+          <w:gallery w:val="Quick Parts"/>
+        </w:category>
+        <w:types><w:type w:val="bbPlcHdr"/></w:types>
+        <w:description w:val="Placeholder shown for source glossary import"/>
+        <w:guid w:val="{11111111-2222-3333-4444-666666666666}"/>
+      </w:docPartPr>
+      <w:docPartBody>
+        <w:p><w:r><w:t>Choose a source glossary term.</w:t></w:r></w:p>
+      </w:docPartBody>
+    </w:docPart>
+    <w:docPart>
+      <w:docPartPr>
+        <w:name w:val="ReusableReviewerGlossary"/>
+        <w:style w:val="ReviewGlossary"/>
+        <w:category>
+          <w:name w:val="Migration Review"/>
+          <w:gallery w:val="AutoText"/>
+        </w:category>
+        <w:types>
+          <w:type w:val="autoText"/>
+          <w:type w:val="bbPlcHdr"/>
+        </w:types>
+        <w:description w:val="Reusable reviewer glossary entry"/>
+        <w:guid w:val="{22222222-3333-4444-5555-777777777777}"/>
+      </w:docPartPr>
+      <w:docPartBody>
+        <w:p><w:r><w:t>Reusable reviewer glossary entry.</w:t></w:r></w:p>
+        <w:tbl>
+          <w:tr>
+            <w:tc><w:p><w:r><w:t>Term</w:t></w:r></w:p></w:tc>
+            <w:tc><w:p><w:r><w:t>Definition</w:t></w:r></w:p></w:tc>
+          </w:tr>
+        </w:tbl>
+      </w:docPartBody>
+    </w:docPart>
+  </w:docParts>
+</w:glossaryDocument>
+XML;
+
 $smartTagDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -1884,6 +1988,22 @@ $buildStructuredDocumentTagPackage = static function () use ($contentTypesXml, $
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $structuredDocumentTagXml],
+    ]);
+};
+
+$buildGlossaryPackage = static function () use (
+    $glossaryContentTypesXml,
+    $packageRelationshipsXml,
+    $glossaryDocumentRelationshipsXml,
+    $glossaryDocumentXml,
+    $glossaryPartXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $glossaryContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $glossaryDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $glossaryDocumentRelationshipsXml],
+        ['name' => 'word/glossary/document.xml', 'data' => $glossaryPartXml],
     ]);
 };
 
@@ -3391,6 +3511,95 @@ return [
         $t->contains('data-docx-sdt-type="rich-text"', $blocks);
         $t->contains('data-docx-sdt-xpath="/packet/review/checklist"', $blocks);
         $t->contains('<table><tbody><tr><td><p>Owner</p></td><td><p>Migration desk</p></td></tr></tbody></table>', $blocks);
+    },
+    'imports DOCX glossary document parts and docPart content control metadata' => static function (TestRunner $t) use ($buildGlossaryPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildGlossaryPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($document->children));
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Glossary picker ', $paragraph->children[0]->attr('text'));
+        $inlineControl = $paragraph->children[1];
+        $t->same('span', $inlineControl->type);
+        $t->same(['docx-content-control', 'docx-content-control-doc-part'], $inlineControl->attr('classes'));
+        $inlineAttrs = $inlineControl->attr('attributes');
+        $t->same('120', $inlineAttrs['data-docx-sdt-id']);
+        $t->same('Source Glossary Placeholder', $inlineAttrs['data-docx-sdt-alias']);
+        $t->same('source_glossary', $inlineAttrs['data-docx-sdt-tag']);
+        $t->same('doc-part', $inlineAttrs['data-docx-sdt-type']);
+        $t->same('SourceGlossaryPlaceholder', $inlineAttrs['data-docx-sdt-placeholder']);
+        $t->same('object', $inlineAttrs['data-docx-sdt-doc-part-kind']);
+        $t->same('Quick Parts', $inlineAttrs['data-docx-sdt-doc-part-gallery']);
+        $t->same('Migration Review', $inlineAttrs['data-docx-sdt-doc-part-category']);
+        $t->same('true', $inlineAttrs['data-docx-sdt-doc-part-unique']);
+        $t->same('Choose glossary term', $inlineControl->children[0]->attr('text'));
+        $t->same('.', $paragraph->children[2]->attr('text'));
+
+        $blockControl = $document->children[1];
+        $t->same('div', $blockControl->type);
+        $t->same(['docx-content-control', 'docx-content-control-doc-part-list'], $blockControl->attr('classes'));
+        $blockAttrs = $blockControl->attr('attributes');
+        $t->same('121', $blockAttrs['data-docx-sdt-id']);
+        $t->same('Reusable Glossary List', $blockAttrs['data-docx-sdt-alias']);
+        $t->same('reusable_glossary', $blockAttrs['data-docx-sdt-tag']);
+        $t->same('doc-part-list', $blockAttrs['data-docx-sdt-type']);
+        $t->same('list', $blockAttrs['data-docx-sdt-doc-part-kind']);
+        $t->same('AutoText', $blockAttrs['data-docx-sdt-doc-part-gallery']);
+        $t->same('Migration Review', $blockAttrs['data-docx-sdt-doc-part-category']);
+        $t->same('Reusable reviewer glossary entry.', $blockControl->children[0]->children[0]->attr('text'));
+
+        $glossary = $result['metadata']['docxGlossary'];
+        $t->same('/word/glossary/document.xml', $glossary['part']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml', $glossary['contentType']);
+        $t->same('rIdGlossary', $glossary['relationship']['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument', $glossary['relationship']['type']);
+        $t->same('/word/glossary/document.xml', $glossary['relationship']['target']);
+        $t->same('/word/glossary/document.xml', $glossary['relationship']['targetPart']);
+        $t->same(false, $glossary['relationship']['external']);
+        $t->same(true, $glossary['relationship']['exists']);
+        $t->same([], $glossary['issues']);
+        $t->same(2, $glossary['docPartCount']);
+        $t->same(2, count($glossary['items']));
+
+        $placeholder = $glossary['items'][0];
+        $t->same('SourceGlossaryPlaceholder', $placeholder['name']);
+        $t->same('PlaceholderText', $placeholder['style']);
+        $t->same('Migration Review', $placeholder['category']);
+        $t->same('Quick Parts', $placeholder['gallery']);
+        $t->same(['bbPlcHdr'], $placeholder['types']);
+        $t->same('Placeholder shown for source glossary import', $placeholder['description']);
+        $t->same('{11111111-2222-3333-4444-666666666666}', $placeholder['guid']);
+        $t->same(1, $placeholder['blockCount']);
+        $t->same('Choose a source glossary term.', $placeholder['text']);
+
+        $reusable = $glossary['items'][1];
+        $t->same('ReusableReviewerGlossary', $reusable['name']);
+        $t->same('ReviewGlossary', $reusable['style']);
+        $t->same('Migration Review', $reusable['category']);
+        $t->same('AutoText', $reusable['gallery']);
+        $t->same(['autoText', 'bbPlcHdr'], $reusable['types']);
+        $t->same('Reusable reviewer glossary entry', $reusable['description']);
+        $t->same('{22222222-3333-4444-5555-777777777777}', $reusable['guid']);
+        $t->same(2, $reusable['blockCount']);
+        $t->same("Reusable reviewer glossary entry.\nTermDefinition", $reusable['text']);
+        $t->same($glossary, $result['importReport']['glossary']);
+
+        $t->contains('Glossary picker [Choose glossary term]{.docx-content-control .docx-content-control-doc-part data-docx-sdt-id="120" data-docx-sdt-alias="Source Glossary Placeholder"', $markdown);
+        $t->contains('data-docx-sdt-doc-part-kind="object"', $markdown);
+        $t->contains('data-docx-sdt-doc-part-gallery="Quick Parts"', $markdown);
+        $t->contains('::: {.docx-content-control .docx-content-control-doc-part-list data-docx-sdt-id="121"', $markdown);
+        $t->contains('data-docx-sdt-doc-part-kind="list"', $markdown);
+
+        $t->contains('<span class="docx-content-control docx-content-control-doc-part" data-docx-sdt-id="120" data-docx-sdt-alias="Source Glossary Placeholder"', $blocks);
+        $t->contains('data-docx-sdt-doc-part-gallery="Quick Parts"', $blocks);
+        $t->contains('data-docx-sdt-doc-part-category="Migration Review"', $blocks);
+        $t->contains('<div class="docx-content-control docx-content-control-doc-part-list" data-docx-sdt-id="121" data-docx-sdt-alias="Reusable Glossary List"', $blocks);
+        $t->contains('data-docx-sdt-doc-part-gallery="AutoText"', $blocks);
     },
     'preserves DOCX smart tag metadata around visible inline text' => static function (TestRunner $t) use ($buildSmartTagPackage): void {
         $document = (new DocxReader())->readDocument($buildSmartTagPackage());

@@ -19,6 +19,7 @@ $contentTypesXml = <<<'XML'
   <Default Extension="xlsx" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
+  <Override PartName="/word/glossary/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
   <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
   <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
@@ -53,6 +54,7 @@ XML],
   <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
   <Relationship Id="rIdCommentsExtended" Type="http://schemas.microsoft.com/office/2011/relationships/commentsExtended" Target="commentsExtended.xml"/>
   <Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
+  <Relationship Id="rIdGlossary" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument" Target="glossary/document.xml"/>
   <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
   <Relationship Id="rIdNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
   <Relationship Id="rIdHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
@@ -384,6 +386,12 @@ XML],
         <w:alias w:val="Review Checklist"/>
         <w:tag w:val="review_checklist"/>
         <w:richText/>
+        <w:docPartObj>
+          <w:docPartGallery w:val="Quick Parts"/>
+          <w:docPartCategory w:val="Migration Review"/>
+          <w:docPartUnique/>
+        </w:docPartObj>
+        <w:placeholder><w:docPart w:val="ReviewChecklistPlaceholder"/></w:placeholder>
         <w:dataBinding w:xpath="/packet/review/checklist" w:storeItemID="{11111111-2222-3333-4444-555555555555}"/>
       </w:sdtPr>
       <w:sdtContent>
@@ -511,6 +519,28 @@ XML],
     <w:compatSetting w:name="overrideTableStyleFontSizeAndJustification" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/>
   </w:compat>
 </w:settings>
+XML],
+    ['name' => 'word/glossary/document.xml', 'data' => <<<'XML'
+<w:glossaryDocument xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docParts>
+    <w:docPart>
+      <w:docPartPr>
+        <w:name w:val="ReviewChecklistPlaceholder"/>
+        <w:style w:val="ReviewGlossary"/>
+        <w:category>
+          <w:name w:val="Migration Review"/>
+          <w:gallery w:val="Quick Parts"/>
+        </w:category>
+        <w:types><w:type w:val="bbPlcHdr"/></w:types>
+        <w:description w:val="Reusable review checklist placeholder"/>
+        <w:guid w:val="{33333333-4444-5555-6666-777777777777}"/>
+      </w:docPartPr>
+      <w:docPartBody>
+        <w:p><w:r><w:t>Review checklist placeholder for import staging.</w:t></w:r></w:p>
+      </w:docPartBody>
+    </w:docPart>
+  </w:docParts>
+</w:glossaryDocument>
 XML],
     ['name' => 'word/chunks/review.html', 'data' => '<aside data-review="docx-alt"><p>Alternative HTML chunk from source packet.</p></aside>'],
     ['name' => 'word/chunks/plain-review.txt', 'data' => "\xEF\xBB\xBFPlain text source note\r\nSecond imported line\r\n\r\nFinal plain-text checkpoint."],
@@ -669,6 +699,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['importReport']['settings']['documentVariables']['items'][2]['duplicate'] ?? null) !== true) {
         throw new RuntimeException('DOCX body handoff self-test missing settings document variable import report');
+    }
+    if (($summary['metadata']['docxGlossary']['docPartCount'] ?? 0) !== 1) {
+        throw new RuntimeException('DOCX body handoff self-test missing glossary document metadata');
+    }
+    if (($summary['metadata']['docxGlossary']['items'][0]['name'] ?? '') !== 'ReviewChecklistPlaceholder') {
+        throw new RuntimeException('DOCX body handoff self-test missing glossary document part name');
+    }
+    if (($summary['metadata']['docxGlossary']['items'][0]['text'] ?? '') !== 'Review checklist placeholder for import staging.') {
+        throw new RuntimeException('DOCX body handoff self-test missing glossary document part text');
+    }
+    if (($summary['importReport']['glossary']['relationship']['id'] ?? '') !== 'rIdGlossary') {
+        throw new RuntimeException('DOCX body handoff self-test missing glossary relationship import report');
     }
     if (($summary['importReport']['media']['embeddedCount'] ?? 0) !== 2) {
         throw new RuntimeException('DOCX body handoff self-test missing media import report');
@@ -847,6 +889,10 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\(x_{i} + \frac{1}{\sqrt{n}}\)</span>',
         '<div class="docx-content-control docx-content-control-rich-text" data-docx-sdt-id="99" data-docx-sdt-alias="Review Checklist" data-docx-sdt-tag="review_checklist"',
         'data-docx-sdt-xpath="/packet/review/checklist"',
+        'data-docx-sdt-placeholder="ReviewChecklistPlaceholder"',
+        'data-docx-sdt-doc-part-kind="object"',
+        'data-docx-sdt-doc-part-gallery="Quick Parts"',
+        'data-docx-sdt-doc-part-category="Migration Review"',
         '<p>Content-control checklist for reviewer handoff.</p>',
         '<img src="word/media/hero.png" alt="Source hero alt" title="Source hero"/>',
         '<img src="https://cdn.example.test/docx-review-chart.png" alt="Linked review chart alt" title="Linked review chart"/>',
