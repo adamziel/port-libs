@@ -40,6 +40,8 @@ return [
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('pandoc-markdown'));
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('commonmark'));
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('gfm'));
+        $t->same('ruby', SyntaxHighlighter::normalizeLanguage('rb'));
+        $t->same('ruby', SyntaxHighlighter::normalizeLanguage('rake'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('sourceCode'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('lineAnchors'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('number-lines'));
@@ -313,6 +315,55 @@ return [
         $commonmark = (new SyntaxHighlighter())->highlight('## Imported Notes', 'commonmark');
         $t->same('markdown', $commonmark['language']);
         $t->contains('<pre class="sourceCode markdown"><code class="sourceCode markdown"><span class="re">## Imported Notes</span></code></pre>', $commonmark['html']);
+    },
+    'highlights ruby and rake review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $codeBlock = new AstNode('code_block', [
+            'id' => 'ruby-review',
+            'classes' => ['sourceCode', 'rb'],
+            'attributes' => [],
+            'text' => implode("\n", [
+                '# WordPress import audit task',
+                "require 'json'",
+                'module Migration',
+                '  class ReviewPacket',
+                '    def initialize(path:)',
+                '      @path = path',
+                '    end',
+                '',
+                '    def call',
+                "      puts JSON.parse(File.read(@path))['title']",
+                '    rescue JSON::ParserError => error',
+                '      warn "invalid import: #{error.message}"',
+                '      nil',
+                '    end',
+                '  end',
+                'end',
+            ]),
+        ]);
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'espresso');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'espresso');
+        $rake = (new SyntaxHighlighter())->highlight("task :import do\n  puts 'ok'\nend", 'rake');
+
+        $t->same('rb', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('ruby', $highlighted['language']);
+        $t->same('rb', $highlighted['requestedLanguage']);
+        $t->same('espresso', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->contains('<pre class="sourceCode ruby"><code class="sourceCode ruby">', $highlighted['html']);
+        $t->contains('<span class="co"># WordPress import audit task</span>', $highlighted['html']);
+        $t->contains('<span class="fu">require</span> <span class="st">&#039;json&#039;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">module</span> <span class="dt">Migration</span>', $highlighted['html']);
+        $t->contains('<span class="kw">class</span> <span class="dt">ReviewPacket</span>', $highlighted['html']);
+        $t->contains('<span class="kw">def</span> <span class="fu">initialize</span><span class="op">(</span><span class="ot">path:</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="va">@path</span> <span class="op">=</span> <span class="va">path</span>', $highlighted['html']);
+        $t->contains('<span class="kw">rescue</span> <span class="dt">JSON::ParserError</span> <span class="op">=&gt;</span> <span class="va">error</span>', $highlighted['html']);
+        $t->contains('<span class="fu">warn</span> <span class="st">&quot;invalid import: #{error.message}&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="cn">nil</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="espresso">', $wordpressBlock);
+        $t->contains('<span class="dt">JSON</span><span class="op">.</span><span class="fu">parse</span>', $wordpressBlock);
+        $t->same('ruby', $rake['language']);
+        $t->contains('<span class="fu">task</span> <span class="ot">:import</span> <span class="kw">do</span>', $rake['html']);
     },
     'writes highlighted wordpress blocks through writer opt in' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [

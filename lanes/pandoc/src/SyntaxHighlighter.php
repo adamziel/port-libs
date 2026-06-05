@@ -54,6 +54,9 @@ final class SyntaxHighlighter
         'postgresql' => 'sql',
         'py' => 'python',
         'python' => 'python',
+        'rake' => 'ruby',
+        'rb' => 'ruby',
+        'ruby' => 'ruby',
         'sh' => 'bash',
         'shell' => 'bash',
         'sql' => 'sql',
@@ -302,6 +305,7 @@ final class SyntaxHighlighter
             'markdown' => $this->tokenizeMarkdown($code),
             'php' => $this->tokenizePhp($code),
             'python' => $this->tokenizePython($code),
+            'ruby' => $this->tokenizeRuby($code),
             'sql' => $this->tokenizeSql($code),
             'tex' => $this->tokenizeTex($code),
             'yaml' => $this->tokenizeYaml($code),
@@ -433,6 +437,30 @@ final class SyntaxHighlighter
             ['number', '/^\\b\\d+(?:\\.\\d+)?\\b/'],
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
             ['operator', '/^(?:==|!=|<=|>=|[{}()[\\];,.+*\\/%=!<>:-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeRuby(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^#[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['string', '/^%[qQ]?\\{(?:\\\\.|[^}\\\\])*\\}/s'],
+            ['attribute', '/^:[A-Za-z_][A-Za-z0-9_]*[!?=]?/'],
+            ['attribute', '/^[A-Za-z_][A-Za-z0-9_]*[!?=]?:(?!:)/'],
+            ['variable', '/^(?:@@|@|\\$)[A-Za-z_][A-Za-z0-9_]*/'],
+            ['keyword', '/^\\b(?:BEGIN|END|alias|and|begin|break|case|class|def|defined\\?|do|else|elsif|end|ensure|for|if|in|module|next|not|or|private|protected|public|redo|rescue|retry|return|then|undef|unless|until|when|while|yield)\\b/'],
+            ['constant', '/^\\b(?:false|nil|self|super|true)\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?:::[A-Z][A-Za-z0-9_]*)*/'],
+            ['number', '/^\\b(?:0[xX][0-9A-Fa-f]+|0[bB][01]+|\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b/'],
+            ['function', '/^\\b(?:abort|autoload|binding|catch|eval|exec|exit|fail|fork|format|gets|lambda|load|loop|open|p|print|printf|proc|putc|puts|raise|rand|require|require_relative|select|sleep|sprintf|system|task|throw|warn)\\b/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*[!?=]?(?=\\s*\\()/'],
+            ['variable', '/^\\b[a-z_][A-Za-z0-9_]*[!?=]?\\b/'],
+            ['operator', '/^(?:::|=>|->|===|==|!=|<=|>=|=~|!~|&&|\\|\\||\\.\\.\\.?|\\+=|-=|\\*=|\\/=|%=|[{}()[\\];,.+*\\/%=!<>?:&|^-])/'],
         ]);
     }
 

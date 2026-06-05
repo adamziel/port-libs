@@ -66,6 +66,12 @@ if (!$markdownCodeBlock instanceof PortLibs\Pandoc\AstNode || $markdownCodeBlock
 }
 $markdown = $highlighter->highlightCodeBlock($markdownCodeBlock, 'kate');
 $markdownWordpressBlock = $highlighter->wordpressHtmlBlock($markdownCodeBlock, 'kate');
+$rubyCodeBlock = $document->children[5] ?? null;
+if (!$rubyCodeBlock instanceof PortLibs\Pandoc\AstNode || $rubyCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Ruby code block');
+}
+$ruby = $highlighter->highlightCodeBlock($rubyCodeBlock, 'espresso');
+$rubyWordpressBlock = $highlighter->wordpressHtmlBlock($rubyCodeBlock, 'espresso');
 
 if (($argv[1] ?? '') === '--self-test') {
     if (($highlighted['language'] ?? '') !== 'php') {
@@ -167,6 +173,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($markdownWordpressBlock, '<span class="pp">``` {.php}</span>')) {
         throw new RuntimeException('Expected nested Markdown fence token handoff');
     }
+    if (($ruby['language'] ?? '') !== 'ruby') {
+        throw new RuntimeException('Expected rb alias to normalize to Ruby highlighting');
+    }
+    if (!str_contains($ruby['html'], '<span class="fu">require</span> <span class="st">&#039;json&#039;</span>')) {
+        throw new RuntimeException('Expected Ruby require token handoff');
+    }
+    if (!str_contains($ruby['html'], '<span class="kw">class</span> <span class="dt">ReviewPacket</span>')) {
+        throw new RuntimeException('Expected Ruby class token handoff');
+    }
+    if (!str_contains($ruby['html'], '<span class="va">@path</span> <span class="op">=</span> <span class="va">path</span>')) {
+        throw new RuntimeException('Expected Ruby instance/local variable token handoff');
+    }
+    if (!str_contains($rubyWordpressBlock, '<style data-pandoc-highlight-style="espresso">')) {
+        throw new RuntimeException('Expected Ruby WordPress style metadata');
+    }
+    if (!str_contains($rubyWordpressBlock, '<span class="dt">JSON</span><span class="op">.</span><span class="fu">parse</span>')) {
+        throw new RuntimeException('Expected Ruby constant and method token handoff');
+    }
 
     echo "syntax highlighting handoff self-test ok\n";
     exit(0);
@@ -180,5 +204,6 @@ echo "haskellHighlightedHtml:\n" . $haskell['html'] . "\n";
 echo "latexHighlightedHtml:\n" . $latex['html'] . "\n";
 echo "diffHighlightedHtml:\n" . $diff['html'] . "\n";
 echo "markdownHighlightedHtml:\n" . $markdown['html'] . "\n";
+echo "rubyHighlightedHtml:\n" . $ruby['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";

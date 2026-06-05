@@ -45,3 +45,22 @@ index 1111111..2222222 100644
 echo esc_html($title);
 ```
 ````
+
+``` {.rb}
+# WordPress import audit task
+require 'json'
+module Migration
+  class ReviewPacket
+    def initialize(path:)
+      @path = path
+    end
+
+    def call
+      puts JSON.parse(File.read(@path))['title']
+    rescue JSON::ParserError => error
+      warn "invalid import: #{error.message}"
+      nil
+    end
+  end
+end
+```
