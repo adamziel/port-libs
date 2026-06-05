@@ -686,6 +686,46 @@ return [
         );
         $t->same(false, in_array('/OEBPS/meta/review-record.json', $unmanifestedParts, true));
     },
+    'groups OPF metadata refinements by referenced metadata id for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithRefinedMetadata = str_replace(
+            '<dc:title>WordPress Import EPUB</dc:title>',
+            '<dc:title id="main-title">WordPress Import EPUB</dc:title>',
+            $opfXml
+        );
+        $opfWithRefinedMetadata = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+            . '<meta refines="#pub-id" property="identifier-type" scheme="onix:codelist5">15</meta>'
+            . '<meta refines="#main-title" property="title-type">main</meta>'
+            . '<meta refines="#creator" property="file-as">Desk, Migration</meta>'
+            . '<meta refines="#creator" property="role" scheme="marc:relators">aut</meta>'
+            . '<meta refines="#creator" property="display-seq">1</meta>'
+            . '<meta refines="#creator" property="alternate-script" xml:lang="ja-Latn">Iko desuku</meta>',
+            $opfWithRefinedMetadata
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithRefinedMetadata));
+        $metadata = $result['metadata'];
+        $refinements = $metadata['refinementsById'];
+
+        $t->same('15', $refinements['pub-id']['identifier-type'][0]['text']);
+        $t->same('onix:codelist5', $refinements['pub-id']['identifier-type'][0]['scheme']);
+        $t->same('#pub-id', $refinements['pub-id']['identifier-type'][0]['refines']);
+        $t->same('main', $refinements['main-title']['title-type'][0]['text']);
+        $t->same('Desk, Migration', $refinements['creator']['file-as'][0]['text']);
+        $t->same('aut', $refinements['creator']['role'][0]['text']);
+        $t->same('marc:relators', $refinements['creator']['role'][0]['scheme']);
+        $t->same('1', $refinements['creator']['display-seq'][0]['text']);
+        $t->same('Iko desuku', $refinements['creator']['alternate-script'][0]['text']);
+        $t->same('ja-Latn', $refinements['creator']['alternate-script'][0]['language']);
+
+        $t->same($refinements['pub-id'], $metadata['dc']['identifier'][0]['refinements']);
+        $t->same($refinements['main-title'], $metadata['dc']['title'][0]['refinements']);
+        $t->same($refinements['creator'], $metadata['dc']['creator'][0]['refinements']);
+        $t->same([], $metadata['dc']['language'][0]['refinements']);
+        $t->same($refinements, $result['importReport']['metadata']['refinementsById']);
+        $t->same($refinements, $result['document']->attr('metadata')['refinementsById']);
+    },
     'reports cover image attachment candidates and unmanifested package assets' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $result = (new EpubReader())->readPackage($buildEpubPackage(
             null,

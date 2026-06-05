@@ -598,6 +598,7 @@ final class EpubReader
                 'refines' => self::nullableAttribute($child, 'refines'),
                 'id' => self::nullableAttribute($child, 'id'),
                 'scheme' => self::nullableAttribute($child, 'scheme'),
+                'language' => self::xmlLang($child),
                 'text' => $text,
             ];
 
@@ -610,6 +611,8 @@ final class EpubReader
             $raw[] = ['type' => 'meta'] + $entry;
         }
 
+        $refinementsById = self::metadataRefinementsById($metaProperties);
+        $dc = self::attachMetadataRefinements($dc, $refinementsById);
         $identifiers = array_map(
             static fn (array $entry): string => $entry['text'],
             $dc['identifier'] ?? []
@@ -630,10 +633,105 @@ final class EpubReader
             'dc' => $dc,
             'metaProperties' => $metaProperties,
             'metaNames' => $metaNames,
+            'refinementsById' => $refinementsById,
             'links' => $links,
             'linksByRel' => self::linksByRel($links),
             'raw' => $raw,
         ];
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $metaProperties
+     *
+     * @return array<string, array<string, list<array<string, mixed>>>>
+     */
+    private static function metadataRefinementsById(array $metaProperties): array
+    {
+        $refinements = [];
+        foreach ($metaProperties as $property => $entries) {
+            if (!is_string($property) || $property === '' || !is_array($entries)) {
+                continue;
+            }
+
+            foreach ($entries as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $subject = self::metadataRefinementSubject($entry['refines'] ?? null);
+                if ($subject === null) {
+                    continue;
+                }
+
+                $refinements[$subject][$property][] = [
+                    'property' => $property,
+                    'subjectId' => $subject,
+                    'refines' => (string) ($entry['refines'] ?? ''),
+                    'text' => (string) ($entry['text'] ?? ''),
+                    'content' => is_string($entry['content'] ?? null) ? $entry['content'] : null,
+                    'scheme' => is_string($entry['scheme'] ?? null) ? $entry['scheme'] : null,
+                    'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                    'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                ];
+            }
+        }
+
+        return $refinements;
+    }
+
+    private static function metadataRefinementSubject(mixed $refines): ?string
+    {
+        if (!is_string($refines)) {
+            return null;
+        }
+
+        $refines = trim($refines);
+        if ($refines === '') {
+            return null;
+        }
+
+        if (str_starts_with($refines, '#')) {
+            $subject = substr($refines, 1);
+
+            return $subject === '' ? null : $subject;
+        }
+
+        $fragmentOffset = strpos($refines, '#');
+        if ($fragmentOffset === false) {
+            return null;
+        }
+
+        $subject = substr($refines, $fragmentOffset + 1);
+
+        return $subject === '' ? null : $subject;
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $dc
+     * @param array<string, array<string, list<array<string, mixed>>>> $refinementsById
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function attachMetadataRefinements(array $dc, array $refinementsById): array
+    {
+        foreach ($dc as $name => $entries) {
+            if (!is_array($entries)) {
+                continue;
+            }
+
+            foreach ($entries as $index => $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $id = is_string($entry['id'] ?? null) ? $entry['id'] : null;
+                $dc[$name][$index]['refinements'] = $id !== null && isset($refinementsById[$id])
+                    ? $refinementsById[$id]
+                    : [];
+            }
+        }
+
+        return $dc;
     }
 
     /**

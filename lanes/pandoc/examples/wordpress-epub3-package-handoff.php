@@ -22,9 +22,13 @@ $opfXml = <<<'XML'
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="source-id">urn:uuid:wordpress-epub-source</dc:identifier>
     <dc:title>WordPress EPUB source packet</dc:title>
-    <dc:creator>Migration Desk</dc:creator>
+    <dc:creator id="creator">Migration Desk</dc:creator>
     <dc:language>en</dc:language>
     <meta property="dcterms:modified">2026-06-04T21:45:00Z</meta>
+    <meta refines="#source-id" property="identifier-type" scheme="onix:codelist5">15</meta>
+    <meta refines="#creator" property="file-as">Desk, Migration</meta>
+    <meta refines="#creator" property="role" scheme="marc:relators">aut</meta>
+    <meta refines="#creator" property="display-seq">1</meta>
     <meta name="cover" content="cover-image"/>
     <link id="review-record" rel="record alternate" href="meta/review-record.json" media-type="application/ld+json" properties="schema-org reviewer" hreflang="en"/>
     <link id="remote-onix" rel="record" href="https://metadata.example.test/onix/source.xml" media-type="application/xml" properties="onix"/>
@@ -269,6 +273,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['metadata']['links'][2]['diagnostics'][0]['type'] ?? null) !== 'missing-metadata-reference') {
         throw new RuntimeException('Expected missing EPUB OPF metadata link to remain a review diagnostic');
     }
+    if (($result['metadata']['refinementsById']['source-id']['identifier-type'][0]['text'] ?? null) !== '15') {
+        throw new RuntimeException('Expected EPUB OPF identifier-type refinement to stay attached to source-id');
+    }
+    if (($result['metadata']['dc']['identifier'][0]['refinements']['identifier-type'][0]['scheme'] ?? null) !== 'onix:codelist5') {
+        throw new RuntimeException('Expected EPUB OPF identifier refinement scheme to remain reviewable');
+    }
+    if (($result['metadata']['dc']['creator'][0]['refinements']['file-as'][0]['text'] ?? null) !== 'Desk, Migration') {
+        throw new RuntimeException('Expected EPUB OPF creator file-as refinement to stay attached to creator metadata');
+    }
+    if (($result['metadata']['dc']['creator'][0]['refinements']['role'][0]['scheme'] ?? null) !== 'marc:relators') {
+        throw new RuntimeException('Expected EPUB OPF creator role scheme to stay reviewable');
+    }
     if (($result['renditions']['count'] ?? null) !== 2 || ($result['renditions']['alternateCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB multiple rootfile renditions to be summarized');
     }
@@ -388,6 +404,9 @@ echo 'metadataLinks=' . count($result['metadata']['links'] ?? []) . "\n";
 echo 'metadataRecordTarget=' . ($result['metadata']['links'][0]['target'] ?? '') . "\n";
 echo 'metadataRecordSha256=' . ($result['metadata']['links'][0]['byteSha256'] ?? '') . "\n";
 echo 'remoteMetadataLink=' . (($result['metadata']['links'][1]['external'] ?? false) ? 'yes' : 'no') . "\n";
+echo 'identifierType=' . ($result['metadata']['dc']['identifier'][0]['refinements']['identifier-type'][0]['text'] ?? '') . "\n";
+echo 'creatorFileAs=' . ($result['metadata']['dc']['creator'][0]['refinements']['file-as'][0]['text'] ?? '') . "\n";
+echo 'creatorRole=' . ($result['metadata']['dc']['creator'][0]['refinements']['role'][0]['text'] ?? '') . "\n";
 echo 'renditions=' . ($result['renditions']['count'] ?? 0) . "\n";
 echo 'alternateRenditionTitle=' . ($result['renditions']['items'][1]['metadata']['title'] ?? '') . "\n";
 echo 'alternateRenditionLayout=' . ($result['renditions']['items'][1]['renditionProperties']['layout'] ?? '') . "\n";
