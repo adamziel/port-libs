@@ -628,13 +628,20 @@ final class UnicodeText
 
             return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
         }
-        if ($normalized === 'shift_jis' || $normalized === 'euc-jp' || $normalized === 'iso-2022-jp' || $normalized === 'big5' || $normalized === 'gbk') {
+        if ($normalized === 'shift_jis'
+            || $normalized === 'euc-jp'
+            || $normalized === 'iso-2022-jp'
+            || $normalized === 'big5'
+            || $normalized === 'gbk'
+            || $normalized === 'hz-gb-2312'
+        ) {
             [$text, $repairs] = match ($normalized) {
                 'shift_jis' => self::decodeShiftJis($bytes),
                 'euc-jp' => self::decodeEucJp($bytes),
                 'iso-2022-jp' => self::decodeIso2022Jp($bytes),
                 'big5' => self::decodeBig5($bytes),
-                default => self::decodeGbk($bytes),
+                'gbk' => self::decodeGbk($bytes),
+                default => self::decodeHzGb2312($bytes),
             };
 
             return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
@@ -1085,6 +1092,7 @@ final class UnicodeText
             'big5', 'big5hkscs', 'big5hk', 'cnbig5', 'csbig5', 'xxbig5' => 'big5',
             'gbk', 'gb18030', 'gb2312', 'gb2312:1980', 'csgb2312', 'csiso58gb231280',
             'cp936', 'ms936', 'windows936', 'xgbk', 'xcp936', 'euccn' => 'gbk',
+            'hzgb2312', 'hz' => 'hz-gb-2312',
             default => 'utf-8',
         };
     }
@@ -1780,6 +1788,106 @@ final class UnicodeText
             }
 
             $pair = ($byte << 8) | $trail;
+            if (!isset(self::GBK_PAIRS[$pair])) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                $offset++;
+                continue;
+            }
+
+            $out .= self::fromCodepoint(self::GBK_PAIRS[$pair]);
+            $offset++;
+        }
+
+        return [$out, $repairs];
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private static function decodeHzGb2312(string $bytes): array
+    {
+        $out = '';
+        $repairs = 0;
+        $state = 'ascii';
+        $length = strlen($bytes);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $byte = ord($bytes[$offset]);
+            if ($byte === 0x7e) {
+                if ($offset + 1 >= $length) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    continue;
+                }
+
+                $next = ord($bytes[$offset + 1]);
+                if ($next === 0x7b) {
+                    $state = 'gb';
+                    $offset++;
+                    continue;
+                }
+                if ($next === 0x7d) {
+                    $state = 'ascii';
+                    $offset++;
+                    continue;
+                }
+                if ($next === 0x7e) {
+                    $out .= '~';
+                    $offset++;
+                    continue;
+                }
+                if ($next === 0x0a) {
+                    $offset++;
+                    continue;
+                }
+                if ($next === 0x0d) {
+                    if ($offset + 2 < $length && ord($bytes[$offset + 2]) === 0x0a) {
+                        $offset += 2;
+                        continue;
+                    }
+                    $offset++;
+                    continue;
+                }
+
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                $offset++;
+                continue;
+            }
+
+            if ($state === 'ascii') {
+                if ($byte <= 0x7f) {
+                    $out .= self::fromCodepoint($byte);
+                } else {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                }
+                continue;
+            }
+
+            if ($byte <= 0x20) {
+                $out .= self::fromCodepoint($byte);
+                continue;
+            }
+            if ($byte < 0x21 || $byte > 0x7e || $offset + 1 >= $length) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                continue;
+            }
+
+            $trail = ord($bytes[$offset + 1]);
+            if ($trail === 0x7e && $offset + 2 < $length && ord($bytes[$offset + 2]) === 0x7d) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                continue;
+            }
+            if ($trail < 0x21 || $trail > 0x7e) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                continue;
+            }
+
+            $pair = (($byte + 0x80) << 8) | ($trail + 0x80);
             if (!isset(self::GBK_PAIRS[$pair])) {
                 $out .= self::REPLACEMENT;
                 $repairs++;

@@ -266,6 +266,31 @@ return [
         $t->same("\u{FFFD}A", $unmappedPair['text']);
         $t->same(1, $unmappedPair['repairs']);
     },
+    'decodes bounded hz gb 2312 escape states into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# ~{<rLe~}\n\n~{VPND~} HZ ~{2bJT#,11>)!#~}\nEscaped ~~ tilde and line~\njoin.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'hz-gb-2312');
+        $document = (new MarkdownReader())->readBytes($bytes, 'hzgb2312');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $malformedPair = UnicodeText::decodeBytes('~{<~}', 'hz');
+        $invalidEscape = UnicodeText::decodeBytes('A~xB', 'hz-gb-2312');
+        $unmappedPair = UnicodeText::decodeBytes('~{!!~}', 'hz-gb-2312');
+
+        $t->same('hz-gb-2312', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# 简体\n\n中文 HZ 测试，北京。\nEscaped ~ tilde and linejoin.", $decoded['text']);
+        $t->same(['encoding' => 'hz-gb-2312', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('简体', $document->children[0]->attr('text'));
+        $t->same('中文 HZ 测试，北京。 Escaped ~ tilde and linejoin.', $document->children[1]->attr('text'));
+        $t->same(50, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="简体">简体</h1>', $blocks);
+        $t->contains("<p>中文 HZ 测试，北京。\nEscaped ~ tilde and linejoin.</p>", $blocks);
+        $t->same("\u{FFFD}", $malformedPair['text']);
+        $t->same(1, $malformedPair['repairs']);
+        $t->same("A\u{FFFD}B", $invalidEscape['text']);
+        $t->same(1, $invalidEscape['repairs']);
+        $t->same("\u{FFFD}", $unmappedPair['text']);
+        $t->same(1, $unmappedPair['repairs']);
+    },
     'lets unicode byte order marks override stale source encoding hints' => static function (TestRunner $t) use ($utf16le): void {
         $utf8 = UnicodeText::decodeBytes("\xEF\xBB\xBF# Cafe\xCC\x81\n\nUTF-8 source", 'windows-1252');
         $utf16 = UnicodeText::decodeBytes("\xFF\xFE" . $utf16le([

@@ -50,6 +50,9 @@ $big5Text = (string) $big5Source->children[1]->attr('text');
 $gbkBytes = (string) hex2bin('2320bcf2cce50a0ad6d0cec42047424b20b2e2cad4a3acb1b1bea9a1a3');
 $gbkSource = (new MarkdownReader())->readBytes($gbkBytes, 'gb18030');
 $gbkText = (string) $gbkSource->children[1]->attr('text');
+$hzGb2312Bytes = "# ~{<rLe~}\n\n~{VPND~} HZ ~{2bJT#,11>)!#~}";
+$hzGb2312Source = (new MarkdownReader())->readBytes($hzGb2312Bytes, 'hz-gb-2312');
+$hzGb2312Text = (string) $hzGb2312Source->children[1]->attr('text');
 $displaySlices = UnicodeText::splitByDisplayBreakpoints("\u{9B5A}A\u{0301}\u{1F469}\u{200D}\u{1F4BB}B", [2, 3, 5]);
 $wrappedAuditLines = UnicodeText::wrapByDisplayWidth(
     "Import \u{9B5A}\u{9B5A} emoji \u{1F44D}\u{1F3FD} flag \u{1F1FA}\u{1F1F8} Cafe\u{0301} trail",
@@ -318,6 +321,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($gbkSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($gbkText)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'HZ-GB-2312 source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $hzGb2312Text])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($hzGb2312Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($hzGb2312Text)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Line endings'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'CRLF and CR normalized'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => (string) $lineEndingConversions])]),
@@ -494,6 +502,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>GBK source</td><td>中文 GBK 测试，北京。</td><td>gbk:21</td>')) {
         throw new RuntimeException('charset handoff self-test missing GBK decode audit row');
+    }
+    if (($hzGb2312Source->attr('sourceEncoding')['encoding'] ?? '') !== 'hz-gb-2312') {
+        throw new RuntimeException('charset handoff self-test missing HZ-GB-2312 source encoding');
+    }
+    if (!str_contains($blocks, '<td>HZ-GB-2312 source</td><td>中文 HZ 测试，北京。</td><td>hz-gb-2312:20</td>')) {
+        throw new RuntimeException('charset handoff self-test missing HZ-GB-2312 decode audit row');
     }
     if (!str_contains($blocks, '<td>Line endings</td><td>CRLF and CR normalized</td><td>3</td>')) {
         throw new RuntimeException('charset handoff self-test missing line ending table audit');
