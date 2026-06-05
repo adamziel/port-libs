@@ -25,6 +25,8 @@ review:
   <<: *review_defaults
   owner: !wp-reviewer "Import Desk"
 source-uri: /exports/packet#front-matter
+escaped-source-title: "Escaped \u201cmetadata\u201d \U0001F4DD"
+escaped-source-uri: "https:\/\/example.test\/exports\/packet\x23front-matter"
 source-summary: >- # folded source note for reviewer queue
   Preserve front matter
   comments before rendering.
@@ -87,6 +89,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['source-uri'] ?? '') !== '/exports/packet#front-matter') {
         throw new RuntimeException('YAML metadata self-test stripped unspaced source hash');
     }
+    if (($meta['escaped-source-title'] ?? '') !== "Escaped \u{201C}metadata\u{201D} \u{1F4DD}") {
+        throw new RuntimeException('YAML metadata self-test missing escaped Unicode source title');
+    }
+    if (($meta['escaped-source-uri'] ?? '') !== 'https://example.test/exports/packet#front-matter') {
+        throw new RuntimeException('YAML metadata self-test missing escaped source URI');
+    }
     if (($meta['source-revision'] ?? '') !== '007') {
         throw new RuntimeException('YAML metadata self-test missing tagged string revision');
     }
@@ -104,5 +112,6 @@ echo 'Review status: ' . ($meta['review']['status'] ?? '') . "\n";
 echo 'Review labels: ' . implode(', ', $meta['review']['labels'] ?? []) . "\n";
 echo 'Keywords: ' . implode(', ', $meta['keywords'] ?? []) . "\n\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
+echo 'Escaped source title: ' . ($meta['escaped-source-title'] ?? '') . "\n";
 echo 'Reference: ' . ($meta['references'][0]['id'] ?? '') . ' / ' . ($meta['references'][0]['title'] ?? '') . "\n\n";
 echo $blocks . "\n";

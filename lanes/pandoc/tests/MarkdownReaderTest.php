@@ -1137,6 +1137,40 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('yaml-comments-body', $document->children[0]->attr('id'));
     },
+    'maps pandoc yaml double quoted escape metadata scalars' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: "Escaped \u201cPacket\u201d \U0001F4DD"',
+            'authors: ["Reviewer\nOne", "Editor\tTwo"]',
+            'review:',
+            '  path: "https:\/\/example.test\/exports\/packet\x23front"',
+            '  note: "Line one\nLine two"',
+            '  spacing: "A\_B\NC\LD\P"',
+            '  alert: "\a"',
+            '  revision: !!str "00\x37"',
+            'references: [{id: escaped-ref, title: "Source \"quoted\" title", issued: {date-parts: [[2026, 6, 5]]}}]',
+            '...',
+            '',
+            '# Escaped YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+
+        $t->same("Escaped \u{201C}Packet\u{201D} \u{1F4DD}", $meta['title']);
+        $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same("Reviewer\nOne", $meta['authors'][0]);
+        $t->same("Editor\tTwo", $meta['authors'][1]);
+        $t->same('https://example.test/exports/packet#front', $meta['review']['path']);
+        $t->same("Line one\nLine two", $meta['review']['note']);
+        $t->same("A\u{00A0}B\u{0085}C\u{2028}D\u{2029}", $meta['review']['spacing']);
+        $t->same("\x07", $meta['review']['alert']);
+        $t->same('007', $meta['review']['revision']);
+        $t->same('escaped-ref', $meta['references'][0]['id']);
+        $t->same('Source "quoted" title', $meta['references'][0]['title']);
+        $t->same([[2026, 6, 5]], $meta['references'][0]['issued']['date-parts']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('escaped-yaml-body', $document->children[0]->attr('id'));
+    },
     'keeps blank-led yaml-looking fences as markdown body' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

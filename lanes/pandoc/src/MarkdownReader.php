@@ -1103,12 +1103,115 @@ final class MarkdownReader
             return str_replace("''", "'", $inner);
         }
 
-        return strtr($inner, [
-            '\\"' => '"',
-            '\\\\' => '\\',
-            '\\n' => "\n",
-            '\\t' => "\t",
-        ]);
+        return $this->decodeYamlDoubleQuotedScalar($inner);
+    }
+
+    private function decodeYamlDoubleQuotedScalar(string $inner): string
+    {
+        $decoded = '';
+        $length = strlen($inner);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $inner[$offset];
+            if ($char !== '\\' || $offset === $length - 1) {
+                $decoded .= $char;
+                continue;
+            }
+
+            $escape = $inner[++$offset];
+            $mapped = match ($escape) {
+                '0' => "\0",
+                'a' => "\x07",
+                'b' => "\x08",
+                't' => "\t",
+                'n' => "\n",
+                'v' => "\x0b",
+                'f' => "\f",
+                'r' => "\r",
+                'e' => "\x1b",
+                ' ' => ' ',
+                '"' => '"',
+                '/' => '/',
+                '\\' => '\\',
+                'N' => $this->yamlCodepointToUtf8(0x85),
+                '_' => $this->yamlCodepointToUtf8(0xA0),
+                'L' => $this->yamlCodepointToUtf8(0x2028),
+                'P' => $this->yamlCodepointToUtf8(0x2029),
+                default => null,
+            };
+
+            if ($mapped !== null) {
+                $decoded .= $mapped;
+                continue;
+            }
+
+            if ($escape === 'x' || $escape === 'u' || $escape === 'U') {
+                $unicode = $this->decodeYamlHexEscape($inner, $offset, $length, $escape);
+                if ($unicode !== null) {
+                    $decoded .= $unicode;
+                    continue;
+                }
+            }
+
+            $decoded .= '\\' . $escape;
+        }
+
+        return $decoded;
+    }
+
+    private function decodeYamlHexEscape(string $inner, int &$offset, int $length, string $escape): ?string
+    {
+        $digits = match ($escape) {
+            'x' => 2,
+            'u' => 4,
+            'U' => 8,
+            default => 0,
+        };
+
+        if ($digits === 0 || $offset + $digits >= $length) {
+            return null;
+        }
+
+        $hex = substr($inner, $offset + 1, $digits);
+        if (!ctype_xdigit($hex)) {
+            return null;
+        }
+
+        $codepoint = hexdec($hex);
+        $utf8 = $this->yamlCodepointToUtf8($codepoint);
+        if ($utf8 === null) {
+            return null;
+        }
+
+        $offset += $digits;
+
+        return $utf8;
+    }
+
+    private function yamlCodepointToUtf8(int $codepoint): ?string
+    {
+        if ($codepoint < 0 || $codepoint > 0x10FFFF || ($codepoint >= 0xD800 && $codepoint <= 0xDFFF)) {
+            return null;
+        }
+
+        if ($codepoint <= 0x7F) {
+            return chr($codepoint);
+        }
+
+        if ($codepoint <= 0x7FF) {
+            return chr(0xC0 | ($codepoint >> 6))
+                . chr(0x80 | ($codepoint & 0x3F));
+        }
+
+        if ($codepoint <= 0xFFFF) {
+            return chr(0xE0 | ($codepoint >> 12))
+                . chr(0x80 | (($codepoint >> 6) & 0x3F))
+                . chr(0x80 | ($codepoint & 0x3F));
+        }
+
+        return chr(0xF0 | ($codepoint >> 18))
+            . chr(0x80 | (($codepoint >> 12) & 0x3F))
+            . chr(0x80 | (($codepoint >> 6) & 0x3F))
+            . chr(0x80 | ($codepoint & 0x3F));
     }
 
     private function parseYamlNumericScalar(string $value): int|float
