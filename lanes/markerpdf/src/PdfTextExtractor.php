@@ -6066,6 +6066,7 @@ final class PdfTextExtractor
             $effectiveBits ?? 1
         );
         $dctFilterReview = $this->nestedImageXObjectDctFilterReview($filters, $stream['dict'], $objects);
+        $reviewStream = $this->imageXObjectReviewStreamBytes($stream['dict'], $stream['stream'], $objects);
         $maxSample = (2 ** min($effectiveBits ?? 1, 30)) - 1;
 
         return [
@@ -6087,7 +6088,7 @@ final class PdfTextExtractor
             ...$dctFilterReview,
             ...$ccittFilterReview,
             'native_raster_decode' => $filters !== null && $previewOnlyFilters === [],
-            'raw_length' => strlen($stream['stream']),
+            'raw_length' => strlen($reviewStream),
             'decoded_with_current_filters' => $decoded !== null,
             'decoded_length' => $decoded === null ? null : strlen($decoded),
             'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
@@ -6206,6 +6207,7 @@ final class PdfTextExtractor
             $effectiveBits ?? 1
         );
         $dctFilterReview = $this->nestedImageXObjectDctFilterReview($filters, $stream['dict'], $objects);
+        $reviewStream = $this->imageXObjectReviewStreamBytes($stream['dict'], $stream['stream'], $objects);
 
         return [
             'type' => $imageMask ? 'image_mask_stream' : 'explicit_mask_stream',
@@ -6225,7 +6227,7 @@ final class PdfTextExtractor
             ...$dctFilterReview,
             ...$ccittFilterReview,
             'native_raster_decode' => $filters !== null && $previewOnlyFilters === [],
-            'raw_length' => strlen($stream['stream']),
+            'raw_length' => strlen($reviewStream),
             'decoded_with_current_filters' => $decoded !== null,
             'decoded_length' => $decoded === null ? null : strlen($decoded),
             'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
