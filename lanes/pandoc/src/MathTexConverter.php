@@ -1152,16 +1152,25 @@ final class MathTexConverter
                 return [$this->renderInfixFractionCommand($nodes, $denominator, $infixCommand)];
             }
 
-            $base = $this->parseAtom($source, $offset);
+            $defaultScriptPlacement = null;
+            $base = $this->parseAtom($source, $offset, $defaultScriptPlacement);
             $scriptPlacement = $this->readScriptPlacementCommand($source, $offset);
+            if (
+                $scriptPlacement === null
+                && $defaultScriptPlacement !== null
+                && $this->nextNonWhitespaceIsScriptMarker($source, $offset)
+            ) {
+                $scriptPlacement = $defaultScriptPlacement;
+            }
             $nodes[] = $this->applyScripts($source, $offset, $base, $scriptPlacement);
         }
 
         return $nodes;
     }
 
-    private function parseAtom(string $source, int &$offset): string
+    private function parseAtom(string $source, int &$offset, ?string &$defaultScriptPlacement = null): string
     {
+        $defaultScriptPlacement = null;
         $char = $source[$offset] ?? '';
         if ($char === '') {
             throw new \InvalidArgumentException('Unexpected end of TeX input');
@@ -1176,7 +1185,7 @@ final class MathTexConverter
         }
 
         if ($char === '\\') {
-            return $this->parseCommand($source, $offset);
+            return $this->parseCommand($source, $offset, $defaultScriptPlacement);
         }
 
         if (ctype_digit($char)) {
@@ -1200,7 +1209,7 @@ final class MathTexConverter
         return '<mo>' . $this->esc($char) . '</mo>';
     }
 
-    private function parseCommand(string $source, int &$offset): string
+    private function parseCommand(string $source, int &$offset, ?string &$defaultScriptPlacement = null): string
     {
         $offset++;
         $command = $this->readCommandName($source, $offset);
@@ -1249,6 +1258,11 @@ final class MathTexConverter
         }
 
         if ($command === 'operatorname') {
+            if (($source[$offset] ?? '') === '*') {
+                $defaultScriptPlacement = 'limits';
+                $offset++;
+            }
+
             $operatorName = $this->readRequiredGroupText($source, $offset);
             if ($operatorName === '') {
                 throw new \InvalidArgumentException('Expected TeX operator name at offset ' . $offset);
@@ -1261,7 +1275,7 @@ final class MathTexConverter
             return $this->parseEquationReferenceCommand($source, $offset, $command);
         }
 
-        if ($command === 'limits' || $command === 'nolimits') {
+        if ($command === 'limits' || $command === 'nolimits' || $command === 'displaylimits') {
             throw new \InvalidArgumentException('Unexpected TeX \\' . $command . ' without previous math base at offset ' . $offset);
         }
 
@@ -2799,7 +2813,18 @@ final class MathTexConverter
             throw new \InvalidArgumentException('Expected TeX style argument for \\' . $command . ' at offset ' . $offset);
         }
 
-        return $this->applyScripts($source, $offset, $this->parseAtom($source, $offset));
+        $defaultScriptPlacement = null;
+        $base = $this->parseAtom($source, $offset, $defaultScriptPlacement);
+        $scriptPlacement = $this->readScriptPlacementCommand($source, $offset);
+        if (
+            $scriptPlacement === null
+            && $defaultScriptPlacement !== null
+            && $this->nextNonWhitespaceIsScriptMarker($source, $offset)
+        ) {
+            $scriptPlacement = $defaultScriptPlacement;
+        }
+
+        return $this->applyScripts($source, $offset, $base, $scriptPlacement);
     }
 
     private function applyScripts(string $source, int &$offset, string $base, ?string $scriptPlacement = null): string
@@ -2827,7 +2852,7 @@ final class MathTexConverter
             throw new \InvalidArgumentException('Expected TeX \\' . $scriptPlacement . ' subscript or superscript at offset ' . $offset);
         }
 
-        if ($scriptPlacement === 'limits') {
+        if ($scriptPlacement === 'limits' || $scriptPlacement === 'displaylimits') {
             if ($subscript !== null && $superscript !== null) {
                 return '<munderover>' . $base . $subscript . $superscript . '</munderover>';
             }
@@ -2865,13 +2890,22 @@ final class MathTexConverter
 
         $commandOffset = $offset + 1;
         $command = $this->readCommandName($source, $commandOffset);
-        if ($command !== 'limits' && $command !== 'nolimits') {
+        if ($command !== 'limits' && $command !== 'nolimits' && $command !== 'displaylimits') {
             return null;
         }
 
         $offset = $commandOffset;
 
         return $command;
+    }
+
+    private function nextNonWhitespaceIsScriptMarker(string $source, int $offset): bool
+    {
+        $cursor = $offset;
+        $this->skipWhitespace($source, $cursor);
+        $marker = $source[$cursor] ?? '';
+
+        return $marker === '_' || $marker === '^';
     }
 
     private function parseScriptArgument(string $source, int &$offset): string

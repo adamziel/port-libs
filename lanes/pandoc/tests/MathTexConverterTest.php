@@ -226,6 +226,21 @@ return [
         $t->contains('<msubsup><mo>∫</mo><mn>0</mn><mn>1</mn></msubsup><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo><mi>d</mi><mi>x</mi><mo>+</mo><msub><mo>∑</mo><mi>j</mi></msub><msub><mi>a</mi><mi>j</mi></msub>', $nolimitsMathml);
         $t->contains('<annotation encoding="application/x-tex">\\int\\nolimits_{0}^{1} f(x) dx + \\sum\\nolimits_{j} a_j</annotation>', $nolimitsMathml);
     },
+    'converts bounded tex starred operator names and displaylimits to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $starredMathml = $converter->texToMathMl('\\operatorname*{argmax}_{p_i \\in P}^{\\text{draft}} f(p_i) + \\operatorname*{limsup}^{n} a_n', true);
+        $displayLimitsMathml = $converter->texToMathMl('\\operatorname{median}\\displaylimits_{i=1}^{n} p_i + \\operatorname*{rank}\\nolimits_{j} q_j');
+        $plainStarredMathml = $converter->texToMathMl('\\operatorname*{review} + x');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $starredMathml);
+        $t->contains('<munderover><mi>argmax</mi><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi></mrow><mtext>draft</mtext></munderover><mi>f</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>', $starredMathml);
+        $t->contains('<mover><mi>limsup</mi><mi>n</mi></mover><msub><mi>a</mi><mi>n</mi></msub>', $starredMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\operatorname*{argmax}_{p_i \\in P}^{\\text{draft}} f(p_i) + \\operatorname*{limsup}^{n} a_n</annotation>', $starredMathml);
+        $t->contains('<munderover><mi>median</mi><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><msub><mi>p</mi><mi>i</mi></msub>', $displayLimitsMathml);
+        $t->contains('<msub><mi>rank</mi><mi>j</mi></msub><msub><mi>q</mi><mi>j</mi></msub>', $displayLimitsMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\operatorname{median}\\displaylimits_{i=1}^{n} p_i + \\operatorname*{rank}\\nolimits_{j} q_j</annotation>', $displayLimitsMathml);
+        $t->contains('<mi>review</mi><mo>+</mo><mi>x</mi>', $plainStarredMathml);
+    },
     'converts bounded tex substack limits to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $substackMathml = $converter->texToMathMl('\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x > 0}} f(x)', true);
@@ -694,6 +709,9 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\limits_{i=1}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sum\\limits'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\int\\nolimits'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\displaylimits_{i=1}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname{median}\\displaylimits'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname*{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\substack'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\substack{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\substack{a & b}'));
