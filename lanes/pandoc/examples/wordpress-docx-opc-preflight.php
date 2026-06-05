@@ -17,6 +17,8 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
   <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
   <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>
+  <Override PartName="/_xmlsignatures/sig1.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
 </Types>
 XML;
 
@@ -24,6 +26,7 @@ $packageRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
   <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rIdSignatureOrigin" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin" Target="_xmlsignatures/origin.sigs"/>
 </Relationships>
 XML;
 
@@ -44,6 +47,12 @@ $footnotesRelationshipsXml = <<<'XML'
 </Relationships>
 XML;
 
+$signatureOriginRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSignature1" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="sig1.xml"/>
+</Relationships>
+XML;
+
 $package = ZipPackage::fromParts([
     ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
     ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
@@ -56,6 +65,9 @@ $package = ZipPackage::fromParts([
     ['name' => 'word/media/source-diagram.svg', 'data' => '<svg xmlns="http://www.w3.org/2000/svg"/>'],
     ['name' => 'word/media/footnote-source.png', 'data' => 'PNG'],
     ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+    ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
+    ['name' => '_xmlsignatures/_rels/origin.sigs.rels', 'data' => $signatureOriginRelationshipsXml],
+    ['name' => '_xmlsignatures/sig1.xml', 'data' => '<Signature xmlns="http://www.w3.org/2000/09/xmldsig#"/>'],
 ]);
 
 $graph = OpcRelationshipGraph::fromPackage($package);
@@ -123,6 +135,21 @@ foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOC
     ];
 }
 
+$digitalSignatures = $graph->preflightDigitalSignatures();
+$digitalSignatureParts = [];
+foreach ($digitalSignatures as $origin) {
+    if ($origin['targetPart'] !== null) {
+        $digitalSignatureParts[] = $origin['targetPart'];
+    }
+
+    foreach ($origin['signatures'] as $signature) {
+        if ($signature['targetPart'] !== null) {
+            $digitalSignatureParts[] = $signature['targetPart'];
+        }
+    }
+}
+$digitalSignatureParts = array_values(array_unique($digitalSignatureParts));
+
 $corePropertiesPart = $graph->firstTargetOfType('http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties');
 
 $summary = [
@@ -135,6 +162,7 @@ $summary = [
         'part' => $corePropertiesPart,
         'contentType' => $corePropertiesPart === null ? null : $types->contentTypeForPart($corePropertiesPart),
     ],
+    'digitalSignatures' => $digitalSignatures,
     'packageParts' => $packagePartPreflight,
     'relationships' => $relationshipSummaries,
     'reachableRelationships' => $reachableTargets,
@@ -175,6 +203,7 @@ $summary = [
             ],
             array_filter($relationshipPreflight, static fn (array $target): bool => $target['external'] === true)
         )),
+        'digitalSignatureParts' => $digitalSignatureParts,
         'hasReviewerEditLink' => ($relationshipSummaries['rIdReviewer']['external'] ?? false) === true,
     ],
 ];
@@ -190,6 +219,8 @@ if (($argv[1] ?? '') === '--self-test') {
         'image/svg+xml; charset=UTF-8',
         '/word/media/footnote-source.png',
         'https://example.test/wp-admin/post.php?post=42&action=edit',
+        '/_xmlsignatures/origin.sigs',
+        '/_xmlsignatures/sig1.xml',
     ];
     $actual = [
         $summary['document']['part'],
@@ -201,10 +232,16 @@ if (($argv[1] ?? '') === '--self-test') {
         $summary['relationships']['rIdDiagram']['contentType'],
         $summary['wordpressImport']['mediaParts'][2] ?? null,
         $summary['relationships']['rIdReviewer']['target'],
+        $summary['wordpressImport']['digitalSignatureParts'][0] ?? null,
+        $summary['wordpressImport']['digitalSignatureParts'][1] ?? null,
     ];
     if (
         $actual !== $expected
         || $summary['wordpressImport']['hasReviewerEditLink'] !== true
+        || ($summary['digitalSignatures'][0]['relationshipPartName'] ?? null) !== '/_xmlsignatures/_rels/origin.sigs.rels'
+        || ($summary['digitalSignatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-origin'
+        || ($summary['digitalSignatures'][0]['signatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml'
+        || ($summary['digitalSignatures'][0]['valid'] ?? null) !== true
         || $summary['integrity']['packagePartsValid'] !== true
         || $summary['packageParts']['/_rels/.rels']['relationshipSource'] !== '/'
         || $summary['packageParts']['/_rels/.rels']['relationshipSourceIsRelationshipPart'] !== false

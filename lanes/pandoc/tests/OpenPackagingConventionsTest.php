@@ -443,6 +443,118 @@ XML;
         $t->same(['external-target-unsafe-scheme'], $closureById['rIdJavascript']['issues']);
         $t->same(null, $closureById['rIdRelative']['targetPart']);
     },
+    'preflights OPC digital signature origin and signature parts' => static function (TestRunner $t): void {
+        $signedContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>
+  <Override PartName="/_xmlsignatures/sig1.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $signedPackageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdSignatureOrigin" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin" Target="_xmlsignatures/origin.sigs"/>
+</Relationships>
+XML;
+
+        $signatureOriginRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSignature1" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="sig1.xml"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $signedContentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $signedPackageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
+            ['name' => '_xmlsignatures/_rels/origin.sigs.rels', 'data' => $signatureOriginRelationshipsXml],
+            ['name' => '_xmlsignatures/sig1.xml', 'data' => '<Signature xmlns="http://www.w3.org/2000/09/xmldsig#"/>'],
+        ]));
+
+        $signatures = $graph->preflightDigitalSignatures();
+
+        $t->same(1, count($signatures));
+        $t->same('rIdSignatureOrigin', $signatures[0]['id']);
+        $t->same('/_xmlsignatures/origin.sigs', $signatures[0]['targetPart']);
+        $t->same('application/vnd.openxmlformats-package.digital-signature-origin', $signatures[0]['contentType']);
+        $t->same(true, $signatures[0]['exists']);
+        $t->same('/_xmlsignatures/_rels/origin.sigs.rels', $signatures[0]['relationshipPartName']);
+        $t->same(true, $signatures[0]['valid']);
+        $t->same([], $signatures[0]['issues']);
+        $t->same(1, count($signatures[0]['signatures']));
+        $t->same('rIdSignature1', $signatures[0]['signatures'][0]['id']);
+        $t->same('/_xmlsignatures/sig1.xml', $signatures[0]['signatures'][0]['targetPart']);
+        $t->same('application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml', $signatures[0]['signatures'][0]['contentType']);
+        $t->same(true, $signatures[0]['signatures'][0]['exists']);
+        $t->same(true, $signatures[0]['signatures'][0]['valid']);
+        $t->same([], $signatures[0]['signatures'][0]['issues']);
+
+        $rootSignatureTargets = $graph->preflightTargetsForSource('/', 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin');
+        $t->same(['rIdSignatureOrigin'], array_column($rootSignatureTargets, 'id'));
+        $t->same('/_xmlsignatures/origin.sigs', OpcPackagePath::stripQueryAndFragment($rootSignatureTargets[0]['target']));
+    },
+    'flags invalid OPC digital signature relationship packages' => static function (TestRunner $t): void {
+        $badSignedContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/xml"/>
+  <Override PartName="/_xmlsignatures/sig1.xml" ContentType="application/xml"/>
+  <Override PartName="/_xmlsignatures/missing.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $signedPackageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdSignatureOrigin" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin" Target="_xmlsignatures/origin.sigs"/>
+</Relationships>
+XML;
+
+        $badSignatureOriginRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdWrongType" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="sig1.xml"/>
+  <Relationship Id="rIdMissingSignature" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="missing.xml"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $badSignedContentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $signedPackageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
+            ['name' => '_xmlsignatures/_rels/origin.sigs.rels', 'data' => $badSignatureOriginRelationshipsXml],
+            ['name' => '_xmlsignatures/sig1.xml', 'data' => '<Signature xmlns="http://www.w3.org/2000/09/xmldsig#"/>'],
+        ]));
+
+        $signatures = $graph->preflightDigitalSignatures();
+
+        $t->same(1, count($signatures));
+        $t->same(false, $signatures[0]['valid']);
+        $t->same(['invalid-digital-signature-origin-content-type'], $signatures[0]['issues']);
+        $t->same(2, count($signatures[0]['signatures']));
+        $t->same('rIdWrongType', $signatures[0]['signatures'][0]['id']);
+        $t->same(false, $signatures[0]['signatures'][0]['valid']);
+        $t->same(['invalid-digital-signature-content-type'], $signatures[0]['signatures'][0]['issues']);
+        $t->same('rIdMissingSignature', $signatures[0]['signatures'][1]['id']);
+        $t->same(false, $signatures[0]['signatures'][1]['exists']);
+        $t->same(false, $signatures[0]['signatures'][1]['valid']);
+        $t->same(['missing-in-package'], $signatures[0]['signatures'][1]['issues']);
+
+        $unsignedGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $badSignedContentTypesXml],
+            ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdDocument" Type="' . OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE . '" Target="word/document.xml"/></Relationships>'],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+        ]));
+
+        $t->same([], $unsignedGraph->preflightDigitalSignatures());
+    },
     'preflights OPC package parts for content type and orphan relationship issues' => static function (TestRunner $t) use ($packageRelationshipsXml, $documentRelationshipsXml): void {
         $badContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

@@ -7,7 +7,12 @@ namespace PortLibs\Pandoc;
 final class OpcRelationshipGraph
 {
     public const OFFICE_DOCUMENT_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+    public const DIGITAL_SIGNATURE_ORIGIN_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
+    public const DIGITAL_SIGNATURE_SIGNATURE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
+
     private const RELATIONSHIP_PART_CONTENT_TYPE = 'application/vnd.openxmlformats-package.relationships+xml';
+    private const DIGITAL_SIGNATURE_ORIGIN_CONTENT_TYPE = 'application/vnd.openxmlformats-package.digital-signature-origin';
+    private const DIGITAL_SIGNATURE_XML_SIGNATURE_CONTENT_TYPE = 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml';
 
     /**
      * @param array<string, OpcRelationships> $relationshipsBySource
@@ -284,6 +289,92 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return list<array{id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartName:?string, valid:bool, issues:list<string>, signatures:list<array{id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, valid:bool, issues:list<string>}>}>
+     */
+    public function preflightDigitalSignatures(): array
+    {
+        $origins = $this->preflightTargetsForSource('/', self::DIGITAL_SIGNATURE_ORIGIN_RELATIONSHIP_TYPE);
+        $originCount = count($origins);
+        $preflight = [];
+
+        foreach ($origins as $origin) {
+            $targetPart = self::targetPartFromPreflightTarget($origin);
+            $issues = $origin['issues'];
+            $relationshipPartName = null;
+            $signatures = [];
+
+            if ($originCount > 1) {
+                $issues[] = 'multiple-digital-signature-origins';
+            }
+
+            if ($origin['external']) {
+                $issues[] = 'external-digital-signature-origin';
+            }
+
+            if ($origin['contentType'] !== null && $origin['contentType'] !== self::DIGITAL_SIGNATURE_ORIGIN_CONTENT_TYPE) {
+                $issues[] = 'invalid-digital-signature-origin-content-type';
+            }
+
+            if (
+                $targetPart !== null
+                && $origin['external'] === false
+                && $origin['exists'] === true
+                && $origin['relationshipPartTarget'] === false
+            ) {
+                if ($this->hasRelationshipsForSource($targetPart)) {
+                    $relationshipPartName = OpcRelationships::relationshipPartNameForSource($targetPart);
+                    foreach ($this->preflightTargetsForSource($targetPart, self::DIGITAL_SIGNATURE_SIGNATURE_RELATIONSHIP_TYPE) as $signature) {
+                        $signatureIssues = $signature['issues'];
+                        if ($signature['external']) {
+                            $signatureIssues[] = 'external-digital-signature-target';
+                        }
+
+                        if ($signature['contentType'] !== null && $signature['contentType'] !== self::DIGITAL_SIGNATURE_XML_SIGNATURE_CONTENT_TYPE) {
+                            $signatureIssues[] = 'invalid-digital-signature-content-type';
+                        }
+
+                        $signatureIssues = array_values(array_unique($signatureIssues));
+                        $signatures[] = [
+                            'id' => $signature['id'],
+                            'type' => $signature['type'],
+                            'target' => $signature['target'],
+                            'targetPart' => self::targetPartFromPreflightTarget($signature),
+                            'contentType' => $signature['contentType'],
+                            'external' => $signature['external'],
+                            'exists' => $signature['exists'],
+                            'valid' => $signatureIssues === [],
+                            'issues' => $signatureIssues,
+                        ];
+                    }
+                } else {
+                    $issues[] = 'missing-digital-signature-origin-relationships';
+                }
+            }
+
+            $issues = array_values(array_unique($issues));
+            $preflight[] = [
+                'id' => $origin['id'],
+                'type' => $origin['type'],
+                'target' => $origin['target'],
+                'targetPart' => $targetPart,
+                'contentType' => $origin['contentType'],
+                'external' => $origin['external'],
+                'exists' => $origin['exists'],
+                'relationshipPartName' => $relationshipPartName,
+                'valid' => $issues === [] && array_reduce(
+                    $signatures,
+                    static fn (bool $valid, array $signature): bool => $valid && $signature['valid'],
+                    true
+                ),
+                'issues' => $issues,
+                'signatures' => $signatures,
+            ];
+        }
+
+        return $preflight;
+    }
+
+    /**
      * @return list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, valid:bool, issues:list<string>}>
      */
     public function reachableTargetsForSource(string $sourcePartName = '/', ?string $relationshipType = null): array
@@ -351,5 +442,17 @@ final class OpcRelationshipGraph
     private static function isRelationshipPartName(string $name): bool
     {
         return OpcRelationships::isRelationshipPartName($name);
+    }
+
+    /**
+     * @param array{target:string, external:bool, issues:list<string>} $target
+     */
+    private static function targetPartFromPreflightTarget(array $target): ?string
+    {
+        if ($target['external'] || in_array('invalid-target', $target['issues'], true)) {
+            return null;
+        }
+
+        return OpcPackagePath::stripQueryAndFragment($target['target']);
     }
 }
