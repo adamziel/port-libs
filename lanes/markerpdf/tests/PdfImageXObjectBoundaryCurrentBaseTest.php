@@ -1417,6 +1417,94 @@ return [
         $t->true(!str_contains($encoded, $softPayload));
         $t->true(!str_contains($encoded, $plainPayload));
     },
+    'clips image XObject placement to inherited page box boundaries' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before page-box images) Tj ET\n"
+            . "q 100 0 0 80 120 120 cm /Partially#20Cropped Do Q\n"
+            . "q 30 0 0 20 160 170 cm /OutsidePage Do Q\n"
+            . "q 50 0 0 50 130 140 cm /Crop#20Form Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After page-box images) Tj ET';
+        $formContent = '/NestedPageImage Do';
+        $partialPayload = 'BT /F1 12 Tf 72 720 Td (Partial Page Box Image Noise) Tj ET';
+        $outsidePayload = 'BT /F1 12 Tf 72 720 Td (Outside Page Box Image Noise) Tj ET';
+        $nestedPayload = 'BT /F1 12 Tf 72 720 Td (Nested Page Box Image Noise) Tj ET';
+        $partialCompressed = gzcompress($partialPayload);
+        $outsideCompressed = gzcompress($outsidePayload);
+        $nestedCompressed = gzcompress($nestedPayload);
+        if (!is_string($partialCompressed) || !is_string($outsideCompressed) || !is_string($nestedCompressed)) {
+            throw new RuntimeException('Unable to compress page-box boundary image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 200 200] /CropBox [-20 20 150 160] /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Partially#20Cropped 5 0 R /OutsidePage 6 0 R /Crop#20Form 7 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 10 /Height 8 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($partialCompressed) . " >>\nstream\n{$partialCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 3 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($outsideCompressed) . " >>\nstream\n{$outsideCompressed}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 1 1] /Resources << /XObject << /NestedPageImage 8 0 R >> /Font << /F1 10 0 R >> >> /Length " . strlen($formContent) . " >>\nstream\n{$formContent}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($nestedCompressed) . " >>\nstream\n{$nestedCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(3, $review['image_xobject_count']);
+        $t->same(3, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+
+        $partial = $entriesByName['Partially Cropped'];
+        $t->same([0.0, 0.0, 200.0, 200.0], $partial['page_media_box']);
+        $t->same([-20.0, 20.0, 150.0, 160.0], $partial['page_crop_box']);
+        $t->same([0.0, 20.0, 150.0, 160.0], $partial['page_clip_bbox']);
+        $t->same('crop_box_clipped_to_media_box', $partial['page_clip_source']);
+        $t->same(true, $partial['page_clip_applied']);
+        $t->same(true, $partial['page_crop_box_clipped_to_media']);
+        $t->same(true, $partial['page_clip_intersects_media']);
+        $t->same([[120.0, 120.0, 220.0, 200.0]], $partial['invocation_bboxes']);
+        $t->same([[0.0, 20.0, 150.0, 160.0]], $partial['invocation_clip_bboxes']);
+        $t->same([[120.0, 120.0, 150.0, 160.0]], $partial['invocation_visible_bboxes']);
+        $t->same([120.0, 120.0, 220.0, 200.0], $partial['image_unit_bbox']);
+        $t->same([120.0, 120.0, 150.0, 160.0], $partial['image_visible_bbox']);
+        $t->same(true, $partial['page_clip_reduces_painted_bbox']);
+        $t->same(false, $partial['page_clip_excludes_image']);
+        $t->same(false, $partial['payload_in_visible_text']);
+
+        $outside = $entriesByName['OutsidePage'];
+        $t->same([[160.0, 170.0, 190.0, 190.0]], $outside['invocation_bboxes']);
+        $t->same([[0.0, 20.0, 150.0, 160.0]], $outside['invocation_clip_bboxes']);
+        $t->same([], $outside['invocation_visible_bboxes']);
+        $t->same(null, $outside['image_visible_bbox']);
+        $t->same(true, $outside['page_clip_excludes_image']);
+        $t->same(0, $outside['painted_invocation_count']);
+        $t->same(1, $outside['clip_excluded_invocation_count']);
+
+        $nested = $entriesByName['NestedPageImage'];
+        $t->same(['Crop Form', 'NestedPageImage'], $nested['resource_path']);
+        $t->same(7, $nested['parent_form_xobject_object']);
+        $t->same([[130.0, 140.0, 180.0, 190.0]], $nested['invocation_bboxes']);
+        $t->same([[130.0, 140.0, 150.0, 160.0]], $nested['invocation_clip_bboxes']);
+        $t->same([[130.0, 140.0, 150.0, 160.0]], $nested['invocation_visible_bboxes']);
+        $t->same([130.0, 140.0, 150.0, 160.0], $nested['image_visible_bbox']);
+        $t->same(true, $nested['page_clip_reduces_painted_bbox']);
+        $t->same(false, $nested['page_clip_excludes_image']);
+
+        $t->same(['Before page-box images', 'After page-box images'], $extractor->extractTextLines($pdf));
+        $t->same("Before page-box images\nAfter page-box images", $plainText);
+        $t->true(!str_contains($plainText, 'Partial Page Box Image Noise'));
+        $t->true(!str_contains($plainText, 'Outside Page Box Image Noise'));
+        $t->true(!str_contains($plainText, 'Nested Page Box Image Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $partialPayload));
+        $t->true(!str_contains($encoded, $outsidePayload));
+        $t->true(!str_contains($encoded, $nestedPayload));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"

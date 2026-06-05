@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 07:28:02 UTC",
-    "sourceCommit": "3b9767ce8c21142a751d7d2fe37577b7e692da2d",
-    "sourceCommitShort": "3b9767ce8c21",
+    "generated": "2026-06-05 07:28:55 UTC",
+    "sourceCommit": "6ab7d921878968a04f160c754722667c2cd32bc9",
+    "sourceCommitShort": "6ab7d9218789",
     "sourceBranch": "unknown",
-    "dashboardCommit": "3b9767ce8c21142a751d7d2fe37577b7e692da2d",
-    "dashboardCommitShort": "3b9767ce8c21",
+    "dashboardCommit": "6ab7d921878968a04f160c754722667c2cd32bc9",
+    "dashboardCommitShort": "6ab7d9218789",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -81,7 +81,7 @@
             "library": "markerPDF",
             "priority": "Active",
             "queue": "Active",
-            "state": "Near complete",
+            "state": "PHP green, upstream gap",
             "progressPercent": "100.0",
             "completion": "100.0%",
             "suite": "cloned-static-inventory",
@@ -91,12 +91,12 @@
             "coverage": "725 / 78 (929.5%)",
             "mapPercent": "929.5%",
             "unmapped": "0",
-            "php": "1,573 pass / 0 fail",
-            "phase": "native no-GPU markerPDF scope; isolated object-stream /First header-b...",
-            "audit": "Current-base red-first fixture showed malformed /First pointing into...",
+            "php": "1,574 pass / 0 fail",
+            "phase": "native no-GPU markerPDF scope; isolated Image XObject page-boundary c...",
+            "audit": "2026-06-05 UTC isolated Image XObject page-boundary slice on accepted...",
             "currentWork": "MarkerPDF is supervised as a native PHP searchable-PDF parser/converter plus supplied...",
-            "nextTarget": "Continue no-GPU markerPDF native parser work on non-overlappi...",
-            "remainingGate": "No local blocker",
+            "nextTarget": "After this patch is accepted, continue native no-GPU markerPD...",
+            "remainingGate": "No GPU/model execution will be run for markerPDF under current user d...",
             "commit": "pending fast ac..."
         },
         {

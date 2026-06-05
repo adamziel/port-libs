@@ -286,13 +286,24 @@ final class PdfTextExtractor
                 continue;
             }
 
+            $pageClipReview = $this->pageImageXObjectBoundaryClipReview($pageObjectNumber, $objects);
+            $baseInvocationStates = $pageClipReview === null ? [] : [[
+                'matrix' => [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+                'clip_bbox' => $pageClipReview['bbox'],
+            ]];
             foreach ($this->imageXObjectBoundaryEntriesForResourceOwner(
                 $pageIndex,
                 $pageObjectNumber,
                 $resourceDictionary,
                 $objects,
                 $this->pageDecodedContentStreams($objects[$pageObjectNumber], $objects),
-                $optionalContentStates
+                $optionalContentStates,
+                [],
+                [],
+                null,
+                true,
+                $baseInvocationStates,
+                $pageClipReview
             ) as $entry) {
                 $review['entries'][] = $entry;
                 $review['image_xobject_count']++;
@@ -4365,7 +4376,8 @@ final class PdfTextExtractor
         array $activeFormObjectNumbers = [],
         ?int $parentFormObjectNumber = null,
         bool $includeUninvokedImageResources = true,
-        array $ownerInvocationMatrices = []
+        array $ownerInvocationMatrices = [],
+        ?array $pageBoundaryClipReview = null
     ): array {
         $xObjectMap = $this->xObjectResourceReferences($resourceOwnerBody, $objects);
         if ($xObjectMap === []) {
@@ -4426,7 +4438,8 @@ final class PdfTextExtractor
                 $optionalContentVisible,
                 $objectGeneration,
                 $objectBody,
-                $resourceOwnerBody
+                $resourceOwnerBody,
+                $pageBoundaryClipReview
             );
             if ($entry !== null && ($includeUninvokedImageResources || $entry['invoked'])) {
                 $entries[] = $entry;
@@ -4480,7 +4493,8 @@ final class PdfTextExtractor
                 $nextActiveForms,
                 $objectNumber,
                 $formHasOwnResources,
-                $formInvocationStates
+                $formInvocationStates,
+                $pageBoundaryClipReview
             ) as $nestedEntry) {
                 $entries[] = $nestedEntry;
             }
@@ -4556,7 +4570,8 @@ final class PdfTextExtractor
         bool $optionalContentVisible = true,
         ?int $objectGeneration = null,
         ?string $objectBody = null,
-        ?string $resourceOwnerBody = null
+        ?string $resourceOwnerBody = null,
+        ?array $pageBoundaryClipReview = null
     ): ?array {
         $objectBody ??= $objects[$objectNumber] ?? null;
         if ($objectBody === null) {
@@ -4652,6 +4667,25 @@ final class PdfTextExtractor
             $imageVisibleBbox = $this->pdfRectangleUnion($imageVisibleBbox, $bbox);
         }
         $imageVisibleBbox = $imageVisibleBbox === null ? null : $this->normalizedPdfReviewNumbers($imageVisibleBbox);
+        $pageClipBbox = $this->normalizedPdfRectangleOrNull($pageBoundaryClipReview['bbox'] ?? null);
+        $pageMediaBox = $this->normalizedPdfRectangleOrNull($pageBoundaryClipReview['media_box'] ?? null);
+        $pageCropBox = $this->normalizedPdfRectangleOrNull($pageBoundaryClipReview['crop_box'] ?? null);
+        $pageClipReducesPaintedBbox = false;
+        $pageClipExcludedInvocationCount = 0;
+        if ($pageClipBbox !== null) {
+            foreach ($invocationBboxes as $bbox) {
+                $pageVisibleBbox = $this->visibleImageInvocationBbox($bbox, $pageClipBbox);
+                if ($pageVisibleBbox === null) {
+                    $pageClipReducesPaintedBbox = true;
+                    $pageClipExcludedInvocationCount++;
+                    continue;
+                }
+
+                if (!$this->pdfRectanglesEqual($bbox, $pageVisibleBbox)) {
+                    $pageClipReducesPaintedBbox = true;
+                }
+            }
+        }
         $imageWidth = $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects);
         $imageHeight = $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects);
         $effectiveBitsPerComponent = $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent;
@@ -4673,6 +4707,17 @@ final class PdfTextExtractor
         return [
             'page_index' => $pageIndex,
             'page_object' => $pageObjectNumber,
+            'page_media_box' => $pageMediaBox,
+            'page_crop_box' => $pageCropBox,
+            'page_clip_bbox' => $pageClipBbox,
+            'page_clip_source' => is_string($pageBoundaryClipReview['source'] ?? null)
+                ? $pageBoundaryClipReview['source']
+                : null,
+            'page_clip_applied' => $pageClipBbox !== null,
+            'page_crop_box_clipped_to_media' => ($pageBoundaryClipReview['crop_box_clipped_to_media'] ?? false) === true,
+            'page_clip_intersects_media' => $pageBoundaryClipReview === null
+                ? null
+                : (($pageBoundaryClipReview['crop_box_intersects_media'] ?? false) === true),
             'resource_name' => $resourceName,
             'resource_path' => $resourcePath === [] ? [$resourceName] : $resourcePath,
             'form_xobject_depth' => max(0, count($resourcePath) - 1),
@@ -4695,6 +4740,10 @@ final class PdfTextExtractor
             'clip_reduces_painted_bbox' => $clipReducesPaintedBbox,
             'clip_excludes_image' => $clipExcludedInvocationCount > 0,
             'clip_excluded_invocation_count' => $clipExcludedInvocationCount,
+            'page_clip_reduces_painted_bbox' => $pageClipReducesPaintedBbox,
+            'page_clip_excludes_image' => $pageClipExcludedInvocationCount > 0,
+            'page_clip_excluded_invocation_count' => $pageClipExcludedInvocationCount,
+            'page_boundary_review_only' => $pageClipBbox !== null,
             'placement_review_only' => true,
             'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
             'width' => $imageWidth,
@@ -11288,6 +11337,131 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{bbox: list<float>, source: string, media_box: list<float>, media_box_source: string, crop_box: list<float>, crop_box_source: string, crop_box_clipped_to_media: bool, crop_box_intersects_media: bool, review_only: true}|null
+     */
+    private function pageImageXObjectBoundaryClipReview(int $pageObjectNumber, array $objects): ?array
+    {
+        $mediaBox = null;
+        $mediaBoxSource = 'default';
+        $cropBox = null;
+        $cropBoxSource = 'media_box';
+        $hasExplicitPageBox = false;
+
+        foreach (array_reverse($this->pageObjectLineage($pageObjectNumber, $objects)) as $objectNumber) {
+            $objectBody = $objects[$objectNumber] ?? null;
+            if ($objectBody === null) {
+                continue;
+            }
+
+            $source = $objectNumber === $pageObjectNumber ? 'page' : 'pages';
+            $candidateMediaBox = $this->topLevelPdfRectangleValueAfterName($objectBody, 'MediaBox', $objects);
+            if ($candidateMediaBox !== null) {
+                $mediaBox = $candidateMediaBox;
+                $mediaBoxSource = $source;
+                $hasExplicitPageBox = true;
+            }
+
+            $candidateCropBox = $this->topLevelPdfRectangleValueAfterName($objectBody, 'CropBox', $objects);
+            if ($candidateCropBox !== null) {
+                $cropBox = $candidateCropBox;
+                $cropBoxSource = $source;
+                $hasExplicitPageBox = true;
+            }
+        }
+
+        if (!$hasExplicitPageBox) {
+            return null;
+        }
+
+        if ($mediaBox === null) {
+            $mediaBox = [0.0, 0.0, 612.0, 792.0];
+            $mediaBoxSource = 'default';
+        }
+
+        if ($cropBox === null) {
+            $cropBox = $mediaBox;
+            $cropBoxSource = 'media_box';
+        }
+
+        $clipBox = $this->pdfPageBoundaryIntersection($mediaBox, $cropBox);
+        $cropBoxClippedToMedia = !$this->pdfRectanglesEqual($cropBox, $clipBox);
+
+        return [
+            'bbox' => $clipBox,
+            'source' => $cropBoxClippedToMedia
+                ? 'crop_box_clipped_to_media_box'
+                : ($cropBoxSource === 'media_box' ? $mediaBoxSource : 'crop_box'),
+            'media_box' => $this->normalizedPdfReviewNumbers($mediaBox),
+            'media_box_source' => $mediaBoxSource,
+            'crop_box' => $this->normalizedPdfReviewNumbers($cropBox),
+            'crop_box_source' => $cropBoxSource,
+            'crop_box_clipped_to_media' => $cropBoxClippedToMedia,
+            'crop_box_intersects_media' => $this->pdfRectanglesHavePositiveIntersection($mediaBox, $cropBox),
+            'review_only' => true,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<float>|null
+     */
+    private function topLevelPdfRectangleValueAfterName(string $objectBody, string $name, array $objects): ?array
+    {
+        $value = $this->topLevelPdfValueAfterName($objectBody, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        $arrayBody = $this->pdfArrayFromValue($value, $objects);
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        $numbers = $this->numbersFromPdfArrayResolvingObjects($arrayBody, $objects);
+        if (count($numbers) < 4) {
+            return null;
+        }
+
+        return $this->normalizedPdfReviewNumbers([
+            min($numbers[0], $numbers[2]),
+            min($numbers[1], $numbers[3]),
+            max($numbers[0], $numbers[2]),
+            max($numbers[1], $numbers[3]),
+        ]);
+    }
+
+    /**
+     * @param list<float> $mediaBox
+     * @param list<float> $cropBox
+     * @return list<float>
+     */
+    private function pdfPageBoundaryIntersection(array $mediaBox, array $cropBox): array
+    {
+        $left = max($mediaBox[0], min($mediaBox[2], $cropBox[0]));
+        $right = max($mediaBox[0], min($mediaBox[2], $cropBox[2]));
+        $bottom = max($mediaBox[1], min($mediaBox[3], $cropBox[1]));
+        $top = max($mediaBox[1], min($mediaBox[3], $cropBox[3]));
+
+        return $this->normalizedPdfReviewNumbers([
+            min($left, $right),
+            min($bottom, $top),
+            max($left, $right),
+            max($bottom, $top),
+        ]);
+    }
+
+    /**
+     * @param list<float> $left
+     * @param list<float> $right
+     */
+    private function pdfRectanglesHavePositiveIntersection(array $left, array $right): bool
+    {
+        return min($left[2], $right[2]) - max($left[0], $right[0]) > 0.000001
+            && min($left[3], $right[3]) - max($left[1], $right[1]) > 0.000001;
     }
 
     /**
