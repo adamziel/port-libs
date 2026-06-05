@@ -134,14 +134,36 @@ final class CompoundFileBinary
             throw new \RuntimeException('CFB header does not provide all FAT sectors');
         }
 
-        $fat = [];
+        $seenFatSectors = [];
         foreach ($fatSectorIds as $fatSectorId) {
             if (!self::isRegularSector($fatSectorId) || $fatSectorId >= $sectorCount) {
                 throw new \RuntimeException('CFB FAT sector points outside the file');
             }
+            if (isset($seenFatSectors[$fatSectorId])) {
+                throw new \RuntimeException('CFB DIFAT contains duplicate FAT sectors');
+            }
+            if (isset($seenDifat[$fatSectorId])) {
+                throw new \RuntimeException('CFB DIFAT reuses a DIFAT sector as a FAT sector');
+            }
+
+            $seenFatSectors[$fatSectorId] = true;
+        }
+
+        $fat = [];
+        foreach ($fatSectorIds as $fatSectorId) {
             $sectorBytes = self::sectorBytes($bytes, $sectorSize, $fatSectorId);
             for ($offset = 0; $offset < $sectorSize; $offset += 4) {
                 $fat[] = self::u32($sectorBytes, $offset);
+            }
+        }
+        foreach ($fatSectorIds as $fatSectorId) {
+            if (($fat[$fatSectorId] ?? null) !== self::FATSECT) {
+                throw new \RuntimeException('CFB FAT sector is not marked as FATSECT');
+            }
+        }
+        foreach (array_keys($seenDifat) as $difatSectorId) {
+            if (($fat[(int) $difatSectorId] ?? null) !== self::DIFSECT) {
+                throw new \RuntimeException('CFB DIFAT sector is not marked as DIFSECT');
             }
         }
 

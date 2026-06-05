@@ -1213,6 +1213,18 @@ return [
             $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptDocBytes));
         }
     },
+    'rejects duplicate and misclassified CFB FAT sectors before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+        ]);
+
+        $duplicateFatSector = substr_replace($bytes, $u32(2), 44, 4);
+        $duplicateFatSector = substr_replace($duplicateFatSector, $u32(0), 80, 4);
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($duplicateFatSector));
+
+        $fatSectorNotMarked = substr_replace($bytes, $u32(0xfffffffe), 512, 4);
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($fatSectorNotMarked));
+    },
     'extracts non-complex legacy DOC text and OLE SummaryInformation metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $propertySet): void {
         $docBytes = $buildCfb([
             'WordDocument' => $buildSimpleWordDocument("Legacy import title\rReviewer notes keep hard\vbreaks.\r"),

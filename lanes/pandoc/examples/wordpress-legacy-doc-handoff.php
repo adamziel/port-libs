@@ -1182,6 +1182,8 @@ if (($argv[1] ?? '') === '--self-test') {
         'non-null CFB header CLSID' => substr_replace($docBytes, "\x01", 8, 1),
         'nonzero CFB header reserved bytes' => substr_replace($docBytes, "\x01\0\0\0\0\0", 34, 6),
         'invalid CFB mini stream cutoff' => substr_replace($docBytes, $u32(2048), 56, 4),
+        'duplicate CFB FAT sector' => substr_replace(substr_replace($docBytes, $u32(2), 44, 4), $u32(0), 80, 4),
+        'misclassified CFB FAT sector' => substr_replace($docBytes, $u32($end), 512, 4),
         'invalid CFB root storage name' => substr_replace($docBytes, "X\0", 1024, 2),
     ] as $label => $corruptDocBytes) {
         try {
