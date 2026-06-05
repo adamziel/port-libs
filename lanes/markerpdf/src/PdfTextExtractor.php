@@ -12093,10 +12093,19 @@ final class PdfTextExtractor
             }
 
             $parentValue = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Parent');
-            if (
-                $parentValue === null
-                || preg_match('/^(\d+)\s+(\d+)\s+R\b/s', trim($parentValue), $match) !== 1
-            ) {
+            if ($parentValue === null) {
+                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $objects);
+                if ($this->pageObjectLineageIsPrefix($lineage, $catalogLineage)) {
+                    return [
+                        'lineage' => $catalogLineage,
+                        'blocked' => false,
+                    ];
+                }
+
+                break;
+            }
+
+            if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', trim($parentValue), $match) !== 1) {
                 break;
             }
 
@@ -12129,6 +12138,97 @@ final class PdfTextExtractor
             'lineage' => $lineage,
             'blocked' => $blocked,
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<int>
+     */
+    private function pageObjectLineageFromCatalogPath(int $pageObjectNumber, array $objects): array
+    {
+        $catalog = $this->catalogObjectBody($objects);
+        if ($catalog === null) {
+            return [];
+        }
+
+        $pagesReference = $this->objectReferenceAfterName($catalog, 'Pages');
+        if ($pagesReference === null) {
+            return [];
+        }
+
+        return $this->pageObjectLineageFromTreeReference(
+            $pagesReference['objectNumber'],
+            $pagesReference['generation'],
+            $pageObjectNumber,
+            $objects
+        ) ?? [];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     * @return list<int>|null
+     */
+    private function pageObjectLineageFromTreeReference(
+        int $objectNumber,
+        int $generation,
+        int $targetPageObjectNumber,
+        array $objects,
+        array $seen = []
+    ): ?array {
+        $referenceKey = $objectNumber . ':' . $generation;
+        if (isset($seen[$referenceKey])) {
+            return null;
+        }
+
+        $body = $this->objectBodyForPageTreeReference($objects, $objectNumber, $generation);
+        if ($body === null) {
+            return null;
+        }
+
+        $seen[$referenceKey] = true;
+        if ($this->isPageObject($body)) {
+            return $objectNumber === $targetPageObjectNumber ? [$objectNumber] : null;
+        }
+
+        if (!$this->isPagesObject($body)) {
+            return null;
+        }
+
+        foreach ($this->pageTreeKidObjectReferences($body, $objects) as $childReference) {
+            $lineage = $this->pageObjectLineageFromTreeReference(
+                $childReference['objectNumber'],
+                $childReference['generation'],
+                $targetPageObjectNumber,
+                $objects,
+                $seen
+            );
+            if ($lineage !== null) {
+                $lineage[] = $objectNumber;
+                return $lineage;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<int> $lineage
+     * @param list<int> $catalogLineage
+     */
+    private function pageObjectLineageIsPrefix(array $lineage, array $catalogLineage): bool
+    {
+        if ($lineage === [] || count($lineage) > count($catalogLineage)) {
+            return false;
+        }
+
+        foreach ($lineage as $index => $objectNumber) {
+            if (($catalogLineage[$index] ?? null) !== $objectNumber) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

@@ -231,6 +231,34 @@ $pageResourceKidGenerationAllStaleCurrentBasePdf = static function () use ($page
         . "%%EOF";
 };
 
+$pageResourceKidsPathNoParentCurrentBasePdf = static function () use ($pageResourceInheritanceCurrentBaseCMap): string {
+    $content = 'BT /F1 12 Tf 72 720 Td <41> Tj ET q /BranchForm Do Q q /RootForm Do Q';
+    $branchForm = 'BT /F1 12 Tf 12 24 Td (Catalog path inherited form text) Tj ET';
+    $rootForm = 'BT /F1 12 Tf 12 24 Td (Root resource form leak) Tj ET';
+    $branchCMap = $pageResourceInheritanceCurrentBaseCMap([
+        '41' => 'Catalog path inherited font text',
+    ]);
+    $rootCMap = $pageResourceInheritanceCurrentBaseCMap([
+        '41' => 'Root resource font leak',
+    ]);
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [10 0 R] /Count 1 /Resources 30 0 R >>\nendobj\n"
+        . "10 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources 20 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /CatalogPathInherited /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($branchCMap) . " >>\nstream\n{$branchCMap}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($branchForm) . " >>\nstream\n{$branchForm}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /RootResourceLeak /Encoding /Identity-H /ToUnicode 11 0 R >>\nendobj\n"
+        . "9 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($rootForm) . " >>\nstream\n{$rootForm}\nendstream\nendobj\n"
+        . "11 0 obj\n<< /Length " . strlen($rootCMap) . " >>\nstream\n{$rootCMap}\nendstream\nendobj\n"
+        . "20 0 obj\n<< /Font << /F1 5 0 R >> /XObject << /BranchForm 7 0 R >> >>\nendobj\n"
+        . "30 0 obj\n<< /Font << /F1 8 0 R >> /XObject << /RootForm 9 0 R >> >>\nendobj\n"
+        . "%%EOF";
+};
+
 $pageResourceTrailerRootGenerationMismatchCurrentBasePdf = static function (): string {
     $content = 'BT /F1 12 Tf 72 720 Td (Stale trailer root resource text) Tj ET q /StaleRootForm Do Q';
     $form = 'BT /F1 12 Tf 12 24 Td (Stale trailer root inherited form) Tj ET';
@@ -503,6 +531,32 @@ return [
         $t->same('', $extractor->extractPlainText($pdf));
         $t->same('', $extractor->naiveGetText($pdf));
         $t->same([], (new PdfPagePropertyExtractor())->extractPageBoundaryMetadata($pdf));
+    },
+    'inherits resources from the catalog Kids path when a reachable page omits Parent' => static function (TestRunner $t) use ($pageResourceKidsPathNoParentCurrentBasePdf): void {
+        $pdf = $pageResourceKidsPathNoParentCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $boundary = (new PdfPagePropertyExtractor())->extractPageBoundaryMetadata($pdf);
+        $resources = $boundary[0]['resources'] ?? [];
+        $expected = [
+            'Catalog path inherited font text',
+            'Catalog path inherited form text',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(1, count($boundary));
+        $t->same(true, $resources['inherited'] ?? null);
+        $t->same(10, $resources['resource_owner_object'] ?? null);
+        $t->same(20, $resources['resource_object'] ?? null);
+        $t->same(['Font', 'XObject'], $resources['categories'] ?? null);
+        $t->same(['F1'], $resources['font_names'] ?? null);
+        $t->same(['BranchForm'], $resources['xobject_names'] ?? null);
+        $t->same(false, str_contains($plainText, 'Root resource font leak'));
+        $t->same(false, str_contains($plainText, 'Root resource form leak'));
+        $t->same(false, str_contains($plainText, 'RootForm'));
     },
     'blocks page-resource review when trailer Root generation does not resolve to the current catalog' => static function (TestRunner $t) use ($pageResourceTrailerRootGenerationMismatchCurrentBasePdf): void {
         $pdf = $pageResourceTrailerRootGenerationMismatchCurrentBasePdf();
