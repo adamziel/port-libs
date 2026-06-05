@@ -565,6 +565,10 @@ final class MathTexConverter
             return $this->parsePhantomCommand($source, $offset, $command);
         }
 
+        if ($command === 'cancelto') {
+            return $this->parseCancelToCommand($source, $offset);
+        }
+
         if (isset(self::CANCEL_COMMANDS[$command])) {
             return $this->parseCancelCommand($source, $offset, $command);
         }
@@ -847,6 +851,17 @@ final class MathTexConverter
         return '<menclose notation="' . self::CANCEL_COMMANDS[$command] . '">'
             . $this->parseRequiredNonEmptyGroup($source, $offset, $command . ' content')
             . '</menclose>';
+    }
+
+    private function parseCancelToCommand(string $source, int &$offset): string
+    {
+        $target = $this->parseRequiredNonEmptyGroup($source, $offset, 'cancelto target');
+        $content = $this->parseRequiredNonEmptyGroup($source, $offset, 'cancelto content');
+
+        return '<mover>'
+            . '<menclose notation="updiagonalstrike">' . $content . '</menclose>'
+            . $target
+            . '</mover>';
     }
 
     private function arrayColumnAlign(string $columnSpec): string

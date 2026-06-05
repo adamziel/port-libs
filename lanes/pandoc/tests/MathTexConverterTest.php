@@ -244,6 +244,17 @@ return [
         $t->contains('<menclose notation="downdiagonalstrike"><msub><mi>y</mi><mi>i</mi></msub></menclose>', $cancelMathml);
         $t->contains('<menclose notation="updiagonalstrike downdiagonalstrike"><msub><mi>z</mi><mi>i</mi></msub></menclose>', $cancelMathml);
     },
+    'converts bounded tex cancelto target annotations to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $cancelToMathml = $converter->texToMathMl('\\cancelto{0}{x_i} + \\cancelto{\\text{draft}}{\\frac{a}{b}}', true);
+        $scriptedMathml = $converter->texToMathMl('\\cancelto{n+1}{\\operatorname{media}_i}_j');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $cancelToMathml);
+        $t->contains('<mover><menclose notation="updiagonalstrike"><msub><mi>x</mi><mi>i</mi></msub></menclose><mn>0</mn></mover>', $cancelToMathml);
+        $t->contains('<mover><menclose notation="updiagonalstrike"><mfrac><mi>a</mi><mi>b</mi></mfrac></menclose><mtext>draft</mtext></mover>', $cancelToMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\cancelto{0}{x_i} + \\cancelto{\\text{draft}}{\\frac{a}{b}}</annotation>', $cancelToMathml);
+        $t->contains('<msub><mover><menclose notation="updiagonalstrike"><msub><mi>media</mi><mi>i</mi></msub></menclose><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></mover><mi>j</mi></msub>', $scriptedMathml);
+    },
     'rejects malformed bounded tex color phantom and cancel commands without invoking a tex engine' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
 
@@ -256,6 +267,9 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hphantom_1'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\cancel'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\xcancel{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\cancelto'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\cancelto{}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\cancelto{0}{}'));
     },
     'rejects malformed bounded tex above below commands without invoking a tex engine' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
