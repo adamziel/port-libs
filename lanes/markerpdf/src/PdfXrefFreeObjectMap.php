@@ -257,17 +257,152 @@ final class PdfXrefFreeObjectMap
 
     private static function decodedStreamPayload(string $dictionary, string $stream): ?string
     {
-        $filter = self::nameValueAfterName($dictionary, 'Filter');
-        if ($filter === null) {
-            return $stream;
-        }
-
-        if ($filter !== 'FlateDecode' && $filter !== 'Fl') {
+        $filters = self::streamFilterNames($dictionary);
+        if ($filters === null) {
             return null;
         }
 
-        $decoded = @gzuncompress($stream);
-        return is_string($decoded) ? $decoded : null;
+        $decoded = $stream;
+        foreach ($filters as $filter) {
+            if ($filter === 'ASCIIHexDecode' || $filter === 'AHx') {
+                $decoded = self::decodeAsciiHexStream($decoded);
+                if ($decoded === null) {
+                    return null;
+                }
+
+                continue;
+            }
+
+            if ($filter === 'FlateDecode' || $filter === 'Fl') {
+                $inflated = @gzuncompress($decoded);
+                if (!is_string($inflated)) {
+                    return null;
+                }
+                $decoded = $inflated;
+
+                continue;
+            }
+
+            return null;
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private static function streamFilterNames(string $dictionary): ?array
+    {
+        $offset = self::valueOffsetAfterName($dictionary, 'Filter');
+        if ($offset === null) {
+            return [];
+        }
+
+        $char = $dictionary[$offset] ?? '';
+        if ($char === '/') {
+            $name = self::readNameAt($dictionary, $offset);
+            return $name === null ? null : [$name['name']];
+        }
+
+        if ($char === '[') {
+            $array = self::readArrayAt($dictionary, $offset);
+            return $array === null ? null : self::filterNamesFromArray($array);
+        }
+
+        if (substr($dictionary, $offset, 4) === 'null' && !self::isPdfNameDataChar($dictionary[$offset + 4] ?? '')) {
+            return [];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private static function filterNamesFromArray(string $array): ?array
+    {
+        $filters = [];
+        $offset = 1;
+        $length = strlen($array) - 1;
+        while ($offset < $length) {
+            $offset = self::skipWhitespace($array, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (($array[$offset] ?? '') === '%') {
+                self::skipComment($array, $offset);
+                continue;
+            }
+
+            if (($array[$offset] ?? '') === '/') {
+                $name = self::readNameAt($array, $offset);
+                if ($name === null) {
+                    return null;
+                }
+                $filters[] = $name['name'];
+                $offset = $name['end'];
+                continue;
+            }
+
+            if (substr($array, $offset, 4) === 'null' && !self::isPdfNameDataChar($array[$offset + 4] ?? '')) {
+                $offset += 4;
+                continue;
+            }
+
+            return null;
+        }
+
+        return $filters;
+    }
+
+    private static function decodeAsciiHexStream(string $stream): ?string
+    {
+        $hex = '';
+        $terminated = false;
+        for ($index = 0, $length = strlen($stream); $index < $length; $index++) {
+            $char = $stream[$index];
+            if ($char === '>') {
+                $terminated = true;
+                break;
+            }
+
+            if (self::isPdfWhitespace($char)) {
+                continue;
+            }
+
+            if (ctype_xdigit($char)) {
+                $hex .= $char;
+                continue;
+            }
+
+            return null;
+        }
+
+        if (!$terminated) {
+            return null;
+        }
+
+        if (strlen($hex) % 2 === 1) {
+            $hex .= '0';
+        }
+
+        $decoded = '';
+        for ($index = 0, $length = strlen($hex); $index < $length; $index += 2) {
+            $decoded .= chr(hexdec(substr($hex, $index, 2)));
+        }
+
+        return $decoded;
+    }
+
+    private static function valueOffsetAfterName(string $dictionary, string $name): ?int
+    {
+        if (preg_match('/\/' . preg_quote($name, '/') . '(?![A-Za-z0-9_.#-])/s', $dictionary, $match, PREG_OFFSET_CAPTURE) !== 1) {
+            return null;
+        }
+
+        return self::skipWhitespace($dictionary, $match[0][1] + strlen($match[0][0]));
     }
 
     /**
@@ -476,15 +611,6 @@ final class PdfXrefFreeObjectMap
         return (int) $match[1];
     }
 
-    private static function nameValueAfterName(string $dictionary, string $name): ?string
-    {
-        if (preg_match('/\/' . preg_quote($name, '/') . '\s*(?:\/([A-Za-z0-9_.#-]+)|\[\s*\/([A-Za-z0-9_.#-]+))/s', $dictionary, $match) !== 1) {
-            return null;
-        }
-
-        return $match[1] !== '' ? $match[1] : ($match[2] ?? null);
-    }
-
     private static function keywordOffset(string $pdfBytes, string $keyword, int $offset): ?int
     {
         if (preg_match('/\b' . preg_quote($keyword, '/') . '\b/s', $pdfBytes, $match, PREG_OFFSET_CAPTURE, $offset) !== 1) {
@@ -512,12 +638,55 @@ final class PdfXrefFreeObjectMap
         return $char !== '' && preg_match('/[A-Za-z0-9_]/', $char) === 1;
     }
 
+    /**
+     * @return array{name: string, end: int}|null
+     */
+    private static function readNameAt(string $bytes, int $offset): ?array
+    {
+        if (($bytes[$offset] ?? '') !== '/') {
+            return null;
+        }
+
+        $start = $offset + 1;
+        $offset = $start;
+        $length = strlen($bytes);
+        while ($offset < $length && self::isPdfNameDataChar($bytes[$offset])) {
+            $offset++;
+        }
+
+        if ($offset === $start) {
+            return null;
+        }
+
+        return [
+            'name' => self::decodePdfName(substr($bytes, $start, $offset - $start)),
+            'end' => $offset,
+        ];
+    }
+
+    private static function decodePdfName(string $name): string
+    {
+        return preg_replace_callback('/#([0-9A-Fa-f]{2})/', static fn (array $match): string => chr(hexdec($match[1])), $name) ?? $name;
+    }
+
+    private static function isPdfNameDataChar(string $char): bool
+    {
+        return $char !== ''
+            && !self::isPdfWhitespace($char)
+            && !str_contains('()<>[]{}/%', $char);
+    }
+
+    private static function isPdfWhitespace(string $char): bool
+    {
+        return $char === "\0" || $char === "\t" || $char === "\n" || $char === "\f" || $char === "\r" || $char === ' ';
+    }
+
     private static function skipWhitespace(string $bytes, int $offset): int
     {
         $length = strlen($bytes);
         while ($offset < $length) {
             $char = $bytes[$offset];
-            if ($char !== "\0" && $char !== "\t" && $char !== "\n" && $char !== "\f" && $char !== "\r" && $char !== ' ') {
+            if (!self::isPdfWhitespace($char)) {
                 break;
             }
             $offset++;
@@ -561,6 +730,62 @@ final class PdfXrefFreeObjectMap
             if (substr($bytes, $offset, 2) === '>>') {
                 $depth--;
                 $offset += 2;
+                if ($depth === 0) {
+                    return substr($bytes, $start, $offset - $start);
+                }
+                continue;
+            }
+
+            $offset++;
+        }
+
+        return null;
+    }
+
+    private static function readArrayAt(string $bytes, int $offset): ?string
+    {
+        if (($bytes[$offset] ?? '') !== '[') {
+            return null;
+        }
+
+        $start = $offset;
+        $length = strlen($bytes);
+        $depth = 0;
+        while ($offset < $length) {
+            $char = $bytes[$offset];
+            if ($char === '%') {
+                self::skipComment($bytes, $offset);
+                continue;
+            }
+
+            if ($char === '(') {
+                self::skipLiteralString($bytes, $offset);
+                continue;
+            }
+
+            if ($char === '<' && ($bytes[$offset + 1] ?? '') !== '<') {
+                self::skipHexString($bytes, $offset);
+                continue;
+            }
+
+            if (substr($bytes, $offset, 2) === '<<') {
+                $dictionary = self::readDictionaryAt($bytes, $offset);
+                if ($dictionary === null) {
+                    return null;
+                }
+                $offset += strlen($dictionary);
+                continue;
+            }
+
+            if ($char === '[') {
+                $depth++;
+                $offset++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $depth--;
+                $offset++;
                 if ($depth === 0) {
                     return substr($bytes, $start, $offset - $start);
                 }
