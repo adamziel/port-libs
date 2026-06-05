@@ -31,8 +31,11 @@ final class SyntaxHighlighter
         'c++' => 'cpp',
         'cxx' => 'cpp',
         'console' => 'bash',
+        'containerfile' => 'dockerfile',
         'css' => 'css',
         'diff' => 'diff',
+        'docker' => 'dockerfile',
+        'dockerfile' => 'dockerfile',
         'git-diff' => 'diff',
         'h' => 'c',
         'hh' => 'cpp',
@@ -490,6 +493,7 @@ final class SyntaxHighlighter
             'c', 'cpp' => $this->tokenizeC($code),
             'css' => $this->tokenizeCss($code),
             'diff' => $this->tokenizeDiff($code),
+            'dockerfile' => $this->tokenizeDockerfile($code),
             'haskell' => $this->tokenizeHaskell($code),
             'html' => $this->tokenizeHtml($code),
             'javascript' => $this->tokenizeJavaScript($code),
@@ -810,6 +814,27 @@ final class SyntaxHighlighter
             ['attribute', '/^(?:index|new file mode|deleted file mode|similarity index|dissimilarity index|rename from|rename to|copy from|copy to|old mode|new mode)[^\\n]*/i'],
             ['information', '/^\\+(?!\\+\\+)[^\\n]*/'],
             ['warning', '/^-(?!--)[^\\n]*/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeDockerfile(string $code): array
+    {
+        return $this->scan($code, [
+            ['attribute', '/^#\\s*(?:syntax|escape)=[^\\n]+/i'],
+            ['comment', '/^#[^\\n]*/'],
+            ['keyword', '/^\\b(?:ADD|ARG|AS|CMD|COPY|ENTRYPOINT|ENV|EXPOSE|FROM|HEALTHCHECK|LABEL|MAINTAINER|ONBUILD|RUN|SHELL|STOPSIGNAL|USER|VOLUME|WORKDIR)\\b/i'],
+            ['operator', '/^--[A-Za-z][A-Za-z0-9-]*(?:=(?:"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\'|[^\\s\\\\]+))?/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['variable', '/^\\$[A-Za-z_][A-Za-z0-9_]*|^\\$\\{[^}]+\\}/'],
+            ['constant', '/^\\b(?:false|null|true)\\b/i'],
+            ['number', '/^\\b\\d+(?:\\.\\d+)?\\b/'],
+            ['attribute', '/^\\b[A-Za-z_][A-Za-z0-9_.-]*(?=\\s*=)/'],
+            ['function', '/^\\b(?:cat|cd|chmod|chown|composer|cp|curl|echo|find|grep|make|mkdir|mv|npm|php|rm|sed|set|sh|tar|test|wp)(?=\\s)/'],
+            ['operator', '/^(?:\\\\(?=\\r?\\n)|&&|\\|\\||[{}()[\\];,.+*\\%=!<>?:|&\\\\-])/'],
         ]);
     }
 

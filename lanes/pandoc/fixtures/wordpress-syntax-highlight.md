@@ -122,3 +122,13 @@ private:
 };
 }
 ```
+
+``` {.Dockerfile #docker-review .numberLines startFrom=4}
+# syntax=docker/dockerfile:1.7
+FROM wordpress:php8.3-apache AS source
+ARG WP_ENV=production
+ENV WORDPRESS_CONFIG_EXTRA="define('WP_DEBUG', false);"
+COPY --from=source /var/www/html /review/html
+RUN set -eux; \
+    php -m | grep json
+```

@@ -31,6 +31,9 @@ return [
         $t->same('haskell', SyntaxHighlighter::normalizeLanguage('literate-haskell'));
         $t->same('diff', SyntaxHighlighter::normalizeLanguage('patch'));
         $t->same('diff', SyntaxHighlighter::normalizeLanguage('unified-diff'));
+        $t->same('dockerfile', SyntaxHighlighter::normalizeLanguage('Dockerfile'));
+        $t->same('dockerfile', SyntaxHighlighter::normalizeLanguage('Containerfile'));
+        $t->same('dockerfile', SyntaxHighlighter::normalizeLanguage('language-docker'));
         $t->same('html', SyntaxHighlighter::normalizeLanguage('HTML5'));
         $t->same('javascript', SyntaxHighlighter::normalizeLanguage('language-js'));
         $t->same('c', SyntaxHighlighter::normalizeLanguage('c'));
@@ -562,6 +565,45 @@ return [
         $t->contains('<span class="dt">std</span><span class="op">::</span><span class="dt">string</span>', $wordpressBlock);
         $t->same('c', $directC['language']);
         $t->contains('<span class="kw">static</span> <span class="kw">const</span> <span class="dt">char</span> <span class="op">*</span><span class="va">title</span> <span class="op">=</span> <span class="st">&quot;Draft&quot;</span><span class="op">;</span>', $directC['html']);
+    },
+    'highlights dockerfile and containerfile review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $codeBlock = new AstNode('code_block', [
+            'id' => 'docker-review',
+            'classes' => ['sourceCode', 'Dockerfile', 'numberLines'],
+            'attributes' => ['startFrom' => '4'],
+            'text' => implode("\n", [
+                '# syntax=docker/dockerfile:1.7',
+                'FROM wordpress:php8.3-apache AS source',
+                'ARG WP_ENV=production',
+                'ENV WORDPRESS_CONFIG_EXTRA="define(\'WP_DEBUG\', false);"',
+                'COPY --from=source /var/www/html /review/html',
+                'RUN set -eux; \\',
+                '    php -m | grep json',
+            ]),
+        ]);
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'tango');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'tango');
+        $containerfile = (new SyntaxHighlighter())->highlight('RUN echo "$WP_ENV"', 'Containerfile');
+
+        $t->same('Dockerfile', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('dockerfile', $highlighted['language']);
+        $t->same('Dockerfile', $highlighted['requestedLanguage']);
+        $t->same('tango', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(4, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource Dockerfile numberLines"><code class="sourceCode dockerfile" style="counter-reset: source-line 3;">', $highlighted['html']);
+        $t->contains('<span id="docker-review-4"><a href="#docker-review-4"></a><span class="ot"># syntax=docker/dockerfile:1.7</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">FROM</span> wordpress<span class="op">:</span>php<span class="dv">8.3</span><span class="op">-</span>apache <span class="kw">AS</span> source', $highlighted['html']);
+        $t->contains('<span class="kw">ARG</span> <span class="ot">WP_ENV</span><span class="op">=</span>production', $highlighted['html']);
+        $t->contains('<span class="kw">ENV</span> <span class="ot">WORDPRESS_CONFIG_EXTRA</span><span class="op">=</span><span class="st">&quot;define(&#039;WP_DEBUG&#039;, false);&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">COPY</span> <span class="op">--from=source</span> /var/www/html /review/html', $highlighted['html']);
+        $t->contains('<span class="kw">RUN</span> <span class="fu">set</span> <span class="op">-</span>eux<span class="op">;</span> <span class="op">\\</span>', $highlighted['html']);
+        $t->contains('<span class="fu">php</span> <span class="op">-</span>m <span class="op">|</span> <span class="fu">grep</span> json', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="tango">', $wordpressBlock);
+        $t->contains('<span class="kw">FROM</span> wordpress<span class="op">:</span>php', $wordpressBlock);
+        $t->same('dockerfile', $containerfile['language']);
+        $t->contains('<span class="kw">RUN</span> <span class="fu">echo</span> <span class="st">&quot;$WP_ENV&quot;</span>', $containerfile['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

@@ -96,6 +96,12 @@ if (!$cppCodeBlock instanceof PortLibs\Pandoc\AstNode || $cppCodeBlock->type !==
 }
 $cpp = $highlighter->highlightCodeBlock($cppCodeBlock, 'pygments');
 $cppWordpressBlock = $highlighter->wordpressHtmlBlock($cppCodeBlock, 'pygments');
+$dockerfileCodeBlock = $document->children[10] ?? null;
+if (!$dockerfileCodeBlock instanceof PortLibs\Pandoc\AstNode || $dockerfileCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Dockerfile code block');
+}
+$dockerfile = $highlighter->highlightCodeBlock($dockerfileCodeBlock, 'tango');
+$dockerfileWordpressBlock = $highlighter->wordpressHtmlBlock($dockerfileCodeBlock, 'tango');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -325,6 +331,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($cppWordpressBlock, '<span class="st">&quot;Draft&quot;</span>')) {
         throw new RuntimeException('Expected C++ string token handoff');
     }
+    if (($dockerfile['language'] ?? '') !== 'dockerfile') {
+        throw new RuntimeException('Expected Dockerfile alias to normalize to Dockerfile highlighting');
+    }
+    if (($dockerfile['lineNumbering']['start'] ?? null) !== 4) {
+        throw new RuntimeException('Expected Dockerfile source startFrom line-number handoff');
+    }
+    if (!str_contains($dockerfile['html'], '<span class="ot"># syntax=docker/dockerfile:1.7</span>')) {
+        throw new RuntimeException('Expected Dockerfile syntax directive token handoff');
+    }
+    if (!str_contains($dockerfile['html'], '<span class="kw">FROM</span> wordpress<span class="op">:</span>php')) {
+        throw new RuntimeException('Expected Dockerfile FROM keyword token handoff');
+    }
+    if (!str_contains($dockerfile['html'], '<span class="op">--from=source</span>')) {
+        throw new RuntimeException('Expected Dockerfile option token handoff');
+    }
+    if (!str_contains($dockerfile['html'], '<span class="fu">php</span> <span class="op">-</span>m <span class="op">|</span> <span class="fu">grep</span> json')) {
+        throw new RuntimeException('Expected Dockerfile shell-form command token handoff');
+    }
+    if (!str_contains($dockerfileWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
+        throw new RuntimeException('Expected Dockerfile WordPress style metadata');
+    }
+    if (!str_contains($dockerfileWordpressBlock, '<span class="kw">ENV</span> <span class="ot">WORDPRESS_CONFIG_EXTRA</span>')) {
+        throw new RuntimeException('Expected Dockerfile environment assignment token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -358,9 +388,11 @@ echo "luaHighlightedHtml:\n" . $lua['html'] . "\n";
 echo "typescriptHighlightedHtml:\n" . $typescript['html'] . "\n";
 echo "pythonHighlightedHtml:\n" . $python['html'] . "\n";
 echo "cppHighlightedHtml:\n" . $cpp['html'] . "\n";
+echo "dockerfileHighlightedHtml:\n" . $dockerfile['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
 echo "pythonWordpressBlock:\n" . $pythonWordpressBlock . "\n";
 echo "cppWordpressBlock:\n" . $cppWordpressBlock . "\n";
+echo "dockerfileWordpressBlock:\n" . $dockerfileWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";
