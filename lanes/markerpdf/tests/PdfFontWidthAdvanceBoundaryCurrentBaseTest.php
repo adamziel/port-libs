@@ -576,6 +576,40 @@ $fontWidthType3FontMatrixVectorBoundaryCurrentBasePdf = static function (): stri
         . "6 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n%%EOF";
 };
 
+$fontWidthType3MissingWidthFontMatrixBoundaryCurrentBasePdf = static function (): string {
+    $toUnicode = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "1 begincodespacerange\n"
+        . "<00> <FF>\n"
+        . "endcodespacerange\n"
+        . "4 beginbfchar\n"
+        . "<43> <0043>\n"
+        . "<44> <0044>\n"
+        . "<45> <0045>\n"
+        . "<46> <0046>\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $content = 'BT /Ft3miss 12 Tf '
+        . '1 0 0 1 72 720 Tm <4344> Tj '
+        . '1 0 0 1 96 720 Tm <4546> Tj '
+        . 'T* 1 0 0 1 72 704 Tm <4344> Tj '
+        . '1 0 0 1 108 704 Tm <4546> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Ft3miss 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type3 /Name /T3MissingMatrix /BaseFont /T3MissingMatrix "
+        . "/FontBBox [0 0 500 700] /FontMatrix [0.002 0 0 0.001 0 0] "
+        . "/FirstChar 65 /LastChar 66 /Widths [500 500] "
+        . "/Encoding /WinAnsiEncoding /CharProcs << >> /ToUnicode 6 0 R /FontDescriptor 7 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /FontDescriptor /FontName /T3MissingMatrix /Flags 4 /MissingWidth 500 >>\nendobj\n%%EOF";
+};
+
 return [
     'uses simple-font average positive width fallback for missing glyph advances on current base' => static function (TestRunner $t) use ($fontWidthAdvanceBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -1211,6 +1245,35 @@ return [
         $t->true(array_column($firstSpans, 'bbox') !== [[0.0, 0.0, 14.4, 12.0], [14.4, 0.0, 28.8, 12.0]]);
         $t->true(!str_contains($plainText, 'T3MatrixVector'));
         $t->true(!str_contains($plainText, 'Ft3v'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'normalizes Type3 descriptor MissingWidth through FontMatrix before current advance gaps on current base' => static function (TestRunner $t) use ($fontWidthType3MissingWidthFontMatrixBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthType3MissingWidthFontMatrixBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $styledLines = [];
+        foreach (($pages[0]['blocks'] ?? []) as $block) {
+            foreach (($block['lines'] ?? []) as $line) {
+                $styledLines[] = $line;
+            }
+        }
+        $firstLine = $styledLines[0] ?? [];
+        $secondLine = $styledLines[1] ?? [];
+
+        $t->same(['CDEF', 'CD EF'], $extractor->extractTextLines($pdf));
+        $t->same(['CD', 'EF', 'CD', 'EF'], $extractor->extractTextRuns($pdf));
+        $t->same("CDEF\nCD EF", $plainText);
+        $t->same("CDEF\nCD EF\n", $extractor->naiveGetText($pdf));
+        $t->same(['CD', 'EF'], array_column($firstLine['spans'] ?? [], 'text'));
+        $t->same([[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]], array_column($firstLine['spans'] ?? [], 'bbox'));
+        $t->same([0.0, 0.0, 48.0, 12.0], $firstLine['bbox'] ?? null);
+        $t->same([[0.0, 0.0, 24.0, 12.0], [36.0, 0.0, 60.0, 12.0]], array_column($secondLine['spans'] ?? [], 'bbox'));
+        $t->same([0.0, 0.0, 60.0, 12.0], $secondLine['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'CD EF' . "\n" . 'CD EF'));
+        $t->true(array_column($firstLine['spans'] ?? [], 'bbox') !== [[0.0, 0.0, 12.0, 12.0], [24.0, 0.0, 36.0, 12.0]]);
+        $t->true(!str_contains($plainText, 'T3MissingMatrix'));
+        $t->true(!str_contains($plainText, 'Ft3miss'));
         $t->true(!str_contains($plainText, "\0"));
     },
 ];

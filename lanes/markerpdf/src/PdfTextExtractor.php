@@ -13531,7 +13531,14 @@ final class PdfTextExtractor
             }
 
             if ($this->isSimpleFontBody($body)) {
-                $missingWidth = $this->finiteFontAdvanceMetric($this->fontDescriptorMissingWidth($body, $objects));
+                $missingWidth = $this->fontDescriptorMissingWidth($body, $objects);
+                if ($bodyIsType3Font && $missingWidth !== null) {
+                    $missingWidth = $this->type3FontMatrixScalarWidthExtentAdvance(
+                        $missingWidth,
+                        $this->type3FontMatrix($body, $objects)
+                    );
+                }
+                $missingWidth = $this->finiteFontAdvanceMetric($missingWidth);
                 if ($missingWidth !== null) {
                     $defaultWidth = $missingWidth;
                 } elseif ($simpleWidths !== [] && !$bodyIsType3Font) {
