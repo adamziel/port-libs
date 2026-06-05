@@ -8054,7 +8054,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            foreach ($this->charProcObjectReferences($body, $objects) as $reference) {
+            foreach ($this->charProcObjectReferencesForFallbackExclusion($body, $objects) as $reference) {
                 $references[$reference['objectNumber']][$reference['generation']] = true;
             }
         }
@@ -8075,7 +8075,7 @@ final class PdfTextExtractor
             }
 
             $this->collectType3PrivateXObjectResourceGenerations($body, $objects, $references);
-            foreach ($this->charProcObjectReferences($body, $objects) as $reference) {
+            foreach ($this->charProcObjectReferencesForFallbackExclusion($body, $objects) as $reference) {
                 $charProcBody = $this->objectBodyForExactReference(
                     $objects,
                     $reference['objectNumber'],
@@ -14114,6 +14114,62 @@ final class PdfTextExtractor
             return [];
         }
 
+        return $this->charProcObjectReferencesFromDictionary($dictionary);
+    }
+
+    /**
+     * @return array<string, array{objectNumber: int, generation: int}>
+     * @param array<int, string> $objects
+     */
+    private function charProcObjectReferencesForFallbackExclusion(string $fontBody, array $objects): array
+    {
+        $references = $this->charProcObjectReferences($fontBody, $objects);
+        $dictionaryReference = $this->type3CharProcsDictionaryReference($fontBody);
+        if ($dictionaryReference === null) {
+            return $references;
+        }
+
+        $objectBody = $this->objectBodyForExactReference(
+            $objects,
+            $dictionaryReference['objectNumber'],
+            $dictionaryReference['generation']
+        );
+        if ($objectBody === null || !$this->objectBodyIsStreamObject($objectBody)) {
+            return $references;
+        }
+
+        $streamDictionary = $this->dictionaryObjectBody($objectBody);
+        if ($streamDictionary === null) {
+            return $references;
+        }
+
+        $streamDictionaryNames = array_fill_keys([
+            'Type',
+            'Subtype',
+            'Length',
+            'Filter',
+            'DecodeParms',
+            'F',
+            'FFilter',
+            'FDecodeParms',
+            'DL',
+            'Resources',
+            'BBox',
+            'Matrix',
+        ], true);
+
+        return array_replace(
+            $references,
+            $this->charProcObjectReferencesFromDictionary($streamDictionary, $streamDictionaryNames)
+        );
+    }
+
+    /**
+     * @return array<string, array{objectNumber: int, generation: int}>
+     * @param array<string, true> $excludedNames
+     */
+    private function charProcObjectReferencesFromDictionary(string $dictionary, array $excludedNames = []): array
+    {
         $references = [];
         $offset = 0;
         $length = strlen($dictionary);
@@ -14140,6 +14196,7 @@ final class PdfTextExtractor
                 continue;
             }
 
+            $glyphName = $this->decodePdfName(substr($dictionary, $nameStart, $nameEnd - $nameStart));
             $valueOffset = $nameEnd;
             $this->skipContentWhitespaceAndComments($dictionary, $valueOffset);
             if ($valueOffset >= $length) {
@@ -14149,10 +14206,12 @@ final class PdfTextExtractor
             $referenceOffset = $valueOffset;
             $reference = $this->readPdfIndirectReferenceToken($dictionary, $referenceOffset);
             if ($reference !== null) {
-                $references[$this->decodePdfName(substr($dictionary, $nameStart, $nameEnd - $nameStart))] = [
-                    'objectNumber' => $reference['objectNumber'],
-                    'generation' => $reference['generation'],
-                ];
+                if (!isset($excludedNames[$glyphName])) {
+                    $references[$glyphName] = [
+                        'objectNumber' => $reference['objectNumber'],
+                        'generation' => $reference['generation'],
+                    ];
+                }
                 $offset = $referenceOffset;
                 continue;
             }
