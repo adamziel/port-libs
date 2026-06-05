@@ -1206,7 +1206,12 @@ final class PdfNamedDestinationExtractor
         } elseif ($this->isRefValue($pageOperand)) {
             return null;
         } elseif (is_int($pageOperand)) {
-            $pageIndex = $pageOperand >= 0 ? $pageOperand : null;
+            if ($pageOperand < 0 || $pageOperand >= count($pageIndexes)) {
+                return null;
+            }
+            $pageIndex = $pageOperand;
+        } else {
+            return null;
         }
 
         $fit = $this->nameValue($this->resolve($destination[1] ?? null, $objects, $cache));
