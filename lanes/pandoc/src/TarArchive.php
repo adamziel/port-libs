@@ -664,7 +664,11 @@ final class TarArchive
      */
     private static function assertLocalPaxHeaders(array $headers): void
     {
-        foreach (array_keys($headers) as $key) {
+        foreach ($headers as $key => $value) {
+            if ($key === 'path') {
+                self::assertUtf8($value, 'TAR PAX path metadata');
+            }
+
             if ($key === 'linkpath') {
                 throw new \RuntimeException('TAR local PAX linkpath metadata is not supported by the pandoc archive reader');
             }
@@ -864,6 +868,13 @@ final class TarArchive
             if ($segment === '' || $segment === '.' || $segment === '..') {
                 throw new \RuntimeException("Unsafe {$label}: {$path}");
             }
+        }
+    }
+
+    private static function assertUtf8(string $text, string $label): void
+    {
+        if (preg_match('//u', $text) !== 1) {
+            throw new \RuntimeException("{$label} must be valid UTF-8");
         }
     }
 

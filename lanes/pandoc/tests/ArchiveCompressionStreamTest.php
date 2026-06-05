@@ -472,6 +472,29 @@ return [
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($paxLinkPath));
     },
 
+    'accepts utf8 pax paths and rejects invalid pax path bytes before package exposure' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $unicodeName = "packet/review-\u{2603}/document.xml";
+        $unicodeBytes = '<w:document><w:body><w:p>Unicode PAX path source</w:p></w:body></w:document>';
+        $unicodePax = $rawTarHeader('PaxHeaders/unicode-path', 'x', $paxPayload([
+            'path' => $unicodeName,
+            'size' => (string) strlen($unicodeBytes),
+        ]), 0, false)
+            . $rawTarHeader('placeholder.xml', '0', $unicodeBytes, 0, false, 0)
+            . str_repeat("\0", 1024);
+        $invalidPax = $rawTarHeader('PaxHeaders/invalid-path', 'x', $paxPayload([
+            'path' => "packet/invalid-\xC3\x28.xml",
+        ]), 0, false)
+            . $rawTarHeader('placeholder.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+
+        $roundTrip = TarArchive::fromString($unicodePax);
+
+        $t->same([$unicodeName], $roundTrip->names());
+        $t->same($unicodeBytes, $roundTrip->read('/' . $unicodeName));
+        $t->same($unicodeName, $roundTrip->entry('/' . $unicodeName)->paxHeaders['path'] ?? null);
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($invalidPax));
+    },
+
     'reads gzip wrapped tar streams for package handoff fixtures' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [

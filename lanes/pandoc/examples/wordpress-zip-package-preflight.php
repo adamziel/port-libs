@@ -1285,6 +1285,18 @@ try {
 } catch (RuntimeException $exception) {
     $tarPaxLinkpathRejected = str_contains($exception->getMessage(), 'PAX linkpath');
 }
+$tarPaxUtf8PathRejected = false;
+try {
+    TarArchive::fromString(
+        $buildRawTarRecord('PaxHeaders/invalid-utf8-path', 'x', $buildPaxPayload([
+            'path' => "packet/invalid-\xC3\x28.xml",
+        ]), $documentModifiedAt)
+        . $buildRawTarRecord('placeholder.xml', '0', '<w:document/>', $documentModifiedAt)
+        . str_repeat("\0", 1024)
+    );
+} catch (RuntimeException $exception) {
+    $tarPaxUtf8PathRejected = str_contains($exception->getMessage(), 'PAX path metadata');
+}
 
 if (in_array('--self-test', $argv, true)) {
     if (!$package->has('/word/document.xml')) {
@@ -1676,6 +1688,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected TAR PAX linkpath metadata to be rejected before import');
     }
 
+    if (!$tarPaxUtf8PathRejected) {
+        throw new RuntimeException('Expected TAR PAX paths with invalid UTF-8 to be rejected before import');
+    }
+
     $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
     if ($unicodePathEntry->rawName !== $unicodePathRawName) {
         throw new RuntimeException('Expected ZIP Unicode path extra field to preserve raw legacy path bytes');
@@ -1747,6 +1763,7 @@ echo 'tarSparsePolicy=' . ($tarSparseRejected ? 'rejected' : 'not-rejected') . "
 echo 'tarUstarVersionPolicy=' . ($tarUstarVersionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarGlobalPaxPerEntryPolicy=' . ($tarGlobalPaxPerEntryRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarPaxLinkpathPolicy=' . ($tarPaxLinkpathRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'tarPaxUtf8PathPolicy=' . ($tarPaxUtf8PathRejected ? 'rejected' : 'not-rejected') . "\n";
 $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
 echo 'unicodePath.name=' . $unicodePathEntry->name . "\n";
 echo 'unicodePath.rawName=' . $unicodePathEntry->rawName . "\n";
