@@ -1981,10 +1981,12 @@ final class PdfTextExtractor
                     $objects,
                     $fontObjectMaps,
                     $expanded['fontToUnicodeMaps'],
+                    $expanded['markedContentProperties'],
                     $optionalContentStates
                 );
                 $expanded['stream'] = $expandedForms['stream'];
                 $expanded['fontToUnicodeMaps'] = $expandedForms['fontToUnicodeMaps'];
+                $expanded['markedContentProperties'] = $expandedForms['markedContentProperties'];
             }
         }
 
@@ -3227,11 +3229,12 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
-     * @param array<int, true> $activeFormObjectNumbers
+     * @param array<string, array{actualText: string|null, altText: string|null}> $markedContentProperties
      * @param array<int, bool> $optionalContentStates
+     * @param array<int, true> $activeFormObjectNumbers
      * @param list<float>|null $initialTransformationMatrix
      * @param list<float>|null $formBoundingBox
-     * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>}
+     * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>}
      */
     private function expandFormXObjectInvocations(
         string $content,
@@ -3239,6 +3242,7 @@ final class PdfTextExtractor
         array $objects,
         array $fontObjectMaps,
         array $fontToUnicodeMaps,
+        array $markedContentProperties = [],
         array $optionalContentStates = [],
         array $activeFormObjectNumbers = [],
         ?array $initialTransformationMatrix = null,
@@ -3255,6 +3259,7 @@ final class PdfTextExtractor
             return [
                 'stream' => $content,
                 'fontToUnicodeMaps' => $fontToUnicodeMaps,
+                'markedContentProperties' => $markedContentProperties,
             ];
         }
 
@@ -3267,11 +3272,13 @@ final class PdfTextExtractor
             return [
                 'stream' => $content,
                 'fontToUnicodeMaps' => $fontToUnicodeMaps,
+                'markedContentProperties' => $markedContentProperties,
             ];
         }
 
         $expanded = [];
         $expandedFontToUnicodeMaps = $fontToUnicodeMaps;
+        $expandedMarkedContentProperties = $markedContentProperties;
         $operands = [];
         $currentTransformationMatrix = $initialTransformationMatrix ?? [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
         $graphicsStateStack = [];
@@ -3315,6 +3322,12 @@ final class PdfTextExtractor
                             $fontAliases[$name] = $alias;
                             $expandedFontToUnicodeMaps[$alias] = $map;
                         }
+                        $markedContentPropertyAliases = [];
+                        foreach ($this->markedContentPropertiesForResourceOwnerBody($formResourceOwnerBody, $objects) as $name => $property) {
+                            $alias = $this->formMarkedContentPropertyAlias($objectNumber, $name);
+                            $markedContentPropertyAliases[$name] = $alias;
+                            $expandedMarkedContentProperties[$alias] = $property;
+                        }
 
                         $formStream = $this->filterOptionalContentMarkedBlocks(
                             $form['stream'],
@@ -3324,12 +3337,17 @@ final class PdfTextExtractor
                                 $optionalContentStates
                             )
                         );
-                        $expandedForm = $this->expandFormXObjectInvocations(
+                        $formStream = $this->rewriteMarkedContentPropertyOperands(
                             $this->rewriteFontResourceOperands($formStream, $fontAliases),
+                            $markedContentPropertyAliases
+                        );
+                        $expandedForm = $this->expandFormXObjectInvocations(
+                            $formStream,
                             $formResourceOwnerBody,
                             $objects,
                             $fontObjectMaps,
                             $expandedFontToUnicodeMaps,
+                            $expandedMarkedContentProperties,
                             $optionalContentStates,
                             $nextActiveForms,
                             $this->pdfMatrixMultiply(
@@ -3340,6 +3358,7 @@ final class PdfTextExtractor
                         );
                         $expanded[] = $expandedForm['stream'];
                         $expandedFontToUnicodeMaps = $expandedForm['fontToUnicodeMaps'];
+                        $expandedMarkedContentProperties = $expandedForm['markedContentProperties'];
                     }
                     $operands = [];
                     continue;
@@ -3412,6 +3431,7 @@ final class PdfTextExtractor
         return [
             'stream' => implode(' ', array_values(array_filter($expanded, static fn (string $segment): bool => trim($segment) !== ''))),
             'fontToUnicodeMaps' => $expandedFontToUnicodeMaps,
+            'markedContentProperties' => $expandedMarkedContentProperties,
         ];
     }
 
@@ -5108,6 +5128,17 @@ final class PdfTextExtractor
      * @return array<string, array{actualText: string|null, altText: string|null}>
      * @param array<int, string> $objects
      */
+    private function markedContentPropertiesForResourceOwnerBody(string $resourceOwnerBody, array $objects): array
+    {
+        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+
+        return $this->markedContentPropertiesFromResourceDictionary($resourceDictionary, $objects);
+    }
+
+    /**
+     * @return array<string, array{actualText: string|null, altText: string|null}>
+     * @param array<int, string> $objects
+     */
     private function pageMarkedContentProperties(int $pageObjectNumber, array $objects): array
     {
         $resourceDictionary = $this->pageResourceDictionaryBody($pageObjectNumber, $objects);
@@ -5174,9 +5205,56 @@ final class PdfTextExtractor
         return implode(' ', $rewritten);
     }
 
+    /**
+     * @param array<string, string> $propertyAliases
+     */
+    private function rewriteMarkedContentPropertyOperands(string $content, array $propertyAliases): string
+    {
+        if ($propertyAliases === []) {
+            return $content;
+        }
+
+        $rewritten = [];
+        $operands = [];
+        foreach ($this->contentTokens($content) as $token) {
+            if ($this->isOperator($token)) {
+                if ($token === 'BDC' && count($operands) >= 2) {
+                    $propertyOperandIndex = count($operands) - 1;
+                    $propertyOperand = $operands[$propertyOperandIndex];
+                    if (str_starts_with($propertyOperand, '/')) {
+                        $propertyName = $this->decodePdfName(substr($propertyOperand, 1));
+                        if (isset($propertyAliases[$propertyName])) {
+                            $operands[$propertyOperandIndex] = '/' . $propertyAliases[$propertyName];
+                        }
+                    }
+                }
+
+                foreach ($operands as $operand) {
+                    $rewritten[] = $operand;
+                }
+                $rewritten[] = $token;
+                $operands = [];
+                continue;
+            }
+
+            $operands[] = $token;
+        }
+
+        foreach ($operands as $operand) {
+            $rewritten[] = $operand;
+        }
+
+        return implode(' ', $rewritten);
+    }
+
     private function formFontResourceAlias(int $formObjectNumber, string $resourceName): string
     {
         return 'Fm' . $formObjectNumber . '_' . bin2hex($resourceName);
+    }
+
+    private function formMarkedContentPropertyAlias(int $formObjectNumber, string $resourceName): string
+    {
+        return 'FmProp' . $formObjectNumber . '_' . bin2hex($resourceName);
     }
 
     private function appearanceFontResourceAlias(int $appearanceObjectNumber, string $resourceName): string
@@ -5482,6 +5560,7 @@ final class PdfTextExtractor
             $objects,
             $fontObjectMaps,
             $expandedFontToUnicodeMaps,
+            [],
             $optionalContentStates,
             [],
             $this->pdfMatrixValueAfterName($objects[$appearanceObjectNumber], 'Matrix', $objects),

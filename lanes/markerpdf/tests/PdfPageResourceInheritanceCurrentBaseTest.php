@@ -220,6 +220,23 @@ $pageResourceFormNullCurrentBasePdf = static function () use ($pageResourceInher
         . "%%EOF";
 };
 
+$pageResourceFormPropertiesCurrentBasePdf = static function (): string {
+    $content = '/Span /SharedActual BDC BT /F1 12 Tf 72 720 Td (Page glyph noise) Tj ET EMC '
+        . 'q /ActualForm Do Q '
+        . 'BT /F1 12 Tf 72 650 Td (After form glyph) Tj ET';
+    $formContent = '/Span /SharedActual BDC BT /F1 12 Tf 12 24 Td (Form glyph noise) Tj ET EMC '
+        . '/Span /FormOnly BDC BT /F1 12 Tf 12 12 Td (Alt glyph noise) Tj ET EMC';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 7 0 R >> /XObject << /ActualForm 5 0 R >> /Properties << /SharedActual << /ActualText (Page resource ActualText) >> >> >> >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 200 80] /Resources << /Font << /F1 7 0 R >> /Properties << /SharedActual << /ActualText (Form local ActualText) >> /FormOnly << /Alt (Form local Alt text) >> >> >> /Length " . strlen($formContent) . " >>\nstream\n{$formContent}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses inherited page resources for legacy Form XObjects that omit Resources without merging explicit form resources' => static function (TestRunner $t) use ($pageResourceInheritanceCurrentBasePdf): void {
         $pdf = $pageResourceInheritanceCurrentBasePdf();
@@ -396,5 +413,32 @@ return [
         $t->same(2, substr_count($plainText, 'Null form inherited nested text'));
         $t->same(false, str_contains($plainText, 'InheritedNestedForm'));
         $t->same(false, str_contains($plainText, 'ExplicitEmptyForm'));
+    },
+    'resolves form-local marked-content Properties without leaking page property names' => static function (TestRunner $t) use ($pageResourceFormPropertiesCurrentBasePdf): void {
+        $pdf = $pageResourceFormPropertiesCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $expected = [
+            'Page resource ActualText',
+            'Form local ActualText',
+            'Form local Alt text',
+            'After form glyph',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+        $styledPages = $extractor->extractStyledTextPages($pdf);
+        $styledLines = array_map(
+            static fn (array $block): string => implode('', array_column($block['lines'][0]['spans'], 'text')),
+            $styledPages[0]['blocks'] ?? []
+        );
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same($expected, $styledLines);
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(1, substr_count($plainText, 'Page resource ActualText'));
+        $t->same(1, substr_count($plainText, 'Form local ActualText'));
+        $t->same(false, str_contains($plainText, 'Page glyph noise'));
+        $t->same(false, str_contains($plainText, 'Form glyph noise'));
+        $t->same(false, str_contains($plainText, 'Alt glyph noise'));
     },
 ];
