@@ -1376,23 +1376,20 @@ final class TableFormatter
      */
     private function polygonBbox(mixed $polygon): ?array
     {
-        if (!is_array($polygon) || count($polygon) !== 4) {
+        if (!is_array($polygon)) {
+            return null;
+        }
+
+        $points = $this->polygonPoints($polygon);
+        if ($points === null) {
             return null;
         }
 
         $xs = [];
         $ys = [];
-        foreach (array_values($polygon) as $point) {
-            if (!is_array($point) || count($point) !== 2) {
-                return null;
-            }
-
-            $coordinates = $this->numericCoordinates(array_values($point));
-            if ($coordinates === null) {
-                return null;
-            }
-            $xs[] = $coordinates[0];
-            $ys[] = $coordinates[1];
+        foreach ($points as [$x, $y]) {
+            $xs[] = $x;
+            $ys[] = $y;
         }
 
         return [
@@ -1401,6 +1398,68 @@ final class TableFormatter
             max($xs),
             max($ys),
         ];
+    }
+
+    /**
+     * @param array<string|int, mixed> $polygon
+     * @return list<array{0: float, 1: float}>|null
+     */
+    private function polygonPoints(array $polygon): ?array
+    {
+        $values = array_values($polygon);
+        if (count($values) === 8) {
+            $coordinates = $this->numericCoordinates($values);
+            if ($coordinates === null) {
+                return null;
+            }
+
+            return [
+                [$coordinates[0], $coordinates[1]],
+                [$coordinates[2], $coordinates[3]],
+                [$coordinates[4], $coordinates[5]],
+                [$coordinates[6], $coordinates[7]],
+            ];
+        }
+
+        if (count($values) !== 4) {
+            return null;
+        }
+
+        $points = [];
+        foreach ($values as $point) {
+            $coordinates = $this->polygonPointCoordinates($point);
+            if ($coordinates === null) {
+                return null;
+            }
+            $points[] = $coordinates;
+        }
+
+        return $points;
+    }
+
+    /**
+     * @return array{0: float, 1: float}|null
+     */
+    private function polygonPointCoordinates(mixed $point): ?array
+    {
+        if (!is_array($point)) {
+            return null;
+        }
+
+        if (array_key_exists('x', $point) && array_key_exists('y', $point)) {
+            $x = $this->numericScalar($point['x']);
+            $y = $this->numericScalar($point['y']);
+
+            return $x === null || $y === null ? null : [$x, $y];
+        }
+
+        if (count($point) !== 2) {
+            return null;
+        }
+
+        $coordinates = $this->numericCoordinates(array_values($point));
+
+        return $coordinates === null ? null : [$coordinates[0], $coordinates[1]];
     }
 
     /**
