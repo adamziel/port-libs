@@ -393,6 +393,22 @@ $type3FontMatrixVectorPdf = "%PDF-1.4\n"
     . "/Encoding /WinAnsiEncoding /CharProcs << >> /ToUnicode 6 0 R >>\nendobj\n"
     . "5 0 obj\n<< /Length " . strlen($type3FontMatrixVectorContent) . " >>\nstream\n{$type3FontMatrixVectorContent}\nendstream\nendobj\n"
     . "6 0 obj\n<< /Length " . strlen($type3FontMatrixWidthsToUnicode) . " >>\nstream\n{$type3FontMatrixWidthsToUnicode}\nendstream\nendobj\n%%EOF";
+$type3CharProcMatrixVectorWideCharProc = "1000 0 d0\nBT /Fghost 9 Tf (wide charproc matrix-vector text leak) Tj ET\n";
+$type3CharProcMatrixVectorThinCharProc = "250 0 d0\nBT /Fghost 9 Tf (thin charproc matrix-vector text leak) Tj ET\n";
+$type3CharProcMatrixVectorContent = 'BT /Ft3cv 12 Tf '
+    . '1 0 0 1 72 720 Tm <4142> Tj '
+    . '1 0 0 1 100 720 Tm <4344> Tj '
+    . 'T* 1 0 0 1 72 704 Tm <4546> Tj '
+    . '1 0 0 1 90 704 Tm <4748> Tj ET';
+$type3CharProcMatrixVectorPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Ft3cv 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type3 /Name /T3CharProcMatrixVector /BaseFont /T3CharProcMatrixVector "
+    . "/FontBBox [0 0 1000 700] /FontMatrix [0.0006 0.0008 0 0.001 0 0] "
+    . "/FirstChar 65 /LastChar 72 /Widths [100 100 100 100 100 100 100 100] "
+    . "/Encoding /WinAnsiEncoding /CharProcs << /A 3 0 R /B 3 0 R /C 3 0 R /D 3 0 R /E 4 0 R /F 4 0 R /G 4 0 R /H 4 0 R >> >>\nendobj\n"
+    . "3 0 obj\n<< /Length " . strlen($type3CharProcMatrixVectorWideCharProc) . " >>\nstream\n{$type3CharProcMatrixVectorWideCharProc}\nendstream\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($type3CharProcMatrixVectorThinCharProc) . " >>\nstream\n{$type3CharProcMatrixVectorThinCharProc}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($type3CharProcMatrixVectorContent) . " >>\nstream\n{$type3CharProcMatrixVectorContent}\nendstream\nendobj\n%%EOF";
 
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
@@ -706,10 +722,29 @@ $type3FontMatrixVectorSpanBboxes = array_map(
     static fn (array $span): array => $span['bbox'] ?? [],
     $type3FontMatrixVectorFirstLine['spans'] ?? []
 );
+$type3CharProcMatrixVectorLines = $extractor->extractTextLines($type3CharProcMatrixVectorPdf);
+$type3CharProcMatrixVectorPlainText = implode("\n", $type3CharProcMatrixVectorLines);
+$type3CharProcMatrixVectorPages = $extractor->extractStyledTextPages($type3CharProcMatrixVectorPdf);
+$type3CharProcMatrixVectorStyledLines = [];
+foreach (($type3CharProcMatrixVectorPages[0]['blocks'] ?? []) as $block) {
+    foreach (($block['lines'] ?? []) as $line) {
+        $type3CharProcMatrixVectorStyledLines[] = $line;
+    }
+}
+$type3CharProcMatrixVectorFirstLine = $type3CharProcMatrixVectorStyledLines[0] ?? [];
+$type3CharProcMatrixVectorSecondLine = $type3CharProcMatrixVectorStyledLines[1] ?? [];
+$type3CharProcMatrixVectorFirstBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $type3CharProcMatrixVectorFirstLine['spans'] ?? []
+);
+$type3CharProcMatrixVectorSecondBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $type3CharProcMatrixVectorSecondLine['spans'] ?? []
+);
 
 echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-font-width-advance-boundary-currentbase',
-    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-nonfinite-width-negative-width-metric-exact-generation-widths-and-fontdescriptor-quote-terminal-tc-terminal-tw-relative-td-styled-gap-absolute-tm-styled-gap-cid-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-negative-first-cid-array-type3-fontmatrix-width-and-type3-fontmatrix-vector-advance',
+    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-nonfinite-width-negative-width-metric-exact-generation-widths-and-fontdescriptor-quote-terminal-tc-terminal-tw-relative-td-styled-gap-absolute-tm-styled-gap-cid-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-negative-first-cid-array-type3-fontmatrix-width-and-type3-fontmatrix-vector-and-type3-charproc-fontmatrix-vector-advance',
     'average_width_preserves_joined_word' => str_contains($plainText, 'WideBlock'),
     'generic_500_width_gap_excluded' => !str_contains($plainText, 'Wide Block'),
     'narrow_positioned_gap_still_preserved' => str_contains($plainText, 'Blo ck'),
@@ -841,6 +876,13 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'type3_fontmatrix_vector_double_gap_output_excluded' => !str_contains($type3FontMatrixVectorPlainText, 'AB CD' . "\n" . 'AB CD'),
     'type3_fontmatrix_vector_styled_bboxes_preserved' => $type3FontMatrixVectorSpanBboxes === [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]],
     'type3_fontmatrix_vector_x_only_bbox_excluded' => $type3FontMatrixVectorSpanBboxes !== [[0.0, 0.0, 14.4, 12.0], [14.4, 0.0, 28.8, 12.0]],
+    'type3_charproc_fontmatrix_vector_false_gap_excluded' => ($type3CharProcMatrixVectorLines[0] ?? null) === 'ABCD',
+    'type3_charproc_fontmatrix_vector_real_gap_preserved' => ($type3CharProcMatrixVectorLines[1] ?? null) === 'EF GH',
+    'type3_charproc_fontmatrix_vector_double_gap_output_excluded' => !str_contains($type3CharProcMatrixVectorPlainText, 'AB CD'),
+    'type3_charproc_fontmatrix_vector_first_bboxes_preserved' => $type3CharProcMatrixVectorFirstBboxes === [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]],
+    'type3_charproc_fontmatrix_vector_second_bboxes_preserved' => $type3CharProcMatrixVectorSecondBboxes === [[0.0, 0.0, 6.0, 12.0], [18.0, 0.0, 24.0, 12.0]],
+    'type3_charproc_fontmatrix_vector_x_projection_bbox_excluded' => $type3CharProcMatrixVectorFirstBboxes !== [[0.0, 0.0, 14.4, 12.0], [28.0, 0.0, 42.4, 12.0]],
+    'type3_charproc_fontmatrix_vector_payload_excluded' => !str_contains($type3CharProcMatrixVectorPlainText, 'matrix-vector text leak'),
     'span_bboxes' => $spanBboxes,
     'quote_span_bbox' => $quoteSpan['bbox'] ?? null,
     'terminal_tc_lines' => $terminalTcLines,
@@ -916,11 +958,14 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'type3_fontmatrix_widths_span_bboxes' => $type3FontMatrixWidthsSpanBboxes,
     'type3_fontmatrix_vector_lines' => $type3FontMatrixVectorLines,
     'type3_fontmatrix_vector_span_bboxes' => $type3FontMatrixVectorSpanBboxes,
+    'type3_charproc_fontmatrix_vector_lines' => $type3CharProcMatrixVectorLines,
+    'type3_charproc_fontmatrix_vector_first_bboxes' => $type3CharProcMatrixVectorFirstBboxes,
+    'type3_charproc_fontmatrix_vector_second_bboxes' => $type3CharProcMatrixVectorSecondBboxes,
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $terminalTcLines, $terminalTwLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $absoluteTmStyledGapLines, $cidAbsoluteTmStyledGapLines, $negativeTcBacktrackLines, $negativeHorizontalScaleTdLines, $sparseWidthLines, $exactGenerationWidthLines, $exactGenerationDescriptorLines, $lastCharLines, $malformedRangeLines, $nonFiniteWidthLines, $negativeWidthMetricLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $terminalTcLines, $terminalTwLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $absoluteTmStyledGapLines, $cidAbsoluteTmStyledGapLines, $negativeTcBacktrackLines, $negativeHorizontalScaleTdLines, $sparseWidthLines, $exactGenerationWidthLines, $exactGenerationDescriptorLines, $lastCharLines, $malformedRangeLines, $nonFiniteWidthLines, $negativeWidthMetricLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines, $type3CharProcMatrixVectorLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

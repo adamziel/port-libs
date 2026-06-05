@@ -652,6 +652,26 @@ $fontWidthType3FontMatrixVectorBoundaryCurrentBasePdf = static function (): stri
         . "6 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n%%EOF";
 };
 
+$fontWidthType3CharProcFontMatrixVectorBoundaryCurrentBasePdf = static function (): string {
+    $wideCharProc = "1000 0 d0\nBT /Fghost 9 Tf (wide charproc matrix-vector text leak) Tj ET\n";
+    $thinCharProc = "250 0 d0\nBT /Fghost 9 Tf (thin charproc matrix-vector text leak) Tj ET\n";
+    $content = 'BT /Ft3cv 12 Tf '
+        . '1 0 0 1 72 720 Tm <4142> Tj '
+        . '1 0 0 1 100 720 Tm <4344> Tj '
+        . 'T* 1 0 0 1 72 704 Tm <4546> Tj '
+        . '1 0 0 1 90 704 Tm <4748> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Ft3cv 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type3 /Name /T3CharProcMatrixVector /BaseFont /T3CharProcMatrixVector "
+        . "/FontBBox [0 0 1000 700] /FontMatrix [0.0006 0.0008 0 0.001 0 0] "
+        . "/FirstChar 65 /LastChar 72 /Widths [100 100 100 100 100 100 100 100] "
+        . "/Encoding /WinAnsiEncoding /CharProcs << /A 3 0 R /B 3 0 R /C 3 0 R /D 3 0 R /E 4 0 R /F 4 0 R /G 4 0 R /H 4 0 R >> >>\nendobj\n"
+        . "3 0 obj\n<< /Length " . strlen($wideCharProc) . " >>\nstream\n{$wideCharProc}\nendstream\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($thinCharProc) . " >>\nstream\n{$thinCharProc}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+};
+
 $fontWidthType3MissingWidthFontMatrixBoundaryCurrentBasePdf = static function (): string {
     $toUnicode = "/CIDInit /ProcSet findresource begin\n"
         . "12 dict begin\n"
@@ -1453,6 +1473,38 @@ return [
         $t->true(array_column($firstSpans, 'bbox') !== [[0.0, 0.0, 14.4, 12.0], [14.4, 0.0, 28.8, 12.0]]);
         $t->true(!str_contains($plainText, 'T3MatrixVector'));
         $t->true(!str_contains($plainText, 'Ft3v'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'uses Type3 CharProc horizontal FontMatrix vector advance before current gaps on current base' => static function (TestRunner $t) use ($fontWidthType3CharProcFontMatrixVectorBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthType3CharProcFontMatrixVectorBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $styledLines = [];
+        foreach (($pages[0]['blocks'] ?? []) as $block) {
+            foreach (($block['lines'] ?? []) as $line) {
+                $styledLines[] = $line;
+            }
+        }
+        $firstLine = $styledLines[0] ?? [];
+        $secondLine = $styledLines[1] ?? [];
+
+        $t->same(['ABCD', 'EF GH'], $extractor->extractTextLines($pdf));
+        $t->same(['AB', 'CD', 'EF', 'GH'], $extractor->extractTextRuns($pdf));
+        $t->same("ABCD\nEF GH", $plainText);
+        $t->same("ABCD\nEF GH\n", $extractor->naiveGetText($pdf));
+        $t->same(['AB', 'CD'], array_column($firstLine['spans'] ?? [], 'text'));
+        $t->same([[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]], array_column($firstLine['spans'] ?? [], 'bbox'));
+        $t->same([0.0, 0.0, 48.0, 12.0], $firstLine['bbox'] ?? null);
+        $t->same(['EF', 'GH'], array_column($secondLine['spans'] ?? [], 'text'));
+        $t->same([[0.0, 0.0, 6.0, 12.0], [18.0, 0.0, 24.0, 12.0]], array_column($secondLine['spans'] ?? [], 'bbox'));
+        $t->same([0.0, 0.0, 24.0, 12.0], $secondLine['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'AB CD'));
+        $t->true(str_contains($plainText, 'EF GH'));
+        $t->true(array_column($firstLine['spans'] ?? [], 'bbox') !== [[0.0, 0.0, 14.4, 12.0], [28.0, 0.0, 42.4, 12.0]]);
+        $t->true(!str_contains($plainText, 'matrix-vector text leak'));
+        $t->true(!str_contains($plainText, 'T3CharProcMatrixVector'));
+        $t->true(!str_contains($plainText, 'Ft3cv'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'normalizes Type3 descriptor MissingWidth through FontMatrix before current advance gaps on current base' => static function (TestRunner $t) use ($fontWidthType3MissingWidthFontMatrixBoundaryCurrentBasePdf): void {

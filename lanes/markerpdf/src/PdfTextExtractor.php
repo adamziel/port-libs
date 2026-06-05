@@ -16078,6 +16078,13 @@ final class PdfTextExtractor
         $wx = $widthVector[0] ?? 0.0;
         $wy = $widthVector[1] ?? 0.0;
         $advanceX = ($wx * ($fontMatrix[0] ?? 0.001)) + ($wy * ($fontMatrix[2] ?? 0.0));
+        $advanceY = ($wx * ($fontMatrix[1] ?? 0.0)) + ($wy * ($fontMatrix[3] ?? 0.001));
+        if (abs($wy) <= 0.000001 && is_finite($advanceX) && is_finite($advanceY)) {
+            $advance = sqrt(($advanceX * $advanceX) + ($advanceY * $advanceY));
+            if ($advance > 0.0) {
+                return $advance * 1000.0;
+            }
+        }
 
         return is_finite($advanceX) && abs($advanceX) > 0.0 ? abs($advanceX) * 1000.0 : abs($wx);
     }
