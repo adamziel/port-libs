@@ -95,6 +95,9 @@ final class PdfTextBlockConverter
         $sourceBbox = $this->bbox($page['bbox'], 'bbox');
         $pageWidth = abs($sourceBbox[2] - $sourceBbox[0]);
         $pageHeight = abs($sourceBbox[3] - $sourceBbox[1]);
+        if ($pageWidth <= 0.0 || $pageHeight <= 0.0) {
+            throw new InvalidArgumentException('pdftext bbox must have positive width and height.');
+        }
         $sourcePage = $this->integerMetadata($page['page'], 'page');
         $rotation = $this->pageRotation($page['rotation']);
         if ($rotation === 90 || $rotation === 270) {

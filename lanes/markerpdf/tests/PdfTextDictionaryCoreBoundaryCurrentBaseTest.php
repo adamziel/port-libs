@@ -736,6 +736,24 @@ return [
         $t->same(1.0, $document['pages'][0]['pdftext_source']['width']);
         $t->same(1.0, $document['pages'][0]['pdftext_source']['height']);
     },
+    'rejects degenerate pdftext source page bboxes before WordPress geometry' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $zeroBboxWidth = $pdftextLinkedPage();
+        $zeroBboxWidth['bbox'] = [72.0, 96.0, 72.0, 792.0];
+
+        $zeroBboxHeight = $pdftextLinkedPage();
+        $zeroBboxHeight['bbox'] = [0.0, 96.0, 612.0, 96.0];
+
+        $reversedValidBbox = $pdftextLinkedPage();
+        $reversedValidBbox['bbox'] = [612.0, 792.0, 0.0, 0.0];
+
+        $extractor = new PdfTextDocumentExtractor();
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$zeroBboxWidth], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$zeroBboxHeight], maxPages: 1));
+
+        $document = $extractor->getTextBlocks([$reversedValidBbox], maxPages: 1);
+        $t->same([0.0, 0.0, 612.0, 792.0], $document['pages'][0]['bbox']);
+        $t->same([612.0, 792.0, 0.0, 0.0], $document['pages'][0]['pdftext_source']['bbox']);
+    },
     'preserves fractional pdftext span rotation metadata before WordPress rendering' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $page = $pdftextLinkedPage();
         $page['page'] = 77;

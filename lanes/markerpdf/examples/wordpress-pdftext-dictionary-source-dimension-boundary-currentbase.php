@@ -29,6 +29,8 @@ $page = [
 $extractor = new PdfTextDocumentExtractor();
 $zeroWidthRejected = false;
 $negativeHeightRejected = false;
+$zeroBboxWidthRejected = false;
+$zeroBboxHeightRejected = false;
 
 $zeroWidth = $page;
 $zeroWidth['width'] = 0.0;
@@ -46,13 +48,29 @@ try {
     $negativeHeightRejected = true;
 }
 
+$zeroBboxWidth = $page;
+$zeroBboxWidth['bbox'] = [72.0, 96.0, 72.0, 792.0];
+try {
+    $extractor->getTextBlocks([$zeroBboxWidth], maxPages: 1);
+} catch (InvalidArgumentException) {
+    $zeroBboxWidthRejected = true;
+}
+
+$zeroBboxHeight = $page;
+$zeroBboxHeight['bbox'] = [0.0, 96.0, 612.0, 96.0];
+try {
+    $extractor->getTextBlocks([$zeroBboxHeight], maxPages: 1);
+} catch (InvalidArgumentException) {
+    $zeroBboxHeightRejected = true;
+}
+
 $document = $extractor->getTextBlocks([$page], maxPages: 1);
 $source = $document['pages'][0]['pdftext_source'] ?? [];
 $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
 $visibleText = $blocks[0]['text'] ?? '';
 
-if (!$zeroWidthRejected || !$negativeHeightRejected) {
-    throw new RuntimeException('Expected nonpositive pdftext source dimensions to be rejected before WordPress metadata.');
+if (!$zeroWidthRejected || !$negativeHeightRejected || !$zeroBboxWidthRejected || !$zeroBboxHeightRejected) {
+    throw new RuntimeException('Expected nonpositive pdftext source dimensions and degenerate page bboxes to be rejected before WordPress metadata.');
 }
 if (($source['width'] ?? null) !== 612.0 || ($source['height'] ?? null) !== 792.0) {
     throw new RuntimeException('Expected positive pdftext source dimensions to remain available for WordPress review.');
@@ -69,6 +87,8 @@ echo '<!-- markerpdf-pdftext-dictionary-source-dimension-boundary-currentbase ' 
     'positive_dimensions_preserved' => $source['width'] === 612.0 && $source['height'] === 792.0,
     'zero_width_rejected' => $zeroWidthRejected,
     'negative_height_rejected' => $negativeHeightRejected,
+    'zero_bbox_width_rejected' => $zeroBboxWidthRejected,
+    'zero_bbox_height_rejected' => $zeroBboxHeightRejected,
     'visible_text_imported' => $visibleText === 'Positive source dimensions reach WordPress review.',
     'executes_python_pdftext' => false,
     'executes_python_or_models' => false,
