@@ -71,6 +71,8 @@ Sort override sources [@sort-visible-adams; @sort-visible-zed] keep BibLaTeX sor
 
 Call-number source @archive-call-number preserves archive shelf metadata for review.
 
+Container-author chapter @container-author-review preserves source volume authors for review.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -541,6 +543,16 @@ $bibtex = <<<'BIB'
   publisher = {Review Press},
   library   = {NYPL Manuscripts Division, MS 42 Box 7 Folder 3}
 }
+
+@incollection{container-author-review,
+  author        = {Ng, Nia},
+  bookauthor    = {Smith, Ada and Curator, Eli},
+  bookauthor+an = {1=source volume author; 2:family=container family verified},
+  title         = {Chapter Review},
+  booktitle     = {Migration Sourcebook},
+  date          = {2026},
+  pages         = {44--49}
+}
 BIB;
 
 $processor = CitationCslProcessor::fromBibtex($bibtex);
@@ -929,6 +941,16 @@ XML);
     if (($archiveCallNumber['raw']['call-number'] ?? null) !== 'NYPL Manuscripts Division, MS 42 Box 7 Folder 3') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not expose raw CSL call-number metadata');
     }
+    $containerAuthorReview = $processor->item('container-author-review');
+    if (($containerAuthorReview['containerAuthors'][0]['family'] ?? null) !== 'Smith') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve first container author family');
+    }
+    if (($containerAuthorReview['containerAuthors'][1]['family'] ?? null) !== 'Curator') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve second container author family');
+    }
+    if (($containerAuthorReview['containerAuthors'][1]['annotations'][0]['value'] ?? null) !== 'container family verified') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve container-author name annotation metadata');
+    }
 
     foreach ([
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
@@ -1001,6 +1023,8 @@ XML);
         '<dt>Zed 2026</dt><dd>Zed, Zoe. Visible Zed Manual. 2026.</dd>',
         '<p>Call-number source Smith (2026) preserves archive shelf metadata for review.</p>',
         '<dt>Smith 2026</dt><dd>Smith, Ada. Archive Shelf Packet. Review Press, 2026. Call number: NYPL Manuscripts Division, MS 42 Box 7 Folder 3.</dd>',
+        '<p>Container-author chapter Ng (2026) preserves source volume authors for review.</p>',
+        '<dt>Ng 2026</dt><dd>Ng, Nia. Chapter Review. Migration Sourcebook. 2026. 44-49. Name annotations: Container author 1: source volume author; Container author 2 family: container family verified. Container author: Smith, Ada; Curator, Eli.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {

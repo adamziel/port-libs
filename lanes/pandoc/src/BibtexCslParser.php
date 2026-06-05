@@ -701,6 +701,11 @@ final class BibtexCslParser
             $item['translator'] = $translator;
         }
 
+        $containerAuthor = self::namesFromBibtexField($fields, 'bookauthor');
+        if ($containerAuthor !== []) {
+            $item['container-author'] = $containerAuthor;
+        }
+
         $eventOrganizer = self::eventOrganizerNames($type, $fields);
         if ($eventOrganizer !== []) {
             $item['event-organizer'] = $eventOrganizer;

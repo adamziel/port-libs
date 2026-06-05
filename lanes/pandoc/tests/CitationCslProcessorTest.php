@@ -1924,6 +1924,101 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Source Audit Report. Migration Desk, 2026. Entry subtype: migration source audit. https://example.test/subtype-report.</dd>', $blocks);
         $t->contains('<dt>Review Desk 2025</dt><dd>Review Desk. Import Queue Snapshot. 2025. Medium: Archived source packet. Entry subtype: review snapshot.</dd>', $blocks);
     },
+    'maps bounded biblatex bookauthor into csl container author metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@incollection{container-author-review,
+  author        = {Ng, Nia},
+  bookauthor    = {Smith, Ada and Curator, Eli},
+  bookauthor+an = {1=source volume author; 2:family=container family verified},
+  title         = {Chapter Review},
+  booktitle     = {Migration Sourcebook},
+  date          = {2026},
+  pages         = {44--49}
+}
+
+@inbook{literal-container-author,
+  author     = {Roe, Pat},
+  bookauthor = {{Migration Desk}},
+  title      = {Literal Container Author},
+  booktitle  = {Review Desk Handbook},
+  date       = {2025}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('container-author-review', $items[0]['id']);
+        $t->same([['family' => 'Smith', 'given' => 'Ada'], ['family' => 'Curator', 'given' => 'Eli']], array_map(
+            static fn (array $name): array => array_intersect_key($name, array_flip(['family', 'given'])),
+            $items[0]['container-author'] ?? []
+        ));
+        $t->same([['part' => 'name', 'value' => 'source volume author']], $items[0]['container-author'][0]['annotations'] ?? null);
+        $t->same([['part' => 'family', 'value' => 'container family verified']], $items[0]['container-author'][1]['annotations'] ?? null);
+        $t->same([['literal' => 'Migration Desk']], $items[1]['container-author'] ?? null);
+        $t->same('Smith, Ada and Curator, Eli', $items[0]['rawBibtex']['fields']['bookauthor'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $chapter = $processor->item('container-author-review');
+        $literal = $processor->item('literal-container-author');
+        $t->same('Smith', $chapter['containerAuthors'][0]['family'] ?? null);
+        $t->same('Curator', $chapter['containerAuthors'][1]['family'] ?? null);
+        $t->same('source volume author', $chapter['containerAuthors'][0]['annotations'][0]['value'] ?? null);
+        $t->same('container family verified', $chapter['containerAuthors'][1]['annotations'][0]['value'] ?? null);
+        $t->same('Migration Desk', $literal['containerAuthors'][0]['literal'] ?? null);
+        $t->same('(Ng 2026; Roe 2025)', $processor->renderCitationCluster([
+            $citation('container-author-review', '[@container-author-review]'),
+            $citation('literal-container-author', '[@literal-container-author]'),
+        ]));
+        $t->same(
+            'Ng, Nia. Chapter Review. Migration Sourcebook. 2026. 44-49. Name annotations: Container author 1: source volume author; Container author 2 family: container family verified. Container author: Smith, Ada; Curator, Eli.',
+            $processor->renderBibliographyEntry('container-author-review')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <names variable="container-author"/>
+        <text variable="container-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="container-author"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="container-author"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Ng | Smith and Curator | Migration Sourcebook; Roe | Migration Desk | Review Desk Handbook]', $styled->renderCitationCluster([
+            $citation('container-author-review', '[@container-author-review]'),
+            $citation('literal-container-author', '[@literal-container-author]'),
+        ]));
+        $t->same('Chapter Review :: Smith, Ada; Curator, Eli :: Container author 1: source volume author; Container author 2 family: container family verified', $styled->renderBibliographyEntry('container-author-review'));
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-container-author',
+            'title' => 'Manual Container Author Source',
+            'container-author' => [
+                ['family' => 'Smith', 'given' => 'Ada'],
+            ],
+        ]])->item('manual-container-author');
+        $t->same('Smith', $manual['containerAuthors'][0]['family'] ?? null);
+
+        $document = (new MarkdownReader())->read('Container-author source @container-author-review and literal container [@literal-container-author] preserve source volume authors.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Container-author source Ng (2026) and literal container (Roe 2025) preserve source volume authors.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Chapter Review. Migration Sourcebook. 2026. 44-49. Name annotations: Container author 1: source volume author; Container author 2 family: container family verified. Container author: Smith, Ada; Curator, Eli.</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Roe, Pat. Literal Container Author. Review Desk Handbook. 2025. Container author: Migration Desk.</dd>', $blocks);
+    },
     'maps bounded biblatex editorial role name lists into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{role-review,
