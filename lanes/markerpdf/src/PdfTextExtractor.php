@@ -15139,12 +15139,12 @@ final class PdfTextExtractor
         }
         $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
 
-        $objects = $this->withObjectStreamObjects($objects, $xrefEntries);
+        $objects = $this->withObjectStreamObjects($objects, $xrefEntries, $linearizedHintRanges !== []);
         $objects = $this->withReferencedDirectGenerationObjects($objects, $definitions, $xrefEntries);
         $objects = $this->withoutLinearizedHintObjectStreamMembers($objects, $definitions, $linearizedHintObjectStreamMemberNumbers);
         $objects = $this->withRepairedDirectStreamObjects($pdfBytes, $objects, $definitions, $xrefEntries);
         $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
-        $objects = $this->withObjectStreamObjects($objects, $xrefEntries);
+        $objects = $this->withObjectStreamObjects($objects, $xrefEntries, $linearizedHintRanges !== []);
         $objects = $this->withoutLinearizedHintObjectStreamMembers($objects, $definitions, $linearizedHintObjectStreamMemberNumbers);
         ksort($objects, SORT_NUMERIC);
         $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
@@ -15390,11 +15390,15 @@ final class PdfTextExtractor
      * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
      * @return array<int, string>
      */
-    private function withObjectStreamObjects(array $objects, array $xrefEntries): array
+    private function withObjectStreamObjects(
+        array $objects,
+        array $xrefEntries,
+        bool $allowReferencedStreamMembers = false
+    ): array
     {
         for ($pass = 0; $pass < 8; $pass++) {
             $added = false;
-            foreach ($this->objectsFromObjectStreams($objects, $xrefEntries) as $objectNumber => $body) {
+            foreach ($this->objectsFromObjectStreams($objects, $xrefEntries, $allowReferencedStreamMembers) as $objectNumber => $body) {
                 if (isset($objects[$objectNumber])) {
                     continue;
                 }
@@ -18642,10 +18646,17 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
      */
-    private function objectsFromObjectStreams(array $objects, array $xrefEntries): array
+    private function objectsFromObjectStreams(
+        array $objects,
+        array $xrefEntries,
+        bool $allowReferencedStreamMembers = false
+    ): array
     {
         $expanded = [];
         $hasSelectedXrefEntries = $xrefEntries !== [];
+        $referencedPageContentObjectNumbers = $allowReferencedStreamMembers
+            ? $this->referencedPageContentObjectNumbers($objects)
+            : [];
 
         foreach ($objects as $objectStreamNumber => $body) {
             if (!$this->objectBodyHasTypeName($body, 'ObjStm', $objects)) {
@@ -18708,7 +18719,10 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                if ($this->objectStreamMemberIsTopLevelStreamObject($memberBody)) {
+                if (
+                    $this->objectStreamMemberIsTopLevelStreamObject($memberBody)
+                    && !isset($referencedPageContentObjectNumbers[$objectNumber])
+                ) {
                     continue;
                 }
 
@@ -18717,6 +18731,35 @@ final class PdfTextExtractor
         }
 
         return $expanded;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<int, true>
+     */
+    private function referencedPageContentObjectNumbers(array $objects): array
+    {
+        $objectNumbers = [];
+        $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
+        if ($pageObjectNumbers === []) {
+            foreach ($objects as $objectNumber => $body) {
+                if ($this->isPageObject($body)) {
+                    $pageObjectNumbers[] = $objectNumber;
+                }
+            }
+        }
+
+        foreach ($pageObjectNumbers as $pageObjectNumber) {
+            if (!isset($objects[$pageObjectNumber])) {
+                continue;
+            }
+
+            foreach ($this->pageContentObjectNumbers($objects[$pageObjectNumber], $objects) as $contentObjectNumber) {
+                $objectNumbers[$contentObjectNumber] = true;
+            }
+        }
+
+        return $objectNumbers;
     }
 
     /**
