@@ -265,6 +265,30 @@ $cidCharMalformedCodespacePdf = "%PDF-1.4\n"
     . "4 0 obj\n<< /Length " . strlen($cidCharMalformedCodespaceContent) . " >>\nstream\n{$cidCharMalformedCodespaceContent}\nendstream\nendobj\n"
     . "5 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /ExplicitCIDRowsMalformedCodespace /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 500 /W [65 68 1000 69 72 250] >>\nendobj\n"
     . "6 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n%%EOF";
+$cidRangeZeroPaddedEncodingCmap = "/CIDInit /ProcSet findresource begin\n"
+    . "12 dict begin\n"
+    . "begincmap\n"
+    . "/CMapName /ZeroPaddedRemappedCIDRange-H def\n"
+    . "1 begincodespacerange\n"
+    . "<0000> <FFFF>\n"
+    . "endcodespacerange\n"
+    . "1 begincidrange\n"
+    . "<41> <48> 1\n"
+    . "endcidrange\n"
+    . "endcmap\n"
+    . "CMapName currentdict /CMap defineresource pop\n"
+    . "end\n"
+    . "end\n";
+$cidRangeZeroPaddedContent = 'BT /Fcid 12 Tf '
+    . '1 0 0 1 72 720 Tm <0041004200430044> Tj '
+    . '1 0 0 1 108 720 Tm <0045004600470048> Tj ET';
+$cidRangeZeroPaddedPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /ZeroPaddedRemappedCIDRange /Encoding 3 0 R /DescendantFonts [5 0 R] /ToUnicode 6 0 R >>\nendobj\n"
+    . "3 0 obj\n<< /Length " . strlen($cidRangeZeroPaddedEncodingCmap) . " >>\nstream\n{$cidRangeZeroPaddedEncodingCmap}\nendstream\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($cidRangeZeroPaddedContent) . " >>\nstream\n{$cidRangeZeroPaddedContent}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /ZeroPaddedRemappedCIDRange /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /W [1 4 250 5 8 1000] >>\nendobj\n"
+    . "6 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n%%EOF";
 
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
@@ -320,11 +344,15 @@ $cidCharMalformedCodespaceLines = $extractor->extractTextLines($cidCharMalformed
 $cidCharMalformedCodespaceRuns = $extractor->extractTextRuns($cidCharMalformedCodespacePdf);
 $cidCharMalformedCodespacePages = $extractor->extractStyledTextPages($cidCharMalformedCodespacePdf);
 $cidCharMalformedCodespaceSpans = $cidCharMalformedCodespacePages[0]['blocks'][0]['lines'][0]['spans'] ?? [];
+$cidRangeZeroPaddedLines = $extractor->extractTextLines($cidRangeZeroPaddedPdf);
+$cidRangeZeroPaddedRuns = $extractor->extractTextRuns($cidRangeZeroPaddedPdf);
+$cidRangeZeroPaddedPages = $extractor->extractStyledTextPages($cidRangeZeroPaddedPdf);
+$cidRangeZeroPaddedSpans = $cidRangeZeroPaddedPages[0]['blocks'][0]['lines'][0]['spans'] ?? [];
 
 echo "<!-- markerpdf-cmap-source-width-fallback-smoke " . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'predefined Identity-H/UCS2-H source-width fallback with CIDFont default, metric-miss ToUnicode width fallback, partial metric-miss chunk fallback, DW-only metric-miss fallback, horizontal and vertical TJ adjustment gap recovery, odd hex operand and CMap source-key right-padding, one-byte ToUnicode codespace padding fallback, repeated zero-padded source-byte collapse, explicit longer source-key precedence, malformed mixed-width bfrange rejection, predefined ToUnicode usecmap source-code inheritance, and explicit CID CMap row recovery over malformed broad codespace before Gutenberg paragraph rendering',
+    'native_boundary' => 'predefined Identity-H/UCS2-H source-width fallback with CIDFont default, metric-miss ToUnicode width fallback, partial metric-miss chunk fallback, DW-only metric-miss fallback, horizontal and vertical TJ adjustment gap recovery, odd hex operand and CMap source-key right-padding, one-byte ToUnicode codespace padding fallback, repeated zero-padded source-byte collapse, explicit longer source-key precedence, malformed mixed-width bfrange rejection, predefined ToUnicode usecmap source-code inheritance, explicit CID CMap row recovery over malformed broad codespace, and zero-padded remapped CID range source widths before Gutenberg paragraph rendering',
     'default_width_source_fallback_applied' => $lines === ['ABCD EFGH'],
     'predefined_identity_source_width_applied' => $lines === ['ABCD EFGH'],
     'padding_bytes_not_counted_as_glyphs' => ($spans[0]['bbox'][2] ?? null) === 48.0,
@@ -382,9 +410,13 @@ echo "<!-- markerpdf-cmap-source-width-fallback-smoke " . htmlspecialchars(json_
     'explicit_cid_rows_codespace_runs_preserved' => $cidCharMalformedCodespaceRuns === ['ABCD', 'EFGH'],
     'explicit_cid_rows_codespace_combined_chunk_width_excluded' => array_column($cidCharMalformedCodespaceSpans, 'bbox') === [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 60.0, 12.0]],
     'explicit_cid_rows_codespace_false_join_excluded' => !in_array('ABCDEFGH', $cidCharMalformedCodespaceLines, true),
+    'zero_padded_cid_range_remap_widths_applied' => $cidRangeZeroPaddedLines === ['ABCD EFGH'],
+    'zero_padded_cid_range_runs_preserved' => $cidRangeZeroPaddedRuns === ['ABCD', 'EFGH'],
+    'zero_padded_cid_range_default_width_excluded' => array_column($cidRangeZeroPaddedSpans, 'bbox') === [[0.0, 0.0, 12.0, 12.0], [12.0, 0.0, 60.0, 12.0]],
+    'zero_padded_cid_range_false_join_excluded' => !in_array('ABCDEFGH', $cidRangeZeroPaddedLines, true),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $predefinedUcs2Lines, $metricMissLines, $defaultMetricMissLines, $partialMetricMissLines, $tjGapLines, $verticalTjGapLines, $oddHexLines, $oddCMapSourceKeyLines, $codespacePaddingLines, $repeatedZeroPaddingLines, $explicitLongSourceLines, $mixedWidthBfrangeLines, $predefinedUseCMapLines, $cidCharMalformedCodespaceLines) as $line) {
+foreach (array_merge($lines, $predefinedUcs2Lines, $metricMissLines, $defaultMetricMissLines, $partialMetricMissLines, $tjGapLines, $verticalTjGapLines, $oddHexLines, $oddCMapSourceKeyLines, $codespacePaddingLines, $repeatedZeroPaddingLines, $explicitLongSourceLines, $mixedWidthBfrangeLines, $predefinedUseCMapLines, $cidCharMalformedCodespaceLines, $cidRangeZeroPaddedLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

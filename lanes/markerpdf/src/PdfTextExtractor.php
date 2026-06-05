@@ -25064,6 +25064,21 @@ final class PdfTextExtractor
                     }
 
                     $combined = substr($normalized, $offset, $suffixOffset + $keyLength - $offset);
+                    $cidMap = $toUnicodeMap['cidMap'] ?? [];
+                    if (
+                        is_array($cidMap)
+                        && array_key_exists($suffix, $cidMap)
+                        && is_int($cidMap[$suffix])
+                        && !array_key_exists($combined, $cidMap)
+                        && $this->fontWidthMapContainsCid($cidMap[$suffix], $toUnicodeMap)
+                    ) {
+                        $keys[] = $suffix;
+                        $offset += strlen($combined);
+                        $matched = true;
+                        $collapsed = true;
+                        break;
+                    }
+
                     if (strlen($combined) > 8 || !$this->fontWidthMapContainsCid(hexdec($combined), $toUnicodeMap)) {
                         break;
                     }
