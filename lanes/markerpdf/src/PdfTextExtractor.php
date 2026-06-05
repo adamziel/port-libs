@@ -10942,7 +10942,25 @@ final class PdfTextExtractor
             }
 
             $lastAcceptedPageIndex = $pageIndex;
-            $labelDictionary = $this->pageLabelDictionaryFromValue($items[$index + 1], $objects);
+            $labelValue = $items[$index + 1];
+            if ($this->pageLabelNullValue($labelValue, $objects)) {
+                if (
+                    $pageIndex >= 0
+                    && $pageIndex < $pageCount
+                    && ($limits === null || ($pageIndex >= $limits[0] && $pageIndex <= $limits[1]))
+                    && !array_key_exists($pageIndex, $entries)
+                ) {
+                    $entries[$pageIndex] = [
+                        'prefix' => '',
+                        'style' => 'D',
+                        'start' => $pageIndex + 1,
+                    ];
+                }
+
+                continue;
+            }
+
+            $labelDictionary = $this->pageLabelDictionaryFromValue($labelValue, $objects);
             if ($labelDictionary === null) {
                 continue;
             }
@@ -11080,6 +11098,52 @@ final class PdfTextExtractor
     private function pageLabelDictionaryFromValue(string $value, array $objects): ?string
     {
         return $this->pageLabelDictionaryFromValueResolved($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function pageLabelNullValue(string $value, array $objects, array $seen = []): bool
+    {
+        if ($this->pageLabelSingleNullValue($value)) {
+            return true;
+        }
+
+        $reference = $this->pageLabelReferenceOperand($value);
+        if ($reference === null) {
+            return false;
+        }
+
+        $objectNumber = $reference['objectNumber'];
+        $generation = $reference['generation'];
+        $objectKey = $objectNumber . ':' . $generation;
+        if ($objectNumber <= 0 || isset($seen[$objectKey])) {
+            return false;
+        }
+
+        $body = $this->pageLabelObjectBodyForReference($objects, $objectNumber, $generation);
+        if ($body === null) {
+            return false;
+        }
+
+        $seen[$objectKey] = true;
+        return $this->pageLabelNullValue($body, $objects, $seen);
+    }
+
+    private function pageLabelSingleNullValue(string $value): bool
+    {
+        $offset = $this->skipPdfWhitespace($value, 0);
+        if (substr($value, $offset, 4) !== 'null') {
+            return false;
+        }
+
+        $endOffset = $offset + 4;
+        if ($endOffset < strlen($value) && !$this->isBareTokenDelimiter($value[$endOffset])) {
+            return false;
+        }
+
+        return $this->skipPdfWhitespace($value, $endOffset) >= strlen($value);
     }
 
     /**

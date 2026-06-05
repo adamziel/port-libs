@@ -1765,7 +1765,27 @@ final class MarkerAppPreview
             }
 
             $lastAcceptedPageIndex = $pageIndexValue;
-            $section = $this->parsePageLabelDictionary($elements[$index + 1], $objects, $seen);
+            $sectionValue = $elements[$index + 1];
+            if ($this->pageLabelNullValue($sectionValue, $objects, $seen)) {
+                if ($limits !== null && ($pageIndexValue < $limits[0] || $pageIndexValue > $limits[1])) {
+                    continue;
+                }
+
+                if (isset($seenPageIndexes[$pageIndexValue])) {
+                    continue;
+                }
+
+                $seenPageIndexes[$pageIndexValue] = true;
+                $sections[] = [
+                    'page_index' => $pageIndexValue,
+                    'prefix' => '',
+                    'style' => 'D',
+                    'start' => $pageIndexValue + 1,
+                ];
+                continue;
+            }
+
+            $section = $this->parsePageLabelDictionary($sectionValue, $objects, $seen);
             if ($section === null) {
                 continue;
             }
@@ -2051,6 +2071,16 @@ final class MarkerAppPreview
         }
 
         return trim($token[0]);
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param list<int|string> $seen
+     */
+    private function pageLabelNullValue(string $value, array $objects, array $seen): bool
+    {
+        $value = $this->resolvePageLabelPdfValue($value, $objects, $seen);
+        return $this->pageLabelSinglePdfToken($value) === 'null';
     }
 
     private function formatPageLabel(string $prefix, ?string $style, int $number): string
