@@ -54,7 +54,10 @@ final class SyntaxHighlighter
         'diff' => 'diff',
         'docker' => 'dockerfile',
         'dockerfile' => 'dockerfile',
+        'dot' => 'dot',
         'git-diff' => 'diff',
+        'graphviz' => 'dot',
+        'gv' => 'dot',
         'h' => 'c',
         'hh' => 'cpp',
         'hpp' => 'cpp',
@@ -560,6 +563,7 @@ final class SyntaxHighlighter
             'c', 'cpp' => $this->tokenizeC($code),
             'css' => $this->tokenizeCss($code),
             'diff' => $this->tokenizeDiff($code),
+            'dot' => $this->tokenizeDot($code),
             'dockerfile' => $this->tokenizeDockerfile($code),
             'go' => $this->tokenizeGo($code),
             'haskell' => $this->tokenizeHaskell($code),
@@ -1545,6 +1549,26 @@ final class SyntaxHighlighter
             ['attribute', '/^(?:index|new file mode|deleted file mode|similarity index|dissimilarity index|rename from|rename to|copy from|copy to|old mode|new mode)[^\\n]*/i'],
             ['information', '/^\\+(?!\\+\\+)[^\\n]*/'],
             ['warning', '/^-(?!--)[^\\n]*/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeDot(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['comment', '/^#[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', '/^<[^>\\n]+>/'],
+            ['keyword', '/^\\b(?:digraph|edge|graph|node|strict|subgraph)\\b/i'],
+            ['attribute', '/^\\b(?:URL|arrowhead|arrowsize|arrowtail|bgcolor|center|color|constraint|decorateP|dir|distortion|fillcolor|fontcolor|fontname|fontsize|headclip|headlabel|height|label|labelangle|labeldistance|labelfontcolor|labelfontname|labelfontsize|layer|layers|margin|mclimit|minlen|name|nodesep|nslimit|ordering|orientation|page|pagedir|peripheries|port_label_distance|rank|rankdir|ranksep|ratio|regular|rotate|samehead|sametail|shape|shapefile|sides|size|skew|style|tailclip|taillabel|weight|width)(?=\\s*=|\\b)/'],
+            ['constant', '/^\\b(?:BT|LR|RL|TB|back|bold|box|dashed|diamond|dotted|ellipse|filled|forward|invis|none|normal|oval|plaintext|record|rounded|same|solid|true|false)\\b/i'],
+            ['number', '/^-?\\b(?:\\d+\\.\\d+|\\.\\d+|\\d+)\\b/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:->|--|[{}()[\\];,=<>:+*\\/|-])/'],
         ]);
     }
 

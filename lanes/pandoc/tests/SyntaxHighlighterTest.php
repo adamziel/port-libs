@@ -34,6 +34,9 @@ return [
         $t->same('dockerfile', SyntaxHighlighter::normalizeLanguage('Dockerfile'));
         $t->same('dockerfile', SyntaxHighlighter::normalizeLanguage('Containerfile'));
         $t->same('dockerfile', SyntaxHighlighter::normalizeLanguage('language-docker'));
+        $t->same('dot', SyntaxHighlighter::normalizeLanguage('dot'));
+        $t->same('dot', SyntaxHighlighter::normalizeLanguage('graphviz'));
+        $t->same('dot', SyntaxHighlighter::normalizeLanguage('gv'));
         $t->same('html', SyntaxHighlighter::normalizeLanguage('HTML5'));
         $t->same('javascript', SyntaxHighlighter::normalizeLanguage('language-js'));
         $t->same('jsx', SyntaxHighlighter::normalizeLanguage('jsx'));
@@ -510,6 +513,44 @@ return [
         $t->same('powershell', $directPowerShell['language']);
         $t->same('pwsh', $directPowerShell['requestedLanguage']);
         $t->contains('<span class="fu">Get-Content</span> <span class="ot">-LiteralPath</span> <span class="va">$Env:WP_IMPORT</span> <span class="op">|</span> <span class="fu">ConvertFrom-Json</span>', $directPowerShell['html']);
+    },
+    'highlights graphviz dot workflow review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[27] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Graphviz DOT code block');
+        }
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'monochrome');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'monochrome');
+        $directGraphviz = (new SyntaxHighlighter())->highlight('graph Review { draft -- published [weight=2]; }', 'graphviz');
+
+        $t->same('dot', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('dot', $highlighted['language']);
+        $t->same('dot', $highlighted['requestedLanguage']);
+        $t->same('monochrome', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(170, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource dot numberLines"><code class="sourceCode dot" style="counter-reset: source-line 169;">', $highlighted['html']);
+        $t->contains('<span id="dot-review-170"><a href="#dot-review-170"></a><span class="co">// WordPress import workflow graph</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">digraph</span> <span class="va">ImportFlow</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="kw">graph</span> <span class="op">[</span><span class="ot">rankdir</span><span class="op">=</span><span class="cn">LR</span><span class="op">,</span> <span class="ot">label</span><span class="op">=</span><span class="st">&quot;Legacy import&quot;</span><span class="op">];</span>', $highlighted['html']);
+        $t->contains('<span class="kw">node</span> <span class="op">[</span><span class="ot">shape</span><span class="op">=</span><span class="cn">box</span><span class="op">,</span> <span class="ot">style</span><span class="op">=</span><span class="st">&quot;rounded,filled&quot;</span><span class="op">,</span> <span class="ot">color</span><span class="op">=</span><span class="st">&quot;#005cc5&quot;</span><span class="op">];</span>', $highlighted['html']);
+        $t->contains('<span class="va">review</span> <span class="op">[</span><span class="ot">label</span><span class="op">=</span><span class="st">&quot;Reviewer Queue&quot;</span><span class="op">,</span> <span class="ot">URL</span><span class="op">=</span><span class="st">&quot;https://example.test/wp-admin/edit.php&quot;</span><span class="op">];</span>', $highlighted['html']);
+        $t->contains('<span class="va">ingest</span> <span class="op">-&gt;</span> <span class="va">review</span> <span class="op">[</span><span class="ot">label</span><span class="op">=</span><span class="st">&quot;normalize&quot;</span><span class="op">];</span>', $highlighted['html']);
+        $t->contains('<span class="va">review</span> <span class="op">-&gt;</span> <span class="va">publish</span> <span class="op">[</span><span class="ot">label</span><span class="op">=</span><span class="st">&quot;approve&quot;</span><span class="op">,</span> <span class="ot">weight</span><span class="op">=</span><span class="dv">2</span><span class="op">];</span>', $highlighted['html']);
+        $t->contains('<span class="kw">subgraph</span> <span class="va">cluster_media</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="monochrome">', $wordpressBlock);
+        $t->contains('<span class="va">review</span> <span class="op">-&gt;</span> <span class="va">publish</span>', $wordpressBlock);
+        $t->same('dot', $directGraphviz['language']);
+        $t->same('graphviz', $directGraphviz['requestedLanguage']);
+        $t->contains('<span class="kw">graph</span> <span class="va">Review</span> <span class="op">{</span>', $directGraphviz['html']);
+        $t->contains('<span class="va">draft</span> <span class="op">--</span> <span class="va">published</span> <span class="op">[</span><span class="ot">weight</span><span class="op">=</span><span class="dv">2</span><span class="op">];</span>', $directGraphviz['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

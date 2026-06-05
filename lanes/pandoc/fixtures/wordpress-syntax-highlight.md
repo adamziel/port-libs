@@ -383,3 +383,20 @@ $meta = @{
 }
 $blocks | ForEach-Object { $_.Trim() } | Set-Content -LiteralPath ".\review.html"
 ```
+
+``` {.dot #dot-review .numberLines startFrom=170}
+// WordPress import workflow graph
+digraph ImportFlow {
+  graph [rankdir=LR, label="Legacy import"];
+  node [shape=box, style="rounded,filled", color="#005cc5"];
+  ingest [label="Read Markdown"];
+  review [label="Reviewer Queue", URL="https://example.test/wp-admin/edit.php"];
+  publish [label="Publish"];
+  ingest -> review [label="normalize"];
+  review -> publish [label="approve", weight=2];
+  subgraph cluster_media {
+    label="Media";
+    media [label="Import attachments"];
+  }
+}
+```

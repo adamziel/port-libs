@@ -202,6 +202,12 @@ if (!$powershellCodeBlock instanceof PortLibs\Pandoc\AstNode || $powershellCodeB
 }
 $powershell = $highlighter->highlightCodeBlock($powershellCodeBlock, 'breezedark');
 $powershellWordpressBlock = $highlighter->wordpressHtmlBlock($powershellCodeBlock, 'breezedark');
+$dotCodeBlock = $document->children[27] ?? null;
+if (!$dotCodeBlock instanceof PortLibs\Pandoc\AstNode || $dotCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Graphviz DOT code block');
+}
+$dot = $highlighter->highlightCodeBlock($dotCodeBlock, 'monochrome');
+$dotWordpressBlock = $highlighter->wordpressHtmlBlock($dotCodeBlock, 'monochrome');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -812,6 +818,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($powershellWordpressBlock, '<span class="fu">Set-Content</span> <span class="ot">-LiteralPath</span>')) {
         throw new RuntimeException('Expected PowerShell Set-Content token handoff');
     }
+    if (($dot['language'] ?? '') !== 'dot') {
+        throw new RuntimeException('Expected Graphviz DOT alias to normalize to dot highlighting');
+    }
+    if (($dot['lineNumbering']['start'] ?? null) !== 170) {
+        throw new RuntimeException('Expected DOT source startFrom line-number handoff');
+    }
+    if (!str_contains($dot['html'], '<span class="kw">digraph</span> <span class="va">ImportFlow</span>')) {
+        throw new RuntimeException('Expected DOT digraph token handoff');
+    }
+    if (!str_contains($dot['html'], '<span class="ot">rankdir</span><span class="op">=</span><span class="cn">LR</span>')) {
+        throw new RuntimeException('Expected DOT graph attribute token handoff');
+    }
+    if (!str_contains($dot['html'], '<span class="va">review</span> <span class="op">-&gt;</span> <span class="va">publish</span>')) {
+        throw new RuntimeException('Expected DOT directed edge token handoff');
+    }
+    if (!str_contains($dotWordpressBlock, '<style data-pandoc-highlight-style="monochrome">')) {
+        throw new RuntimeException('Expected DOT WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -863,6 +887,7 @@ echo "nixHighlightedHtml:\n" . $nix['html'] . "\n";
 echo "scssHighlightedHtml:\n" . $scss['html'] . "\n";
 echo "goHighlightedHtml:\n" . $go['html'] . "\n";
 echo "powershellHighlightedHtml:\n" . $powershell['html'] . "\n";
+echo "dotHighlightedHtml:\n" . $dot['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -885,4 +910,5 @@ echo "nixWordpressBlock:\n" . $nixWordpressBlock . "\n";
 echo "scssWordpressBlock:\n" . $scssWordpressBlock . "\n";
 echo "goWordpressBlock:\n" . $goWordpressBlock . "\n";
 echo "powershellWordpressBlock:\n" . $powershellWordpressBlock . "\n";
+echo "dotWordpressBlock:\n" . $dotWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";
