@@ -87,6 +87,31 @@ TPL;
         ]), $output);
     },
 
+    'keeps pandoc doctemplate loop item fields from shadowing outer variables' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+Document: $title$
+$for(items)$- outer=$title$ item=$items.title$ it=$it.title$ source=<$source$>$sep$
+$endfor$
+Map: $for(import)$outer=$title$ map=$import.title$ it=$it.title$ direct=<$source$>$endfor$
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'title' => 'Batch 42 Review',
+            'items' => [
+                ['title' => 'Imported heading', 'source' => 'docx'],
+                ['title' => 'Legacy block', 'source' => 'html'],
+            ],
+            'import' => ['title' => 'Import manifest', 'source' => 'wxr'],
+        ]);
+
+        $t->same(implode("\n", [
+            'Document: Batch 42 Review',
+            '- outer=Batch 42 Review item=Imported heading it=Imported heading source=<>',
+            '- outer=Batch 42 Review item=Legacy block it=Legacy block source=<>',
+            'Map: outer=Batch 42 Review map=Import manifest it=Import manifest direct=<>',
+        ]), $output);
+    },
+
     'renders nested pandoc doctemplate loops and conditionals with mixed delimiters' => static function (TestRunner $t): void {
         $template = '${for(sections)}${if(it.visible)}${it.title}:${for(it.items)} ${it}${endfor}${elseif(it.fallback)}${it.fallback}${endif}${sep}|${endfor}';
 

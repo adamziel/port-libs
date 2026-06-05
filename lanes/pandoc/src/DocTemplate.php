@@ -1321,14 +1321,6 @@ final class DocTemplate
             unset($cursor);
         }
 
-        if (is_array($item) && !array_is_list($item)) {
-            foreach ($item as $key => $value) {
-                if (is_string($key) && $key !== 'it') {
-                    $next[$key] = $value;
-                }
-            }
-        }
-
         return $next;
     }
 
