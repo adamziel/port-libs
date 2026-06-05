@@ -390,4 +390,78 @@ HTML;
         $t->contains('<colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:50%"/></colgroup>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'reports html colgroup count mismatches while preserving usable geometry metadata' => static function (TestRunner $t): void {
+        $underdeclaredHtml = <<<'HTML'
+<table id="colgroup-underdeclared-grid" data-source="html-reader">
+<caption>Colgroup mismatch review</caption>
+<colgroup data-source="legacy-doc">
+<col span="2" style="width: 20%; text-align: right" data-origin="declared-pair" />
+</colgroup>
+<thead>
+<tr><th>Scope</th><th>Items</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>42</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML;
+        $overdeclaredHtml = <<<'HTML'
+<table id="colgroup-overdeclared-grid" data-source="html-reader">
+<caption>Colgroup extra review</caption>
+<colgroup data-source="legacy-doc">
+<col span="3" style="width: 25%; text-align: center" data-origin="declared-extra" />
+</colgroup>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $underdeclared = (new MarkdownReader())->read($underdeclaredHtml)->children[0];
+        $overdeclared = (new MarkdownReader())->read($overdeclaredHtml)->children[0];
+        $underPacket = $underdeclared->attr('tableGeometry');
+        $overPacket = $overdeclared->attr('tableGeometry');
+        $underBlocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$underdeclared]));
+        $overBlocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$overdeclared]));
+
+        $t->same(3, TableGeometry::columnCount($underdeclared));
+        $t->same(['right', 'right', 'default'], $underdeclared->attr('alignments'));
+        $t->same([0.2, 0.2, null], $underdeclared->attr('widths'));
+        $t->same(true, is_array($underdeclared->attr('columnSources')));
+        $underSources = is_array($underdeclared->attr('columnSources')) ? $underdeclared->attr('columnSources') : [];
+        $t->same(2, count($underSources));
+        $t->same('declared-pair', $underSources[1]['colAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->same(true, is_array($underPacket));
+        $underPacket = is_array($underPacket) ? $underPacket : [];
+        $t->same(['html-colgroup-underdeclares-columns'], $underPacket['summary']['diagnosticCodes'] ?? null);
+        $t->same('html-colgroup-underdeclares-columns', $underPacket['diagnostics'][0]['code'] ?? null);
+        $t->same(2, $underPacket['diagnostics'][0]['sourceColumns'] ?? null);
+        $t->same(3, $underPacket['diagnostics'][0]['tableColumns'] ?? null);
+        $t->same([2], $underPacket['diagnostics'][0]['missingColumns'] ?? null);
+        $t->same('col', $underPacket['columns'][0]['source']['kind'] ?? null);
+        $t->same('declared-pair', $underPacket['columns'][1]['source']['colAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->true(!array_key_exists('source', $underPacket['columns'][2] ?? []), 'Missing HTML colgroup columns should remain explicit default columns without source provenance');
+        $t->same(['right'], $underPacket['coverage'][3]['columnAlignments'] ?? null);
+        $t->same([0.2], $underPacket['coverage'][3]['widths'] ?? null);
+        $t->same('declared-pair', $underPacket['coverage'][4]['columnSources'][0]['colAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->true(!array_key_exists('columnSources', $underPacket['coverage'][5] ?? []), 'Cells in missing source columns should not inherit stale colgroup provenance');
+        $t->contains('<thead><tr><th style="text-align:right">Scope</th><th style="text-align:right">Items</th><th>State</th></tr></thead>', $underBlocks);
+        $t->true(!str_contains($underBlocks, '<colgroup>'), 'Incomplete source widths should not emit a misleading WordPress colgroup');
+
+        $t->same(3, TableGeometry::columnCount($overdeclared));
+        $t->same(['center', 'center', 'center'], $overdeclared->attr('alignments'));
+        $t->same([0.25, 0.25, 0.25], $overdeclared->attr('widths'));
+        $t->same(true, is_array($overPacket));
+        $overPacket = is_array($overPacket) ? $overPacket : [];
+        $t->same(['html-colgroup-overdeclares-columns'], $overPacket['summary']['diagnosticCodes'] ?? null);
+        $t->same(3, $overPacket['diagnostics'][0]['sourceColumns'] ?? null);
+        $t->same(2, $overPacket['diagnostics'][0]['tableColumns'] ?? null);
+        $t->same([2], $overPacket['diagnostics'][0]['extraColumns'] ?? null);
+        $t->same('missing', $overPacket['sections'][1]['rows'][0]['slots'][2]['kind'] ?? null);
+        $t->same('declared-extra', $overPacket['columns'][2]['source']['colAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->contains('<colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:25%"/></colgroup>', $overBlocks);
+        $t->contains('<tbody><tr><td style="text-align:center">Posts</td><td style="text-align:center">Ready</td></tr></tbody>', $overBlocks);
+        json_encode($underPacket, JSON_THROW_ON_ERROR);
+        json_encode($overPacket, JSON_THROW_ON_ERROR);
+    },
 ];

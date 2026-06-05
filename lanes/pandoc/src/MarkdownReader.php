@@ -4970,6 +4970,9 @@ final class MarkdownReader
         if ($columnMetadata['sources'] !== null) {
             $attrs['columnSources'] = $columnMetadata['sources'];
         }
+        if ($columnMetadata['diagnostics'] !== []) {
+            $attrs['columnDiagnostics'] = $columnMetadata['diagnostics'];
+        }
         if ($captionInlines !== []) {
             $attrs['captionInlines'] = $captionInlines;
         }
@@ -5090,13 +5093,13 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{alignments:?list<string>, widths:?list<float>, sources:?list<array<string, mixed>>}
+     * @return array{alignments:?list<string>, widths:?list<?float>, sources:?list<array<string, mixed>>, diagnostics:list<array<string, mixed>>}
      */
     private function readHtmlTableColumnMetadata(\DOMElement $table, int $maxColumns): array
     {
         $colgroups = $this->childElements($table, 'colgroup');
         if ($colgroups === []) {
-            return ['alignments' => null, 'widths' => null, 'sources' => null];
+            return ['alignments' => null, 'widths' => null, 'sources' => null, 'diagnostics' => []];
         }
 
         $widths = [];
@@ -5139,15 +5142,51 @@ final class MarkdownReader
             }
         }
 
-        if ($alignments === [] || ($maxColumns > 0 && count($alignments) !== $maxColumns)) {
-            return ['alignments' => null, 'widths' => null, 'sources' => null];
+        if ($alignments === []) {
+            return ['alignments' => null, 'widths' => null, 'sources' => null, 'diagnostics' => []];
+        }
+
+        $sourceColumnCount = count($alignments);
+        $diagnostics = [];
+        if ($maxColumns > 0 && $sourceColumnCount !== $maxColumns) {
+            $diagnostics[] = $this->htmlColumnCountMismatchDiagnostic($sourceColumnCount, $maxColumns);
+        }
+
+        $targetColumnCount = $maxColumns > 0 ? max($maxColumns, $sourceColumnCount) : $sourceColumnCount;
+        while (count($alignments) < $targetColumnCount) {
+            $alignments[] = 'default';
+            $widths[] = null;
         }
 
         return [
             'alignments' => $hasAlignment ? $alignments : null,
-            'widths' => $hasWidth && $hasCompleteWidths ? array_values($widths) : null,
+            'widths' => $hasWidth && ($hasCompleteWidths || $diagnostics !== []) ? array_values($widths) : null,
             'sources' => $sources,
+            'diagnostics' => $diagnostics,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function htmlColumnCountMismatchDiagnostic(int $sourceColumnCount, int $tableColumnCount): array
+    {
+        $diagnostic = [
+            'code' => $sourceColumnCount < $tableColumnCount
+                ? 'html-colgroup-underdeclares-columns'
+                : 'html-colgroup-overdeclares-columns',
+            'source' => 'html-colgroup',
+            'sourceColumns' => $sourceColumnCount,
+            'tableColumns' => $tableColumnCount,
+        ];
+
+        if ($sourceColumnCount < $tableColumnCount) {
+            $diagnostic['missingColumns'] = range($sourceColumnCount, $tableColumnCount - 1);
+        } else {
+            $diagnostic['extraColumns'] = range($tableColumnCount, $sourceColumnCount - 1);
+        }
+
+        return $diagnostic;
     }
 
     /**

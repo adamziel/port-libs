@@ -466,7 +466,7 @@ final class TableGeometry
      */
     public static function diagnostics(AstNode $table): array
     {
-        $diagnostics = [];
+        $diagnostics = self::columnDiagnostics($table);
         $declaredColumnCount = self::declaredColumnCount($table);
         foreach (self::sectionRowGroups($table, null) as $group) {
             $rows = $group['rows'];
@@ -517,6 +517,55 @@ final class TableGeometry
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function columnDiagnostics(AstNode $table): array
+    {
+        $diagnostics = $table->attr('columnDiagnostics', []);
+        if (!is_array($diagnostics)) {
+            return [];
+        }
+
+        $records = [];
+        foreach ($diagnostics as $diagnostic) {
+            if (!is_array($diagnostic)) {
+                continue;
+            }
+
+            $record = [];
+            foreach ($diagnostic as $key => $value) {
+                $key = trim((string) $key);
+                if ($key === '') {
+                    continue;
+                }
+
+                if (is_scalar($value) || $value === null) {
+                    $record[$key] = $value;
+                    continue;
+                }
+
+                if (!is_array($value) || !array_is_list($value)) {
+                    continue;
+                }
+
+                $list = [];
+                foreach ($value as $item) {
+                    if (is_scalar($item) || $item === null) {
+                        $list[] = $item;
+                    }
+                }
+                $record[$key] = $list;
+            }
+
+            if (isset($record['code']) && is_scalar($record['code']) && trim((string) $record['code']) !== '') {
+                $records[] = $record;
+            }
+        }
+
+        return $records;
     }
 
     /**

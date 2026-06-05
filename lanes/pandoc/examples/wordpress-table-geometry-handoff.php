@@ -57,6 +57,24 @@ $colgroupAlignmentTables = array_values(array_filter(
     $colgroupAlignmentDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$colgroupMismatchDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="colgroup-underdeclared-grid" data-source="html-reader">
+<caption>Colgroup mismatch review</caption>
+<colgroup data-source="legacy-doc">
+<col span="2" style="width: 20%; text-align: right" data-origin="declared-pair" />
+</colgroup>
+<thead>
+<tr><th>Scope</th><th>Items</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>42</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML);
+$colgroupMismatchTables = array_values(array_filter(
+    $colgroupMismatchDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 
 $document = new AstNode('document', [], [
     new AstNode('table', [
@@ -363,6 +381,7 @@ $document = new AstNode('document', [], [
     ]),
     ...$rowspanZeroTables,
     ...$colgroupAlignmentTables,
+    ...$colgroupMismatchTables,
     ...$readerHandoffTables,
 ]);
 
@@ -664,6 +683,42 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing WordPress output for expanded colgroup alignment metadata');
     }
     json_encode($colgroupAlignmentPacket, JSON_THROW_ON_ERROR);
+
+    $colgroupMismatchTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'colgroup-underdeclared-grid') {
+            $colgroupMismatchTable = $node;
+            break;
+        }
+    }
+    $colgroupMismatchPacket = $colgroupMismatchTable instanceof AstNode ? $colgroupMismatchTable->attr('tableGeometry') : null;
+    if (
+        !$colgroupMismatchTable instanceof AstNode
+        || $colgroupMismatchTable->attr('alignments') !== ['right', 'right', 'default']
+        || $colgroupMismatchTable->attr('widths') !== [0.2, 0.2, null]
+    ) {
+        throw new RuntimeException('Table geometry self-test missing underdeclared HTML colgroup partial metadata');
+    }
+    if (
+        !is_array($colgroupMismatchPacket)
+        || ($colgroupMismatchPacket['summary']['diagnosticCodes'] ?? null) !== ['html-colgroup-underdeclares-columns']
+        || ($colgroupMismatchPacket['diagnostics'][0]['missingColumns'] ?? null) !== [2]
+    ) {
+        throw new RuntimeException('Table geometry self-test missing underdeclared HTML colgroup diagnostics');
+    }
+    if (($colgroupMismatchPacket['columns'][1]['source']['colAttributes']['htmlAttributes']['data-origin'] ?? null) !== 'declared-pair') {
+        throw new RuntimeException('Table geometry self-test missing partial colgroup source provenance');
+    }
+    if (isset($colgroupMismatchPacket['columns'][2]['source']) || isset($colgroupMismatchPacket['coverage'][5]['columnSources'])) {
+        throw new RuntimeException('Table geometry self-test leaked partial colgroup provenance into missing source columns');
+    }
+    if (str_contains($blocks, '<table id="colgroup-underdeclared-grid" data-source="html-reader"><colgroup>')) {
+        throw new RuntimeException('Table geometry self-test emitted a misleading colgroup for incomplete source widths');
+    }
+    if (!str_contains($blocks, '<table id="colgroup-underdeclared-grid" data-source="html-reader"><thead><tr><th style="text-align:right">Scope</th><th style="text-align:right">Items</th><th>State</th></tr></thead>')) {
+        throw new RuntimeException('Table geometry self-test missing WordPress output for underdeclared colgroup metadata');
+    }
+    json_encode($colgroupMismatchPacket, JSON_THROW_ON_ERROR);
 
     $readerTable = null;
     foreach ($document->children as $node) {
