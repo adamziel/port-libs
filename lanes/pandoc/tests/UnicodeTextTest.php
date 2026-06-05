@@ -197,6 +197,23 @@ return [
         );
         $t->same($checkbox . '  ', UnicodeText::padDisplay($checkbox, 4));
     },
+    'measures emoji tag sequences as a single display cluster' => static function (TestRunner $t): void {
+        $scotland = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}";
+        $standaloneTags = "\u{E0067}\u{E0062}\u{E007F}";
+        $wrapped = UnicodeText::wrapByDisplayWidth("Flag {$scotland} tail", 8, '  ');
+
+        $t->same(2, UnicodeText::displayWidth($scotland));
+        $t->same(0, UnicodeText::displayWidth($standaloneTags));
+        $t->same([$scotland, 'X'], UnicodeText::graphemes($scotland . 'X'));
+        $t->same([$standaloneTags], UnicodeText::graphemes($standaloneTags));
+        $t->same([$scotland, 'X'], UnicodeText::splitAtDisplayWidth($scotland . 'X', 1));
+        $t->same([$scotland, 'X'], UnicodeText::splitByDisplayBreakpoints($scotland . 'X', [2]));
+        $t->same($scotland . '  ', UnicodeText::padDisplay($scotland, 4));
+        $t->same(['Flag ' . $scotland, '  tail'], $wrapped);
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 8, 'Emoji tag wrapped line exceeds requested width');
+        }
+    },
     'applies east asian ambiguous width policy for display columns' => static function (TestRunner $t): void {
         $ambiguous = "\u{00B7}\u{03A9}\u{2014}\u{2026}\u{2122}";
         $combining = "A\u{0301}\u{00B7}";

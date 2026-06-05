@@ -25,6 +25,7 @@ $emojiKeycap = "1\u{FE0F}\u{20E3}";
 $emojiThumb = "\u{1F44D}\u{1F3FD}";
 $emojiFlag = "\u{1F1FA}\u{1F1F8}";
 $emojiSlices = UnicodeText::splitByDisplayBreakpoints($emojiCheckbox . $emojiKeycap . $emojiThumb . $emojiFlag, [2, 4, 6]);
+$emojiTagFlag = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}";
 $ambiguousText = "\u{00B7}\u{03A9}\u{2014}\u{2026}\u{2122}";
 $ambiguousWideSlices = UnicodeText::splitByDisplayBreakpoints($ambiguousText, [2, 4, 6, 8], 'wide');
 $lineEndingConversions = $source->attr('sourceLineEndings')['conversions'] ?? 0;
@@ -88,6 +89,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $emojiSlices))])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Emoji tag flag'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $emojiTagFlag])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => (string) UnicodeText::displayWidth($emojiTagFlag)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Ambiguous policy'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $ambiguousText])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => UnicodeText::displayWidth($ambiguousText) . '/' . UnicodeText::displayWidth($ambiguousText, 'wide')])]),
@@ -149,6 +155,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>Emoji slices</td><td>\u{2611}\u{FE0F} / 1\u{FE0F}\u{20E3} / \u{1F44D}\u{1F3FD} / \u{1F1FA}\u{1F1F8}</td><td>2,2,2,2</td>")) {
         throw new RuntimeException('charset handoff self-test missing emoji display-width audit');
+    }
+    if (!str_contains($blocks, '<td>Emoji tag flag</td><td>' . $emojiTagFlag . '</td><td>2</td>')) {
+        throw new RuntimeException('charset handoff self-test missing emoji tag display-width audit');
     }
     if (!str_contains($blocks, "<td>Ambiguous policy</td><td>\u{00B7}\u{03A9}\u{2014}\u{2026}\u{2122}</td><td>5/10</td>")) {
         throw new RuntimeException('charset handoff self-test missing ambiguous-width policy audit');
