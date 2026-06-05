@@ -195,6 +195,48 @@ return [
         $t->true(!str_contains($span['text'], "\x00"), 'Visible WordPress text must not retain unsafe control bytes.');
         $t->true(!str_contains($span['text'], "\u{FB01}"), 'Visible WordPress text must expand pdftext ligatures.');
     },
+    'unnormalizes pdftext dictionary child bboxes before WordPress import' => static function (TestRunner $t): void {
+        $page = [
+            'page' => 5,
+            'bbox' => [0.0, 0.0, 612.0, 792.0],
+            'width' => 612.0,
+            'height' => 792.0,
+            'rotation' => 0,
+            'blocks' => [[
+                'bbox' => [0.10, 0.20, 0.70, 0.24],
+                'lines' => [[
+                    'bbox' => [0.10, 0.20, 0.70, 0.24],
+                    'spans' => [[
+                        'text' => 'Normalized bbox dictionary import',
+                        'bbox' => [0.12, 0.205, 0.32, 0.225],
+                        'font' => ['name' => 'Helvetica', 'flags' => null, 'weight' => 400, 'size' => 11.0],
+                        'chars' => [['char' => 'N', 'bbox' => [0.12, 0.205, 0.14, 0.225]]],
+                    ]],
+                ]],
+            ]],
+        ];
+
+        $result = (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1);
+        $span = $result['pages'][0]['blocks'][0]['lines'][0]['spans'][0];
+        $charBlock = $result['pages'][0]['char_blocks'][0];
+        $charSpan = $charBlock['lines'][0]['spans'][0];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+
+        $t->same([61.2, 158.4, 428.4, 190.1], $charBlock['bbox']);
+        $t->same([61.2, 158.4, 428.4, 190.1], $charBlock['lines'][0]['bbox']);
+        $t->same([73.4, 162.4, 195.8, 178.2], $span['bbox']);
+        $t->same([73.4, 162.4, 195.8, 178.2], $charSpan['bbox']);
+        $t->true(!array_key_exists('chars', $charSpan), 'keep_chars=false still removes raw normalized char payloads.');
+        $t->same('Normalized bbox dictionary import', $blocks[0]['text']);
+        $t->same([0.0, 0.0, 612.0, 792.0], $result['pages'][0]['bbox']);
+        $t->same([
+            'page' => 5,
+            'bbox' => [0.0, 0.0, 612.0, 792.0],
+            'rotation' => 0,
+            'width' => 612.0,
+            'height' => 792.0,
+        ], $result['pages'][0]['pdftext_source']);
+    },
     'optionally sorts supplied pdftext dictionary blocks like dictionary_output sort' => static function (TestRunner $t): void {
         $block = static function (string $text, array $bbox): array {
             return [

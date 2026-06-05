@@ -201,6 +201,8 @@ final class PdfTextDocumentExtractor
      */
     private function sanitizeDictionaryOutputPage(array $page): array
     {
+        $bboxScale = $this->dictionaryOutputBboxScale($page);
+
         if (!isset($page['blocks']) || !is_array($page['blocks']) || !array_is_list($page['blocks'])) {
             return $page;
         }
@@ -214,10 +216,10 @@ final class PdfTextDocumentExtractor
 
             $sanitizedBlock = [];
             if (array_key_exists('bbox', $block)) {
-                $sanitizedBlock['bbox'] = $block['bbox'];
+                $sanitizedBlock['bbox'] = $this->unnormalizeDictionaryOutputBbox($block['bbox'], $bboxScale);
             }
             if (array_key_exists('lines', $block)) {
-                $sanitizedBlock['lines'] = $this->sanitizeDictionaryOutputLines($block['lines']);
+                $sanitizedBlock['lines'] = $this->sanitizeDictionaryOutputLines($block['lines'], $bboxScale);
             }
             $blocks[] = $sanitizedBlock;
         }
@@ -230,7 +232,7 @@ final class PdfTextDocumentExtractor
      * @param mixed $lines
      * @return mixed
      */
-    private function sanitizeDictionaryOutputLines(mixed $lines): mixed
+    private function sanitizeDictionaryOutputLines(mixed $lines, ?array $bboxScale = null): mixed
     {
         if (!is_array($lines) || !array_is_list($lines)) {
             return $lines;
@@ -245,10 +247,10 @@ final class PdfTextDocumentExtractor
 
             $sanitizedLine = [];
             if (array_key_exists('bbox', $line)) {
-                $sanitizedLine['bbox'] = $line['bbox'];
+                $sanitizedLine['bbox'] = $this->unnormalizeDictionaryOutputBbox($line['bbox'], $bboxScale);
             }
             if (array_key_exists('spans', $line)) {
-                $sanitizedLine['spans'] = $this->sanitizeDictionaryOutputSpans($line['spans']);
+                $sanitizedLine['spans'] = $this->sanitizeDictionaryOutputSpans($line['spans'], $bboxScale);
             }
             $sanitizedLines[] = $sanitizedLine;
         }
@@ -260,7 +262,7 @@ final class PdfTextDocumentExtractor
      * @param mixed $spans
      * @return mixed
      */
-    private function sanitizeDictionaryOutputSpans(mixed $spans): mixed
+    private function sanitizeDictionaryOutputSpans(mixed $spans, ?array $bboxScale = null): mixed
     {
         if (!is_array($spans) || !array_is_list($spans)) {
             return $spans;
@@ -275,6 +277,9 @@ final class PdfTextDocumentExtractor
                         $sanitizedSpan[$key] = $span[$key];
                     }
                 }
+                if (array_key_exists('bbox', $sanitizedSpan)) {
+                    $sanitizedSpan['bbox'] = $this->unnormalizeDictionaryOutputBbox($sanitizedSpan['bbox'], $bboxScale);
+                }
                 if (array_key_exists('text', $span) && is_string($span['text'])) {
                     $sanitizedSpan['text'] = $this->normalizeDictionaryOutputText($span['text']);
                 }
@@ -284,6 +289,80 @@ final class PdfTextDocumentExtractor
         }
 
         return $sanitizedSpans;
+    }
+
+    /**
+     * pdftext keeps page bboxes absolute, while block/line/span bboxes from
+     * PDFium character extraction are normalized until dictionary_output scales
+     * them by page width and height.
+     *
+     * @param array<string, mixed> $page
+     * @return array{width: float, height: float}|null
+     */
+    private function dictionaryOutputBboxScale(array $page): ?array
+    {
+        if (!isset($page['width'], $page['height'])) {
+            return null;
+        }
+        if (!is_int($page['width']) && !is_float($page['width'])) {
+            return null;
+        }
+        if (!is_int($page['height']) && !is_float($page['height'])) {
+            return null;
+        }
+
+        $width = (float) $page['width'];
+        $height = (float) $page['height'];
+        if ($width <= 1.0 || $height <= 1.0) {
+            return null;
+        }
+
+        return ['width' => $width, 'height' => $height];
+    }
+
+    /**
+     * @param mixed $value
+     * @param array{width: float, height: float}|null $bboxScale
+     * @return mixed
+     */
+    private function unnormalizeDictionaryOutputBbox(mixed $value, ?array $bboxScale): mixed
+    {
+        if ($bboxScale === null || !is_array($value) || count($value) !== 4) {
+            return $value;
+        }
+
+        $bbox = [];
+        foreach (array_values($value) as $part) {
+            if (!is_int($part) && !is_float($part)) {
+                return $value;
+            }
+            $bbox[] = (float) $part;
+        }
+
+        if (!$this->isNormalizedDictionaryOutputBbox($bbox)) {
+            return $value;
+        }
+
+        return [
+            round($bbox[0] * $bboxScale['width'], 1),
+            round($bbox[1] * $bboxScale['height'], 1),
+            round($bbox[2] * $bboxScale['width'], 1),
+            round($bbox[3] * $bboxScale['height'], 1),
+        ];
+    }
+
+    /**
+     * @param list<float> $bbox
+     */
+    private function isNormalizedDictionaryOutputBbox(array $bbox): bool
+    {
+        foreach ($bbox as $part) {
+            if ($part < -0.25 || $part > 1.25) {
+                return false;
+            }
+        }
+
+        return abs($bbox[2] - $bbox[0]) <= 1.5 && abs($bbox[3] - $bbox[1]) <= 1.5;
     }
 
     /**
