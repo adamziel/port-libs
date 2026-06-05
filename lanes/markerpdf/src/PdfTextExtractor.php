@@ -17642,10 +17642,39 @@ final class PdfTextExtractor
         return $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, $name);
     }
 
+    private function topLevelPdfEncryptValueAfterName(string $body): ?string
+    {
+        $values = $this->topLevelPdfValuesAfterName($body, 'Encrypt');
+        if (count($values) > 1) {
+            return 'duplicate_encrypt_dictionary_entries';
+        }
+
+        return $values[0] ?? null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function topLevelPdfValuesAfterName(string $body, string $name): array
+    {
+        $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+
+        return $this->topLevelPdfValuesAfterNameInDictionaryBody($dictionary, $name);
+    }
+
     private function topLevelPdfValueAfterNameInDictionaryBody(string $dictionary, string $name): ?string
+    {
+        return $this->topLevelPdfValuesAfterNameInDictionaryBody($dictionary, $name)[0] ?? null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function topLevelPdfValuesAfterNameInDictionaryBody(string $dictionary, string $name): array
     {
         $offset = 0;
         $length = strlen($dictionary);
+        $values = [];
 
         while ($offset < $length) {
             $this->skipContentWhitespaceAndComments($dictionary, $offset);
@@ -17674,18 +17703,26 @@ final class PdfTextExtractor
             $valueOffset = $keyEnd;
             $this->skipContentWhitespaceAndComments($dictionary, $valueOffset);
             if ($valueOffset >= $length) {
-                return null;
+                return $values;
             }
 
             if ($key === $name) {
-                return $this->pdfValueAtOffset($dictionary, $valueOffset);
+                $value = $this->pdfValueAtOffset($dictionary, $valueOffset);
+                if ($value !== null) {
+                    $values[] = $value;
+                    $nextOffset = $this->skipPdfValueAt($dictionary, $valueOffset);
+                    $offset = $nextOffset > $valueOffset ? $nextOffset : $valueOffset + 1;
+                    continue;
+                }
+
+                return $values;
             }
 
             $nextOffset = $this->skipPdfValueAt($dictionary, $valueOffset);
             $offset = $nextOffset > $valueOffset ? $nextOffset : $valueOffset + 1;
         }
 
-        return null;
+        return $values;
     }
 
     private function skipPdfValueAt(string $body, int $offset): int
@@ -19384,7 +19421,7 @@ final class PdfTextExtractor
         }
 
         foreach ($this->trailerDictionaryBodies($pdfBytes) as $trailer) {
-            $value = $this->pdfValueAfterName($trailer, 'Encrypt');
+            $value = $this->topLevelPdfEncryptValueAfterName($trailer);
             if ($this->pdfEncryptValueIsEncrypted($value)) {
                 return true;
             }
@@ -19400,7 +19437,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $value = $this->pdfValueAfterName($body, 'Encrypt');
+            $value = $this->topLevelPdfEncryptValueAfterName($body);
             if ($this->pdfEncryptValueIsEncrypted($value)) {
                 return true;
             }
@@ -19446,7 +19483,7 @@ final class PdfTextExtractor
 
         $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
         if ($tableSection !== null) {
-            $value = $this->topLevelPdfValueAfterName($tableSection['trailer'], 'Encrypt');
+            $value = $this->topLevelPdfEncryptValueAfterName($tableSection['trailer']);
             if ($value !== null) {
                 return ['parsed' => true, 'value' => $value];
             }
@@ -19455,7 +19492,7 @@ final class PdfTextExtractor
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
                 $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions, $pdfBytes);
                 if ($streamSection !== null) {
-                    $value = $this->topLevelPdfValueAfterName($streamSection['body'], 'Encrypt');
+                    $value = $this->topLevelPdfEncryptValueAfterName($streamSection['body']);
                     if ($value !== null) {
                         return ['parsed' => true, 'value' => $value];
                     }
@@ -19476,7 +19513,7 @@ final class PdfTextExtractor
             return ['parsed' => false, 'value' => null];
         }
 
-        $value = $this->topLevelPdfValueAfterName($streamSection['body'], 'Encrypt');
+        $value = $this->topLevelPdfEncryptValueAfterName($streamSection['body']);
         if ($value !== null) {
             return ['parsed' => true, 'value' => $value];
         }

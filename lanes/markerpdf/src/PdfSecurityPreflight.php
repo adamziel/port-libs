@@ -303,6 +303,21 @@ final class PdfSecurityPreflight
             'standard_security_handler_parameter_violations' => is_array($standardParameterReview['violations'] ?? null)
                 ? $standardParameterReview['violations']
                 : [],
+            'malformed_encrypt_dictionary' => (bool) ($encryption['malformed_encrypt_dictionary'] ?? false),
+            'encrypt_dictionary_resolved' => array_key_exists('encrypt_dictionary_resolved', $encryption)
+                ? (bool) $encryption['encrypt_dictionary_resolved']
+                : null,
+            'duplicate_encrypt_dictionary_entries' => (bool) ($encryption['duplicate_encrypt_dictionary_entries'] ?? false),
+            'encrypt_dictionary_declared_entry_count' => (int) ($encryption['encrypt_dictionary_declared_entry_count'] ?? 0),
+            'encrypt_dictionary_resolved_entry_count' => (int) ($encryption['encrypt_dictionary_resolved_entry_count'] ?? 0),
+            'encrypt_dictionary_entry_statuses' => is_array($encryption['encrypt_dictionary_entry_statuses'] ?? null)
+                ? $encryption['encrypt_dictionary_entry_statuses']
+                : [],
+            'encrypt_dictionary_entry_shapes' => is_array($encryption['encrypt_dictionary_entry_shapes'] ?? null)
+                ? $encryption['encrypt_dictionary_entry_shapes']
+                : [],
+            'encrypt_operand_shape' => $encryption['encrypt_operand_shape'] ?? null,
+            'encrypt_operand_status' => $encryption['encrypt_operand_status'] ?? null,
             'encrypt_metadata' => $encryption['encrypt_metadata'] ?? null,
             'encrypt_metadata_explicit' => (bool) ($encryption['encrypt_metadata_explicit'] ?? false),
             'encrypt_metadata_trusted' => (bool) ($encryption['encrypt_metadata_trusted'] ?? true),
@@ -5329,6 +5344,21 @@ final class PdfSecurityPreflight
             'standard_security_handler_parameter_violations' => is_array($standardParameterReview['violations'] ?? null)
                 ? $standardParameterReview['violations']
                 : [],
+            'malformed_encrypt_dictionary' => (bool) ($encryption['malformed_encrypt_dictionary'] ?? false),
+            'encrypt_dictionary_resolved' => array_key_exists('encrypt_dictionary_resolved', $encryption)
+                ? (bool) $encryption['encrypt_dictionary_resolved']
+                : null,
+            'duplicate_encrypt_dictionary_entries' => (bool) ($encryption['duplicate_encrypt_dictionary_entries'] ?? false),
+            'encrypt_dictionary_declared_entry_count' => (int) ($encryption['encrypt_dictionary_declared_entry_count'] ?? 0),
+            'encrypt_dictionary_resolved_entry_count' => (int) ($encryption['encrypt_dictionary_resolved_entry_count'] ?? 0),
+            'encrypt_dictionary_entry_statuses' => is_array($encryption['encrypt_dictionary_entry_statuses'] ?? null)
+                ? $encryption['encrypt_dictionary_entry_statuses']
+                : [],
+            'encrypt_dictionary_entry_shapes' => is_array($encryption['encrypt_dictionary_entry_shapes'] ?? null)
+                ? $encryption['encrypt_dictionary_entry_shapes']
+                : [],
+            'encrypt_operand_shape' => $encryption['encrypt_operand_shape'] ?? null,
+            'encrypt_operand_status' => $encryption['encrypt_operand_status'] ?? null,
             'applicable_permission_names' => $permissionBitsReliable && is_array($permissions['applicable_permission_names'] ?? null)
                 ? $permissions['applicable_permission_names']
                 : [],
@@ -5457,6 +5487,9 @@ final class PdfSecurityPreflight
                 $reasons[] = 'public_key_recipient_permissions_undecoded';
             } elseif ($permissionPolicy === 'permissions_unknown_blocked_without_decryption') {
                 $reasons[] = 'encryption_permissions_unknown';
+                if (($permissionPreflight['duplicate_encrypt_dictionary_entries'] ?? false) === true) {
+                    $reasons[] = 'duplicate_encrypt_dictionary_entries';
+                }
             } elseif ($permissionPolicy === 'permissions_malformed_blocked_without_decryption') {
                 if (($permissionPreflight['standard_security_handler_parameters_well_formed'] ?? null) === false) {
                     $reasons[] = 'standard_security_handler_parameters_malformed';

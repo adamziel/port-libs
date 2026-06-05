@@ -5027,6 +5027,17 @@ final class PdfMetadataExtractor
             $metadata['encrypt_dictionary_resolved'] = false;
             $metadata['encrypt_operand_shape'] = $entry['encrypt_operand_shape'] ?? null;
             $metadata['encrypt_operand_status'] = $entry['encrypt_operand_status'] ?? null;
+            foreach ([
+                'duplicate_encrypt_dictionary_entries',
+                'encrypt_dictionary_declared_entry_count',
+                'encrypt_dictionary_resolved_entry_count',
+                'encrypt_dictionary_entry_statuses',
+                'encrypt_dictionary_entry_shapes',
+            ] as $key) {
+                if (array_key_exists($key, $entry)) {
+                    $metadata[$key] = $entry[$key];
+                }
+            }
         }
 
         $filter = $this->dictionaryNameValue($dictionary, 'Filter', $objects)
@@ -5680,11 +5691,16 @@ final class PdfMetadataExtractor
         $trailerEntry = $this->trailerDictionaryEntry($pdfBytes);
         if ($trailerEntry !== null) {
             $trailer = $trailerEntry['body'];
-            $value = $this->dictionaryRawValue($trailer, 'Encrypt');
+            $values = $this->dictionaryTopLevelRawValues($trailer, 'Encrypt');
             $source = $trailerEntry['source'] === 'xref_stream_trailer'
                 ? 'xref_stream_trailer_encrypt'
                 : 'trailer_encrypt';
-            if ($value !== null) {
+            if ($values !== []) {
+                if (count($values) > 1) {
+                    return $this->duplicateEncryptionDictionaryEntry($values, $objects, $source);
+                }
+
+                $value = $values[0];
                 if (trim($value) === 'null') {
                     return null;
                 }
@@ -5702,12 +5718,20 @@ final class PdfMetadataExtractor
                 continue;
             }
 
-            $value = $this->dictionaryRawValue($body, 'Encrypt');
-            $entry = $value === null
+            $values = $this->dictionaryTopLevelRawValues($body, 'Encrypt');
+            $entry = $values === []
                 ? null
                 : (
-                    $this->resolvedEncryptionDictionary($value, $objects, 'xref_stream_encrypt')
-                    ?? $this->malformedEncryptionDictionaryEntry($value, 'xref_stream_encrypt')
+                    count($values) > 1
+                        ? $this->duplicateEncryptionDictionaryEntry($values, $objects, 'xref_stream_encrypt')
+                        : (
+                            trim($values[0]) === 'null'
+                                ? null
+                                : (
+                                    $this->resolvedEncryptionDictionary($values[0], $objects, 'xref_stream_encrypt')
+                                    ?? $this->malformedEncryptionDictionaryEntry($values[0], 'xref_stream_encrypt')
+                                )
+                        )
                 );
             if ($entry !== null) {
                 return $entry;
@@ -5761,8 +5785,20 @@ final class PdfMetadataExtractor
             return ['parsed' => false, 'entry' => null];
         }
 
-        $value = $this->dictionaryRawValue($trailer, 'Encrypt');
-        if ($value !== null) {
+        $values = $this->dictionaryTopLevelRawValues($trailer, 'Encrypt');
+        if ($values !== []) {
+            if (count($values) > 1) {
+                return [
+                    'parsed' => true,
+                    'entry' => $this->duplicateEncryptionDictionaryEntry(
+                        $values,
+                        $objects,
+                        $this->trailerEncryptionSourceAtOffset($pdfBytes, $offset, $depth)
+                    ),
+                ];
+            }
+
+            $value = $values[0];
             if (trim($value) === 'null') {
                 return ['parsed' => true, 'entry' => null];
             }
@@ -5881,6 +5917,54 @@ final class PdfMetadataExtractor
         }
 
         return $entry;
+    }
+
+    /**
+     * @param list<string> $values
+     * @param array<int, string> $objects
+     * @return array{body: string, object: int|null, source: string, malformed_encrypt_dictionary: true, encrypt_dictionary_resolved: false, duplicate_encrypt_dictionary_entries: true, encrypt_dictionary_declared_entry_count: int, encrypt_dictionary_resolved_entry_count: int, encrypt_dictionary_entry_statuses: list<string>, encrypt_dictionary_entry_shapes: list<string>, encrypt_operand_shape: string, encrypt_operand_status: string}
+     */
+    private function duplicateEncryptionDictionaryEntry(array $values, array $objects, string $source): array
+    {
+        $statuses = [];
+        $shapes = [];
+        $resolvedCount = 0;
+
+        foreach ($values as $value) {
+            $trimmed = $this->trimPdfWhitespaceAndComments($value);
+            $shape = $this->encryptionDictionaryOperandShape($trimmed);
+            if (!in_array($shape, $shapes, true)) {
+                $shapes[] = $shape;
+            }
+
+            if ($trimmed === 'null') {
+                $status = 'encrypt_dictionary_explicit_null';
+            } elseif ($this->resolvedEncryptionDictionary($value, $objects, $source) !== null) {
+                $status = 'encrypt_dictionary_entry_resolved';
+                $resolvedCount++;
+            } else {
+                $status = $this->malformedEncryptionDictionaryEntry($value, $source)['encrypt_operand_status'];
+            }
+
+            if (!in_array($status, $statuses, true)) {
+                $statuses[] = $status;
+            }
+        }
+
+        return [
+            'body' => '',
+            'object' => null,
+            'source' => $source,
+            'malformed_encrypt_dictionary' => true,
+            'encrypt_dictionary_resolved' => false,
+            'duplicate_encrypt_dictionary_entries' => true,
+            'encrypt_dictionary_declared_entry_count' => count($values),
+            'encrypt_dictionary_resolved_entry_count' => $resolvedCount,
+            'encrypt_dictionary_entry_statuses' => $statuses,
+            'encrypt_dictionary_entry_shapes' => $shapes,
+            'encrypt_operand_shape' => 'duplicate_entries',
+            'encrypt_operand_status' => 'duplicate_encrypt_dictionary_entries_review',
+        ];
     }
 
     private function encryptionDictionaryOperandShape(string $value): string
