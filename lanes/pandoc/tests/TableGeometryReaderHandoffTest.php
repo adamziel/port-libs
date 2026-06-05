@@ -534,4 +534,71 @@ HTML;
         json_encode($underPacket, JSON_THROW_ON_ERROR);
         json_encode($overPacket, JSON_THROW_ON_ERROR);
     },
+    'inherits html row group and row table alignment into geometry packets' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="inherited-alignment-grid" data-source="html-reader">
+<caption>Inherited alignment review</caption>
+<thead align="center">
+<tr><th>Scope</th><th style="text-align: right">Items</th><th>State</th></tr>
+</thead>
+<tbody style="text-align: right" data-section="body">
+<tr data-row="posts"><th>Posts</th><td>42</td><td align="center">Ready</td></tr>
+<tr style="text-align: left" data-row="media"><th>Media</th><td>7</td><td>Review</td></tr>
+</tbody>
+<tfoot align="center">
+<tr><td>Total</td><td>49</td><td>Review</td></tr>
+</tfoot>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same(['default', 'default', 'default'], $table->attr('alignments'));
+        $t->same('center', $table->children[0]->children[0]->children[0]->attr('align'));
+        $t->same('right', $table->children[0]->children[0]->children[1]->attr('align'));
+        $t->same('center', $table->children[0]->children[0]->children[2]->attr('align'));
+        $t->same('right', $table->children[1]->children[0]->children[0]->attr('align'));
+        $t->same('right', $table->children[1]->children[0]->children[1]->attr('align'));
+        $t->same('center', $table->children[1]->children[0]->children[2]->attr('align'));
+        $t->same('left', $table->children[1]->children[1]->children[0]->attr('align'));
+        $t->same('left', $table->children[1]->children[1]->children[1]->attr('align'));
+        $t->same('left', $table->children[1]->children[1]->children[2]->attr('align'));
+        $t->same('center', $table->children[2]->children[0]->children[0]->attr('align'));
+        $t->same('center', $table->children[2]->children[0]->children[1]->attr('align'));
+        $t->same('center', $table->children[2]->children[0]->children[2]->attr('align'));
+        $t->same(1, $table->children[1]->attr('rowHeadColumns'));
+
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same([], $packet['summary']['diagnosticCodes'] ?? null);
+        $t->same([
+            'center',
+            'right',
+            'center',
+            'right',
+            'right',
+            'center',
+            'left',
+            'left',
+            'left',
+            'center',
+            'center',
+            'center',
+        ], array_map(static fn (array $coverage): string => (string) ($coverage['alignment'] ?? ''), $packet['coverage'] ?? []));
+        $t->same('center', $packet['coverage'][0]['alignment'] ?? null);
+        $t->same('right', $packet['coverage'][4]['alignment'] ?? null);
+        $t->same('left', $packet['coverage'][8]['alignment'] ?? null);
+        $t->same('center', $packet['coverage'][10]['alignment'] ?? null);
+        $t->same(true, $packet['coverage'][3]['headerCell'] ?? null);
+        $t->same('body', $packet['coverage'][3]['rowRole'] ?? null);
+        $t->same(1, $packet['coverage'][3]['rowHeadColumns'] ?? null);
+        $t->contains('<thead><tr><th style="text-align:center">Scope</th><th style="text-align:right">Items</th><th style="text-align:center">State</th></tr></thead>', $blocks);
+        $t->contains('<tbody data-section="body"><tr data-row="posts"><th style="text-align:right">Posts</th><td style="text-align:right">42</td><td style="text-align:center">Ready</td></tr><tr data-row="media"><th style="text-align:left">Media</th><td style="text-align:left">7</td><td style="text-align:left">Review</td></tr></tbody>', $blocks);
+        $t->contains('<tfoot><tr><td style="text-align:center">Total</td><td style="text-align:center">49</td><td style="text-align:center">Review</td></tr></tfoot>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
 ];

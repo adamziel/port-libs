@@ -5612,11 +5612,11 @@ final class MarkdownReader
         $tfoot = $this->firstChildElement($table, 'tfoot');
         $bodySections = $this->childElements($table, 'tbody');
 
-        $headRows = $thead instanceof \DOMElement ? $this->readHtmlTableRows($thead, true, $maxColumns) : [];
+        $headRows = $thead instanceof \DOMElement ? $this->readHtmlTableRows($thead, true, $maxColumns, $table) : [];
         $bodyNodes = [];
         if ($bodySections !== []) {
             foreach ($bodySections as $tbody) {
-                $rows = $this->readHtmlTableRows($tbody, false, $maxColumns);
+                $rows = $this->readHtmlTableRows($tbody, false, $maxColumns, $table);
                 [$bodyHeadRows, $bodyRows] = $this->splitHtmlTableBodyRows($rows);
                 $bodyNodes[] = new AstNode(
                     'table_body',
@@ -5625,7 +5625,7 @@ final class MarkdownReader
                 );
             }
         } else {
-            $bodyRows = $this->readHtmlTableRows($table, false, $maxColumns);
+            $bodyRows = $this->readHtmlTableRows($table, false, $maxColumns, $table);
             if ($headRows === [] && $this->firstHtmlTableRowIsHeader($bodyRows)) {
                 $headRow = array_shift($bodyRows);
                 if ($headRow instanceof AstNode) {
@@ -5635,7 +5635,7 @@ final class MarkdownReader
             [$bodyHeadRows, $bodyRows] = $this->splitHtmlTableBodyRows($bodyRows);
             $bodyNodes[] = new AstNode('table_body', $this->htmlTableBodyAttrs($bodyRows, $bodyHeadRows), $bodyRows);
         }
-        $footRows = $tfoot instanceof \DOMElement ? $this->readHtmlTableRows($tfoot, false, $maxColumns) : [];
+        $footRows = $tfoot instanceof \DOMElement ? $this->readHtmlTableRows($tfoot, false, $maxColumns, $table) : [];
 
         $captionInlines = $caption instanceof \DOMElement ? $this->parseHtmlInlineChildren($caption) : [];
         $columnMetadata = $this->readHtmlTableColumnMetadata($table, $maxColumns);
@@ -5956,18 +5956,25 @@ final class MarkdownReader
     /**
      * @return list<AstNode>
      */
-    private function readHtmlTableRows(\DOMElement $section, bool $header, int &$maxColumns): array
+    private function readHtmlTableRows(\DOMElement $section, bool $header, int &$maxColumns, ?\DOMElement $table = null): array
     {
         $rows = [];
         foreach ($this->childElements($section, 'tr') as $rowElement) {
             $cells = [];
             $rowColumns = 0;
+            $alignmentFallbacks = [$rowElement];
+            if ($section !== $rowElement) {
+                $alignmentFallbacks[] = $section;
+            }
+            if ($table instanceof \DOMElement && $table !== $section) {
+                $alignmentFallbacks[] = $table;
+            }
             foreach ($rowElement->childNodes as $child) {
                 if (!$child instanceof \DOMElement || !in_array(strtolower($child->localName), ['td', 'th'], true)) {
                     continue;
                 }
 
-                $cell = $this->buildHtmlTableCell($child, $header || strtolower($child->localName) === 'th');
+                $cell = $this->buildHtmlTableCell($child, $header || strtolower($child->localName) === 'th', ...$alignmentFallbacks);
                 $cells[] = $cell;
                 $rowColumns += max(1, (int) $cell->attr('colspan', 1));
             }
@@ -5991,7 +5998,7 @@ final class MarkdownReader
         return $rows;
     }
 
-    private function buildHtmlTableCell(\DOMElement $cell, bool $header): AstNode
+    private function buildHtmlTableCell(\DOMElement $cell, bool $header, \DOMElement ...$alignmentFallbacks): AstNode
     {
         $children = $this->parseHtmlTableCellChildren($cell);
         $attrs = array_merge($this->htmlElementPandocAttrs($cell, ['align', 'colspan', 'rowspan']), [
@@ -6009,7 +6016,7 @@ final class MarkdownReader
             $attrs['rowspan'] = $rowspan;
         }
 
-        $alignment = $this->normalizeHtmlTableAlignment($cell);
+        $alignment = $this->normalizeHtmlTableAlignment($cell, ...$alignmentFallbacks);
         if ($alignment !== 'default') {
             $attrs['align'] = $alignment;
         }
@@ -6122,9 +6129,21 @@ final class MarkdownReader
         return $span === 0 ? 0 : max(1, $span);
     }
 
-    private function normalizeHtmlTableAlignment(\DOMElement $cell): string
+    private function normalizeHtmlTableAlignment(\DOMElement $cell, \DOMElement ...$fallbacks): string
     {
-        return $this->normalizeHtmlColumnAlignment($cell);
+        $alignment = $this->normalizeHtmlElementAlignment($cell);
+        if ($alignment !== 'default') {
+            return $alignment;
+        }
+
+        foreach ($fallbacks as $fallback) {
+            $alignment = $this->normalizeHtmlElementAlignment($fallback);
+            if ($alignment !== 'default') {
+                return $alignment;
+            }
+        }
+
+        return 'default';
     }
 
     private function normalizeHtmlColumnAlignment(\DOMElement $element, ?\DOMElement $fallback = null): string

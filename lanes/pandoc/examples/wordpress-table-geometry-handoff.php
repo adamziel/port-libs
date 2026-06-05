@@ -75,6 +75,25 @@ $colgroupMismatchTables = array_values(array_filter(
     $colgroupMismatchDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$inheritedAlignmentDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="inherited-alignment-grid" data-source="html-reader">
+<caption>Inherited alignment review</caption>
+<thead align="center">
+<tr><th>Scope</th><th style="text-align: right">Items</th><th>State</th></tr>
+</thead>
+<tbody style="text-align: right" data-section="body">
+<tr data-row="posts"><th>Posts</th><td>42</td><td align="center">Ready</td></tr>
+<tr style="text-align: left" data-row="media"><th>Media</th><td>7</td><td>Review</td></tr>
+</tbody>
+<tfoot align="center">
+<tr><td>Total</td><td>49</td><td>Review</td></tr>
+</tfoot>
+</table>
+HTML);
+$inheritedAlignmentTables = array_values(array_filter(
+    $inheritedAlignmentDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $captionMetadataTables = [
     new AstNode('table', [
         'caption' => 'Long caption for reviewer',
@@ -631,6 +650,7 @@ $document = new AstNode('document', [], [
     ...$rowspanZeroTables,
     ...$colgroupAlignmentTables,
     ...$colgroupMismatchTables,
+    ...$inheritedAlignmentTables,
     ...$readerHandoffTables,
     ...$captionMetadataTables,
     $blockCaptionTable,
@@ -1106,6 +1126,50 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing WordPress output for underdeclared colgroup metadata');
     }
     json_encode($colgroupMismatchPacket, JSON_THROW_ON_ERROR);
+
+    $inheritedAlignmentTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'inherited-alignment-grid') {
+            $inheritedAlignmentTable = $node;
+            break;
+        }
+    }
+    $inheritedAlignmentPacket = $inheritedAlignmentTable instanceof AstNode ? $inheritedAlignmentTable->attr('tableGeometry') : null;
+    if (
+        !$inheritedAlignmentTable instanceof AstNode
+        || $inheritedAlignmentTable->attr('alignments') !== ['default', 'default', 'default']
+        || ($inheritedAlignmentTable->children[0]->children[0]->children[0]->attr('align') ?? null) !== 'center'
+        || ($inheritedAlignmentTable->children[1]->children[0]->children[1]->attr('align') ?? null) !== 'right'
+        || ($inheritedAlignmentTable->children[1]->children[1]->children[2]->attr('align') ?? null) !== 'left'
+        || ($inheritedAlignmentTable->children[2]->children[0]->children[2]->attr('align') ?? null) !== 'center'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing inherited HTML row group and row alignment metadata');
+    }
+    if (
+        !is_array($inheritedAlignmentPacket)
+        || array_map(static fn (array $coverage): string => (string) ($coverage['alignment'] ?? ''), $inheritedAlignmentPacket['coverage'] ?? []) !== [
+            'center',
+            'right',
+            'center',
+            'right',
+            'right',
+            'center',
+            'left',
+            'left',
+            'left',
+            'center',
+            'center',
+            'center',
+        ]
+        || ($inheritedAlignmentPacket['coverage'][3]['headerCell'] ?? null) !== true
+        || ($inheritedAlignmentPacket['coverage'][3]['rowHeadColumns'] ?? null) !== 1
+    ) {
+        throw new RuntimeException('Table geometry self-test missing inherited alignment review-packet coverage');
+    }
+    if (!str_contains($blocks, '<table id="inherited-alignment-grid" data-source="html-reader"><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><thead><tr><th style="text-align:center">Scope</th><th style="text-align:right">Items</th><th style="text-align:center">State</th></tr></thead><tbody data-section="body"><tr data-row="posts"><th style="text-align:right">Posts</th><td style="text-align:right">42</td><td style="text-align:center">Ready</td></tr><tr data-row="media"><th style="text-align:left">Media</th><td style="text-align:left">7</td><td style="text-align:left">Review</td></tr></tbody><tfoot><tr><td style="text-align:center">Total</td><td style="text-align:center">49</td><td style="text-align:center">Review</td></tr></tfoot></table>')) {
+        throw new RuntimeException('Table geometry self-test missing WordPress output for inherited HTML alignment handoff');
+    }
+    json_encode($inheritedAlignmentPacket, JSON_THROW_ON_ERROR);
 
     $readerTable = null;
     foreach ($document->children as $node) {
