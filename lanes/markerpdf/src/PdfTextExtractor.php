@@ -8489,6 +8489,7 @@ final class PdfTextExtractor
         $entries = [];
         $items = $this->pdfArrayItems($arrayBody);
         $itemCount = count($items);
+        $lastAcceptedPageIndex = null;
         for ($index = 0; $index + 1 < $itemCount; $index += 2) {
             $pageIndex = $this->pageLabelPageIndexOperand($items[$index], $objects);
             if ($pageIndex === null) {
@@ -8508,6 +8509,11 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($lastAcceptedPageIndex !== null && $pageIndex <= $lastAcceptedPageIndex) {
+                continue;
+            }
+
+            $lastAcceptedPageIndex = $pageIndex;
             if (!array_key_exists($pageIndex, $entries)) {
                 $entries[$pageIndex] = $this->parsePageLabelDictionary($labelDictionary, $objects);
             }

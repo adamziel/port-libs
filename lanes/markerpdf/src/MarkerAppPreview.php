@@ -1685,6 +1685,7 @@ final class MarkerAppPreview
         $elements = $this->arrayElements($nums);
         $sections = [];
         $seenPageIndexes = [];
+        $lastAcceptedPageIndex = null;
         $count = count($elements);
         for ($index = 0; $index + 1 < $count; $index += 2) {
             $pageIndexValue = $this->pageLabelIndexOperand($elements[$index], $objects, $seen);
@@ -1701,6 +1702,11 @@ final class MarkerAppPreview
                 continue;
             }
 
+            if ($lastAcceptedPageIndex !== null && $pageIndexValue <= $lastAcceptedPageIndex) {
+                continue;
+            }
+
+            $lastAcceptedPageIndex = $pageIndexValue;
             if (isset($seenPageIndexes[$pageIndexValue])) {
                 continue;
             }
