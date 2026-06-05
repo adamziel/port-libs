@@ -987,20 +987,54 @@ HTML,
 
         $output = $renderer->renderResource('templates/default', [], [
             'lang' => 'en',
+            'dir' => 'ltr',
+            'pandoc-version' => '3.7.0',
+            'title-prefix' => 'WordPress Import',
+            'pagetitle' => 'Batch 42 Review Packet',
             'title' => 'Batch 42 Review',
+            'subtitle' => 'DOCX metadata review',
+            'author' => ['Migration bot', 'Content editor'],
+            'author-meta' => ['Migration bot', 'Content editor'],
+            'date' => '2026-06-05',
+            'date-meta' => '2026-06-05',
+            'keywords' => ['migration', 'wordpress', 'review'],
+            'description-meta' => 'Native doctemplate handoff',
             'css' => ['review.css'],
             'header-includes' => ['<meta name="robots" content="noindex">'],
+            'math' => '<script type="math/tex">queued</script>',
             'include-before' => ['<main class="before">Queued</main>'],
+            'abstract-title' => 'Abstract',
+            'abstract' => '<p>Review summary.</p>',
+            'toc' => true,
+            'idprefix' => 'wp-review-',
+            'toc-title' => 'Contents',
+            'table-of-contents' => '<ul><li>Imported body</li></ul>',
             'body' => '<!-- wp:paragraph --><p>Imported body.</p><!-- /wp:paragraph -->',
             'include-after' => ['<footer>Done</footer>'],
         ], null, 'html');
 
         $t->contains('<!DOCTYPE html>', $output);
-        $t->contains('<html lang="en">', $output);
-        $t->contains('<title>Batch 42 Review</title>', $output);
+        $t->contains('<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en" dir="ltr">', $output);
+        $t->contains('<meta name="generator" content="pandoc 3.7.0">', $output);
+        $t->contains('<meta name="author" content="Migration bot">', $output);
+        $t->contains('<meta name="author" content="Content editor">', $output);
+        $t->contains('<meta name="dcterms.date" content="2026-06-05">', $output);
+        $t->contains('<meta name="keywords" content="migration, wordpress, review">', $output);
+        $t->contains('<meta name="description" content="Native doctemplate handoff">', $output);
+        $t->contains('<title>WordPress Import &ndash; Batch 42 Review Packet</title>', $output);
         $t->contains('<link rel="stylesheet" href="review.css">', $output);
         $t->contains('<meta name="robots" content="noindex">', $output);
+        $t->contains('<script type="math/tex">queued</script>', $output);
         $t->contains('<h1 class="title">Batch 42 Review</h1>', $output);
+        $t->contains('<p class="subtitle">DOCX metadata review</p>', $output);
+        $t->contains('<p class="author">Migration bot</p>', $output);
+        $t->contains('<p class="author">Content editor</p>', $output);
+        $t->contains('<p class="date">2026-06-05</p>', $output);
+        $t->contains('<div class="abstract-title">Abstract</div>', $output);
+        $t->contains('<p>Review summary.</p>', $output);
+        $t->contains('<nav id="wp-review-TOC" role="doc-toc">', $output);
+        $t->contains('<h2 id="wp-review-toc-title">Contents</h2>', $output);
+        $t->contains('<ul><li>Imported body</li></ul>', $output);
         $t->contains('<!-- wp:paragraph --><p>Imported body.</p><!-- /wp:paragraph -->', $output);
         $t->contains('<footer>Done</footer>', $output);
         $t->same('custom Batch 42 Review', $renderer->renderResource('templates/default', [
