@@ -7217,6 +7217,7 @@ final class PdfTextExtractor
         $embeddedFilePayloadObjectNumbers = $this->embeddedFilePayloadObjectNumbers($objects);
         $pieceInfoPrivateObjectNumbers = $this->pieceInfoPrivateStreamObjectNumbers($objects);
         $type3CharProcObjectGenerations = $this->type3CharProcObjectGenerationSet($objects);
+        $type3CharProcResourceObjectGenerations = $this->type3CharProcResourceObjectGenerationSet($objects);
         foreach ($this->liveDirectObjectDefinitionsInFileOrder($definitions, $xrefEntries) as $definition) {
             $streamObjectNumber = $definition['objectNumber'];
             if (
@@ -7226,6 +7227,7 @@ final class PdfTextExtractor
                 || isset($embeddedFilePayloadObjectNumbers[$streamObjectNumber])
                 || isset($pieceInfoPrivateObjectNumbers[$streamObjectNumber])
                 || isset($type3CharProcObjectGenerations[$streamObjectNumber][$definition['generation']])
+                || isset($type3CharProcResourceObjectGenerations[$streamObjectNumber][$definition['generation']])
             ) {
                 continue;
             }
@@ -7272,6 +7274,78 @@ final class PdfTextExtractor
         }
 
         return $references;
+    }
+
+    /**
+     * @return array<int, array<int, true>>
+     * @param array<int, string> $objects
+     */
+    private function type3CharProcResourceObjectGenerationSet(array $objects): array
+    {
+        $references = [];
+        foreach ($objects as $body) {
+            if (!$this->isType3FontBody($body)) {
+                continue;
+            }
+
+            $this->collectType3PrivateXObjectResourceGenerations($body, $objects, $references);
+            foreach ($this->charProcObjectReferences($body, $objects) as $reference) {
+                $charProcBody = $this->objectBodyForExactReference(
+                    $objects,
+                    $reference['objectNumber'],
+                    $reference['generation']
+                );
+                if ($charProcBody === null) {
+                    continue;
+                }
+
+                $this->collectType3PrivateXObjectResourceGenerations($charProcBody, $objects, $references);
+            }
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, array<int, true>> $references
+     * @param array<string, true> $seen
+     */
+    private function collectType3PrivateXObjectResourceGenerations(
+        string $resourceOwnerBody,
+        array $objects,
+        array &$references,
+        array $seen = []
+    ): void {
+        foreach ($this->xObjectResourceReferences($resourceOwnerBody, $objects) as $reference) {
+            $key = $reference['objectNumber'] . ':' . $reference['generation'];
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $references[$reference['objectNumber']][$reference['generation']] = true;
+            $seen[$key] = true;
+
+            $body = $reference['body'];
+            if ($body === null || !$this->isFormXObjectBody($body, $objects)) {
+                continue;
+            }
+
+            $this->collectType3PrivateXObjectResourceGenerations($body, $objects, $references, $seen);
+        }
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function isFormXObjectBody(string $body, array $objects): bool
+    {
+        $dictionary = $this->dictionaryObjectBody($body);
+        if ($dictionary === null) {
+            return false;
+        }
+
+        return $this->streamDictionaryHasName($dictionary, 'Subtype', 'Form', $objects);
     }
 
     /**
