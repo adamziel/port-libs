@@ -9,10 +9,14 @@ final class OpcRelationshipGraph
     public const OFFICE_DOCUMENT_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
     public const DIGITAL_SIGNATURE_ORIGIN_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
     public const DIGITAL_SIGNATURE_SIGNATURE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
+    public const EMBEDDED_PACKAGE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+    public const EMBEDDED_OBJECT_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
 
     private const RELATIONSHIP_PART_CONTENT_TYPE = 'application/vnd.openxmlformats-package.relationships+xml';
     private const DIGITAL_SIGNATURE_ORIGIN_CONTENT_TYPE = 'application/vnd.openxmlformats-package.digital-signature-origin';
     private const DIGITAL_SIGNATURE_XML_SIGNATURE_CONTENT_TYPE = 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml';
+    private const EMBEDDED_PACKAGE_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.package';
+    private const EMBEDDED_OBJECT_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.oleObject';
 
     /**
      * @param array<string, OpcRelationships> $relationshipsBySource
@@ -383,6 +387,64 @@ final class OpcRelationshipGraph
                 ),
                 'issues' => $issues,
                 'signatures' => $signatures,
+            ];
+        }
+
+        return $preflight;
+    }
+
+    /**
+     * @return list<array{source:string, id:string, type:string, kind:string, target:string, targetPart:?string, contentType:?string, expectedContentType:string, external:bool, exists:?bool, relationshipPartTarget:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, valid:bool, issues:list<string>}>
+     */
+    public function preflightEmbeddedPackages(string $sourcePartName = '/'): array
+    {
+        $sourcePartName = OpcPackagePath::canonicalPartName($sourcePartName, true);
+        $preflight = [];
+
+        foreach ($this->preflightTargetsForSource($sourcePartName) as $target) {
+            $kind = null;
+            $expectedContentType = null;
+            $invalidContentTypeIssue = null;
+
+            if ($target['type'] === self::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE) {
+                $kind = 'embedded-package';
+                $expectedContentType = self::EMBEDDED_PACKAGE_CONTENT_TYPE;
+                $invalidContentTypeIssue = 'invalid-embedded-package-content-type';
+            } elseif ($target['type'] === self::EMBEDDED_OBJECT_RELATIONSHIP_TYPE) {
+                $kind = 'embedded-object';
+                $expectedContentType = self::EMBEDDED_OBJECT_CONTENT_TYPE;
+                $invalidContentTypeIssue = 'invalid-embedded-object-content-type';
+            } else {
+                continue;
+            }
+
+            $issues = $target['issues'];
+            if (!$target['external'] && $target['contentType'] !== null && $target['contentType'] !== $expectedContentType) {
+                $issues[] = $invalidContentTypeIssue;
+            }
+            $issues = array_values(array_unique($issues));
+
+            $preflight[] = [
+                'source' => $sourcePartName,
+                'id' => $target['id'],
+                'type' => $target['type'],
+                'kind' => $kind,
+                'target' => $target['target'],
+                'targetPart' => self::targetPartFromPreflightTarget($target),
+                'contentType' => $target['contentType'],
+                'expectedContentType' => $expectedContentType,
+                'external' => $target['external'],
+                'exists' => $target['exists'],
+                'relationshipPartTarget' => $target['relationshipPartTarget'],
+                'relationshipTypeKind' => $target['relationshipTypeKind'],
+                'relationshipTypeScheme' => $target['relationshipTypeScheme'],
+                'relationshipTypeValid' => $target['relationshipTypeValid'],
+                'relationshipTypeIssues' => $target['relationshipTypeIssues'],
+                'externalTargetKind' => $target['externalTargetKind'],
+                'externalTargetScheme' => $target['externalTargetScheme'],
+                'externalTargetAllowed' => $target['externalTargetAllowed'],
+                'valid' => $issues === [],
+                'issues' => $issues,
             ];
         }
 

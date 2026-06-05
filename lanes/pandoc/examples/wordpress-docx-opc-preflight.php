@@ -16,6 +16,8 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
   <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
   <Override PartName="/word/media/source%20diagram.svg" ContentType="image/svg+xml; charset=UTF-8"/>
+  <Override PartName="/word/embeddings/source%20workbook.xlsx" ContentType="application/vnd.openxmlformats-officedocument.package"/>
+  <Override PartName="/word/embeddings/oleObject1.bin" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/>
   <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
   <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>
   <Override PartName="/_xmlsignatures/sig1.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
@@ -36,6 +38,8 @@ $documentRelationshipsXml = <<<'XML'
   <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
   <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero%20image.PNG"/>
   <Relationship Id="rIdDiagram" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source%20diagram.svg"/>
+  <Relationship Id="rIdEmbeddedWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/source%20workbook.xlsx"/>
+  <Relationship Id="rIdEmbeddedOle" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" Target="embeddings/oleObject1.bin"/>
   <Relationship Id="rIdReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/wp-admin/post.php?post=42&amp;action=edit" TargetMode="External"/>
   <Relationship Id="rIdUnsafeReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
   <Relationship Id="rIdMalformedType" Type="officeDocument/relationships/hyperlink" Target="https://example.test/source-with-bad-type" TargetMode="External"/>
@@ -65,6 +69,8 @@ $package = ZipPackage::fromParts([
     ['name' => 'word/media/hero image.PNG', 'data' => 'PNG'],
     ['name' => 'word/media/source diagram.svg', 'data' => '<svg xmlns="http://www.w3.org/2000/svg"/>'],
     ['name' => 'word/media/footnote-source.png', 'data' => 'PNG'],
+    ['name' => 'word/embeddings/source workbook.xlsx', 'data' => 'PK' . "\x03\x04"],
+    ['name' => 'word/embeddings/oleObject1.bin', 'data' => 'OLE'],
     ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
     ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
     ['name' => '_xmlsignatures/_rels/origin.sigs.rels', 'data' => $signatureOriginRelationshipsXml],
@@ -145,6 +151,22 @@ foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOC
 }
 
 $digitalSignatures = $graph->preflightDigitalSignatures();
+$embeddedPackages = $graph->preflightEmbeddedPackages($documentPart);
+$embeddedPackageParts = [];
+$embeddedObjectParts = [];
+foreach ($embeddedPackages as $embeddedPackage) {
+    if ($embeddedPackage['targetPart'] === null) {
+        continue;
+    }
+
+    if ($embeddedPackage['kind'] === 'embedded-package') {
+        $embeddedPackageParts[] = $embeddedPackage['targetPart'];
+    } elseif ($embeddedPackage['kind'] === 'embedded-object') {
+        $embeddedObjectParts[] = $embeddedPackage['targetPart'];
+    }
+}
+$embeddedPackageParts = array_values(array_unique($embeddedPackageParts));
+$embeddedObjectParts = array_values(array_unique($embeddedObjectParts));
 $digitalSignatureParts = [];
 foreach ($digitalSignatures as $origin) {
     if ($origin['targetPart'] !== null) {
@@ -172,6 +194,7 @@ $summary = [
         'contentType' => $corePropertiesPart === null ? null : $types->contentTypeForPart($corePropertiesPart),
     ],
     'digitalSignatures' => $digitalSignatures,
+    'embeddedPackages' => $embeddedPackages,
     'packageParts' => $packagePartPreflight,
     'relationships' => $relationshipSummaries,
     'reachableRelationships' => $reachableTargets,
@@ -217,6 +240,8 @@ $summary = [
             array_filter($relationshipPreflight, static fn (array $target): bool => $target['external'] === true)
         )),
         'digitalSignatureParts' => $digitalSignatureParts,
+        'embeddedPackageParts' => $embeddedPackageParts,
+        'embeddedObjectParts' => $embeddedObjectParts,
         'hasReviewerEditLink' => ($relationshipSummaries['rIdReviewer']['external'] ?? false) === true,
     ],
 ];
@@ -234,6 +259,10 @@ if (($argv[1] ?? '') === '--self-test') {
         'https://example.test/wp-admin/post.php?post=42&action=edit',
         '/_xmlsignatures/origin.sigs',
         '/_xmlsignatures/sig1.xml',
+        '/word/embeddings/source workbook.xlsx',
+        'application/vnd.openxmlformats-officedocument.package',
+        '/word/embeddings/oleObject1.bin',
+        'application/vnd.openxmlformats-officedocument.oleObject',
     ];
     $actual = [
         $summary['document']['part'],
@@ -247,10 +276,20 @@ if (($argv[1] ?? '') === '--self-test') {
         $summary['relationships']['rIdReviewer']['target'],
         $summary['wordpressImport']['digitalSignatureParts'][0] ?? null,
         $summary['wordpressImport']['digitalSignatureParts'][1] ?? null,
+        $summary['wordpressImport']['embeddedPackageParts'][0] ?? null,
+        $summary['embeddedPackages'][0]['contentType'] ?? null,
+        $summary['wordpressImport']['embeddedObjectParts'][0] ?? null,
+        $summary['embeddedPackages'][1]['contentType'] ?? null,
     ];
     if (
         $actual !== $expected
         || $summary['wordpressImport']['hasReviewerEditLink'] !== true
+        || ($summary['embeddedPackages'][0]['kind'] ?? null) !== 'embedded-package'
+        || ($summary['embeddedPackages'][0]['valid'] ?? null) !== true
+        || ($summary['embeddedPackages'][0]['issues'] ?? null) !== []
+        || ($summary['embeddedPackages'][1]['kind'] ?? null) !== 'embedded-object'
+        || ($summary['embeddedPackages'][1]['valid'] ?? null) !== true
+        || ($summary['embeddedPackages'][1]['issues'] ?? null) !== []
         || ($summary['digitalSignatures'][0]['relationshipPartName'] ?? null) !== '/_xmlsignatures/_rels/origin.sigs.rels'
         || ($summary['digitalSignatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-origin'
         || ($summary['digitalSignatures'][0]['signatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml'

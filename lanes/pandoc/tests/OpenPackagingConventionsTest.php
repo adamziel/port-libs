@@ -695,6 +695,98 @@ XML;
 
         $t->same([], $unsignedGraph->preflightDigitalSignatures());
     },
+    'preflights OPC embedded package and object relationships' => static function (TestRunner $t): void {
+        $embeddedContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/embeddings/Workbook1.xlsx" ContentType="application/vnd.openxmlformats-officedocument.package"/>
+  <Override PartName="/word/embeddings/oleObject1.bin" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/>
+  <Override PartName="/word/embeddings/wrong.bin" ContentType="application/octet-stream"/>
+  <Override PartName="/word/embeddings/missing.bin" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdEmbeddedWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/Workbook1.xlsx"/>
+  <Relationship Id="rIdEmbeddedOle" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" Target="embeddings/oleObject1.bin"/>
+  <Relationship Id="rIdExternalPackage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="https://example.test/source-workbook.xlsx" TargetMode="External"/>
+  <Relationship Id="rIdUnsafeExternalPackage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="file:///tmp/source-workbook.xlsx" TargetMode="External"/>
+  <Relationship Id="rIdWrongPackageType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/wrong.bin"/>
+  <Relationship Id="rIdMissingOle" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" Target="embeddings/missing.bin"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $embeddedContentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/embeddings/Workbook1.xlsx', 'data' => 'PK' . "\x03\x04"],
+            ['name' => 'word/embeddings/oleObject1.bin', 'data' => 'OLE'],
+            ['name' => 'word/embeddings/wrong.bin', 'data' => 'not an embedded package'],
+        ]));
+
+        $embedded = [];
+        foreach ($graph->preflightEmbeddedPackages('/word/document.xml') as $target) {
+            $embedded[$target['id']] = $target;
+        }
+
+        $t->same([
+            'rIdEmbeddedWorkbook',
+            'rIdEmbeddedOle',
+            'rIdExternalPackage',
+            'rIdUnsafeExternalPackage',
+            'rIdWrongPackageType',
+            'rIdMissingOle',
+        ], array_keys($embedded));
+
+        $t->same('embedded-package', $embedded['rIdEmbeddedWorkbook']['kind']);
+        $t->same('/word/embeddings/Workbook1.xlsx', $embedded['rIdEmbeddedWorkbook']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.package', $embedded['rIdEmbeddedWorkbook']['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.package', $embedded['rIdEmbeddedWorkbook']['expectedContentType']);
+        $t->same(true, $embedded['rIdEmbeddedWorkbook']['exists']);
+        $t->same(true, $embedded['rIdEmbeddedWorkbook']['valid']);
+        $t->same([], $embedded['rIdEmbeddedWorkbook']['issues']);
+
+        $t->same('embedded-object', $embedded['rIdEmbeddedOle']['kind']);
+        $t->same('/word/embeddings/oleObject1.bin', $embedded['rIdEmbeddedOle']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.oleObject', $embedded['rIdEmbeddedOle']['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.oleObject', $embedded['rIdEmbeddedOle']['expectedContentType']);
+        $t->same(true, $embedded['rIdEmbeddedOle']['valid']);
+
+        $t->same('embedded-package', $embedded['rIdExternalPackage']['kind']);
+        $t->same(true, $embedded['rIdExternalPackage']['external']);
+        $t->same(null, $embedded['rIdExternalPackage']['targetPart']);
+        $t->same(null, $embedded['rIdExternalPackage']['contentType']);
+        $t->same('https', $embedded['rIdExternalPackage']['externalTargetScheme']);
+        $t->same(true, $embedded['rIdExternalPackage']['valid']);
+        $t->same([], $embedded['rIdExternalPackage']['issues']);
+
+        $t->same('file', $embedded['rIdUnsafeExternalPackage']['externalTargetScheme']);
+        $t->same(false, $embedded['rIdUnsafeExternalPackage']['valid']);
+        $t->same(['external-target-unsafe-scheme'], $embedded['rIdUnsafeExternalPackage']['issues']);
+
+        $t->same('/word/embeddings/wrong.bin', $embedded['rIdWrongPackageType']['targetPart']);
+        $t->same('application/octet-stream', $embedded['rIdWrongPackageType']['contentType']);
+        $t->same(false, $embedded['rIdWrongPackageType']['valid']);
+        $t->same(['invalid-embedded-package-content-type'], $embedded['rIdWrongPackageType']['issues']);
+
+        $t->same('/word/embeddings/missing.bin', $embedded['rIdMissingOle']['targetPart']);
+        $t->same(false, $embedded['rIdMissingOle']['exists']);
+        $t->same(false, $embedded['rIdMissingOle']['valid']);
+        $t->same(['missing-in-package'], $embedded['rIdMissingOle']['issues']);
+
+        $t->same([], $graph->preflightEmbeddedPackages('/word/missing.xml'));
+    },
     'preflights OPC package parts for content type and orphan relationship issues' => static function (TestRunner $t) use ($packageRelationshipsXml, $documentRelationshipsXml): void {
         $badContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
