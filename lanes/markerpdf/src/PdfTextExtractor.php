@@ -4694,14 +4694,15 @@ final class PdfTextExtractor
         }
         if (is_array($state['nonstroking_color_components'] ?? null)) {
             $components = [];
+            $validComponents = true;
             foreach ($state['nonstroking_color_components'] as $component) {
                 if (!is_int($component) && !is_float($component)) {
-                    $components = [];
+                    $validComponents = false;
                     break;
                 }
                 $components[] = (float) $component;
             }
-            if ($components !== []) {
+            if ($validComponents) {
                 $default['nonstroking_color_components'] = $components;
             }
         }
@@ -4838,9 +4839,14 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{color_space: string, components: list<float>, pattern_name: string|null, operator: string, review_only: true}
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
      */
-    private function imageMaskPaintColorFromInvocationState(mixed $state): array
+    private function imageMaskPaintColorFromInvocationState(
+        mixed $state,
+        array $objects = [],
+        ?string $resourceOwnerBody = null
+    ): array
     {
         $graphicsState = $this->normalizeInvocationGraphicsState($state);
         $components = [];
@@ -4850,18 +4856,166 @@ final class PdfTextExtractor
             }
         }
 
-        return [
-            'color_space' => is_string($graphicsState['nonstroking_color_space'] ?? null)
-                ? $graphicsState['nonstroking_color_space']
-                : 'DeviceGray',
-            'components' => $this->normalizedPdfReviewNumbers($components === [] ? [0.0] : $components),
-            'pattern_name' => is_string($graphicsState['nonstroking_pattern_name'] ?? null)
-                ? $graphicsState['nonstroking_pattern_name']
-                : null,
-            'operator' => is_string($graphicsState['nonstroking_color_operator'] ?? null)
-                ? $graphicsState['nonstroking_color_operator']
-                : 'default',
+        $colorSpace = is_string($graphicsState['nonstroking_color_space'] ?? null)
+            ? $graphicsState['nonstroking_color_space']
+            : 'DeviceGray';
+        $patternName = is_string($graphicsState['nonstroking_pattern_name'] ?? null)
+            ? $graphicsState['nonstroking_pattern_name']
+            : null;
+        $operator = is_string($graphicsState['nonstroking_color_operator'] ?? null)
+            ? $graphicsState['nonstroking_color_operator']
+            : 'default';
+        $patternOnlyScn = $operator === 'scn' && $patternName !== null && $colorSpace === 'Pattern';
+        $reviewComponents = $this->normalizedPdfReviewNumbers(
+            $components === [] && !$patternOnlyScn ? [0.0] : $components
+        );
+
+        $review = [
+            'color_space' => $colorSpace,
+            'components' => $reviewComponents,
+            'pattern_name' => $patternName,
+            'operator' => $operator,
             'review_only' => true,
+        ];
+
+        $colorSpaceReview = $this->graphicsStateColorSpaceReview($colorSpace, $objects, $resourceOwnerBody);
+        $patternReview = $this->graphicsStatePatternResourceReview($patternName, $objects, $resourceOwnerBody);
+        $includeResourceReview = ($colorSpaceReview['resolved_from_resources'] ?? false) === true
+            || $colorSpace === 'Pattern'
+            || $patternName !== null;
+        if (!$includeResourceReview) {
+            return $review;
+        }
+
+        $resolvedColorSpace = is_string($colorSpaceReview['family'] ?? null)
+            ? $colorSpaceReview['family']
+            : $colorSpace;
+        $expectedComponents = $this->graphicsColorSpaceComponentCount($resolvedColorSpace, $patternName);
+
+        return [
+            ...$review,
+            'resolved_color_space' => $resolvedColorSpace,
+            'color_space_resource_name' => $colorSpaceReview['resource_name'],
+            'color_space_resolved_from_resources' => $colorSpaceReview['resolved_from_resources'],
+            'color_space_resource_source' => $colorSpaceReview['resource_source'],
+            'pattern_resource_name' => $patternReview['resource_name'],
+            'pattern_resolved_from_resources' => $patternReview['resolved_from_resources'],
+            'pattern_resource_source' => $patternReview['resource_source'],
+            'component_count' => count($reviewComponents),
+            'expected_components' => $expectedComponents,
+            'valid_for_color_space' => $expectedComponents === null || count($reviewComponents) === $expectedComponents,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{family: string|null, resource_name: string|null, resolved_from_resources: bool, resource_source: string|null}
+     */
+    private function graphicsStateColorSpaceReview(string $colorSpace, array $objects, ?string $resourceOwnerBody): array
+    {
+        $family = $this->recognizedGraphicsColorSpace($colorSpace);
+        if ($family !== null) {
+            return [
+                'family' => $family,
+                'resource_name' => null,
+                'resolved_from_resources' => false,
+                'resource_source' => null,
+            ];
+        }
+
+        if ($resourceOwnerBody === null) {
+            return [
+                'family' => null,
+                'resource_name' => null,
+                'resolved_from_resources' => false,
+                'resource_source' => null,
+            ];
+        }
+
+        $resourceValue = $this->colorSpaceResourceValue($resourceOwnerBody, $objects, $colorSpace);
+        if ($resourceValue === null) {
+            return [
+                'family' => null,
+                'resource_name' => null,
+                'resolved_from_resources' => false,
+                'resource_source' => null,
+            ];
+        }
+
+        $resourceReview = $this->colorSpaceFamilyReviewAt(
+            $resourceValue,
+            0,
+            $objects,
+            $resourceOwnerBody,
+            [],
+            [$colorSpace => true],
+            true
+        );
+        if ($resourceReview['family'] === null) {
+            return $resourceReview;
+        }
+
+        return [
+            'family' => $resourceReview['family'],
+            'resource_name' => $colorSpace,
+            'resolved_from_resources' => true,
+            'resource_source' => 'Resources.ColorSpace',
+        ];
+    }
+
+    private function recognizedGraphicsColorSpace(string $name): ?string
+    {
+        return match ($name) {
+            'DeviceGray', 'DeviceRGB', 'DeviceCMYK',
+            'G', 'RGB', 'CMYK',
+            'CalGray', 'CalRGB', 'Lab',
+            'Indexed', 'I', 'ICCBased',
+            'Separation', 'DeviceN', 'Pattern' => $name,
+            default => null,
+        };
+    }
+
+    private function graphicsColorSpaceComponentCount(?string $colorSpace, ?string $patternName): ?int
+    {
+        return match ($colorSpace) {
+            'DeviceGray', 'G', 'CalGray', 'Indexed', 'I', 'Separation' => 1,
+            'DeviceRGB', 'RGB', 'CalRGB', 'Lab' => 3,
+            'DeviceCMYK', 'CMYK' => 4,
+            'Pattern' => $patternName === null ? null : 0,
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{resource_name: string|null, resolved_from_resources: bool, resource_source: string|null}
+     */
+    private function graphicsStatePatternResourceReview(?string $patternName, array $objects, ?string $resourceOwnerBody): array
+    {
+        if ($patternName === null || $resourceOwnerBody === null) {
+            return [
+                'resource_name' => null,
+                'resolved_from_resources' => false,
+                'resource_source' => null,
+            ];
+        }
+
+        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+        $patternDictionary = $this->resourceCategoryDictionaryBody($resourceDictionary, $objects, 'Pattern');
+        if ($patternDictionary === null) {
+            return [
+                'resource_name' => $patternName,
+                'resolved_from_resources' => false,
+                'resource_source' => null,
+            ];
+        }
+
+        $resourceValue = $this->topLevelPdfValueAfterNameInDictionaryBody($patternDictionary, $patternName);
+
+        return [
+            'resource_name' => $patternName,
+            'resolved_from_resources' => $resourceValue !== null,
+            'resource_source' => $resourceValue === null ? null : 'Resources.Pattern',
         ];
     }
 
@@ -5260,7 +5414,11 @@ final class PdfTextExtractor
                 $invocationGraphicsStates[] = $graphicsState;
             }
             if ($imageMask) {
-                $imageMaskPaintColors[] = $this->imageMaskPaintColorFromInvocationState($detail['graphics_state'] ?? null);
+                $imageMaskPaintColors[] = $this->imageMaskPaintColorFromInvocationState(
+                    $detail['graphics_state'] ?? null,
+                    $objects,
+                    $resourceOwnerBody
+                );
             }
         }
         $imageUnitBbox = null;
@@ -8775,7 +8933,8 @@ final class PdfTextExtractor
         array $objects,
         ?string $resourceOwnerBody = null,
         array $seenObjects = [],
-        array $seenResourceNames = []
+        array $seenResourceNames = [],
+        bool $includeGraphicsColorSpaces = false
     ): array
     {
         $offset = $this->skipPdfWhitespace($value, $offset);
@@ -8790,7 +8949,9 @@ final class PdfTextExtractor
 
         if (preg_match('/\G\/([^\s\[\]()<>{}\/%]+)/s', $value, $match, 0, $offset) === 1) {
             $name = $this->decodePdfName($match[1]);
-            $family = $this->recognizedImageColorSpace($name);
+            $family = $includeGraphicsColorSpaces
+                ? $this->recognizedGraphicsColorSpace($name)
+                : $this->recognizedImageColorSpace($name);
             if ($family !== null) {
                 return [
                     'family' => $family,
@@ -8826,7 +8987,8 @@ final class PdfTextExtractor
                 $objects,
                 $resourceOwnerBody,
                 $seenObjects,
-                $seenResourceNames
+                $seenResourceNames,
+                $includeGraphicsColorSpaces
             );
             if ($resourceReview['family'] === null) {
                 return $resourceReview;
@@ -8857,7 +9019,8 @@ final class PdfTextExtractor
                 $objects,
                 $resourceOwnerBody,
                 $seenObjects,
-                $seenResourceNames
+                $seenResourceNames,
+                $includeGraphicsColorSpaces
             );
         }
 
@@ -8890,7 +9053,8 @@ final class PdfTextExtractor
                 $objects,
                 $resourceOwnerBody,
                 $seenObjects,
-                $seenResourceNames
+                $seenResourceNames,
+                $includeGraphicsColorSpaces
             );
         }
 

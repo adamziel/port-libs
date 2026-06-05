@@ -2380,6 +2380,87 @@ return [
         $t->true(!str_contains($encoded, $rgbPayload));
         $t->true(!str_contains($encoded, $grayPayload));
     },
+    'records named and pattern image mask stencil paint color boundaries' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before named stencil colors) Tj ET\n"
+            . "/Brand#20RGB cs 0.1 0.25 0.9 scn q 16 0 0 8 72 690 cm /Brand#20Stencil Do Q\n"
+            . "/Pattern cs /Logo#20Pattern scn q 12 0 0 6 104 690 cm /Pattern#20Stencil Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After named stencil colors) Tj ET';
+        $brandPayload = 'BT /F1 12 Tf 72 720 Td (Brand Stencil Image Mask Payload Noise) Tj ET';
+        $patternPayload = 'BT /F1 12 Tf 72 720 Td (Pattern Stencil Image Mask Payload Noise) Tj ET';
+        $brandCompressed = gzcompress($brandPayload);
+        $patternCompressed = gzcompress($patternPayload);
+        if (!is_string($brandCompressed) || !is_string($patternCompressed)) {
+            throw new RuntimeException('Unable to compress named image mask color fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /ColorSpace << /Brand#20RGB /DeviceRGB >> /Pattern << /Logo#20Pattern 11 0 R >> /XObject << /Brand#20Stencil 5 0 R /Pattern#20Stencil 6 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /FlateDecode /Decode [1 0] /Length " . strlen($brandCompressed) . " >>\nstream\n{$brandCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /FlateDecode /Decode [0 1] /Length " . strlen($patternCompressed) . " >>\nstream\n{$patternCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "11 0 obj\n<< /Type /Pattern /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 1 1] /XStep 1 /YStep 1 /Resources << >> /Length 0 >>\nstream\n\nendstream\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(2, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+
+        $brand = $entriesByName['Brand Stencil'];
+        $brandColor = $brand['image_mask_paint_colors'][0] ?? [];
+        $t->same(true, $brand['image_mask']);
+        $t->same('Brand RGB', $brandColor['color_space'] ?? null);
+        $t->same('DeviceRGB', $brandColor['resolved_color_space'] ?? null);
+        $t->same('Brand RGB', $brandColor['color_space_resource_name'] ?? null);
+        $t->same(true, $brandColor['color_space_resolved_from_resources'] ?? null);
+        $t->same('Resources.ColorSpace', $brandColor['color_space_resource_source'] ?? null);
+        $t->same([0.1, 0.25, 0.9], $brandColor['components'] ?? null);
+        $t->same(3, $brandColor['component_count'] ?? null);
+        $t->same(3, $brandColor['expected_components'] ?? null);
+        $t->same(true, $brandColor['valid_for_color_space'] ?? null);
+        $t->same(null, $brandColor['pattern_name'] ?? null);
+        $t->same('scn', $brandColor['operator'] ?? null);
+        $t->same([72.0, 690.0, 88.0, 698.0], $brand['image_unit_bbox']);
+        $t->same(hash('sha256', $brandPayload), $brand['decoded_sha256']);
+
+        $pattern = $entriesByName['Pattern Stencil'];
+        $patternColor = $pattern['image_mask_paint_colors'][0] ?? [];
+        $t->same(true, $pattern['image_mask']);
+        $t->same('Pattern', $patternColor['color_space'] ?? null);
+        $t->same('Pattern', $patternColor['resolved_color_space'] ?? null);
+        $t->same(null, $patternColor['color_space_resource_name'] ?? null);
+        $t->same(false, $patternColor['color_space_resolved_from_resources'] ?? null);
+        $t->same('Logo Pattern', $patternColor['pattern_name'] ?? null);
+        $t->same('Logo Pattern', $patternColor['pattern_resource_name'] ?? null);
+        $t->same(true, $patternColor['pattern_resolved_from_resources'] ?? null);
+        $t->same('Resources.Pattern', $patternColor['pattern_resource_source'] ?? null);
+        $t->same([], $patternColor['components'] ?? null);
+        $t->same(0, $patternColor['component_count'] ?? null);
+        $t->same(0, $patternColor['expected_components'] ?? null);
+        $t->same(true, $patternColor['valid_for_color_space'] ?? null);
+        $t->same('scn', $patternColor['operator'] ?? null);
+        $t->same([104.0, 690.0, 116.0, 696.0], $pattern['image_unit_bbox']);
+        $t->same(hash('sha256', $patternPayload), $pattern['decoded_sha256']);
+
+        $t->same(['Before named stencil colors', 'After named stencil colors'], $extractor->extractTextLines($pdf));
+        $t->same("Before named stencil colors\nAfter named stencil colors", $plainText);
+        $t->true(!str_contains($plainText, 'Brand Stencil Image Mask Payload Noise'));
+        $t->true(!str_contains($plainText, 'Pattern Stencil Image Mask Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $brandPayload));
+        $t->true(!str_contains($encoded, $patternPayload));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
