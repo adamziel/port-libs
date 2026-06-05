@@ -18418,9 +18418,15 @@ final class PdfTextExtractor
         $offset = $xrefEntry['offset'] ?? null;
         if ($offset !== null) {
             foreach ($definitions as $definition) {
-                if ($definition['offset'] === $offset) {
-                    return $definition;
+                if ($definition['offset'] !== $offset) {
+                    continue;
                 }
+
+                if ($generation !== null && $definition['generation'] !== $generation) {
+                    continue;
+                }
+
+                return $definition;
             }
 
             if (($xrefEntry['offsetIsExplicit'] ?? true) === true) {
@@ -20317,6 +20323,7 @@ final class PdfTextExtractor
         }
 
         if ($definitions !== null && $repairCurrentRows) {
+            $entries = $this->repairClassicXrefGenerationOffsetRows($entries, $definitions, $offset);
             $entries = $this->repairCurrentUpdateXrefTableRows($pdfBytes, $entries, $definitions, $trailer, $offset, $objects);
         }
 
@@ -20485,6 +20492,49 @@ final class PdfTextExtractor
         }
 
         return $foundSection ? $entries : null;
+    }
+
+    /**
+     * @param array<int, array{type: int, generation: int, offset: int, offsetIsExplicit: bool}> $entries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, array{type: int, generation: int, offset: int, offsetIsExplicit: bool}>
+     */
+    private function repairClassicXrefGenerationOffsetRows(array $entries, array $definitions, int $xrefOffset): array
+    {
+        foreach ($entries as $objectNumber => $entry) {
+            if (($entry['type'] ?? null) !== 1) {
+                continue;
+            }
+
+            $offset = $entry['offset'] ?? null;
+            if (!is_int($offset)) {
+                continue;
+            }
+
+            $offsetOwner = $this->directObjectDefinitionAtOffset($definitions, $offset);
+            if (
+                $offsetOwner === null
+                || $offsetOwner['offset'] >= $xrefOffset
+                || $offsetOwner['objectNumber'] !== (int) $objectNumber
+                || $offsetOwner['generation'] === (int) ($entry['generation'] ?? 0)
+            ) {
+                continue;
+            }
+
+            $definition = $this->directObjectDefinitionForGenerationBeforeOffset(
+                $definitions[$objectNumber] ?? [],
+                (int) ($entry['generation'] ?? 0),
+                $xrefOffset
+            );
+            if ($definition === null) {
+                continue;
+            }
+
+            $entries[$objectNumber]['offset'] = $definition['offset'];
+            $entries[$objectNumber]['generation'] = $definition['generation'];
+        }
+
+        return $entries;
     }
 
     /**
