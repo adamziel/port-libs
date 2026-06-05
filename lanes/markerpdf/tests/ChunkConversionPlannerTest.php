@@ -122,6 +122,55 @@ return [
             '2',
         ], $plan['jobs'][0]['argv']);
     },
+    'passes non-empty chunk_convert.sh MIN_LENGTH values through before marker argparse' => static function (TestRunner $t): void {
+        $planner = new ChunkConversionPlanner();
+
+        $zero = $planner->planFromEnvironment('/in', '/out', [
+            'NUM_DEVICES' => '1',
+            'NUM_WORKERS' => '2',
+            'MIN_LENGTH' => '0',
+        ]);
+        $negative = $planner->planFromEnvironment('/in', '/out', [
+            'NUM_DEVICES' => '1',
+            'NUM_WORKERS' => '2',
+            'MIN_LENGTH' => '-1',
+        ]);
+        $nonnumeric = $planner->planFromEnvironment('/in', '/out', [
+            'NUM_DEVICES' => '1',
+            'NUM_WORKERS' => '2',
+            'MIN_LENGTH' => 'short',
+        ]);
+
+        $t->same('0', $zero['min_length']);
+        $t->same('0', $zero['jobs'][0]['min_length']);
+        $t->same(true, $zero['optional_flags']['min_length_included']);
+        $t->same(true, $zero['optional_flags']['min_length_integer_validation_deferred_to_marker_argparse']);
+        $t->same([
+            'marker',
+            '/in',
+            '/out',
+            '--num_chunks',
+            '1',
+            '--chunk_idx',
+            '0',
+            '--workers',
+            '2',
+            '--min_length',
+            '0',
+        ], $zero['jobs'][0]['argv']);
+
+        $t->same('-1', $negative['min_length']);
+        $t->same('-1', $negative['jobs'][0]['min_length']);
+        $t->same(true, $negative['jobs'][0]['min_length_flag_included']);
+        $t->contains("'--min_length' '-1'", $negative['jobs'][0]['command']);
+
+        $t->same('short', $nonnumeric['min_length']);
+        $t->same('short', $nonnumeric['jobs'][0]['min_length']);
+        $t->same('chunk_convert.sh [[ -n "$MIN_LENGTH" ]]', $nonnumeric['optional_flags']['min_length_condition']);
+        $t->same('convert.py argparse --min_length type=int', $nonnumeric['optional_flags']['min_length_parse_boundary']);
+        $t->same(false, $nonnumeric['executes_python_or_models']);
+        $t->same(false, $nonnumeric['executes_subprocess']);
+    },
     'mirrors chunk_convert.sh validation for required environment and folders' => static function (TestRunner $t): void {
         $planner = new ChunkConversionPlanner();
 

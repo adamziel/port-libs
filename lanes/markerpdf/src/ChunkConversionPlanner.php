@@ -136,7 +136,7 @@ final class ChunkConversionPlanner
      * Native planning boundary for chunk_convert.py plus chunk_convert.sh.
      *
      * @param array<string, mixed> $environment
-     * @return array{input_folder: string, output_folder: string, num_devices: int, num_workers: int, launch_delay_seconds: int, jobs: list<array<string, mixed>>}
+     * @return array{input_folder: string, output_folder: string, num_devices: int, num_workers: int, metadata_file: string|null, min_length: string|null, optional_flags: array<string, mixed>, launch_delay_seconds: int, jobs: list<array<string, mixed>>, review_only: true, executes_subprocess: false, executes_python_or_models: false, executes_external_pdf_tools: false}
      */
     public function planFromEnvironment(?string $inputFolder, ?string $outputFolder, array $environment): array
     {
@@ -150,13 +150,13 @@ final class ChunkConversionPlanner
         $numDevices = $this->requiredPositiveInteger($environment, 'NUM_DEVICES', 'Please set the NUM_DEVICES environment variable.');
         $numWorkers = $this->requiredPositiveInteger($environment, 'NUM_WORKERS', 'Please set the NUM_WORKERS environment variable.');
         $metadataFile = $this->optionalString($environment, 'METADATA_FILE');
-        $minLength = $this->optionalPositiveInteger($environment, 'MIN_LENGTH');
+        $minLength = $this->optionalString($environment, 'MIN_LENGTH');
 
         return $this->planDeviceJobs($inputFolder, $outputFolder, $numDevices, $numWorkers, $metadataFile, $minLength);
     }
 
     /**
-     * @return array{input_folder: string, output_folder: string, num_devices: int, num_workers: int, launch_delay_seconds: int, jobs: list<array<string, mixed>>}
+     * @return array{input_folder: string, output_folder: string, num_devices: int, num_workers: int, metadata_file: string|null, min_length: string|null, optional_flags: array<string, mixed>, launch_delay_seconds: int, jobs: list<array<string, mixed>>, review_only: true, executes_subprocess: false, executes_python_or_models: false, executes_external_pdf_tools: false}
      */
     public function planDeviceJobs(
         string $inputFolder,
@@ -164,7 +164,7 @@ final class ChunkConversionPlanner
         int $numDevices,
         int $numWorkers,
         ?string $metadataFile = null,
-        ?int $minLength = null
+        int|string|null $minLength = null
     ): array {
         if ($inputFolder === '') {
             throw new InvalidArgumentException('Please provide an input folder.');
@@ -178,9 +178,9 @@ final class ChunkConversionPlanner
         if ($numWorkers < 1) {
             throw new InvalidArgumentException('NUM_WORKERS must be at least one.');
         }
-        if ($minLength !== null && $minLength < 1) {
-            throw new InvalidArgumentException('MIN_LENGTH must be at least one when provided.');
-        }
+
+        $metadataFileFlag = $metadataFile === null || $metadataFile === '' ? null : $metadataFile;
+        $minLengthFlag = $minLength === null || (string) $minLength === '' ? null : (string) $minLength;
 
         $jobs = [];
         for ($device = 0; $device < $numDevices; $device++) {
@@ -196,13 +196,13 @@ final class ChunkConversionPlanner
                 (string) $numWorkers,
             ];
 
-            if ($metadataFile !== null && $metadataFile !== '') {
+            if ($metadataFileFlag !== null) {
                 $argv[] = '--metadata_file';
-                $argv[] = $metadataFile;
+                $argv[] = $metadataFileFlag;
             }
-            if ($minLength !== null) {
+            if ($minLengthFlag !== null) {
                 $argv[] = '--min_length';
-                $argv[] = (string) $minLength;
+                $argv[] = $minLengthFlag;
             }
 
             $env = [
@@ -220,6 +220,11 @@ final class ChunkConversionPlanner
                 'chunk_idx' => $device,
                 'num_chunks' => $numDevices,
                 'workers' => $numWorkers,
+                'metadata_file' => $metadataFileFlag,
+                'metadata_file_flag_included' => $metadataFileFlag !== null,
+                'min_length' => $minLengthFlag,
+                'min_length_flag_included' => $minLengthFlag !== null,
+                'min_length_parse_boundary' => 'convert.py argparse --min_length type=int',
             ];
         }
 
@@ -228,8 +233,24 @@ final class ChunkConversionPlanner
             'output_folder' => $outputFolder,
             'num_devices' => $numDevices,
             'num_workers' => $numWorkers,
+            'metadata_file' => $metadataFileFlag,
+            'min_length' => $minLengthFlag,
+            'optional_flags' => [
+                'metadata_file' => $metadataFileFlag,
+                'metadata_file_included' => $metadataFileFlag !== null,
+                'metadata_file_condition' => 'chunk_convert.sh [[ -n "$METADATA_FILE" ]]',
+                'min_length' => $minLengthFlag,
+                'min_length_included' => $minLengthFlag !== null,
+                'min_length_condition' => 'chunk_convert.sh [[ -n "$MIN_LENGTH" ]]',
+                'min_length_parse_boundary' => 'convert.py argparse --min_length type=int',
+                'min_length_integer_validation_deferred_to_marker_argparse' => $minLengthFlag !== null,
+            ],
             'launch_delay_seconds' => self::LAUNCH_DELAY_SECONDS,
             'jobs' => $jobs,
+            'review_only' => true,
+            'executes_subprocess' => false,
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
         ];
     }
 
@@ -241,19 +262,6 @@ final class ChunkConversionPlanner
         $value = $environment[$key] ?? null;
         if ($value === null || $value === '') {
             throw new InvalidArgumentException($missingMessage);
-        }
-
-        return $this->positiveInteger($value, $key);
-    }
-
-    /**
-     * @param array<string, mixed> $environment
-     */
-    private function optionalPositiveInteger(array $environment, string $key): ?int
-    {
-        $value = $environment[$key] ?? null;
-        if ($value === null || $value === '') {
-            return null;
         }
 
         return $this->positiveInteger($value, $key);
