@@ -8303,7 +8303,13 @@ final class PdfTextExtractor
             if ($length >= 0 && $declaredEnd <= strlen($value)) {
                 $declaredTerminator = $this->streamLengthTerminatorOffset($value, $declaredEnd);
                 if ($declaredTerminator !== null) {
-                    $dctJpegTerminator = $this->dctStreamEndstreamTerminatorOffset($value, $streamStart, $dict, $objects);
+                    $dctJpegTerminator = $this->dctStreamEndstreamTerminatorOffset(
+                        $value,
+                        $streamStart,
+                        $dict,
+                        $objects,
+                        $declaredTerminator + 1
+                    );
                     if ($dctJpegTerminator !== null && $dctJpegTerminator >= $declaredTerminator) {
                         return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $dctJpegTerminator - $streamStart));
                     }
@@ -8337,7 +8343,7 @@ final class PdfTextExtractor
                     return substr($value, $streamStart, $length);
                 }
 
-                $dctJpegTerminator = $this->dctStreamEndstreamTerminatorOffset($value, $streamStart, $dict, $objects);
+                $dctJpegTerminator = $this->dctStreamEndstreamTerminatorOffset($value, $streamStart, $dict, $objects, $declaredEnd + 1);
                 if ($dctJpegTerminator !== null) {
                     return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $dctJpegTerminator - $streamStart));
                 }
@@ -8607,7 +8613,13 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      */
-    private function dctStreamEndstreamTerminatorOffset(string $value, int $streamStart, string $dict, array $objects): ?int
+    private function dctStreamEndstreamTerminatorOffset(
+        string $value,
+        int $streamStart,
+        string $dict,
+        array $objects,
+        ?int $minimumTerminatorOffset = null
+    ): ?int
     {
         $filters = $this->streamFilters($dict, $objects);
         if ($filters === null || $filters === []) {
@@ -8615,7 +8627,7 @@ final class PdfTextExtractor
                 return null;
             }
 
-            return $this->rawDctPreviewEndstreamTerminatorOffset($value, $streamStart);
+            return $this->rawDctPreviewEndstreamTerminatorOffset($value, $streamStart, $minimumTerminatorOffset);
         }
 
         $firstFilter = null;
@@ -8644,10 +8656,14 @@ final class PdfTextExtractor
             );
         }
 
-        return $this->rawDctPreviewEndstreamTerminatorOffset($value, $streamStart);
+        return $this->rawDctPreviewEndstreamTerminatorOffset($value, $streamStart, $minimumTerminatorOffset);
     }
 
-    private function rawDctPreviewEndstreamTerminatorOffset(string $value, int $streamStart): ?int
+    private function rawDctPreviewEndstreamTerminatorOffset(
+        string $value,
+        int $streamStart,
+        ?int $minimumTerminatorOffset = null
+    ): ?int
     {
         $jpegStart = $streamStart;
         $length = strlen($value);
@@ -8659,13 +8675,18 @@ final class PdfTextExtractor
             return null;
         }
 
-        $eoiEnd = $this->dctPreviewEoiEndOffset($value, $jpegStart);
-        if ($eoiEnd === null) {
-            return null;
+        foreach ($this->dctPreviewEoiEndOffsets($value, $jpegStart) as $eoiEnd) {
+            $terminator = $this->skipDctPreviewPadding($value, $eoiEnd);
+            if ($minimumTerminatorOffset !== null && $terminator < $minimumTerminatorOffset) {
+                continue;
+            }
+
+            if ($this->endstreamKeywordAt($value, $terminator)) {
+                return $terminator;
+            }
         }
 
-        $terminator = $this->skipDctPreviewPadding($value, $eoiEnd);
-        return $this->endstreamKeywordAt($value, $terminator) ? $terminator : null;
+        return null;
     }
 
     private function skipDctPreviewPadding(string $value, int $offset): int
@@ -9058,11 +9079,19 @@ final class PdfTextExtractor
             return false;
         }
 
-        $eoiEnd = $this->dctPreviewEoiEndOffset($bytes, $start);
-        return $eoiEnd !== null && $this->skipDctPreviewPadding($bytes, $eoiEnd) === $length;
+        foreach ($this->dctPreviewEoiEndOffsets($bytes, $start) as $eoiEnd) {
+            if ($this->skipDctPreviewPadding($bytes, $eoiEnd) === $length) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
-    private function dctPreviewEoiEndOffset(string $bytes, int $startOffset = 0, ?int $limitOffset = null): ?int
+    /**
+     * @return list<int>
+     */
+    private function dctPreviewEoiEndOffsets(string $bytes, int $startOffset = 0, ?int $limitOffset = null): array
     {
         $limit = min($limitOffset ?? strlen($bytes), strlen($bytes));
         $start = $startOffset;
@@ -9071,14 +9100,14 @@ final class PdfTextExtractor
         }
 
         if ($start + 2 > $limit || substr($bytes, $start, 2) !== "\xff\xd8") {
-            return null;
+            return [];
         }
 
         $offset = $start + 2;
         while ($offset < $limit) {
             $markerStart = strpos($bytes, "\xff", $offset);
             if ($markerStart === false || $markerStart + 1 >= $limit) {
-                return null;
+                return [];
             }
 
             $markerOffset = $markerStart + 1;
@@ -9086,7 +9115,7 @@ final class PdfTextExtractor
                 $markerOffset++;
             }
             if ($markerOffset >= $limit) {
-                return null;
+                return [];
             }
 
             $marker = ord($bytes[$markerOffset]);
@@ -9095,7 +9124,7 @@ final class PdfTextExtractor
                 continue;
             }
             if ($marker === 0xd9) {
-                return $markerOffset + 1;
+                return [$markerOffset + 1];
             }
             if ($marker === 0xd8 || $marker === 0x01 || ($marker >= 0xd0 && $marker <= 0xd7)) {
                 $offset = $markerOffset + 1;
@@ -9104,33 +9133,42 @@ final class PdfTextExtractor
 
             $lengthOffset = $markerOffset + 1;
             if ($lengthOffset + 2 > $limit) {
-                return null;
+                return [];
             }
 
             $segmentLength = (ord($bytes[$lengthOffset]) << 8) | ord($bytes[$lengthOffset + 1]);
             if ($segmentLength < 2) {
-                return $this->dctPreviewLenientEoiEndOffset($bytes, $markerOffset + 1, $limit);
+                return $this->dctPreviewLenientEoiEndOffsets($bytes, $markerOffset + 1, $limit);
             }
 
             $segmentEnd = $lengthOffset + 2 + ($segmentLength - 2);
             if ($segmentEnd > $limit) {
                 if (ord($bytes[$lengthOffset]) <= 0x0f) {
-                    return null;
+                    return [];
                 }
 
-                return $this->dctPreviewLenientEoiEndOffset($bytes, $markerOffset + 1, $limit);
+                return $this->dctPreviewLenientEoiEndOffsets($bytes, $markerOffset + 1, $limit);
             }
 
             $offset = $segmentEnd;
         }
 
-        return null;
+        return [];
     }
 
-    private function dctPreviewLenientEoiEndOffset(string $bytes, int $offset, int $limit): ?int
+    /**
+     * @return list<int>
+     */
+    private function dctPreviewLenientEoiEndOffsets(string $bytes, int $offset, int $limit): array
     {
-        $eoi = strpos(substr($bytes, 0, $limit), "\xff\xd9", $offset);
-        return $eoi === false ? null : $eoi + 2;
+        $bounded = substr($bytes, 0, $limit);
+        $offsets = [];
+        while (($eoi = strpos($bounded, "\xff\xd9", $offset)) !== false) {
+            $offsets[] = $eoi + 2;
+            $offset = $eoi + 2;
+        }
+
+        return $offsets;
     }
 
     private function contentStreamEndstreamTerminatorOffset(string $value, int $streamStart, string $dict): ?int
@@ -14043,11 +14081,17 @@ final class PdfTextExtractor
         if ($declaredLength !== null && $declaredLength >= 0) {
             $declaredEnd = $streamStart + $declaredLength;
             if ($declaredEnd <= strlen($pdfBytes)) {
-                $dctJpegTerminator = $this->dctStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict, $objects);
                 $streamEnd = $this->streamLengthTerminatorOffset($pdfBytes, $declaredEnd)
                     ?? $this->filteredEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict, $objects, $declaredEnd)
                     ?? $this->contentStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict)
                     ?? $this->endstreamTerminatorOffset($pdfBytes, $streamStart, $declaredEnd);
+                $dctJpegTerminator = $this->dctStreamEndstreamTerminatorOffset(
+                    $pdfBytes,
+                    $streamStart,
+                    $dict,
+                    $objects,
+                    ($streamEnd ?? $declaredEnd) + 1
+                );
                 if (
                     $dctJpegTerminator !== null
                     && ($streamEnd === null || $dctJpegTerminator >= $streamEnd)
@@ -14391,7 +14435,8 @@ final class PdfTextExtractor
                             $pdfBytes,
                             $streamStart,
                             $dict,
-                            $filterObjects
+                            $filterObjects,
+                            $streamEnd + 1
                         );
                         if ($dctJpegTerminator !== null && $dctJpegTerminator >= $streamEnd) {
                             $streamEnd = $dctJpegTerminator;
@@ -14446,7 +14491,8 @@ final class PdfTextExtractor
                             $pdfBytes,
                             $streamStart,
                             $dict,
-                            $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart)
+                            $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart),
+                            $streamEnd === null ? null : $streamEnd + 1
                         );
                         if (
                             $dctJpegTerminator !== null
