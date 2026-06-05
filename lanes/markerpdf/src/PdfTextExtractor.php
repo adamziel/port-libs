@@ -13131,6 +13131,10 @@ final class PdfTextExtractor
      */
     private function streamFilters(string $dict, array $objects = []): ?array
     {
+        if (count($this->topLevelPdfValuesAfterNameInDictionaryBody($dict, 'Filter')) > 1) {
+            return null;
+        }
+
         $offset = $this->topLevelNameValueOffset($dict, 'Filter');
         if ($offset === null) {
             return [];
@@ -13504,6 +13508,10 @@ final class PdfTextExtractor
      */
     private function streamDecodeParms(string $dict, array $objects): ?array
     {
+        if (count($this->topLevelPdfValuesAfterNameInDictionaryBody($dict, 'DecodeParms')) > 1) {
+            return null;
+        }
+
         $offset = $this->topLevelNameValueOffset($dict, 'DecodeParms');
         if ($offset === null) {
             return [];
@@ -13521,6 +13529,10 @@ final class PdfTextExtractor
     {
         if ($filters === []) {
             return [];
+        }
+
+        if (count($this->topLevelPdfValuesAfterNameInDictionaryBody($dict, 'DecodeParms')) > 1) {
+            return null;
         }
 
         $offset = $this->topLevelNameValueOffset($dict, 'DecodeParms');

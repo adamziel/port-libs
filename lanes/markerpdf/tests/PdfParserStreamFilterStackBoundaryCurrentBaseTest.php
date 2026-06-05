@@ -725,6 +725,26 @@ $parserStreamFilterStackBoundaryCurrentBasePatternBoundaryPdf = static function 
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseDuplicateDictionaryKeyPdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $duplicateFilterLeak = 'BT /F1 12 Tf 72 720 Td (Duplicate Filter Key Leak) Tj ET';
+    $duplicateFilterCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($duplicateFilterLeak);
+    $duplicateDecodeParmsLeak = 'BT /F1 12 Tf 72 700 Td (Duplicate DecodeParms Key Leak) Tj ET';
+    $duplicateDecodeParmsCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($duplicateDecodeParmsLeak);
+    $visibleAfter = 'BT /F1 12 Tf 72 680 Td (Visible After Duplicate Stream Keys) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 8 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Filter /FlateDecode /Filter /ASCII85Decode /Length " . strlen($duplicateFilterCompressed) . " >>\nstream\n{$duplicateFilterCompressed}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "6 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Predictor 1 >> /DecodeParms << /Predictor 12 /Columns 8 >> /Length " . strlen($duplicateDecodeParmsCompressed) . " >>\nstream\n{$duplicateDecodeParmsCompressed}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses ASCII85 EOD markers before accepting missing-Length filter-stack endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -1158,6 +1178,25 @@ return [
         $t->true(!str_contains($text, 'Bad Trailing Pattern Image Payload Leak'));
         $t->true(!str_contains($text, 'Safe Pattern Image Payload Noise'));
         $t->true(!str_contains($text, 'ASCIIHexDecode'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'rejects duplicate top-level stream Filter and DecodeParms keys before page text import' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseDuplicateDictionaryKeyPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseDuplicateDictionaryKeyPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = ['Visible After Duplicate Stream Keys'];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same('Visible After Duplicate Stream Keys', $text);
+        $t->same("Visible After Duplicate Stream Keys\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Duplicate Filter Key Leak'));
+        $t->true(!str_contains($text, 'Duplicate DecodeParms Key Leak'));
+        $t->true(!str_contains($text, 'FlateDecode'));
+        $t->true(!str_contains($text, 'ASCII85Decode'));
+        $t->true(!str_contains($text, 'Predictor'));
         $t->true(!str_contains($text, "\0"));
     },
 ];

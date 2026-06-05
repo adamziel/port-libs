@@ -490,6 +490,21 @@ $malformedIndirectFilterPdf = "%PDF-1.4\n"
     . "12 0 obj\n[ /ASCII85Decode /FlateDecode ]\nendobj\n"
     . "%%EOF";
 
+$duplicateFilterLeak = 'BT /F1 12 Tf 72 720 Td (Duplicate Filter Key Leak) Tj ET';
+$duplicateFilterCompressed = $zlibStored($duplicateFilterLeak);
+$duplicateDecodeParmsLeak = 'BT /F1 12 Tf 72 700 Td (Duplicate DecodeParms Key Leak) Tj ET';
+$duplicateDecodeParmsCompressed = $zlibStored($duplicateDecodeParmsLeak);
+$duplicateStreamKeysVisibleAfter = 'BT /F1 12 Tf 72 680 Td (Visible After Duplicate Stream Keys) Tj ET';
+$duplicateStreamKeysPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 8 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Filter /FlateDecode /Filter /ASCII85Decode /Length " . strlen($duplicateFilterCompressed) . " >>\nstream\n{$duplicateFilterCompressed}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "6 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Predictor 1 >> /DecodeParms << /Predictor 12 /Columns 8 >> /Length " . strlen($duplicateDecodeParmsCompressed) . " >>\nstream\n{$duplicateDecodeParmsCompressed}\nendstream\nendobj\n"
+    . "8 0 obj\n<< /Length " . strlen($duplicateStreamKeysVisibleAfter) . " >>\nstream\n{$duplicateStreamKeysVisibleAfter}\nendstream\nendobj\n"
+    . "%%EOF";
+
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
 $stackLines = $extractor->extractTextLines($stackPdf);
@@ -511,6 +526,7 @@ $indirectCryptNameLines = $extractor->extractTextLines($indirectCryptNamePdf);
 $defaultCryptLines = $extractor->extractTextLines($defaultCryptPdf);
 $commentSplitLines = $extractor->extractTextLines($commentSplitPdf);
 $malformedIndirectFilterLines = $extractor->extractTextLines($malformedIndirectFilterPdf);
+$duplicateStreamKeysLines = $extractor->extractTextLines($duplicateStreamKeysPdf);
 $allLines = [
     ...$lines,
     ...$stackLines,
@@ -532,6 +548,7 @@ $allLines = [
     ...$defaultCryptLines,
     ...$commentSplitLines,
     ...$malformedIndirectFilterLines,
+    ...$duplicateStreamKeysLines,
 ];
 $joined = implode("\n", $allLines);
 
@@ -567,6 +584,8 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         ['ASCII85Decode', 'FlateDecode'],
         'malformed_indirect_multi_name_filter_object',
         ['ASCII85Decode', 'FlateDecode'],
+        'duplicate_top_level_filter_key_rejected',
+        'duplicate_top_level_decodeparms_key_rejected',
     ],
     'singleton_decodeparms_after_null_filter_stack_entry' => true,
     'unresolved_decodeparms_on_null_filter_slot_ignored' => $nullSlotDecodeParmsLines === [
@@ -642,6 +661,14 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
     'valid_indirect_filter_array_preserved' => str_contains($joined, 'Indirect Array Filter Preserved'),
     'malformed_indirect_multi_filter_payload_excluded' => !str_contains($joined, 'Malformed Indirect Multi Filter Leak')
         && !str_contains($joined, 'ASCII85Decode /FlateDecode'),
+    'duplicate_top_level_filter_key_rejected' => $duplicateStreamKeysLines === [
+        'Visible After Duplicate Stream Keys',
+    ],
+    'duplicate_top_level_decodeparms_key_rejected' => $duplicateStreamKeysLines === [
+        'Visible After Duplicate Stream Keys',
+    ],
+    'duplicate_filter_key_payload_excluded' => !str_contains($joined, 'Duplicate Filter Key Leak'),
+    'duplicate_decodeparms_key_payload_excluded' => !str_contains($joined, 'Duplicate DecodeParms Key Leak'),
     'missing_length_stream_payload' => true,
     'declared_length_points_at_encoded_fake_endstream' => true,
     'short_declared_length_before_encoded_fake_endstream' => true,
