@@ -1656,6 +1656,9 @@ final class PdfTextExtractor
         if ($outlineRootBody === null || !$this->lightweightOutlineRootBodyIsValid($outlineRootBody)) {
             return [];
         }
+        if (!$this->lightweightOutlineRootAllowsItemTraversal($outlineRootBody, $objects)) {
+            return [];
+        }
 
         $firstItemObject = $this->topLevelObjectReferenceValueAfterName($outlineRootBody, 'First');
         if ($firstItemObject === null) {
@@ -1822,6 +1825,21 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      */
     private function lightweightOutlineItemAllowsChildTraversal(string $body, array $objects): bool
+    {
+        $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+        $countValue = $this->topLevelPdfValueAfterName($dictionary, 'Count');
+        $count = $countValue === null ? null : $this->streamLengthValueAt($countValue, 0, $objects);
+
+        return $count !== 0;
+    }
+
+    /**
+     * A root `/Count 0` means the outline tree has no visible rows even when a
+     * damaged producer leaves stale `/First` links behind.
+     *
+     * @param array<int, string> $objects
+     */
+    private function lightweightOutlineRootAllowsItemTraversal(string $body, array $objects): bool
     {
         $dictionary = $this->dictionaryObjectBody($body) ?? $body;
         $countValue = $this->topLevelPdfValueAfterName($dictionary, 'Count');

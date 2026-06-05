@@ -94,6 +94,9 @@ final class PdfOutlineExtractor
         if ($outlineRoot === null || !$this->isOutlineRootDictionary($outlineRoot, $objects)) {
             return [];
         }
+        if (!$this->outlineRootAllowsItemTraversal($outlineRoot, $objects)) {
+            return [];
+        }
 
         return $this->outlineItems(
             $outlineRoot['First'] ?? null,
@@ -123,6 +126,9 @@ final class PdfOutlineExtractor
 
         $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
         if ($outlineRoot === null || !$this->isOutlineRootDictionary($outlineRoot, $objects)) {
+            return [];
+        }
+        if (!$this->outlineRootAllowsItemTraversal($outlineRoot, $objects)) {
             return [];
         }
 
@@ -234,6 +240,9 @@ final class PdfOutlineExtractor
         if ($outlineRoot === null || !$this->isOutlineRootDictionary($outlineRoot, $objects)) {
             return [];
         }
+        if (!$this->outlineRootAllowsItemTraversal($outlineRoot, $objects)) {
+            return [];
+        }
 
         return $this->outlineItemsWithDestinationViews(
             $outlineRoot['First'] ?? null,
@@ -274,6 +283,9 @@ final class PdfOutlineExtractor
 
         $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
         if ($outlineRoot === null || !$this->isOutlineRootDictionary($outlineRoot, $objects)) {
+            return [];
+        }
+        if (!$this->outlineRootAllowsItemTraversal($outlineRoot, $objects)) {
             return [];
         }
 
@@ -493,48 +505,50 @@ final class PdfOutlineExtractor
 
         $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
         if ($outlineRoot !== null && $this->isOutlineRootDictionary($outlineRoot, $objects)) {
-            foreach ($this->outlineStructureDestinationPageContextItems(
-                $outlineRoot['First'] ?? null,
-                $objects,
-                $pageIndexes,
-                array_flip($pageIndexes),
-                $destinations,
-                $pageLabels,
-                $pagePresentationsByPage,
-                $articleBeadsByPage,
-                $pageReviewsByPage,
-                $taggedContentByPage,
-                $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects),
-                $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
-                15
-            ) as $item) {
-                $metadata['outline'][] = $this->withOutlineItemStructureMetadata($item, $outlineStructureByObject, false);
-            }
-            if ($metadata['outline'] !== []) {
-                $metadata['source'][] = 'outline';
-            }
+            if ($this->outlineRootAllowsItemTraversal($outlineRoot, $objects)) {
+                foreach ($this->outlineStructureDestinationPageContextItems(
+                    $outlineRoot['First'] ?? null,
+                    $objects,
+                    $pageIndexes,
+                    array_flip($pageIndexes),
+                    $destinations,
+                    $pageLabels,
+                    $pagePresentationsByPage,
+                    $articleBeadsByPage,
+                    $pageReviewsByPage,
+                    $taggedContentByPage,
+                    $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects),
+                    $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
+                    15
+                ) as $item) {
+                    $metadata['outline'][] = $this->withOutlineItemStructureMetadata($item, $outlineStructureByObject, false);
+                }
+                if ($metadata['outline'] !== []) {
+                    $metadata['source'][] = 'outline';
+                }
 
-            $outlineActionReviews = $this->outlineActionReviewRows(
-                $outlineRoot['First'] ?? null,
-                $objects,
-                $pageIndexes,
-                $destinations,
-                $pageLabels,
-                $pagePresentationsByPage,
-                $articleBeadsByPage,
-                $pageReviewsByPage,
-                $taggedContentByPage,
-                $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects),
-                $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
-                15
-            );
-            if ($outlineActionReviews !== []) {
-                $metadata['source'][] = 'outline_actions';
-                $metadata['outline_action_review_actions'] = $this->withOutlineItemStructureMetadataRows(
-                    $outlineActionReviews,
-                    $outlineStructureByObject,
-                    true
+                $outlineActionReviews = $this->outlineActionReviewRows(
+                    $outlineRoot['First'] ?? null,
+                    $objects,
+                    $pageIndexes,
+                    $destinations,
+                    $pageLabels,
+                    $pagePresentationsByPage,
+                    $articleBeadsByPage,
+                    $pageReviewsByPage,
+                    $taggedContentByPage,
+                    $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects),
+                    $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
+                    15
                 );
+                if ($outlineActionReviews !== []) {
+                    $metadata['source'][] = 'outline_actions';
+                    $metadata['outline_action_review_actions'] = $this->withOutlineItemStructureMetadataRows(
+                        $outlineActionReviews,
+                        $outlineStructureByObject,
+                        true
+                    );
+                }
             }
         }
 
@@ -1416,6 +1430,20 @@ final class PdfOutlineExtractor
     private function outlineItemAllowsChildTraversal(array $outline, array $objects): bool
     {
         $count = $this->integerOrNullValue($this->resolveValue($outline['Count'] ?? null, $objects));
+
+        return $count !== 0;
+    }
+
+    /**
+     * A root `/Count 0` declares an empty visible outline tree. Keep root-level
+     * metadata reviewable, but do not follow contradictory `/First` rows.
+     *
+     * @param array<string, mixed> $outlineRoot
+     * @param array<int, mixed> $objects
+     */
+    private function outlineRootAllowsItemTraversal(array $outlineRoot, array $objects): bool
+    {
+        $count = $this->integerOrNullValue($this->resolveValue($outlineRoot['Count'] ?? null, $objects));
 
         return $count !== 0;
     }

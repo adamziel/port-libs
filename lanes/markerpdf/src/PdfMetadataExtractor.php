@@ -2960,17 +2960,19 @@ final class PdfMetadataExtractor
         $structureContext = $this->documentOutlineStructureElementContext($catalog, $objects);
         $destinationsByName = $this->documentDestinationRawMap($catalog, $objects);
         $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
-        $items = $this->documentOutlineItemMetadataRows(
-            $this->dictionaryTopLevelRawValue($outlineRoot['body'], 'First'),
-            $objects,
-            $pageIndexes,
-            $pageLabels,
-            $destinationsByName,
-            $structureContext,
-            $outlineRoot['object'],
-            $this->validObjectNumberFromReference($this->dictionaryTopLevelRawValue($outlineRoot['body'], 'Last'), $objects),
-            15
-        );
+        $items = $this->documentOutlineRootAllowsItemTraversal($outlineRoot['body'], $objects)
+            ? $this->documentOutlineItemMetadataRows(
+                $this->dictionaryTopLevelRawValue($outlineRoot['body'], 'First'),
+                $objects,
+                $pageIndexes,
+                $pageLabels,
+                $destinationsByName,
+                $structureContext,
+                $outlineRoot['object'],
+                $this->validObjectNumberFromReference($this->dictionaryTopLevelRawValue($outlineRoot['body'], 'Last'), $objects),
+                15
+            )
+            : [];
 
         $firstItemObject = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($outlineRoot['body'], 'First') ?? '');
         $lastItemObject = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($outlineRoot['body'], 'Last') ?? '');
@@ -3305,6 +3307,19 @@ final class PdfMetadataExtractor
      * @param array<int, string> $objects
      */
     private function documentOutlineItemAllowsChildTraversal(string $dictionary, array $objects): bool
+    {
+        $count = $this->dictionaryIntegerValue($dictionary, 'Count', $objects);
+
+        return $count !== 0;
+    }
+
+    /**
+     * A root `/Count 0` declares no visible outline items. Preserve root
+     * review metadata, but do not promote contradictory child rows.
+     *
+     * @param array<int, string> $objects
+     */
+    private function documentOutlineRootAllowsItemTraversal(string $dictionary, array $objects): bool
     {
         $count = $this->dictionaryIntegerValue($dictionary, 'Count', $objects);
 
