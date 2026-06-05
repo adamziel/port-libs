@@ -117,6 +117,21 @@ final class MathTexConverter
         'tan' => 'tan',
     ];
 
+    /** @var array<string, string|null> */
+    private const TEXT_MODE_COMMANDS = [
+        'emph' => 'italic',
+        'mbox' => null,
+        'text' => null,
+        'textbf' => 'bold',
+        'textit' => 'italic',
+        'textmd' => 'normal',
+        'textnormal' => 'normal',
+        'textrm' => 'normal',
+        'textsf' => 'sans-serif',
+        'texttt' => 'monospace',
+        'textup' => 'normal',
+    ];
+
     /** @var array<string, string> */
     private const SPACING_COMMANDS = [
         ' ' => '0.3333em',
@@ -1328,8 +1343,8 @@ final class MathTexConverter
             return $this->parseBinomialCommand($source, $offset, true);
         }
 
-        if ($command === 'text') {
-            return '<mtext>' . $this->esc($this->readRequiredGroupText($source, $offset)) . '</mtext>';
+        if (array_key_exists($command, self::TEXT_MODE_COMMANDS)) {
+            return $this->parseTextModeCommand($source, $offset, $command);
         }
 
         if ($command === 'operatorname') {
@@ -1841,6 +1856,68 @@ final class MathTexConverter
         $columns = $this->validateAmsFlushAlignedRows($rows, $environment);
 
         return $this->environmentTable($rows, ' columnalign="' . $this->esc($this->flushAlignedColumnAlign($columns)) . '"', true, $environment);
+    }
+
+    private function parseTextModeCommand(string $source, int &$offset, string $command): string
+    {
+        $text = '<mtext>' . $this->esc($this->normalizeTextModeContent($this->readRequiredGroupText($source, $offset))) . '</mtext>';
+        $variant = self::TEXT_MODE_COMMANDS[$command];
+        if ($variant === null) {
+            return $text;
+        }
+
+        return '<mstyle mathvariant="' . $this->esc($variant) . '">' . $text . '</mstyle>';
+    }
+
+    private function normalizeTextModeContent(string $text): string
+    {
+        $output = '';
+        $length = strlen($text);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $text[$offset];
+            if ($char !== '\\') {
+                $output .= $char;
+                continue;
+            }
+
+            $offset++;
+            $escaped = $text[$offset] ?? '';
+            if ($escaped === '') {
+                $output .= '\\';
+                break;
+            }
+
+            $special = match ($escaped) {
+                '&', '%', '$', '#', '_', '{', '}' => $escaped,
+                ' ' => ' ',
+                default => null,
+            };
+            if ($special !== null) {
+                $output .= $special;
+                continue;
+            }
+
+            if (ctype_alpha($escaped)) {
+                $commandStart = $offset;
+                while ($offset < $length && ctype_alpha($text[$offset])) {
+                    $offset++;
+                }
+                $command = substr($text, $commandStart, $offset - $commandStart);
+                $offset--;
+                $output .= match ($command) {
+                    'LaTeX' => 'LaTeX',
+                    'TeX' => 'TeX',
+                    'dots', 'ldots' => '…',
+                    'textbackslash' => '\\',
+                    default => '\\' . $command,
+                };
+                continue;
+            }
+
+            $output .= $escaped;
+        }
+
+        return $output;
     }
 
     private function normalizeAmsAlignedAtPairCount(string $pairCount, string $environment): int

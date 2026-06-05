@@ -94,6 +94,19 @@ return [
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mfrac><mi>x</mi><mi>y</mi></mfrac>', $nodeMathml);
         $t->contains('<annotation encoding="application/x-tex">\\frac{x}{y}</annotation></semantics></math>', $nodeMathml);
     },
+    'converts bounded tex text mode aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $aliasMathml = $converter->texToMathMl('\\mbox{review mode} + \\textrm{media label} + \\textbf{draft} + \\textit{review} + \\texttt{code_1} + \\textsf{sans group}', true);
+        $escapedTextMathml = $converter->texToMathMl('\\text{posts \\& media \\% draft} + \\textnormal{plain} + \\emph{note}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $aliasMathml);
+        $t->contains('<mtext>review mode</mtext><mo>+</mo><mstyle mathvariant="normal"><mtext>media label</mtext></mstyle>', $aliasMathml);
+        $t->contains('<mstyle mathvariant="bold"><mtext>draft</mtext></mstyle><mo>+</mo><mstyle mathvariant="italic"><mtext>review</mtext></mstyle>', $aliasMathml);
+        $t->contains('<mstyle mathvariant="monospace"><mtext>code_1</mtext></mstyle><mo>+</mo><mstyle mathvariant="sans-serif"><mtext>sans group</mtext></mstyle>', $aliasMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\mbox{review mode} + \\textrm{media label} + \\textbf{draft} + \\textit{review} + \\texttt{code_1} + \\textsf{sans group}</annotation>', $aliasMathml);
+        $t->contains('<mtext>posts &amp; media % draft</mtext><mo>+</mo><mstyle mathvariant="normal"><mtext>plain</mtext></mstyle><mo>+</mo><mstyle mathvariant="italic"><mtext>note</mtext></mstyle>', $escapedTextMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\text{posts \\&amp; media \\% draft} + \\textnormal{plain} + \\emph{note}</annotation>', $escapedTextMathml);
+    },
     'adds bounded mathml accessibility text and intent annotations' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $accessible = $converter->texToAccessibleMathMl('\\frac{a_1}{\\sqrt{b^2}} + \\alpha', true);
@@ -894,6 +907,8 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('{n \\abovewithdelims()bad k}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('{n \\abovewithdelims()1pt }'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\text{unterminated'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mbox'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\textbf'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\limits_{i=1}'));
