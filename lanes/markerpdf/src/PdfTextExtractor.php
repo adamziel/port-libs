@@ -10756,7 +10756,7 @@ final class PdfTextExtractor
             return [];
         }
 
-        $widthScale = $this->type3FontMatrixWidthScale($fontBody, $objects);
+        $fontMatrix = $this->type3FontMatrix($fontBody, $objects);
         $widths = [];
         foreach ($glyphNamesByCode as $code => $glyphName) {
             $reference = $charProcObjectReferences[$glyphName] ?? null;
@@ -10769,9 +10769,9 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $width = $this->type3CharProcDeclaredWidth($objectBody, $objects);
-            if ($width !== null) {
-                $widths[$code] = $width * $widthScale;
+            $widthVector = $this->type3CharProcDeclaredWidthVector($objectBody, $objects);
+            if ($widthVector !== null) {
+                $widths[$code] = $this->type3FontMatrixWidthVectorAdvance($widthVector, $fontMatrix);
             }
         }
 
@@ -10779,21 +10779,30 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return list<float>
      * @param array<int, string> $objects
      */
-    private function type3FontMatrixWidthScale(string $fontBody, array $objects): float
+    private function type3FontMatrix(string $fontBody, array $objects): array
     {
         $matrix = $this->topLevelPdfMatrixValueAfterName($fontBody, 'FontMatrix', $objects);
         if ($matrix === null) {
-            return 1.0;
+            return [0.001, 0.0, 0.0, 0.001, 0.0, 0.0];
         }
 
-        $horizontalScale = abs($matrix[0]);
-        if ($horizontalScale <= 0.0) {
-            return 1.0;
-        }
+        return $matrix;
+    }
 
-        return $horizontalScale * 1000.0;
+    /**
+     * @param list<float> $widthVector
+     * @param list<float> $fontMatrix
+     */
+    private function type3FontMatrixWidthVectorAdvance(array $widthVector, array $fontMatrix): float
+    {
+        $wx = $widthVector[0] ?? 0.0;
+        $wy = $widthVector[1] ?? 0.0;
+        $advanceX = ($wx * ($fontMatrix[0] ?? 0.001)) + ($wy * ($fontMatrix[2] ?? 0.0));
+
+        return is_finite($advanceX) && abs($advanceX) > 0.0 ? abs($advanceX) * 1000.0 : abs($wx);
     }
 
     /**
@@ -11109,9 +11118,10 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return list<float>|null
      * @param array<int, string> $objects
      */
-    private function type3CharProcDeclaredWidth(string $objectBody, array $objects): ?float
+    private function type3CharProcDeclaredWidthVector(string $objectBody, array $objects): ?array
     {
         $stream = $this->streamDictionaryAndPayload($objectBody, $objects);
         if ($stream !== null) {
@@ -11136,7 +11146,10 @@ final class PdfTextExtractor
                     return null;
                 }
 
-                return $this->numericOperand($operands[count($operands) - 2]);
+                $wx = $this->numericOperand($operands[count($operands) - 2]);
+                $wy = $this->numericOperand($operands[count($operands) - 1]);
+
+                return $wx === null || $wy === null ? null : [$wx, $wy];
             }
 
             if ($token === 'd1') {
@@ -11144,7 +11157,10 @@ final class PdfTextExtractor
                     return null;
                 }
 
-                return $this->numericOperand($operands[count($operands) - 6]);
+                $wx = $this->numericOperand($operands[count($operands) - 6]);
+                $wy = $this->numericOperand($operands[count($operands) - 5]);
+
+                return $wx === null || $wy === null ? null : [$wx, $wy];
             }
 
             if ($this->isOperator($token)) {
