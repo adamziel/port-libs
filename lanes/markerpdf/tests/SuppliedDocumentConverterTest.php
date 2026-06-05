@@ -1129,6 +1129,85 @@ return [
             unlink($path);
         }
     },
+    'prefers adapter metadata over stale nested pdftext payload markers for supplied layout and order' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-supplied-layout-order-payload-marker-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% supplied layout order payload marker boundary\n%%EOF");
+        try {
+            $coverPage = $pdftextPage(620, [
+                ['text' => 'Payload marker cover page should not import.', 'bbox' => [72.0, 80.0, 340.0, 94.0]],
+            ]);
+            $selectedPage = $pdftextPage(621, [
+                ['text' => 'Second metadata payload column.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                ['text' => 'First metadata payload column.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+            ]);
+
+            $stalePayload = $pdftextPage(620, [
+                ['text' => 'Stale nested pdftext payload should stay out.', 'bbox' => [72.0, 170.0, 520.0, 184.0]],
+            ]);
+            $layout = [
+                'metadata' => ['page' => 621],
+                'pdftext' => $stalePayload,
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                    ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                ],
+            ];
+            $order = [
+                'metadata' => ['page' => 621],
+                'pdftext' => $stalePayload,
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['position' => 1, 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                    ['position' => 2, 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$coverPage, $selectedPage],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        [
+                            'metadata' => ['page' => 621],
+                            'pdftext' => $stalePayload,
+                            'image' => 'metadata-selected-layout-render',
+                        ],
+                    ],
+                    'layout_results' => [$layout],
+                    'order_images' => [
+                        [
+                            'metadata' => ['page' => 621],
+                            'pdftext' => $stalePayload,
+                            'image' => 'metadata-selected-order-render',
+                        ],
+                    ],
+                    'order_results' => [$order],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $text = $result['text'];
+            $t->same([1], $result['metadata']['page_range']);
+            $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries']);
+            $t->same(1, $result['metadata']['layout_plan']['image_count']);
+            $t->same(1, $result['metadata']['layout_plan']['layout_result_count']);
+            $t->same(1, $result['metadata']['layout_plan']['assigned_pages']);
+            $t->same(1, $result['metadata']['order_plan']['image_count']);
+            $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+            $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+            $t->contains('First metadata payload column.', $text);
+            $t->contains('Second metadata payload column.', $text);
+            $t->true(strpos($text, 'First metadata payload column.') < strpos($text, 'Second metadata payload column.'));
+            $t->true(!str_contains($text, 'Payload marker cover page should not import.'));
+            $t->true(!str_contains($text, 'Stale nested pdftext payload should stay out.'));
+        } finally {
+            unlink($path);
+        }
+    },
     'routes forced OCR table cells through supplied detector output before formatting' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-forced-ocr-table-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% forced OCR table supplied pipeline\n%%EOF");

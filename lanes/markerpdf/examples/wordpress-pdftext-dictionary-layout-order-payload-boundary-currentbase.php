@@ -46,8 +46,8 @@ $document = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
                 'page' => 511,
                 'raw_private_payload' => 'hidden order adapter payload',
             ],
-            'pdftext' => $pdftextPage(511, [
-                ['text' => 'Nested pdftext order payload must stay hidden.', 'bbox' => [72.0, 160.0, 500.0, 174.0]],
+            'pdftext' => $pdftextPage(510, [
+                ['text' => 'Stale nested pdftext order payload must stay hidden.', 'bbox' => [72.0, 160.0, 500.0, 174.0]],
             ]),
             'blocks' => [[
                 'lines' => [[
@@ -65,7 +65,13 @@ $document = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
         ],
     ],
     orderImages: [
-        ['metadata' => ['page' => 511], 'image' => 'selected-order-render'],
+        [
+            'metadata' => ['page' => 511],
+            'pdftext' => $pdftextPage(510, [
+                ['text' => 'Stale nested pdftext render payload must not block selected image.', 'bbox' => [72.0, 180.0, 500.0, 194.0]],
+            ]),
+            'image' => 'selected-order-render',
+        ],
     ],
     maxPages: 1,
     startPage: 1
@@ -82,7 +88,8 @@ $visibleOrderIsClean = str_contains($visibleText, 'First imported dictionary col
 if (
     !$visibleOrderIsClean
     || str_contains($encodedDocument, 'hidden order adapter payload')
-    || str_contains($encodedDocument, 'Nested pdftext order payload')
+    || str_contains($encodedDocument, 'Stale nested pdftext order payload')
+    || str_contains($encodedDocument, 'Stale nested pdftext render payload')
     || str_contains($encodedDocument, 'Raw order block payload')
     || (($document['pages'][0]['order']['page'] ?? null) !== 511)
     || array_key_exists('pdftext', $document['pages'][0]['order'] ?? [])
@@ -94,14 +101,18 @@ if (
 
 echo '<!-- markerpdf-pdftext-dictionary-layout-order-payload-boundary-currentbase ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdftext-dictionary-layout-order-payload-boundary-currentbase',
-    'source_truth' => 'markerPDF converts selected pdftext.dictionary_output pages, trims PDFium pages before layout/order rendering, then attaches Surya order geometry to pages; order artifacts are not a second visible pdftext page source',
+    'source_truth' => 'markerPDF converts selected pdftext.dictionary_output pages, trims PDFium pages before layout/order rendering, then attaches Surya order geometry to pages; adapter metadata is page identity while nested pdftext payloads are not a second visible page source',
     'support_component' => 'pdf-text-dictionary-layout-order-boundary',
     'selected_page' => $document['pages'][0]['pnum'] ?? null,
     'order_page_marker_preserved' => ($document['pages'][0]['order']['page'] ?? null) === 511,
     'order_geometry_preserved' => count($document['pages'][0]['order']['bboxes'] ?? []) === 2,
+    'stale_pdftext_payload_ignored_for_identity' => ($document['metadata']['order_plan']['image_count'] ?? null) === 1
+        && ($document['metadata']['order_plan']['order_result_count'] ?? null) === 1
+        && ($document['metadata']['order_plan']['assigned_pages'] ?? null) === 1,
     'visible_columns_in_reading_order' => $visibleOrderIsClean,
     'order_payload_excluded' => !str_contains($encodedDocument, 'hidden order adapter payload')
-        && !str_contains($encodedDocument, 'Nested pdftext order payload')
+        && !str_contains($encodedDocument, 'Stale nested pdftext order payload')
+        && !str_contains($encodedDocument, 'Stale nested pdftext render payload')
         && !str_contains($encodedDocument, 'Raw order block payload'),
     'visible_wordpress_text' => $visibleText,
     'executes_python_or_models' => false,

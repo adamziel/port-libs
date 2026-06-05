@@ -19,6 +19,14 @@ final class PdfPageArtifactSelector
         'source',
         'pdftext',
     ];
+    private const PDFTEXT_PAYLOAD_WRAPPER = 'pdftext';
+    private const PAGE_MARKER_FIELD_GROUPS = [
+        ['page_index', 'doc_page_index', 'document_page_index', 'source_page_index'],
+        ['selected_page_index', 'trimmed_page_index', 'relative_page_index'],
+        ['pnum', 'page', 'pdftext_page'],
+        ['page_number'],
+        ['selected_page_number', 'trimmed_page_number', 'relative_page_number'],
+    ];
 
     /**
      * @param list<mixed> $artifacts
@@ -193,7 +201,14 @@ final class PdfPageArtifactSelector
     private function pageMarkerSources(array $artifact): array
     {
         $sources = [];
-        $this->collectPageMarkerSources($artifact, $sources);
+        $this->collectPageMarkerSources($artifact, $sources, 0, false);
+
+        if ($this->pageMarkerSourcesHaveMarkers($sources)) {
+            return $sources;
+        }
+
+        $sources = [];
+        $this->collectPageMarkerSources($artifact, $sources, 0, true);
 
         return $sources;
     }
@@ -205,7 +220,7 @@ final class PdfPageArtifactSelector
      * @param array<string, mixed> $artifact
      * @param list<array<string, mixed>> $sources
      */
-    private function collectPageMarkerSources(array $artifact, array &$sources, int $depth = 0): void
+    private function collectPageMarkerSources(array $artifact, array &$sources, int $depth = 0, bool $includePdftextPayload = true): void
     {
         $sources[] = $artifact;
         if ($depth >= 2) {
@@ -213,12 +228,36 @@ final class PdfPageArtifactSelector
         }
 
         foreach (self::PAGE_MARKER_WRAPPERS as $key) {
+            if ($key === self::PDFTEXT_PAYLOAD_WRAPPER && !$includePdftextPayload) {
+                continue;
+            }
+
             $value = $artifact[$key] ?? null;
             if (!is_array($value) || array_is_list($value)) {
                 continue;
             }
-            $this->collectPageMarkerSources($value, $sources, $depth + 1);
+            $this->collectPageMarkerSources($value, $sources, $depth + 1, $includePdftextPayload);
         }
+    }
+
+    /**
+     * A nested pdftext dictionary is often a payload copy rather than adapter
+     * identity. Use it for matching only when no normal metadata wrapper carries
+     * page markers.
+     *
+     * @param list<array<string, mixed>> $sources
+     */
+    private function pageMarkerSourcesHaveMarkers(array $sources): bool
+    {
+        foreach ($sources as $source) {
+            foreach (self::PAGE_MARKER_FIELD_GROUPS as $fields) {
+                if ($this->integerFields($source, $fields) !== []) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

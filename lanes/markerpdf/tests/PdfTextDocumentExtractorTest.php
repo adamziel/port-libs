@@ -1009,6 +1009,62 @@ return [
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'prefers adapter metadata over stale nested pdftext payload markers before layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(610, [
+                    ['text' => 'Payload-marker cover page skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(611, [
+                    ['text' => 'Second metadata-trusted column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First metadata-trusted column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'metadata' => ['page' => 611],
+                    'pdftext' => $pdftextLinesPage(610, [
+                        ['text' => 'Stale nested pdftext payload must not block selected order', 'bbox' => [72.0, 160.0, 520.0, 174.0]],
+                    ]),
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                    ],
+                ],
+            ],
+            orderImages: [
+                [
+                    'metadata' => ['page' => 611],
+                    'pdftext' => $pdftextLinesPage(610, [
+                        ['text' => 'Stale nested render payload must not block selected image', 'bbox' => [72.0, 180.0, 520.0, 194.0]],
+                    ]),
+                    'image' => 'metadata-trusted-selected-order-render',
+                ],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $processor = new MarkdownPostProcessor();
+        $blocks = $processor->mergeBlocks($processor->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([1], $result['page_range']);
+        $t->same(611, $result['pages'][0]['pnum']);
+        $t->same(['First metadata-trusted column', 'Second metadata-trusted column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First metadata-trusted column Second metadata-trusted column', $blocks[0]['text']);
+        $t->same(611, $result['pages'][0]['order']['page']);
+        $t->true(!array_key_exists('pdftext', $result['pages'][0]['order']));
+        $t->true(!str_contains($encoded, 'Stale nested pdftext payload must not block selected order'));
+        $t->true(!str_contains($encoded, 'Stale nested render payload must not block selected image'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
     'keeps matched layout order artifacts from leaking nested pdftext dictionary payloads' => static function (TestRunner $t) use ($pdftextLinesPage): void {
         $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
             [
