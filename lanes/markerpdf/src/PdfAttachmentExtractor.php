@@ -1028,6 +1028,7 @@ final class PdfAttachmentExtractor
         $fileIdentifier = $this->fileSpecIdentifierReview($fileSpec['ID'] ?? null, $objects);
         $volatile = $this->boolValue($this->resolveValue($fileSpec['V'] ?? null, $objects));
         $portfolioItem = $this->collectionItemReview($fileSpec['CI'] ?? null, $objects);
+        $macFileInfo = $this->embeddedFileMacInfoReview($params['Mac'] ?? null, $objects, $encryptionPolicy);
 
         $attachment = [
             ...$context,
@@ -1098,6 +1099,9 @@ final class PdfAttachmentExtractor
         if ($portfolioItem !== []) {
             $attachment['portfolio_item'] = $portfolioItem;
             $attachment['portfolio_item_count'] = count($portfolioItem);
+        }
+        if ($macFileInfo !== []) {
+            $attachment['mac_file_info'] = $macFileInfo;
         }
         $portfolio = is_array($attachment['portfolio'] ?? null) ? $attachment['portfolio'] : [];
         $portfolioFieldValues = $this->collectionFieldValueReview(
@@ -2093,6 +2097,7 @@ final class PdfAttachmentExtractor
         $declaredSize = $this->intValue($this->resolveValue($params['Size'] ?? null, $objects));
         $decodedLength = $this->intValue($this->resolveValue($streamDict['DL'] ?? null, $objects));
         $checksum = $this->stringBytesHex($this->resolveValue($params['CheckSum'] ?? null, $objects));
+        $macFileInfo = $this->embeddedFileMacInfoReview($params['Mac'] ?? null, $objects, $encryptionPolicy);
 
         $row = [
             'source' => 'filespec_related_files',
@@ -2132,8 +2137,146 @@ final class PdfAttachmentExtractor
             $row['computed_checksum_hex'] = $computedChecksum;
             $row['checksum_matches'] = strtolower($checksum) === $computedChecksum;
         }
+        if ($macFileInfo !== []) {
+            $row['mac_file_info'] = $macFileInfo;
+        }
 
         return $row;
+    }
+
+    /**
+     * EmbeddedFile stream /Params may carry a Mac OS file-info dictionary.
+     * Keep its creator/type codes and resource-fork bytes as review metadata
+     * only, so attachment importers never promote resource-fork payload text.
+     *
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param array<string, mixed>|null $encryptionPolicy
+     * @return array<string, mixed>
+     */
+    private function embeddedFileMacInfoReview(mixed $macValue, array $objects, ?array $encryptionPolicy = null): array
+    {
+        $mac = $this->dict($this->resolveValue($macValue, $objects));
+        if ($mac === null) {
+            return [];
+        }
+
+        $review = [
+            'source' => 'embedded_file_params_mac',
+            'review_only' => true,
+            'payload_bytes_included' => false,
+        ];
+
+        $fileType = $this->macOsFourCharacterCodeReview($mac['Subtype'] ?? null, $objects);
+        if ($fileType !== null) {
+            $review['file_type'] = $fileType;
+        }
+
+        $creator = $this->macOsFourCharacterCodeReview($mac['Creator'] ?? null, $objects);
+        if ($creator !== null) {
+            $review['creator'] = $creator;
+        }
+
+        $resourceFork = $this->embeddedFileMacResourceForkReview($mac['ResFork'] ?? null, $objects, $encryptionPolicy);
+        if ($resourceFork !== []) {
+            $review['has_resource_fork'] = true;
+            $review['resource_fork'] = $resourceFork;
+        }
+
+        return count($review) > 3 ? $review : [];
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return array{integer: int, hex: string, four_char_code?: string}|null
+     */
+    private function macOsFourCharacterCodeReview(mixed $value, array $objects): ?array
+    {
+        $integer = $this->intValue($this->resolveValue($value, $objects));
+        if ($integer === null || $integer < 0 || $integer > 0xffffffff) {
+            return null;
+        }
+
+        $bytes = pack('N', $integer);
+        $review = [
+            'integer' => $integer,
+            'hex' => strtolower(sprintf('%08x', $integer)),
+        ];
+
+        if (preg_match('/^[\x20-\x7e]{4}$/', $bytes) === 1) {
+            $review['four_char_code'] = $bytes;
+        }
+
+        return $review;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param array<string, mixed>|null $encryptionPolicy
+     * @return array<string, mixed>
+     */
+    private function embeddedFileMacResourceForkReview(
+        mixed $streamValue,
+        array $objects,
+        ?array $encryptionPolicy = null
+    ): array {
+        $streamObjectId = $this->refObjectId($streamValue);
+        $streamObject = $this->objectForReference($streamValue, $objects);
+        if ($streamObjectId === null || $streamObject === null || $streamObject['stream'] === null) {
+            return [];
+        }
+
+        $review = [
+            'source' => 'embedded_file_params_mac_resource_fork',
+            'stream_object_id' => $streamObjectId,
+            'payload_bytes_included' => false,
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+
+        if ($this->attachmentPolicySuppressesEmbeddedPayload($encryptionPolicy)) {
+            $review['encrypted_payload_suppressed'] = true;
+            $review['raw_encrypted_bytes_exposed'] = false;
+            $review['executes_decryption'] = false;
+
+            return $review;
+        }
+
+        $bytes = $this->decodedStreamBytes($streamObject, $objects);
+        if ($bytes === null) {
+            return [];
+        }
+
+        $streamDict = $this->dict($streamObject['value']) ?? [];
+        $params = $this->dict($this->resolveValue($streamDict['Params'] ?? null, $objects)) ?? [];
+        $filters = $this->filterNames($streamDict['Filter'] ?? null, $objects);
+        $declaredSize = $this->intValue($this->resolveValue($params['Size'] ?? null, $objects));
+        $decodedLength = $this->intValue($this->resolveValue($streamDict['DL'] ?? null, $objects));
+        $checksum = $this->stringBytesHex($this->resolveValue($params['CheckSum'] ?? null, $objects));
+
+        $review['content_type'] = $this->nameValue($this->resolveValue($streamDict['Subtype'] ?? null, $objects));
+        $review['byte_length'] = strlen($bytes);
+        $review['sha256'] = hash('sha256', $bytes);
+        $review['created_at'] = $this->stringValue($this->resolveValue($params['CreationDate'] ?? null, $objects));
+        $review['modified_at'] = $this->stringValue($this->resolveValue($params['ModDate'] ?? null, $objects));
+        if ($filters !== []) {
+            $review['filters'] = $filters;
+        }
+        if ($declaredSize !== null) {
+            $review['declared_size'] = $declaredSize;
+            $review['declared_size_matches'] = $declaredSize === strlen($bytes);
+        }
+        if ($decodedLength !== null) {
+            $review['decoded_length'] = $decodedLength;
+            $review['decoded_length_matches'] = $decodedLength === strlen($bytes);
+        }
+        if ($checksum !== null) {
+            $computedChecksum = md5($bytes);
+            $review['checksum_hex'] = $checksum;
+            $review['computed_checksum_hex'] = $computedChecksum;
+            $review['checksum_matches'] = strtolower($checksum) === $computedChecksum;
+        }
+
+        return $review;
     }
 
     /**

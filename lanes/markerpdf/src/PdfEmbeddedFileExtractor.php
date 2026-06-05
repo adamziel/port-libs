@@ -1490,13 +1490,28 @@ final class PdfEmbeddedFileExtractor
             return [];
         }
 
+        $metadata = $this->embeddedFileParamsScalarMetadata($params['body'], $objects, $content);
+        $macFileInfo = $this->embeddedFileMacInfoReview($this->dictionaryRawValue($params['body'], 'Mac'), $objects);
+        if ($macFileInfo !== []) {
+            $metadata['mac_file_info'] = $macFileInfo;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function embeddedFileParamsScalarMetadata(string $paramsBody, array $objects, string $content): array
+    {
         $metadata = [];
-        $size = $this->dictionaryIntegerValue($params['body'], 'Size');
+        $size = $this->dictionaryIntegerValue($paramsBody, 'Size', $objects);
         if ($size !== null) {
             $metadata['declared_size'] = $size;
         }
 
-        $checksum = $this->dictionaryChecksumValue($params['body'], 'CheckSum', $objects);
+        $checksum = $this->dictionaryChecksumValue($paramsBody, 'CheckSum', $objects);
         if ($checksum !== null && $checksum !== '') {
             $metadata['checksum'] = $checksum;
             $metadata['checksum_algorithm'] = 'md5';
@@ -1504,14 +1519,137 @@ final class PdfEmbeddedFileExtractor
             $metadata['checksum_matches'] = hash_equals($metadata['computed_checksum'], $checksum);
         }
 
-        $createdAt = $this->dictionaryStringValue($params['body'], 'CreationDate', $objects);
+        $createdAt = $this->dictionaryStringValue($paramsBody, 'CreationDate', $objects);
         if ($createdAt !== null && $createdAt !== '') {
             $metadata['created_at'] = $createdAt;
         }
 
-        $modifiedAt = $this->dictionaryStringValue($params['body'], 'ModDate', $objects);
+        $modifiedAt = $this->dictionaryStringValue($paramsBody, 'ModDate', $objects);
         if ($modifiedAt !== null && $modifiedAt !== '') {
             $metadata['modified_at'] = $modifiedAt;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function embeddedFileMacInfoReview(?string $macValue, array $objects): array
+    {
+        $mac = $this->resolveDictionaryFromValue($macValue, $objects);
+        if ($mac === null) {
+            return [];
+        }
+
+        $review = [
+            'source' => 'embedded_file_params_mac',
+            'review_only' => true,
+            'payload_bytes_included' => false,
+        ];
+
+        $fileType = $this->macOsFourCharacterCodeReview(
+            $this->dictionaryRawValue($mac['body'], 'Subtype'),
+            $objects
+        );
+        if ($fileType !== null) {
+            $review['file_type'] = $fileType;
+        }
+
+        $creator = $this->macOsFourCharacterCodeReview(
+            $this->dictionaryRawValue($mac['body'], 'Creator'),
+            $objects
+        );
+        if ($creator !== null) {
+            $review['creator'] = $creator;
+        }
+
+        $resourceFork = $this->embeddedFileMacResourceForkReview(
+            $this->dictionaryRawValue($mac['body'], 'ResFork'),
+            $objects
+        );
+        if ($resourceFork !== []) {
+            $review['has_resource_fork'] = true;
+            $review['resource_fork'] = $resourceFork;
+        }
+
+        return count($review) > 3 ? $review : [];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{integer: int, hex: string, four_char_code?: string}|null
+     */
+    private function macOsFourCharacterCodeReview(?string $value, array $objects): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $resolved = trim($this->resolveRawValue($value, $objects) ?? $value);
+        if (preg_match('/^\d+$/', $resolved) !== 1) {
+            return null;
+        }
+
+        $integer = (int) $resolved;
+        if ($integer < 0 || $integer > 0xffffffff) {
+            return null;
+        }
+
+        $bytes = pack('N', $integer);
+        $review = [
+            'integer' => $integer,
+            'hex' => strtolower(sprintf('%08x', $integer)),
+        ];
+
+        if (preg_match('/^[\x20-\x7e]{4}$/', $bytes) === 1) {
+            $review['four_char_code'] = $bytes;
+        }
+
+        return $review;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function embeddedFileMacResourceForkReview(?string $streamValue, array $objects): array
+    {
+        if ($streamValue === null) {
+            return [];
+        }
+
+        $stream = $this->embeddedFileStreamFromValue($streamValue, $objects);
+        if ($stream === null) {
+            return [];
+        }
+
+        $metadata = [
+            'source' => 'embedded_file_params_mac_resource_fork',
+            'embedded_file_object' => $stream['object'],
+            'size' => strlen($stream['content']),
+            'content_sha256' => hash('sha256', $stream['content']),
+            'payload_included' => false,
+        ];
+
+        $mimeType = $this->dictionaryNameValue($stream['dictionary'], 'Subtype', $objects);
+        if ($mimeType !== null && $mimeType !== '') {
+            $metadata['mime_type'] = $mimeType;
+        }
+        if ($stream['filters'] !== []) {
+            $metadata['filters'] = $stream['filters'];
+        }
+
+        foreach ($this->embeddedFileStreamMetadata($stream['dictionary'], $objects, $stream['content']) as $key => $metadataValue) {
+            $metadata[$key] = $metadataValue;
+        }
+
+        $params = $this->resolveDictionaryFromValue($this->dictionaryRawValue($stream['dictionary'], 'Params'), $objects);
+        if ($params !== null) {
+            foreach ($this->embeddedFileParamsScalarMetadata($params['body'], $objects, $stream['content']) as $key => $metadataValue) {
+                $metadata[$key] = $metadataValue;
+            }
         }
 
         return $metadata;
