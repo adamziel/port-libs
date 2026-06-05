@@ -795,6 +795,102 @@ XML);
         $t->contains('<p>Review cites de la Cruz (2020/2021) and (Import Review Rule 2024/2025) for source date range audit.</p>', $blocks);
         $t->contains('<dt>de la Cruz 2020/2021</dt><dd>de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.</dd>', $blocks);
     },
+    'maps bounded biblatex split url date fields into accessed csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@online{split-url-date,
+  author   = {Ng, Nia},
+  title    = {Split URL Date Source},
+  date     = {2026},
+  url      = {https://example.test/split-url-date},
+  urlyear  = {2026},
+  urlmonth = jun,
+  urlday   = {5}
+}
+
+@online{numeric-url-date,
+  author   = {{Review Desk}},
+  title    = {Numeric URL Date Source},
+  year     = {2025},
+  url      = {https://example.test/numeric-url-date},
+  urlyear  = {2026},
+  urlmonth = {7},
+  urlday   = {9}
+}
+
+@online{whole-url-date,
+  author   = {Curator, Eli},
+  title    = {Whole URL Date Wins},
+  date     = {2024},
+  url      = {https://example.test/whole-url-date},
+  urldate  = {2026-06-01},
+  urlyear  = {2026},
+  urlmonth = {7},
+  urlday   = {9}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(3, count($items));
+        $t->same(['date-parts' => [[2026, 6, 5]]], $items[0]['accessed']);
+        $t->same(['date-parts' => [[2026, 7, 9]]], $items[1]['accessed']);
+        $t->same(['date-parts' => [[2026, 6, 1]]], $items[2]['accessed']);
+        $t->same('June', $items[0]['rawBibtex']['fields']['urlmonth'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $split = $processor->item('split-url-date');
+        $numeric = $processor->item('numeric-url-date');
+        $whole = $processor->item('whole-url-date');
+        $t->same([2026, 6, 5], $split['accessedDate']['parts'] ?? null);
+        $t->same('2026-06-05', $split['accessedDate']['display'] ?? null);
+        $t->same([2026, 7, 9], $numeric['accessedDate']['parts'] ?? null);
+        $t->same('2026-07-09', $numeric['accessedDate']['display'] ?? null);
+        $t->same('2026-06-01', $whole['accessedDate']['display'] ?? null);
+        $t->same('(Ng 2026; Review Desk 2025; Curator 2024)', $processor->renderCitationCluster([
+            $citation('split-url-date', '[@split-url-date]'),
+            $citation('numeric-url-date', '[@numeric-url-date]'),
+            $citation('whole-url-date', '[@whole-url-date]'),
+        ]));
+        $t->same('Ng, Nia. Split URL Date Source. 2026. https://example.test/split-url-date. Accessed 2026-06-05.', $processor->renderBibliographyEntry('split-url-date'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="accessed"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="accessed"/>
+      <text variable="URL"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Ng | 2026-06-05; Review Desk | 2026-07-09]', $styled->renderCitationCluster([
+            $citation('split-url-date', '[@split-url-date]'),
+            $citation('numeric-url-date', '[@numeric-url-date]'),
+        ]));
+        $t->same('Split URL Date Source :: 2026-06-05 :: https://example.test/split-url-date', $styled->renderBibliographyEntry('split-url-date'));
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-accessed-source',
+            'title' => 'Manual Accessed Source',
+            'accessed' => ['date-parts' => [[2026, 7, 9]]],
+        ]])->item('manual-accessed-source');
+        $t->same('2026-07-09', $manual['accessedDate']['display'] ?? null);
+
+        $document = (new MarkdownReader())->read('Split URL date @split-url-date and numeric source [@numeric-url-date] preserve access-date parts.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Split URL date Ng (2026) and numeric source (Review Desk 2025) preserve access-date parts.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Split URL Date Source. 2026. https://example.test/split-url-date. Accessed 2026-06-05.</dd>', $blocks);
+        $t->contains('<dt>Review Desk 2025</dt><dd>Review Desk. Numeric URL Date Source. 2025. https://example.test/numeric-url-date. Accessed 2026-07-09.</dd>', $blocks);
+    },
     'applies bounded csl date-part forms affixes and range delimiters' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
             [

@@ -63,6 +63,8 @@ Alias source @legacy-alias-source resolves to one canonical bibliography item.
 
 Subtype source @review-subtype preserves source-kind metadata for review.
 
+Split URL date source @split-url-date preserves component access-date metadata.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -485,6 +487,16 @@ $bibtex = <<<'BIB'
   institution  = {Migration Desk},
   url          = {https://example.test/subtype-report}
 }
+
+@online{split-url-date,
+  author   = {Ng, Nia},
+  title    = {Split URL Date Source},
+  date     = {2026},
+  url      = {https://example.test/split-url-date},
+  urlyear  = {2026},
+  urlmonth = jun,
+  urlday   = {5}
+}
 BIB;
 
 $processor = CitationCslProcessor::fromBibtex($bibtex);
@@ -791,6 +803,13 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($reviewSubtype['entrySubtype'] ?? null) !== 'migration source audit') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve review subtype entrysubtype metadata');
     }
+    $splitUrlDate = $processor->item('split-url-date');
+    if (($splitUrlDate['accessedDate']['display'] ?? null) !== '2026-06-05') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve split URL access date metadata');
+    }
+    if (($splitUrlDate['raw']['accessed']['date-parts'][0] ?? null) !== [2026, 6, 5]) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not map split URL access date into raw CSL metadata');
+    }
 
     foreach ([
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
@@ -854,6 +873,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<dt>Alias Review Desk 2026</dt><dd>Alias Review Desk. Canonical Alias Packet. Review Press, 2026.</dd>',
         '<p>Subtype source Ng (2026) preserves source-kind metadata for review.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Source Audit Report. Migration Desk, 2026. Entry subtype: migration source audit. https://example.test/subtype-report.</dd>',
+        '<p>Split URL date source Ng (2026) preserves component access-date metadata.</p>',
+        '<dt>Ng 2026</dt><dd>Ng, Nia. Split URL Date Source. 2026. https://example.test/split-url-date. Accessed 2026-06-05.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {

@@ -763,7 +763,7 @@ final class BibtexCslParser
             $item['event-date'] = $eventDate;
         }
 
-        $accessed = self::dateFromFields($fields, ['urldate', 'accessed', 'accessdate'], []);
+        $accessed = self::dateFromFields($fields, ['urldate', 'accessed', 'accessdate'], ['urlyear', 'urlmonth', 'urlday']);
         if ($accessed !== null) {
             $item['accessed'] = $accessed;
         }
