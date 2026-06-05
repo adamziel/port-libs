@@ -584,9 +584,6 @@ final class PdfLinkAnnotationExtractor
             return null;
         }
         $visibleRect = $this->intersectRects($rect, $pageGeometry['bbox']);
-        if (!$this->rectHasArea($visibleRect)) {
-            return null;
-        }
 
         $pdftextRect = $this->pageRectToPdftextRect($rect, $pageGeometry);
         $pdftextVisibleRect = $this->pageRectToPdftextRect($visibleRect, $pageGeometry);
@@ -614,6 +611,9 @@ final class PdfLinkAnnotationExtractor
             $visibleQuadSourceIndexes[] = (int) $quadIndex;
         }
         if ($quadPoints !== [] && $visibleQuadRects === []) {
+            return null;
+        }
+        if (!$this->rectHasArea($visibleRect) && $quadPoints === []) {
             return null;
         }
 
