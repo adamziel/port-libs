@@ -238,6 +238,12 @@ final class MathTexConverter
         'alignedat*' => true,
     ];
 
+    /** @var array<string, bool> */
+    private const EQUATION_WRAPPER_ENVIRONMENTS = [
+        'equation' => true,
+        'equation*' => false,
+    ];
+
     /** @var array<string, string> */
     private const ACCESSIBILITY_TOKEN_TEXT = [
         '+' => 'plus',
@@ -1418,6 +1424,10 @@ final class MathTexConverter
     private function parseEnvironment(string $source, int &$offset): string
     {
         $environment = $this->readRequiredGroupText($source, $offset);
+        if (isset(self::EQUATION_WRAPPER_ENVIRONMENTS[$environment])) {
+            return $this->parseEquationWrapperEnvironment($source, $offset, $environment);
+        }
+
         if ($environment === 'smallmatrix') {
             return $this->parseSmallMatrixEnvironment($source, $offset);
         }
@@ -1466,6 +1476,79 @@ final class MathTexConverter
         }
 
         return $table;
+    }
+
+    private function parseEquationWrapperEnvironment(string $source, int &$offset, string $environment): string
+    {
+        $content = $this->readEnvironmentContent($source, $offset, $environment);
+        if (trim($content) === '') {
+            throw new \InvalidArgumentException('Empty TeX environment ' . $environment);
+        }
+
+        $this->assertEquationWrapperContent($content, $environment);
+        $parsed = $this->stripEnvironmentCellRowMetadata($content, $environment, 0);
+        $bodySource = trim($parsed['cell']);
+        if ($bodySource === '') {
+            throw new \InvalidArgumentException('Expected TeX ' . $environment . ' content');
+        }
+
+        $body = $this->parseTexFragment($bodySource, $environment . ' content');
+
+        return $this->renderEquationBody([$body], [
+            'label' => $parsed['label'],
+            'labelId' => $parsed['label'] !== null ? $this->normalizeEquationLabelId($parsed['label']) : null,
+            'tag' => $parsed['tag'],
+            'tagStarred' => $parsed['tagStarred'],
+        ]);
+    }
+
+    private function assertEquationWrapperContent(string $content, string $environment): void
+    {
+        $depth = 0;
+        $offset = 0;
+        $length = strlen($content);
+
+        while ($offset < $length) {
+            $char = $content[$offset];
+            if ($char === '\\') {
+                if ($depth === 0 && ($content[$offset + 1] ?? '') === '\\') {
+                    throw new \InvalidArgumentException('Unexpected TeX row separator in ' . $environment . ' environment at offset ' . $offset);
+                }
+
+                $commandOffset = $offset + 1;
+                $command = $this->readCommandName($content, $commandOffset);
+                if ($depth === 0 && $command === 'begin') {
+                    $environmentOffset = $commandOffset;
+                    $nestedEnvironment = $this->readRequiredGroupText($content, $environmentOffset);
+                    $this->readEnvironmentContent($content, $environmentOffset, $nestedEnvironment);
+                    $offset = $environmentOffset;
+                    continue;
+                }
+
+                $offset = $commandOffset;
+                continue;
+            }
+
+            if ($char === '{') {
+                $depth++;
+                $offset++;
+                continue;
+            }
+
+            if ($char === '}') {
+                if ($depth > 0) {
+                    $depth--;
+                }
+                $offset++;
+                continue;
+            }
+
+            if ($depth === 0 && $char === '&') {
+                throw new \InvalidArgumentException('Unexpected TeX alignment marker in ' . $environment . ' environment at offset ' . $offset);
+            }
+
+            $offset++;
+        }
     }
 
     private function parseBinomialCommand(string $source, int &$offset, ?bool $displaystyle): string
@@ -2444,7 +2527,15 @@ final class MathTexConverter
             }
 
             $content = $this->readEnvironmentContent($source, $contentOffset, $environment);
-            if (isset(self::AMS_ROW_ENVIRONMENTS[$environment])) {
+            if (isset(self::EQUATION_WRAPPER_ENVIRONMENTS[$environment])) {
+                $this->assertEquationWrapperContent($content, $environment);
+                $this->collectEquationReferenceLabelsFromTex(
+                    $content,
+                    $labels,
+                    $nextAutomaticNumber,
+                    $numberUntagged && self::EQUATION_WRAPPER_ENVIRONMENTS[$environment]
+                );
+            } elseif (isset(self::AMS_ROW_ENVIRONMENTS[$environment])) {
                 if ($this->endsWithTopLevelRowSeparator($content)) {
                     throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at final row');
                 }
@@ -2462,7 +2553,9 @@ final class MathTexConverter
                 $this->collectEquationReferenceLabelsFromEnvironmentRows($rows, $environment, $labels, $nextAutomaticNumber, $numberUntagged);
             }
 
-            $this->collectEnvironmentEquationReferenceLabelsFromTex($content, $labels, $nextAutomaticNumber, $numberUntagged);
+            if (!isset(self::EQUATION_WRAPPER_ENVIRONMENTS[$environment])) {
+                $this->collectEnvironmentEquationReferenceLabelsFromTex($content, $labels, $nextAutomaticNumber, $numberUntagged);
+            }
             $offset = $contentOffset;
         }
     }

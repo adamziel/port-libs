@@ -303,6 +303,67 @@ return [
             ],
         ], $converter->equationReferenceLabelsFromDocument($document));
     },
+    'converts bounded tex equation wrapper environments to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $equationMathml = $converter->texToMathMl('\\begin{equation}p_i + m_i \\label{eq:wrapped} \\tag{WP-3}\\end{equation}', true);
+        $starredMathml = $converter->texToMathMl('\\begin{equation*}\\operatorname{review}(p_i) + \\eqref{eq:wrapped}\\end{equation*}', false, [], [
+            'eq:wrapped' => [
+                'label' => 'eq:wrapped',
+                'reference' => 'WP-3',
+                'tag' => 'WP-3',
+            ],
+        ]);
+        $document = new AstNode('document', [], [
+            new AstNode('math', [
+                'text' => '\\begin{equation}p_i + m_i \\label{eq:wrapped-auto}\\end{equation}',
+                'display' => true,
+            ]),
+            new AstNode('math', [
+                'text' => '\\begin{equation*}x_i + y_i \\label{eq:wrapped-star}\\end{equation*}',
+                'display' => true,
+            ]),
+            new AstNode('math', [
+                'text' => '\\begin{equation}q_i \\label{eq:wrapped-tag} \\tag*{audit}\\end{equation}',
+                'display' => true,
+            ]),
+        ]);
+        $labels = $converter->equationReferenceLabelsFromDocument($document);
+        $resolvedMathml = $converter->texToMathMl('\\eqref{eq:wrapped-auto} + \\eqref{eq:wrapped-star} + \\eqref{eq:wrapped-tag}', false, [], $labels);
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $equationMathml);
+        $t->contains('<mtable><mlabeledtr><mtd><mtext>(WP-3)</mtext></mtd><mtd id="eq:wrapped"><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow></mtd></mlabeledtr></mtable>', $equationMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{equation}p_i + m_i \\label{eq:wrapped} \\tag{WP-3}\\end{equation}</annotation>', $equationMathml);
+        $t->contains('<mi>review</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:wrapped">WP-3</mtext><mo>)</mo></mrow>', $starredMathml);
+        $t->same([
+            'eq:wrapped-auto' => [
+                'label' => 'eq:wrapped-auto',
+                'id' => 'eq:wrapped-auto',
+                'reference' => '1',
+                'tag' => null,
+                'tagStarred' => false,
+            ],
+            'eq:wrapped-star' => [
+                'label' => 'eq:wrapped-star',
+                'id' => 'eq:wrapped-star',
+                'reference' => 'eq:wrapped-star',
+                'tag' => null,
+                'tagStarred' => false,
+            ],
+            'eq:wrapped-tag' => [
+                'label' => 'eq:wrapped-tag',
+                'id' => 'eq:wrapped-tag',
+                'reference' => 'audit',
+                'tag' => 'audit',
+                'tagStarred' => true,
+            ],
+        ], $labels);
+        $t->contains('<mrow><mo>(</mo><mtext href="#eq:wrapped-auto">1</mtext><mo>)</mo></mrow><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:wrapped-star">eq:wrapped-star</mtext><mo>)</mo></mrow><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:wrapped-tag">audit</mtext><mo>)</mo></mrow>', $resolvedMathml);
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{equation}\\end{equation}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{equation}a & b\\end{equation}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{equation}a \\\\ b\\end{equation}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{equation}\\label{eq:empty}\\end{equation}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{equation}a \\tag{}\\end{equation}'));
+    },
     'converts bounded tex ams row tags and labels to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $taggedAlignMathml = $converter->texToMathMl('\\begin{align}p_i &= m_i \\tag{WP-1} \\\\ x_i &= y_i \\label{eq:row-review} \\tag*{review}\\end{align}', true);
