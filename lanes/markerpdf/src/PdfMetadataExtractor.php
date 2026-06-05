@@ -4645,6 +4645,12 @@ final class PdfMetadataExtractor
         if (isset($entry['generation'])) {
             $metadata['object_generation'] = $entry['generation'];
         }
+        if (($entry['malformed_encrypt_dictionary'] ?? false) === true) {
+            $metadata['malformed_encrypt_dictionary'] = true;
+            $metadata['encrypt_dictionary_resolved'] = false;
+            $metadata['encrypt_operand_shape'] = $entry['encrypt_operand_shape'] ?? null;
+            $metadata['encrypt_operand_status'] = $entry['encrypt_operand_status'] ?? null;
+        }
 
         $filter = $this->dictionaryNameValue($dictionary, 'Filter', $objects)
             ?? $this->dictionaryStringValue($dictionary, 'Filter');
@@ -5025,7 +5031,7 @@ final class PdfMetadataExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{body: string, object: int|null, generation?: int, source: string}|null
+     * @return array{body: string, object: int|null, generation?: int, source: string, malformed_encrypt_dictionary?: bool, encrypt_operand_shape?: string, encrypt_operand_status?: string}|null
      */
     private function encryptionDictionaryEntry(string $pdfBytes, array $objects): ?array
     {
@@ -5046,7 +5052,8 @@ final class PdfMetadataExtractor
                     return null;
                 }
 
-                $entry = $this->resolvedEncryptionDictionary($value, $objects, $source);
+                $entry = $this->resolvedEncryptionDictionary($value, $objects, $source)
+                    ?? $this->malformedEncryptionDictionaryEntry($value, $source);
                 if ($entry !== null) {
                     return $entry;
                 }
@@ -5059,7 +5066,12 @@ final class PdfMetadataExtractor
             }
 
             $value = $this->dictionaryRawValue($body, 'Encrypt');
-            $entry = $value === null ? null : $this->resolvedEncryptionDictionary($value, $objects, 'xref_stream_encrypt');
+            $entry = $value === null
+                ? null
+                : (
+                    $this->resolvedEncryptionDictionary($value, $objects, 'xref_stream_encrypt')
+                    ?? $this->malformedEncryptionDictionaryEntry($value, 'xref_stream_encrypt')
+                );
             if ($entry !== null) {
                 return $entry;
             }
@@ -5070,7 +5082,7 @@ final class PdfMetadataExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{parsed: bool, entry: array{body: string, object: int|null, generation?: int, source: string}|null}
+     * @return array{parsed: bool, entry: array{body: string, object: int|null, generation?: int, source: string, malformed_encrypt_dictionary?: bool, encrypt_operand_shape?: string, encrypt_operand_status?: string}|null}
      */
     private function trailerEncryptionDictionaryEntryFromStartxrefChain(string $pdfBytes, array $objects): array
     {
@@ -5092,7 +5104,7 @@ final class PdfMetadataExtractor
      * @param array<int, string> $objects
      * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
      * @param array<int, true> $seenOffsets
-     * @return array{parsed: bool, entry: array{body: string, object: int|null, generation?: int, source: string}|null}
+     * @return array{parsed: bool, entry: array{body: string, object: int|null, generation?: int, source: string, malformed_encrypt_dictionary?: bool, encrypt_operand_shape?: string, encrypt_operand_status?: string}|null}
      */
     private function trailerEncryptionDictionaryEntryAtOffsetChain(
         string $pdfBytes,
@@ -5121,9 +5133,10 @@ final class PdfMetadataExtractor
             $source = $this->trailerEncryptionSourceAtOffset($pdfBytes, $offset, $depth);
             $entry = $this->resolvedEncryptionDictionary($value, $objects, $source);
 
-            return $entry === null
-                ? ['parsed' => false, 'entry' => null]
-                : ['parsed' => true, 'entry' => $entry];
+            return [
+                'parsed' => true,
+                'entry' => $entry ?? $this->malformedEncryptionDictionaryEntry($value, $source),
+            ];
         }
 
         $previousOffset = $this->dictionaryIntegerValue($trailer, 'Prev');
@@ -5197,6 +5210,68 @@ final class PdfMetadataExtractor
             'object' => null,
             'source' => $source,
         ];
+    }
+
+    /**
+     * A non-null /Encrypt in the selected trailer chain means the import must
+     * fail closed even when the referenced dictionary cannot be resolved.
+     *
+     * @return array{body: string, object: int|null, generation?: int, source: string, malformed_encrypt_dictionary: bool, encrypt_operand_shape: string, encrypt_operand_status: string}
+     */
+    private function malformedEncryptionDictionaryEntry(string $value, string $source): array
+    {
+        $trimmed = $this->trimPdfWhitespaceAndComments($value);
+        $reference = $this->objectReferenceFromValue($trimmed);
+        $shape = $this->encryptionDictionaryOperandShape($trimmed);
+        $entry = [
+            'body' => '',
+            'object' => null,
+            'source' => $source,
+            'malformed_encrypt_dictionary' => true,
+            'encrypt_operand_shape' => $shape,
+            'encrypt_operand_status' => $reference !== null
+                ? 'encrypt_dictionary_unresolved_reference'
+                : (
+                    $shape === 'dictionary'
+                        ? 'encrypt_dictionary_malformed_direct_dictionary'
+                        : 'encrypt_dictionary_non_dictionary_operand'
+                ),
+        ];
+
+        if ($reference !== null) {
+            $entry['object'] = $reference['objectNumber'];
+            $entry['generation'] = $reference['generation'];
+        }
+
+        return $entry;
+    }
+
+    private function encryptionDictionaryOperandShape(string $value): string
+    {
+        $trimmed = $this->trimPdfWhitespaceAndComments($value);
+        if ($trimmed === '') {
+            return 'empty';
+        }
+        if ($this->objectReferenceFromValue($trimmed) !== null) {
+            return 'indirect_reference';
+        }
+        if (str_starts_with($trimmed, '<<')) {
+            return 'dictionary';
+        }
+        if (str_starts_with($trimmed, '[')) {
+            return 'array';
+        }
+        if (str_starts_with($trimmed, '(')) {
+            return 'literal_string';
+        }
+        if (str_starts_with($trimmed, '<')) {
+            return 'hex_string';
+        }
+        if (str_starts_with($trimmed, '/')) {
+            return 'name';
+        }
+
+        return 'token';
     }
 
     private function encryptionAlgorithmLabel(int $version): string
