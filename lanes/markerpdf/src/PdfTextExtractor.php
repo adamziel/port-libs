@@ -20136,6 +20136,25 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if (($entry['type'] ?? null) === 0) {
+                $definition = $this->latestDirectObjectStreamDefinitionBetweenOffsets(
+                    $definitions[$objectNumber] ?? [],
+                    $previousOffset ?? -1,
+                    $currentXrefOffset
+                );
+                if ($definition === null) {
+                    continue;
+                }
+
+                $entries[$objectNumber] = [
+                    'type' => 1,
+                    'generation' => $definition['generation'],
+                    'offset' => $definition['offset'],
+                    'offsetIsExplicit' => true,
+                ];
+                continue;
+            }
+
             if (($entry['type'] ?? null) !== 1) {
                 continue;
             }
