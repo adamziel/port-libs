@@ -678,6 +678,7 @@ final class TableGeometry
      *     columnCount:int,
      *     declaredColumnCount:int,
      *     columns:list<array{column:int,alignment:string,width:?float,declared:bool}>,
+     *     captions:array<string, array<string, mixed>>,
      *     sections:list<array<string, mixed>>,
      *     coverage:list<array<string, mixed>>,
      *     diagnostics:list<array<string, mixed>>,
@@ -692,6 +693,7 @@ final class TableGeometry
         $coverageRecords = self::cellCoverage($table);
         $coverage = self::serializableCoverage($coverageRecords);
         $diagnostics = self::diagnostics($table);
+        $captions = self::captionMetadata($table);
         $writerDowngrades = [];
         foreach (self::reviewPacketWriters($options['writers'] ?? ['markdown']) as $writer) {
             $writerDowngrades[$writer] = self::writerDowngradeDiagnosticsFromCoverage($coverageRecords, $writer);
@@ -703,6 +705,7 @@ final class TableGeometry
 
         $packet = [
             'caption' => (string) $table->attr('caption', ''),
+            'captions' => $captions,
             'columnCount' => $columnCount,
             'declaredColumnCount' => self::declaredColumnCount($table),
             'columns' => self::columnSpecs($table, $columnCount),
@@ -711,7 +714,7 @@ final class TableGeometry
             'diagnostics' => $diagnostics,
             'writerDowngrades' => $writerDowngrades,
             'accessibility' => $accessibility,
-            'summary' => self::reviewPacketSummary($sections, $coverage, $diagnostics, $writerDowngrades),
+            'summary' => self::reviewPacketSummary($sections, $coverage, $diagnostics, $writerDowngrades, $captions),
         ];
 
         $sourceAttributes = self::sourceAttributeSummary($table);
@@ -963,6 +966,131 @@ final class TableGeometry
     }
 
     /**
+     * @return array{long:array<string, mixed>,short:array<string, mixed>}
+     */
+    private static function captionMetadata(AstNode $table): array
+    {
+        return [
+            'long' => self::captionRecord($table, 'caption', 'captionInlines'),
+            'short' => self::captionRecord($table, 'shortCaption', 'shortCaptionInlines'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function captionRecord(AstNode $table, string $textAttribute, string $inlineAttribute): array
+    {
+        $rawText = trim((string) $table->attr($textAttribute, ''));
+        $inlines = self::inlineNodes($table->attr($inlineAttribute, []));
+        $inlineText = self::plainTextFromNodes($inlines);
+        $text = $inlines === [] ? $rawText : $inlineText;
+        $source = $inlines === [] ? ($rawText === '' ? 'none' : $textAttribute) : $inlineAttribute;
+
+        $record = [
+            'text' => $text,
+            'source' => $source,
+            'inlineCount' => count($inlines),
+            'inlineTypes' => self::inlineTypes($inlines),
+            'hasInlineFormatting' => self::inlinesHaveFormatting($inlines),
+            'inlines' => self::serializableInlines($inlines),
+        ];
+        if ($rawText !== '' && $rawText !== $text) {
+            $record['rawText'] = $rawText;
+        }
+
+        return $record;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private static function inlineNodes(mixed $nodes): array
+    {
+        if (!is_array($nodes)) {
+            return [];
+        }
+
+        return array_values(array_filter($nodes, static fn (mixed $node): bool => $node instanceof AstNode));
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<string>
+     */
+    private static function inlineTypes(array $nodes): array
+    {
+        $types = [];
+        foreach ($nodes as $node) {
+            $type = trim($node->type);
+            if ($type !== '') {
+                $types[] = $type;
+            }
+        }
+
+        return array_values(array_unique($types));
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private static function inlinesHaveFormatting(array $nodes): bool
+    {
+        foreach ($nodes as $node) {
+            if (!in_array($node->type, ['text', 'space', 'softbreak', 'linebreak'], true)) {
+                return true;
+            }
+
+            if (self::inlinesHaveFormatting($node->children)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<array<string, mixed>>
+     */
+    private static function serializableInlines(array $nodes): array
+    {
+        $records = [];
+        foreach ($nodes as $node) {
+            $records[] = self::serializableInline($node);
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function serializableInline(AstNode $node): array
+    {
+        $record = [
+            'type' => $node->type,
+            'text' => self::plainText($node),
+        ];
+        foreach (['url', 'title', 'alt', 'tex', 'format', 'html'] as $attribute) {
+            $value = $node->attr($attribute, null);
+            if (is_scalar($value) && (string) $value !== '') {
+                $record[$attribute] = (string) $value;
+            }
+        }
+
+        $sourceAttributes = self::sourceAttributeSummary($node);
+        if ($sourceAttributes !== []) {
+            $record['sourceAttributes'] = $sourceAttributes;
+        }
+        if ($node->children !== []) {
+            $record['children'] = self::serializableInlines($node->children);
+        }
+
+        return $record;
+    }
+
+    /**
      * @param list<list<array<string, mixed>>> $rows
      * @return array<string, mixed>
      */
@@ -1095,9 +1223,16 @@ final class TableGeometry
      * @param list<array<string, mixed>> $coverage
      * @param list<array<string, mixed>> $diagnostics
      * @param array<string, list<array<string, mixed>>> $writerDowngrades
+     * @param array{long:array<string, mixed>,short:array<string, mixed>} $captions
      * @return array<string, mixed>
      */
-    private static function reviewPacketSummary(array $sections, array $coverage, array $diagnostics, array $writerDowngrades): array
+    private static function reviewPacketSummary(
+        array $sections,
+        array $coverage,
+        array $diagnostics,
+        array $writerDowngrades,
+        array $captions
+    ): array
     {
         $rowCount = 0;
         $coveredSlotCount = 0;
@@ -1172,6 +1307,16 @@ final class TableGeometry
             'missingSlotCount' => $missingSlotCount,
             'diagnosticCount' => count($diagnostics),
             'diagnosticCodes' => array_values(array_unique($diagnosticCodes)),
+            'hasCaption' => (string) ($captions['long']['text'] ?? '') !== '',
+            'hasShortCaption' => (string) ($captions['short']['text'] ?? '') !== '',
+            'captionInlineTypes' => array_values(array_map(
+                static fn (mixed $type): string => (string) $type,
+                is_array($captions['long']['inlineTypes'] ?? null) ? $captions['long']['inlineTypes'] : []
+            )),
+            'shortCaptionInlineTypes' => array_values(array_map(
+                static fn (mixed $type): string => (string) $type,
+                is_array($captions['short']['inlineTypes'] ?? null) ? $captions['short']['inlineTypes'] : []
+            )),
             'hasSpans' => $hasSpans,
             'nestedTableCount' => $nestedTableCount,
             'nestedTableCellCount' => $nestedTableCellCount,
@@ -1467,6 +1612,19 @@ final class TableGeometry
         }
 
         return '';
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private static function plainTextFromNodes(array $nodes): string
+    {
+        $text = '';
+        foreach ($nodes as $node) {
+            $text .= self::plainText($node);
+        }
+
+        return $text;
     }
 
     /**

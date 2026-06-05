@@ -75,6 +75,38 @@ $colgroupMismatchTables = array_values(array_filter(
     $colgroupMismatchDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$captionMetadataTables = [
+    new AstNode('table', [
+        'caption' => 'Long caption for reviewer',
+        'captionInlines' => [
+            new AstNode('text', ['text' => 'Long ']),
+            new AstNode('emph', [], [new AstNode('text', ['text' => 'caption'])]),
+            new AstNode('text', ['text' => ' for ']),
+            new AstNode('link', ['url' => 'https://example.test/review', 'title' => 'Review'], [
+                new AstNode('text', ['text' => 'reviewer']),
+            ]),
+        ],
+        'shortCaption' => 'Queue short',
+        'shortCaptionInlines' => [
+            new AstNode('text', ['text' => 'Queue ']),
+            new AstNode('strong', [], [new AstNode('text', ['text' => 'short'])]),
+        ],
+        'alignments' => ['left', 'right'],
+    ], [
+        new AstNode('table_head', [], [
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+                new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+            ]),
+        ]),
+        new AstNode('table_body', [], [
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+            ]),
+        ]),
+    ]),
+];
 
 $document = new AstNode('document', [], [
     new AstNode('table', [
@@ -383,6 +415,7 @@ $document = new AstNode('document', [], [
     ...$colgroupAlignmentTables,
     ...$colgroupMismatchTables,
     ...$readerHandoffTables,
+    ...$captionMetadataTables,
 ]);
 
 $blocks = (new WordPressBlockWriter())->write($document);
@@ -758,6 +791,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<figcaption class="wp-element-caption">Reader packet import metrics</figcaption>')) {
         throw new RuntimeException('Table geometry self-test missing Markdown reader table WordPress output');
     }
+
+    $captionMetadataTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('shortCaption') === 'Queue short') {
+            $captionMetadataTable = $node;
+            break;
+        }
+    }
+    $captionPacket = $captionMetadataTable instanceof AstNode ? TableGeometry::reviewPacket($captionMetadataTable, ['accessibility' => false]) : null;
+    if (
+        !is_array($captionPacket)
+        || ($captionPacket['captions']['long']['inlineTypes'] ?? null) !== ['text', 'emph', 'link']
+        || ($captionPacket['captions']['short']['inlineTypes'] ?? null) !== ['text', 'strong']
+        || ($captionPacket['summary']['hasShortCaption'] ?? null) !== true
+    ) {
+        throw new RuntimeException('Table geometry self-test missing long/short caption review-packet metadata');
+    }
+    if (($captionPacket['captions']['long']['inlines'][3]['url'] ?? null) !== 'https://example.test/review') {
+        throw new RuntimeException('Table geometry self-test missing caption inline link metadata');
+    }
+    if (!str_contains($blocks, '<figure class="wp-block-table" data-pandoc-short-caption="Queue short"><table><thead><tr><th style="text-align:left">Scope</th><th style="text-align:right">State</th></tr></thead><tbody><tr><td style="text-align:left">Posts</td><td style="text-align:right">Ready</td></tr></tbody></table><figcaption class="wp-element-caption">Long <em>caption</em> for <a href="https://example.test/review" title="Review">reviewer</a></figcaption></figure>')) {
+        throw new RuntimeException('Table geometry self-test missing WordPress output for caption metadata handoff');
+    }
+    json_encode($captionPacket, JSON_THROW_ON_ERROR);
 
     echo "table geometry handoff self-test ok\n";
     return;

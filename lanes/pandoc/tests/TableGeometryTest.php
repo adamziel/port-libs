@@ -1201,4 +1201,64 @@ return [
         $t->true(!array_key_exists('node', $packet['coverage'][0]), 'Source attribute packets remain serializable and do not leak AstNode references');
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'serializes long and short table caption metadata for importer review packets' => static function (TestRunner $t): void {
+        $table = new AstNode('table', [
+            'caption' => 'Long caption for reviewer',
+            'captionInlines' => [
+                new AstNode('text', ['text' => 'Long ']),
+                new AstNode('emph', [], [new AstNode('text', ['text' => 'caption'])]),
+                new AstNode('text', ['text' => ' for ']),
+                new AstNode('link', ['url' => 'https://example.test/review', 'title' => 'Review'], [
+                    new AstNode('text', ['text' => 'reviewer']),
+                ]),
+            ],
+            'shortCaption' => 'Queue short',
+            'shortCaptionInlines' => [
+                new AstNode('text', ['text' => 'Queue ']),
+                new AstNode('strong', [], [new AstNode('text', ['text' => 'short'])]),
+            ],
+            'alignments' => ['left', 'right'],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]);
+
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+
+        $t->same('Long caption for reviewer', $packet['caption']);
+        $t->same('Long caption for reviewer', $packet['captions']['long']['text'] ?? null);
+        $t->same('captionInlines', $packet['captions']['long']['source'] ?? null);
+        $t->same(['text', 'emph', 'link'], $packet['captions']['long']['inlineTypes'] ?? null);
+        $t->same(4, $packet['captions']['long']['inlineCount'] ?? null);
+        $t->same(true, $packet['captions']['long']['hasInlineFormatting'] ?? null);
+        $t->same('emph', $packet['captions']['long']['inlines'][1]['type'] ?? null);
+        $t->same('caption', $packet['captions']['long']['inlines'][1]['children'][0]['text'] ?? null);
+        $t->same('https://example.test/review', $packet['captions']['long']['inlines'][3]['url'] ?? null);
+        $t->same('Review', $packet['captions']['long']['inlines'][3]['title'] ?? null);
+
+        $t->same('Queue short', $packet['captions']['short']['text'] ?? null);
+        $t->same('shortCaptionInlines', $packet['captions']['short']['source'] ?? null);
+        $t->same(['text', 'strong'], $packet['captions']['short']['inlineTypes'] ?? null);
+        $t->same(2, $packet['captions']['short']['inlineCount'] ?? null);
+        $t->same(true, $packet['captions']['short']['hasInlineFormatting'] ?? null);
+        $t->same('strong', $packet['captions']['short']['inlines'][1]['type'] ?? null);
+        $t->same('short', $packet['captions']['short']['inlines'][1]['children'][0]['text'] ?? null);
+
+        $t->same(true, $packet['summary']['hasCaption'] ?? null);
+        $t->same(true, $packet['summary']['hasShortCaption'] ?? null);
+        $t->same(['text', 'emph', 'link'], $packet['summary']['captionInlineTypes'] ?? null);
+        $t->same(['text', 'strong'], $packet['summary']['shortCaptionInlineTypes'] ?? null);
+        $t->same(false, array_key_exists('node', $packet['captions']['long']['inlines'][1] ?? []));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
 ];
