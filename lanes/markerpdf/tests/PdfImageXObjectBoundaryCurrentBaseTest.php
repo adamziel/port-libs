@@ -970,6 +970,79 @@ return [
         $t->true(str_contains($encoded, hash('sha256', $currentPayload)));
         $t->true(!str_contains($encoded, hash('sha256', $stalePayload)));
     },
+    'resolves named ColorSpace resources for image XObject and Form XObject alpha review' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before named color image) Tj ET\n"
+            . "q 24 0 0 12 72 690 cm /Named#20Image Do Q\n"
+            . "q 20 0 0 10 110 690 cm /Named#20Form Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After named color image) Tj ET';
+        $formContent = 'q 10 0 0 5 2 2 cm /Nested#20Named Do Q';
+        $pageImagePayload = 'BT /F1 12 Tf 72 720 Td (Page Named ColorSpace Image Payload Noise) Tj ET';
+        $nestedImagePayload = 'BT /F1 12 Tf 72 720 Td (Nested Named ColorSpace Image Payload Noise) Tj ET';
+        $pageCompressed = gzcompress($pageImagePayload);
+        $nestedCompressed = gzcompress($nestedImagePayload);
+        if (!is_string($pageCompressed) || !is_string($nestedCompressed)) {
+            throw new RuntimeException('Unable to compress named ColorSpace image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /ColorSpace << /CSHero 12 0 R >> /XObject << /Named#20Image 5 0 R /Named#20Form 6 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /CSHero /BitsPerComponent 8 /Filter /FlateDecode /Mask [0 0 120 140 200 255] /Length " . strlen($pageCompressed) . " >>\nstream\n{$pageCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 20 10] /Resources << /ColorSpace << /CSNested /DeviceCMYK >> /XObject << /Nested#20Named 8 0 R >> /Font << /F1 10 0 R >> >> /Length " . strlen($formContent) . " >>\nstream\n{$formContent}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /CSNested /BitsPerComponent 8 /Filter /FlateDecode /Mask [0 0 40 80 120 160 200 255] /Length " . strlen($nestedCompressed) . " >>\nstream\n{$nestedCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "12 0 obj\n[/DeviceRGB]\nendobj\n"
+            . "12 1 obj\n[/DeviceGray]\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(2, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+
+        $pageImage = $entriesByName['Named Image'];
+        $t->same('DeviceRGB', $pageImage['color_space']);
+        $t->same('CSHero', $pageImage['color_space_resource_name']);
+        $t->same(true, $pageImage['color_space_resolved_from_resources']);
+        $t->same('Resources.ColorSpace', $pageImage['color_space_resource_source']);
+        $t->same(3, $pageImage['mask_review']['expected_components']);
+        $t->same(true, $pageImage['mask_review']['valid_for_components']);
+        $t->same(hash('sha256', $pageImagePayload), $pageImage['decoded_sha256']);
+        $t->same([72.0, 690.0, 96.0, 702.0], $pageImage['image_unit_bbox']);
+
+        $nested = $entriesByName['Nested Named'];
+        $t->same(['Named Form', 'Nested Named'], $nested['resource_path']);
+        $t->same(6, $nested['parent_form_xobject_object']);
+        $t->same('DeviceCMYK', $nested['color_space']);
+        $t->same('CSNested', $nested['color_space_resource_name']);
+        $t->same(true, $nested['color_space_resolved_from_resources']);
+        $t->same('Resources.ColorSpace', $nested['color_space_resource_source']);
+        $t->same(4, $nested['mask_review']['expected_components']);
+        $t->same(true, $nested['mask_review']['valid_for_components']);
+        $t->same(hash('sha256', $nestedImagePayload), $nested['decoded_sha256']);
+        $t->same([[200.0, 0.0, 0.0, 50.0, 150.0, 710.0]], $nested['invocation_matrices']);
+        $t->same([150.0, 710.0, 350.0, 760.0], $nested['image_unit_bbox']);
+
+        $t->same(['Before named color image', 'After named color image'], $extractor->extractTextLines($pdf));
+        $t->same("Before named color image\nAfter named color image", $plainText);
+        $t->true(!str_contains($plainText, 'Page Named ColorSpace Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Nested Named ColorSpace Image Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(str_contains($encoded, 'CSHero'));
+        $t->true(str_contains($encoded, 'CSNested'));
+        $t->true(!str_contains($encoded, $pageImagePayload));
+        $t->true(!str_contains($encoded, $nestedImagePayload));
+    },
     'ignores nested private XObject resource dictionary entries before image review and form text expansion' => static function (TestRunner $t): void {
         $pageContent = "BT /F1 12 Tf 72 720 Td (Before nested private XObject) Tj ET\n"
             . "q 20 0 0 10 72 690 cm /Hero#20Image Do Q\n"

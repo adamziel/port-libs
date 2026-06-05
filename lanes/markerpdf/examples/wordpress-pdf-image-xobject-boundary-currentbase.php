@@ -56,11 +56,11 @@ $encodedSoftMaskPayload = strtoupper(bin2hex($compressedSoftMaskPayload)) . '>';
 
 $pdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Metadata 11 1 R /AuxGenerationDecoys [12 1 R 15 1 R] /OCProperties << /OCGs [20 0 R 21 0 R] /D << /BaseState /OFF /ON [20 0 R] /Order [20 0 R 21 0 R] >> >> >>\nendobj\n"
-    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /Properties << /LayerOn 20 0 R /LayerOff 21 0 R >> /XObject << /Logo#20Form 5 0 R /Hero#20Image 6 0 R /HiddenMarked 7 0 R /HiddenObject 8 0 R >> >> >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /ColorSpace << /CSHero 17 0 R >> /Properties << /LayerOn 20 0 R /LayerOff 21 0 R >> /XObject << /Logo#20Form 5 0 R /Hero#20Image 6 0 R /HiddenMarked 7 0 R /HiddenObject 8 0 R >> >> >>\nendobj\n"
     . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 14 0 R] >>\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($contentOpen) . " >>\nstream\n{$contentOpen}\nendstream\nendobj\n"
     . "5 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 32 16] /Length " . strlen($formContent) . " >>\nstream\n{$formContent}\nendstream\nendobj\n"
-    . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/ASCIIHexDecode /FlateDecode] /Interpolate true /Intent /RelativeColorimetric /Name /Hero#20Image /StructParent 8 /StructParents 9 /SMask 16 1 R /Mask 15 0 R /Metadata 11 0 R /Alternates [<< /Image 12 0 R /DefaultForPrinting true >> << /Image 13 0 R /DefaultForPrinting false >>] /Length " . strlen($encodedImagePayload) . " >>\nstream\n{$encodedImagePayload}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /CSHero /BitsPerComponent 8 /Filter [/ASCIIHexDecode /FlateDecode] /Interpolate true /Intent /RelativeColorimetric /Name /Hero#20Image /StructParent 8 /StructParents 9 /SMask 16 1 R /Mask 15 0 R /Metadata 11 0 R /Alternates [<< /Image 12 0 R /DefaultForPrinting true >> << /Image 13 0 R /DefaultForPrinting false >>] /Length " . strlen($encodedImagePayload) . " >>\nstream\n{$encodedImagePayload}\nendstream\nendobj\n"
     . "7 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Mask [0 255] /Length " . strlen($compressedHiddenMarkedPayload) . " >>\nstream\n{$compressedHiddenMarkedPayload}\nendstream\nendobj\n"
     . "8 0 obj\n<< /Type /XObject /Subtype /Image /OC 21 0 R /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($compressedHiddenObjectPayload) . " >>\nstream\n{$compressedHiddenObjectPayload}\nendstream\nendobj\n"
     . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
@@ -74,6 +74,8 @@ $pdf = "%PDF-1.4\n"
     . "15 1 obj\n<< /Type /XObject /Subtype /Image /Width 9 /Height 9 /ImageMask true /BitsPerComponent 1 /Filter /FlateDecode /Decode [0 1] /Length " . strlen($compressedStaleMaskPayload) . " >>\nstream\n{$compressedStaleMaskPayload}\nendstream\nendobj\n"
     . "16 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Decode [0 1] /Length " . strlen($compressedStaleSoftMaskPayload) . " >>\nstream\n{$compressedStaleSoftMaskPayload}\nendstream\nendobj\n"
     . "16 1 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter [/ASCIIHexDecode /FlateDecode] /Decode [1 0] /Length " . strlen($encodedSoftMaskPayload) . " >>\nstream\n{$encodedSoftMaskPayload}\nendstream\nendobj\n"
+    . "17 0 obj\n[/DeviceRGB]\nendobj\n"
+    . "17 1 obj\n[/DeviceGray]\nendobj\n"
     . "20 0 obj\n<< /Type /OCG /Name (Visible WordPress Image Layer) >>\nendobj\n"
     . "21 0 obj\n<< /Type /OCG /Name (Hidden WordPress Image Layer) >>\nendobj\n%%EOF";
 
@@ -87,6 +89,10 @@ if (
     || ($review['entries'][0]['image_unit_bbox'] ?? null) !== [136.0, 722.0, 648.0, 850.0]
     || ($review['entries'][0]['image_visible_bbox'] ?? null) !== [200.0, 722.0, 456.0, 786.0]
     || ($review['entries'][0]['clip_reduces_painted_bbox'] ?? false) !== true
+    || ($review['entries'][0]['color_space'] ?? null) !== 'DeviceRGB'
+    || ($review['entries'][0]['color_space_resource_name'] ?? null) !== 'CSHero'
+    || ($review['entries'][0]['color_space_resolved_from_resources'] ?? false) !== true
+    || ($review['entries'][0]['color_space_resource_source'] ?? null) !== 'Resources.ColorSpace'
     || ($review['entries'][0]['interpolate'] ?? null) !== true
     || ($review['entries'][0]['rendering_intent'] ?? null) !== 'RelativeColorimetric'
     || ($review['entries'][0]['image_name'] ?? null) !== 'Hero Image'
@@ -150,6 +156,10 @@ $metadata = [
     'first_clip_excludes_image' => $review['entries'][0]['clip_excludes_image'] ?? true,
     'first_painted_invocation_count' => $review['entries'][0]['painted_invocation_count'] ?? null,
     'first_placement_review_only' => $review['entries'][0]['placement_review_only'] ?? false,
+    'first_color_space' => $review['entries'][0]['color_space'] ?? null,
+    'first_color_space_resource_name' => $review['entries'][0]['color_space_resource_name'] ?? null,
+    'first_color_space_resolved_from_resources' => $review['entries'][0]['color_space_resolved_from_resources'] ?? false,
+    'first_color_space_resource_source' => $review['entries'][0]['color_space_resource_source'] ?? null,
     'first_interpolate' => $review['entries'][0]['interpolate'] ?? null,
     'first_rendering_intent' => $review['entries'][0]['rendering_intent'] ?? null,
     'first_image_name' => $review['entries'][0]['image_name'] ?? null,

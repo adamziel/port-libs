@@ -4033,7 +4033,8 @@ final class PdfTextExtractor
                 $parentFormObjectNumber,
                 $optionalContentVisible,
                 $objectGeneration,
-                $objectBody
+                $objectBody,
+                $resourceOwnerBody
             );
             if ($entry !== null && ($includeUninvokedImageResources || $entry['invoked'])) {
                 $entries[] = $entry;
@@ -4161,7 +4162,8 @@ final class PdfTextExtractor
         ?int $parentFormObjectNumber = null,
         bool $optionalContentVisible = true,
         ?int $objectGeneration = null,
-        ?string $objectBody = null
+        ?string $objectBody = null,
+        ?string $resourceOwnerBody = null
     ): ?array {
         $objectBody ??= $objects[$objectNumber] ?? null;
         if ($objectBody === null) {
@@ -4181,7 +4183,8 @@ final class PdfTextExtractor
         $decodeParms = $filters === null ? null : $this->streamDecodeParms($stream['dict'], $objects);
         $filterDetails = $filters === null ? [] : $this->imageXObjectFilterDetails($filters, $decodeParms, $objects);
         $decoded = $filters === null ? null : $this->decodeStream($stream['dict'], $stream['stream'], $objects);
-        $colorSpace = $this->imageColorSpaceFamily($stream['dict'], $objects);
+        $colorSpaceReview = $this->imageColorSpaceReview($stream['dict'], $objects, $resourceOwnerBody);
+        $colorSpace = $colorSpaceReview['family'];
         $bitsPerComponent = $this->pdfIntegerValueAfterNameResolvingObjects(
             $stream['dict'],
             'BitsPerComponent',
@@ -4275,6 +4278,9 @@ final class PdfTextExtractor
             'width' => $imageWidth,
             'height' => $imageHeight,
             'color_space' => $colorSpace,
+            'color_space_resource_name' => $colorSpaceReview['resource_name'],
+            'color_space_resolved_from_resources' => $colorSpaceReview['resolved_from_resources'],
+            'color_space_resource_source' => $colorSpaceReview['resource_source'],
             'bits_per_component' => $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent,
             'image_mask' => $imageMask,
             'interpolate' => $this->pdfBooleanValueAfterNameResolvingObjects($stream['dict'], 'Interpolate', $objects),
@@ -6678,19 +6684,33 @@ final class PdfTextExtractor
      */
     private function imageColorSpaceFamily(string $dict, array $objects): ?string
     {
+        return $this->imageColorSpaceReview($dict, $objects)['family'];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{family: string|null, resource_name: string|null, resolved_from_resources: bool, resource_source: string|null}
+     */
+    private function imageColorSpaceReview(string $dict, array $objects, ?string $resourceOwnerBody = null): array
+    {
         foreach (['ColorSpace', 'CS'] as $name) {
             $offset = $this->topLevelNameValueOffset($dict, $name);
             if ($offset === null) {
                 continue;
             }
 
-            $family = $this->colorSpaceFamilyAt($dict, $offset, $objects);
-            if ($family !== null) {
-                return $family;
+            $review = $this->colorSpaceFamilyReviewAt($dict, $offset, $objects, $resourceOwnerBody);
+            if ($review['family'] !== null) {
+                return $review;
             }
         }
 
-        return null;
+        return [
+            'family' => null,
+            'resource_name' => null,
+            'resolved_from_resources' => false,
+            'resource_source' => null,
+        ];
     }
 
     /**
@@ -6699,35 +6719,160 @@ final class PdfTextExtractor
      */
     private function colorSpaceFamilyAt(string $value, int $offset, array $objects, array $seenObjects = []): ?string
     {
+        return $this->colorSpaceFamilyReviewAt($value, $offset, $objects, null, $seenObjects)['family'];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seenObjects
+     * @param array<string, true> $seenResourceNames
+     * @return array{family: string|null, resource_name: string|null, resolved_from_resources: bool, resource_source: string|null}
+     */
+    private function colorSpaceFamilyReviewAt(
+        string $value,
+        int $offset,
+        array $objects,
+        ?string $resourceOwnerBody = null,
+        array $seenObjects = [],
+        array $seenResourceNames = []
+    ): array
+    {
         $offset = $this->skipPdfWhitespace($value, $offset);
         if ($offset >= strlen($value)) {
-            return null;
+            return [
+                'family' => null,
+                'resource_name' => null,
+                'resolved_from_resources' => false,
+                'resource_source' => null,
+            ];
         }
 
         if (preg_match('/\G\/([^\s\[\]()<>{}\/%]+)/s', $value, $match, 0, $offset) === 1) {
-            return $this->recognizedImageColorSpace($this->decodePdfName($match[1]));
+            $name = $this->decodePdfName($match[1]);
+            $family = $this->recognizedImageColorSpace($name);
+            if ($family !== null) {
+                return [
+                    'family' => $family,
+                    'resource_name' => null,
+                    'resolved_from_resources' => false,
+                    'resource_source' => null,
+                ];
+            }
+
+            if ($resourceOwnerBody === null || isset($seenResourceNames[$name])) {
+                return [
+                    'family' => null,
+                    'resource_name' => null,
+                    'resolved_from_resources' => false,
+                    'resource_source' => null,
+                ];
+            }
+
+            $resourceValue = $this->colorSpaceResourceValue($resourceOwnerBody, $objects, $name);
+            if ($resourceValue === null) {
+                return [
+                    'family' => null,
+                    'resource_name' => null,
+                    'resolved_from_resources' => false,
+                    'resource_source' => null,
+                ];
+            }
+
+            $seenResourceNames[$name] = true;
+            $resourceReview = $this->colorSpaceFamilyReviewAt(
+                $resourceValue,
+                0,
+                $objects,
+                $resourceOwnerBody,
+                $seenObjects,
+                $seenResourceNames
+            );
+            if ($resourceReview['family'] === null) {
+                return $resourceReview;
+            }
+
+            return [
+                'family' => $resourceReview['family'],
+                'resource_name' => $name,
+                'resolved_from_resources' => true,
+                'resource_source' => 'Resources.ColorSpace',
+            ];
         }
 
         if ($value[$offset] === '[') {
             $arrayBody = $this->readPdfArrayAt($value, $offset);
             if ($arrayBody === null) {
-                return null;
+                return [
+                    'family' => null,
+                    'resource_name' => null,
+                    'resolved_from_resources' => false,
+                    'resource_source' => null,
+                ];
             }
 
-            return $this->colorSpaceFamilyAt($arrayBody, 0, $objects, $seenObjects);
+            return $this->colorSpaceFamilyReviewAt(
+                $arrayBody,
+                0,
+                $objects,
+                $resourceOwnerBody,
+                $seenObjects,
+                $seenResourceNames
+            );
         }
 
-        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $value, $match, 0, $offset) === 1) {
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) === 1) {
             $objectNumber = (int) $match[1];
-            if (isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
-                return null;
+            $generation = (int) $match[2];
+            if (isset($seenObjects[$objectNumber])) {
+                return [
+                    'family' => null,
+                    'resource_name' => null,
+                    'resolved_from_resources' => false,
+                    'resource_source' => null,
+                ];
+            }
+
+            $objectBody = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
+            if ($objectBody === null) {
+                return [
+                    'family' => null,
+                    'resource_name' => null,
+                    'resolved_from_resources' => false,
+                    'resource_source' => null,
+                ];
             }
 
             $seenObjects[$objectNumber] = true;
-            return $this->colorSpaceFamilyAt(trim($objects[$objectNumber]), 0, $objects, $seenObjects);
+            return $this->colorSpaceFamilyReviewAt(
+                trim($objectBody),
+                0,
+                $objects,
+                $resourceOwnerBody,
+                $seenObjects,
+                $seenResourceNames
+            );
         }
 
-        return null;
+        return [
+            'family' => null,
+            'resource_name' => null,
+            'resolved_from_resources' => false,
+            'resource_source' => null,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function colorSpaceResourceValue(string $resourceOwnerBody, array $objects, string $resourceName): ?string
+    {
+        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+        $colorSpaceDictionary = $this->resourceCategoryDictionaryBody($resourceDictionary, $objects, 'ColorSpace');
+        if ($colorSpaceDictionary === null) {
+            return null;
+        }
+
+        return $this->topLevelPdfValueAfterNameInDictionaryBody($colorSpaceDictionary, $resourceName);
     }
 
     private function recognizedImageColorSpace(string $name): ?string
