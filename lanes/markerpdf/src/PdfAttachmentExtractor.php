@@ -1788,6 +1788,9 @@ final class PdfAttachmentExtractor
         if ($start < 0 || $start >= strlen($data)) {
             return null;
         }
+        if (!$this->objectStreamMemberOffsetHasTokenBoundary($data, $start)) {
+            return null;
+        }
 
         $end = strlen($data);
         foreach ($members as $index => $member) {
@@ -1802,6 +1805,85 @@ final class PdfAttachmentExtractor
         }
 
         return substr($data, $start, $end - $start);
+    }
+
+    private function objectStreamMemberOffsetHasTokenBoundary(string $data, int $offset): bool
+    {
+        $length = strlen($data);
+        if ($offset < 0 || $offset >= $length) {
+            return false;
+        }
+
+        if ($offset === 0) {
+            return true;
+        }
+
+        if ($data[$offset] === '%') {
+            return false;
+        }
+
+        $index = 0;
+        while ($index < $offset && $index < $length) {
+            $char = $data[$index];
+            if ($char === '(') {
+                $probe = $index;
+                $this->parseLiteralStringBytes($data, $probe);
+                if ($probe <= $index || $offset < $probe) {
+                    return false;
+                }
+
+                $index = $probe;
+                continue;
+            }
+
+            if ($char === '<') {
+                $probe = $index;
+                if (($data[$index + 1] ?? '') === '<') {
+                    $this->parseDictionary($data, $probe);
+                } else {
+                    $this->parseHexStringBytes($data, $probe);
+                }
+
+                if ($probe <= $index || $offset < $probe) {
+                    return false;
+                }
+
+                $index = $probe;
+                continue;
+            }
+
+            if ($char === '[') {
+                $probe = $index;
+                $this->parseArray($data, $probe);
+                if ($probe <= $index || $offset < $probe) {
+                    return false;
+                }
+
+                $index = $probe;
+                continue;
+            }
+
+            if ($char === '%') {
+                $probe = $index;
+                while ($probe < $length && !in_array($data[$probe], ["\r", "\n"], true)) {
+                    $probe++;
+                }
+                if ($offset < $probe) {
+                    return false;
+                }
+
+                $index = $probe;
+                continue;
+            }
+
+            $index++;
+        }
+
+        if ($index !== $offset) {
+            return false;
+        }
+
+        return $this->isDelimiter($data[$offset - 1]);
     }
 
     /**

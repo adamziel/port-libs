@@ -2111,6 +2111,10 @@ final class PdfEmbeddedFileExtractor
             return null;
         }
 
+        if (!$this->objectStreamMemberOffsetHasTokenBoundary($memberTable, $member)) {
+            return null;
+        }
+
         $objectDataLength = strlen($memberTable['decoded']) - $memberTable['first'];
         $nextOffset = $this->objectStreamMemberEndOffset($memberTable['members'], $member['offset'], $objectDataLength);
         if ($nextOffset === null) {
@@ -3024,6 +3028,95 @@ final class PdfEmbeddedFileExtractor
         }
 
         return $endOffset > $memberOffset ? $endOffset : null;
+    }
+
+    /**
+     * @param array{decoded: string, first: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
+     * @param array{objectNumber: int, offset: int, index: int} $member
+     */
+    private function objectStreamMemberOffsetHasTokenBoundary(array $memberTable, array $member): bool
+    {
+        $decoded = $memberTable['decoded'];
+        $absoluteOffset = $memberTable['first'] + $member['offset'];
+        if ($member['offset'] < 0 || $absoluteOffset < $memberTable['first'] || $absoluteOffset >= strlen($decoded)) {
+            return false;
+        }
+
+        if ($absoluteOffset === $memberTable['first']) {
+            return true;
+        }
+
+        if ($decoded[$absoluteOffset] === '%') {
+            return false;
+        }
+
+        $index = $memberTable['first'];
+        $length = strlen($decoded);
+        while ($index < $absoluteOffset && $index < $length) {
+            $char = $decoded[$index];
+            if ($char === '(') {
+                $literal = $this->readLiteralStringAt($decoded, $index);
+                if ($literal === null || $absoluteOffset < $literal['end']) {
+                    return false;
+                }
+
+                $index = $literal['end'];
+                continue;
+            }
+
+            if ($char === '<') {
+                if (($decoded[$index + 1] ?? '') === '<') {
+                    $dictionary = $this->readPdfDictionaryAt($decoded, $index);
+                    if ($dictionary === null || $absoluteOffset < $dictionary['end']) {
+                        return false;
+                    }
+
+                    $index = $dictionary['end'];
+                    continue;
+                }
+
+                $hexEnd = $this->skipHexString($decoded, $index);
+                if ($hexEnd === null || $absoluteOffset < $hexEnd) {
+                    return false;
+                }
+
+                $index = $hexEnd;
+                continue;
+            }
+
+            if ($char === '[') {
+                $array = $this->readPdfArrayAt($decoded, $index);
+                if ($array === null || $absoluteOffset < $array['end']) {
+                    return false;
+                }
+
+                $index = $array['end'];
+                continue;
+            }
+
+            if ($char === '%') {
+                $commentEnd = $this->pdfCommentEndOffset($decoded, $index);
+                if ($absoluteOffset < $commentEnd) {
+                    return false;
+                }
+
+                $index = $commentEnd;
+                continue;
+            }
+
+            $index++;
+        }
+
+        if ($index !== $absoluteOffset) {
+            return false;
+        }
+
+        return $this->isDelimiter($decoded[$absoluteOffset - 1]);
+    }
+
+    private function isDelimiter(string $char): bool
+    {
+        return ctype_space($char) || str_contains('[]()<>{}/%', $char);
     }
 
     private function readUnsignedIntegerToken(string $value, int &$offset): ?int

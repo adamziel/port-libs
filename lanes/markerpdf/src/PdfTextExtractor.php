@@ -14524,6 +14524,11 @@ final class PdfTextExtractor
             $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
         }
 
+        if ($rootReference !== null) {
+            $objects = $this->withTrailerRootPageTreeDirectObject($objects, $definitions, $xrefEntries, $rootReference);
+            $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
+        }
+
         if ($rootReference !== null && isset($objects[$rootReference['objectNumber']])) {
             $objects = $this->promoteObjectToFront($objects, $rootReference['objectNumber']);
         }
@@ -14701,6 +14706,57 @@ final class PdfTextExtractor
         }
 
         return $ordered;
+    }
+
+    /**
+     * Some damaged current trailers still point at the active direct page tree
+     * root while marking that /Pages object free in the xref table. Recover
+     * only the trailer catalog's direct /Pages root; free child pages remain
+     * suppressed by their current xref ownership.
+     *
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
+     * @param array{objectNumber: int, generation: int} $rootReference
+     * @return array<int, string>
+     */
+    private function withTrailerRootPageTreeDirectObject(
+        array $objects,
+        array $definitions,
+        array $xrefEntries,
+        array $rootReference
+    ): array {
+        $catalogBody = $this->indirectObjectBodyForReference(
+            $objects,
+            $rootReference['objectNumber'],
+            $rootReference['generation']
+        );
+        if ($catalogBody === null || !$this->isCatalogObject($catalogBody)) {
+            return $objects;
+        }
+
+        $pagesReference = $this->objectReferenceAfterName($catalogBody, 'Pages');
+        if ($pagesReference === null || isset($objects[$pagesReference['objectNumber']])) {
+            return $objects;
+        }
+
+        $xrefEntry = $xrefEntries[$pagesReference['objectNumber']] ?? null;
+        if (($xrefEntry['type'] ?? null) !== 0) {
+            return $objects;
+        }
+
+        $definition = $this->directObjectDefinitionForGeneration(
+            $definitions[$pagesReference['objectNumber']] ?? [],
+            $pagesReference['generation']
+        );
+        if ($definition === null || !$this->isPagesObject($definition['body'])) {
+            return $objects;
+        }
+
+        $objects[$pagesReference['objectNumber']] = $definition['body'];
+        ksort($objects, SORT_NUMERIC);
+
+        return $objects;
     }
 
     private function hasEncryptedTrailer(string $pdfBytes): bool
