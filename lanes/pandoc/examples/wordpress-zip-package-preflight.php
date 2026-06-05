@@ -296,6 +296,54 @@ $buildUnicodePathBackedPackage = static function () use (
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildZip64ExtraBackedPackage = static function () use ($crc32): string {
+    $name = 'word/media/oversized-review.bin';
+    $data = "ZIP64 media placeholder should stay blocked\n";
+    $crc = $crc32($data);
+    $zip64Extra = pack('vv', 0x0001, 8) . str_repeat("\0", 8);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        strlen($zip64Extra),
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name . $zip64Extra;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 
 $package = ZipPackage::fromParts([
     [
@@ -409,6 +457,12 @@ try {
     ]);
 } catch (RuntimeException $exception) {
     $symlinkRejected = str_contains($exception->getMessage(), 'symlink');
+}
+$zip64Rejected = false;
+try {
+    ZipPackage::fromString($buildZip64ExtraBackedPackage());
+} catch (RuntimeException $exception) {
+    $zip64Rejected = str_contains($exception->getMessage(), 'ZIP64 extra field');
 }
 
 if (in_array('--self-test', $argv, true)) {
@@ -560,6 +614,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP symlink entries to be rejected before media import');
     }
 
+    if (!$zip64Rejected) {
+        throw new RuntimeException('Expected ZIP64 extra-field entries to be rejected before media import');
+    }
+
     $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
     if ($unicodePathEntry->rawName !== $unicodePathRawName) {
         throw new RuntimeException('Expected ZIP Unicode path extra field to preserve raw legacy path bytes');
@@ -604,6 +662,7 @@ echo 'extended.reviewer-note.modifiedAt=' . ($extendedTimestamps['modifiedAt'] ?
 echo 'extended.reviewer-note.accessedAt=' . ($extendedTimestamps['accessedAt'] ?? 'none') . "\n";
 echo 'extended.reviewer-note.createdAt=' . ($extendedTimestamps['createdAt'] ?? 'none') . "\n";
 echo 'symlinkPolicy=' . ($symlinkRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zip64Policy=' . ($zip64Rejected ? 'rejected' : 'not-rejected') . "\n";
 $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
 echo 'unicodePath.name=' . $unicodePathEntry->name . "\n";
 echo 'unicodePath.rawName=' . $unicodePathEntry->rawName . "\n";

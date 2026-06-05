@@ -905,6 +905,31 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString('not a zip package'));
     },
 
+    'rejects zip64 extra field metadata before office package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip64Extra = pack('vv', 0x0001, 8) . str_repeat("\0", 8);
+
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>zip64 central metadata</w:p></w:document>',
+                'centralExtra' => $zip64Extra,
+            ],
+        ])));
+
+        $localOnly = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/reviewer-note.txt',
+                'data' => 'local zip64 metadata must not be exposed',
+                'localExtra' => $zip64Extra,
+                'centralExtra' => '',
+            ],
+        ]));
+
+        $t->same(['word/media/reviewer-note.txt'], $localOnly->names());
+        $t->throws(\RuntimeException::class, static fn (): array => $localOnly->localExtraFields('word/media/reviewer-note.txt'));
+        $t->throws(\RuntimeException::class, static fn (): string => $localOnly->read('word/media/reviewer-note.txt'));
+    },
+
     'builds and reads bounded gzip streams around package fixture bytes' => static function (TestRunner $t) use ($crc32): void {
         $package = ZipPackage::fromParts([
             [

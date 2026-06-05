@@ -12,6 +12,7 @@ final class ZipPackageEntry
     private const UNIX_HOST_SYSTEM = 3;
     private const UNIX_FILE_TYPE_MASK = 0xf000;
     private const UNIX_SYMLINK_TYPE = 0xa000;
+    private const ZIP64_EXTENDED_INFORMATION_EXTRA_ID = 0x0001;
 
     public function __construct(
         public readonly string $name,
@@ -274,6 +275,9 @@ final class ZipPackageEntry
             }
 
             $data = substr($bytes, $dataStart, $size);
+            if ($id === self::ZIP64_EXTENDED_INFORMATION_EXTRA_ID) {
+                throw new \RuntimeException("ZIP64 extra field for {$label} is not supported by this bounded package reader");
+            }
             if ($id === 0x5455) {
                 self::parseExtendedTimestamps($data, $label);
             }
