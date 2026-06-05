@@ -1656,6 +1656,19 @@ final class MarkerAppPreview
             $kidNodes = [];
             $kidOrder = 0;
             foreach ($this->pageLabelArrayElements($this->resolvePageLabelPdfValue($kids, $objects, $seen)) as $kid) {
+                $directKidBody = $this->pageLabelDictionaryToken($kid);
+                if ($directKidBody !== null) {
+                    $kidLocalLimits = $this->pageLabelLimits($directKidBody, $objects, $seen);
+                    $kidNodes[] = [
+                        'body' => $directKidBody,
+                        'seen' => $seen,
+                        'limits' => $this->mergePageLabelLimits($limits, $kidLocalLimits),
+                        'local_limits' => $kidLocalLimits,
+                        'order' => $kidOrder++,
+                    ];
+                    continue;
+                }
+
                 $reference = $this->pageLabelReferenceOperand($kid);
                 if ($reference === null) {
                     continue;

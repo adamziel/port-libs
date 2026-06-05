@@ -10780,30 +10780,12 @@ final class PdfTextExtractor
         $kidNodes = [];
         $kidOrder = 0;
 
-        foreach ($this->pageLabelKidObjectReferences($dictionary, $objects) as $kidReference) {
-            $kidObjectNumber = $kidReference['objectNumber'];
-            $kidGeneration = $kidReference['generation'];
-            $kidKey = $kidObjectNumber . ':' . $kidGeneration;
-            if (isset($seen[$kidKey])) {
-                continue;
-            }
-
-            $kidBody = $this->pageLabelObjectBodyForReference($objects, $kidObjectNumber, $kidGeneration);
-            if ($kidBody === null) {
-                continue;
-            }
-
-            $kidDictionary = $this->pageLabelDictionaryObjectBody($kidBody);
-            if ($kidDictionary === null) {
-                continue;
-            }
-
-            $nextSeen = $seen;
-            $nextSeen[$kidKey] = true;
+        foreach ($this->pageLabelKidDictionaryNodes($dictionary, $objects, $seen) as $kidDictionaryNode) {
+            $kidDictionary = $kidDictionaryNode['dictionary'];
             $kidLocalLimits = $this->pageLabelLimits($kidDictionary, $objects);
             $kidNodes[] = [
                 'dictionary' => $kidDictionary,
-                'seen' => $nextSeen,
+                'seen' => $kidDictionaryNode['seen'],
                 'limits' => $this->pageLabelMergedLimits($limits, $kidLocalLimits),
                 'local_limits' => $kidLocalLimits,
                 'order' => $kidOrder++,
@@ -10850,30 +10832,59 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return list<array{objectNumber: int, generation: int}>
      * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     * @return list<array{dictionary: string, seen: array<string, true>}>
      */
-    private function pageLabelKidObjectReferences(string $dictionary, array $objects): array
+    private function pageLabelKidDictionaryNodes(string $dictionary, array $objects, array $seen): array
     {
         $arrayBody = $this->pageLabelArrayValueAfterNameResolved($dictionary, 'Kids', $objects);
         if ($arrayBody === null) {
             return [];
         }
 
-        $references = [];
+        $nodes = [];
         foreach ($this->pdfArrayItems($arrayBody) as $item) {
+            $directDictionary = $this->pageLabelDictionaryObjectBody($item);
+            if ($directDictionary !== null) {
+                $nodes[] = [
+                    'dictionary' => $directDictionary,
+                    'seen' => $seen,
+                ];
+                continue;
+            }
+
             $reference = $this->pageLabelReferenceOperand($item);
             if ($reference === null) {
                 continue;
             }
 
-            $references[] = [
-                'objectNumber' => $reference['objectNumber'],
-                'generation' => $reference['generation'],
+            $kidObjectNumber = $reference['objectNumber'];
+            $kidGeneration = $reference['generation'];
+            $kidKey = $kidObjectNumber . ':' . $kidGeneration;
+            if (isset($seen[$kidKey])) {
+                continue;
+            }
+
+            $kidBody = $this->pageLabelObjectBodyForReference($objects, $kidObjectNumber, $kidGeneration);
+            if ($kidBody === null) {
+                continue;
+            }
+
+            $kidDictionary = $this->pageLabelDictionaryObjectBody($kidBody);
+            if ($kidDictionary === null) {
+                continue;
+            }
+
+            $nextSeen = $seen;
+            $nextSeen[$kidKey] = true;
+            $nodes[] = [
+                'dictionary' => $kidDictionary,
+                'seen' => $nextSeen,
             ];
         }
 
-        return $references;
+        return $nodes;
     }
 
     /**
