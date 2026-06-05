@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 00:05:47 UTC",
-    "sourceCommit": "a6244c129cef841d8a3e581f8247f3714c0fa331",
-    "sourceCommitShort": "a6244c129cef",
+    "generated": "2026-06-05 00:06:05 UTC",
+    "sourceCommit": "d93839bf1059e9e384bbc118a734c74a08e4f5ec",
+    "sourceCommitShort": "d93839bf1059",
     "sourceBranch": "unknown",
-    "dashboardCommit": "a6244c129cef841d8a3e581f8247f3714c0fa331",
-    "dashboardCommitShort": "a6244c129cef",
+    "dashboardCommit": "d93839bf1059e9e384bbc118a734c74a08e4f5ec",
+    "dashboardCommitShort": "d93839bf1059",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -139,9 +139,9 @@
             "unmapped": "1,367",
             "php": "441 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-04 UTC syntax-highlighting current-base slice on accepted bas...",
+            "audit": "2026-06-04 UTC upstream-runner dependency audit on accepted base e03f...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For syntax-highlighting follow-up, keep full Skylighting XML...",
+            "nextTarget": "For DOCX/OpenXML follow-up, keep full-document HTML altChunk...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },
