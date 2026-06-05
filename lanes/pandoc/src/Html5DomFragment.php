@@ -128,7 +128,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -405,7 +405,17 @@ final class Html5DomFragment
                 continue;
             }
 
-            if (self::isUrlAttribute($name) && !self::isSafeUrlAttribute($name, $value)) {
+            if (strtolower($name) === 'srcset') {
+                $srcset = self::normalizeSrcsetAttribute($value, $tagName, $diagnostics);
+                if ($srcset === null) {
+                    continue;
+                }
+
+                $attrs[$name] = $srcset;
+                continue;
+            }
+
+            if (self::isUrlAttribute($name) && !self::isSafeUrl($value)) {
                 $diagnostics[] = [
                     'code' => 'unsafe-url',
                     'tag' => $tagName,
@@ -450,13 +460,31 @@ final class Html5DomFragment
         return in_array(strtolower($name), ['href', 'src', 'cite', 'poster', 'xlink:href', 'srcset'], true);
     }
 
-    private static function isSafeUrlAttribute(string $name, string $value): bool
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeSrcsetAttribute(string $value, string $tagName, array &$diagnostics): ?string
     {
-        if (strtolower($name) === 'srcset') {
-            return self::isSafeSrcset($value);
+        $normalized = [];
+        foreach (explode(',', $value) as $candidate) {
+            $candidate = trim($candidate);
+            if ($candidate === '') {
+                $diagnostics[] = [
+                    'code' => 'invalid-srcset-descriptor',
+                    'tag' => $tagName,
+                    'attribute' => 'srcset',
+                    'descriptor' => '',
+                ];
+                continue;
+            }
+
+            $candidateValue = self::normalizeSrcsetCandidate($candidate, $tagName, $diagnostics);
+            if ($candidateValue !== null) {
+                $normalized[] = $candidateValue;
+            }
         }
 
-        return self::isSafeUrl($value);
+        return $normalized === [] ? null : implode(', ', $normalized);
     }
 
     private static function isSafeUrl(string $value): bool
@@ -477,27 +505,103 @@ final class Html5DomFragment
         return in_array($scheme, ['http', 'https', 'mailto', 'tel'], true);
     }
 
-    private static function isSafeSrcset(string $value): bool
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeSrcsetCandidate(string $candidate, string $tagName, array &$diagnostics): ?string
     {
-        foreach (explode(',', $value) as $candidate) {
-            $candidate = trim($candidate);
-            if ($candidate === '') {
-                return false;
-            }
+        $candidateWithoutControls = preg_replace('/[\x00-\x20]+/', '', $candidate) ?? $candidate;
+        if (!self::isSafeImageCandidateUrl($candidateWithoutControls)) {
+            $diagnostics[] = [
+                'code' => 'unsafe-url',
+                'tag' => $tagName,
+                'attribute' => 'srcset',
+                'candidate' => $candidate,
+            ];
 
-            $candidateWithoutControls = preg_replace('/[\x00-\x20]+/', '', $candidate) ?? $candidate;
-            if (!self::isSafeImageCandidateUrl($candidateWithoutControls)) {
-                return false;
-            }
-
-            $parts = preg_split('/\s+/', $candidate, 2);
-            $url = is_array($parts) ? (string) ($parts[0] ?? '') : $candidate;
-            if ($url === '' || !self::isSafeImageCandidateUrl($url)) {
-                return false;
-            }
+            return null;
         }
 
-        return true;
+        $parts = preg_split('/\s+/', $candidate);
+        if (!is_array($parts) || $parts === []) {
+            return null;
+        }
+
+        $url = (string) array_shift($parts);
+        if ($url === '' || !self::isSafeImageCandidateUrl($url)) {
+            $diagnostics[] = [
+                'code' => 'unsafe-url',
+                'tag' => $tagName,
+                'attribute' => 'srcset',
+                'candidate' => $candidate,
+            ];
+
+            return null;
+        }
+
+        $descriptor = self::normalizeSrcsetDescriptor($parts);
+        if ($descriptor === null) {
+            $diagnostics[] = [
+                'code' => 'invalid-srcset-descriptor',
+                'tag' => $tagName,
+                'attribute' => 'srcset',
+                'candidate' => $candidate,
+                'descriptor' => implode(' ', $parts),
+            ];
+
+            return null;
+        }
+
+        return $descriptor === '' ? $url : $url . ' ' . $descriptor;
+    }
+
+    /**
+     * @param list<string> $descriptors
+     */
+    private static function normalizeSrcsetDescriptor(array $descriptors): ?string
+    {
+        if ($descriptors === []) {
+            return '';
+        }
+        if (count($descriptors) !== 1) {
+            return null;
+        }
+
+        $descriptor = strtolower($descriptors[0]);
+        if (preg_match('/^([0-9]+)w$/', $descriptor, $width) === 1) {
+            $pixels = (int) $width[1];
+
+            return $pixels > 0 ? $pixels . 'w' : null;
+        }
+
+        if (preg_match('/^(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)x$/', $descriptor) === 1) {
+            $density = substr($descriptor, 0, -1);
+            if ((float) $density <= 0.0) {
+                return null;
+            }
+
+            return self::normalizeDecimalDescriptor($density) . 'x';
+        }
+
+        return null;
+    }
+
+    private static function normalizeDecimalDescriptor(string $value): string
+    {
+        if (str_starts_with($value, '.')) {
+            $value = '0' . $value;
+        }
+
+        if (str_contains($value, '.')) {
+            [$integer, $fraction] = explode('.', $value, 2);
+            $integer = ltrim($integer, '0');
+            $fraction = rtrim($fraction, '0');
+            $value = ($integer === '' ? '0' : $integer) . ($fraction === '' ? '' : '.' . $fraction);
+        } else {
+            $value = ltrim($value, '0');
+        }
+
+        return $value === '' ? '0' : $value;
     }
 
     private static function isSafeImageCandidateUrl(string $value): bool

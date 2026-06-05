@@ -63,10 +63,30 @@ return [
         $html = $fragment->serialize();
 
         $t->contains('<img src="https://cdn.example.test/cover.png" srcset="https://cdn.example.test/cover.png 1x, /media/cover@2x.png 2x, ./cover-wide.webp 640w" alt="Safe">', $html);
-        $t->contains('<img src="https://cdn.example.test/mixed.png" alt="Mixed">', $html);
-        $t->contains('<img src="/media/fallback.png" alt="Fallback">', $html);
+        $t->contains('<img src="https://cdn.example.test/mixed.png" srcset="https://cdn.example.test/mixed.png 1x" alt="Mixed">', $html);
+        $t->contains('<img src="/media/fallback.png" srcset="/media/hero.webp 1x" alt="Fallback">', $html);
         $t->same(['srcset'], $summary['filteredAttributes']);
         $t->same(['unsafe-url', 'unsafe-url'], $fragment->diagnosticCodes());
+    },
+    'normalizes srcset width and density descriptors while dropping invalid candidates' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<p>'
+            . '<img src="/media/hero.png" srcset=" ./hero-0640.webp 0640w, https://cdn.example.test/hero@2x.webp 02.00x, /media/fallback.jpg, javascript:alert(1) 4x, /media/zero.webp 0w, /media/mixed.webp 1x 640w, /media/uppercase.webp 1.50X " alt="Hero">'
+            . '</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+
+        $expectedSrcset = './hero-0640.webp 640w, https://cdn.example.test/hero@2x.webp 2x, /media/fallback.jpg, /media/uppercase.webp 1.5x';
+        $t->contains('<img src="/media/hero.png" srcset="' . $expectedSrcset . '" alt="Hero">', $html);
+        $t->same($expectedSrcset, $nodes[0]['children'][0]['attrs']['srcset']);
+        $t->same(['srcset'], $summary['filteredAttributes']);
+        $t->same(3, $summary['diagnostics']);
+        $t->same(['unsafe-url', 'invalid-srcset-descriptor', 'invalid-srcset-descriptor'], $fragment->diagnosticCodes());
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe srcset URL candidate to be removed');
+        $t->true(!str_contains($html, 'zero.webp'), 'Expected zero-width srcset candidate to be removed');
+        $t->true(!str_contains($html, 'mixed.webp'), 'Expected mixed descriptor srcset candidate to be removed');
     },
     'parses XML fragments strictly and rejects DTD entity expansion inputs' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromXml('<root xml:lang="en"><br/><custom data-id="42">A &amp; B</custom></root><note/>');

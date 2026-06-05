@@ -13,7 +13,7 @@ $sourceHtml = <<<'HTML'
   <h1 id="packet">Imported packet</h1>
   <p onclick="alert(1)">Manual<br>break before reviewer note.</p>
   <p><a href="javascript:alert(1)" data-source="legacy">Unsafe source link</a></p>
-  <p><img src="https://example.test/preview.png" srcset="https://example.test/preview.png 1x, javascript:alert(1) 2x" alt="Preview"></p>
+  <p><img src="https://example.test/preview.png" srcset="https://example.test/preview.png 1x, /uploads/preview@2x.png 02.00x, javascript:alert(1) 3x, /uploads/bad.png 0w" alt="Preview"></p>
   <script>alert("legacy embed")</script>
 </section>
 HTML;
@@ -29,7 +29,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<section class="import-review">',
         '<p>Manual<br>break before reviewer note.</p>',
         '<a data-source="legacy">Unsafe source link</a>',
-        '<img src="https://example.test/preview.png" alt="Preview">',
+        '<img src="https://example.test/preview.png" srcset="https://example.test/preview.png 1x, /uploads/preview@2x.png 2x" alt="Preview">',
         '<!-- wp:html -->',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {
