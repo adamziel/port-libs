@@ -298,6 +298,9 @@ final class LayoutOrderer
 
             $isBareBbox = array_is_list($box) && count($box) === 4;
             $bbox = $this->bboxValue($box['bbox'] ?? ($isBareBbox ? $box : null));
+            if ($bbox === null && !$isBareBbox) {
+                $bbox = $this->polygonBbox($box['polygon'] ?? null);
+            }
             if ($bbox === null) {
                 continue;
             }
@@ -755,6 +758,40 @@ final class LayoutOrderer
         }
 
         return null;
+    }
+
+    /**
+     * @return list<float>|null
+     */
+    private function polygonBbox(mixed $polygon): ?array
+    {
+        if (!is_array($polygon) || count($polygon) !== 4) {
+            return null;
+        }
+
+        $xs = [];
+        $ys = [];
+        foreach (array_values($polygon) as $point) {
+            if (!is_array($point) || count($point) !== 2) {
+                return null;
+            }
+
+            $coordinates = array_values($point);
+            $x = $this->numericValue($coordinates[0]);
+            $y = $this->numericValue($coordinates[1]);
+            if ($x === null || $y === null) {
+                return null;
+            }
+            $xs[] = $x;
+            $ys[] = $y;
+        }
+
+        return [
+            min($xs),
+            min($ys),
+            max($xs),
+            max($ys),
+        ];
     }
 
     /**

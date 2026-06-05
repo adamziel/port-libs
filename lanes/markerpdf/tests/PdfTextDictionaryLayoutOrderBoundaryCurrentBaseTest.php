@@ -295,6 +295,62 @@ return [
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'uses polygon-only order rows as bbox geometry before pdftext layout assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(2600, [
+                    ['text' => 'Polygon order cover skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(2601, [
+                    ['text' => 'Second polygon order column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First polygon order column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'page' => 2601,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        [
+                            'position' => 1,
+                            'polygon' => [[60.0, 96.0], [290.0, 96.0], [290.0, 144.0], [60.0, 144.0]],
+                            'raw_payload' => 'polygon left order payload must stay review-only',
+                        ],
+                        [
+                            'position' => 2,
+                            'polygon' => [[318.0, 96.0], [570.0, 96.0], [570.0, 144.0], [318.0, 144.0]],
+                            'raw_payload' => 'polygon right order payload must stay review-only',
+                        ],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['page' => 2601, 'image' => 'polygon-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([1], $result['page_range']);
+        $t->same(2601, $result['pages'][0]['pnum']);
+        $t->same(['First polygon order column', 'Second polygon order column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First polygon order column Second polygon order column', $blocks[0]['text']);
+        $t->same([
+            ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+            ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+        ], $result['pages'][0]['order']['bboxes']);
+        $t->true(!str_contains($encoded, 'polygon left order payload'));
+        $t->true(!str_contains($encoded, 'polygon right order payload'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
     'prefers trusted metadata over copied source-page payload markers before pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
         $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
             [
