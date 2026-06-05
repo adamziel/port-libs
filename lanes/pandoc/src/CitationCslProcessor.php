@@ -304,6 +304,10 @@ final class CitationCslProcessor
             $parts[] = $containerTitleAddon . '.';
         }
 
+        foreach ($this->publicationDetailBibliographyParts($item) as $part) {
+            $parts[] = $part;
+        }
+
         $publisher = (string) $item['publisher'];
         $year = $this->citationYear($item);
         $hasDate = $this->hasIssuedDate($item);
@@ -359,6 +363,10 @@ final class CitationCslProcessor
         $url = (string) $item['url'];
         if ($url !== '') {
             $parts[] = $url . '.';
+        }
+
+        foreach ($this->identifierBibliographyParts($item) as $part) {
+            $parts[] = $part;
         }
 
         $accessedDate = $item['accessedDate'] ?? null;
@@ -450,12 +458,22 @@ final class CitationCslProcessor
             'publisherPlace' => self::stringField($item, 'publisher-place'),
             'page' => self::stringField($item, 'page'),
             'number' => self::stringField($item, 'number'),
+            'volume' => self::stringField($item, 'volume'),
+            'issue' => self::stringField($item, 'issue'),
+            'edition' => self::stringField($item, 'edition'),
+            'collectionTitle' => self::firstStringField($item, ['collection-title', 'collectionTitle']),
+            'collectionNumber' => self::firstStringField($item, ['collection-number', 'collectionNumber']),
             'genre' => self::stringField($item, 'genre'),
             'authority' => self::stringField($item, 'authority'),
             'jurisdiction' => self::stringField($item, 'jurisdiction'),
             'status' => self::stringField($item, 'status'),
-            'doi' => self::stringField($item, 'DOI'),
-            'url' => self::stringField($item, 'URL'),
+            'doi' => self::firstStringField($item, ['DOI', 'doi']),
+            'url' => self::firstStringField($item, ['URL', 'url']),
+            'isbn' => self::firstStringField($item, ['ISBN', 'isbn']),
+            'issn' => self::firstStringField($item, ['ISSN', 'issn']),
+            'archive' => self::stringField($item, 'archive'),
+            'archivePlace' => self::firstStringField($item, ['archive-place', 'archivePlace']),
+            'archiveLocation' => self::firstStringField($item, ['archive_location', 'archive-location', 'archiveLocation']),
             'language' => self::stringField($item, 'language'),
             'abstract' => self::stringField($item, 'abstract'),
             'keywords' => self::stringListField($item, 'keyword'),
@@ -493,6 +511,31 @@ final class CitationCslProcessor
         }
 
         return trim((string) $value);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param list<string> $keys
+     */
+    private static function firstStringField(array $item, array $keys): string
+    {
+        foreach ($keys as $key) {
+            $value = $item[$key] ?? null;
+            if ($value === null) {
+                continue;
+            }
+
+            if (!is_scalar($value)) {
+                throw new \InvalidArgumentException('CSL field ' . $key . ' must be scalar when present');
+            }
+
+            $value = trim((string) $value);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
     }
 
     /**
@@ -1624,6 +1667,74 @@ final class CitationCslProcessor
     }
 
     /**
+     * @param array<string, mixed> $item
+     * @return list<string>
+     */
+    private function publicationDetailBibliographyParts(array $item): array
+    {
+        $parts = [];
+        $volume = (string) ($item['volume'] ?? '');
+        $issue = (string) ($item['issue'] ?? '');
+        if ($volume !== '' || $issue !== '') {
+            $details = [];
+            if ($volume !== '') {
+                $details[] = ucfirst($this->style->term('volume', 'short')) . ' ' . $volume;
+            }
+            if ($issue !== '') {
+                $details[] = $this->style->term('issue', 'short') . ' ' . $issue;
+            }
+
+            $parts[] = implode(', ', $details) . '.';
+        }
+
+        $edition = (string) ($item['edition'] ?? '');
+        if ($edition !== '') {
+            $parts[] = $edition . ' ' . $this->style->term('edition', 'short');
+        }
+
+        $collectionTitle = (string) ($item['collectionTitle'] ?? '');
+        $collectionNumber = (string) ($item['collectionNumber'] ?? '');
+        if ($collectionTitle !== '' && $collectionNumber !== '') {
+            $parts[] = $collectionTitle . ', ' . $this->style->term('number', 'short') . ' ' . $collectionNumber . '.';
+        } elseif ($collectionTitle !== '') {
+            $parts[] = 'Series: ' . rtrim($collectionTitle, '.') . '.';
+        } elseif ($collectionNumber !== '') {
+            $parts[] = 'Series ' . $this->style->term('number', 'short') . ' ' . $collectionNumber . '.';
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return list<string>
+     */
+    private function identifierBibliographyParts(array $item): array
+    {
+        $parts = [];
+        $isbn = (string) ($item['isbn'] ?? '');
+        if ($isbn !== '') {
+            $parts[] = 'ISBN ' . $isbn . '.';
+        }
+
+        $issn = (string) ($item['issn'] ?? '');
+        if ($issn !== '') {
+            $parts[] = 'ISSN ' . $issn . '.';
+        }
+
+        $archive = array_values(array_filter([
+            (string) ($item['archive'] ?? ''),
+            (string) ($item['archivePlace'] ?? ''),
+            (string) ($item['archiveLocation'] ?? ''),
+        ], static fn (string $value): bool => $value !== ''));
+        if ($archive !== []) {
+            $parts[] = 'Archive: ' . implode(' ', $archive) . '.';
+        }
+
+        return $parts;
+    }
+
+    /**
      * @param list<array<string, mixed>> $elements
      * @param array<string, mixed> $item
      */
@@ -2277,12 +2388,22 @@ final class CitationCslProcessor
             'publisher-place' => (string) $item['publisherPlace'],
             'page' => (string) $item['page'],
             'number' => (string) $item['number'],
+            'volume' => (string) $item['volume'],
+            'issue' => (string) $item['issue'],
+            'edition' => (string) $item['edition'],
+            'collection-title' => (string) $item['collectionTitle'],
+            'collection-number' => (string) $item['collectionNumber'],
             'genre' => (string) $item['genre'],
             'authority' => (string) $item['authority'],
             'jurisdiction' => (string) $item['jurisdiction'],
             'status' => (string) $item['status'],
             'doi' => (string) $item['doi'],
             'url' => (string) $item['url'],
+            'isbn' => (string) $item['isbn'],
+            'issn' => (string) $item['issn'],
+            'archive' => (string) $item['archive'],
+            'archive-place' => (string) $item['archivePlace'],
+            'archive_location', 'archive-location' => (string) $item['archiveLocation'],
             'language' => (string) $item['language'],
             'abstract' => (string) $item['abstract'],
             'keyword' => implode(', ', is_array($item['keywords'] ?? null) ? $item['keywords'] : []),

@@ -577,12 +577,22 @@ final class BibtexCslParser
             'publisher-place' => self::firstField($fields, ['location', 'address', 'venue']),
             'page' => self::normalizePages(self::firstField($fields, ['pages', 'page'])),
             'number' => self::firstField($fields, ['number']),
+            'volume' => self::firstField($fields, ['volume']),
+            'issue' => self::issueField($type, $fields),
+            'edition' => self::firstField($fields, ['edition']),
+            'collection-title' => self::firstField($fields, ['series']),
+            'collection-number' => self::firstField($fields, ['seriesnumber', 'series-number', 'collectionnumber', 'collection-number']),
             'genre' => self::firstField($fields, ['type', 'entrysubtype']),
             'authority' => self::firstField($fields, ['authority', 'court', 'institution', 'organization']),
             'jurisdiction' => self::firstField($fields, ['jurisdiction', 'location', 'address']),
             'status' => self::firstField($fields, ['status']),
             'DOI' => self::firstField($fields, ['doi']),
             'URL' => self::firstField($fields, ['url']),
+            'ISBN' => self::firstField($fields, ['isbn']),
+            'ISSN' => self::firstField($fields, ['issn']),
+            'archive' => self::firstField($fields, ['archiveprefix', 'eprinttype', 'archive']),
+            'archive-place' => self::firstField($fields, ['eprintclass', 'archiveplace', 'archive-place']),
+            'archive_location' => self::firstField($fields, ['eprint', 'archive_location', 'archive-location']),
             'language' => self::firstField($fields, ['langid', 'language', 'hyphenation']),
             'abstract' => self::firstField($fields, ['abstract', 'annote', 'annotation']),
             'original-title' => self::firstField($fields, ['origtitle']),
@@ -770,6 +780,23 @@ final class BibtexCslParser
                     return $value;
                 }
             }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    private static function issueField(string $type, array $fields): string
+    {
+        $issue = self::firstField($fields, ['issue']);
+        if ($issue !== '') {
+            return $issue;
+        }
+
+        if (in_array(strtolower($type), ['article', 'periodical', 'suppperiodical'], true)) {
+            return self::firstField($fields, ['number']);
         }
 
         return '';

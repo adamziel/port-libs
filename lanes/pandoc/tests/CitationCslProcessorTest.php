@@ -883,6 +883,121 @@ XML);
         $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Migration Manual: Reviewer Packet Guide. Draft source notes. Review Press, 2026.</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Checklist: Attachment Review. Migration Handbook: Import Desk Edition. Internal packet supplement. 2025. 7-12.</dd>', $blocks);
     },
+    'maps bounded biblatex publication details identifiers and eprint metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{journal-detail,
+  author        = {Doe, Jane},
+  title         = {Detailed Field Notes},
+  journaltitle  = {Journal of Imports},
+  date          = {2026},
+  volume        = {12},
+  number        = {3},
+  pages         = {20--30},
+  doi           = {10.5555/detail},
+  issn          = {1234-5678},
+  eprint        = {2401.01234},
+  archiveprefix = {arXiv},
+  eprintclass   = {cs.DL}
+}
+
+@book{book-detail,
+  author       = {Curator, Eli},
+  title        = {Review Handbook},
+  date         = {2025},
+  edition      = {2nd},
+  series       = {Source Review Series},
+  seriesnumber = {7},
+  publisher    = {Review Press},
+  isbn         = {978-1-2345-6789-0}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('12', $items[0]['volume']);
+        $t->same('3', $items[0]['issue']);
+        $t->same('1234-5678', $items[0]['ISSN']);
+        $t->same('arXiv', $items[0]['archive']);
+        $t->same('2401.01234', $items[0]['archive_location']);
+        $t->same('cs.DL', $items[0]['archive-place']);
+        $t->same('2nd', $items[1]['edition']);
+        $t->same('Source Review Series', $items[1]['collection-title']);
+        $t->same('7', $items[1]['collection-number']);
+        $t->same('978-1-2345-6789-0', $items[1]['ISBN']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $journal = $processor->item('journal-detail');
+        $book = $processor->item('book-detail');
+        $t->same('12', $journal['volume'] ?? null);
+        $t->same('3', $journal['issue'] ?? null);
+        $t->same('1234-5678', $journal['issn'] ?? null);
+        $t->same('arXiv', $journal['archive'] ?? null);
+        $t->same('2401.01234', $journal['archiveLocation'] ?? null);
+        $t->same('cs.DL', $journal['archivePlace'] ?? null);
+        $t->same('2nd', $book['edition'] ?? null);
+        $t->same('Source Review Series', $book['collectionTitle'] ?? null);
+        $t->same('7', $book['collectionNumber'] ?? null);
+        $t->same('978-1-2345-6789-0', $book['isbn'] ?? null);
+        $t->same('(Doe 2026; Curator 2025)', $processor->renderCitationCluster([
+            $citation('journal-detail', '[@journal-detail]'),
+            $citation('book-detail', '[@book-detail]'),
+        ]));
+        $t->same('Doe, Jane. Detailed Field Notes. Journal of Imports. Vol. 12, no. 3. 2026. 20-30. DOI 10.5555/detail. ISSN 1234-5678. Archive: arXiv cs.DL 2401.01234.', $processor->renderBibliographyEntry('journal-detail'));
+        $t->same('Curator, Eli. Review Handbook. 2nd ed. Source Review Series, no. 7. Review Press, 2025. ISBN 978-1-2345-6789-0.', $processor->renderBibliographyEntry('book-detail'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author editor"/>
+        <date variable="issued"><date-part name="year"/></date>
+        <group delimiter=" ">
+          <label variable="volume" form="short"/>
+          <text variable="volume"/>
+        </group>
+        <group delimiter=" ">
+          <label variable="issue" form="short"/>
+          <text variable="issue"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <group delimiter=" ">
+        <label variable="edition" form="short"/>
+        <text variable="edition"/>
+      </group>
+      <text variable="collection-title"/>
+      <group delimiter=" ">
+        <label variable="collection-number" form="short"/>
+        <text variable="collection-number"/>
+      </group>
+      <text variable="ISBN"/>
+      <text variable="ISSN"/>
+      <text variable="archive"/>
+      <text variable="archive-place"/>
+      <text variable="archive_location"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('(Doe 2026 vol. 12 no. 3; Curator 2025)', $styled->renderCitationCluster([
+            $citation('journal-detail', '[@journal-detail]'),
+            $citation('book-detail', '[@book-detail]'),
+        ]));
+        $t->same('Detailed Field Notes :: 1234-5678 :: arXiv :: cs.DL :: 2401.01234', $styled->renderBibliographyEntry('journal-detail'));
+        $t->same('Review Handbook :: ed. 2nd :: Source Review Series :: no. 7 :: 978-1-2345-6789-0', $styled->renderBibliographyEntry('book-detail'));
+
+        $document = (new MarkdownReader())->read('Detailed sources @journal-detail and [@book-detail] keep identifiers for review.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Detailed sources Doe (2026) and (Curator 2025) keep identifiers for review.</p>', $blocks);
+        $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Detailed Field Notes. Journal of Imports. Vol. 12, no. 3. 2026. 20-30. DOI 10.5555/detail. ISSN 1234-5678. Archive: arXiv cs.DL 2401.01234.</dd>', $blocks);
+        $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Review Handbook. 2nd ed. Source Review Series, no. 7. Review Press, 2025. ISBN 978-1-2345-6789-0.</dd>', $blocks);
+    },
     'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
         $document = (new MarkdownReader())->read(

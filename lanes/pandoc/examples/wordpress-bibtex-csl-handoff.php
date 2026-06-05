@@ -33,6 +33,8 @@ Date-range sources @range-manual and @range-rule preserve interval metadata for 
 
 Title metadata sources @title-review and @chapter-title-review keep reviewer subtitles attached.
 
+Publication detail sources @journal-detail and @book-detail preserve volume, issue, series, and identifier metadata.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -225,6 +227,32 @@ $bibtex = <<<'BIB'
   date           = {2025},
   pages          = {7--12}
 }
+
+@article{journal-detail,
+  author        = {Doe, Jane},
+  title         = {Detailed Field Notes},
+  journaltitle  = {Journal of Imports},
+  date          = {2026},
+  volume        = {12},
+  number        = {3},
+  pages         = {20--30},
+  doi           = {10.5555/detail},
+  issn          = {1234-5678},
+  eprint        = {2401.01234},
+  archiveprefix = {arXiv},
+  eprintclass   = {cs.DL}
+}
+
+@book{book-detail,
+  author       = {Curator, Eli},
+  title        = {Review Handbook},
+  date         = {2025},
+  edition      = {2nd},
+  series       = {Source Review Series},
+  seriesnumber = {7},
+  publisher    = {Review Press},
+  isbn         = {978-1-2345-6789-0}
+}
 BIB;
 
 $processor = CitationCslProcessor::fromBibtex($bibtex);
@@ -323,6 +351,23 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($chapterTitleReview['containerTitleAddon'] ?? null) !== 'Internal packet supplement') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve chapter container title addon metadata');
     }
+    $journalDetail = $processor->item('journal-detail');
+    if (($journalDetail['volume'] ?? null) !== '12' || ($journalDetail['issue'] ?? null) !== '3') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve journal volume/issue metadata');
+    }
+    if (($journalDetail['issn'] ?? null) !== '1234-5678' || ($journalDetail['archiveLocation'] ?? null) !== '2401.01234') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve journal identifier metadata');
+    }
+    $bookDetail = $processor->item('book-detail');
+    if (($bookDetail['edition'] ?? null) !== '2nd') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve book edition metadata');
+    }
+    if (($bookDetail['collectionTitle'] ?? null) !== 'Source Review Series' || ($bookDetail['collectionNumber'] ?? null) !== '7') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve book series metadata');
+    }
+    if (($bookDetail['isbn'] ?? null) !== '978-1-2345-6789-0') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve book ISBN metadata');
+    }
 
     foreach ([
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
@@ -350,6 +395,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Title metadata sources Curator (2026) and Ng (2025) keep reviewer subtitles attached.</p>',
         '<dt>Curator 2026</dt><dd>Curator, Eli. Migration Manual: Reviewer Packet Guide. Draft source notes. Review Press, 2026.</dd>',
         '<dt>Ng 2025</dt><dd>Ng, Nia. Checklist: Attachment Review. Migration Handbook: Import Desk Edition. Internal packet supplement. 2025. 7-12.</dd>',
+        '<p>Publication detail sources Doe (2026) and Curator (2025) preserve volume, issue, series, and identifier metadata.</p>',
+        '<dt>Doe 2026</dt><dd>Doe, Jane. Detailed Field Notes. Journal of Imports. Vol. 12, no. 3. 2026. 20-30. DOI 10.5555/detail. ISSN 1234-5678. Archive: arXiv cs.DL 2401.01234.</dd>',
+        '<dt>Curator 2025</dt><dd>Curator, Eli. Review Handbook. 2nd ed. Source Review Series, no. 7. Review Press, 2025. ISBN 978-1-2345-6789-0.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {
