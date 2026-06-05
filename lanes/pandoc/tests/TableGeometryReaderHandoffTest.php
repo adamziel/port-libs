@@ -300,4 +300,49 @@ HTML;
         $t->contains('<figure class="wp-block-table"><table id="rowspan-zero-grid" data-source="html-reader"><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><tbody id="posts-body"><tr data-row="posts-total"><th rowspan="3" style="text-align:left">Posts</th><td style="text-align:right">42</td></tr><tr data-row="posts-media"><td style="text-align:right">7</td><td>Needs media</td></tr><tr data-row="posts-review"><td style="text-align:right">3</td><td>Review</td></tr></tbody><tbody id="pages-body"><tr data-row="pages-total"><th>Pages</th><td style="text-align:right">5</td><td>Ready</td></tr></tbody></table></figure>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'expands html colgroup span width and alignment metadata into geometry packets' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="colgroup-alignment-grid" data-source="html-reader">
+<caption>Colgroup alignment review</caption>
+<colgroup>
+<col span="2" style="width: 25%; text-align: right" />
+<col width="50%" align="center" />
+</colgroup>
+<thead>
+<tr><th>Scope</th><th>Items</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>42</td><td>Ready</td></tr>
+<tr><td>Media</td><td>7</td><td>Review</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same(3, TableGeometry::columnCount($table));
+        $t->same(['right', 'right', 'center'], $table->attr('alignments'));
+        $t->same([0.25, 0.25, 0.5], $table->attr('widths'));
+        $t->same(['right', 'right', 'center'], TableGeometry::alignments($table, 3));
+        $t->same([0.25, 0.25, 0.5], array_map(static fn (array $column): ?float => $column['width'], TableGeometry::columnSpecs($table, 3)));
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same(['right', 'right', 'center'], array_map(static fn (array $column): string => $column['alignment'], $packet['columns'] ?? []));
+        $t->same([0.25, 0.25, 0.5], array_map(static fn (array $column): ?float => $column['width'], $packet['columns'] ?? []));
+        $t->same(['right'], $packet['coverage'][3]['columnAlignments'] ?? null);
+        $t->same([0.25], $packet['coverage'][3]['widths'] ?? null);
+        $t->same(['right'], $packet['coverage'][4]['columnAlignments'] ?? null);
+        $t->same([0.25], $packet['coverage'][4]['widths'] ?? null);
+        $t->same(['center'], $packet['coverage'][5]['columnAlignments'] ?? null);
+        $t->same([0.5], $packet['coverage'][5]['widths'] ?? null);
+        $t->same([], $packet['summary']['diagnosticCodes'] ?? null);
+        $t->contains('<colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:50%"/></colgroup>', $blocks);
+        $t->contains('<thead><tr><th style="text-align:right">Scope</th><th style="text-align:right">Items</th><th style="text-align:center">State</th></tr></thead>', $blocks);
+        $t->contains('<tbody><tr><td style="text-align:right">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td></tr><tr><td style="text-align:right">Media</td><td style="text-align:right">7</td><td style="text-align:center">Review</td></tr></tbody>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
 ];

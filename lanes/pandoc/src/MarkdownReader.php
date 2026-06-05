@@ -4926,15 +4926,21 @@ final class MarkdownReader
         $footRows = $tfoot instanceof \DOMElement ? $this->readHtmlTableRows($tfoot, false, $maxColumns) : [];
 
         $captionInlines = $caption instanceof \DOMElement ? $this->parseHtmlInlineChildren($caption) : [];
+        $columnMetadata = $this->readHtmlTableColumnMetadata($table, $maxColumns);
+        $alignments = $columnMetadata['alignments'];
+        if ($alignments === null) {
+            $alignments = array_fill(0, $maxColumns, 'default');
+        }
+
         $attrs = array_merge($this->htmlElementPandocAttrs($table), [
             'caption' => $captionInlines === [] ? '' : trim(preg_replace('/\s+/', ' ', $this->plainTextFromInlines($captionInlines)) ?? ''),
-            'alignments' => array_fill(0, $maxColumns, 'default'),
+            'alignments' => $alignments,
         ]);
         if ($captionInlines !== []) {
             $attrs['captionInlines'] = $captionInlines;
         }
 
-        $widths = $this->readHtmlTableColumnWidths($table, $maxColumns);
+        $widths = $columnMetadata['widths'];
         if ($widths !== null) {
             $attrs['widths'] = $widths;
         } elseif ($maxColumns > 0) {
@@ -5050,30 +5056,58 @@ final class MarkdownReader
     }
 
     /**
-     * @return list<float>|null
+     * @return array{alignments:?list<string>, widths:?list<float>}
      */
-    private function readHtmlTableColumnWidths(\DOMElement $table, int $maxColumns): ?array
+    private function readHtmlTableColumnMetadata(\DOMElement $table, int $maxColumns): array
     {
-        $colgroup = $this->firstChildElement($table, 'colgroup');
-        if (!$colgroup instanceof \DOMElement) {
-            return null;
+        $colgroups = $this->childElements($table, 'colgroup');
+        if ($colgroups === []) {
+            return ['alignments' => null, 'widths' => null];
         }
 
         $widths = [];
-        foreach ($this->childElements($colgroup, 'col') as $col) {
-            $width = $this->htmlColumnWidthPercent($col);
-            if ($width === null) {
-                return null;
+        $alignments = [];
+        $hasAlignment = false;
+        $hasWidth = false;
+        $hasCompleteWidths = true;
+        foreach ($colgroups as $colgroup) {
+            $cols = $this->childElements($colgroup, 'col');
+            if ($cols === []) {
+                $span = $this->positiveHtmlSpan($colgroup->getAttribute('span'));
+                $alignment = $this->normalizeHtmlColumnAlignment($colgroup);
+                $width = $this->htmlColumnWidthPercent($colgroup);
+                for ($index = 0; $index < $span; $index++) {
+                    $alignments[] = $alignment;
+                    $widths[] = $width;
+                    $hasAlignment = $hasAlignment || $alignment !== 'default';
+                    $hasWidth = $hasWidth || $width !== null;
+                    $hasCompleteWidths = $hasCompleteWidths && $width !== null;
+                }
+                continue;
             }
 
-            $widths[] = $width;
+            foreach ($cols as $col) {
+                $span = $this->positiveHtmlSpan($col->getAttribute('span'));
+                $alignment = $this->normalizeHtmlColumnAlignment($col, $colgroup);
+                $width = $this->htmlColumnWidthPercent($col);
+                for ($index = 0; $index < $span; $index++) {
+                    $alignments[] = $alignment;
+                    $widths[] = $width;
+                    $hasAlignment = $hasAlignment || $alignment !== 'default';
+                    $hasWidth = $hasWidth || $width !== null;
+                    $hasCompleteWidths = $hasCompleteWidths && $width !== null;
+                }
+            }
         }
 
-        if ($widths === [] || ($maxColumns > 0 && count($widths) !== $maxColumns)) {
-            return null;
+        if ($alignments === [] || ($maxColumns > 0 && count($alignments) !== $maxColumns)) {
+            return ['alignments' => null, 'widths' => null];
         }
 
-        return $widths;
+        return [
+            'alignments' => $hasAlignment ? $alignments : null,
+            'widths' => $hasWidth && $hasCompleteWidths ? array_values($widths) : null,
+        ];
     }
 
     private function htmlColumnWidthPercent(\DOMElement $col): ?float
@@ -5262,12 +5296,27 @@ final class MarkdownReader
 
     private function normalizeHtmlTableAlignment(\DOMElement $cell): string
     {
-        $align = strtolower(trim($cell->getAttribute('align')));
+        return $this->normalizeHtmlColumnAlignment($cell);
+    }
+
+    private function normalizeHtmlColumnAlignment(\DOMElement $element, ?\DOMElement $fallback = null): string
+    {
+        $alignment = $this->normalizeHtmlElementAlignment($element);
+        if ($alignment !== 'default') {
+            return $alignment;
+        }
+
+        return $fallback instanceof \DOMElement ? $this->normalizeHtmlElementAlignment($fallback) : 'default';
+    }
+
+    private function normalizeHtmlElementAlignment(\DOMElement $element): string
+    {
+        $align = strtolower(trim($element->getAttribute('align')));
         if (in_array($align, ['left', 'right', 'center'], true)) {
             return $align;
         }
 
-        $style = strtolower($cell->getAttribute('style'));
+        $style = strtolower($element->getAttribute('style'));
         if (preg_match('/text-align\s*:\s*(left|right|center)\b/', $style, $m) === 1) {
             return $m[1];
         }

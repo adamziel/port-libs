@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 08:53:52 UTC",
-    "sourceCommit": "02b1add2acf668b0290150641bbc9edb1c82a921",
-    "sourceCommitShort": "02b1add2acf6",
+    "generated": "2026-06-05 08:54:00 UTC",
+    "sourceCommit": "787209258533487fefc805adcf8900f9739f5cca",
+    "sourceCommitShort": "787209258533",
     "sourceBranch": "unknown",
-    "dashboardCommit": "02b1add2acf668b0290150641bbc9edb1c82a921",
-    "dashboardCommitShort": "02b1add2acf6",
+    "dashboardCommit": "787209258533487fefc805adcf8900f9739f5cca",
+    "dashboardCommitShort": "787209258533",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,11 +137,11 @@
             "coverage": "1,248 / 2,276 (54.8%)",
             "mapPercent": "54.8%",
             "unmapped": "1,028",
-            "php": "788 pass / 0 fail",
+            "php": "789 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-05 UTC charset/Unicode current-base slice on accepted base 88...",
+            "audit": "2026-06-05 UTC table geometry current-base slice on accepted base 80b...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For charset/Unicode follow-up, keep broader Unicode grapheme-...",
+            "nextTarget": "For table geometry follow-up, keep richer column-group proven...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },
