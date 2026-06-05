@@ -148,4 +148,28 @@ return [
         $t->true(!str_contains($encoded, 'debug_payload'), 'pdftext keep_chars=true should still drop arbitrary character debug payloads.');
         $t->true(!str_contains($encoded, 'raw_image_bytes'), 'Arbitrary span payload bytes must not cross the dictionary core boundary.');
     },
+    'keeps upstream-shaped character font dictionaries at the keep chars boundary' => static function (TestRunner $t) use ($pdftextCharsPage): void {
+        $page = $pdftextCharsPage();
+        $page['blocks'][0]['lines'][0]['spans'][0]['font']['embedded_font_program'] = 'hidden span font payload';
+        $page['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['c'] = 'legacy alias should be dropped';
+        $page['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['font']['raw_font_stream'] = 'hidden font payload';
+        $page['blocks'][0]['lines'][0]['spans'][0]['chars'][1]['font']['debug_payload'] = ['stream' => 'hidden'];
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1, keepChars: true);
+        $span = $document['pages'][0]['blocks'][0]['lines'][0]['spans'][0];
+        $charSpan = $document['pages'][0]['char_blocks'][0]['lines'][0]['spans'][0];
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same(['char', 'bbox', 'rotation', 'font', 'char_idx'], array_keys($span['chars'][0]));
+        $t->same(['name', 'flags', 'weight', 'size'], array_keys($charSpan['font']));
+        $t->same(['name', 'flags', 'weight', 'size'], array_keys($span['chars'][0]['font']));
+        $t->same(['name', 'flags', 'weight', 'size'], array_keys($charSpan['chars'][1]['font']));
+        $t->same('K', $span['chars'][0]['char']);
+        $t->same('e', $charSpan['chars'][1]['char']);
+        $t->true(!array_key_exists('c', $span['chars'][0]), 'pdftext keep_chars emits char, not legacy c aliases.');
+        $t->true(!str_contains($encoded, 'legacy alias should be dropped'));
+        $t->true(!str_contains($encoded, 'embedded_font_program'));
+        $t->true(!str_contains($encoded, 'raw_font_stream'));
+        $t->true(!str_contains($encoded, 'debug_payload'));
+    },
 ];

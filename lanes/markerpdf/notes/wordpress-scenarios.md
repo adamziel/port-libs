@@ -426,6 +426,8 @@ The 2026-06-05 named-destination indirect view-operand slice extends that smoke 
 
 `examples/wordpress-pdftext-dictionary-layout-order-string-marker-currentbase.php` maps pdftext dictionary layout/order artifact alignment when adapter page identity arrives as whitespace-padded numeric strings. It normalizes the string markers before selected-page matching, orders the selected WordPress paragraph columns with the selected artifact, excludes cover/appendix artifacts, and avoids Python, pdftext, pypdfium/PDFium execution, Surya/Torch models, OCR, and external PDF tools.
 
+`examples/wordpress-pdftext-dictionary-char-core-boundary-currentbase.php` maps supplied pdftext `keep_chars` character dictionaries into WordPress review metadata. It preserves upstream-shaped `char`, `bbox`, `rotation`, `font`, and `char_idx` rows while excluding legacy `c` aliases plus raw span/character font payload keys before Marker `char_blocks`, and emits a Gutenberg paragraph without Python, pdftext, pypdfium/PDFium execution, models, OCR, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

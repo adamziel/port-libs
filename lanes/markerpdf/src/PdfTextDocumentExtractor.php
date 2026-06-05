@@ -283,6 +283,9 @@ final class PdfTextDocumentExtractor
                 if (array_key_exists('bbox', $sanitizedSpan)) {
                     $sanitizedSpan['bbox'] = $this->unnormalizeDictionaryOutputBbox($sanitizedSpan['bbox'], $bboxScale);
                 }
+                if (array_key_exists('font', $sanitizedSpan) && is_array($sanitizedSpan['font'])) {
+                    $sanitizedSpan['font'] = $this->sanitizeDictionaryOutputFont($sanitizedSpan['font']);
+                }
                 if (array_key_exists('text', $span) && is_string($span['text'])) {
                     $sanitizedSpan['text'] = $this->normalizeDictionaryOutputText($span['text']);
                 }
@@ -315,7 +318,7 @@ final class PdfTextDocumentExtractor
             }
 
             $sanitizedChar = [];
-            foreach (['char', 'c', 'bbox', 'rotation', 'font', 'char_idx'] as $key) {
+            foreach (['char', 'bbox', 'rotation', 'font', 'char_idx'] as $key) {
                 if (array_key_exists($key, $char)) {
                     $sanitizedChar[$key] = $char[$key];
                 }
@@ -324,11 +327,30 @@ final class PdfTextDocumentExtractor
             if (array_key_exists('bbox', $sanitizedChar)) {
                 $sanitizedChar['bbox'] = $this->unnormalizeDictionaryOutputBbox($sanitizedChar['bbox'], $bboxScale);
             }
+            if (array_key_exists('font', $sanitizedChar) && is_array($sanitizedChar['font'])) {
+                $sanitizedChar['font'] = $this->sanitizeDictionaryOutputFont($sanitizedChar['font']);
+            }
 
             $sanitizedChars[] = $sanitizedChar;
         }
 
         return $sanitizedChars;
+    }
+
+    /**
+     * @param array<string, mixed> $font
+     * @return array<string, mixed>
+     */
+    private function sanitizeDictionaryOutputFont(array $font): array
+    {
+        $sanitizedFont = [];
+        foreach (['name', 'flags', 'weight', 'size'] as $key) {
+            if (array_key_exists($key, $font)) {
+                $sanitizedFont[$key] = $font[$key];
+            }
+        }
+
+        return $sanitizedFont;
     }
 
     /**
