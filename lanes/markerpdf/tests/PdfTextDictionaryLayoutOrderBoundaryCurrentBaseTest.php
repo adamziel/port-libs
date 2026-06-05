@@ -77,6 +77,71 @@ return [
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'rescales normalized supplied layout boxes before WordPress pdftext dictionary import' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-normalized-layout-boundary-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% normalized layout boundary current-base fixture\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [
+                    $pdftextLinesPage(1210, [
+                        ['text' => 'Normalized layout cover should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                    $pdftextLinesPage(1211, [
+                        ['text' => 'Normalized layout title', 'bbox' => [72.0, 48.0, 360.0, 68.0]],
+                        ['text' => 'Normalized layout body remains paragraph.', 'bbox' => [72.0, 112.0, 480.0, 128.0]],
+                    ]),
+                ],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['page' => 1211, 'image' => 'normalized-layout-render'],
+                    ],
+                    'layout_results' => [[
+                        'page' => 1211,
+                        'image_bbox' => [0.0, 0.0, 1224.0, 1584.0],
+                        'bboxes' => [
+                            ['label' => 'Title', 'bbox' => [0.098, 0.055, 0.588, 0.11]],
+                            ['label' => 'Text', 'bbox' => [0.098, 0.125, 0.785, 0.19]],
+                        ],
+                        'raw_payload' => 'normalized layout payload must stay out of WordPress metadata',
+                    ]],
+                    'order_images' => [
+                        ['page' => 1211, 'image' => 'normalized-layout-order-render'],
+                    ],
+                    'order_results' => [[
+                        'page' => 1211,
+                        'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                        'bboxes' => [
+                            ['position' => 1, 'bbox' => [60.0, 42.0, 370.0, 76.0]],
+                            ['position' => 2, 'bbox' => [60.0, 100.0, 490.0, 140.0]],
+                        ],
+                    ]],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+        } finally {
+            unlink($path);
+        }
+
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $text = $result['text'];
+
+        $t->same([1], $result['metadata']['page_range'] ?? null);
+        $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['layout_result_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['assigned_pages'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages'] ?? null);
+        $t->contains('# Normalized Layout Title', $text);
+        $t->contains('Normalized layout body remains paragraph.', $text);
+        $t->true(strpos($text, '# Normalized Layout Title') < strpos($text, 'Normalized layout body remains paragraph.'));
+        $t->true(!str_contains($text, 'Normalized layout cover should stay skipped.'));
+        $t->true(!str_contains($encoded, 'normalized layout payload must stay out'));
+    },
     'keeps nested pdftext page payload markers out of trusted document-page order metadata' => static function (TestRunner $t) use ($pdftextLinesPage): void {
         $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
             [

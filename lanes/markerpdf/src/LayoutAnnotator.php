@@ -508,7 +508,60 @@ final class LayoutAnnotator
             return $bbox;
         }
 
+        $bbox = $this->expandNormalizedLayoutBbox($bbox, $imageBbox);
+
         return $this->layout->rescaleBbox($imageBbox, $pageBbox, $bbox);
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @param list<float> $imageBbox
+     * @return list<float>
+     */
+    private function expandNormalizedLayoutBbox(array $bbox, array $imageBbox): array
+    {
+        $imageWidth = $this->rectWidth($imageBbox);
+        $imageHeight = $this->rectHeight($imageBbox);
+        if ($imageWidth <= 2.0 || $imageHeight <= 2.0 || !$this->isNormalizedLayoutBbox($bbox)) {
+            return $bbox;
+        }
+
+        return $this->canonicalBbox([
+            $imageBbox[0] + ($bbox[0] * $imageWidth),
+            $imageBbox[1] + ($bbox[1] * $imageHeight),
+            $imageBbox[0] + ($bbox[2] * $imageWidth),
+            $imageBbox[1] + ($bbox[3] * $imageHeight),
+        ]);
+    }
+
+    /**
+     * @param list<float> $bbox
+     */
+    private function isNormalizedLayoutBbox(array $bbox): bool
+    {
+        foreach ($bbox as $part) {
+            if ($part < -0.5 || $part > 1.5) {
+                return false;
+            }
+        }
+
+        return $this->rectWidth($bbox) <= 2.0 && $this->rectHeight($bbox) <= 2.0;
+    }
+
+    /**
+     * @param list<float> $bbox
+     */
+    private function rectWidth(array $bbox): float
+    {
+        return max(0.0, $bbox[2] - $bbox[0]);
+    }
+
+    /**
+     * @param list<float> $bbox
+     */
+    private function rectHeight(array $bbox): float
+    {
+        return max(0.0, $bbox[3] - $bbox[1]);
     }
 
     /**
