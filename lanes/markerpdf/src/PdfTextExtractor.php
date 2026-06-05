@@ -21867,6 +21867,18 @@ final class PdfTextExtractor
                 return true;
             }
 
+            if (
+                !$this->inlineImageEndMarkerAt($stream, $end)
+                && $this->inlineImageTightEndMarkerAt($stream, $end)
+                && $this->inlineImageTightEndCandidateMatchesSampleFloor(
+                    $dictionary,
+                    substr($stream, $dataStart, $end - $dataStart)
+                )
+            ) {
+                $index = $end + 2;
+                return true;
+            }
+
             if ($this->inlineImageEndMarkerAt($stream, $end)) {
                 if (
                     $incompletePreviewFallbackEnd !== null
@@ -22613,6 +22625,22 @@ final class PdfTextExtractor
         return strlen($trimmedCandidate) < $sampleFloor && strlen($rawCandidate) === $sampleFloor;
     }
 
+    private function inlineImageTightEndCandidateMatchesSampleFloor(string $dictionary, string $candidate): bool
+    {
+        $filters = $this->streamFilters($dictionary, []);
+        if ($filters !== []) {
+            return false;
+        }
+
+        $sampleFloor = $this->inlineImageExpectedDecodedLength($dictionary)
+            ?? $this->inlineImageMinimumUnfilteredLength($dictionary);
+        if ($sampleFloor === null) {
+            return false;
+        }
+
+        return strlen($candidate) === $sampleFloor;
+    }
+
     private function inlineImageIncompletePreviewCandidateReachedSampleFloor(string $dictionary, string $candidate): bool
     {
         $expectedLength = $this->inlineImageExpectedDecodedLength($dictionary);
@@ -23207,6 +23235,16 @@ final class PdfTextExtractor
     private function inlineImageEndMarkerAt(string $stream, int $offset): bool
     {
         if ($offset <= 0 || !ctype_space($stream[$offset - 1])) {
+            return false;
+        }
+
+        $after = $offset + 2;
+        return $after >= strlen($stream) || $this->isBareTokenDelimiter($stream[$after]);
+    }
+
+    private function inlineImageTightEndMarkerAt(string $stream, int $offset): bool
+    {
+        if ($offset <= 0 || ctype_space($stream[$offset - 1])) {
             return false;
         }
 

@@ -34,6 +34,8 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "abc EI BT /F1 12 Tf 72 650 Td (Tight ID Inline Payload Noise) Tj ET rawtail\n"
     . "EI\n"
     . "BT /F1 12 Tf 72 654 Td (After Tight ID Boundary) Tj ET\n"
+    . "BI /W 1 /H 1 /CS /G /BPC 8 IDxEI\n"
+    . "BT /F1 12 Tf 72 653 Td (After Tight EI Boundary) Tj ET\n"
     . "BI/W 16/H 1/CS/G/BPC 8 ID\n"
     . "abc EI BT /F1 12 Tf 72 650 Td (Compact Delimiter Inline Payload Noise) Tj ET rawtail\n"
     . "EI\n"
@@ -129,7 +131,7 @@ $multipleCcittPlainText = $extractor->extractPlainText($multipleCcittPdf);
 echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, nested modifier-dictionary decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, and marked-content ActualText inline image boundaries before Gutenberg paragraphs',
+    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, tight EI sample terminators, nested modifier-dictionary decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, and marked-content ActualText inline image boundaries before Gutenberg paragraphs',
     'stray_bi_text_preserved' => str_contains($plainText, 'Stray BI Text Survives')
         && str_contains($plainText, 'After Tokenizer Boundary'),
     'real_inline_image_payload_excluded' => !str_contains($plainText, 'Inline Image Payload Noise'),
@@ -139,6 +141,9 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
     'tight_id_inline_payload_excluded_until_sample_boundary' => !str_contains($plainText, 'Tight ID Inline Payload Noise')
         && !str_contains($plainText, 'IDabc')
         && str_contains($plainText, 'After Tight ID Boundary'),
+    'tight_ei_inline_terminator_recovers_after_exact_sample_floor' => str_contains($plainText, 'After Tight EI Boundary')
+        && !str_contains($plainText, 'IDxEI')
+        && !str_contains($plainText, 'xEI'),
     'compact_slash_delimited_inline_image_excluded' => !str_contains($plainText, 'Compact Delimiter Inline Payload Noise')
         && !str_contains($plainText, 'BI/W')
         && str_contains($plainText, 'After Compact Delimiter Boundary'),
