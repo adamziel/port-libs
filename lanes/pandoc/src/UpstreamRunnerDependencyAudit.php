@@ -207,6 +207,17 @@ final class UpstreamRunnerDependencyAudit
         ],
     ];
 
+    private const LUA_ENGINE_LIBRARY_DEPENDENCIES = [
+        'hslua-module-doclayout',
+        'hslua-module-path',
+        'hslua-module-system',
+        'hslua-module-text',
+        'hslua-module-version',
+        'hslua-module-zip',
+        'lpeg',
+        'pandoc-lua-marshal',
+    ];
+
     /**
      * @param array<string, string|array{available?: bool, version?: string|null}> $tools
      * @return array{
@@ -225,6 +236,7 @@ final class UpstreamRunnerDependencyAudit
      *   projectPackageClosure:array{expectedPackages:list<string>, presentPackages:list<string>, missingPackages:list<string>, expectedFlags:array<string, array<string, bool>>, presentFlags:array<string, array<string, bool>>, missingFlags:array<string, list<string>>, mismatchedFlags:array<string, array<string, array{expected:bool, actual:bool|null}>>},
      *   projectConstraintClosure:array{expectedConstraints:array<string, string>, presentConstraints:array<string, string>, missingConstraints:list<string>, mismatchedConstraints:array<string, array{expected:string, actual:string}>},
      *   runnerDependencyClosure:array{expectedDependencies:array<string, list<string>>, expectedExecutableOptions:array<string, list<string>>, expectedDefaultLanguages:array<string, string>, expectedOtherModules:array<string, list<string>>, present:array<string, array{packageFile:string, type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, ghcOptions:list<string>, defaultLanguage:string|null, otherModules:list<string>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, missingOtherModules:array<string, list<string>>},
+     *   luaEngineLibraryClosure:array{packageFile:string, expectedDependencies:list<string>, presentDependencies:list<string>, missingDependencies:list<string>},
      *   runnerEntrySourceClosure:array{expected:array<string, array{entryFile:string, requiredSnippets:array<string, string>}>, present:array<string, array{entryFile:string, matchedSnippets:list<string>}>, missingTargets:list<string>, missingSemantics:array<string, list<string>>},
      *   runnerArtifactClosure:array{expected:array<string, string>, present:list<string>, missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>},
      *   readyForNonMutatingCabalPlan:bool,
@@ -259,6 +271,7 @@ final class UpstreamRunnerDependencyAudit
         $projectPackageClosure = self::auditProjectPackageClosure($projectContents);
         $projectConstraintClosure = self::auditProjectConstraintClosure($projectContents);
         $runnerDependencyClosure = self::auditRunnerDependencyClosure($root);
+        $luaEngineLibraryClosure = self::auditLuaEngineLibraryClosure($root);
         $runnerEntrySourceClosure = self::auditRunnerEntrySourceClosure($root);
         $runnerArtifactClosure = self::auditRunnerArtifactClosure($root);
 
@@ -314,6 +327,9 @@ final class UpstreamRunnerDependencyAudit
         if ($runnerDependencyClosure['missingOtherModules'] !== []) {
             $blockedReasons[] = 'missing Cabal runner other-modules: ' . self::formatTargetFailures($runnerDependencyClosure['missingOtherModules']);
         }
+        if ($luaEngineLibraryClosure['missingDependencies'] !== []) {
+            $blockedReasons[] = 'missing pandoc-lua-engine library build-depends: ' . implode(', ', $luaEngineLibraryClosure['missingDependencies']);
+        }
         if ($runnerEntrySourceClosure['missingTargets'] !== []) {
             $blockedReasons[] = 'missing runner entry point source files: ' . implode(', ', $runnerEntrySourceClosure['missingTargets']);
         }
@@ -345,6 +361,7 @@ final class UpstreamRunnerDependencyAudit
             'projectPackageClosure' => $projectPackageClosure,
             'projectConstraintClosure' => $projectConstraintClosure,
             'runnerDependencyClosure' => $runnerDependencyClosure,
+            'luaEngineLibraryClosure' => $luaEngineLibraryClosure,
             'runnerEntrySourceClosure' => $runnerEntrySourceClosure,
             'runnerArtifactClosure' => $runnerArtifactClosure,
             'readyForNonMutatingCabalPlan' => $ready,
@@ -352,11 +369,11 @@ final class UpstreamRunnerDependencyAudit
             'nonMutatingPlan' => $ready ? [
                 'record cabal.project package/flag closure plus source-repository type/location/tag closure, runner source/golden fixture artifacts, runner entry-point semantics, and package-file hashes before any solver/build command',
                 'record cabal.project solver constraints and runner executable options before any solver/build command',
-                'record test-suite type, buildable state, default-language, entry point, direct build-depends, and other-modules closure for test:test-pandoc and test:test-pandoc-lua-engine',
+                'record test-suite type, buildable state, default-language, entry point, direct build-depends, and other-modules closure for test:test-pandoc and test:test-pandoc-lua-engine, plus pandoc-lua-engine library HsLua module dependency closure',
                 'prepare a bounded Cabal solver plan for test:test-pandoc and test:test-pandoc-lua-engine',
                 'only after the plan is reviewed, run a separate bounded runner slice with explicit artifact output paths',
             ] : [],
-            'activationGate' => self::activationGate($missingFiles, $missingTools, $projectPins, $projectSourceRepositoryClosure, $projectPackageClosure, $projectConstraintClosure, $runnerDependencyClosure, $runnerEntrySourceClosure, $runnerArtifactClosure),
+            'activationGate' => self::activationGate($missingFiles, $missingTools, $projectPins, $projectSourceRepositoryClosure, $projectPackageClosure, $projectConstraintClosure, $runnerDependencyClosure, $luaEngineLibraryClosure, $runnerEntrySourceClosure, $runnerArtifactClosure),
         ];
     }
 
@@ -430,6 +447,14 @@ final class UpstreamRunnerDependencyAudit
     public static function expectedRunnerOtherModules(): array
     {
         return self::RUNNER_OTHER_MODULES;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function expectedLuaEngineLibraryDependencies(): array
+    {
+        return self::LUA_ENGINE_LIBRARY_DEPENDENCIES;
     }
 
     /**
@@ -723,6 +748,29 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
+     * @return array<string, array{buildDepends:list<string>}>
+     */
+    public static function parseCabalLibraries(string $contents): array
+    {
+        $stanzas = self::parseCabalStanzas($contents);
+        $libraries = [];
+
+        foreach ($stanzas as $key => $stanza) {
+            if ($stanza['type'] !== 'library') {
+                continue;
+            }
+
+            $fields = self::resolveCabalStanzaFields($key, $stanzas);
+            $libraries[$stanza['name']] = [
+                'buildDepends' => self::extractCabalDependencyNames($fields['build-depends'] ?? ''),
+            ];
+        }
+
+        ksort($libraries);
+        return $libraries;
+    }
+
+    /**
      * @param array<string, string|array{available?: bool, version?: string|null}> $tools
      * @return array<string, array{available:bool, version:string|null}>
      */
@@ -992,6 +1040,35 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
+     * @return array{packageFile:string, expectedDependencies:list<string>, presentDependencies:list<string>, missingDependencies:list<string>}
+     */
+    private static function auditLuaEngineLibraryClosure(string $root): array
+    {
+        $packageFile = 'pandoc-lua-engine/pandoc-lua-engine.cabal';
+        $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $packageFile);
+        $presentDependencies = [];
+
+        if (is_file($path)) {
+            $libraries = self::parseCabalLibraries((string) file_get_contents($path));
+            $presentDependencies = $libraries['default']['buildDepends'] ?? [];
+        }
+
+        $missingDependencies = [];
+        foreach (self::LUA_ENGINE_LIBRARY_DEPENDENCIES as $dependency) {
+            if (!in_array($dependency, $presentDependencies, true)) {
+                $missingDependencies[] = $dependency;
+            }
+        }
+
+        return [
+            'packageFile' => $packageFile,
+            'expectedDependencies' => self::LUA_ENGINE_LIBRARY_DEPENDENCIES,
+            'presentDependencies' => $presentDependencies,
+            'missingDependencies' => $missingDependencies,
+        ];
+    }
+
+    /**
      * @return array{expected:array<string, array{entryFile:string, requiredSnippets:array<string, string>}>, present:array<string, array{entryFile:string, matchedSnippets:list<string>}>, missingTargets:list<string>, missingSemantics:array<string, list<string>>}
      */
     private static function auditRunnerEntrySourceClosure(string $root): array
@@ -1118,9 +1195,20 @@ final class UpstreamRunnerDependencyAudit
         $lastField = null;
 
         foreach (preg_split('/\R/', $contents) ?: [] as $line) {
+            if (preg_match('/^library\s*$/i', $line) === 1) {
+                $currentKey = 'library:default';
+                $stanzas[$currentKey] = [
+                    'type' => 'library',
+                    'name' => 'default',
+                    'fields' => [],
+                ];
+                $lastField = null;
+                continue;
+            }
+
             if (preg_match('/^([A-Za-z][A-Za-z0-9-]*)\s+([A-Za-z0-9_.-]+)\s*$/', $line, $match) === 1) {
                 $type = strtolower($match[1]);
-                if (in_array($type, ['test-suite', 'common'], true)) {
+                if (in_array($type, ['test-suite', 'common', 'library'], true)) {
                     $currentKey = $type . ':' . $match[2];
                     $stanzas[$currentKey] = [
                         'type' => $type,
@@ -1418,10 +1506,11 @@ final class UpstreamRunnerDependencyAudit
      * @param array{missingPackages:list<string>, missingFlags:array<string, list<string>>, mismatchedFlags:array<string, array<string, array{expected:bool, actual:bool|null}>>} $projectPackageClosure
      * @param array{missingConstraints:list<string>, mismatchedConstraints:array<string, array{expected:string, actual:string}>} $projectConstraintClosure
      * @param array{missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, missingOtherModules:array<string, list<string>>} $runnerDependencyClosure
+     * @param array{missingDependencies:list<string>} $luaEngineLibraryClosure
      * @param array{missingTargets:list<string>, missingSemantics:array<string, list<string>>} $runnerEntrySourceClosure
      * @param array{missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>} $runnerArtifactClosure
      */
-    private static function activationGate(array $missingFiles, array $missingTools, array $projectPins, array $projectSourceRepositoryClosure, array $projectPackageClosure, array $projectConstraintClosure, array $runnerDependencyClosure, array $runnerEntrySourceClosure, array $runnerArtifactClosure): string
+    private static function activationGate(array $missingFiles, array $missingTools, array $projectPins, array $projectSourceRepositoryClosure, array $projectPackageClosure, array $projectConstraintClosure, array $runnerDependencyClosure, array $luaEngineLibraryClosure, array $runnerEntrySourceClosure, array $runnerArtifactClosure): string
     {
         if (
             $missingFiles === []
@@ -1441,15 +1530,16 @@ final class UpstreamRunnerDependencyAudit
             && $runnerDependencyClosure['missingExecutableOptions'] === []
             && $runnerDependencyClosure['mismatchedDefaultLanguages'] === []
             && $runnerDependencyClosure['missingOtherModules'] === []
+            && $luaEngineLibraryClosure['missingDependencies'] === []
             && $runnerEntrySourceClosure['missingTargets'] === []
             && $runnerEntrySourceClosure['missingSemantics'] === []
             && $runnerArtifactClosure['missing'] === []
             && $runnerArtifactClosure['wrongType'] === []
         ) {
-            return 'Hydrated Pandoc checkout, required Cabal toolchain, cabal.project package/flag/constraint closure, exact cabal.project source-repository Git types and locations, runner source/golden fixtures, runner entry-point source semantics, buildable runner test-suite stanzas, exitcode-stdio runner types, direct build-depends, Haskell2010 default-language closure, runner other-modules closure, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner execution.';
+            return 'Hydrated Pandoc checkout, required Cabal toolchain, cabal.project package/flag/constraint closure, exact cabal.project source-repository Git types and locations, runner source/golden fixtures, runner entry-point source semantics, buildable runner test-suite stanzas, exitcode-stdio runner types, direct build-depends, Haskell2010 default-language closure, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner execution.';
         }
 
         return 'Hydrate Pandoc upstream commit ' . self::UPSTREAM_COMMIT
-            . ' with cabal.project package entries/flags/constraints, exact cabal.project source-repository Git types and locations, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, runner source/golden fixtures, runner entry-point source semantics, buildable exitcode-stdio test-suite types, Haskell2010 default-language closure, test entry points, direct runner build-depends, runner other-modules closure, runner executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
+            . ' with cabal.project package entries/flags/constraints, exact cabal.project source-repository Git types and locations, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, runner source/golden fixtures, runner entry-point source semantics, buildable exitcode-stdio test-suite types, Haskell2010 default-language closure, test entry points, direct runner build-depends, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, runner executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
     }
 }

@@ -104,27 +104,36 @@ $pandocCabal = static function (array $without = [], ?string $mainIs = null, ?st
     ], $commonExecutable, $testSuite));
 };
 
-$luaCabal = static function (array $without = [], ?string $mainIs = null, ?string $sourceDirectory = null, string $type = 'exitcode-stdio-1.0', ?string $buildable = null, ?string $defaultLanguage = 'Haskell2010'): string {
+$luaCabal = static function (array $without = [], ?string $mainIs = null, ?string $sourceDirectory = null, string $type = 'exitcode-stdio-1.0', ?string $buildable = null, ?string $defaultLanguage = 'Haskell2010', array $libraryWithout = []): string {
     $dependencies = array_values(array_diff(
         UpstreamRunnerDependencyAudit::expectedRunnerDependencies()['test:test-pandoc-lua-engine'],
         $without
     ));
     $commonDependencies = array_values(array_intersect($dependencies, ['base']));
     $suiteDependencies = array_values(array_diff($dependencies, $commonDependencies));
+    $libraryDependencies = array_values(array_diff(
+        UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryDependencies(),
+        $libraryWithout
+    ));
 
-    $testSuite = [
+    $stanzas = [
         'common test-options',
         '  build-depends: ' . implode(', ', $commonDependencies),
         $defaultLanguage === null || $defaultLanguage === '' ? '' : '  default-language: ' . $defaultLanguage,
+        '',
+        'library',
+        '  import: test-options',
+        '  build-depends:',
+        '    ' . implode(",\n    ", $libraryDependencies),
         '',
         'test-suite test-pandoc-lua-engine',
         '  import: test-options',
         '  type: ' . $type,
     ];
     if ($buildable !== null) {
-        $testSuite[] = '  buildable: ' . $buildable;
+        $stanzas[] = '  buildable: ' . $buildable;
     }
-    return implode("\n", array_merge($testSuite, [
+    return implode("\n", array_merge($stanzas, [
         '  main-is: ' . ($mainIs ?? 'test-pandoc-lua-engine.hs'),
         '  hs-source-dirs: ' . ($sourceDirectory ?? 'pandoc-lua-engine/test'),
         '  build-depends:',
@@ -293,6 +302,10 @@ return [
         $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
         $t->same([], $audit['runnerDependencyClosure']['mismatchedDefaultLanguages']);
         $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryDependencies(), $audit['luaEngineLibraryClosure']['expectedDependencies']);
+        $t->same([], $audit['luaEngineLibraryClosure']['missingDependencies']);
+        $t->same(true, in_array('hslua-module-zip', $audit['luaEngineLibraryClosure']['presentDependencies'], true));
+        $t->same(true, in_array('pandoc-lua-marshal', $audit['luaEngineLibraryClosure']['presentDependencies'], true));
         $t->same('exitcode-stdio-1.0', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['type']);
         $t->same('exitcode-stdio-1.0', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['type']);
         $t->same('Haskell2010', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['defaultLanguage']);
@@ -322,6 +335,7 @@ return [
         $t->contains('runner entry-point semantics', $audit['nonMutatingPlan'][0]);
         $t->contains('solver constraints and runner executable options', $audit['nonMutatingPlan'][1]);
         $t->contains('test-suite type, buildable state, default-language, entry point, direct build-depends, and other-modules closure', $audit['nonMutatingPlan'][2]);
+        $t->contains('pandoc-lua-engine library HsLua module dependency closure', $audit['nonMutatingPlan'][2]);
     },
     'records required runner file provenance before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
@@ -777,6 +791,49 @@ return [
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('missing Cabal runner other-modules', $blocked);
         $t->contains('runner other-modules closure', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks lua engine library dependency drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $luaCabal): void {
+        $root = $makeTree($requiredFiles(
+            $pinnedProject(),
+            null,
+            $luaCabal([], null, null, 'exitcode-stdio-1.0', null, 'Haskell2010', [
+                'hslua-module-doclayout',
+                'hslua-module-zip',
+                'pandoc-lua-marshal',
+            ])
+        ));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['projectSourceRepositoryPins']['missing']);
+        $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedDefaultLanguages']);
+        $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
+        $t->same([
+            'hslua-module-doclayout',
+            'hslua-module-zip',
+            'pandoc-lua-marshal',
+        ], $audit['luaEngineLibraryClosure']['missingDependencies']);
+        $t->same(true, in_array('hslua-module-path', $audit['luaEngineLibraryClosure']['presentDependencies'], true));
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing pandoc-lua-engine library build-depends: hslua-module-doclayout, hslua-module-zip, pandoc-lua-marshal', $blocked);
+        $t->contains('pandoc-lua-engine library HsLua module dependency closure', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks runner default-language drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $pandocCabal, $luaCabal): void {
