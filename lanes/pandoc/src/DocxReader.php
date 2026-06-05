@@ -2632,7 +2632,7 @@ final class DocxReader
         }
 
         if ($this->isWordElement($child, 'br')) {
-            return [new AstNode('linebreak')];
+            return $this->breakNodes($child);
         }
 
         if ($this->isWordElement($child, 'softHyphen')) {
@@ -2691,6 +2691,37 @@ final class DocxReader
         }
 
         return [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function breakNodes(\DOMElement $break): array
+    {
+        $type = strtolower(trim((string) ($this->wordAttr($break, 'type') ?? 'textWrapping')));
+        if ($type === '' || $type === 'textwrapping') {
+            return [new AstNode('linebreak')];
+        }
+
+        if (!in_array($type, ['page', 'column'], true)) {
+            return [new AstNode('span', [
+                'classes' => ['docx-break', 'docx-unsupported-break'],
+                'attributes' => ['data-docx-break-type' => $type],
+            ], [new AstNode('text', ['text' => 'DOCX unsupported break: ' . $type])])];
+        }
+
+        $classes = ['docx-break', 'docx-' . $type . '-break'];
+        $attributes = ['data-docx-break-type' => $type];
+        $clear = trim((string) ($this->wordAttr($break, 'clear') ?? ''));
+        if ($clear !== '') {
+            $classes[] = 'docx-break-clear';
+            $attributes['data-docx-break-clear'] = $clear;
+        }
+
+        return [new AstNode('span', [
+            'classes' => $classes,
+            'attributes' => $attributes,
+        ], [new AstNode('text', ['text' => 'DOCX ' . $type . ' break'])])];
     }
 
     /**

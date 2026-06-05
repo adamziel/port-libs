@@ -1008,6 +1008,22 @@ $symbolRunDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$breakRunDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Layout checkpoint </w:t></w:r>
+      <w:r><w:br w:type="page" w:clear="all"/></w:r>
+      <w:r><w:t xml:space="preserve"> after page </w:t></w:r>
+      <w:r><w:br w:type="column" w:clear="left"/></w:r>
+      <w:r><w:t xml:space="preserve"> after column </w:t></w:r>
+      <w:r><w:br/></w:r>
+      <w:r><w:t>after line break.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $reviewMarkupRunDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -1599,6 +1615,14 @@ $buildSymbolRunPackage = static function () use ($contentTypesXml, $packageRelat
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $symbolRunDocumentXml],
+    ]);
+};
+
+$buildBreakRunPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $breakRunDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $breakRunDocumentXml],
     ]);
 };
 
@@ -2897,6 +2921,39 @@ return [
         $t->contains('<p>Checklist symbols α/α • ✓ ← remain visible.</p>', $blocks);
         $t->true(!str_contains($markdown, 'Unknown Symbol Font'), 'Unknown DOCX symbol fonts should not leak into Markdown output');
         $t->true(!str_contains($blocks, 'Unknown Symbol Font'), 'Unknown DOCX symbol fonts should not leak into WordPress blocks');
+    },
+    'preserves DOCX page and column break metadata as reviewer spans' => static function (TestRunner $t) use ($buildBreakRunPackage): void {
+        $document = (new DocxReader())->readDocument($buildBreakRunPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(7, count($paragraph->children));
+        $t->same('Layout checkpoint ', $paragraph->children[0]->attr('text'));
+
+        $pageBreak = $paragraph->children[1];
+        $t->same('span', $pageBreak->type);
+        $t->same(['docx-break', 'docx-page-break', 'docx-break-clear'], $pageBreak->attr('classes'));
+        $t->same('page', $pageBreak->attr('attributes')['data-docx-break-type']);
+        $t->same('all', $pageBreak->attr('attributes')['data-docx-break-clear']);
+        $t->same('DOCX page break', $pageBreak->children[0]->attr('text'));
+
+        $columnBreak = $paragraph->children[3];
+        $t->same('span', $columnBreak->type);
+        $t->same(['docx-break', 'docx-column-break', 'docx-break-clear'], $columnBreak->attr('classes'));
+        $t->same('column', $columnBreak->attr('attributes')['data-docx-break-type']);
+        $t->same('left', $columnBreak->attr('attributes')['data-docx-break-clear']);
+        $t->same('DOCX column break', $columnBreak->children[0]->attr('text'));
+        $t->same('linebreak', $paragraph->children[5]->type);
+        $t->same('after line break.', $paragraph->children[6]->attr('text'));
+
+        $t->contains('[DOCX page break]{.docx-break .docx-page-break .docx-break-clear data-docx-break-type="page" data-docx-break-clear="all"}', $markdown);
+        $t->contains('[DOCX column break]{.docx-break .docx-column-break .docx-break-clear data-docx-break-type="column" data-docx-break-clear="left"}', $markdown);
+        $t->contains("after column \\\nafter line break.", $markdown);
+        $t->contains('<span class="docx-break docx-page-break docx-break-clear" data-docx-break-type="page" data-docx-break-clear="all">DOCX page break</span>', $blocks);
+        $t->contains('<span class="docx-break docx-column-break docx-break-clear" data-docx-break-type="column" data-docx-break-clear="left">DOCX column break</span>', $blocks);
+        $t->contains(' after column <br/>after line break.', $blocks);
     },
     'preserves DOCX highlighted and shaded reviewer run markup as spans' => static function (TestRunner $t) use ($buildReviewMarkupRunPackage): void {
         $document = (new DocxReader())->readDocument($buildReviewMarkupRunPackage());
