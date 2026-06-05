@@ -1572,18 +1572,34 @@ final class PdfTextExtractor
     private function pdfTocFromObjects(array $objects): array
     {
         $catalog = $this->catalogObjectBody($objects);
-        if ($catalog === null || preg_match('/\/Outlines\s+(\d+)\s+\d+\s+R\b/s', $catalog, $match) !== 1) {
+        if ($catalog === null) {
             return [];
         }
 
-        $outlineRootNumber = (int) $match[1];
-        if (!isset($objects[$outlineRootNumber]) || preg_match('/\/First\s+(\d+)\s+\d+\s+R\b/s', $objects[$outlineRootNumber], $firstMatch) !== 1) {
+        $outlineRootNumber = $this->topLevelObjectReferenceValueAfterName($catalog, 'Outlines');
+        if (
+            $outlineRootNumber === null
+            || !isset($objects[$outlineRootNumber])
+            || !$this->lightweightOutlineRootBodyIsValid($objects[$outlineRootNumber])
+        ) {
+            return [];
+        }
+
+        $firstItemObject = $this->topLevelObjectReferenceValueAfterName($objects[$outlineRootNumber], 'First');
+        if ($firstItemObject === null) {
             return [];
         }
 
         $pageIndexes = array_flip($this->orderedPageObjectNumbers($objects));
 
-        return $this->outlineItemsFromLinkedList((int) $firstMatch[1], 1, $objects, $pageIndexes);
+        return $this->outlineItemsFromLinkedList(
+            $firstItemObject,
+            1,
+            $objects,
+            $pageIndexes,
+            $outlineRootNumber,
+            $this->topLevelObjectReferenceValueAfterName($objects[$outlineRootNumber], 'Last')
+        );
     }
 
     /**
@@ -1597,13 +1613,23 @@ final class PdfTextExtractor
         int $level,
         array $objects,
         array $pageIndexes,
+        ?int $expectedParentObject = null,
+        ?int $lastItemObject = null,
         array $seen = []
     ): array {
         $items = [];
+        $previousSiblingObject = null;
 
         while (isset($objects[$objectNumber]) && !isset($seen[$objectNumber])) {
             $seen[$objectNumber] = true;
             $body = $objects[$objectNumber];
+            if (!$this->lightweightOutlineItemParentMatches($body, $objects, $expectedParentObject)) {
+                break;
+            }
+            if (!$this->lightweightOutlineItemPrevMatches($body, $previousSiblingObject)) {
+                break;
+            }
+
             $title = $this->pdfStringValueAfterName($body, 'Title', $objects);
             $page = $this->outlinePageIndex($body, $objects, $pageIndexes);
 
@@ -1615,20 +1641,91 @@ final class PdfTextExtractor
                 ];
             }
 
-            if (preg_match('/\/First\s+(\d+)\s+\d+\s+R\b/s', $body, $firstMatch) === 1) {
-                foreach ($this->outlineItemsFromLinkedList((int) $firstMatch[1], $level + 1, $objects, $pageIndexes, $seen) as $child) {
+            $firstChildObject = $this->topLevelObjectReferenceValueAfterName($body, 'First');
+            if ($title !== null && $title !== '' && $firstChildObject !== null) {
+                foreach ($this->outlineItemsFromLinkedList(
+                    $firstChildObject,
+                    $level + 1,
+                    $objects,
+                    $pageIndexes,
+                    $objectNumber,
+                    $this->topLevelObjectReferenceValueAfterName($body, 'Last'),
+                    $seen
+                ) as $child) {
                     $items[] = $child;
                 }
             }
 
-            if (preg_match('/\/Next\s+(\d+)\s+\d+\s+R\b/s', $body, $nextMatch) !== 1) {
+            if ($lastItemObject !== null && $objectNumber === $lastItemObject) {
                 break;
             }
 
-            $objectNumber = (int) $nextMatch[1];
+            $nextObjectNumber = $this->topLevelObjectReferenceValueAfterName($body, 'Next');
+            if ($nextObjectNumber === null) {
+                break;
+            }
+
+            $previousSiblingObject = $objectNumber;
+            $objectNumber = $nextObjectNumber;
         }
 
         return $items;
+    }
+
+    private function lightweightOutlineRootBodyIsValid(string $body): bool
+    {
+        $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+        $type = $this->pdfNameValueAfterName($dictionary, 'Type');
+        if ($type !== null) {
+            return $type === 'Outlines';
+        }
+
+        return $this->topLevelPdfValueAfterName($dictionary, 'Title') === null
+            && (
+                $this->topLevelPdfValueAfterName($dictionary, 'First') !== null
+                || $this->topLevelPdfValueAfterName($dictionary, 'Last') !== null
+                || $this->topLevelPdfValueAfterName($dictionary, 'Count') !== null
+            );
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function lightweightOutlineItemParentMatches(
+        string $body,
+        array $objects,
+        ?int $expectedParentObject
+    ): bool {
+        if ($expectedParentObject === null) {
+            return true;
+        }
+
+        $parent = $this->topLevelObjectReferenceValueAfterName($body, 'Parent');
+        if ($parent === null) {
+            return $this->lightweightOutlineRootObjectIsValid($expectedParentObject, $objects);
+        }
+
+        return $parent === $expectedParentObject;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function lightweightOutlineRootObjectIsValid(?int $objectNumber, array $objects): bool
+    {
+        return $objectNumber !== null
+            && isset($objects[$objectNumber])
+            && $this->lightweightOutlineRootBodyIsValid($objects[$objectNumber]);
+    }
+
+    private function lightweightOutlineItemPrevMatches(string $body, ?int $previousSiblingObject): bool
+    {
+        $previous = $this->topLevelObjectReferenceValueAfterName($body, 'Prev');
+        if ($previous === null) {
+            return true;
+        }
+
+        return $previous === $previousSiblingObject;
     }
 
     /**
@@ -13216,6 +13313,19 @@ final class PdfTextExtractor
     private function objectReferenceValueAfterName(string $body, string $name): ?int
     {
         $reference = $this->objectReferenceAfterName($body, $name);
+        return $reference === null ? null : $reference['objectNumber'];
+    }
+
+    private function topLevelObjectReferenceValueAfterName(string $body, string $name): ?int
+    {
+        $value = $this->topLevelPdfValueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        $offset = 0;
+        $reference = $this->readPdfIndirectReferenceToken($value, $offset);
+
         return $reference === null ? null : $reference['objectNumber'];
     }
 
