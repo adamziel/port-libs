@@ -1614,6 +1614,10 @@ final class BatchConverter
      */
     private function loadRuntimeMetadataFile(string $metadataFile): array
     {
+        if (is_dir($metadataFile)) {
+            throw new InvalidArgumentException('Batch metadata file is a directory: ' . $metadataFile);
+        }
+
         $contents = @file_get_contents($metadataFile);
         if (!is_string($contents)) {
             throw new InvalidArgumentException('Batch metadata file is not readable: ' . $metadataFile);
@@ -3462,6 +3466,10 @@ final class BatchConverter
         $outputFolderCandidate = $hasMetadataFile && !$isAbsoluteInput
             ? $this->normalizeAbsolutePath($absoluteOutputFolder . DIRECTORY_SEPARATOR . $input)
             : null;
+        $metadataPathExists = $hasMetadataFile && file_exists($absoluteMetadataFile);
+        $metadataPathType = $hasMetadataFile ? $this->filesystemPathType($absoluteMetadataFile) : null;
+        $metadataPathIsSymlink = $hasMetadataFile && is_link($absoluteMetadataFile);
+        $metadataSymlinkTargetExists = $metadataPathIsSymlink && file_exists($absoluteMetadataFile);
 
         return [
             'metadata_file_input' => $input,
@@ -3469,6 +3477,16 @@ final class BatchConverter
             'metadata_file_abspath_order' => $hasMetadataFile ? 'after_chunk_files_before_json_load' : null,
             'metadata_file_abspath_base' => $hasMetadataFile ? ($isAbsoluteInput ? 'already_absolute' : 'process_cwd') : null,
             'metadata_file_process_cwd' => $processCwd,
+            'metadata_file_path_exists' => $metadataPathExists,
+            'metadata_file_path_type' => $metadataPathType,
+            'metadata_file_is_symlink' => $metadataPathIsSymlink,
+            'metadata_file_open_follows_symlink' => $metadataPathIsSymlink,
+            'metadata_file_symlink_target_exists' => $metadataSymlinkTargetExists,
+            'metadata_file_symlink_target_type' => $metadataPathIsSymlink
+                ? ($metadataSymlinkTargetExists ? $metadataPathType : 'missing')
+                : null,
+            'metadata_file_open_call' => $hasMetadataFile ? 'open(metadata_file, "r")' : null,
+            'metadata_file_open_order' => $hasMetadataFile ? 'after_abspath_before_json_load' : null,
             'metadata_file_relative_to_process_cwd' => $hasMetadataFile && !$isAbsoluteInput,
             'metadata_file_relative_to_input_folder' => false,
             'metadata_file_relative_to_output_folder' => false,
