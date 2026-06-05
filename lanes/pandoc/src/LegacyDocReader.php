@@ -69,13 +69,27 @@ final class LegacyDocReader
             $metadata['cfbStreamCount'] = count($streamDirectory);
         }
         $timestampedDirectoryEntryCount = 0;
+        $classIdDirectoryEntryCount = 0;
+        $stateBitsDirectoryEntryCount = 0;
         foreach ($directoryEntries as $directoryEntry) {
             if (isset($directoryEntry['createdAt']) || isset($directoryEntry['modifiedAt'])) {
                 $timestampedDirectoryEntryCount++;
             }
+            if (isset($directoryEntry['clsid'])) {
+                $classIdDirectoryEntryCount++;
+            }
+            if (isset($directoryEntry['stateBits'])) {
+                $stateBitsDirectoryEntryCount++;
+            }
         }
         if ($timestampedDirectoryEntryCount > 0) {
             $metadata['cfbTimestampedDirectoryEntryCount'] = $timestampedDirectoryEntryCount;
+        }
+        if ($classIdDirectoryEntryCount > 0) {
+            $metadata['cfbClassIdDirectoryEntryCount'] = $classIdDirectoryEntryCount;
+        }
+        if ($stateBitsDirectoryEntryCount > 0) {
+            $metadata['cfbStateBitsDirectoryEntryCount'] = $stateBitsDirectoryEntryCount;
         }
         $sections = $this->sectionReport($wordDocument, $tableStream, $textResult['text']);
         if ($sections !== []) {
@@ -942,6 +956,12 @@ final class LegacyDocReader
             }
             if (($entry['modifiedAt'] ?? null) !== null) {
                 $record['modifiedAt'] = (string) $entry['modifiedAt'];
+            }
+            if (($entry['clsid'] ?? null) !== null) {
+                $record['clsid'] = (string) $entry['clsid'];
+            }
+            if (($entry['stateBits'] ?? null) !== null) {
+                $record['stateBits'] = (int) $entry['stateBits'];
             }
 
             $entries[] = $record;

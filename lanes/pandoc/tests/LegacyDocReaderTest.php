@@ -23,6 +23,25 @@ $filetime = static function (?string $iso8601) use ($u64): string {
 
     return $u64(((int) $seconds + 11644473600) * 10000000);
 };
+$clsidBytes = static function (?string $clsid) use ($u16, $u32): string {
+    if ($clsid === null || $clsid === '') {
+        return str_repeat("\0", 16);
+    }
+
+    if (!preg_match('/^([0-9a-f]{8})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{12})$/i', $clsid, $matches)) {
+        throw new RuntimeException('CFB test directory CLSID fixture is invalid');
+    }
+
+    $tail = hex2bin($matches[4] . $matches[5]);
+    if (!is_string($tail) || strlen($tail) !== 8) {
+        throw new RuntimeException('Unable to encode CFB test directory CLSID fixture');
+    }
+
+    return $u32((int) hexdec($matches[1]))
+        . $u16((int) hexdec($matches[2]))
+        . $u16((int) hexdec($matches[3]))
+        . $tail;
+};
 $utf16le = static function (string $text): string {
     $encoded = iconv('UTF-8', 'UTF-16LE', $text);
     if (!is_string($encoded)) {
@@ -74,8 +93,10 @@ $directoryEntry = static function (
     int $rightSibling,
     int $child,
     ?string $createdAt = null,
-    ?string $modifiedAt = null
-) use ($u16, $u32, $u64, $filetime, $utf16le): string {
+    ?string $modifiedAt = null,
+    ?string $clsid = null,
+    int $stateBits = 0
+) use ($u16, $u32, $u64, $filetime, $clsidBytes, $utf16le): string {
     $nameBytes = $utf16le($name . "\0");
     if (strlen($nameBytes) > 64) {
         throw new RuntimeException('CFB test directory name is too long');
@@ -88,8 +109,8 @@ $directoryEntry = static function (
         . $u32($leftSibling)
         . $u32($rightSibling)
         . $u32($child)
-        . str_repeat("\0", 16)
-        . $u32(0)
+        . $clsidBytes($clsid)
+        . $u32($stateBits)
         . $filetime($createdAt)
         . $filetime($modifiedAt)
         . $u32($startSector)
@@ -124,6 +145,8 @@ $buildCfb = static function (array $streams, bool $useMiniStreams = true, array 
         $directoryMetadata[(string) $path] = [
             'createdAt' => isset($metadata['createdAt']) ? (string) $metadata['createdAt'] : null,
             'modifiedAt' => isset($metadata['modifiedAt']) ? (string) $metadata['modifiedAt'] : null,
+            'clsid' => isset($metadata['clsid']) ? (string) $metadata['clsid'] : null,
+            'stateBits' => isset($metadata['stateBits']) ? (int) $metadata['stateBits'] : 0,
         ];
     }
 
@@ -278,7 +301,9 @@ $buildCfb = static function (array $streams, bool $useMiniStreams = true, array 
             $rightSiblings[$nodeIndex] ?? $free,
             $childIds[$nodeIndex] ?? $free,
             $metadata['createdAt'],
-            $metadata['modifiedAt']
+            $metadata['modifiedAt'],
+            $metadata['clsid'] ?? null,
+            (int) ($metadata['stateBits'] ?? 0)
         );
     }
     $directoryChunks = str_split($padTo($directory, $sectorSize), $sectorSize);
@@ -678,6 +703,53 @@ return [
         $t->same("ObjectPool/_42/\x01Ole10Native", $streamDirectory[0]['path']);
         $t->same('ObjectPool/_42', $streamDirectory[0]['storagePath']);
         $t->same(strlen('timestamped native attachment bytes'), $streamDirectory[0]['bytes']);
+    },
+    'preserves CFB directory CLSID and state-bit provenance for legacy DOC storage review' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $rootClsid = '00112233-4455-6677-8899-aabbccddeeff';
+        $objectPoolClsid = '00020906-0000-0000-c000-000000000046';
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Classed storage review packet\r"),
+            'ObjectPool/_42/' . "\x01" . 'Ole10Native' => 'classed native attachment bytes',
+        ], true, [
+            '' => [
+                'clsid' => $rootClsid,
+                'stateBits' => 0x40000001,
+            ],
+            'ObjectPool/_42' => [
+                'clsid' => $objectPoolClsid,
+                'stateBits' => 0x00000010,
+            ],
+        ]);
+
+        $compoundFile = CompoundFileBinary::fromBytes($docBytes);
+        $compoundEntriesByPath = [];
+        foreach ($compoundFile->entries() as $entry) {
+            $compoundEntriesByPath[(string) $entry['path']] = $entry;
+        }
+
+        $t->same($rootClsid, $compoundEntriesByPath['']['clsid']);
+        $t->same(0x40000001, $compoundEntriesByPath['']['stateBits']);
+        $t->same($objectPoolClsid, $compoundEntriesByPath['ObjectPool/_42']['clsid']);
+        $t->same(0x00000010, $compoundEntriesByPath['ObjectPool/_42']['stateBits']);
+        $t->true(!isset($compoundEntriesByPath['WordDocument']['clsid']), 'Zero CFB stream CLSIDs should stay omitted');
+        $t->true(!isset($compoundEntriesByPath['WordDocument']['stateBits']), 'Zero CFB stream state bits should stay omitted');
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $directoryEntries = $result['directoryEntries'];
+        $directoryByPath = [];
+        foreach ($directoryEntries as $entry) {
+            $directoryByPath[(string) $entry['path']] = $entry;
+        }
+
+        $t->same($directoryEntries, $result['document']->attr('cfbDirectoryEntries'));
+        $t->same(2, $result['metadata']['cfbClassIdDirectoryEntryCount']);
+        $t->same(2, $result['metadata']['cfbStateBitsDirectoryEntryCount']);
+        $t->same($rootClsid, $directoryByPath['']['clsid']);
+        $t->same(0x40000001, $directoryByPath['']['stateBits']);
+        $t->same($objectPoolClsid, $directoryByPath['ObjectPool/_42']['clsid']);
+        $t->same(0x00000010, $directoryByPath['ObjectPool/_42']['stateBits']);
+        $t->true(!isset($directoryByPath['WordDocument']['clsid']), 'Legacy DOC directory report should not invent stream CLSIDs');
+        $t->true(!isset($directoryByPath['WordDocument']['stateBits']), 'Legacy DOC directory report should not invent stream state bits');
     },
     'traverses CFB storage child trees for nested legacy streams' => static function (TestRunner $t) use ($buildCfb): void {
         $bytes = $buildCfb([

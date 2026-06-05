@@ -22,6 +22,25 @@ $filetime = static function (?string $iso8601) use ($u64): string {
 
     return $u64(((int) $seconds + 11644473600) * 10000000);
 };
+$clsidBytes = static function (?string $clsid) use ($u16, $u32): string {
+    if ($clsid === null || $clsid === '') {
+        return str_repeat("\0", 16);
+    }
+
+    if (!preg_match('/^([0-9a-f]{8})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{12})$/i', $clsid, $matches)) {
+        throw new RuntimeException('CFB fixture directory CLSID is invalid');
+    }
+
+    $tail = hex2bin($matches[4] . $matches[5]);
+    if (!is_string($tail) || strlen($tail) !== 8) {
+        throw new RuntimeException('Unable to encode CFB fixture directory CLSID');
+    }
+
+    return $u32((int) hexdec($matches[1]))
+        . $u16((int) hexdec($matches[2]))
+        . $u16((int) hexdec($matches[3]))
+        . $tail;
+};
 $utf16le = static function (string $text): string {
     $encoded = iconv('UTF-8', 'UTF-16LE', $text);
     if (!is_string($encoded)) {
@@ -81,8 +100,10 @@ $directoryEntry = static function (
     int $rightSibling,
     int $child,
     ?string $createdAt = null,
-    ?string $modifiedAt = null
-) use ($u16, $u32, $u64, $filetime, $utf16le): string {
+    ?string $modifiedAt = null,
+    ?string $clsid = null,
+    int $stateBits = 0
+) use ($u16, $u32, $u64, $filetime, $clsidBytes, $utf16le): string {
     $nameBytes = $utf16le($name . "\0");
 
     return str_pad($nameBytes, 64, "\0")
@@ -92,8 +113,8 @@ $directoryEntry = static function (
         . $u32($leftSibling)
         . $u32($rightSibling)
         . $u32($child)
-        . str_repeat("\0", 16)
-        . $u32(0)
+        . $clsidBytes($clsid)
+        . $u32($stateBits)
         . $filetime($createdAt)
         . $filetime($modifiedAt)
         . $u32($startSector)
@@ -377,10 +398,14 @@ $streams = [
 $directoryTimestamps = [
     '' => [
         'modifiedAt' => '2024-04-06T07:08:09Z',
+        'clsid' => '00112233-4455-6677-8899-aabbccddeeff',
+        'stateBits' => 0x40000001,
     ],
     'ObjectPool/_42' => [
         'createdAt' => '2024-04-07T08:09:10Z',
         'modifiedAt' => '2024-04-08T09:10:11Z',
+        'clsid' => '00020906-0000-0000-c000-000000000046',
+        'stateBits' => 0x00000010,
     ],
 ];
 
@@ -499,7 +524,9 @@ $directory = $directoryEntry(
     $free,
     $childIds[0] ?? $free,
     $directoryTimestamps['']['createdAt'] ?? null,
-    $directoryTimestamps['']['modifiedAt'] ?? null
+    $directoryTimestamps['']['modifiedAt'] ?? null,
+    $directoryTimestamps['']['clsid'] ?? null,
+    (int) ($directoryTimestamps['']['stateBits'] ?? 0)
 );
 foreach ($nodes as $nodeIndex => $node) {
     if ($nodeIndex === 0) {
@@ -521,7 +548,9 @@ foreach ($nodes as $nodeIndex => $node) {
         $rightSiblings[$nodeIndex] ?? $free,
         $childIds[$nodeIndex] ?? $free,
         $timestamps['createdAt'],
-        $timestamps['modifiedAt']
+        $timestamps['modifiedAt'],
+        $timestamps['clsid'] ?? null,
+        (int) ($timestamps['stateBits'] ?? 0)
     );
 }
 $directoryChunks = str_split($padTo($directory, $sectorSize), $sectorSize);
@@ -619,8 +648,17 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($directoryByPath['']['type'] ?? '') !== 'root' || ($directoryByPath['']['modifiedAt'] ?? '') !== '2024-04-06T07:08:09Z') {
         throw new RuntimeException('Legacy DOC handoff self-test missing root storage modified timestamp');
     }
+    if (($summary['metadata']['cfbClassIdDirectoryEntryCount'] ?? null) !== 2 || ($summary['metadata']['cfbStateBitsDirectoryEntryCount'] ?? null) !== 2) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing CFB CLSID/state-bit counts');
+    }
+    if (($directoryByPath['']['clsid'] ?? '') !== '00112233-4455-6677-8899-aabbccddeeff' || ($directoryByPath['']['stateBits'] ?? null) !== 0x40000001) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing root storage CLSID/state bits');
+    }
     if (isset($directoryByPath['WordDocument']['createdAt']) || isset($directoryByPath['WordDocument']['modifiedAt'])) {
         throw new RuntimeException('Legacy DOC handoff self-test assigned timestamps to a stream entry');
+    }
+    if (isset($directoryByPath['WordDocument']['clsid']) || isset($directoryByPath['WordDocument']['stateBits'])) {
+        throw new RuntimeException('Legacy DOC handoff self-test assigned CLSID/state bits to a stream entry');
     }
     if (($directoryByPath['ObjectPool/_42']['type'] ?? '') !== 'storage') {
         throw new RuntimeException('Legacy DOC handoff self-test missing ObjectPool storage directory entry');
@@ -630,6 +668,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($directoryByPath['ObjectPool/_42']['modifiedAt'] ?? '') !== '2024-04-08T09:10:11Z') {
         throw new RuntimeException('Legacy DOC handoff self-test missing ObjectPool storage modified timestamp');
+    }
+    if (($directoryByPath['ObjectPool/_42']['clsid'] ?? '') !== '00020906-0000-0000-c000-000000000046' || ($directoryByPath['ObjectPool/_42']['stateBits'] ?? null) !== 0x00000010) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing ObjectPool storage CLSID/state bits');
     }
     if (($summary['metadata']['lineCount'] ?? null) !== 2 || ($summary['metadata']['linksDirty'] ?? null) !== true) {
         throw new RuntimeException('Legacy DOC handoff self-test missing DocumentSummaryInformation review metadata');

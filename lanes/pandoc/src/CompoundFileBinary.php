@@ -403,6 +403,8 @@ final class CompoundFileBinary
             if (strpbrk($name, '/\\:!') !== false) {
                 throw new \RuntimeException('CFB directory entry name contains an illegal character: ' . $name);
             }
+            $clsid = self::readClsid($entryBytes, 80);
+            $stateBits = self::u32($entryBytes, 96);
             $entry = [
                 'name' => $name,
                 'path' => $name,
@@ -418,6 +420,12 @@ final class CompoundFileBinary
                 'modifiedAt' => self::readFiletime($entryBytes, 108),
                 'directoryId' => $directoryId,
             ];
+            if ($clsid !== null) {
+                $entry['clsid'] = $clsid;
+            }
+            if ($stateBits !== 0) {
+                $entry['stateBits'] = $stateBits;
+            }
             $rawEntries[$directoryId] = $entry;
             if ($type === 5 && $root === null) {
                 $root = $entry;
@@ -585,6 +593,28 @@ final class CompoundFileBinary
         }
 
         return '';
+    }
+
+    private static function readClsid(string $bytes, int $offset): ?string
+    {
+        if ($offset < 0 || $offset + 16 > strlen($bytes)) {
+            throw new \RuntimeException('Unexpected end of CFB directory CLSID data');
+        }
+
+        $raw = substr($bytes, $offset, 16);
+        if ($raw === str_repeat("\0", 16)) {
+            return null;
+        }
+
+        return sprintf(
+            '%08x-%04x-%04x-%02x%02x-%s',
+            self::u32($raw, 0),
+            self::u16($raw, 4),
+            self::u16($raw, 6),
+            ord($raw[8]),
+            ord($raw[9]),
+            bin2hex(substr($raw, 10, 6))
+        );
     }
 
     private static function u16(string $bytes, int $offset): int
