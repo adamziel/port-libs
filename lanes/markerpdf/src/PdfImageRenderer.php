@@ -4307,16 +4307,27 @@ final class PdfImageRenderer
         $unsupported = [];
         $decodeParms = $this->imageDecodeParmsValues($dictionary, $objects);
         foreach ($filters as $index => $filter) {
+            $decodeParmsValue = $this->decodeParmsValueForImageFilterIndex($filters, $decodeParms, $index);
+            $resolvedDecodeParms = $this->resolvedDecodeParmsDictionary($decodeParmsValue, $objects);
+
             if (
                 $this->isPreviewOnlyStreamFilter($filter)
-                || $this->isNativeImageStreamFilter($filter)
                 || in_array($filter, [self::MALFORMED_IMAGE_FILTER_OPERAND, self::UNRESOLVED_IMAGE_FILTER_OPERAND], true)
             ) {
                 continue;
             }
 
-            $decodeParmsValue = $this->decodeParmsValueForImageFilterIndex($filters, $decodeParms, $index);
-            $resolvedDecodeParms = $this->resolvedDecodeParmsDictionary($decodeParmsValue, $objects);
+            if ($this->isNativeImageStreamFilter($filter)) {
+                if (
+                    $this->imageDecodeParmsValueIsMalformed($decodeParmsValue, $objects)
+                    || !$this->canApplyImageDecodeParms($filter, $resolvedDecodeParms, $objects)
+                ) {
+                    $unsupported[] = $filter;
+                }
+
+                continue;
+            }
+
             if ($filter === 'Crypt' && $this->cryptIdentityFilterIsSupported($resolvedDecodeParms, $objects)) {
                 continue;
             }
@@ -6584,6 +6595,23 @@ final class PdfImageRenderer
         }
 
         return $resolved;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function imageDecodeParmsValueIsMalformed(?string $value, array $objects): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects));
+        if ($resolved === '' || $resolved === 'null') {
+            return false;
+        }
+
+        return !str_starts_with($resolved, '<<');
     }
 
     /**

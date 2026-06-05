@@ -826,6 +826,45 @@ return [
         $t->true(!str_contains($plainText, 'rawtail'));
         $t->true(!str_contains($plainText, 'abc EI'));
     },
+    'fails closed on invalid native inline image DecodeParms before text extraction and preview' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $payload = 'abc EI BT /F1 12 Tf 72 660 Td (Invalid DecodeParms Inline Noise) Tj ET rawtail';
+        $dictionary = '/W 8 /H 1 /CS /G /BPC 8 /F /Fl /DP << /Predictor 12 /Columns 0 /Colors 1 /BitsPerComponent 8 >> /D [0 1]';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Invalid DecodeParms Inline) Tj ET\n"
+            . "BI {$dictionary} ID\n"
+            . $payload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Invalid DecodeParms Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $expected = [
+            'Before Invalid DecodeParms Inline',
+            'After Invalid DecodeParms Inline',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+        $review = $renderer->inlineImageReviewPlan($dictionary, $payload);
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(!str_contains($plainText, 'Invalid DecodeParms Inline Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, 'abc EI'));
+        $t->same(['FlateDecode'], $review['image_filters']);
+        $t->same(['FlateDecode'], $review['image_filter_boundary']['unsupported_filters']);
+        $t->same(false, $review['image_filter_boundary']['native_raster_decode']);
+        $t->same(true, $review['inline_image_review_only']);
+        $t->same(false, $review['inline_image']['native_raster_decode']);
+        $t->same(['FlateDecode'], $review['inline_image']['unsupported_filters']);
+        $t->contains('inline_unsupported_image_filter_review_only', implode(',', $review['notes']));
+        $t->contains('inline_flatedecode_image_filter_review_only', implode(',', $review['notes']));
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows($dictionary, $payload, [], 1)
+        );
+    },
     'fails closed on unresolved inline image filter operands before WordPress text extraction' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $payload = 'abc EI BT /F1 12 Tf 72 660 Td (Unresolved Filter Inline Noise) Tj ET rawtail';

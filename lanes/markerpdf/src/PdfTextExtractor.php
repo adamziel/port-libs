@@ -26994,6 +26994,7 @@ final class PdfTextExtractor
     {
         $unsupported = [];
         $decodeParms = $dictionary === null ? null : $this->streamDecodeParms($dictionary, []);
+        $hasDecodeParms = $dictionary !== null && $this->topLevelNameValueOffset($dictionary, 'DecodeParms') !== null;
         foreach ($filters as $index => $filter) {
             if ($filter === null) {
                 continue;
@@ -27012,6 +27013,13 @@ final class PdfTextExtractor
             }
 
             if ($this->inlineImageFilterHasTokenizerBoundary($filter)) {
+                if (
+                    ($hasDecodeParms && $decodeParms === null)
+                    || ($decodeParms !== null && !$this->canApplyDecodeParms($filter, $filterDecodeParms, []))
+                ) {
+                    $unsupported[] = $filter;
+                }
+
                 continue;
             }
 
