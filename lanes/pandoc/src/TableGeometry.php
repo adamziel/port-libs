@@ -149,6 +149,74 @@ final class TableGeometry
     }
 
     /**
+     * @return list<array{section:string,columnCount:int,rows:list<list<array<string, mixed>>>}>
+     */
+    public static function sectionGrids(AstNode $table): array
+    {
+        $columnCount = self::columnCount($table);
+        $sectionGrids = [];
+
+        foreach (self::sectionRowGroups($table) as $group) {
+            $sectionGrids[] = [
+                'section' => $group['section'],
+                'columnCount' => $columnCount,
+                'rows' => self::sectionGrid($group['rows'], $columnCount),
+            ];
+        }
+
+        return $sectionGrids;
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     * @return list<list<array<string, mixed>>>
+     */
+    public static function sectionGrid(array $rows, int $columnCount): array
+    {
+        $layoutRows = self::layoutRows($rows, $columnCount);
+        $columnCount = max(0, $columnCount);
+        $grid = [];
+
+        foreach ($layoutRows as $rowIndex => $_layoutRow) {
+            $grid[$rowIndex] = [];
+            for ($column = 0; $column < $columnCount; $column++) {
+                $grid[$rowIndex][$column] = self::missingGridSlot($rowIndex, $column);
+            }
+        }
+
+        foreach ($layoutRows as $rowIndex => $layoutRow) {
+            foreach ($layoutRow['cells'] as $cell) {
+                $anchorColumn = $cell['column'];
+                if ($anchorColumn >= $columnCount) {
+                    continue;
+                }
+
+                $grid[$rowIndex][$anchorColumn] = self::cellGridSlot($rowIndex, $cell);
+                for ($column = $anchorColumn + 1; $column < $anchorColumn + $cell['colspan'] && $column < $columnCount; $column++) {
+                    $grid[$rowIndex][$column] = self::coveredGridSlot($rowIndex, $column, $rowIndex, $anchorColumn, 'colspan', $cell);
+                }
+
+                $rowLimit = min(count($layoutRows), $rowIndex + $cell['rowspan']);
+                for ($coveredRow = $rowIndex + 1; $coveredRow < $rowLimit; $coveredRow++) {
+                    for ($column = $anchorColumn; $column < $anchorColumn + $cell['colspan'] && $column < $columnCount; $column++) {
+                        $covering = $column === $anchorColumn ? 'rowspan' : 'rowspan-colspan';
+                        $grid[$coveredRow][$column] = self::coveredGridSlot(
+                            $coveredRow,
+                            $column,
+                            $rowIndex,
+                            $anchorColumn,
+                            $covering,
+                            $cell
+                        );
+                    }
+                }
+            }
+        }
+
+        return $grid;
+    }
+
+    /**
      * @return list<array<string, int|string>>
      */
     public static function diagnostics(AstNode $table): array
@@ -275,6 +343,65 @@ final class TableGeometry
             self::tableAttributeColumnCount($table->attr('alignments', [])),
             self::tableAttributeColumnCount($table->attr('widths', []))
         );
+    }
+
+    /**
+     * @return array{kind:string,row:int,column:int}
+     */
+    private static function missingGridSlot(int $row, int $column): array
+    {
+        return [
+            'kind' => 'missing',
+            'row' => $row,
+            'column' => $column,
+        ];
+    }
+
+    /**
+     * @param array{node:AstNode,column:int,colspan:int,rowspan:int,sourceCell:int,sourceColumn:int} $cell
+     * @return array<string, mixed>
+     */
+    private static function cellGridSlot(int $row, array $cell): array
+    {
+        return [
+            'kind' => 'cell',
+            'row' => $row,
+            'column' => $cell['column'],
+            'node' => $cell['node'],
+            'sourceCell' => $cell['sourceCell'],
+            'sourceColumn' => $cell['sourceColumn'],
+            'colspan' => $cell['colspan'],
+            'rowspan' => $cell['rowspan'],
+            'anchorRow' => $row,
+            'anchorColumn' => $cell['column'],
+        ];
+    }
+
+    /**
+     * @param array{node:AstNode,column:int,colspan:int,rowspan:int,sourceCell:int,sourceColumn:int} $cell
+     * @return array<string, mixed>
+     */
+    private static function coveredGridSlot(
+        int $row,
+        int $column,
+        int $anchorRow,
+        int $anchorColumn,
+        string $covering,
+        array $cell
+    ): array {
+        return [
+            'kind' => 'covered',
+            'row' => $row,
+            'column' => $column,
+            'node' => $cell['node'],
+            'sourceCell' => $cell['sourceCell'],
+            'sourceColumn' => $cell['sourceColumn'],
+            'colspan' => $cell['colspan'],
+            'rowspan' => $cell['rowspan'],
+            'anchorRow' => $anchorRow,
+            'anchorColumn' => $anchorColumn,
+            'covering' => $covering,
+        ];
     }
 
     /**

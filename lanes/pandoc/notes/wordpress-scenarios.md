@@ -418,6 +418,10 @@ Malformed rowspanned import grids that exceed their declared Pandoc colspec now
 carry source-cell/source-column coordinates in table geometry diagnostics, so a
 WordPress review queue can keep the overflow cells visible while pointing back
 to the physical source cell that caused the audit warning.
+Table section grids now also expose anchor, covered, and missing visual slots
+after rowspans and colspans are normalized, so DOCX/ODT/HTML import review
+packets can audit sparse or merged table geometry without changing the rendered
+WordPress table block.
 
 ## Scenario Fixture
 

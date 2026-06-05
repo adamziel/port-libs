@@ -168,6 +168,32 @@ $buildSourceCoordinateOverflowDocument = static function (): AstNode {
     ]);
 };
 
+$buildSectionGridDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Normalized table grid review',
+            'alignments' => ['left', 'center', 'right', 'default'],
+            'widths' => [0.25, 0.25, 0.25, 0.25],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope', 'colspan' => 2], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts', 'colspan' => 2, 'rowspan' => 2], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Needs media'], [new AstNode('text', ['text' => 'Needs media'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 return [
     'lays out pandoc table spans by visual columns for writer handoff' => static function (TestRunner $t) use ($buildSpannedTableDocument): void {
         $table = $buildSpannedTableDocument()->children[0];
@@ -321,5 +347,38 @@ return [
         $t->same(1, $diagnostics[1]['sourceColumn'] ?? null);
         $t->same(4, $diagnostics[1]['endColumn'] ?? null);
         $t->contains('<tbody><tr><td colspan="2" rowspan="2" style="text-align:left">Merged source</td></tr><tr><td>Unexpected source cell</td><td>Second conflict</td></tr></tbody>', $blocks);
+    },
+    'builds section grids with covered and missing visual slots for importer audits' => static function (TestRunner $t) use ($buildSectionGridDocument): void {
+        $document = $buildSectionGridDocument();
+        $table = $document->children[0];
+        $sectionGrids = TableGeometry::sectionGrids($table);
+        $bodyGrid = $sectionGrids[1]['rows'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same(['head', 'body'], array_map(static fn (array $grid): string => $grid['section'], $sectionGrids));
+        $t->same(4, $sectionGrids[0]['columnCount']);
+        $t->same('cell', $sectionGrids[0]['rows'][0][0]['kind']);
+        $t->same('covered', $sectionGrids[0]['rows'][0][1]['kind']);
+        $t->same('colspan', $sectionGrids[0]['rows'][0][1]['covering']);
+        $t->same('missing', $sectionGrids[0]['rows'][0][3]['kind']);
+        $t->same('cell', $bodyGrid[0][0]['kind']);
+        $t->same('covered', $bodyGrid[0][1]['kind']);
+        $t->same('colspan', $bodyGrid[0][1]['covering']);
+        $t->same('covered', $bodyGrid[1][0]['kind']);
+        $t->same('rowspan', $bodyGrid[1][0]['covering']);
+        $t->same('covered', $bodyGrid[1][1]['kind']);
+        $t->same('rowspan-colspan', $bodyGrid[1][1]['covering']);
+        $t->same(0, $bodyGrid[1][1]['anchorRow']);
+        $t->same(0, $bodyGrid[1][1]['anchorColumn']);
+        $t->same(0, $bodyGrid[1][1]['sourceCell']);
+        $t->same(0, $bodyGrid[1][1]['sourceColumn']);
+        $t->same('cell', $bodyGrid[1][2]['kind']);
+        $t->same(0, $bodyGrid[1][2]['sourceCell']);
+        $t->same(0, $bodyGrid[1][2]['sourceColumn']);
+        $t->same('missing', $bodyGrid[1][3]['kind']);
+        $t->contains('<tbody><tr><td colspan="2" rowspan="2" style="text-align:left">Posts</td><td style="text-align:right">Ready</td></tr><tr><td style="text-align:right">Needs media</td></tr></tbody>', $blocks);
+        $t->contains('| Posts      |            |       Ready |            |', $markdown);
+        $t->contains('|            |            | Needs media |            |', $markdown);
     },
 ];

@@ -79,6 +79,20 @@ $document = new AstNode('document', [], [
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
+    $migrationGrids = TableGeometry::sectionGrids($document->children[0]);
+    if (($migrationGrids[0]['rows'][0][1]['kind'] ?? null) !== 'covered' || ($migrationGrids[0]['rows'][0][1]['covering'] ?? null) !== 'colspan') {
+        throw new RuntimeException('Table geometry self-test missing head colspan covered-slot report');
+    }
+    if (($migrationGrids[0]['rows'][0][3]['kind'] ?? null) !== 'missing') {
+        throw new RuntimeException('Table geometry self-test missing head trailing missing-slot report');
+    }
+    if (($migrationGrids[1]['rows'][1][0]['kind'] ?? null) !== 'covered' || ($migrationGrids[1]['rows'][1][0]['covering'] ?? null) !== 'rowspan') {
+        throw new RuntimeException('Table geometry self-test missing body rowspan covered-slot report');
+    }
+    if (($migrationGrids[1]['rows'][1][3]['kind'] ?? null) !== 'missing') {
+        throw new RuntimeException('Table geometry self-test missing body trailing missing-slot report');
+    }
+
     $sectionDiagnostics = TableGeometry::diagnostics($document->children[1]);
     if (!str_contains($blocks, '<colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:25%"/><col style="width:25%"/></colgroup>')) {
         throw new RuntimeException('Table geometry self-test missing trailing colspec width');
