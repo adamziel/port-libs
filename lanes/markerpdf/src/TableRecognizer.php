@@ -1341,6 +1341,13 @@ final class TableRecognizer
             }
         }
 
+        if (isset($table['bbox'])) {
+            $bbox = $this->bboxFromValue($table['bbox']);
+            if ($bbox !== null) {
+                return $bbox;
+            }
+        }
+
         return null;
     }
 

@@ -121,6 +121,53 @@ return [
         $t->contains('| Images  | Ready  |', $formatted['markdown_tables'][0]);
         $t->true(! str_contains($formatted['markdown_tables'][0], '| Status  | Feature |'));
     },
+    'uses saved tabled result bbox as page image crop boundary for assigned geometry' => static function (
+        TestRunner $t
+    ): void {
+        $recognizer = new TableRecognizer();
+        $formatted = $recognizer->formatRecognizedTables(
+            [[
+                'coordinate_space' => 'page_image',
+                'bbox' => [72.0, 150.0, 312.0, 230.0],
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [72.0, 150.0, 312.0, 182.0]],
+                    ['row_id' => 1, 'bbox' => [72.0, 190.0, 312.0, 220.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [72.0, 150.0, 172.0, 230.0]],
+                    ['col_id' => 1, 'bbox' => [192.0, 150.0, 312.0, 230.0]],
+                ],
+                'cells' => [
+                    ['bbox' => [82.0, 155.0, 162.0, 170.0], 'text' => 'Feature', 'row_ids' => [0], 'col_ids' => [0]],
+                    ['bbox' => [202.0, 155.0, 302.0, 170.0], 'text' => 'Status', 'row_ids' => [0], 'col_ids' => [1]],
+                    ['bbox' => [82.0, 195.0, 162.0, 215.0], 'text' => 'Images', 'row_ids' => [1], 'col_ids' => [0]],
+                    ['bbox' => [202.0, 195.0, 302.0, 215.0], 'text' => 'Ready', 'row_ids' => [1], 'col_ids' => [1]],
+                ],
+            ]],
+            [['width' => 240, 'height' => 80]]
+        );
+
+        $review = $formatted['coordinate_space_reviews'][0] ?? [];
+        $localized = $formatted['recognized_tables'][0] ?? [];
+        $assignedByText = [];
+        foreach (($formatted['assigned_cells'][0] ?? []) as $cell) {
+            $assignedByText[$cell['text']] = $cell;
+        }
+
+        $t->same('table_recognition_coordinate_space_boundary', $review['review_target'] ?? null);
+        $t->same('translated_to_table_crop', $review['status'] ?? null);
+        $t->same([72.0, 150.0, 312.0, 230.0], $review['table_bbox'] ?? null);
+        $t->same(['x' => -72.0, 'y' => -150.0], $review['translation'] ?? null);
+        $t->same([10.0, 5.0, 90.0, 20.0], $localized['cells'][0]['bbox'] ?? null);
+        $t->same([130.0, 45.0, 230.0, 65.0], $localized['cells'][3]['bbox'] ?? null);
+        $t->same([0], $assignedByText['Feature']['row_ids'] ?? null);
+        $t->same([0], $assignedByText['Feature']['col_ids'] ?? null);
+        $t->same([1], $assignedByText['Ready']['row_ids'] ?? null);
+        $t->same([1], $assignedByText['Ready']['col_ids'] ?? null);
+        $t->contains('| Feature | Status |', $formatted['markdown_tables'][0] ?? '');
+        $t->contains('| Images  | Ready  |', $formatted['markdown_tables'][0] ?? '');
+    },
     'supplied document conversion preserves assigned table cell geometry boundaries' => static function (
         TestRunner $t
     ): void {
