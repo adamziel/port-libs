@@ -574,6 +574,32 @@ return [
             )
         );
     },
+    'requires bounded LZW EOD before accepting inline image EI terminators' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf, $lzwLiteralEncode): void {
+        $extractor = new PdfTextExtractor();
+        $encodedImage = $lzwLiteralEncode('X', 0);
+        $postEodSurplus = 'X EI BT /F1 12 Tf 72 690 Td (LZW Post EOD Inline Noise) Tj ET rawtail';
+        $content = "BT /F1 12 Tf 72 720 Td (Before LZW Post EOD Inline Image) Tj ET\n"
+            . 'BI /W 1 /H 1 /CS /G /BPC 8 /F /LZW /DP << /EarlyChange 0 >> ID '
+            . $encodedImage . $postEodSurplus . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After LZW Post EOD Inline Image) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $expected = [
+            'Before LZW Post EOD Inline Image',
+            'After LZW Post EOD Inline Image',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->true(str_contains($postEodSurplus, ' EI '));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(!str_contains($plainText, 'LZW Post EOD Inline Noise'));
+        $t->true(!str_contains($plainText, 'X EI'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+    },
     'requires RunLength EOD before inline image decode preview accepts supplied samples' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf, $runLengthLiteralEncode): void {
         $extractor = new PdfTextExtractor();
         $payloadText = 'RL EI BT /F1 12 Tf 72 690 Td (RunLength Inline Noise) Tj ET';
@@ -633,7 +659,7 @@ return [
             )
         );
     },
-    'fails closed on inline filter EOD surplus before native image previews' => static function (TestRunner $t): void {
+    'fails closed on inline filter EOD surplus before native image previews' => static function (TestRunner $t) use ($lzwLiteralEncode): void {
         $renderer = new PdfImageRenderer();
         $dictionary = '/W 4 /H 1 /CS /G /BPC 8 /D [0 1]';
 
@@ -641,6 +667,7 @@ return [
             'ASCII85Decode' => [$dictionary . ' /F /A85', "z~> EI BT /F1 12 Tf 72 690 Td (A85 Post EOD Inline Noise) Tj ET"],
             'ASCIIHexDecode' => [$dictionary . ' /F /AHx', '41424344> EI BT /F1 12 Tf 72 674 Td (AHx Post EOD Inline Noise) Tj ET'],
             'RunLengthDecode' => [$dictionary . ' /F /RL', chr(3) . 'ABCD' . chr(128) . ' EI BT /F1 12 Tf 72 658 Td (RunLength Post EOD Inline Noise) Tj ET'],
+            'LZWDecode' => [$dictionary . ' /F /LZW', $lzwLiteralEncode('ABCD') . ' EI BT /F1 12 Tf 72 642 Td (LZW Post EOD Inline Noise) Tj ET'],
         ];
 
         foreach ($postEodSurplusCases as [$caseDictionary, $payload]) {

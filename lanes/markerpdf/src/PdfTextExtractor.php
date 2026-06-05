@@ -10688,7 +10688,7 @@ final class PdfTextExtractor
             if (
                 $requireExplicitFilterEndMarkers
                 && $requireBoundedExplicitFilterEndMarkers
-                && !$this->streamFilterInputHasBoundedEndMarker($filter, $stream)
+                && !$this->streamFilterInputHasBoundedEndMarker($filter, $stream, $filterDecodeParms, $objects)
             ) {
                 return null;
             }
@@ -10725,7 +10725,15 @@ final class PdfTextExtractor
         };
     }
 
-    private function streamFilterInputHasBoundedEndMarker(string $filter, string $stream): bool
+    /**
+     * @param array<int, string> $objects
+     */
+    private function streamFilterInputHasBoundedEndMarker(
+        string $filter,
+        string $stream,
+        ?string $decodeParms = null,
+        array $objects = []
+    ): bool
     {
         return match ($filter) {
             'ASCIIHexDecode', 'AHx' => (($offset = strpos($stream, '>')) !== false)
@@ -10734,6 +10742,8 @@ final class PdfTextExtractor
                 && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset + 2),
             'RunLengthDecode', 'RL' => (($offset = $this->runLengthExplicitEndOffset($stream)) !== null)
                 && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset + 1),
+            'LZWDecode', 'LZW' => (($offset = $this->lzwExplicitEndByteOffset($stream, $decodeParms, $objects)) !== null)
+                && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset),
             default => true,
         };
     }
@@ -10770,6 +10780,60 @@ final class PdfTextExtractor
                 return null;
             }
             $offset++;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function lzwExplicitEndByteOffset(string $stream, ?string $decodeParms = null, array $objects = []): ?int
+    {
+        $earlyChange = ($this->decodeParmsInt($decodeParms, 'EarlyChange', $objects) ?? 1) === 0 ? 0 : 1;
+        $bitOffset = 0;
+        $dictionary = [];
+        $nextCode = 258;
+        $codeSize = 9;
+
+        $resetDictionary = static function () use (&$dictionary, &$nextCode, &$codeSize): void {
+            $dictionary = [];
+            for ($code = 0; $code < 256; $code++) {
+                $dictionary[$code] = chr($code);
+            }
+            $nextCode = 258;
+            $codeSize = 9;
+        };
+        $resetDictionary();
+
+        $previous = null;
+        while (($code = $this->readLzwCode($stream, $bitOffset, $codeSize)) !== null) {
+            if ($code === 256) {
+                $resetDictionary();
+                $previous = null;
+                continue;
+            }
+
+            if ($code === 257) {
+                return intdiv($bitOffset + 7, 8);
+            }
+
+            if (isset($dictionary[$code])) {
+                $entry = $dictionary[$code];
+            } elseif ($code === $nextCode && $previous !== null) {
+                $entry = $previous . $previous[0];
+            } else {
+                return null;
+            }
+
+            if ($previous !== null && $nextCode < 4096) {
+                $dictionary[$nextCode] = $previous . $entry[0];
+                $nextCode++;
+                if ($codeSize < 12 && $nextCode + $earlyChange >= (1 << $codeSize)) {
+                    $codeSize++;
+                }
+            }
+            $previous = $entry;
         }
 
         return null;
@@ -25285,7 +25349,15 @@ final class PdfTextExtractor
         $decoded = $this->decodeStream($dictionary, $candidate, [], true, false, true);
         if ($decoded === null) {
             return $expectedLength !== null
-                && $this->inlineAsciiHexCandidateReachesSampleFloorBeforeEod($filters, $candidate, $expectedLength);
+                && (
+                    $this->inlineAsciiHexCandidateReachesSampleFloorBeforeEod($filters, $candidate, $expectedLength)
+                    || $this->inlineLzwCandidateReachesSampleFloorBeforePostEodSurplus(
+                        $filters,
+                        $dictionary,
+                        $candidate,
+                        $expectedLength
+                    )
+                );
         }
 
         return $expectedLength === null || strlen($decoded) >= $expectedLength;
@@ -25332,6 +25404,54 @@ final class PdfTextExtractor
         }
 
         return intdiv($hexDigitCount + 1, 2) >= $expectedLength;
+    }
+
+    /**
+     * LZW data is complete only at the EOD code. Some malformed inline images
+     * carry text-like surplus bytes after that code and before the real EI
+     * marker; recover only after observing a prior delimiter-looking EI inside
+     * that surplus so the first fake EI cannot reopen content parsing.
+     *
+     * @param list<string|null> $filters
+     */
+    private function inlineLzwCandidateReachesSampleFloorBeforePostEodSurplus(
+        array $filters,
+        string $dictionary,
+        string $candidate,
+        int $expectedLength
+    ): bool {
+        $nonNullFilters = array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+        if ($expectedLength < 1 || $nonNullFilters !== ['LZWDecode']) {
+            return false;
+        }
+
+        $decodeParms = $this->streamDecodeParms($dictionary, []);
+        if ($decodeParms === null) {
+            return false;
+        }
+
+        $lzwFilterIndex = array_search('LZWDecode', $filters, true);
+        if (!is_int($lzwFilterIndex)) {
+            return false;
+        }
+
+        $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $lzwFilterIndex);
+        $eodByteOffset = $this->lzwExplicitEndByteOffset($candidate, $filterDecodeParms, []);
+        if ($eodByteOffset === null) {
+            return false;
+        }
+
+        $postEod = substr($candidate, $eodByteOffset);
+        if (
+            $postEod === ''
+            || $this->streamHasOnlyWhitespaceAfterOffset($candidate, $eodByteOffset)
+            || preg_match('/(?:^|[\x00\t\n\f\r ])EI(?:$|[\x00\t\n\f\r \/\[\]\(\)<>{}%])/', $postEod) !== 1
+        ) {
+            return false;
+        }
+
+        $decoded = $this->decodeLzwStream(substr($candidate, 0, $eodByteOffset), $filterDecodeParms, []);
+        return $decoded !== null && strlen($decoded) >= $expectedLength;
     }
 
     private function inlineImageCandidateIsIncompletePreviewOnly(string $dictionary, string $candidate): bool
@@ -25803,7 +25923,7 @@ final class PdfTextExtractor
                 return null;
             }
 
-            if (!$this->streamFilterInputHasBoundedEndMarker($filter, $stream)) {
+            if (!$this->streamFilterInputHasBoundedEndMarker($filter, $stream, $filterDecodeParms, [])) {
                 return null;
             }
 

@@ -6227,7 +6227,7 @@ final class PdfImageRenderer
 
             if (
                 $requireExplicitFilterEndMarkers
-                && !$this->streamFilterInputHasExplicitEndMarker($filter, $stream)
+                && !$this->streamFilterInputHasExplicitEndMarker($filter, $stream, $resolvedDecodeParms, $objects)
             ) {
                 $unsupportedFilters[] = $filter;
 
@@ -6269,7 +6269,15 @@ final class PdfImageRenderer
         ];
     }
 
-    private function streamFilterInputHasExplicitEndMarker(string $filter, string $stream): bool
+    /**
+     * @param array<int, string> $objects
+     */
+    private function streamFilterInputHasExplicitEndMarker(
+        string $filter,
+        string $stream,
+        ?string $decodeParms = null,
+        array $objects = []
+    ): bool
     {
         return match ($filter) {
             'ASCIIHexDecode', 'AHx' => (($offset = strpos($stream, '>')) !== false)
@@ -6278,6 +6286,8 @@ final class PdfImageRenderer
                 && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset + 2),
             'RunLengthDecode', 'RL' => (($offset = $this->runLengthExplicitEndOffset($stream)) !== null)
                 && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset + 1),
+            'LZWDecode', 'LZW' => (($offset = $this->lzwExplicitEndByteOffset($stream, $decodeParms, $objects)) !== null)
+                && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset),
             default => true,
         };
     }
@@ -6314,6 +6324,60 @@ final class PdfImageRenderer
                 return null;
             }
             $offset++;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function lzwExplicitEndByteOffset(string $stream, ?string $decodeParms = null, array $objects = []): ?int
+    {
+        $earlyChange = ($this->decodeParmsInt($decodeParms, 'EarlyChange', $objects) ?? 1) === 0 ? 0 : 1;
+        $bitOffset = 0;
+        $dictionary = [];
+        $nextCode = 258;
+        $codeSize = 9;
+
+        $resetDictionary = static function () use (&$dictionary, &$nextCode, &$codeSize): void {
+            $dictionary = [];
+            for ($code = 0; $code < 256; $code++) {
+                $dictionary[$code] = chr($code);
+            }
+            $nextCode = 258;
+            $codeSize = 9;
+        };
+        $resetDictionary();
+
+        $previous = null;
+        while (($code = $this->readLzwCode($stream, $bitOffset, $codeSize)) !== null) {
+            if ($code === 256) {
+                $resetDictionary();
+                $previous = null;
+                continue;
+            }
+
+            if ($code === 257) {
+                return intdiv($bitOffset + 7, 8);
+            }
+
+            if (isset($dictionary[$code])) {
+                $entry = $dictionary[$code];
+            } elseif ($code === $nextCode && $previous !== null) {
+                $entry = $previous . $previous[0];
+            } else {
+                return null;
+            }
+
+            if ($previous !== null && $nextCode < 4096) {
+                $dictionary[$nextCode] = $previous . $entry[0];
+                $nextCode++;
+                if ($codeSize < 12 && $nextCode + $earlyChange >= (1 << $codeSize)) {
+                    $codeSize++;
+                }
+            }
+            $previous = $entry;
         }
 
         return null;
@@ -7145,7 +7209,7 @@ final class PdfImageRenderer
             if (!$this->canApplyImageDecodeParms($filter, $resolvedDecodeParms, $objects)) {
                 return null;
             }
-            if (!$this->streamFilterInputHasExplicitEndMarker($filter, $stream)) {
+            if (!$this->streamFilterInputHasExplicitEndMarker($filter, $stream, $resolvedDecodeParms, $objects)) {
                 return null;
             }
 

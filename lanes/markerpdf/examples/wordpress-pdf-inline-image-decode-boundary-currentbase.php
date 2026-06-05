@@ -157,6 +157,7 @@ if (!is_string($oversizedCompressedImage)) {
 $asciiHexSurplusPayload = '414243 EI BT /F1 12 Tf 72 635 Td (ASCIIHex Surplus Inline Noise) Tj ET >';
 $runLengthImageRow = 'RL EI BT /F1 12 Tf 72 618 Td (RunLength Inline Noise) Tj ET';
 $runLengthPayload = $runLengthLiteralEncode($runLengthImageRow, true);
+$lzwPostEodSurplusPayload = $lzwLiteralEncode('X', 0) . 'X EI BT /F1 12 Tf 72 586 Td (LZW Post EOD Inline Noise) Tj ET rawtail';
 $malformedFilterPayload = 'abc EI BT /F1 12 Tf 72 574 Td (Malformed Filter Inline Noise) Tj ET rawtail';
 $unresolvedFilterPayload = 'abc EI BT /F1 12 Tf 72 546 Td (Unresolved Filter Inline Noise) Tj ET rawtail';
 $unsupportedCryptFilterPayload = 'abc EI BT /F1 12 Tf 72 530 Td (Crypt Inline Decode Noise) Tj ET rawtail';
@@ -207,6 +208,10 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . 'BI /W ' . strlen($runLengthImageRow) . ' /H 1 /CS /G /BPC 8 /F /RL ID '
     . $runLengthPayload . "\nEI\n"
     . "BT /F1 12 Tf 72 592 Td (After RunLength Inline Image) Tj ET\n"
+    . "BT /F1 12 Tf 72 590 Td (Before LZW Post EOD Inline Image) Tj ET\n"
+    . "BI /W 1 /H 1 /CS /G /BPC 8 /F /LZW /DP << /EarlyChange 0 >> ID "
+    . $lzwPostEodSurplusPayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 584 Td (After LZW Post EOD Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 576 Td (Before Malformed Filter Inline) Tj ET\n"
     . "BI /W 8 /H 1 /CS /G /BPC 8 /F [ << /Bad true >> ] ID\n"
     . $malformedFilterPayload . "\nEI\n"
@@ -385,6 +390,17 @@ try {
 } catch (InvalidArgumentException) {
     $runLengthPostEodSurplusPreviewRejected = true;
 }
+$lzwPostEodSurplusPreviewRejected = false;
+try {
+    $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+        '/W 1 /H 1 /CS /G /BPC 8 /F /LZW /DP << /EarlyChange 0 >> /D [0 1]',
+        $lzwPostEodSurplusPayload,
+        [],
+        1
+    );
+} catch (InvalidArgumentException) {
+    $lzwPostEodSurplusPreviewRejected = true;
+}
 $invalidLzwEarlyChangeDecodeFailed = false;
 try {
     $renderer->inlineIndexedImageStreamPreviewRows(
@@ -500,6 +516,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After Wrapped JPX Prefix Inline',
         'Before RunLength Inline Image',
         'After RunLength Inline Image',
+        'Before LZW Post EOD Inline Image',
+        'After LZW Post EOD Inline Image',
         'Before Malformed Filter Inline',
         'After Malformed Filter Inline',
         'Before Unresolved Filter Inline',
@@ -516,9 +534,11 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'ascii85_post_eod_surplus_preview_rejected' => $ascii85PostEodSurplusPreviewRejected,
     'asciihex_post_eod_surplus_preview_rejected' => $asciiHexPostEodSurplusPreviewRejected,
     'runlength_post_eod_surplus_preview_rejected' => $runLengthPostEodSurplusPreviewRejected,
+    'lzw_post_eod_surplus_preview_rejected' => $lzwPostEodSurplusPreviewRejected,
     'inline_filter_post_eod_surplus_preview_rejected' => $ascii85PostEodSurplusPreviewRejected
         && $asciiHexPostEodSurplusPreviewRejected
-        && $runLengthPostEodSurplusPreviewRejected,
+        && $runLengthPostEodSurplusPreviewRejected
+        && $lzwPostEodSurplusPreviewRejected,
     'terminal_whitespace_inline_sample_preserved' => in_array('After Space Sample Inline Image', $lines, true),
     'named_colorspace_terminal_whitespace_sample_preserved' => in_array('After Named Space Sample Inline Image', $lines, true),
     'array_colorspace_tight_ei_payloads_present' => str_contains($deviceNArrayColorSpacePayload, 'EI BT')
@@ -546,6 +566,10 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'lzw_inline_decodeparms_preview_decoded' => ($lzwIndexedReview['image_stream']['decoded_with_current_filters'] ?? false) === true
         && ($lzwIndexedReview['image_stream']['decoded_preview_hex'] ?? null) === '0055FF',
     'lzw_inline_palette_indexes' => array_column($lzwIndexedReview['pixels'] ?? [], 'palette_index'),
+    'lzw_post_eod_surplus_has_fake_ei' => str_contains($lzwPostEodSurplusPayload, ' EI '),
+    'lzw_post_eod_surplus_payload_excluded_until_real_ei' => in_array('After LZW Post EOD Inline Image', $lines, true)
+        && !str_contains($plainText, 'LZW Post EOD Inline Noise')
+        && !str_contains($plainText, 'rawtail'),
     'null_filter_inline_decodeparms_aligned' => ($nullFilterPredictorReview['image_stream']['decoded_preview_hex'] ?? null) === '414243'
         && array_column($nullFilterPredictorReview['pixels'] ?? [], 'decoded_gray') === [65 / 255, 66 / 255, 67 / 255],
     'null_filter_inline_public_filters' => $nullFilterPredictorReview['image_stream']['filters'] ?? [],
@@ -611,6 +635,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'WordPress wrapped JPX prefix bytes')
         && !str_contains($plainText, 'RunLength Inline Noise')
         && !str_contains($plainText, 'RL EI')
+        && !str_contains($plainText, 'LZW Post EOD Inline Noise')
         && !str_contains($plainText, 'Malformed Filter Inline Noise')
         && !str_contains($plainText, 'Unresolved Filter Inline Noise')
         && !str_contains($plainText, 'Crypt Inline Decode Noise')
