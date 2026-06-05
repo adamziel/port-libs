@@ -711,6 +711,8 @@ final class CitationCslProcessor
             'number' => self::stringField($item, 'number'),
             'volume' => self::stringField($item, 'volume'),
             'issue' => self::stringField($item, 'issue'),
+            'issueTitle' => self::firstStringField($item, ['issue-title', 'issueTitle', 'issuetitle']),
+            'issueTitleAddon' => self::firstStringField($item, ['issue-title-addon', 'issueTitleAddon', 'issuetitleaddon']),
             'edition' => self::stringField($item, 'edition'),
             'collectionTitle' => self::firstStringField($item, ['collection-title', 'collectionTitle']),
             'collectionNumber' => self::firstStringField($item, ['collection-number', 'collectionNumber']),
@@ -2293,6 +2295,7 @@ final class CitationCslProcessor
             'citation-label' => $this->normalizeSortText((string) $item['citationLabel']),
             'shorthand' => $this->normalizeSortText((string) $item['shorthand']),
             'container-title' => $this->normalizeSortText((string) $item['containerTitle']),
+            'issue-title', 'issuetitle' => $this->normalizeSortText((string) ($item['issueTitle'] ?? '')),
             'event', 'event-title' => $this->normalizeSortText((string) $item['eventTitle']),
             'event-place' => $this->normalizeSortText((string) $item['eventPlace']),
             'publisher' => $this->normalizeSortText((string) $item['publisher']),
@@ -3489,6 +3492,16 @@ final class CitationCslProcessor
         $containerTitleShort = (string) ($item['containerTitleShort'] ?? '');
         if ($containerTitleShort !== '') {
             $parts[] = 'Journal abbreviation: ' . rtrim($containerTitleShort, '.') . '.';
+        }
+
+        $issueTitle = (string) ($item['issueTitle'] ?? '');
+        if ($issueTitle !== '') {
+            $parts[] = 'Issue title: ' . rtrim($issueTitle, '.') . '.';
+        }
+
+        $issueTitleAddon = (string) ($item['issueTitleAddon'] ?? '');
+        if ($issueTitleAddon !== '') {
+            $parts[] = 'Issue title addendum: ' . rtrim($issueTitleAddon, '.') . '.';
         }
 
         $volume = (string) ($item['volume'] ?? '');
@@ -4811,6 +4824,8 @@ final class CitationCslProcessor
             'number' => (string) $item['number'],
             'volume' => (string) $item['volume'],
             'issue' => (string) $item['issue'],
+            'issue-title', 'issuetitle' => (string) ($item['issueTitle'] ?? ''),
+            'issue-title-addon', 'issuetitleaddon' => (string) ($item['issueTitleAddon'] ?? ''),
             'edition' => (string) $item['edition'],
             'collection-title' => (string) $item['collectionTitle'],
             'collection-number' => (string) $item['collectionNumber'],

@@ -77,6 +77,8 @@ Call-number source @archive-call-number preserves archive shelf metadata for rev
 
 Pagination source @pagination-review preserves column page-unit metadata for review.
 
+Special issue source @special-issue-review preserves imported issue title metadata for review.
+
 Container-author chapter @container-author-review preserves source volume authors for review.
 
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
@@ -583,6 +585,17 @@ $bibtex = <<<'BIB'
   pages          = {12--14},
   pagination     = {column},
   bookpagination = {section}
+}
+
+@article{special-issue-review,
+  author          = {Doe, Jane},
+  title           = {Special Issue Packet},
+  journaltitle    = {Journal of Source Imports},
+  issuetitle      = {Migration Special Issue},
+  issuesubtitle   = {Import Desk Reports},
+  issuetitleaddon = {Editorial packet supplement},
+  date            = {2026},
+  pages           = {30--35}
 }
 
 @incollection{container-author-review,
@@ -1093,6 +1106,43 @@ XML);
     if (!str_contains($paginationBlocks, '<dt>Ng 2026</dt><dd>Column Pagination Review | cols. | 12-14 | section</dd>')) {
         throw new RuntimeException('BibTeX CSL handoff self-test did not expose pagination metadata in custom bibliography output');
     }
+    $specialIssueReview = $processor->item('special-issue-review');
+    if (($specialIssueReview['issueTitle'] ?? null) !== 'Migration Special Issue: Import Desk Reports') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve issue title metadata');
+    }
+    if (($specialIssueReview['issueTitleAddon'] ?? null) !== 'Editorial packet supplement') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve issue title addendum metadata');
+    }
+    $issueStyled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="issue-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <text variable="title"/>
+      <text variable="issue-title"/>
+      <text variable="issue-title-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+    $issueBlocks = (new WordPressBlockWriter())->write($issueStyled->appendBibliography(
+        (new MarkdownReader())->read('Special issue review [@special-issue-review] keeps issue titles visible.'),
+        'Issue Sources'
+    ));
+    if (!str_contains($issueBlocks, '<p>Special issue review Doe | Migration Special Issue: Import Desk Reports keeps issue titles visible.</p>')) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not render issue-title metadata in custom citations');
+    }
+    if (!str_contains($issueBlocks, '<dt>Doe 2026</dt><dd>Special Issue Packet | Migration Special Issue: Import Desk Reports | Editorial packet supplement</dd>')) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not render issue-title metadata in custom bibliography output');
+    }
     $containerAuthorReview = $processor->item('container-author-review');
     if (($containerAuthorReview['containerAuthors'][0]['family'] ?? null) !== 'Smith') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve first container author family');
@@ -1181,6 +1231,8 @@ XML);
         '<dt>Smith 2026</dt><dd>Smith, Ada. Archive Shelf Packet. Review Press, 2026. Call number: NYPL Manuscripts Division, MS 42 Box 7 Folder 3.</dd>',
         '<p>Pagination source Ng (2026) preserves column page-unit metadata for review.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Column Pagination Review. Source Unit Ledger. 2026. 12-14. Pagination: column. Book pagination: section.</dd>',
+        '<p>Special issue source Doe (2026) preserves imported issue title metadata for review.</p>',
+        '<dt>Doe 2026</dt><dd>Doe, Jane. Special Issue Packet. Journal of Source Imports. Issue title: Migration Special Issue: Import Desk Reports. Issue title addendum: Editorial packet supplement. 2026. 30-35.</dd>',
         '<p>Container-author chapter Ng (2026) preserves source volume authors for review.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Chapter Review. Migration Sourcebook. 2026. 44-49. Name annotations: Container author 1: source volume author; Container author 2 family: container family verified. Container author: Smith, Ada; Curator, Eli.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',

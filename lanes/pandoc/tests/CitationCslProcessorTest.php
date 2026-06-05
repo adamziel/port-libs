@@ -7242,6 +7242,86 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Column Source. Review Ledger. 2026. 12-14. Pagination: column. Book pagination: section.</dd>', $blocks);
         $t->contains('<dt>Smith 2025</dt><dd>Smith, Ada. Verse Source. Migration Sourcebook. 2025. 4-6. Pagination: verse. Book pagination: page.</dd>', $blocks);
     },
+    'maps bounded biblatex issue title fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{special-issue-source,
+  author          = {Doe, Jane},
+  title           = {Source Packet Study},
+  journaltitle    = {Journal of Imports},
+  issuetitle      = {Migration Special Issue},
+  issuesubtitle   = {Import Desk Reports},
+  issuetitleaddon = {Editorial packet supplement},
+  date            = {2026},
+  pages           = {30--35}
+}
+
+@article{plain-issue-source,
+  author       = {Roe, Pat},
+  title        = {Plain Issue Source},
+  journaltitle = {Migration Notes},
+  issuetitle   = {Archive Review Number},
+  date         = {2025},
+  pages        = {7--9}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Migration Special Issue: Import Desk Reports', $items[0]['issue-title'] ?? null);
+        $t->same('Editorial packet supplement', $items[0]['issue-title-addon'] ?? null);
+        $t->same('Archive Review Number', $items[1]['issue-title'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $special = $processor->item('special-issue-source');
+        $plain = $processor->item('plain-issue-source');
+        $t->same('Migration Special Issue: Import Desk Reports', $special['issueTitle'] ?? null);
+        $t->same('Editorial packet supplement', $special['issueTitleAddon'] ?? null);
+        $t->same('Archive Review Number', $plain['issueTitle'] ?? null);
+        $t->same('Doe, Jane. Source Packet Study. Journal of Imports. Issue title: Migration Special Issue: Import Desk Reports. Issue title addendum: Editorial packet supplement. 2026. 30-35.', $processor->renderBibliographyEntry('special-issue-source'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="issue-title"/>
+        <text variable="issue-title-addon"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="container-title"/>
+      <text variable="issue-title"/>
+      <text variable="issue-title-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('(Doe | Migration Special Issue: Import Desk Reports | Editorial packet supplement; Roe | Archive Review Number)', $styled->renderCitationCluster([
+            $citation('special-issue-source', '[@special-issue-source]'),
+            $citation('plain-issue-source', '[@plain-issue-source]'),
+        ]));
+        $t->same('Source Packet Study :: Journal of Imports :: Migration Special Issue: Import Desk Reports :: Editorial packet supplement', $styled->renderBibliographyEntry('special-issue-source'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-issue-title',
+            'title' => 'Direct Issue Source',
+            'issue-title' => 'Direct Special Issue',
+            'issue-title-addon' => 'Direct supplement',
+        ]])->item('direct-issue-title');
+        $t->same('Direct Special Issue', $direct['issueTitle'] ?? null);
+        $t->same('Direct supplement', $direct['issueTitleAddon'] ?? null);
+
+        $document = (new MarkdownReader())->read('Special issue @special-issue-source and archive issue [@plain-issue-source] keep imported issue titles visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Special issue Doe (2026) and archive issue (Roe 2025) keep imported issue titles visible.</p>', $blocks);
+        $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Source Packet Study. Journal of Imports. Issue title: Migration Special Issue: Import Desk Reports. Issue title addendum: Editorial packet supplement. 2026. 30-35.</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Roe, Pat. Plain Issue Source. Migration Notes. Issue title: Archive Review Number. 2025. 7-9.</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

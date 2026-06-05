@@ -604,6 +604,8 @@ final class BibtexCslParser
             'number' => self::firstField($fields, ['number']),
             'volume' => self::firstField($fields, ['volume']),
             'issue' => self::issueField($type, $fields),
+            'issue-title' => self::composedTitle($fields, ['issuetitle'], ['issuesubtitle']),
+            'issue-title-addon' => self::firstField($fields, ['issuetitleaddon']),
             'edition' => self::firstField($fields, ['edition']),
             'collection-title' => self::firstField($fields, ['series']),
             'collection-number' => self::firstField($fields, ['seriesnumber', 'series-number', 'collectionnumber', 'collection-number']),
