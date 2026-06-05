@@ -14569,15 +14569,65 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $resolved = $this->decodeParmsValueList($rawItem, 0, $objects);
-            if ($resolved === null || count($resolved) !== 1) {
+            $resolved = $this->decodeParmsDictionaryOrNullValue($rawItem, $objects);
+            if ($resolved === null) {
                 return null;
             }
 
-            $items[] = $resolved[0];
+            $items[] = $resolved['value'];
         }
 
         return $items;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     * @return array{value: string|null}|null
+     */
+    private function decodeParmsDictionaryOrNullValue(string $value, array $objects, array $seen = []): ?array
+    {
+        $offset = $this->skipPdfWhitespace($value, 0);
+        if ($offset >= strlen($value)) {
+            return null;
+        }
+
+        if (substr($value, $offset, 2) === '<<') {
+            $dictionaryOffset = $offset;
+            $dictionary = $this->readPdfDictionaryTokenAt($value, $dictionaryOffset);
+            if ($dictionary === null || $this->skipPdfWhitespace($value, $dictionaryOffset) !== strlen($value)) {
+                return null;
+            }
+
+            return ['value' => $dictionary];
+        }
+
+        if (preg_match('/\Gnull\b/s', $value, $match, 0, $offset) === 1) {
+            $endOffset = $offset + strlen($match[0]);
+            return $this->skipPdfWhitespace($value, $endOffset) === strlen($value)
+                ? ['value' => null]
+                : null;
+        }
+
+        $reference = $this->pdfIndirectReferenceTokenAt($value, $offset);
+        if ($reference === null || $this->skipPdfWhitespace($value, $reference['endOffset']) !== strlen($value)) {
+            return null;
+        }
+
+        $objectNumber = $reference['objectNumber'];
+        $generation = $reference['generation'];
+        $objectKey = $objectNumber . ':' . $generation;
+        if ($objectNumber <= 0 || isset($seen[$objectKey])) {
+            return null;
+        }
+
+        $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+        if ($body === null) {
+            return null;
+        }
+
+        $seen[$objectKey] = true;
+        return $this->decodeParmsDictionaryOrNullValue(trim($body), $objects, $seen);
     }
 
     /**
