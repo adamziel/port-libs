@@ -1654,6 +1654,131 @@ XML;
         $t->contains('<div class="odf-index-title" data-odf-index-title="true"><p>Contents</p></div>', $blocksHtml);
         $t->contains('<a href="#odt-source-packet">ODT source packet</a>', $blocksHtml);
     },
+    'maps ODT generated indexes beyond table of contents into review div metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithGeneratedIndexes = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:body>
+    <office:text>
+      <text:illustration-index text:name="Figure Review" text:style-name="IllustrationIndex" text:protected="true" text:protection-key="figure-key" text:protection-key-digest-algorithm="urn:odf:sha256">
+        <text:illustration-index-source text:caption-sequence-name="Illustration" text:use-caption="true">
+          <text:index-title-template text:style-name="FigureTitle">Figures</text:index-title-template>
+          <text:illustration-index-entry-template text:style-name="FigureEntry">
+            <text:index-entry-link-start/>
+            <text:index-entry-chapter/>
+            <text:index-entry-text/>
+            <text:index-entry-tab-stop style:type="right" style:position="16cm" style:leader-char="."/>
+            <text:index-entry-page-number/>
+            <text:index-entry-link-end/>
+          </text:illustration-index-entry-template>
+        </text:illustration-index-source>
+        <text:index-title text:name="Illustrations">
+          <text:p>Figures</text:p>
+        </text:index-title>
+        <text:index-body>
+          <text:p><text:a xlink:href="#source-hero-seq">Figure 1</text:a><text:tab/>2</text:p>
+        </text:index-body>
+      </text:illustration-index>
+      <text:alphabetical-index text:name="Glossary Terms" text:style-name="AlphabeticalIndex">
+        <text:alphabetical-index-source text:main-entry-style-name="MainTerm" text:ignore-case="true" text:alphabetical-separators="true" text:combine-entries="true" text:combine-entries-with-dash="false" text:sort-algorithm="alphanumeric">
+          <text:alphabetical-index-entry-template text:outline-level="1" text:style-name="GlossaryEntry">
+            <text:index-entry-text/>
+            <text:index-entry-page-number/>
+          </text:alphabetical-index-entry-template>
+        </text:alphabetical-index-source>
+        <text:index-title text:name="Glossary">
+          <text:p>Glossary</text:p>
+        </text:index-title>
+        <text:index-body>
+          <text:p>Migration 5</text:p>
+        </text:index-body>
+      </text:alphabetical-index>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithGeneratedIndexes));
+        $blocks = $result['document']->children;
+
+        $t->same(2, count($blocks));
+
+        $illustration = $blocks[0];
+        $t->same('div', $illustration->type);
+        $t->same('figure-review', $illustration->attr('id'));
+        $t->same(['odf-generated-index', 'odf-illustration-index', 'odf-protected-generated-index'], $illustration->attr('classes'));
+        $t->same('illustration', $illustration->attr('generatedIndexType'));
+        $t->same('illustration-index', $illustration->attr('generatedIndexElement'));
+        $t->same('Figure Review', $illustration->attr('generatedIndexName'));
+        $t->same('IllustrationIndex', $illustration->attr('styleName'));
+        $t->same(true, $illustration->attr('protected'));
+        $t->same(true, $illustration->attr('protectionKeyPresent'));
+        $t->same('urn:odf:sha256', $illustration->attr('protectionKeyDigestAlgorithm'));
+
+        $source = $illustration->attr('generatedIndexSource');
+        $t->same('illustration-index-source', $source['element']);
+        $t->same('Illustration', $source['captionSequenceName']);
+        $t->same(true, $source['useCaption']);
+        $t->same('title', $source['templates'][0]['type']);
+        $t->same('index-title-template', $source['templates'][0]['element']);
+        $t->same('FigureTitle', $source['templates'][0]['styleName']);
+        $t->same('entry', $source['templates'][1]['type']);
+        $t->same('illustration-index-entry-template', $source['templates'][1]['element']);
+        $t->same('FigureEntry', $source['templates'][1]['styleName']);
+        $t->same(['index-entry-link-start', 'index-entry-chapter', 'index-entry-text', 'index-entry-tab-stop', 'index-entry-page-number', 'index-entry-link-end'], array_column($source['templates'][1]['components'], 'type'));
+        $t->same('right', $source['templates'][1]['components'][3]['tabStopType']);
+        $t->same('16cm', $source['templates'][1]['components'][3]['tabStopPosition']);
+        $t->same('.', $source['templates'][1]['components'][3]['leaderChar']);
+
+        $attributes = $illustration->attr('attributes');
+        $t->same('illustration', $attributes['data-odf-index-type']);
+        $t->same('illustration-index', $attributes['data-odf-index-element']);
+        $t->same('Figure Review', $attributes['data-odf-index-name']);
+        $t->same('true', $attributes['data-odf-index-protected']);
+        $t->same('true', $attributes['data-odf-index-source-use-caption']);
+        $t->same('Illustration', $attributes['data-odf-index-source-caption-sequence-name']);
+        $t->same('2', $attributes['data-odf-index-template-count']);
+
+        $title = $illustration->children[0];
+        $body = $illustration->children[1];
+        $t->same(['odf-index-title'], $title->attr('classes'));
+        $t->same('Figures', $title->children[0]->attr('text'));
+        $t->same(['odf-index-body'], $body->attr('classes'));
+        $t->same('#source-hero-seq', $body->children[0]->children[0]->attr('url'));
+        $t->same('Figure 1', $body->children[0]->children[0]->children[0]->attr('text'));
+
+        $alphabetical = $blocks[1];
+        $t->same(['odf-generated-index', 'odf-alphabetical-index'], $alphabetical->attr('classes'));
+        $t->same('alphabetical', $alphabetical->attr('generatedIndexType'));
+        $alphabeticalSource = $alphabetical->attr('generatedIndexSource');
+        $t->same('alphabetical-index-source', $alphabeticalSource['element']);
+        $t->same('MainTerm', $alphabeticalSource['mainEntryStyleName']);
+        $t->same(true, $alphabeticalSource['ignoreCase']);
+        $t->same(true, $alphabeticalSource['alphabeticalSeparators']);
+        $t->same(true, $alphabeticalSource['combineEntries']);
+        $t->same(false, $alphabeticalSource['combineEntriesWithDash']);
+        $t->same('alphanumeric', $alphabeticalSource['sortAlgorithm']);
+        $t->same(1, $alphabeticalSource['templates'][0]['outlineLevel']);
+        $t->same('GlossaryEntry', $alphabeticalSource['templates'][0]['styleName']);
+        $t->same('Glossary', $alphabetical->children[0]->children[0]->attr('text'));
+        $t->same('Migration 5', $alphabetical->children[1]->children[0]->attr('text'));
+
+        $t->same(2, $result['importReport']['content']['generatedIndexCount']);
+        $t->same(0, $result['importReport']['content']['tableOfContentsCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('::: {#figure-review .odf-generated-index .odf-illustration-index .odf-protected-generated-index data-odf-index-type="illustration"', $markdown);
+        $t->contains('data-odf-index-source-caption-sequence-name="Illustration"', $markdown);
+        $t->contains('[Figure 1](#source-hero-seq)', $markdown);
+        $t->contains('<div id="figure-review" class="odf-generated-index odf-illustration-index odf-protected-generated-index" data-odf-index-type="illustration"', $blocksHtml);
+        $t->contains('data-odf-index-source-use-caption="true"', $blocksHtml);
+        $t->contains('<a href="#source-hero-seq">Figure 1</a>', $blocksHtml);
+        $t->contains('<div id="glossary-terms" class="odf-generated-index odf-alphabetical-index" data-odf-index-type="alphabetical"', $blocksHtml);
+    },
     'maps ODT linked and protected sections into review div metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithLinkedSections = <<<'XML'
 <office:document-content

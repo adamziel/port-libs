@@ -140,6 +140,24 @@ $contentXml = <<<'XML'
           <text:p><text:a xlink:href="#review">Review table</text:a><text:tab/>2</text:p>
         </text:index-body>
       </text:table-of-content>
+      <text:illustration-index text:name="Figure Review" text:style-name="IllustrationIndex" text:protected="true" text:protection-key="figure-review-key" text:protection-key-digest-algorithm="urn:odf:sha256">
+        <text:illustration-index-source text:caption-sequence-name="Illustration" text:use-caption="true">
+          <text:index-title-template text:style-name="FigureTitle">Figures</text:index-title-template>
+          <text:illustration-index-entry-template text:style-name="FigureEntry">
+            <text:index-entry-link-start/>
+            <text:index-entry-text/>
+            <text:index-entry-tab-stop style:type="right" style:position="16cm" style:leader-char="."/>
+            <text:index-entry-page-number/>
+            <text:index-entry-link-end/>
+          </text:illustration-index-entry-template>
+        </text:illustration-index-source>
+        <text:index-title text:name="Illustrations">
+          <text:p>Figures</text:p>
+        </text:index-title>
+        <text:index-body>
+          <text:p><text:a xlink:href="#source-hero-seq">Figure 1</text:a><text:tab/>2</text:p>
+        </text:index-body>
+      </text:illustration-index>
       <text:section text:name="Linked Policy Appendix" text:protected="true" text:protection-key="review-key" text:protection-key-digest-algorithm="http://www.w3.org/2000/09/xmldsig#sha1">
         <text:section-source xlink:href="Sections/policy-appendix.odt" xlink:type="simple" text:section-name="Policy Appendix" text:filter-name="writer8"/>
         <text:p>Linked appendix fallback text.</text:p>
@@ -277,6 +295,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<a href="#odt-source-packet">ODT source packet</a>')) {
         throw new RuntimeException('Expected ODT table-of-contents entry links to render in WordPress blocks');
+    }
+    if (($result['importReport']['content']['generatedIndexCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT generated indexes to be counted in the import report');
+    }
+    if (!str_contains($blocks, '<div id="figure-review" class="odf-generated-index odf-illustration-index odf-protected-generated-index" data-odf-index-type="illustration" data-odf-index-element="illustration-index" data-odf-index-name="Figure Review"')) {
+        throw new RuntimeException('Expected ODT generated index metadata to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, 'data-odf-index-source-caption-sequence-name="Illustration" data-odf-index-source-use-caption="true" data-odf-index-template-count="2"')) {
+        throw new RuntimeException('Expected ODT generated index source metadata to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, '<a href="#source-hero-seq">Figure 1</a>')) {
+        throw new RuntimeException('Expected ODT generated index body links to render in WordPress blocks');
     }
     if (!str_contains($blocks, '<sup><span data-odf-style-name="SourceSuperscript">TM</span></sup>')) {
         throw new RuntimeException('Expected ODT superscript source mark to render in WordPress blocks');

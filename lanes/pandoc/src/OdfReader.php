@@ -195,6 +195,7 @@ final class OdfReader
                     'linkedSectionCount' => $contentStats['linkedSectionCount'],
                     'protectedSectionCount' => $contentStats['protectedSectionCount'],
                     'tableOfContentsCount' => $contentStats['tableOfContentsCount'],
+                    'generatedIndexCount' => $contentStats['generatedIndexCount'],
                     'continuedListCount' => $contentStats['continuedListCount'],
                     'listHeaderCount' => $contentStats['listHeaderCount'],
                     'tableTemplateReferenceCount' => $contentStats['tableTemplateReferenceCount'],
@@ -620,6 +621,13 @@ final class OdfReader
                 $tableOfContents = $this->tableOfContentsNode($child, $package, $catalog);
                 if ($tableOfContents !== null) {
                     $blocks[] = $tableOfContents;
+                }
+                continue;
+            }
+            if ($this->generatedIndexType($child) !== null) {
+                $generatedIndex = $this->generatedIndexNode($child, $package, $catalog);
+                if ($generatedIndex !== null) {
+                    $blocks[] = $generatedIndex;
                 }
                 continue;
             }
@@ -1087,6 +1095,232 @@ final class OdfReader
         if (isset($sourceMetadata['templates']) && is_array($sourceMetadata['templates'])) {
             $attributes['data-odf-toc-template-count'] = (string) count($sourceMetadata['templates']);
         }
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     */
+    private function generatedIndexNode(\DOMElement $index, ZipPackage $package, array $catalog): ?AstNode
+    {
+        $type = $this->generatedIndexType($index);
+        if ($type === null) {
+            return null;
+        }
+
+        $element = $index->localName;
+        $name = self::attr($index, self::TEXT_NS, 'name');
+        $styleName = self::attr($index, self::TEXT_NS, 'style-name');
+        $attrs = [
+            'sourceFormat' => 'odt',
+            'generatedIndexType' => $type,
+            'generatedIndexElement' => $element,
+            'classes' => ['odf-generated-index', 'odf-' . $element],
+            'attributes' => [
+                'data-odf-index-type' => $type,
+                'data-odf-index-element' => $element,
+            ],
+        ];
+
+        if ($name !== '') {
+            $attrs['id'] = self::slug($name);
+            $attrs['generatedIndexName'] = $name;
+            $attrs['attributes']['data-odf-index-name'] = $name;
+        }
+        if ($styleName !== '') {
+            $attrs['styleName'] = $styleName;
+            $attrs['attributes']['data-odf-index-style-name'] = $styleName;
+        }
+
+        $protected = self::nullableBool(self::attr($index, self::TEXT_NS, 'protected'));
+        if ($protected !== null) {
+            $attrs['protected'] = $protected;
+            $attrs['attributes']['data-odf-index-protected'] = $protected ? 'true' : 'false';
+            if ($protected) {
+                $attrs['classes'][] = 'odf-protected-generated-index';
+            }
+        }
+
+        $protectionKey = self::attr($index, self::TEXT_NS, 'protection-key');
+        if ($protectionKey !== '') {
+            $attrs['protectionKeyPresent'] = true;
+            $attrs['attributes']['data-odf-index-protection-key-present'] = 'true';
+        }
+        $digestAlgorithm = self::attr($index, self::TEXT_NS, 'protection-key-digest-algorithm');
+        if ($digestAlgorithm !== '') {
+            $attrs['protectionKeyDigestAlgorithm'] = $digestAlgorithm;
+            $attrs['attributes']['data-odf-index-protection-key-digest-algorithm'] = $digestAlgorithm;
+        }
+
+        $source = self::firstChildElement($index, $this->generatedIndexSourceElementName($element), self::TEXT_NS);
+        if ($source instanceof \DOMElement) {
+            $sourceMetadata = $this->generatedIndexSourceMetadata($source);
+            if ($sourceMetadata !== []) {
+                $attrs['generatedIndexSource'] = $sourceMetadata;
+                $this->addGeneratedIndexSourceAttributes($attrs['attributes'], $sourceMetadata);
+            }
+        }
+
+        $children = $this->generatedIndexTitleAndBodyNodes($index, $package, $catalog);
+        if ($children === [] && count($attrs['attributes']) <= 2) {
+            return null;
+        }
+
+        return new AstNode('div', $attrs, $children);
+    }
+
+    private function generatedIndexType(\DOMElement $element): ?string
+    {
+        if ($element->namespaceURI !== self::TEXT_NS) {
+            return null;
+        }
+
+        return match ($element->localName) {
+            'alphabetical-index' => 'alphabetical',
+            'bibliography' => 'bibliography',
+            'illustration-index' => 'illustration',
+            'object-index' => 'object',
+            'table-index' => 'table',
+            'user-index' => 'user',
+            default => null,
+        };
+    }
+
+    private function generatedIndexSourceElementName(string $indexElementName): string
+    {
+        return $indexElementName === 'bibliography' ? 'bibliography-source' : $indexElementName . '-source';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function generatedIndexSourceMetadata(\DOMElement $source): array
+    {
+        $metadata = array_merge(
+            ['element' => $source->localName],
+            $this->odfElementMetadataAttributes($source, [self::TEXT_NS])
+        );
+
+        $sourceStyles = $this->tableOfContentsSourceStyles($source);
+        if ($sourceStyles !== []) {
+            $metadata['sourceStyles'] = $sourceStyles;
+        }
+
+        $templates = $this->generatedIndexTemplates($source);
+        if ($templates !== []) {
+            $metadata['templates'] = $templates;
+        }
+
+        return self::withoutEmpty($metadata);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function generatedIndexTemplates(\DOMElement $source): array
+    {
+        $templates = [];
+        foreach (self::childElements($source) as $template) {
+            if ($template->namespaceURI !== self::TEXT_NS) {
+                continue;
+            }
+            if ($template->localName !== 'index-title-template' && !str_ends_with($template->localName, '-entry-template')) {
+                continue;
+            }
+
+            $templates[] = self::withoutEmpty(array_merge([
+                'type' => $template->localName === 'index-title-template' ? 'title' : 'entry',
+                'element' => $template->localName,
+            ], $this->odfElementMetadataAttributes($template, [self::TEXT_NS]), [
+                'components' => $this->tableOfContentsTemplateComponents($template),
+            ]));
+        }
+
+        return $templates;
+    }
+
+    /**
+     * @param list<string> $namespaces
+     * @return array<string, mixed>
+     */
+    private function odfElementMetadataAttributes(\DOMElement $element, array $namespaces): array
+    {
+        $attributes = [];
+        if (!$element->hasAttributes()) {
+            return $attributes;
+        }
+
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr || !in_array((string) $attribute->namespaceURI, $namespaces, true)) {
+                continue;
+            }
+
+            $attributes[self::camelCase($attribute->localName)] = self::typedOdfAttributeValue($attribute->value);
+        }
+
+        return self::withoutEmpty($attributes);
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @param array<string, mixed> $sourceMetadata
+     */
+    private function addGeneratedIndexSourceAttributes(array &$attributes, array $sourceMetadata): void
+    {
+        foreach ($sourceMetadata as $name => $value) {
+            if (is_bool($value)) {
+                $attributes['data-odf-index-source-' . self::kebabCase((string) $name)] = $value ? 'true' : 'false';
+                continue;
+            }
+            if (is_int($value) || is_string($value)) {
+                $attributes['data-odf-index-source-' . self::kebabCase((string) $name)] = (string) $value;
+            }
+        }
+
+        if (isset($sourceMetadata['sourceStyles']) && is_array($sourceMetadata['sourceStyles'])) {
+            $attributes['data-odf-index-source-style-count'] = (string) count($sourceMetadata['sourceStyles']);
+        }
+        if (isset($sourceMetadata['templates']) && is_array($sourceMetadata['templates'])) {
+            $attributes['data-odf-index-template-count'] = (string) count($sourceMetadata['templates']);
+        }
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     * @return list<AstNode>
+     */
+    private function generatedIndexTitleAndBodyNodes(\DOMElement $index, ZipPackage $package, array $catalog): array
+    {
+        $children = [];
+        foreach (self::childElements($index) as $child) {
+            if ($this->isElement($child, self::TEXT_NS, 'index-title')) {
+                $titleBlocks = $this->blockNodes($child, $package, $catalog);
+                if ($titleBlocks !== []) {
+                    $children[] = new AstNode('div', [
+                        'sourceFormat' => 'odt',
+                        'classes' => ['odf-index-title'],
+                        'attributes' => [
+                            'data-odf-index-title' => 'true',
+                        ],
+                    ], $titleBlocks);
+                }
+                continue;
+            }
+
+            if ($this->isElement($child, self::TEXT_NS, 'index-body')) {
+                $bodyBlocks = $this->blockNodes($child, $package, $catalog);
+                if ($bodyBlocks !== []) {
+                    $children[] = new AstNode('div', [
+                        'sourceFormat' => 'odt',
+                        'classes' => ['odf-index-body'],
+                        'attributes' => [
+                            'data-odf-index-body' => 'true',
+                        ],
+                    ], $bodyBlocks);
+                }
+            }
+        }
+
+        return $children;
     }
 
     /**
@@ -3784,7 +4018,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int}
+     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -3810,6 +4044,7 @@ final class OdfReader
             'linkedSectionCount' => 0,
             'protectedSectionCount' => 0,
             'tableOfContentsCount' => 0,
+            'generatedIndexCount' => 0,
             'continuedListCount' => 0,
             'listHeaderCount' => 0,
             'tableTemplateReferenceCount' => 0,
@@ -3829,6 +4064,9 @@ final class OdfReader
             }
             if ($node->type === 'div' && $this->nodeHasClass($node, 'odf-table-of-contents')) {
                 $stats['tableOfContentsCount']++;
+            }
+            if ($node->type === 'div' && $this->nodeHasClass($node, 'odf-generated-index')) {
+                $stats['generatedIndexCount']++;
             }
             if ($node->type === 'table' && (string) $node->attr('templateName', '') !== '') {
                 $stats['tableTemplateReferenceCount']++;
@@ -4093,6 +4331,20 @@ final class OdfReader
         }
 
         return in_array($value, ['true', '1', 'yes', 'checked'], true);
+    }
+
+    private static function typedOdfAttributeValue(string $value): mixed
+    {
+        $normalized = strtolower(trim($value));
+        if ($normalized === 'true' || $normalized === 'false') {
+            return $normalized === 'true';
+        }
+
+        if (preg_match('/^-?\d+$/', $value) === 1) {
+            return (int) $value;
+        }
+
+        return $value;
     }
 
     private static function nullable(string $value): ?string
