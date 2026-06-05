@@ -548,6 +548,22 @@ return [
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($invalidPax));
     },
 
+    'rejects invalid utf8 ustar path bytes before package exposure' => static function (TestRunner $t) use ($rawTarHeader, $rewriteTarHeaderFields): void {
+        $invalidName = $rawTarHeader("packet/invalid-\xC3\x28.xml", '0', '<w:document/>');
+        $invalidPrefix = $rewriteTarHeaderFields(
+            $rawTarHeader('document.xml', '0', '<w:document/>'),
+            [
+                345 => str_pad("packet/invalid-\xC3\x28", 155, "\0"),
+            ]
+        );
+
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($invalidName));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($invalidPrefix));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromEntries([
+            ['name' => "packet/generated-invalid-\xC3\x28.xml", 'data' => '<w:document/>'],
+        ]));
+    },
+
     'rejects invalid utf8 gnu long name metadata before package exposure' => static function (TestRunner $t) use ($rawTarHeader): void {
         $invalidGnuLongName = $rawTarHeader('././@LongLink', 'L', "packet/invalid-\xC3\x28.xml\0", 0, false)
             . $rawTarHeader('placeholder.xml', '0', '<w:document/>', 0, false)

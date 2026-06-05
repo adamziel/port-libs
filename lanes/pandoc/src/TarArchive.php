@@ -864,6 +864,8 @@ final class TarArchive
             throw new \RuntimeException("{$label} must not be empty");
         }
 
+        self::assertUtf8($path, $label);
+
         if (str_contains($path, "\0") || str_starts_with($path, '/') || str_contains($path, '\\')) {
             throw new \RuntimeException("Unsafe {$label}: {$path}");
         }

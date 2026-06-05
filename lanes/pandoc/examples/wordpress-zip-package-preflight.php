@@ -1517,6 +1517,15 @@ try {
 } catch (RuntimeException $exception) {
     $tarPaxUtf8PathRejected = str_contains($exception->getMessage(), 'PAX path metadata');
 }
+$tarUstarPathUtf8Rejected = false;
+try {
+    TarArchive::fromString(
+        $buildRawTarRecord("packet/invalid-\xC3\x28.xml", '0', '<w:document/>', $documentModifiedAt)
+        . str_repeat("\0", 1024)
+    );
+} catch (RuntimeException $exception) {
+    $tarUstarPathUtf8Rejected = str_contains($exception->getMessage(), 'TAR entry name');
+}
 $tarGnuLongNameUtf8Rejected = false;
 try {
     TarArchive::fromString(
@@ -2074,6 +2083,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected TAR PAX paths with invalid UTF-8 to be rejected before import');
     }
 
+    if (!$tarUstarPathUtf8Rejected) {
+        throw new RuntimeException('Expected TAR ustar paths with invalid UTF-8 to be rejected before import');
+    }
+
     if (!$tarGnuLongNameUtf8Rejected) {
         throw new RuntimeException('Expected TAR GNU long names with invalid UTF-8 to be rejected before import');
     }
@@ -2169,6 +2182,7 @@ echo 'tarGlobalPaxPerEntryPolicy=' . ($tarGlobalPaxPerEntryRejected ? 'rejected'
 echo 'tarPaxLinkpathPolicy=' . ($tarPaxLinkpathRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarGnuLongLinkPolicy=' . ($tarGnuLongLinkRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarPaxUtf8PathPolicy=' . ($tarPaxUtf8PathRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'tarUstarPathUtf8Policy=' . ($tarUstarPathUtf8Rejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarGnuLongNameUtf8Policy=' . ($tarGnuLongNameUtf8Rejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarOwnerUtf8Policy=' . ($tarOwnerUtf8Rejected ? 'rejected' : 'not-rejected') . "\n";
 $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
