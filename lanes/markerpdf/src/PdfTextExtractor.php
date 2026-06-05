@@ -293,10 +293,11 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $resourceDictionary = $this->pageResourceDictionaryBody($pageObjectNumber, $objects);
-            if ($resourceDictionary === null) {
+            $pageResourceReview = $this->pageResourceDictionaryReview($pageObjectNumber, $objects);
+            if ($pageResourceReview === null) {
                 continue;
             }
+            $resourceDictionary = $pageResourceReview['body'];
 
             $pageClipReview = $this->pageImageXObjectBoundaryClipReview($pageObjectNumber, $objects);
             $baseInvocationStates = $pageClipReview === null ? [] : [[
@@ -315,7 +316,8 @@ final class PdfTextExtractor
                 null,
                 true,
                 $baseInvocationStates,
-                $pageClipReview
+                $pageClipReview,
+                $pageResourceReview['metadata']
             ) as $entry) {
                 $review['entries'][] = $entry;
                 $review['image_xobject_count']++;
@@ -4438,7 +4440,8 @@ final class PdfTextExtractor
         ?int $parentFormObjectNumber = null,
         bool $includeUninvokedImageResources = true,
         array $ownerInvocationMatrices = [],
-        ?array $pageBoundaryClipReview = null
+        ?array $pageBoundaryClipReview = null,
+        ?array $pageResourceReview = null
     ): array {
         $xObjectMap = $this->xObjectResourceReferences($resourceOwnerBody, $objects);
         if ($xObjectMap === []) {
@@ -4500,7 +4503,8 @@ final class PdfTextExtractor
                 $objectGeneration,
                 $objectBody,
                 $resourceOwnerBody,
-                $pageBoundaryClipReview
+                $pageBoundaryClipReview,
+                $pageResourceReview
             );
             if ($entry !== null && ($includeUninvokedImageResources || $entry['invoked'])) {
                 $entries[] = $entry;
@@ -4555,7 +4559,8 @@ final class PdfTextExtractor
                 $objectNumber,
                 $formHasOwnResources,
                 $formInvocationStates,
-                $pageBoundaryClipReview
+                $pageBoundaryClipReview,
+                $formHasOwnResources ? null : $pageResourceReview
             ) as $nestedEntry) {
                 $entries[] = $nestedEntry;
             }
@@ -4632,7 +4637,8 @@ final class PdfTextExtractor
         ?int $objectGeneration = null,
         ?string $objectBody = null,
         ?string $resourceOwnerBody = null,
-        ?array $pageBoundaryClipReview = null
+        ?array $pageBoundaryClipReview = null,
+        ?array $pageResourceReview = null
     ): ?array {
         $objectBody ??= $objects[$objectNumber] ?? null;
         if ($objectBody === null) {
@@ -4810,6 +4816,19 @@ final class PdfTextExtractor
             'page_clip_excludes_image' => $pageClipExcludedInvocationCount > 0,
             'page_clip_excluded_invocation_count' => $pageClipExcludedInvocationCount,
             'page_boundary_review_only' => $pageClipBbox !== null,
+            'page_resource_inherited' => is_array($pageResourceReview)
+                ? (($pageResourceReview['inherited'] ?? false) === true)
+                : null,
+            'page_resource_owner_object' => is_array($pageResourceReview) && is_int($pageResourceReview['owner_object'] ?? null)
+                ? $pageResourceReview['owner_object']
+                : null,
+            'page_resource_object' => is_array($pageResourceReview) && is_int($pageResourceReview['resource_object'] ?? null)
+                ? $pageResourceReview['resource_object']
+                : null,
+            'page_resource_generation' => is_array($pageResourceReview) && is_int($pageResourceReview['resource_generation'] ?? null)
+                ? $pageResourceReview['resource_generation']
+                : null,
+            'page_resource_review_only' => is_array($pageResourceReview),
             'placement_review_only' => true,
             'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
             'width' => $imageWidth,
@@ -11594,6 +11613,34 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
+     * @return array{body: string, metadata: array{owner_object: int, inherited: bool, resource_object: int|null, resource_generation: int|null}}|null
+     */
+    private function pageResourceDictionaryReview(int $pageObjectNumber, array $objects): ?array
+    {
+        foreach ($this->pageObjectLineage($pageObjectNumber, $objects) as $objectNumber) {
+            $resolution = $this->pageResourceDictionaryResolution($objects[$objectNumber], $objects);
+            if ($resolution['state'] === 'resolved') {
+                return [
+                    'body' => $resolution['body'],
+                    'metadata' => [
+                        'owner_object' => $objectNumber,
+                        'inherited' => $objectNumber !== $pageObjectNumber,
+                        'resource_object' => $resolution['object'],
+                        'resource_generation' => $resolution['generation'],
+                    ],
+                ];
+            }
+
+            if ($resolution['state'] === 'blocked') {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
      * @return array{bbox: list<float>, source: string, media_box: list<float>, media_box_source: string, crop_box: list<float>, crop_box_source: string, crop_box_clipped_to_media: bool, crop_box_intersects_media: bool, review_only: true}|null
      */
     private function pageImageXObjectBoundaryClipReview(int $pageObjectNumber, array $objects): ?array
@@ -11739,7 +11786,7 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{state: 'inherit'}|array{state: 'blocked'}|array{state: 'resolved', body: string}
+     * @return array{state: 'inherit'}|array{state: 'blocked'}|array{state: 'resolved', body: string, object: int|null, generation: int|null}
      */
     private function pageResourceDictionaryResolution(string $objectBody, array $objects): array
     {
@@ -11772,14 +11819,14 @@ final class PdfTextExtractor
             $body = $this->dictionaryObjectBody($objectBody);
             return $body === null
                 ? ['state' => 'blocked']
-                : ['state' => 'resolved', 'body' => $body];
+                : ['state' => 'resolved', 'body' => $body, 'object' => $objectNumber, 'generation' => $generation];
         }
 
         if (str_starts_with($value, '<<')) {
             $body = $this->readPdfDictionaryAt($value, 0);
             return $body === null
                 ? ['state' => 'blocked']
-                : ['state' => 'resolved', 'body' => $body];
+                : ['state' => 'resolved', 'body' => $body, 'object' => null, 'generation' => null];
         }
 
         return ['state' => 'blocked'];
