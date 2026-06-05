@@ -1654,9 +1654,24 @@ final class PdfTextExtractor
             }
 
             $title = $this->pdfStringValueAfterName($body, 'Title', $objects);
+            if ($title === null || $title === '') {
+                if ($lastItemObject === null || $objectNumber === $lastItemObject) {
+                    break;
+                }
+
+                $nextObjectNumber = $this->topLevelObjectReferenceValueAfterName($body, 'Next');
+                if ($nextObjectNumber === null) {
+                    break;
+                }
+
+                $previousSiblingObject = $objectNumber;
+                $objectNumber = $nextObjectNumber;
+                continue;
+            }
+
             $page = $this->outlinePageIndex($body, $objects, $pageIndexes);
 
-            if ($title !== null && $title !== '' && $page !== null) {
+            if ($page !== null) {
                 $items[] = [
                     'title' => $title,
                     'level' => $level,
@@ -1665,7 +1680,7 @@ final class PdfTextExtractor
             }
 
             $firstChildObject = $this->topLevelObjectReferenceValueAfterName($body, 'First');
-            if ($title !== null && $title !== '' && $firstChildObject !== null) {
+            if ($firstChildObject !== null) {
                 foreach ($this->outlineItemsFromLinkedList(
                     $firstChildObject,
                     $level + 1,

@@ -1196,8 +1196,18 @@ final class PdfOutlineExtractor
             }
 
             $title = $this->stringOrNameValue($this->resolveValue($dict['Title'] ?? null, $objects));
+            if ($title === null) {
+                if ($lastItemObject === null || $current === $lastItemObject) {
+                    break;
+                }
+
+                $previousSiblingObject = $current;
+                $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
+                continue;
+            }
+
             $outlineContext = $this->outlineActionStructureContext($dict, $objects);
-            if ($title !== null && array_key_exists('A', $dict)) {
+            if (array_key_exists('A', $dict)) {
                 $seenActions = [];
                 $actions = $this->reviewActionsFromValue($dict['A'], $objects, $pageIndexes, $destinations, $seenActions);
                 $seenTargetContext = [];
@@ -1237,7 +1247,7 @@ final class PdfOutlineExtractor
                         $items[] = $row;
                     }
                 }
-            } elseif ($title !== null) {
+            } else {
                 $destination = $this->outlineDestination($dict, $objects);
                 $destinationAction = $this->destinationActionReviewValue($destination['value'], $objects, $destinations, $destination['name']);
                 if ($destinationAction !== null) {
@@ -1318,7 +1328,7 @@ final class PdfOutlineExtractor
                 }
             }
 
-            if ($title !== null && $level < $maxDepth) {
+            if ($level < $maxDepth) {
                 foreach ($this->outlineActionReviewRows(
                     $dict['First'] ?? null,
                     $objects,
@@ -2720,9 +2730,19 @@ final class PdfOutlineExtractor
             }
 
             $title = $this->stringOrNameValue($this->resolveValue($dict['Title'] ?? null, $objects));
+            if ($title === null) {
+                if ($lastItemObject === null || $current === $lastItemObject) {
+                    break;
+                }
+
+                $previousSiblingObject = $current;
+                $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
+                continue;
+            }
+
             $destination = $this->outlineDestination($dict, $objects);
             $page = $this->destinationPageIndex($destination['value'], $objects, $pageIndexes, $destinations);
-            if ($title !== null && $page !== null) {
+            if ($page !== null) {
                 $items[] = [
                     'title' => $title,
                     'level' => $level,
@@ -2731,7 +2751,7 @@ final class PdfOutlineExtractor
                 ];
             }
 
-            if ($title !== null && $level < $maxDepth) {
+            if ($level < $maxDepth) {
                 foreach ($this->outlineItems($dict['First'] ?? null, $objects, $pageIndexes, $destinations, $current, $this->validReferenceObjectNumber($dict['Last'] ?? null, $objects), $maxDepth, $level + 1, $seen) as $child) {
                     $items[] = $child;
                 }
@@ -2795,6 +2815,16 @@ final class PdfOutlineExtractor
             }
 
             $title = $this->stringOrNameValue($this->resolveValue($dict['Title'] ?? null, $objects));
+            if ($title === null) {
+                if ($lastItemObject === null || $current === $lastItemObject) {
+                    break;
+                }
+
+                $previousSiblingObject = $current;
+                $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
+                continue;
+            }
+
             $destination = $this->outlineDestination($dict, $objects);
             $details = $this->destinationViewDetails(
                 $destination['value'],
@@ -2803,7 +2833,7 @@ final class PdfOutlineExtractor
                 $destinations,
                 $destination['name']
             );
-            if ($title !== null && $details !== null) {
+            if ($details !== null) {
                 $items[] = [
                     'title' => $title,
                     'level' => $level,
@@ -2815,7 +2845,7 @@ final class PdfOutlineExtractor
                 ];
             }
 
-            if ($title !== null && $level < $maxDepth) {
+            if ($level < $maxDepth) {
                 foreach ($this->outlineItemsWithDestinationViews($dict['First'] ?? null, $objects, $pageIndexes, $destinations, $current, $this->validReferenceObjectNumber($dict['Last'] ?? null, $objects), $maxDepth, $level + 1, $seen) as $child) {
                     $items[] = $child;
                 }
@@ -2883,6 +2913,16 @@ final class PdfOutlineExtractor
             }
 
             $title = $this->stringOrNameValue($this->resolveValue($dict['Title'] ?? null, $objects));
+            if ($title === null) {
+                if ($lastItemObject === null || $current === $lastItemObject) {
+                    break;
+                }
+
+                $previousSiblingObject = $current;
+                $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
+                continue;
+            }
+
             $destination = $this->outlineDestination($dict, $objects);
             $details = $this->destinationViewDetails(
                 $destination['value'],
@@ -2891,7 +2931,7 @@ final class PdfOutlineExtractor
                 $destinations,
                 $destination['name']
             );
-            if ($title !== null && $details !== null) {
+            if ($details !== null) {
                 $row = [
                     'title' => $title,
                     'level' => $level,
@@ -2934,7 +2974,7 @@ final class PdfOutlineExtractor
                 $items[] = $row;
             }
 
-            if ($title !== null && $level < $maxDepth) {
+            if ($level < $maxDepth) {
                 foreach ($this->outlineStructureDestinationPageContextItems(
                     $dict['First'] ?? null,
                     $objects,
@@ -3232,8 +3272,18 @@ final class PdfOutlineExtractor
             }
 
             $title = $this->stringOrNameValue($this->resolveValue($dict['Title'] ?? null, $objects));
+            if ($title === null) {
+                if ($lastItemObject === null || $current === $lastItemObject) {
+                    break;
+                }
+
+                $previousSiblingObject = $current;
+                $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
+                continue;
+            }
+
             $target = $this->remoteGoToActionTarget($dict, $objects, $destinations);
-            if ($title !== null && $target !== null) {
+            if ($target !== null) {
                 $items[] = [
                     'title' => $title,
                     'level' => $level,
@@ -3244,7 +3294,7 @@ final class PdfOutlineExtractor
                 ];
             }
 
-            if ($title !== null && $level < $maxDepth) {
+            if ($level < $maxDepth) {
                 foreach ($this->remoteGoToOutlineItems($dict['First'] ?? null, $objects, $destinations, $current, $this->validReferenceObjectNumber($dict['Last'] ?? null, $objects), $maxDepth, $level + 1, $seen) as $child) {
                     $items[] = $child;
                 }

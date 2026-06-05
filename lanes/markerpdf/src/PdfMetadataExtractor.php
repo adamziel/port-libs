@@ -3054,32 +3054,40 @@ final class PdfMetadataExtractor
             }
 
             $title = $this->reviewStringFromRaw($this->dictionaryTopLevelRawValue($dictionary, 'Title'), $objects);
-            if ($title !== null) {
-                $items[] = $this->documentOutlineItemMetadataRow(
-                    $dictionary,
-                    $current,
-                    $title,
-                    $level,
-                    $objects,
-                    $pageIndexes,
-                    $destinationsByName,
-                    $structureContext
-                );
-
-                foreach ($this->documentOutlineItemMetadataRows(
-                    $this->dictionaryTopLevelRawValue($dictionary, 'First'),
-                    $objects,
-                    $pageIndexes,
-                    $destinationsByName,
-                    $structureContext,
-                    $current,
-                    $this->validObjectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Last'), $objects),
-                    $maxDepth,
-                    $level + 1,
-                    $seen
-                ) as $child) {
-                    $items[] = $child;
+            if ($title === null) {
+                if ($lastItemObject === null || $current === $lastItemObject) {
+                    break;
                 }
+
+                $previousSiblingObject = $current;
+                $current = $this->validObjectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Next'), $objects);
+                continue;
+            }
+
+            $items[] = $this->documentOutlineItemMetadataRow(
+                $dictionary,
+                $current,
+                $title,
+                $level,
+                $objects,
+                $pageIndexes,
+                $destinationsByName,
+                $structureContext
+            );
+
+            foreach ($this->documentOutlineItemMetadataRows(
+                $this->dictionaryTopLevelRawValue($dictionary, 'First'),
+                $objects,
+                $pageIndexes,
+                $destinationsByName,
+                $structureContext,
+                $current,
+                $this->validObjectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Last'), $objects),
+                $maxDepth,
+                $level + 1,
+                $seen
+            ) as $child) {
+                $items[] = $child;
             }
 
             if ($lastItemObject !== null && $current === $lastItemObject) {
