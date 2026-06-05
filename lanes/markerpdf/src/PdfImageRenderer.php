@@ -1618,6 +1618,9 @@ final class PdfImageRenderer
         $expectedPixelCount = $width * $height;
         $imageStream = $this->decodedInlineImageStreamPreviewBoundary($canonical, $payload, $objects, true);
         $imageStreamMeta = $this->streamBoundaryPublicMetadata($imageStream);
+        if (($imageStreamMeta['decode_failed'] ?? false) === true) {
+            throw new InvalidArgumentException('Inline JPX ColorKey image prefix filters must be complete before supplied sample preview.');
+        }
         $this->assertInlineImageDecodeValidForPreview($plan['image_decode'] ?? null, 'Inline JPX ColorKey image');
         $complete = count($suppliedSamples) >= $expectedPixelCount;
         $limit = min($maxPixels, $expectedPixelCount, count($suppliedSamples));
@@ -1741,6 +1744,9 @@ final class PdfImageRenderer
         $imageStreamMeta = $this->streamBoundaryPublicMetadata($imageStream);
         $imageStreamDecoded = ($imageStream['decoded_with_current_filters'] ?? false) === true
             && is_string($imageStream['decoded_bytes'] ?? null);
+        if (($imageStreamMeta['decode_failed'] ?? false) === true) {
+            throw new InvalidArgumentException('Inline image prefix filters must be complete before output preview.');
+        }
         $imageStreamReviewOnly = !$imageStreamDecoded && $imageStreamMeta['preview_only_filters'] !== [];
         $usesSuppliedSamples = $suppliedSamples !== null;
         if (!$imageStreamDecoded && !$imageStreamReviewOnly) {
@@ -5908,17 +5914,26 @@ final class PdfImageRenderer
         $decoded = null;
         $unsupportedFilters = [];
         $decodeFailed = false;
+        $nativePrefixDecodedBytes = null;
+        $stoppedBeforeFilter = null;
 
         if ($stream !== null) {
             $decodeResult = $this->decodeImageStreamByFilters(
                 $dictionary,
                 $stream,
                 $objects,
+                $requireExplicitFilterEndMarkers,
                 $requireExplicitFilterEndMarkers
             );
             $decoded = $decodeResult['decoded'];
             $unsupportedFilters = $decodeResult['unsupported_filters'];
             $decodeFailed = $decodeResult['decode_failed'];
+            if (is_string($decodeResult['native_prefix_decoded_bytes'] ?? null)) {
+                $nativePrefixDecodedBytes = $decodeResult['native_prefix_decoded_bytes'];
+                $stoppedBeforeFilter = is_string($decodeResult['stopped_before_filter'] ?? null)
+                    ? $decodeResult['stopped_before_filter']
+                    : null;
+            }
         } elseif ($filters !== []) {
             $decodeFailed = true;
         }
@@ -5933,7 +5948,7 @@ final class PdfImageRenderer
             }
         }
 
-        return [
+        $boundary = [
             'filters' => $filters,
             'preview_only_filters' => $previewOnlyFilters,
             'unsupported_filters' => array_values($unsupportedFilters),
@@ -5945,6 +5960,16 @@ final class PdfImageRenderer
             'decode_failed' => $decodeFailed,
             'decoded_bytes' => $decoded,
         ];
+
+        if (is_string($nativePrefixDecodedBytes)) {
+            $boundary['native_prefix_decoded'] = true;
+            $boundary['native_prefix_decoded_length'] = strlen($nativePrefixDecodedBytes);
+            $boundary['native_prefix_decoded_sha256'] = hash('sha256', $nativePrefixDecodedBytes);
+            $boundary['native_prefix_decoded_preview_hex'] = strtoupper(bin2hex(substr($nativePrefixDecodedBytes, 0, 16)));
+            $boundary['stopped_before_filter'] = $stoppedBeforeFilter;
+        }
+
+        return $boundary;
     }
 
     /**
@@ -5966,11 +5991,11 @@ final class PdfImageRenderer
 
     /**
      * @param array<string, mixed> $boundary
-     * @return array{filters: list<string>, preview_only_filters: list<string>, unsupported_filters: list<string>, raw_length: int|null, decoded_length: int|null, decoded_sha256: string|null, decoded_preview_hex: string|null, decoded_with_current_filters: bool, decode_failed: bool}
+     * @return array<string, mixed>
      */
     private function streamBoundaryPublicMetadata(array $boundary): array
     {
-        return [
+        $metadata = [
             'filters' => $boundary['filters'],
             'preview_only_filters' => $boundary['preview_only_filters'],
             'unsupported_filters' => $boundary['unsupported_filters'],
@@ -5981,6 +6006,16 @@ final class PdfImageRenderer
             'decoded_with_current_filters' => $boundary['decoded_with_current_filters'],
             'decode_failed' => $boundary['decode_failed'],
         ];
+
+        if (($boundary['native_prefix_decoded'] ?? false) === true) {
+            $metadata['native_prefix_decoded'] = true;
+            $metadata['native_prefix_decoded_length'] = $boundary['native_prefix_decoded_length'] ?? null;
+            $metadata['native_prefix_decoded_sha256'] = $boundary['native_prefix_decoded_sha256'] ?? null;
+            $metadata['native_prefix_decoded_preview_hex'] = $boundary['native_prefix_decoded_preview_hex'] ?? null;
+            $metadata['stopped_before_filter'] = $boundary['stopped_before_filter'] ?? null;
+        }
+
+        return $metadata;
     }
 
     /**
@@ -6072,13 +6107,14 @@ final class PdfImageRenderer
 
     /**
      * @param array<int, string> $objects
-     * @return array{decoded: string|null, unsupported_filters: list<string>, decode_failed: bool}
+     * @return array<string, mixed>
      */
     private function decodeImageStreamByFilters(
         string $dictionary,
         string $stream,
         array $objects,
-        bool $requireExplicitFilterEndMarkers = false
+        bool $requireExplicitFilterEndMarkers = false,
+        bool $recordPreviewOnlyPrefix = false
     ): array
     {
         $filters = $this->imageFilterValues($dictionary, $objects);
@@ -6099,6 +6135,7 @@ final class PdfImageRenderer
 
         $decodeParms = $this->imageDecodeParmsValues($dictionary, $objects);
         $unsupportedFilters = [];
+        $decodedNativeFilterCount = 0;
 
         foreach ($filters as $index => $filter) {
             if (!is_string($filter)) {
@@ -6107,14 +6144,20 @@ final class PdfImageRenderer
 
             $decodeParmsValue = $this->decodeParmsValueForImageFilterIndex($filters, $decodeParms, $index);
             $resolvedDecodeParms = $this->resolvedDecodeParmsDictionary($decodeParmsValue, $objects);
-            if ($this->isPreviewOnlyStreamFilter($filter) || !$this->canApplyImageDecodeParms($filter, $resolvedDecodeParms, $objects)) {
+            $isPreviewOnlyFilter = $this->isPreviewOnlyStreamFilter($filter);
+            if ($isPreviewOnlyFilter || !$this->canApplyImageDecodeParms($filter, $resolvedDecodeParms, $objects)) {
                 $unsupportedFilters[] = $filter;
-
-                return [
+                $result = [
                     'decoded' => null,
                     'unsupported_filters' => $unsupportedFilters,
-                    'decode_failed' => !$this->isPreviewOnlyStreamFilter($filter),
+                    'decode_failed' => !$isPreviewOnlyFilter,
                 ];
+                if ($recordPreviewOnlyPrefix && $isPreviewOnlyFilter && $decodedNativeFilterCount > 0) {
+                    $result['native_prefix_decoded_bytes'] = $stream;
+                    $result['stopped_before_filter'] = $filter;
+                }
+
+                return $result;
             }
 
             if (
@@ -6151,6 +6194,7 @@ final class PdfImageRenderer
             }
 
             $stream = $decoded;
+            $decodedNativeFilterCount++;
         }
 
         return [

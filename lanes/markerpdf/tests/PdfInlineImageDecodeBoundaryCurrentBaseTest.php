@@ -305,6 +305,48 @@ return [
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
     },
+    'decodes native inline prefix filters before preview-only JPX handoff' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $jpxBytes = "\xFF\x4FWrapped JPX bytes with EI and BT inside\xFF\xD9";
+        $payload = strtoupper(bin2hex($jpxBytes)) . '>';
+        $dictionary = '/W 2 /H 1 /CS /RGB /BPC 8 /F [/AHx /JPXDecode] /D [0 1 1 0 0 1] /Mask [0 0 120 140 200 255]';
+        $content = "BT /F1 12 Tf 72 720 Td (Before wrapped JPX) Tj ET\n"
+            . "BI {$dictionary} ID {$payload}\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After wrapped JPX) Tj ET";
+        $preview = $renderer->inlineJpxColorKeyOutputPreviewRows(
+            $dictionary,
+            $payload,
+            [[0, 128, 240], [40, 64, 180]],
+            [],
+            2
+        );
+        $plainText = $extractor->extractPlainText($inlineImageDecodeBoundaryPdf($content));
+
+        $t->same('Before wrapped JPX' . "\n" . 'After wrapped JPX', $plainText);
+        $t->same(['ASCIIHexDecode', 'JPXDecode'], $preview['image_stream']['filters']);
+        $t->same(['JPXDecode'], $preview['image_stream']['preview_only_filters']);
+        $t->same(['JPXDecode'], $preview['image_stream']['unsupported_filters']);
+        $t->same(false, $preview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $preview['image_stream']['decode_failed']);
+        $t->same(true, $preview['image_stream']['native_prefix_decoded']);
+        $t->same(strlen($jpxBytes), $preview['image_stream']['native_prefix_decoded_length']);
+        $t->same(hash('sha256', $jpxBytes), $preview['image_stream']['native_prefix_decoded_sha256']);
+        $t->same(strtoupper(bin2hex(substr($jpxBytes, 0, 16))), $preview['image_stream']['native_prefix_decoded_preview_hex']);
+        $t->same('JPXDecode', $preview['image_stream']['stopped_before_filter']);
+        $t->same(['red' => 0, 'green' => 127, 'blue' => 240, 'alpha' => 0.0], $preview['pixels'][0]['output_rgba']);
+        $t->same(['red' => 40, 'green' => 191, 'blue' => 180, 'alpha' => 1.0], $preview['pixels'][1]['output_rgba']);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineJpxColorKeyOutputPreviewRows(
+                $dictionary,
+                substr($payload, 0, -1),
+                [[0, 128, 240], [40, 64, 180]],
+                [],
+                2
+            )
+        );
+    },
     'aligns null filter DecodeParms slots before inline image RGB preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $decodedImageBytes = 'ABC';

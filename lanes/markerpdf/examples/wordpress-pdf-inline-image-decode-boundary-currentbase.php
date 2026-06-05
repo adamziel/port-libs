@@ -165,6 +165,9 @@ $identityCryptFilterPayload = 'ABC EI BT /F1 12 Tf 72 516 Td (Identity Crypt Inl
 $identityCryptFilterDictionary = '/W 2 /H 1 /CS /RGB /BPC 8 /F /Crypt /DP << /Name /Identity >> /D [0 1 0 1 0 1]';
 $deviceNArrayColorSpacePayload = "\x01EI BT /F1 12 Tf 72 506 Td (DeviceN Array Inline Noise) Tj ET \x02";
 $calRgbArrayColorSpacePayload = "\x10EI BT /F1 12 Tf 72 498 Td (CalRGB Array Inline Noise) Tj ET \x20\x30";
+$wrappedJpxPrefixBytes = "\xFF\x4FWordPress wrapped JPX prefix bytes with EI and BT inside\xFF\xD9";
+$wrappedJpxPrefixPayload = strtoupper(bin2hex($wrappedJpxPrefixBytes)) . '>';
+$wrappedJpxPrefixDictionary = '/W 2 /H 1 /CS /RGB /BPC 8 /F [/AHx /JPXDecode] /D [0 1 1 0 0 1] /Mask [0 0 120 140 200 255]';
 
 $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . 'BI /W ' . strlen($imageRow) . ' /H 1 /CS /G /BPC 8 /F /Fl '
@@ -197,6 +200,9 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BI /W 1 /H 1 /CS [/CalRGB << /WhitePoint [1 1 1] >>] /BPC 8 ID\n"
     . $calRgbArrayColorSpacePayload . "\nEI\n"
     . "BT /F1 12 Tf 72 601 Td (After CalRGB Array Inline Image) Tj ET\n"
+    . "BT /F1 12 Tf 72 600 Td (Before Wrapped JPX Prefix Inline) Tj ET\n"
+    . "BI {$wrappedJpxPrefixDictionary} ID {$wrappedJpxPrefixPayload}\nEI\n"
+    . "BT /F1 12 Tf 72 597 Td (After Wrapped JPX Prefix Inline) Tj ET\n"
     . "BT /F1 12 Tf 72 608 Td (Before RunLength Inline Image) Tj ET\n"
     . 'BI /W ' . strlen($runLengthImageRow) . ' /H 1 /CS /G /BPC 8 /F /RL ID '
     . $runLengthPayload . "\nEI\n"
@@ -280,6 +286,25 @@ $nullFilterPredictorReview = $renderer->inlineImageColorSpaceMaskOutputPreviewRo
     [],
     3
 );
+$wrappedJpxPrefixReview = $renderer->inlineJpxColorKeyOutputPreviewRows(
+    $wrappedJpxPrefixDictionary,
+    $wrappedJpxPrefixPayload,
+    [[0, 128, 240], [40, 64, 180]],
+    [],
+    2
+);
+$wrappedJpxPrefixMissingEodRejected = false;
+try {
+    $renderer->inlineJpxColorKeyOutputPreviewRows(
+        $wrappedJpxPrefixDictionary,
+        substr($wrappedJpxPrefixPayload, 0, -1),
+        [[0, 128, 240], [40, 64, 180]],
+        [],
+        2
+    );
+} catch (InvalidArgumentException) {
+    $wrappedJpxPrefixMissingEodRejected = true;
+}
 $oversizedInlinePreview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
     '/W 1 /H 1 /CS /G /BPC 8 /F /Fl /D [0 1]',
     $oversizedCompressedImage,
@@ -438,6 +463,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After DeviceN Array Inline Image',
         'Before CalRGB Array Inline Image',
         'After CalRGB Array Inline Image',
+        'Before Wrapped JPX Prefix Inline',
+        'After Wrapped JPX Prefix Inline',
         'Before RunLength Inline Image',
         'After RunLength Inline Image',
         'Before Malformed Filter Inline',
@@ -484,6 +511,19 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && array_column($nullFilterPredictorReview['pixels'] ?? [], 'decoded_gray') === [65 / 255, 66 / 255, 67 / 255],
     'null_filter_inline_public_filters' => $nullFilterPredictorReview['image_stream']['filters'] ?? [],
     'null_filter_inline_decode_failed' => $nullFilterPredictorReview['image_stream']['decode_failed'] ?? null,
+    'wrapped_jpx_prefix_payload_has_eod' => str_ends_with($wrappedJpxPrefixPayload, '>'),
+    'wrapped_jpx_prefix_payload_excluded_from_text' => in_array('After Wrapped JPX Prefix Inline', $lines, true)
+        && !str_contains($plainText, 'WordPress wrapped JPX prefix bytes'),
+    'wrapped_jpx_prefix_native_filter_decoded_before_preview_only' => ($wrappedJpxPrefixReview['image_stream']['native_prefix_decoded'] ?? false) === true
+        && ($wrappedJpxPrefixReview['image_stream']['native_prefix_decoded_length'] ?? null) === strlen($wrappedJpxPrefixBytes)
+        && ($wrappedJpxPrefixReview['image_stream']['native_prefix_decoded_sha256'] ?? null) === hash('sha256', $wrappedJpxPrefixBytes),
+    'wrapped_jpx_prefix_stopped_before_filter' => $wrappedJpxPrefixReview['image_stream']['stopped_before_filter'] ?? null,
+    'wrapped_jpx_prefix_preview_only_filter' => $wrappedJpxPrefixReview['image_stream']['preview_only_filters'] ?? [],
+    'wrapped_jpx_prefix_decoded_with_current_filters' => $wrappedJpxPrefixReview['image_stream']['decoded_with_current_filters'] ?? null,
+    'wrapped_jpx_prefix_decode_failed' => $wrappedJpxPrefixReview['image_stream']['decode_failed'] ?? null,
+    'wrapped_jpx_prefix_missing_eod_rejected' => $wrappedJpxPrefixMissingEodRejected,
+    'wrapped_jpx_prefix_uses_supplied_samples' => ($wrappedJpxPrefixReview['uses_supplied_jpx_samples'] ?? false) === true,
+    'wrapped_jpx_prefix_first_output_rgba' => $wrappedJpxPrefixReview['pixels'][0]['output_rgba'] ?? null,
     'runlength_inline_eod_present' => str_contains($runLengthPayload, chr(128)),
     'runlength_inline_preview_decoded' => ($runLengthIndexedReview['image_stream']['decoded_with_current_filters'] ?? false) === true
         && ($runLengthIndexedReview['image_stream']['decoded_preview_hex'] ?? null) === '1C',
@@ -529,6 +569,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, '414243 EI')
         && !str_contains($plainText, 'DeviceN Array Inline Noise')
         && !str_contains($plainText, 'CalRGB Array Inline Noise')
+        && !str_contains($plainText, 'WordPress wrapped JPX prefix bytes')
         && !str_contains($plainText, 'RunLength Inline Noise')
         && !str_contains($plainText, 'RL EI')
         && !str_contains($plainText, 'Malformed Filter Inline Noise')
