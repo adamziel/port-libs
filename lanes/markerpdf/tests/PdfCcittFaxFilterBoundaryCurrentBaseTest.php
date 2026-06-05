@@ -397,6 +397,53 @@ return [
         ], $nullBoundary['effective_decode_parms'] ?? null);
         $t->same(false, $nullEntry['payload_in_visible_text'] ?? null);
     },
+    'marks resolved malformed indirect CCITT Fax DecodeParms operands fail closed' => static function (TestRunner $t): void {
+        $extractor = new PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before malformed indirect CCITT DecodeParms) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After malformed indirect CCITT DecodeParms) Tj ET';
+        $faxPayload = 'BT /F1 12 Tf 72 700 Td (Malformed indirect CCITT DecodeParms Payload Noise) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /FaxMalformedParms 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms 11 0 R /Length " . strlen($faxPayload) . " >>\nstream\n{$faxPayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "11 0 obj\n/NotADictionary\nendobj\n%%EOF";
+
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $decodeParms = $entry['filter_details'][0]['decode_parms'] ?? [];
+        $boundary = $entry['ccitt_fax_decode_boundary'] ?? [];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Before malformed indirect CCITT DecodeParms', 'After malformed indirect CCITT DecodeParms'], $extractor->extractTextLines($pdf));
+        $t->same("Before malformed indirect CCITT DecodeParms\nAfter malformed indirect CCITT DecodeParms", $plainText);
+        $t->true(!str_contains($plainText, 'Malformed indirect CCITT DecodeParms Payload Noise'));
+        $t->same([
+            'type' => 'CCITTFaxDecode',
+            'k' => null,
+            'columns' => null,
+            'rows' => null,
+            'black_is_1' => null,
+            'encoded_byte_align' => null,
+            'end_of_line' => null,
+            'end_of_block' => null,
+            'damaged_rows_before_error' => null,
+            'valid_decode_parms' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_operand'],
+            'decode_parms_review' => 'malformed_ccitt_decodeparms_fail_closed',
+            'decode_parms_operand' => 'malformed_operand',
+        ], $decodeParms);
+        $t->same(true, $boundary['decode_parms_present'] ?? null);
+        $t->same(true, $boundary['invalid_decode_parms'] ?? null);
+        $t->same(['decode_parms_operand'], $boundary['invalid_decode_parms_fields'] ?? null);
+        $t->same(false, $entry['native_raster_decode'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        $t->true(!str_contains(json_encode($review, JSON_UNESCAPED_SLASHES) ?: '', $faxPayload));
+    },
     'marks inline CCITT Fax image filters review-only before WordPress image preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $payload = "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline CCITT fax payload noise) Tj ET final";

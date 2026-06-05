@@ -5320,7 +5320,7 @@ final class PdfTextExtractor
     {
         $details = [];
         $decodeParmsOperandFailure = $decodeParms === null && $decodeParmsPresent
-            ? $this->imageXObjectDecodeParmsOperandFailureReview($dictionary ?? '')
+            ? $this->imageXObjectDecodeParmsOperandFailureReview($dictionary ?? '', $objects)
             : null;
 
         foreach ($filters as $index => $filter) {
@@ -5346,8 +5346,9 @@ final class PdfTextExtractor
 
     /**
      * @return array<string, int|bool|string|null|list<string>>|null
+     * @param array<int, string> $objects
      */
-    private function imageXObjectDecodeParmsOperandFailureReview(string $dictionary): ?array
+    private function imageXObjectDecodeParmsOperandFailureReview(string $dictionary, array $objects): ?array
     {
         $offset = $this->topLevelNameValueOffset($dictionary, 'DecodeParms');
         $value = $offset === null ? null : $this->pdfValueAtOffset($dictionary, $offset);
@@ -5355,9 +5356,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $operand = is_string($value) && preg_match('/^\s*\d+\s+\d+\s+R\s*$/', $value) === 1
-            ? 'unresolved_reference'
-            : 'malformed_operand';
+        $operand = $this->imageXObjectDecodeParmsOperandFailureKind($value, $objects);
 
         return [
             'type' => 'CCITTFaxDecode',
@@ -5376,6 +5375,45 @@ final class PdfTextExtractor
                 : 'malformed_ccitt_decodeparms_fail_closed',
             'decode_parms_operand' => $operand,
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenReferences
+     */
+    private function imageXObjectDecodeParmsOperandFailureKind(
+        string $value,
+        array $objects,
+        array $seenReferences = []
+    ): string {
+        $trimmed = trim($value);
+        if (preg_match('/^(\d+)\s+(\d+)\s+R$/', $trimmed, $match) !== 1) {
+            return 'malformed_operand';
+        }
+
+        $objectNumber = (int) $match[1];
+        $generation = (int) $match[2];
+        $key = $objectNumber . ':' . $generation;
+        if ($objectNumber <= 0 || isset($seenReferences[$key])) {
+            return 'unresolved_reference';
+        }
+
+        $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+        if ($body === null) {
+            return 'unresolved_reference';
+        }
+
+        $body = trim($body);
+        if (strtolower($body) === 'null') {
+            return 'malformed_operand';
+        }
+
+        $seenReferences[$key] = true;
+        if (preg_match('/^(\d+)\s+(\d+)\s+R$/', $body) === 1) {
+            return $this->imageXObjectDecodeParmsOperandFailureKind($body, $objects, $seenReferences);
+        }
+
+        return 'malformed_operand';
     }
 
     /**

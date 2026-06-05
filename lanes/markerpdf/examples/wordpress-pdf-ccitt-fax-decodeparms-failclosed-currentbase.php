@@ -28,13 +28,32 @@ $plainText = $extractor->extractPlainText($pdf);
 $faxParms = $review['entries'][0]['filter_details'][0]['decode_parms'] ?? [];
 $aliasParms = $review['entries'][1]['filter_details'][1]['decode_parms'] ?? [];
 
+$indirectBefore = 'BT /F1 12 Tf 72 720 Td (Before malformed indirect CCITT DecodeParms) Tj ET';
+$indirectAfter = 'BT /F1 12 Tf 72 680 Td (After malformed indirect CCITT DecodeParms) Tj ET';
+$indirectPayload = 'BT /F1 12 Tf 72 700 Td (Malformed indirect WordPress CCITT DecodeParms Payload Noise) Tj ET';
+$indirectPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /FaxMalformedParms 5 0 R >> >> >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($indirectBefore) . " >>\nstream\n{$indirectBefore}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms 11 0 R /Length " . strlen($indirectPayload) . " >>\nstream\n{$indirectPayload}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Length " . strlen($indirectAfter) . " >>\nstream\n{$indirectAfter}\nendstream\nendobj\n"
+    . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+    . "11 0 obj\n/NotADictionary\nendobj\n%%EOF";
+$indirectReview = $extractor->extractImageXObjectBoundaryReview($indirectPdf);
+$indirectPlainText = $extractor->extractPlainText($indirectPdf);
+$indirectParms = $indirectReview['entries'][0]['filter_details'][0]['decode_parms'] ?? [];
+
 if (
     ($faxParms['valid_decode_parms'] ?? null) !== false
     || ($aliasParms['valid_decode_parms'] ?? null) !== false
+    || ($indirectParms['decode_parms_review'] ?? null) !== 'malformed_ccitt_decodeparms_fail_closed'
+    || ($indirectParms['decode_parms_operand'] ?? null) !== 'malformed_operand'
     || !in_array('columns', $faxParms['invalid_decode_parms_fields'] ?? [], true)
     || !in_array('end_of_line', $aliasParms['invalid_decode_parms_fields'] ?? [], true)
     || str_contains($plainText, 'Invalid WordPress CCITT Fax Payload Noise')
     || str_contains($plainText, 'Invalid WordPress CCF Alias Payload Noise')
+    || str_contains($indirectPlainText, 'Malformed indirect WordPress CCITT DecodeParms Payload Noise')
 ) {
     throw new RuntimeException('CCITT DecodeParms fail-closed smoke failed.');
 }
@@ -50,7 +69,10 @@ $metadata = [
     'ccitt_invalid_fields' => $faxParms['invalid_decode_parms_fields'] ?? [],
     'ccf_valid_decode_parms' => $aliasParms['valid_decode_parms'] ?? null,
     'ccf_invalid_fields' => $aliasParms['invalid_decode_parms_fields'] ?? [],
+    'indirect_ccitt_decode_parms_review' => $indirectParms['decode_parms_review'] ?? null,
+    'indirect_ccitt_decode_parms_operand' => $indirectParms['decode_parms_operand'] ?? null,
     'payload_in_visible_text' => false,
+    'indirect_payload_in_visible_text' => false,
     'native_raster_decode' => false,
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
