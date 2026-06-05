@@ -190,6 +190,12 @@ if (!$scssCodeBlock instanceof PortLibs\Pandoc\AstNode || $scssCodeBlock->type !
 }
 $scss = $highlighter->highlightCodeBlock($scssCodeBlock, 'espresso');
 $scssWordpressBlock = $highlighter->wordpressHtmlBlock($scssCodeBlock, 'espresso');
+$goCodeBlock = $document->children[25] ?? null;
+if (!$goCodeBlock instanceof PortLibs\Pandoc\AstNode || $goCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Go code block');
+}
+$go = $highlighter->highlightCodeBlock($goCodeBlock, 'tango');
+$goWordpressBlock = $highlighter->wordpressHtmlBlock($goCodeBlock, 'tango');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -755,6 +761,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($scssWordpressBlock, '<style data-pandoc-highlight-style="espresso">')) {
         throw new RuntimeException('Expected SCSS WordPress style metadata');
     }
+    if (($go['language'] ?? '') !== 'go') {
+        throw new RuntimeException('Expected Go language handoff');
+    }
+    if (($go['lineNumbering']['start'] ?? null) !== 135) {
+        throw new RuntimeException('Expected Go source startFrom line-number handoff');
+    }
+    if (!str_contains($go['html'], '<span class="kw">package</span> <span class="va">review</span>')) {
+        throw new RuntimeException('Expected Go package token handoff');
+    }
+    if (!str_contains($go['html'], '<span class="kw">type</span> <span class="dt">ReviewPacket</span> <span class="kw">struct</span>')) {
+        throw new RuntimeException('Expected Go struct token handoff');
+    }
+    if (!str_contains($go['html'], '<span class="kw">func</span> <span class="fu">NormalizeTitle</span>')) {
+        throw new RuntimeException('Expected Go function token handoff');
+    }
+    if (!str_contains($go['html'], '<span class="va">json</span><span class="op">.</span><span class="fu">Unmarshal</span>')) {
+        throw new RuntimeException('Expected Go selector/function token handoff');
+    }
+    if (!str_contains($go['html'], '<span class="kw">go</span> <span class="kw">func</span><span class="op">()</span>')) {
+        throw new RuntimeException('Expected Go goroutine token handoff');
+    }
+    if (!str_contains($goWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
+        throw new RuntimeException('Expected Go WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -804,6 +834,7 @@ echo "cssHighlightedHtml:\n" . $css['html'] . "\n";
 echo "rustHighlightedHtml:\n" . $rust['html'] . "\n";
 echo "nixHighlightedHtml:\n" . $nix['html'] . "\n";
 echo "scssHighlightedHtml:\n" . $scss['html'] . "\n";
+echo "goHighlightedHtml:\n" . $go['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -824,4 +855,5 @@ echo "cssWordpressBlock:\n" . $cssWordpressBlock . "\n";
 echo "rustWordpressBlock:\n" . $rustWordpressBlock . "\n";
 echo "nixWordpressBlock:\n" . $nixWordpressBlock . "\n";
 echo "scssWordpressBlock:\n" . $scssWordpressBlock . "\n";
+echo "goWordpressBlock:\n" . $goWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

@@ -57,6 +57,9 @@ return [
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('pandoc-markdown'));
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('commonmark'));
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('gfm'));
+        $t->same('go', SyntaxHighlighter::normalizeLanguage('go'));
+        $t->same('go', SyntaxHighlighter::normalizeLanguage('golang'));
+        $t->same('go', SyntaxHighlighter::normalizeLanguage('language-go'));
         $t->same('nix', SyntaxHighlighter::normalizeLanguage('nix'));
         $t->same('nix', SyntaxHighlighter::normalizeLanguage('nix-expr'));
         $t->same('nix', SyntaxHighlighter::normalizeLanguage('nix-shell'));
@@ -414,6 +417,49 @@ return [
         $t->contains('<span class="va">$gap</span><span class="op">:</span> <span class="dv">1rem</span>', $directSass['html']);
         $t->contains('<span class="dt">.wp-block</span>', $directSass['html']);
         $t->contains('<span class="ot">margin</span><span class="op">:</span> <span class="va">$gap</span>', $directSass['html']);
+    },
+    'highlights go review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[25] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Go code block');
+        }
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'tango');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'tango');
+        $directGo = (new SyntaxHighlighter())->highlight('go func() { defer close(done); done <- "ok" }()', 'golang');
+
+        $t->same('go', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('go', $highlighted['language']);
+        $t->same('go', $highlighted['requestedLanguage']);
+        $t->same('tango', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(135, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource go numberLines"><code class="sourceCode go" style="counter-reset: source-line 134;">', $highlighted['html']);
+        $t->contains('<span id="go-review-135"><a href="#go-review-135"></a><span class="co">// WordPress import packet normalizer</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">package</span> <span class="va">review</span>', $highlighted['html']);
+        $t->contains('<span class="kw">import</span> <span class="op">(</span>', $highlighted['html']);
+        $t->contains('<span class="st">&quot;context&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">type</span> <span class="dt">ReviewPacket</span> <span class="kw">struct</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="dt">Title</span> <span class="dt">string</span> <span class="st">`json:&quot;title&quot;`</span>', $highlighted['html']);
+        $t->contains('<span class="dt">Meta</span> <span class="kw">map</span><span class="op">[</span><span class="dt">string</span><span class="op">]</span><span class="dt">any</span>', $highlighted['html']);
+        $t->contains('<span class="kw">func</span> <span class="fu">NormalizeTitle</span><span class="op">(</span><span class="va">ctx</span> <span class="va">context</span><span class="op">.</span><span class="dt">Context</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="va">packet</span> <span class="op">==</span> <span class="cn">nil</span> <span class="op">||</span>', $highlighted['html']);
+        $t->contains('<span class="kw">var</span> <span class="va">payload</span> <span class="kw">map</span><span class="op">[</span><span class="dt">string</span><span class="op">]</span><span class="dt">any</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="va">err</span> <span class="op">:=</span> <span class="va">json</span><span class="op">.</span><span class="fu">Unmarshal</span><span class="op">([]</span><span class="dt">byte</span>', $highlighted['html']);
+        $t->contains('<span class="kw">go</span> <span class="kw">func</span><span class="op">()</span> <span class="op">{</span> <span class="va">_</span> <span class="op">=</span> <span class="va">ctx</span><span class="op">.</span><span class="fu">Err</span><span class="op">()</span> <span class="op">}()</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="tango">', $wordpressBlock);
+        $t->contains('<span class="va">json</span><span class="op">.</span><span class="fu">Unmarshal</span>', $wordpressBlock);
+        $t->same('go', $directGo['language']);
+        $t->same('golang', $directGo['requestedLanguage']);
+        $t->contains('<span class="kw">go</span> <span class="kw">func</span><span class="op">()</span>', $directGo['html']);
+        $t->contains('<span class="kw">defer</span> <span class="fu">close</span><span class="op">(</span><span class="va">done</span><span class="op">);</span>', $directGo['html']);
+        $t->contains('<span class="va">done</span> <span class="op">&lt;-</span> <span class="st">&quot;ok&quot;</span>', $directGo['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

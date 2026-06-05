@@ -84,6 +84,8 @@ final class SyntaxHighlighter
         'pandoc-lua' => 'lua',
         'commonmark' => 'markdown',
         'gfm' => 'markdown',
+        'go' => 'go',
+        'golang' => 'go',
         'markdown' => 'markdown',
         'md' => 'markdown',
         'mmd' => 'markdown',
@@ -553,6 +555,7 @@ final class SyntaxHighlighter
             'css' => $this->tokenizeCss($code),
             'diff' => $this->tokenizeDiff($code),
             'dockerfile' => $this->tokenizeDockerfile($code),
+            'go' => $this->tokenizeGo($code),
             'haskell' => $this->tokenizeHaskell($code),
             'html' => $this->tokenizeHtml($code),
             'ini' => $this->tokenizeIni($code),
@@ -704,6 +707,29 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:::|->|>>>?=?|<<=?|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|\\.\\.\\.|[{}()[\\];,.+*\\/%=!<>?:&|^~-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeGo(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['string', '/^`[\\s\\S]*?`/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])+'/s"],
+            ['keyword', '/^\\b(?:break|case|chan|const|continue|default|defer|else|fallthrough|for|func|go|goto|if|import|interface|map|package|range|return|select|struct|switch|type|var)\\b/'],
+            ['constant', '/^\\b(?:false|iota|nil|true)\\b/'],
+            ['datatype', '/^\\b(?:any|bool|byte|comparable|complex64|complex128|error|float32|float64|int|int8|int16|int32|int64|rune|string|uint|uint8|uint16|uint32|uint64|uintptr)\\b/'],
+            ['number', '/^\\b(?:0[xX][0-9A-Fa-f](?:_?[0-9A-Fa-f])*|0[bB][01](?:_?[01])*|0[oO][0-7](?:_?[0-7])*|\\d(?:_?\\d)*(?:\\.\\d(?:_?\\d)*)?(?:[eE][+-]?\\d(?:_?\\d)*)?)(?:i)?\\b/'],
+            ['function', '/^\\b(?:append|cap|close|complex|copy|delete|imag|len|make|new|panic|print|println|real|recover)\\b(?=\\s*\\()/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[({*\\[]|\\b))/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:\\.\\.\\.|:=|<-|&\\^=?|<<=?|>>=?|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|[{}()[\\];,.+*\\/%=!<>?:&|^~-])/'],
         ]);
     }
 

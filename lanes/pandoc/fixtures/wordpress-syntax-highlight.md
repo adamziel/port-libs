@@ -332,3 +332,30 @@ $breakpoints: ("desktop": 48rem, "wide": 72rem);
 
 @include import-card(".wp-block-import-card");
 ```
+
+``` {.go #go-review .numberLines startFrom=135}
+// WordPress import packet normalizer
+package review
+
+import (
+    "context"
+    "encoding/json"
+)
+
+type ReviewPacket struct {
+    Title string `json:"title"`
+    Meta map[string]any
+}
+
+func NormalizeTitle(ctx context.Context, packet *ReviewPacket) (string, error) {
+    if packet == nil || packet.Title == "" {
+        return "Untitled", nil
+    }
+    var payload map[string]any
+    if err := json.Unmarshal([]byte(packet.Title), &payload); err != nil {
+        return packet.Title, err
+    }
+    go func() { _ = ctx.Err() }()
+    return packet.Title, nil
+}
+```
