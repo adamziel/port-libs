@@ -8093,6 +8093,10 @@ final class PdfMetadataExtractor
             return null;
         }
 
+        if (!$this->objectStreamMemberOffsetHasTokenBoundary($memberTable, $member)) {
+            return null;
+        }
+
         $objectDataLength = strlen($memberTable['decoded']) - $memberTable['first'];
         $nextOffset = $this->objectStreamMemberEndOffset($memberTable['members'], $member['offset'], $objectDataLength);
         if ($nextOffset === null) {
@@ -9075,6 +9079,104 @@ final class PdfMetadataExtractor
         }
 
         return $endOffset > $memberOffset ? $endOffset : null;
+    }
+
+    /**
+     * Object-stream offsets are relative to the first object byte and must
+     * start at a top-level member boundary, not inside another member's string,
+     * comment, array, or dictionary payload.
+     *
+     * @param array{decoded: string, first: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
+     * @param array{objectNumber: int, offset: int, index: int} $member
+     */
+    private function objectStreamMemberOffsetHasTokenBoundary(array $memberTable, array $member): bool
+    {
+        $decoded = $memberTable['decoded'];
+        $absoluteOffset = $memberTable['first'] + $member['offset'];
+        $length = strlen($decoded);
+        if ($member['offset'] < 0 || $absoluteOffset < $memberTable['first'] || $absoluteOffset >= $length) {
+            return false;
+        }
+
+        if ($absoluteOffset === $memberTable['first']) {
+            return true;
+        }
+
+        if ($decoded[$absoluteOffset] === '%') {
+            return false;
+        }
+
+        $index = $memberTable['first'];
+        while ($index < $absoluteOffset && $index < $length) {
+            $char = $decoded[$index];
+            if ($char === '%') {
+                $start = $index;
+                $index = $this->lineCommentEndOffset($decoded, $index);
+                if ($absoluteOffset < $index || $index === $start) {
+                    return false;
+                }
+                continue;
+            }
+
+            if ($char === '(') {
+                $start = $index;
+                $index = $this->literalTokenEndOffset($decoded, $index);
+                if ($absoluteOffset < $index || $index === $start) {
+                    return false;
+                }
+                continue;
+            }
+
+            if ($char === '<' && ($decoded[$index + 1] ?? '') !== '<') {
+                $end = strpos($decoded, '>', $index + 1);
+                if ($end === false) {
+                    return false;
+                }
+
+                $end++;
+                if ($absoluteOffset < $end) {
+                    return false;
+                }
+
+                $index = $end;
+                continue;
+            }
+
+            if ($char === '[') {
+                $array = $this->readPdfArrayAt($decoded, $index);
+                if ($array !== null) {
+                    $end = $index + strlen($array);
+                    if ($absoluteOffset < $end) {
+                        return false;
+                    }
+
+                    $index = $end;
+                    continue;
+                }
+            }
+
+            if ($char === '<' && ($decoded[$index + 1] ?? '') === '<') {
+                $dictionary = $this->readPdfDictionaryAt($decoded, $index);
+                if ($dictionary !== null) {
+                    $end = $index + strlen($dictionary) + 4;
+                    if ($absoluteOffset < $end) {
+                        return false;
+                    }
+
+                    $index = $end;
+                    continue;
+                }
+            }
+
+            $index++;
+        }
+
+        if ($index !== $absoluteOffset) {
+            return false;
+        }
+
+        $before = $decoded[$absoluteOffset - 1];
+        return ctype_space($before) || str_contains('[]()<>{}%', $before);
     }
 
     private function readUnsignedIntegerToken(string $value, int &$offset): ?int
