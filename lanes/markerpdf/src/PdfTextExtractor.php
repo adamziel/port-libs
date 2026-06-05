@@ -8864,6 +8864,7 @@ final class PdfTextExtractor
         );
         $embeddedFilePayloadObjectNumbers = $this->embeddedFilePayloadObjectNumbers($objects);
         $pieceInfoPrivateObjectNumbers = $this->pieceInfoPrivateStreamObjectNumbers($objects);
+        $outlineMetadataObjectGenerations = $this->outlineMetadataObjectGenerationSet($objects);
         $type3CharProcsDictionaryObjectGenerations = $this->type3CharProcsDictionaryObjectGenerationSet($objects);
         $type3CharProcObjectGenerations = $this->type3CharProcObjectGenerationSet($objects);
         $type3CharProcResourceObjectGenerations = $this->type3CharProcResourceObjectGenerationSet($objects);
@@ -8875,6 +8876,7 @@ final class PdfTextExtractor
                 || $objects[$streamObjectNumber] !== $definition['body']
                 || isset($embeddedFilePayloadObjectNumbers[$streamObjectNumber])
                 || isset($pieceInfoPrivateObjectNumbers[$streamObjectNumber])
+                || isset($outlineMetadataObjectGenerations[$streamObjectNumber][$definition['generation']])
                 || isset($type3CharProcsDictionaryObjectGenerations[$streamObjectNumber][$definition['generation']])
                 || isset($type3CharProcObjectGenerations[$streamObjectNumber][$definition['generation']])
                 || isset($type3CharProcResourceObjectGenerations[$streamObjectNumber][$definition['generation']])
@@ -8904,6 +8906,58 @@ final class PdfTextExtractor
         }
 
         return $streams;
+    }
+
+    /**
+     * @return array<int, array<int, true>>
+     * @param array<int, string> $objects
+     */
+    private function outlineMetadataObjectGenerationSet(array $objects): array
+    {
+        $references = [];
+        foreach ($objects as $body) {
+            $dictionary = $this->dictionaryObjectBody($body);
+            if ($dictionary === null || !$this->dictionaryLooksLikeOutlineItem($dictionary)) {
+                continue;
+            }
+
+            $metadataValue = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Metadata');
+            if ($metadataValue === null) {
+                continue;
+            }
+
+            $offset = 0;
+            $reference = $this->readPdfIndirectReferenceToken($metadataValue, $offset);
+            if ($reference === null) {
+                continue;
+            }
+
+            $metadataBody = $this->objectBodyForExactReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            );
+            if ($metadataBody === null || $this->streamDictionaryAndPayload($metadataBody, $objects) === null) {
+                continue;
+            }
+
+            $references[$reference['objectNumber']][$reference['generation']] = true;
+        }
+
+        return $references;
+    }
+
+    private function dictionaryLooksLikeOutlineItem(string $dictionary): bool
+    {
+        return $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Title') !== null
+            && (
+                $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Parent') !== null
+                || $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Dest') !== null
+                || $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'A') !== null
+                || $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'First') !== null
+                || $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Last') !== null
+                || $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Count') !== null
+            );
     }
 
     /**

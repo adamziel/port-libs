@@ -3500,6 +3500,14 @@ final class PdfMetadataExtractor
             $row['text_color_hex'] = $this->rgbUnitColorToHex($textColor);
         }
 
+        $metadataStreamReview = $this->documentOutlineItemMetadataStreamReview(
+            $this->dictionaryTopLevelRawValue($dictionary, 'Metadata'),
+            $objects
+        );
+        if ($metadataStreamReview !== []) {
+            $row['metadata_stream_review'] = $metadataStreamReview;
+        }
+
         foreach ($this->documentOutlineActionChainMetadata($this->dictionaryTopLevelRawValue($dictionary, 'A'), $objects) as $key => $value) {
             $row[$key] = $value;
         }
@@ -3551,6 +3559,98 @@ final class PdfMetadataExtractor
         }
 
         return $row;
+    }
+
+    /**
+     * Outline item /Metadata streams are bookmark-local review metadata. Keep
+     * their bytes hashed and typed without promoting their XML or stream
+     * payload to root document metadata or visible WordPress paragraphs.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function documentOutlineItemMetadataStreamReview(?string $value, array $objects): array
+    {
+        if ($value === null || $this->trimPdfWhitespaceAndComments($value) === 'null') {
+            return [];
+        }
+
+        $base = [
+            'source' => 'outline_item_metadata_stream',
+            'review_only' => true,
+            'payload_included' => false,
+            'visible_text_source' => false,
+            'accepted_as_document_xmp' => false,
+        ];
+
+        $objectNumber = $this->objectNumberFromReference($value);
+        if ($objectNumber === null) {
+            return $base + [
+                'status' => 'rejected_non_indirect_metadata_reference',
+            ];
+        }
+
+        $objectBody = $this->objectBodyFromReferenceValue($value, $objects);
+        if ($objectBody === null) {
+            return $base + [
+                'status' => 'unresolved_metadata_reference',
+                'object_number' => $objectNumber,
+            ];
+        }
+
+        $stream = $this->decodeStreamEntryObject($objectBody, $objects);
+        if ($stream === null) {
+            $review = $base + [
+                'status' => 'unreadable_metadata_stream',
+                'object_number' => $objectNumber,
+            ];
+            $dictionary = $this->dictionaryObjectBody($objectBody);
+            if ($dictionary !== null) {
+                foreach ($this->metadataStreamDictionaryLabels($dictionary, $objects) as $key => $metadataValue) {
+                    $review[$key] = $metadataValue;
+                }
+
+                $filters = $this->streamFilters($dictionary, $objects);
+                if ($filters !== []) {
+                    $review['filters'] = $filters;
+                }
+
+                $declaredLength = $this->streamLength($dictionary, $objects);
+                if ($declaredLength !== null) {
+                    $review['declared_length'] = $declaredLength;
+                }
+            }
+
+            return $review;
+        }
+
+        $review = $base + [
+            'status' => 'reviewed_outline_item_metadata_stream',
+            'object_number' => $objectNumber,
+            'bytes' => strlen($stream['content']),
+            'sha256' => hash('sha256', $stream['content']),
+        ];
+
+        foreach ($this->metadataStreamDictionaryLabels($stream['dictionary'], $objects) as $key => $metadataValue) {
+            $review[$key] = $metadataValue;
+        }
+
+        $filters = $this->streamFilters($stream['dictionary'], $objects);
+        if ($filters !== []) {
+            $review['filters'] = $filters;
+        }
+
+        $declaredLength = $this->streamLength($stream['dictionary'], $objects);
+        if ($declaredLength !== null) {
+            $review['declared_length'] = $declaredLength;
+        }
+
+        $xmpSummary = $this->xmpPacketReviewSummary($stream['content']);
+        if ($xmpSummary !== []) {
+            $review['xmp_summary'] = $xmpSummary;
+        }
+
+        return $review;
     }
 
     /**
