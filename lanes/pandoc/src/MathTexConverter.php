@@ -231,23 +231,186 @@ final class MathTexConverter
     public function texToMathMl(string $tex, bool $display = false, array $macros = []): string
     {
         $expandedTex = $this->expandRawTexMathMacros($tex, $this->normalizeMacroDefinitions($macros));
+        $equation = $this->extractEquationMetadata($expandedTex);
         $this->activeLeftFenceDepth = 0;
         $offset = 0;
-        $children = $this->parseExpression($expandedTex, $offset, null);
-        $this->skipWhitespace($expandedTex, $offset);
+        $children = $this->parseExpression($equation['tex'], $offset, null);
+        $this->skipWhitespace($equation['tex'], $offset);
 
-        if ($offset < strlen($expandedTex)) {
+        if ($offset < strlen($equation['tex'])) {
             throw new \InvalidArgumentException('Unsupported TeX token at offset ' . $offset);
         }
 
         $displayMode = $display ? 'block' : 'inline';
+        $annotations = '<annotation encoding="application/x-tex">' . $this->esc($tex) . '</annotation>';
+        if ($equation['label'] !== null) {
+            $annotations .= '<annotation encoding="application/x-tex-label">' . $this->esc($equation['label']) . '</annotation>';
+        }
 
         return '<math xmlns="http://www.w3.org/1998/Math/MathML" display="' . $displayMode . '">'
             . '<semantics>'
-            . $this->row($children)
-            . '<annotation encoding="application/x-tex">' . $this->esc($tex) . '</annotation>'
+            . $this->renderEquationBody($children, $equation)
+            . $annotations
             . '</semantics>'
             . '</math>';
+    }
+
+    /**
+     * @return array{tex:string, label:?string, labelId:?string, tag:?string, tagStarred:bool}
+     */
+    private function extractEquationMetadata(string $source): array
+    {
+        $output = '';
+        $label = null;
+        $labelId = null;
+        $tag = null;
+        $tagStarred = false;
+        $depth = 0;
+        $offset = 0;
+        $length = strlen($source);
+
+        while ($offset < $length) {
+            $char = $source[$offset];
+            if ($char === '\\') {
+                $commandOffset = $offset + 1;
+                $command = $this->readCommandName($source, $commandOffset);
+                if ($depth === 0 && $command === 'begin') {
+                    $environmentOffset = $commandOffset;
+                    $environment = $this->readRequiredGroupText($source, $environmentOffset);
+                    $this->readEnvironmentContent($source, $environmentOffset, $environment);
+                    $output .= substr($source, $offset, $environmentOffset - $offset);
+                    $offset = $environmentOffset;
+                    continue;
+                }
+
+                if ($depth === 0 && ($command === 'label' || $command === 'tag')) {
+                    $cursor = $commandOffset;
+                    $starred = false;
+                    if ($command === 'tag' && ($source[$cursor] ?? '') === '*') {
+                        $starred = true;
+                        $cursor++;
+                    }
+
+                    $this->skipWhitespace($source, $cursor);
+                    $argument = $this->readTexBraceArgument($source, $cursor);
+                    if ($argument === null) {
+                        throw new \InvalidArgumentException('Expected TeX \\' . $command . ' group at offset ' . $cursor);
+                    }
+
+                    $value = trim($argument['value']);
+                    if ($value === '') {
+                        throw new \InvalidArgumentException('Expected TeX \\' . $command . ' content at offset ' . $cursor);
+                    }
+
+                    if ($command === 'label') {
+                        if ($label !== null) {
+                            throw new \InvalidArgumentException('Duplicate TeX equation label at offset ' . $offset);
+                        }
+
+                        $label = $value;
+                        $labelId = $this->normalizeEquationLabelId($value);
+                    } else {
+                        if ($tag !== null) {
+                            throw new \InvalidArgumentException('Duplicate TeX equation tag at offset ' . $offset);
+                        }
+
+                        $tag = $value;
+                        $tagStarred = $starred;
+                    }
+
+                    $offset = $argument['next'];
+                    continue;
+                }
+
+                $output .= $char;
+                $offset++;
+                if (($source[$offset] ?? '') !== '' && !ctype_alpha($source[$offset])) {
+                    $output .= $source[$offset];
+                    $offset++;
+                }
+                continue;
+            }
+
+            if ($char === '{') {
+                $depth++;
+                $output .= $char;
+                $offset++;
+                continue;
+            }
+
+            if ($char === '}') {
+                if ($depth > 0) {
+                    $depth--;
+                }
+                $output .= $char;
+                $offset++;
+                continue;
+            }
+
+            $output .= $char;
+            $offset++;
+        }
+
+        if (($label !== null || $tag !== null) && trim($output) === '') {
+            throw new \InvalidArgumentException('Expected TeX math content before equation metadata');
+        }
+
+        return [
+            'tex' => $output,
+            'label' => $label,
+            'labelId' => $labelId,
+            'tag' => $tag,
+            'tagStarred' => $tagStarred,
+        ];
+    }
+
+    private function normalizeEquationLabelId(string $label): string
+    {
+        $id = preg_replace('/[^A-Za-z0-9_.:-]+/', '-', trim($label)) ?? '';
+        $id = trim($id, '-');
+        if ($id === '') {
+            throw new \InvalidArgumentException('Unsupported TeX equation label ' . $label);
+        }
+
+        if (preg_match('/^[A-Za-z][A-Za-z0-9_.:-]*$/', $id) !== 1) {
+            $id = 'math-' . $id;
+        }
+
+        return $id;
+    }
+
+    /**
+     * @param list<string> $children
+     * @param array{tex:string, label:?string, labelId:?string, tag:?string, tagStarred:bool} $equation
+     */
+    private function renderEquationBody(array $children, array $equation): string
+    {
+        $body = $this->row($children);
+        if ($equation['tag'] !== null) {
+            $tagText = $equation['tagStarred'] ? $equation['tag'] : '(' . $equation['tag'] . ')';
+            $labelAttribute = $equation['labelId'] !== null ? ' id="' . $this->esc($equation['labelId']) . '"' : '';
+
+            return '<mtable><mlabeledtr>'
+                . '<mtd><mtext>' . $this->esc($tagText) . '</mtext></mtd>'
+                . '<mtd' . $labelAttribute . '>' . $body . '</mtd>'
+                . '</mlabeledtr></mtable>';
+        }
+
+        if ($equation['labelId'] !== null) {
+            return $this->withMathMlId($body, $equation['labelId']);
+        }
+
+        return $body;
+    }
+
+    private function withMathMlId(string $mathml, string $id): string
+    {
+        $withId = preg_replace('/^<([A-Za-z][A-Za-z0-9]*)(?=[\s>])/', '<$1 id="' . $this->esc($id) . '"', $mathml, 1);
+        if (is_string($withId)) {
+            return $withId;
+        }
+
+        return '<mrow id="' . $this->esc($id) . '">' . $mathml . '</mrow>';
     }
 
     /**

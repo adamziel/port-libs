@@ -257,6 +257,18 @@ return [
         $t->contains('<annotation encoding="application/x-tex">p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b</annotation>', $explicitMathml);
         $t->contains('<mi>x</mi><mspace width="12pt"></mspace><mi>y</mi><mspace width="0em"></mspace><mi>z</mi>', $metricMathml);
     },
+    'converts bounded tex equation tags and labels to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $taggedMathml = $converter->texToMathMl('p_i + m_i \\label{eq:review-flow} \\tag{WP-2}', true);
+        $starredTagMathml = $converter->texToMathMl('p_i + m_i \\tag*{review}');
+        $labelOnlyMathml = $converter->texToMathMl('\\label{eq:plain}x_i + y_i');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $taggedMathml);
+        $t->contains('<mtable><mlabeledtr><mtd><mtext>(WP-2)</mtext></mtd><mtd id="eq:review-flow"><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow></mtd></mlabeledtr></mtable>', $taggedMathml);
+        $t->contains('<annotation encoding="application/x-tex">p_i + m_i \\label{eq:review-flow} \\tag{WP-2}</annotation><annotation encoding="application/x-tex-label">eq:review-flow</annotation>', $taggedMathml);
+        $t->contains('<mtext>review</mtext></mtd><mtd><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow></mtd>', $starredTagMathml);
+        $t->contains('<mrow id="eq:plain"><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><msub><mi>y</mi><mi>i</mi></msub></mrow>', $labelOnlyMathml);
+    },
     'converts bounded tex relation set logic and arrow commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $setMathml = $converter->texToMathMl('\\forall p_i \\in P \\land m_i \\notin M \\Rightarrow p_i \\subseteq Q \\cup R', true);
@@ -477,6 +489,10 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hspace{calc(1em)}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mspace{bad}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mspace*{1em}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\tag{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('x \\tag{A} \\tag{B}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\tag*'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\label{}x'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hat'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\vec_1'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underline^2'));
