@@ -970,6 +970,45 @@ XML;
         $t->contains('<span class="odf-sequence" data-odf-sequence-name="Illustration" data-odf-sequence-formula="ooow:Illustration+1" data-odf-sequence-ref-name="seq-hero">Figure 1</span>', $blocksHtml);
         $t->contains('<h2>Appendix <span class="odf-sequence" data-odf-sequence-name="Chapter" data-odf-sequence-formula="ooow:Chapter+1">A</span></h2>', $blocksHtml);
     },
+    'preserves ODT soft page breaks as review markers' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithSoftPageBreak = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Before source page boundary <text:soft-page-break/>after source page boundary.</text:p>
+      <text:h text:outline-level="2">Appendix marker<text:soft-page-break/>continued heading</text:h>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithSoftPageBreak));
+        $blocks = $result['document']->children;
+        $paragraph = $blocks[0];
+        $heading = $blocks[1];
+        $paragraphBreak = $paragraph->children[1];
+        $headingBreak = $heading->children[1];
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Before source page boundary after source page boundary.', $paragraph->attr('text'));
+        $t->same('span', $paragraphBreak->type);
+        $t->same(true, $paragraphBreak->attr('softPageBreak'));
+        $t->same(['odf-soft-page-break'], $paragraphBreak->attr('classes'));
+        $t->same('true', $paragraphBreak->attr('attributes')['data-odf-soft-page-break']);
+        $t->same('heading', $heading->type);
+        $t->same('span', $headingBreak->type);
+        $t->same(true, $headingBreak->attr('softPageBreak'));
+        $t->same(2, $result['importReport']['content']['softPageBreakCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Before source page boundary []{.odf-soft-page-break data-odf-soft-page-break="true"}after source page boundary.', $markdown);
+        $t->contains('## Appendix marker[]{.odf-soft-page-break data-odf-soft-page-break="true"}continued heading', $markdown);
+        $t->contains('<span class="odf-soft-page-break" data-odf-soft-page-break="true"></span>after source page boundary.', $blocksHtml);
+        $t->contains('<h2>Appendix marker<span class="odf-soft-page-break" data-odf-soft-page-break="true"></span>continued heading</h2>', $blocksHtml);
+    },
     'maps ODT variable user page and date fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithFields = <<<'XML'
 <office:document-content

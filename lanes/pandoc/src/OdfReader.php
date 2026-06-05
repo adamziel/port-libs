@@ -159,6 +159,7 @@ final class OdfReader
                     'referenceReferenceCount' => $contentStats['referenceReferenceCount'],
                     'sequenceCount' => $contentStats['sequenceCount'],
                     'fieldCount' => $contentStats['fieldCount'],
+                    'softPageBreakCount' => $contentStats['softPageBreakCount'],
                     'citationCount' => $contentStats['citationCount'],
                     'annotationRangeCount' => $contentStats['annotationRangeCount'],
                     'trackedChangeCount' => $contentStats['trackedChangeCount'],
@@ -1145,6 +1146,10 @@ final class OdfReader
                 $nodes[] = new AstNode('linebreak');
                 continue;
             }
+            if ($this->isElement($child, self::TEXT_NS, 'soft-page-break')) {
+                $nodes[] = $this->softPageBreakNode();
+                continue;
+            }
             if ($this->isTextFieldElement($child)) {
                 $field = $this->fieldNode($child, $catalog, $package);
                 if ($field instanceof AstNode) {
@@ -1275,6 +1280,18 @@ final class OdfReader
         }
 
         return new AstNode('link', $attrs, $this->coalesceTextNodes($this->inlineNodes($link, $catalog, $package)));
+    }
+
+    private function softPageBreakNode(): AstNode
+    {
+        return new AstNode('span', [
+            'sourceFormat' => 'odt',
+            'softPageBreak' => true,
+            'classes' => ['odf-soft-page-break'],
+            'attributes' => [
+                'data-odf-soft-page-break' => 'true',
+            ],
+        ]);
     }
 
     private function isTextFieldElement(\DOMElement $element): bool
@@ -2681,7 +2698,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, continuedListCount:int, listHeaderCount:int}
+     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, continuedListCount:int, listHeaderCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -2693,6 +2710,7 @@ final class OdfReader
             'referenceReferenceCount' => 0,
             'sequenceCount' => 0,
             'fieldCount' => 0,
+            'softPageBreakCount' => 0,
             'citationCount' => 0,
             'annotationRangeCount' => 0,
             'trackedChangeCount' => 0,
@@ -2735,6 +2753,9 @@ final class OdfReader
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-field')) {
                 $stats['fieldCount']++;
+            }
+            if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-soft-page-break')) {
+                $stats['softPageBreakCount']++;
             }
             if ($node->type === 'citation') {
                 $stats['citationCount']++;
