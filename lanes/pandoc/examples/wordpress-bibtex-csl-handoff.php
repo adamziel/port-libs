@@ -31,6 +31,8 @@ Patent and legal sources @import-patent and @review-act preserve legal review me
 
 Date-range sources @range-manual and @range-rule preserve interval metadata for review.
 
+Title metadata sources @title-review and @chapter-title-review keep reviewer subtitles attached.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -202,6 +204,27 @@ $bibtex = <<<'BIB'
   date         = {2024/2025},
   eventdate    = {2025-01-01/2025-01-31}
 }
+
+@book{title-review,
+  author     = {Curator, Eli},
+  title      = {Migration Manual},
+  subtitle   = {Reviewer Packet Guide},
+  titleaddon = {Draft source notes},
+  shorttitle = {Reviewer Guide},
+  date       = {2026},
+  publisher  = {Review Press}
+}
+
+@incollection{chapter-title-review,
+  author         = {Ng, Nia},
+  title          = {Checklist},
+  subtitle       = {Attachment Review},
+  booktitle      = {Migration Handbook},
+  booksubtitle   = {Import Desk Edition},
+  booktitleaddon = {Internal packet supplement},
+  date           = {2025},
+  pages          = {7--12}
+}
 BIB;
 
 $processor = CitationCslProcessor::fromBibtex($bibtex);
@@ -283,6 +306,23 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($rangeRule['eventDate']['display'] ?? null) !== '2025-01-01/2025-01-31') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve legal event date range metadata');
     }
+    $titleReview = $processor->item('title-review');
+    if (($titleReview['title'] ?? null) !== 'Migration Manual: Reviewer Packet Guide') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not compose title-review subtitle metadata');
+    }
+    if (($titleReview['shortTitle'] ?? null) !== 'Reviewer Guide') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve title-review short title metadata');
+    }
+    if (($titleReview['titleAddon'] ?? null) !== 'Draft source notes') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve title-review title addon metadata');
+    }
+    $chapterTitleReview = $processor->item('chapter-title-review');
+    if (($chapterTitleReview['containerTitle'] ?? null) !== 'Migration Handbook: Import Desk Edition') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not compose chapter container subtitle metadata');
+    }
+    if (($chapterTitleReview['containerTitleAddon'] ?? null) !== 'Internal packet supplement') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve chapter container title addon metadata');
+    }
 
     foreach ([
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
@@ -307,6 +347,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<dt>WordPress Import Review Act 2025</dt><dd>WordPress Import Review Act. Oregon Legislature, 2025. Statute HB 42. Authority: Oregon Legislature. Jurisdiction: Oregon. Event date 2025-06-01.</dd>',
         '<dt>de la Cruz 2020/2021</dt><dd>de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.</dd>',
         '<dt>Import Review Rule 2024/2025</dt><dd>Import Review Rule. Migration Board, 2024/2025. Regulation Rule 7. Authority: Migration Board. Event date 2025-01-01/2025-01-31.</dd>',
+        '<p>Title metadata sources Curator (2026) and Ng (2025) keep reviewer subtitles attached.</p>',
+        '<dt>Curator 2026</dt><dd>Curator, Eli. Migration Manual: Reviewer Packet Guide. Draft source notes. Review Press, 2026.</dd>',
+        '<dt>Ng 2025</dt><dd>Ng, Nia. Checklist: Attachment Review. Migration Handbook: Import Desk Edition. Internal packet supplement. 2025. 7-12.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {

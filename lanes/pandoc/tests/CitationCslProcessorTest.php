@@ -795,6 +795,94 @@ XML);
         $t->contains('<p>Review cites de la Cruz (2020/2021) and (Import Review Rule 2024/2025) for source date range audit.</p>', $blocks);
         $t->contains('<dt>de la Cruz 2020/2021</dt><dd>de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.</dd>', $blocks);
     },
+    'maps bounded biblatex subtitle short title and title addon metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{title-review,
+  author     = {Curator, Eli},
+  title      = {Migration Manual},
+  subtitle   = {Reviewer Packet Guide},
+  titleaddon = {Draft source notes},
+  shorttitle = {Reviewer Guide},
+  date       = {2026},
+  publisher  = {Review Press}
+}
+
+@incollection{chapter-title-review,
+  author         = {Ng, Nia},
+  title          = {Checklist},
+  subtitle       = {Attachment Review},
+  booktitle      = {Migration Handbook},
+  booksubtitle   = {Import Desk Edition},
+  booktitleaddon = {Internal packet supplement},
+  date           = {2025},
+  pages          = {7--12}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('Migration Manual: Reviewer Packet Guide', $items[0]['title']);
+        $t->same('Reviewer Guide', $items[0]['short-title']);
+        $t->same('Draft source notes', $items[0]['title-addon']);
+        $t->same('Checklist: Attachment Review', $items[1]['title']);
+        $t->same('Migration Handbook: Import Desk Edition', $items[1]['container-title']);
+        $t->same('Internal packet supplement', $items[1]['container-title-addon']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('title-review');
+        $chapter = $processor->item('chapter-title-review');
+        $t->same('Reviewer Guide', $manual['shortTitle'] ?? null);
+        $t->same('Draft source notes', $manual['titleAddon'] ?? null);
+        $t->same('Migration Handbook: Import Desk Edition', $chapter['containerTitle'] ?? null);
+        $t->same('Internal packet supplement', $chapter['containerTitleAddon'] ?? null);
+        $t->same('(Curator 2026; Ng 2025)', $processor->renderCitationCluster([
+            $citation('title-review', '[@title-review]'),
+            $citation('chapter-title-review', '[@chapter-title-review]'),
+        ]));
+        $t->same('Curator, Eli. Migration Manual: Reviewer Packet Guide. Draft source notes. Review Press, 2026.', $processor->renderBibliographyEntry('title-review'));
+        $t->same('Ng, Nia. Checklist: Attachment Review. Migration Handbook: Import Desk Edition. Internal packet supplement. 2025. 7-12.', $processor->renderBibliographyEntry('chapter-title-review'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <choose>
+          <if variable="short-title" match="any">
+            <text variable="short-title"/>
+          </if>
+          <else>
+            <text variable="title"/>
+          </else>
+        </choose>
+        <text variable="title-addon"/>
+        <text variable="container-title-addon"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="title-addon"/>
+      <text variable="container-title"/>
+      <text variable="container-title-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Reviewer Guide | Draft source notes; Checklist: Attachment Review | Internal packet supplement]', $styled->renderCitationCluster([
+            $citation('title-review', '[@title-review]'),
+            $citation('chapter-title-review', '[@chapter-title-review]'),
+        ]));
+        $t->same('Migration Manual: Reviewer Packet Guide :: Draft source notes', $styled->renderBibliographyEntry('title-review'));
+        $t->same('Checklist: Attachment Review :: Migration Handbook: Import Desk Edition :: Internal packet supplement', $styled->renderBibliographyEntry('chapter-title-review'));
+
+        $document = (new MarkdownReader())->read('Title metadata @title-review and [@chapter-title-review] stays visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Title metadata Curator (2026) and (Ng 2025) stays visible.</p>', $blocks);
+        $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Migration Manual: Reviewer Packet Guide. Draft source notes. Review Press, 2026.</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Checklist: Attachment Review. Migration Handbook: Import Desk Edition. Internal packet supplement. 2025. 7-12.</dd>', $blocks);
+    },
     'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
         $document = (new MarkdownReader())->read(

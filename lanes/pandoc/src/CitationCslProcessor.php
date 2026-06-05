@@ -285,9 +285,19 @@ final class CitationCslProcessor
             $parts[] = $title . '.';
         }
 
+        $titleAddon = (string) $item['titleAddon'];
+        if ($titleAddon !== '') {
+            $parts[] = $titleAddon . '.';
+        }
+
         $container = (string) $item['containerTitle'];
         if ($container !== '') {
             $parts[] = $container . '.';
+        }
+
+        $containerTitleAddon = (string) $item['containerTitleAddon'];
+        if ($containerTitleAddon !== '') {
+            $parts[] = $containerTitleAddon . '.';
         }
 
         $publisher = (string) $item['publisher'];
@@ -428,7 +438,10 @@ final class CitationCslProcessor
             'id' => $id,
             'type' => self::stringField($item, 'type'),
             'title' => self::stringField($item, 'title'),
+            'shortTitle' => self::stringField($item, 'short-title'),
+            'titleAddon' => self::stringField($item, 'title-addon'),
             'containerTitle' => self::stringField($item, 'container-title'),
+            'containerTitleAddon' => self::stringField($item, 'container-title-addon'),
             'publisher' => self::stringField($item, 'publisher'),
             'publisherPlace' => self::stringField($item, 'publisher-place'),
             'page' => self::stringField($item, 'page'),
@@ -1042,6 +1055,7 @@ final class CitationCslProcessor
             'editor' => $this->normalizeSortText($this->namesSortValue($item['editors'] ?? [], [])),
             'issued', 'date' => $this->issuedSortValue($item),
             'title' => $this->normalizeSortText((string) $item['title']),
+            'short-title' => $this->normalizeSortText((string) $item['shortTitle']),
             'container-title' => $this->normalizeSortText((string) $item['containerTitle']),
             'publisher' => $this->normalizeSortText((string) $item['publisher']),
             'type' => $this->normalizeSortText((string) $item['type']),
@@ -1885,7 +1899,10 @@ final class CitationCslProcessor
             'id', 'citation-key' => (string) $item['id'],
             'type' => (string) $item['type'],
             'title' => (string) $item['title'],
+            'short-title' => (string) $item['shortTitle'],
+            'title-addon' => (string) $item['titleAddon'],
             'container-title' => (string) $item['containerTitle'],
+            'container-title-addon' => (string) $item['containerTitleAddon'],
             'publisher' => (string) $item['publisher'],
             'publisher-place' => (string) $item['publisherPlace'],
             'page' => (string) $item['page'],

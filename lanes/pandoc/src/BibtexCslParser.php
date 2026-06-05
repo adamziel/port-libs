@@ -568,8 +568,11 @@ final class BibtexCslParser
         $item = [
             'id' => $key,
             'type' => self::cslType($type),
-            'title' => self::firstField($fields, ['title']),
-            'container-title' => self::firstField($fields, ['journaltitle', 'journal', 'booktitle']),
+            'title' => self::composedTitle($fields, ['title'], ['subtitle']),
+            'short-title' => self::firstField($fields, ['shorttitle']),
+            'title-addon' => self::firstField($fields, ['titleaddon']),
+            'container-title' => self::composedTitle($fields, ['journaltitle', 'journal', 'booktitle'], ['journalsubtitle', 'booksubtitle']),
+            'container-title-addon' => self::firstField($fields, ['journaltitleaddon', 'booktitleaddon']),
             'publisher' => self::firstField($fields, ['publisher', 'institution', 'school', 'organization']),
             'publisher-place' => self::firstField($fields, ['location', 'address', 'venue']),
             'page' => self::normalizePages(self::firstField($fields, ['pages', 'page'])),
@@ -770,6 +773,28 @@ final class BibtexCslParser
         }
 
         return '';
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $titleFields
+     * @param list<string> $subtitleFields
+     */
+    private static function composedTitle(array $fields, array $titleFields, array $subtitleFields): string
+    {
+        $title = self::firstField($fields, $titleFields);
+        $subtitle = self::firstField($fields, $subtitleFields);
+        if ($title === '') {
+            return $subtitle;
+        }
+
+        if ($subtitle === '') {
+            return $title;
+        }
+
+        $separator = preg_match('/[.?!:]\z/u', $title) === 1 ? ' ' : ': ';
+
+        return $title . $separator . $subtitle;
     }
 
     /**
