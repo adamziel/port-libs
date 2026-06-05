@@ -664,6 +664,28 @@ final class PdfMetadataExtractor
         }
 
         if ($this->isDocumentXmpMetadataStream($stream['dictionary'], $objects)) {
+            $xmpSummary = $this->xmpPacketReviewSummary($stream['content']);
+            if (($xmpSummary['status'] ?? null) === 'rejected_dtd_or_entity_declaration') {
+                $review = $base + [
+                    'status' => 'rejected_unsafe_document_xmp_stream',
+                    'object_number' => $objectNumber,
+                    'bytes' => strlen($stream['content']),
+                    'sha256' => hash('sha256', $stream['content']),
+                    'xmp_summary' => $xmpSummary,
+                ];
+
+                foreach ($this->metadataStreamDictionaryLabels($stream['dictionary'], $objects) as $key => $metadataValue) {
+                    $review[$key] = $metadataValue;
+                }
+
+                $filters = $this->streamFilters($stream['dictionary'], $objects);
+                if ($filters !== []) {
+                    $review['filters'] = $filters;
+                }
+
+                return $review;
+            }
+
             return [];
         }
 
@@ -5994,6 +6016,10 @@ final class PdfMetadataExtractor
         }
 
         foreach ($this->xmpXmlCandidates($xml) as $candidate) {
+            if ($this->xmpXmlCandidateUnsafeMarkup($candidate['xml']) !== []) {
+                continue;
+            }
+
             $previous = libxml_use_internal_errors(true);
             $document = new DOMDocument();
             $loaded = $document->loadXML($candidate['xml'], LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
@@ -6535,6 +6561,92 @@ final class PdfMetadataExtractor
         }
 
         return null;
+    }
+
+    /**
+     * XMP packets are document metadata, not a general XML processing surface.
+     * DTD/entity declarations can synthesize text that is absent from the PDF
+     * metadata stream payload, so skip those candidates before DOM textContent.
+     *
+     * @return list<string>
+     */
+    private function xmpXmlCandidateUnsafeMarkup(string $xml): array
+    {
+        $unsafe = [];
+        $offset = 0;
+        $length = strlen($xml);
+        while ($offset < $length) {
+            $tagStart = strpos($xml, '<', $offset);
+            if ($tagStart === false) {
+                break;
+            }
+
+            if (str_starts_with(substr($xml, $tagStart, 4), '<!--')) {
+                $end = strpos($xml, '-->', $tagStart + 4);
+                if ($end === false) {
+                    break;
+                }
+                $offset = $end + 3;
+                continue;
+            }
+
+            if (str_starts_with(substr($xml, $tagStart, 9), '<![CDATA[')) {
+                $end = strpos($xml, ']]>', $tagStart + 9);
+                if ($end === false) {
+                    break;
+                }
+                $offset = $end + 3;
+                continue;
+            }
+
+            if (str_starts_with(substr($xml, $tagStart, 2), '<?')) {
+                $end = strpos($xml, '?>', $tagStart + 2);
+                if ($end === false) {
+                    break;
+                }
+                $offset = $end + 2;
+                continue;
+            }
+
+            if (str_starts_with(substr($xml, $tagStart, 2), '<!')) {
+                $end = $this->xmlMarkupDeclarationEndOffset($xml, $tagStart)
+                    ?? $this->xmlTagEndOffset($xml, $tagStart);
+                if ($end === null) {
+                    break;
+                }
+
+                $declaration = substr($xml, $tagStart, $end - $tagStart);
+                $keyword = $this->xmlMarkupDeclarationKeyword($declaration);
+                if ($keyword === 'DOCTYPE') {
+                    $unsafe['DOCTYPE'] = true;
+                    if (preg_match('/<!\s*ENTITY\b/i', $declaration) === 1) {
+                        $unsafe['ENTITY'] = true;
+                    }
+                } elseif ($keyword === 'ENTITY') {
+                    $unsafe['ENTITY'] = true;
+                }
+
+                $offset = $end;
+                continue;
+            }
+
+            $end = $this->xmlTagEndOffset($xml, $tagStart);
+            if ($end === null) {
+                break;
+            }
+            $offset = $end;
+        }
+
+        return array_keys($unsafe);
+    }
+
+    private function xmlMarkupDeclarationKeyword(string $declaration): ?string
+    {
+        if (preg_match('/^<!\s*([A-Za-z]+)/', $declaration, $match) !== 1) {
+            return null;
+        }
+
+        return strtoupper($match[1]);
     }
 
     private function xmlTagLocalName(string $tagName): string
@@ -9841,7 +9953,7 @@ final class PdfMetadataExtractor
     {
         $parsed = $this->parseXmpPacket($xml);
         if ($parsed === []) {
-            return [];
+            return $this->xmpPacketSafetyReviewSummary($xml);
         }
 
         $fieldNames = [];
@@ -9921,6 +10033,45 @@ final class PdfMetadataExtractor
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function xmpPacketSafetyReviewSummary(string $xml): array
+    {
+        $unsafe = [];
+        $packetEncodings = [];
+        foreach ($this->xmpXmlCandidates($xml) as $candidate) {
+            $candidateUnsafe = $this->xmpXmlCandidateUnsafeMarkup($candidate['xml']);
+            if ($candidateUnsafe === []) {
+                continue;
+            }
+
+            foreach ($candidateUnsafe as $name) {
+                $unsafe[$name] = true;
+            }
+
+            $packetEncodings[] = $candidate['packet_encoding'];
+        }
+
+        if ($unsafe === []) {
+            return [];
+        }
+
+        return [
+            'source' => 'xmp_packet_review',
+            'status' => 'rejected_dtd_or_entity_declaration',
+            'field_names' => [],
+            'field_count' => 0,
+            'author_count' => 0,
+            'keyword_count' => 0,
+            'packet_encoding' => $packetEncodings[0] ?? 'unknown',
+            'payload_included' => false,
+            'text_values_redacted' => true,
+            'redacted_fields' => ['title', 'description', 'creator_tool', 'producer', 'authors', 'keywords'],
+            'unsafe_markup' => array_keys($unsafe),
+        ];
     }
 
     /**
