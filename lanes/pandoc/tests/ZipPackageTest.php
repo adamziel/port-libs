@@ -496,6 +496,43 @@ return [
         $t->same("Unicode media attachment placeholder\n", $package->read('/' . $unicodeName));
     },
 
+    'rejects unsafe raw zip names even when unicode path metadata is safe' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $safeUnicodePath = 'word/media/review.png';
+        $absoluteRawName = '/word/media/review.png';
+        $traversalRawName = 'word/../media/review.png';
+
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => $absoluteRawName,
+                'data' => 'absolute raw path with safe Unicode path',
+                'flags' => 0,
+                'centralExtra' => $buildUnicodeExtra(0x7075, $absoluteRawName, $safeUnicodePath),
+            ],
+        ])));
+
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => $traversalRawName,
+                'data' => 'traversal raw path with safe Unicode path',
+                'flags' => 0,
+                'centralExtra' => $buildUnicodeExtra(0x7075, $traversalRawName, $safeUnicodePath),
+            ],
+        ])));
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/review-image.bin',
+                'data' => "safe raw path with Unicode media name\n",
+                'flags' => 0,
+                'centralExtra' => $buildUnicodeExtra(0x7075, 'word/media/review-image.bin', $safeUnicodePath),
+            ],
+        ]));
+
+        $t->same([$safeUnicodePath], $package->names());
+        $t->same('word/media/review-image.bin', $package->entry('/' . $safeUnicodePath)->rawName);
+        $t->same("safe raw path with Unicode media name\n", $package->read('/' . $safeUnicodePath));
+    },
+
     'rejects mismatched unicode zip path metadata before exposing package names' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
         $rawName = 'word/media/review-image.bin';
         $unicodeName = "word/media/review-\u{2603}.png";

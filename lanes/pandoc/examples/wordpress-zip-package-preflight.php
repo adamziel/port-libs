@@ -456,6 +456,55 @@ $buildDriveLetterBackedPackage = static function () use ($crc32): string {
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildRawUnicodeTraversalBackedPackage = static function () use ($crc32, $buildUnicodeExtra): string {
+    $rawName = 'word/../media/review.png';
+    $safeUnicodeName = 'word/media/review.png';
+    $data = "Raw traversal path should stay blocked\n";
+    $crc = $crc32($data);
+    $unicodePathExtra = $buildUnicodeExtra(0x7075, $rawName, $safeUnicodeName);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($rawName),
+        strlen($unicodePathExtra)
+    );
+    $body .= $rawName . $unicodePathExtra . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($rawName),
+        strlen($unicodePathExtra),
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $rawName . $unicodePathExtra;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildDirectoryPayloadBackedPackage = static function () use ($crc32): string {
     $name = 'word/media/';
     $data = "Directory payload should stay blocked\n";
@@ -817,6 +866,12 @@ try {
 } catch (RuntimeException $exception) {
     $driveLetterRejected = str_contains($exception->getMessage(), 'Unsafe ZIP package entry name');
 }
+$rawUnicodeTraversalRejected = false;
+try {
+    ZipPackage::fromString($buildRawUnicodeTraversalBackedPackage());
+} catch (RuntimeException $exception) {
+    $rawUnicodeTraversalRejected = str_contains($exception->getMessage(), 'Unsafe ZIP package entry name');
+}
 $directoryPayloadRejected = false;
 try {
     ZipPackage::fromString($buildDirectoryPayloadBackedPackage());
@@ -1111,6 +1166,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected drive-letter ZIP paths to be rejected before media import');
     }
 
+    if (!$rawUnicodeTraversalRejected) {
+        throw new RuntimeException('Expected unsafe raw ZIP names with safe Unicode metadata to be rejected before media import');
+    }
+
     if (!$directoryPayloadRejected) {
         throw new RuntimeException('Expected ZIP directory entries with payload bytes to be rejected before media import');
     }
@@ -1191,6 +1250,7 @@ echo 'extended.reviewer-note.createdAt=' . ($extendedTimestamps['createdAt'] ?? 
 echo 'symlinkPolicy=' . ($symlinkRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zip64Policy=' . ($zip64Rejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'driveLetterPathPolicy=' . ($driveLetterRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'rawUnicodePathPolicy=' . ($rawUnicodeTraversalRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'directoryPayloadPolicy=' . ($directoryPayloadRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalEntryOverlapPolicy=' . ($localEntryOverlapRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'strongEncryptionPolicy=' . ($strongEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";

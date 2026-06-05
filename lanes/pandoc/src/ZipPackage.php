@@ -114,6 +114,7 @@ final class ZipPackage
             $rawName = substr($bytes, $variableStart, $nameLength);
             $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
             $rawComment = substr($bytes, $variableStart + $nameLength + $extraLength, $commentLength);
+            self::assertSafePartName($rawName);
             $decodedName = self::decodeZipText(
                 $rawName,
                 $flags,
