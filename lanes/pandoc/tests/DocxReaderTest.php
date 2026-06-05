@@ -605,6 +605,24 @@ $structuredDocumentTagXml = <<<'XML'
 </w:document>
 XML;
 
+$smartTagDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Tagged </w:t></w:r>
+      <w:smartTag w:uri="urn:schemas-microsoft-com:office:smarttags" w:element="PersonName">
+        <w:smartTagPr>
+          <w:attr w:name="normalized" w:uri="https://example.test/docx/smart-tags" w:val="Review Desk"/>
+          <w:attr w:name="review-id" w:val="packet-42"/>
+        </w:smartTagPr>
+        <w:r><w:rPr><w:b/></w:rPr><w:t>Review Desk</w:t></w:r>
+      </w:smartTag>
+      <w:r><w:t xml:space="preserve"> for import.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $sectionPropertiesDocumentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
@@ -836,6 +854,14 @@ $buildStructuredDocumentTagPackage = static function () use ($contentTypesXml, $
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $structuredDocumentTagXml],
+    ]);
+};
+
+$buildSmartTagPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $smartTagDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $smartTagDocumentXml],
     ]);
 };
 
@@ -1582,6 +1608,30 @@ return [
         $t->contains('data-docx-sdt-type="rich-text"', $blocks);
         $t->contains('data-docx-sdt-xpath="/packet/review/checklist"', $blocks);
         $t->contains('<table><tbody><tr><td><p>Owner</p></td><td><p>Migration desk</p></td></tr></tbody></table>', $blocks);
+    },
+    'preserves DOCX smart tag metadata around visible inline text' => static function (TestRunner $t) use ($buildSmartTagPackage): void {
+        $document = (new DocxReader())->readDocument($buildSmartTagPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Tagged ', $paragraph->children[0]->attr('text'));
+
+        $smartTag = $paragraph->children[1];
+        $t->same('span', $smartTag->type);
+        $t->same(['docx-smart-tag'], $smartTag->attr('classes'));
+        $t->same('urn:schemas-microsoft-com:office:smarttags', $smartTag->attr('attributes')['data-docx-smart-tag-uri']);
+        $t->same('PersonName', $smartTag->attr('attributes')['data-docx-smart-tag-element']);
+        $t->same('Review Desk', $smartTag->attr('attributes')['data-docx-smart-tag-prop-normalized']);
+        $t->same('https://example.test/docx/smart-tags', $smartTag->attr('attributes')['data-docx-smart-tag-prop-normalized-uri']);
+        $t->same('packet-42', $smartTag->attr('attributes')['data-docx-smart-tag-prop-review-id']);
+        $t->same('strong', $smartTag->children[0]->type);
+        $t->same('Review Desk', $smartTag->children[0]->children[0]->attr('text'));
+        $t->same(' for import.', $paragraph->children[2]->attr('text'));
+
+        $t->contains('Tagged [**Review Desk**]{.docx-smart-tag data-docx-smart-tag-uri="urn:schemas-microsoft-com:office:smarttags" data-docx-smart-tag-element="PersonName" data-docx-smart-tag-prop-normalized="Review Desk" data-docx-smart-tag-prop-normalized-uri="https://example.test/docx/smart-tags" data-docx-smart-tag-prop-review-id="packet-42"} for import.', $markdown);
+        $t->contains('<p>Tagged <span class="docx-smart-tag" data-docx-smart-tag-uri="urn:schemas-microsoft-com:office:smarttags" data-docx-smart-tag-element="PersonName" data-docx-smart-tag-prop-normalized="Review Desk" data-docx-smart-tag-prop-normalized-uri="https://example.test/docx/smart-tags" data-docx-smart-tag-prop-review-id="packet-42"><strong>Review Desk</strong></span> for import.</p>', $blocks);
     },
     'reports DOCX section page geometry margins columns and header footer relationships' => static function (TestRunner $t) use ($buildSectionPropertiesPackage): void {
         $reader = new DocxReader();

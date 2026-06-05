@@ -1277,7 +1277,7 @@ final class DocxReader
         }
 
         if ($this->isWordElement($element, 'smartTag')) {
-            return $this->inlineContainerNodes($element, $package, $relationships, $referencedNotes);
+            return $this->smartTagNodes($element, $package, $relationships, $referencedNotes);
         }
 
         if ($this->isWordElement($element, 'del') || $this->isWordElement($element, 'moveFrom')) {
@@ -1435,6 +1435,84 @@ final class DocxReader
         }
 
         return $inlines;
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @return list<AstNode>
+     */
+    private function smartTagNodes(
+        \DOMElement $smartTag,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes
+    ): array {
+        $children = $this->coalesceTextNodes($this->inlineContainerNodes($smartTag, $package, $relationships, $referencedNotes));
+        if ($children === []) {
+            return [];
+        }
+
+        return [new AstNode('span', $this->smartTagAttrs($smartTag), $children)];
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function smartTagAttrs(\DOMElement $smartTag): array
+    {
+        $attributes = [];
+        foreach ([
+            'uri' => 'data-docx-smart-tag-uri',
+            'element' => 'data-docx-smart-tag-element',
+        ] as $wordAttr => $htmlAttr) {
+            $value = $this->wordAttr($smartTag, $wordAttr);
+            if ($value !== null && $value !== '') {
+                $attributes[$htmlAttr] = $value;
+            }
+        }
+
+        $properties = $this->firstChildElement($smartTag, self::WORDPROCESSINGML_NS, 'smartTagPr');
+        if ($properties instanceof \DOMElement) {
+            foreach ($properties->childNodes as $child) {
+                if (!$child instanceof \DOMElement || !$this->isWordElement($child, 'attr')) {
+                    continue;
+                }
+
+                $name = $this->wordAttr($child, 'name');
+                $key = $name === null ? null : $this->smartTagPropertyKey($name);
+                if ($key === null) {
+                    continue;
+                }
+
+                $value = $this->wordAttr($child, 'val');
+                if ($value !== null && $value !== '') {
+                    $attributes['data-docx-smart-tag-prop-' . $key] = $value;
+                }
+
+                $uri = $this->wordAttr($child, 'uri');
+                if ($uri !== null && $uri !== '') {
+                    $attributes['data-docx-smart-tag-prop-' . $key . '-uri'] = $uri;
+                }
+            }
+        }
+
+        return [
+            'classes' => ['docx-smart-tag'],
+            'attributes' => $attributes,
+        ];
+    }
+
+    private function smartTagPropertyKey(string $name): ?string
+    {
+        $key = strtolower(trim($name));
+        if ($key === '') {
+            return null;
+        }
+
+        $key = preg_replace('/[^a-z0-9_.:-]+/', '-', $key) ?? '';
+        $key = trim($key, '-');
+
+        return $key === '' ? null : $key;
     }
 
     /**

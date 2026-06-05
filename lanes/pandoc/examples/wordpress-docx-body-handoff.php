@@ -94,6 +94,17 @@ XML],
       <w:r><w:t xml:space="preserve"> remains auditable.</w:t></w:r>
     </w:p>
     <w:p>
+      <w:r><w:t xml:space="preserve">Tagged reviewer </w:t></w:r>
+      <w:smartTag w:uri="urn:schemas-microsoft-com:office:smarttags" w:element="PersonName">
+        <w:smartTagPr>
+          <w:attr w:name="normalized" w:uri="https://example.test/docx/smart-tags" w:val="Migration Desk"/>
+          <w:attr w:name="review-id" w:val="packet-42"/>
+        </w:smartTagPr>
+        <w:r><w:rPr><w:b/></w:rPr><w:t>Migration Desk</w:t></w:r>
+      </w:smartTag>
+      <w:r><w:t xml:space="preserve"> remains traceable.</w:t></w:r>
+    </w:p>
+    <w:p>
       <w:r><w:t xml:space="preserve">Cross paragraph comment </w:t></w:r>
       <w:commentRangeStart w:id="10"/>
       <w:r><w:t>starts here</w:t></w:r>
@@ -351,6 +362,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<a href="#source_packet_anchor">source packet anchor</a>',
         '<a href="https://example.test/field-link?post=42" title="Field link title">field-coded source</a>',
         '<span class="docx-content-control docx-content-control-text" data-docx-sdt-id="42" data-docx-sdt-alias="Import Status" data-docx-sdt-tag="import_status" data-docx-sdt-type="text">Ready for import</span>',
+        '<span class="docx-smart-tag" data-docx-smart-tag-uri="urn:schemas-microsoft-com:office:smarttags" data-docx-smart-tag-element="PersonName" data-docx-smart-tag-prop-normalized="Migration Desk" data-docx-smart-tag-prop-normalized-uri="https://example.test/docx/smart-tags" data-docx-smart-tag-prop-review-id="packet-42"><strong>Migration Desk</strong></span>',
         '<p>Cross paragraph comment <span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z">starts here</span></p>',
         '<p><span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z">continues here</span> for import review',
         '<span id="source_packet_anchor" class="anchor"></span>Import reviewer keeps',
