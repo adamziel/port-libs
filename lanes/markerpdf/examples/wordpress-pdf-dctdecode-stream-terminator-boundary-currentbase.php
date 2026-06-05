@@ -28,23 +28,40 @@ $prefixPdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
     . "2 0 obj\n<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/A85 /DCTDecode] >>\nstream\n{$ascii85WrappedPayload}\nendstream\nendobj\n"
     . "3 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n%%EOF";
+$overlongBefore = 'BT /F1 12 Tf 72 720 Td (Before Overlong DCT Import) Tj ET';
+$overlongAfter = 'BT /F1 12 Tf 72 680 Td (After Overlong DCT Import) Tj ET';
+$overlongDecoy = 'BT /F1 12 Tf 72 700 Td (WordPress Overlong DCT Leak) Tj ET';
+$overlongJpegPayload = "\xff\xd8\xff\xe0JFIF\0JPEG bytes before real EOI\xff\xd9";
+$overlongPostStream = "\nendstream\n{$overlongDecoy}\nendobj\n";
+$overdeclaredLength = strlen($overlongJpegPayload . $overlongPostStream) + 24;
+$overlongPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Length " . strlen($overlongBefore) . " >>\nstream\n{$overlongBefore}\nendstream\nendobj\n"
+    . "2 0 obj\n<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length {$overdeclaredLength} >>\nstream\n{$overlongJpegPayload}{$overlongPostStream}"
+    . "3 0 obj\n<< /Length " . strlen($overlongAfter) . " >>\nstream\n{$overlongAfter}\nendstream\nendobj\n%%EOF";
 
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
 $plainText = $extractor->extractPlainText($pdf);
 $prefixLines = $extractor->extractTextLines($prefixPdf);
 $prefixPlainText = $extractor->extractPlainText($prefixPdf);
+$overlongLines = $extractor->extractTextLines($overlongPdf);
+$overlongPlainText = $extractor->extractPlainText($overlongPdf);
 $payloadExcluded = !str_contains($plainText, 'JPEG Payload Object Leak')
     && !str_contains($plainText, 'JFIF')
     && !str_contains($plainText, 'endstream');
 $prefixPayloadExcluded = !str_contains($prefixPlainText, 'JPEG Payload Object Leak')
     && !str_contains($prefixPlainText, 'endstream');
+$overlongPayloadExcluded = !str_contains($overlongPlainText, 'WordPress Overlong DCT Leak')
+    && !str_contains($overlongPlainText, 'JFIF')
+    && !str_contains($overlongPlainText, 'endstream');
 
 if (
     $lines !== ['Before DCT Stream', 'After DCT Stream']
     || $prefixLines !== ['Before DCT Stream', 'After DCT Stream']
+    || $overlongLines !== ['Before Overlong DCT Import', 'After Overlong DCT Import']
     || !$payloadExcluded
     || !$prefixPayloadExcluded
+    || !$overlongPayloadExcluded
 ) {
     throw new RuntimeException('DCTDecode stream terminator boundary leaked JPEG payload bytes into WordPress text.');
 }
@@ -57,8 +74,10 @@ echo '<!-- markerpdf:pdf-dctdecode-stream-terminator-boundary-currentbase ' . ht
     'nul_padded_jpeg_eoi_boundary' => true,
     'prefix_filter_eod_guard' => true,
     'stale_length_fake_endstream_rejected' => true,
-    'embedded_fake_object_rejected' => $payloadExcluded && $prefixPayloadExcluded,
+    'overdeclared_length_recovered_at_jpeg_eoi' => $overlongPayloadExcluded,
+    'embedded_fake_object_rejected' => $payloadExcluded && $prefixPayloadExcluded && $overlongPayloadExcluded,
     'paragraphs' => $lines,
+    'overdeclared_paragraphs' => $overlongLines,
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
     'executes_pypdfium_or_pil' => false,

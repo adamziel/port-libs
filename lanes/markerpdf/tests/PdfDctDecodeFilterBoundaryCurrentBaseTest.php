@@ -273,6 +273,57 @@ return [
             $t->true(!str_contains($plainText, 'endstream'));
         }
     },
+    'recovers overdeclared DCTDecode lengths at JPEG EOI before later objects' => static function (TestRunner $t): void {
+        $extractor = new PortLibs\MarkerPDF\PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before overlong DCT stream) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After overlong DCT stream) Tj ET';
+        $postStreamDecoy = 'BT /F1 12 Tf 72 700 Td (Overlong DCT poststream leak) Tj ET';
+        $jpegPayload = "\xff\xd8\xff\xe0JFIF\0JPEG bytes before real EOI\xff\xd9";
+        $postStreamGarbage = "\nendstream\n{$postStreamDecoy}\nendobj\n";
+        $overdeclaredLength = strlen($jpegPayload . $postStreamGarbage) + 24;
+
+        $streamOnlyPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "2 0 obj\n<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length {$overdeclaredLength} >>\nstream\n{$jpegPayload}{$postStreamGarbage}"
+            . "3 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n%%EOF";
+
+        $pageContent = $before . "\nq 24 0 0 24 72 680 cm /Photo Do Q\n" . $after;
+        $pagePdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Photo 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length {$overdeclaredLength} >>\nstream\n{$jpegPayload}{$postStreamGarbage}"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $expected = ['Before overlong DCT stream', 'After overlong DCT stream'];
+
+        foreach ([$streamOnlyPdf, $pagePdf] as $pdf) {
+            $plainText = $extractor->extractPlainText($pdf);
+
+            $t->same($expected, $extractor->extractTextLines($pdf));
+            $t->same($expected, $extractor->extractTextRuns($pdf));
+            $t->same("Before overlong DCT stream\nAfter overlong DCT stream", $plainText);
+            $t->same("Before overlong DCT stream\nAfter overlong DCT stream\n", $extractor->naiveGetText($pdf));
+            $t->true(!str_contains($plainText, 'Overlong DCT poststream leak'));
+            $t->true(!str_contains($plainText, 'JFIF'));
+            $t->true(!str_contains($plainText, 'endstream'));
+        }
+
+        $review = $extractor->extractImageXObjectBoundaryReview($pagePdf);
+        $entry = $review['entries'][0] ?? null;
+
+        $t->true(is_array($entry), 'Image XObject review row should be present.');
+        $t->same(strlen($jpegPayload), $entry['raw_length'] ?? null);
+        $t->true(($entry['raw_length'] ?? 0) < $overdeclaredLength);
+        $t->same(['DCTDecode'], $entry['filters'] ?? null);
+        $t->same(['DCTDecode'], $entry['preview_only_filters'] ?? null);
+        $t->same(false, $entry['native_raster_decode'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
     'keeps NUL-padded DCTDecode JPEG EOI boundaries before fake endstream payloads' => static function (TestRunner $t): void {
         $extractor = new PortLibs\MarkerPDF\PdfTextExtractor();
         $before = 'BT /F1 12 Tf 72 720 Td (Before padded DCT stream) Tj ET';
