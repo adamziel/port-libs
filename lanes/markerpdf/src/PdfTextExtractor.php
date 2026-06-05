@@ -23412,6 +23412,15 @@ final class PdfTextExtractor
                         'index' => $fieldThree,
                         'indexIsExplicit' => $widths[2] > 0,
                     ];
+                } elseif ($type > 2 && $objectNumber > 0) {
+                    // Unknown xref-stream entry types still own the current row;
+                    // fail closed so stale /Prev owners cannot be replayed.
+                    $entries[$objectNumber] = [
+                        'type' => 0,
+                        'generation' => $fieldThree,
+                        'offset' => $fieldTwo,
+                        'offsetIsExplicit' => $widths[1] > 0,
+                    ];
                 }
 
                 $offset += $entryWidth;
