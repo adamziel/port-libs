@@ -26,6 +26,8 @@ return [
 
         $t->same('php', SyntaxHighlighter::languageFromCodeBlock($node));
         $t->same('php', SyntaxHighlighter::languageFromCodeBlock($lineNumberNode));
+        $t->same('haskell', SyntaxHighlighter::normalizeLanguage('lhs'));
+        $t->same('haskell', SyntaxHighlighter::normalizeLanguage('literate-haskell'));
         $t->same('html', SyntaxHighlighter::normalizeLanguage('HTML5'));
         $t->same('javascript', SyntaxHighlighter::normalizeLanguage('language-js'));
         $t->same('yaml', SyntaxHighlighter::normalizeLanguage('yml'));
@@ -154,6 +156,37 @@ return [
         $t->same('sql', $sql['language']);
         $t->contains('<span class="kw">select</span> <span class="fu">count</span><span class="op">(*)</span> <span class="kw">from</span>', $sql['html']);
         $t->contains('<span class="st">&#039;publish&#039;</span>', $sql['html']);
+    },
+    'highlights haskell and literate haskell review snippets' => static function (TestRunner $t): void {
+        $codeBlock = new AstNode('code_block', [
+            'classes' => ['sourceCode', 'literate-haskell'],
+            'attributes' => [],
+            'text' => implode("\n", [
+                '{- migration review -}',
+                'module Review.Import where',
+                'import Text.Pandoc (Pandoc)',
+                'renderBlocks :: Pandoc -> Text',
+                'renderBlocks post = writeMarkdown def post',
+                'status = Just 42',
+            ]),
+        ]);
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'zenburn');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'zenburn');
+
+        $t->same('literate-haskell', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('haskell', $highlighted['language']);
+        $t->same('literate-haskell', $highlighted['requestedLanguage']);
+        $t->same('zenburn', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->contains('<pre class="sourceCode haskell"><code class="sourceCode haskell">', $highlighted['html']);
+        $t->contains('<span class="co">{- migration review -}</span>', $highlighted['html']);
+        $t->contains('<span class="kw">module</span> <span class="dt">Review.Import</span> <span class="kw">where</span>', $highlighted['html']);
+        $t->contains('<span class="kw">import</span> <span class="dt">Text.Pandoc</span> <span class="op">(</span><span class="dt">Pandoc</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="va">renderBlocks</span> <span class="op">::</span> <span class="dt">Pandoc</span> <span class="op">-&gt;</span> <span class="dt">Text</span>', $highlighted['html']);
+        $t->contains('<span class="cn">Just</span> <span class="dv">42</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="zenburn">', $wordpressBlock);
+        $t->contains('<span class="kw">import</span> <span class="dt">Text.Pandoc</span>', $wordpressBlock);
     },
     'falls back safely for unsupported languages' => static function (TestRunner $t): void {
         $highlighted = (new SyntaxHighlighter())->highlight('<danger>& text', 'brainfuck');

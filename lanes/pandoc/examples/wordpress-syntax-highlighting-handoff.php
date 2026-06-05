@@ -30,6 +30,19 @@ $numberedCodeBlock = new AstNode('code_block', [
 ]);
 $numbered = $highlighter->highlightCodeBlock($numberedCodeBlock, 'pygments');
 $numberedWordpressBlock = $highlighter->wordpressHtmlBlock($numberedCodeBlock, 'pygments');
+$haskellCodeBlock = new AstNode('code_block', [
+    'classes' => ['sourceCode', 'literate-haskell'],
+    'attributes' => [],
+    'text' => implode("\n", [
+        '{- migration review -}',
+        'module Review.Import where',
+        'import Text.Pandoc (Pandoc)',
+        'renderBlocks :: Pandoc -> Text',
+        'status = Just 42',
+    ]),
+]);
+$haskell = $highlighter->highlightCodeBlock($haskellCodeBlock, 'zenburn');
+$haskellWordpressBlock = $highlighter->wordpressHtmlBlock($haskellCodeBlock, 'zenburn');
 
 if (($argv[1] ?? '') === '--self-test') {
     if (($highlighted['language'] ?? '') !== 'php') {
@@ -53,6 +66,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($numberedWordpressBlock, '<span id="migration-review-42"><a href="#migration-review-42"></a>')) {
         throw new RuntimeException('Expected Pandoc line anchor handoff');
     }
+    if (($haskell['language'] ?? '') !== 'haskell') {
+        throw new RuntimeException('Expected literate Haskell alias handoff');
+    }
+    if (!str_contains($haskell['html'], '<span class="kw">module</span> <span class="dt">Review.Import</span>')) {
+        throw new RuntimeException('Expected Haskell module token handoff');
+    }
+    if (!str_contains($haskellWordpressBlock, '<style data-pandoc-highlight-style="zenburn">')) {
+        throw new RuntimeException('Expected Haskell WordPress style metadata');
+    }
+    if (!str_contains($haskellWordpressBlock, '<span class="cn">Just</span> <span class="dv">42</span>')) {
+        throw new RuntimeException('Expected Haskell constructor and number token handoff');
+    }
 
     echo "syntax highlighting handoff self-test ok\n";
     exit(0);
@@ -62,4 +87,5 @@ echo "Syntax highlighting handoff for WordPress import:\n";
 echo "language: " . $highlighted['language'] . "\n";
 echo "highlightedHtml:\n" . $highlighted['html'] . "\n";
 echo "numberedHighlightedHtml:\n" . $numbered['html'] . "\n";
+echo "haskellHighlightedHtml:\n" . $haskell['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";

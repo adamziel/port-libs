@@ -27,9 +27,14 @@ final class SyntaxHighlighter
         'css' => 'css',
         'html' => 'html',
         'html5' => 'html',
+        'haskell' => 'haskell',
+        'hs' => 'haskell',
         'javascript' => 'javascript',
         'js' => 'javascript',
         'json' => 'json',
+        'lhs' => 'haskell',
+        'literate-haskell' => 'haskell',
+        'literatehaskell' => 'haskell',
         'php' => 'php',
         'postgres' => 'sql',
         'postgresql' => 'sql',
@@ -270,6 +275,7 @@ final class SyntaxHighlighter
         return match ($language) {
             'bash' => $this->tokenizeBash($code),
             'css' => $this->tokenizeCss($code),
+            'haskell' => $this->tokenizeHaskell($code),
             'html' => $this->tokenizeHtml($code),
             'javascript' => $this->tokenizeJavaScript($code),
             'json' => $this->tokenizeJson($code),
@@ -405,6 +411,25 @@ final class SyntaxHighlighter
             ['number', '/^\\b\\d+(?:\\.\\d+)?\\b/'],
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
             ['operator', '/^(?:==|!=|<=|>=|[{}()[\\];,.+*\\/%=!<>:-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeHaskell(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\{-[\\s\\S]*?-\\}/'],
+            ['comment', '/^--[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])'/s"],
+            ['keyword', '/^\\b(?:as|case|class|data|default|deriving|do|else|family|forall|foreign|hiding|if|import|in|infix|infixl|infixr|instance|let|module|newtype|of|qualified|then|type|where)\\b/'],
+            ['constant', '/^\\b(?:EQ|False|GT|Just|LT|Left|Nothing|Right|True)\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_\']*(?:\\.[A-Z][A-Za-z0-9_\']*)*/'],
+            ['number', '/^\\b(?:0[xX][0-9A-Fa-f]+|0[oO][0-7]+|\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b/'],
+            ['variable', '/^\\b[a-z_][A-Za-z0-9_\']*\\b/'],
+            ['operator', '/^(?:=>|->|<-|::|==|\\/=|>=|<=|&&|\\|\\||[{}()[\\];,.+*\\/%=$<>:|\\\\-])/'],
         ]);
     }
 
