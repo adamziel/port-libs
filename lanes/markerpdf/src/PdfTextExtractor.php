@@ -23656,39 +23656,22 @@ final class PdfTextExtractor
             $writingMode = (int) $lastMode === 1 ? 1 : 0;
         }
 
-        foreach ($this->cMapOperatorBlocks($cmap, 'beginnotdefchar', 'endnotdefchar') as $charBlock) {
-            $this->parseCidChars(
-                $this->cMapOperatorBlockData($charBlock['body']),
-                $cidMap,
-                $charBlock['declaredCount'],
-                false
-            );
-        }
+        foreach ($this->cMapCidMappingBlocks($cmap) as $mappingBlock) {
+            if ($mappingBlock['kind'] === 'char') {
+                $this->parseCidChars(
+                    $this->cMapOperatorBlockData($mappingBlock['body']),
+                    $cidMap,
+                    $mappingBlock['declaredCount'],
+                    $mappingBlock['overwrite']
+                );
+                continue;
+            }
 
-        foreach ($this->cMapOperatorBlocks($cmap, 'beginnotdefrange', 'endnotdefrange') as $rangeBlock) {
             $this->parseCidRanges(
-                $this->cMapOperatorBlockData($rangeBlock['body']),
+                $this->cMapOperatorBlockData($mappingBlock['body']),
                 $cidMap,
-                $rangeBlock['declaredCount'],
-                false,
-                $cidRanges
-            );
-        }
-
-        foreach ($this->cMapOperatorBlocks($cmap, 'begincidchar', 'endcidchar') as $charBlock) {
-            $this->parseCidChars(
-                $this->cMapOperatorBlockData($charBlock['body']),
-                $cidMap,
-                $charBlock['declaredCount']
-            );
-        }
-
-        foreach ($this->cMapOperatorBlocks($cmap, 'begincidrange', 'endcidrange') as $rangeBlock) {
-            $this->parseCidRanges(
-                $this->cMapOperatorBlockData($rangeBlock['body']),
-                $cidMap,
-                $rangeBlock['declaredCount'],
-                true,
+                $mappingBlock['declaredCount'],
+                $mappingBlock['overwrite'],
                 $cidRanges
             );
         }
@@ -23784,6 +23767,56 @@ final class PdfTextExtractor
             $blocks[] = [
                 'body' => substr($cmap, $bodyStart, $endOffset - $bodyStart),
                 'declaredCount' => $this->cMapDeclaredOperatorCountBefore($cmap, $beginOffset),
+            ];
+            $offset = $endOffset + strlen($endOperator);
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * @return list<array{body: string, declaredCount: int|null, kind: 'char'|'range', overwrite: bool}>
+     */
+    private function cMapCidMappingBlocks(string $cmap): array
+    {
+        $operators = [
+            'beginnotdefchar' => ['end' => 'endnotdefchar', 'kind' => 'char', 'overwrite' => false],
+            'beginnotdefrange' => ['end' => 'endnotdefrange', 'kind' => 'range', 'overwrite' => false],
+            'begincidchar' => ['end' => 'endcidchar', 'kind' => 'char', 'overwrite' => true],
+            'begincidrange' => ['end' => 'endcidrange', 'kind' => 'range', 'overwrite' => true],
+        ];
+
+        $blocks = [];
+        $offset = 0;
+        while (true) {
+            $nextBegin = null;
+            $nextOperator = null;
+            foreach (array_keys($operators) as $operator) {
+                $candidate = $this->nextCMapOperatorOffset($cmap, $operator, $offset);
+                if ($candidate !== null && ($nextBegin === null || $candidate < $nextBegin)) {
+                    $nextBegin = $candidate;
+                    $nextOperator = $operator;
+                }
+            }
+
+            if ($nextBegin === null || $nextOperator === null) {
+                break;
+            }
+
+            $definition = $operators[$nextOperator];
+            $bodyStart = $nextBegin + strlen($nextOperator);
+            $endOperator = $definition['end'];
+            $endOffset = $this->nextCMapOperatorOffset($cmap, $endOperator, $bodyStart);
+            if ($endOffset === null) {
+                $offset = $bodyStart;
+                continue;
+            }
+
+            $blocks[] = [
+                'body' => substr($cmap, $bodyStart, $endOffset - $bodyStart),
+                'declaredCount' => $this->cMapDeclaredOperatorCountBefore($cmap, $nextBegin),
+                'kind' => $definition['kind'],
+                'overwrite' => $definition['overwrite'],
             ];
             $offset = $endOffset + strlen($endOperator);
         }
