@@ -959,6 +959,7 @@ $package = ZipPackage::fromParts([
 ], 'wordpress import package');
 $packageSizePreflight = $package->sizePreflight();
 $packagePermissionPreflight = $package->permissionPreflight();
+$packageCommentPreflight = $package->commentPreflight();
 $packageSizeRejected = false;
 try {
     $package->assertSizePreflight($packageSizePreflight['uncompressedBytes'] - 1, null);
@@ -1462,6 +1463,26 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected package comment metadata to round-trip from the generated ZIP package');
     }
 
+    if (($packageCommentPreflight['packageComment'] ?? null) !== 'wordpress import package') {
+        throw new RuntimeException('Expected ZIP package comment preflight to expose the decoded package comment');
+    }
+
+    if (($packageCommentPreflight['packageCommentEncoding'] ?? null) !== 'utf-8') {
+        throw new RuntimeException('Expected ZIP package comment preflight to expose comment encoding');
+    }
+
+    if (($packageCommentPreflight['entryCommentCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected ZIP package comment preflight to count reviewer entry comments');
+    }
+
+    if (($packageCommentPreflight['commentedEntries'][0]['name'] ?? null) !== 'word/document.xml') {
+        throw new RuntimeException('Expected ZIP package comment preflight to identify the commented document part');
+    }
+
+    if (($packageCommentPreflight['commentedEntries'][0]['comment'] ?? null) !== 'generated document part') {
+        throw new RuntimeException('Expected ZIP package comment preflight to expose document part comment metadata');
+    }
+
     if (($package->localNames()[0] ?? null) !== '[Content_Types].xml') {
         throw new RuntimeException('Expected local ZIP entry order to be inspectable for package preflight');
     }
@@ -1901,6 +1922,8 @@ if (in_array('--self-test', $argv, true)) {
 
 echo "ZIP package parts for WordPress import preflight:\n";
 echo 'packageComment=' . $package->packageComment() . "\n";
+echo 'packageCommentEncoding=' . $packageCommentPreflight['packageCommentEncoding'] . "\n";
+echo 'packageCommentedEntries=' . implode(',', array_map(static fn (array $entry): string => $entry['name'], $packageCommentPreflight['commentedEntries'])) . "\n";
 echo 'localOrder=' . implode(',', $package->localNames()) . "\n";
 foreach ($package->entries() as $entry) {
     $modifiedAt = $entry->lastModifiedTimestamp();

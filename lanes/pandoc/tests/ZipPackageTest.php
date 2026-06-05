@@ -861,6 +861,56 @@ return [
         $t->same("Unicode media attachment placeholder\n", $package->read('/' . $unicodeName));
     },
 
+    'preflights package and entry comments for reviewer provenance' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $rawName = 'word/media/review-image.bin';
+        $unicodeName = "word/media/review-\u{2603}.png";
+        $rawComment = 'legacy reviewer comment';
+        $unicodeComment = "Unicode reviewer \u{2603} comment";
+        $cp437Comment = "r\x82sum\x82 media";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => $rawName,
+                'data' => "Unicode media attachment placeholder\n",
+                'method' => 0,
+                'flags' => 0,
+                'comment' => $rawComment,
+                'localExtra' => $buildUnicodeExtra(0x7075, $rawName, $unicodeName),
+                'centralExtra' => $buildUnicodeExtra(0x7075, $rawName, $unicodeName)
+                    . $buildUnicodeExtra(0x6375, $rawComment, $unicodeComment),
+            ],
+            [
+                'name' => "word/media/caf\x82.png",
+                'data' => "legacy media attachment placeholder\n",
+                'method' => 0,
+                'flags' => 0,
+                'comment' => $cp437Comment,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>comment metadata</w:p></w:document>',
+                'method' => 8,
+            ],
+        ], "package r\x82sum\x82"));
+
+        $summary = $package->commentPreflight();
+
+        $t->same("package r\u{00e9}sum\u{00e9}", $summary['packageComment']);
+        $t->same('cp437', $summary['packageCommentEncoding']);
+        $t->same(strlen("package r\x82sum\x82"), $summary['packageCommentLength']);
+        $t->same(2, $summary['entryCommentCount']);
+        $t->same(3, count($summary['entries']));
+        $t->same($unicodeName, $summary['commentedEntries'][0]['name']);
+        $t->same($unicodeComment, $summary['commentedEntries'][0]['comment']);
+        $t->same('info-zip-unicode-comment', $summary['commentedEntries'][0]['commentEncoding']);
+        $t->same($rawComment, $summary['commentedEntries'][0]['rawComment']);
+        $t->same("word/media/caf\u{00e9}.png", $summary['commentedEntries'][1]['name']);
+        $t->same("r\u{00e9}sum\u{00e9} media", $summary['commentedEntries'][1]['comment']);
+        $t->same('cp437', $summary['commentedEntries'][1]['commentEncoding']);
+        $t->same('', $summary['entries'][2]['comment']);
+        $t->same('utf-8', $summary['entries'][2]['commentEncoding']);
+    },
+
     'rejects unsafe raw zip names even when unicode path metadata is safe' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
         $safeUnicodePath = 'word/media/review.png';
         $absoluteRawName = '/word/media/review.png';
@@ -1274,6 +1324,9 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
             ['name' => 'word/document.xml', 'data' => 'ok'],
         ], str_repeat('x', 0x10000)));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => 'ok'],
+        ], "invalid package comment \xff"));
     },
 
     'rejects invalid generated zip entry metadata before writing' => static function (TestRunner $t): void {

@@ -220,6 +220,7 @@ final class ZipPackage
     public static function build(array $parts, string $packageComment = ''): string
     {
         self::assertUInt16Length($packageComment, 'ZIP package comment');
+        self::assertUtf8($packageComment, 'ZIP package comment');
         if (count($parts) > 0xffff) {
             throw new \RuntimeException('ZIP package writer cannot emit more than 65535 entries without ZIP64');
         }
@@ -409,6 +410,48 @@ final class ZipPackage
     public function packageComment(): string
     {
         return $this->packageComment;
+    }
+
+    /**
+     * @return array{
+     *     packageComment:string,
+     *     rawPackageComment:string,
+     *     packageCommentEncoding:string,
+     *     packageCommentLength:int,
+     *     entryCommentCount:int,
+     *     commentedEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int}>,
+     *     entries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int}>
+     * }
+     */
+    public function commentPreflight(): array
+    {
+        $packageComment = self::decodePackageComment($this->packageComment);
+        $entries = [];
+        $commentedEntries = [];
+
+        foreach ($this->entries as $entry) {
+            $summary = [
+                'name' => $entry->name,
+                'comment' => $entry->comment,
+                'rawComment' => $entry->rawComment,
+                'commentEncoding' => $entry->commentEncoding,
+                'commentLength' => strlen($entry->rawComment),
+            ];
+            $entries[] = $summary;
+            if ($entry->comment !== '') {
+                $commentedEntries[] = $summary;
+            }
+        }
+
+        return [
+            'packageComment' => $packageComment['text'],
+            'rawPackageComment' => $this->packageComment,
+            'packageCommentEncoding' => $packageComment['encoding'],
+            'packageCommentLength' => strlen($this->packageComment),
+            'entryCommentCount' => count($commentedEntries),
+            'commentedEntries' => $commentedEntries,
+            'entries' => $entries,
+        ];
     }
 
     public function has(string $partName): bool
@@ -1196,6 +1239,24 @@ final class ZipPackage
         if (($flags & self::UTF8_GENERAL_PURPOSE_FLAG) !== 0) {
             self::assertUtf8($raw, "ZIP {$label}");
 
+            return [
+                'text' => $raw,
+                'encoding' => 'utf-8',
+            ];
+        }
+
+        return [
+            'text' => self::decodeCp437($raw),
+            'encoding' => 'cp437',
+        ];
+    }
+
+    /**
+     * @return array{text:string, encoding:string}
+     */
+    private static function decodePackageComment(string $raw): array
+    {
+        if ($raw === '' || preg_match('//u', $raw) === 1) {
             return [
                 'text' => $raw,
                 'encoding' => 'utf-8',
