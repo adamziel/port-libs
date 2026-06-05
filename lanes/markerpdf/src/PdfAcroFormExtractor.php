@@ -4078,12 +4078,16 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            $scalar = $this->readScalarAt($body, $offset, $objects);
+            $scalar = $this->readScalarAt($body, $offset, $objects, $scalarEnd);
             if ($scalar !== null) {
                 if ($scalar['value'] !== '' && !in_array($scalar['value'], $names, true)) {
                     $names[] = $scalar['value'];
                 }
                 $offset = $scalar['end'];
+                continue;
+            }
+            if ($scalarEnd !== null && $scalarEnd > $offset) {
+                $offset = $scalarEnd;
                 continue;
             }
 
@@ -8013,10 +8017,14 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            $item = $this->readScalarAt($body, $offset, $objects);
+            $item = $this->readScalarAt($body, $offset, $objects, $scalarEnd);
             if ($item !== null) {
                 $options[] = ['export' => $item['value'], 'label' => $item['value']];
                 $offset = $item['end'];
+                continue;
+            }
+            if ($scalarEnd !== null && $scalarEnd > $offset) {
+                $offset = $scalarEnd;
                 continue;
             }
 
@@ -8035,8 +8043,12 @@ final class PdfAcroFormExtractor
         $offset = 0;
         while ($offset < strlen($body)) {
             $this->skipWhitespace($body, $offset);
-            $item = $this->readScalarAt($body, $offset, $objects);
+            $item = $this->readScalarAt($body, $offset, $objects, $scalarEnd);
             if ($item === null) {
+                if ($scalarEnd !== null && $scalarEnd > $offset) {
+                    $offset = $scalarEnd;
+                    continue;
+                }
                 $offset++;
                 continue;
             }
@@ -8050,8 +8062,9 @@ final class PdfAcroFormExtractor
     /**
      * @return array{value: string, end: int}|null
      */
-    private function readScalarAt(string $body, int $offset, array $objects): ?array
+    private function readScalarAt(string $body, int $offset, array $objects, ?int &$endOffset = null): ?array
     {
+        $endOffset = null;
         $this->skipWhitespace($body, $offset);
         if ($offset >= strlen($body)) {
             return null;
@@ -8082,13 +8095,15 @@ final class PdfAcroFormExtractor
             return ['value' => $this->decodePdfName(substr($body, $offset, $end - $offset)), 'end' => $end];
         }
 
-        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $body, $match, 0, $offset) === 1) {
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $body, $match, 0, $offset) === 1) {
             $ref = (int) $match[1];
-            if (!isset($objects[$ref])) {
+            $generation = (int) $match[2];
+            $endOffset = $offset + strlen($match[0]);
+            if (!isset($objects[$ref]) || !$this->referenceGenerationMatches($ref, $generation, $objects)) {
                 return null;
             }
             $resolved = $this->pdfValueToString(trim($objects[$ref]), $objects);
-            return $resolved === null ? null : ['value' => $resolved, 'end' => $offset + strlen($match[0])];
+            return $resolved === null ? null : ['value' => $resolved, 'end' => $endOffset];
         }
 
         return null;
@@ -9135,8 +9150,14 @@ final class PdfAcroFormExtractor
             return $this->decodePdfName($value);
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1 && isset($objects[(int) $match[1]])) {
-            return $this->pdfValueToString(trim($objects[(int) $match[1]]), $objects);
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference !== null) {
+            $objectNumber = $reference['object'];
+            if (!isset($objects[$objectNumber]) || !$this->referenceGenerationMatches($objectNumber, $reference['generation'], $objects)) {
+                return null;
+            }
+
+            return $this->pdfValueToString(trim($objects[$objectNumber]), $objects);
         }
 
         if ($value === 'null') {
