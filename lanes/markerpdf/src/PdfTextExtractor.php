@@ -25404,6 +25404,7 @@ final class PdfTextExtractor
         $tokens = [];
         $length = strlen($stream);
         $index = 0;
+        $insideTextObject = false;
 
         while ($index < $length) {
             $char = $stream[$index];
@@ -25453,7 +25454,7 @@ final class PdfTextExtractor
                 continue;
             }
             $token = substr($stream, $start, $index - $start);
-            if ($token === 'BI') {
+            if ($token === 'BI' && !$insideTextObject) {
                 $inlineImageEnd = $index;
                 if ($this->skipInlineImage($stream, $inlineImageEnd)) {
                     if ($preserveInlineImageOperator) {
@@ -25465,6 +25466,11 @@ final class PdfTextExtractor
             }
 
             $tokens[] = $token;
+            if ($token === 'BT') {
+                $insideTextObject = true;
+            } elseif ($token === 'ET') {
+                $insideTextObject = false;
+            }
         }
 
         return array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));

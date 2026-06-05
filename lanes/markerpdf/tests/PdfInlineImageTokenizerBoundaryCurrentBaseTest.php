@@ -131,6 +131,22 @@ $inlineImageTokenizerNestedDictionaryDecoyPdf = static function (): string {
         . "%%EOF";
 };
 
+$inlineImageTokenizerTextObjectBiDecoyPdf = static function (): string {
+    $content = "BT /F1 12 Tf 72 720 Td (Before Text Object BI) Tj\n"
+        . "0 -16 Td BI /W 1 /H 1 /CS /G /BPC 8 ID\n"
+        . "(Text Object BI Survives) Tj\n"
+        . "0 -16 Td EI\n"
+        . "(After Text Object BI) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 $inlineImageTokenizerJbig2Pdf = static function (): string {
     $payload = "\x97JB2\r\n\x1a\n EI BT /F1 12 Tf 72 660 Td (JBIG2 Inline Payload Noise) Tj ET rawtail\nEI";
     $content = "BT /F1 12 Tf 72 720 Td (Before JBIG2 Boundary) Tj ET\n"
@@ -619,6 +635,26 @@ return [
         $t->true(str_contains($plainText, 'Nested Dictionary Decoy Text Survives'));
         $t->true(!str_contains($plainText, 'FlateDecode'));
         $t->true(!str_contains($plainText, 'BitsPerComponent'));
+    },
+    'keeps BI text-object decoys from becoming inline image boundaries' => static function (TestRunner $t) use ($inlineImageTokenizerTextObjectBiDecoyPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerTextObjectBiDecoyPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Text Object BI',
+            'Text Object BI Survives',
+            'After Text Object BI',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(str_contains($plainText, 'Text Object BI Survives'));
+        $t->true(!str_contains($plainText, 'BitsPerComponent'));
+        $t->true(!str_contains($plainText, '/W 1'));
     },
     'keeps JBIG2 preview-only inline image payload closed across delimiter-looking EI bytes' => static function (TestRunner $t) use ($inlineImageTokenizerJbig2Pdf): void {
         $extractor = new PdfTextExtractor();
