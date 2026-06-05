@@ -19,6 +19,8 @@ final class LayoutAnnotator
         'pnum',
         'page',
         'pdftext_page',
+        'source_page',
+        'document_page',
         'page_number',
         'selected_page_number',
         'trimmed_page_number',

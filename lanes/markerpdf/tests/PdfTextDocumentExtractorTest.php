@@ -1250,6 +1250,61 @@ return [
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'matches source page aliases before selected pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(940, [
+                    ['text' => 'Source alias cover page skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(941, [
+                    ['text' => 'Second source alias selected column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First source alias selected column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+                $pdftextLinesPage(942, [
+                    ['text' => 'Source alias appendix page skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+            ],
+            [
+                [
+                    'source_page' => 940,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                        ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                    ],
+                ],
+                [
+                    'metadata' => ['document_page' => 941],
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['source_page' => 940, 'image' => 'source-alias-cover-render'],
+                ['metadata' => ['document_page' => 941], 'image' => 'document-alias-selected-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $processor = new MarkdownPostProcessor();
+        $blocks = $processor->mergeBlocks($processor->mergeSpans($result['pages']));
+
+        $t->same([1], $result['page_range']);
+        $t->same(941, $result['pages'][0]['pnum']);
+        $t->same(['First source alias selected column', 'Second source alias selected column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First source alias selected column Second source alias selected column', $blocks[0]['text']);
+        $t->same(941, $result['pages'][0]['order']['document_page']);
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
     'does not replay one keyed order artifact across duplicate selected pdftext page markers' => static function (TestRunner $t) use ($pdftextLinesPage): void {
         $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
             [

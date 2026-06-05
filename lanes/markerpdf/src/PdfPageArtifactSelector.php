@@ -23,7 +23,7 @@ final class PdfPageArtifactSelector
     private const PAGE_MARKER_FIELD_GROUPS = [
         ['page_index', 'doc_page_index', 'document_page_index', 'source_page_index'],
         ['selected_page_index', 'trimmed_page_index', 'relative_page_index'],
-        ['pnum', 'page', 'pdftext_page'],
+        ['pnum', 'page', 'pdftext_page', 'source_page', 'document_page'],
         ['page_number'],
         ['selected_page_number', 'trimmed_page_number', 'relative_page_number'],
     ];
@@ -173,7 +173,7 @@ final class PdfPageArtifactSelector
             $markers['selected_indexes'] = $selectedIndexes;
         }
 
-        $pages = $this->integerFieldsFromSources($sources, ['pnum', 'page', 'pdftext_page']);
+        $pages = $this->integerFieldsFromSources($sources, ['pnum', 'page', 'pdftext_page', 'source_page', 'document_page']);
         if ($pages !== []) {
             $markers['pages'] = $pages;
         }
