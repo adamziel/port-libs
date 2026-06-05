@@ -190,9 +190,12 @@ final class PdfLinkAnnotationExtractor
                         foreach ([
                             'inherited_widget_link_keys' => 'link_inherited_widget_keys',
                             'widget_field_parent_object' => 'link_widget_field_parent_object',
+                            'widget_field_parent_generation' => 'link_widget_field_parent_generation',
                             'widget_field_chain' => 'link_widget_field_chain',
+                            'widget_field_chain_generations' => 'link_widget_field_chain_generations',
                             'widget_link_action_source' => 'link_widget_action_source',
                             'widget_link_field_sources' => 'link_widget_field_sources',
+                            'widget_link_field_source_generations' => 'link_widget_field_source_generations',
                         ] as $sourceKey => $spanKey) {
                             if (array_key_exists($sourceKey, $link)) {
                                 $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex][$spanKey] = $link[$sourceKey];
@@ -611,9 +614,12 @@ final class PdfLinkAnnotationExtractor
                 || in_array('Dest', $effectiveAnnotation['inherited_keys'], true);
             $link['inherited_widget_link_keys'] = $effectiveAnnotation['inherited_keys'];
             $link['widget_field_parent_object'] = $fieldChain[0] ?? null;
+            $link['widget_field_parent_generation'] = $effectiveAnnotation['field_chain_generations'][0] ?? null;
             $link['widget_field_chain'] = $fieldChain;
+            $link['widget_field_chain_generations'] = $effectiveAnnotation['field_chain_generations'];
             $link['widget_link_action_source'] = $primaryFromField ? 'field_parent' : 'annotation';
             $link['widget_link_field_sources'] = $effectiveAnnotation['field_sources'];
+            $link['widget_link_field_source_generations'] = $effectiveAnnotation['field_source_generations'];
         }
 
         $structureReview = null;
@@ -670,30 +676,39 @@ final class PdfLinkAnnotationExtractor
      * text, so detached field-only widgets remain outside the page boundary.
      *
      * @param array<int, string> $objects
-     * @return array{body: string, inherited_keys: list<string>, field_chain: list<int>, field_sources: array<string, int>}
+     * @return array{body: string, inherited_keys: list<string>, field_chain: list<int>, field_chain_generations: list<int>, field_sources: array<string, int>, field_source_generations: array<string, int>}
      */
     private function effectiveWidgetLinkAnnotationBody(string $annotationBody, array $objects): array
     {
-        $fieldChain = $this->widgetFieldParentChain($annotationBody, $objects);
-        if ($fieldChain === []) {
+        $fieldReferences = $this->widgetFieldParentReferenceChain($annotationBody, $objects);
+        $fieldChain = array_map(static fn (array $reference): int => $reference['object'], $fieldReferences);
+        $fieldGenerations = array_map(static fn (array $reference): int => $reference['generation'], $fieldReferences);
+
+        if ($fieldReferences === []) {
             return [
                 'body' => $annotationBody,
                 'inherited_keys' => [],
                 'field_chain' => [],
+                'field_chain_generations' => [],
                 'field_sources' => [],
+                'field_source_generations' => [],
             ];
         }
 
         $additions = [];
         $fieldSources = [];
+        $fieldSourceGenerations = [];
         foreach (['A', 'AA', 'Dest'] as $key) {
             if ($this->valueAfterName($annotationBody, $key) !== null) {
                 continue;
             }
 
-            foreach ($fieldChain as $fieldObject) {
-                $fieldBody = isset($objects[$fieldObject])
-                    ? ($this->dictionaryObjectBody($objects[$fieldObject]) ?? trim($objects[$fieldObject]))
+            foreach ($fieldReferences as $fieldReference) {
+                $fieldObject = $fieldReference['object'];
+                $fieldGeneration = $fieldReference['generation'];
+                $fieldObjectBody = $this->objectBodyForReference($fieldObject, $fieldGeneration, $objects);
+                $fieldBody = $fieldObjectBody !== null
+                    ? ($this->dictionaryObjectBody($fieldObjectBody) ?? trim($fieldObjectBody))
                     : '';
                 if ($fieldBody === '') {
                     continue;
@@ -706,6 +721,7 @@ final class PdfLinkAnnotationExtractor
 
                 $additions[] = '/' . $key . ' ' . trim($value);
                 $fieldSources[$key] = $fieldObject;
+                $fieldSourceGenerations[$key] = $fieldGeneration;
                 break;
             }
         }
@@ -715,7 +731,9 @@ final class PdfLinkAnnotationExtractor
                 'body' => $annotationBody,
                 'inherited_keys' => [],
                 'field_chain' => $fieldChain,
+                'field_chain_generations' => $fieldGenerations,
                 'field_sources' => [],
+                'field_source_generations' => [],
             ];
         }
 
@@ -723,26 +741,38 @@ final class PdfLinkAnnotationExtractor
             'body' => rtrim($annotationBody) . ' ' . implode(' ', $additions),
             'inherited_keys' => array_keys($fieldSources),
             'field_chain' => $fieldChain,
+            'field_chain_generations' => $fieldGenerations,
             'field_sources' => $fieldSources,
+            'field_source_generations' => $fieldSourceGenerations,
         ];
     }
 
     /**
      * @param array<int, string> $objects
-     * @return list<int>
+     * @return list<array{object: int, generation: int}>
      */
-    private function widgetFieldParentChain(string $annotationBody, array $objects): array
+    private function widgetFieldParentReferenceChain(string $annotationBody, array $objects): array
     {
         $chain = [];
         $seen = [];
-        $parent = $this->referenceAfterName($annotationBody, 'Parent');
+        $parent = $this->referenceValueAfterName($annotationBody, 'Parent');
 
-        while ($parent !== null && !isset($seen[$parent]) && isset($objects[$parent])) {
-            $seen[$parent] = true;
+        while ($parent !== null) {
+            $parentKey = $this->annotationReferenceKey($parent['object'], $parent['generation']);
+            if (isset($seen[$parentKey])) {
+                break;
+            }
+
+            $parentObjectBody = $this->objectBodyForReference($parent['object'], $parent['generation'], $objects);
+            if ($parentObjectBody === null) {
+                break;
+            }
+
+            $seen[$parentKey] = true;
             $chain[] = $parent;
 
-            $parentBody = $this->dictionaryObjectBody($objects[$parent]) ?? trim($objects[$parent]);
-            $parent = $this->referenceAfterName($parentBody, 'Parent');
+            $parentBody = $this->dictionaryObjectBody($parentObjectBody) ?? trim($parentObjectBody);
+            $parent = $this->referenceValueAfterName($parentBody, 'Parent');
         }
 
         return $chain;
@@ -1674,12 +1704,6 @@ final class PdfLinkAnnotationExtractor
         return preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/', $objectBody) === 1 ? (float) $objectBody : null;
     }
 
-    private function referenceAfterName(string $body, string $name): ?int
-    {
-        $value = $this->valueAfterName($body, $name);
-        return $value === null ? null : $this->indirectObjectNumberFromValue($value);
-    }
-
     /**
      * @return array{object: int, generation: int}|null
      */
@@ -2307,11 +2331,6 @@ final class PdfLinkAnnotationExtractor
         }
 
         return array_map('intval', $matches[1]);
-    }
-
-    private function indirectObjectNumberFromValue(string $value): ?int
-    {
-        return preg_match('/^(\d+)\s+\d+\s+R\b/', trim($value), $match) === 1 ? (int) $match[1] : null;
     }
 
     private function dictionaryObjectBody(string $objectBody): ?string
