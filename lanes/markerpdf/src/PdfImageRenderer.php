@@ -392,6 +392,7 @@ final class PdfImageRenderer
      *     image_filters: list<string>,
      *     image_filter_details: list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null|list<string>>|null}>,
      *     image_filter_boundary: array{preview_only_filters: list<string>, jbig2_globals_present: bool, native_raster_decode: bool},
+     *     dctdecode_filter_boundary: array<string, mixed>|null,
      *     source_color_space: string,
      *     color_space_resource_name: string|null,
      *     color_space_resource_value: string|null,
@@ -508,6 +509,7 @@ final class PdfImageRenderer
         $ccittFilterBoundary = $this->ccittFaxFilterBoundaryReview($imageFilterDetails);
         $ccittCodingBoundary = $this->ccittFaxCodingBoundaryReview($imageFilterDetails);
         $ccittImageMaskPolarityBoundary = $this->ccittFaxImageMaskPolarityBoundary($ccittDecodeBoundary, $imageMask);
+        $dctDecodeFilterBoundary = $this->dctDecodeFilterBoundaryReview($imageFilterDetails);
         $notes = [];
 
         if ($colorSpace['uses_indexed_color_space']) {
@@ -596,6 +598,12 @@ final class PdfImageRenderer
                 ? 'unresolved_image_filter_operand_fail_closed'
                 : 'malformed_image_filter_operand_fail_closed';
         }
+        if (
+            $dctDecodeFilterBoundary !== null
+            && ($dctDecodeFilterBoundary['post_dctdecode_filters_block_native_decode'] ?? false) === true
+        ) {
+            $notes[] = 'dctdecode_post_filters_block_native_decode';
+        }
         if ($imageMaskPresent) {
             $notes[] = 'image_mask_stencil_applied_before_rgb_conversion';
             if (($imageMask['inverted'] ?? false) === true) {
@@ -663,6 +671,7 @@ final class PdfImageRenderer
                 'jbig2_globals_present' => $this->jbig2GlobalsPresent($imageDictionary, $objects),
                 'native_raster_decode' => $previewOnlyFilters === [] && $operandBoundaryFilters === [],
             ],
+            'dctdecode_filter_boundary' => $dctDecodeFilterBoundary,
             'ccitt_fax_filter_boundary' => $ccittFilterBoundary,
             'ccitt_fax_decode_boundary' => $ccittDecodeBoundary,
             'ccitt_fax_coding_boundary' => $ccittCodingBoundary,
@@ -4752,6 +4761,70 @@ final class PdfImageRenderer
                     'ccitt_is_terminal_filter' => $filtersAfterCcitt === [],
                     'post_ccitt_filters_present' => $filtersAfterCcitt !== [],
                     'post_ccitt_filters_block_native_decode' => $filtersAfterCcitt !== [],
+                    'source_filter_preserved' => true,
+                    'review_only' => true,
+                    'native_raster_decode' => false,
+                ];
+            }
+
+            $filters[] = $filter;
+            if (($detail['preview_only'] ?? false) === true) {
+                $previewOnly[] = $filter;
+            } else {
+                $nativePrefix[] = $filter;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null|list<string>>|null}> $filterDetails
+     * @return array<string, mixed>|null
+     */
+    private function dctDecodeFilterBoundaryReview(array $filterDetails): ?array
+    {
+        $filters = [];
+        $previewOnly = [];
+        $nativePrefix = [];
+        foreach ($filterDetails as $detailIndex => $detail) {
+            $filter = $detail['filter'] ?? null;
+            if (!is_string($filter)) {
+                continue;
+            }
+
+            if ($filter === 'DCTDecode' || $filter === 'DCT') {
+                $filtersAfterDctDecode = [];
+                $nativeFiltersAfterDctDecode = [];
+                $previewOnlyFiltersAfterDctDecode = [];
+                for ($afterIndex = $detailIndex + 1, $count = count($filterDetails); $afterIndex < $count; $afterIndex++) {
+                    $afterFilter = $filterDetails[$afterIndex]['filter'] ?? null;
+                    if (!is_string($afterFilter)) {
+                        continue;
+                    }
+
+                    $filtersAfterDctDecode[] = $afterFilter;
+                    if (($filterDetails[$afterIndex]['preview_only'] ?? false) === true) {
+                        $previewOnlyFiltersAfterDctDecode[] = $afterFilter;
+                    } else {
+                        $nativeFiltersAfterDctDecode[] = $afterFilter;
+                    }
+                }
+
+                return [
+                    'declared_filter' => $filter,
+                    'canonical_filter' => 'DCTDecode',
+                    'alias_used' => $filter === 'DCT',
+                    'non_null_filter_index' => count($filters),
+                    'filters_before_dctdecode' => $filters,
+                    'native_prefix_filters' => $nativePrefix,
+                    'preview_only_filters_before_dctdecode' => $previewOnly,
+                    'filters_after_dctdecode' => $filtersAfterDctDecode,
+                    'native_filters_after_dctdecode' => $nativeFiltersAfterDctDecode,
+                    'preview_only_filters_after_dctdecode' => $previewOnlyFiltersAfterDctDecode,
+                    'dctdecode_is_terminal_filter' => $filtersAfterDctDecode === [],
+                    'post_dctdecode_filters_present' => $filtersAfterDctDecode !== [],
+                    'post_dctdecode_filters_block_native_decode' => $filtersAfterDctDecode !== [],
                     'source_filter_preserved' => true,
                     'review_only' => true,
                     'native_raster_decode' => false,

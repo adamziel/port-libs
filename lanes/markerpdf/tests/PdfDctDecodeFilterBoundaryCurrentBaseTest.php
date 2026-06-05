@@ -1345,4 +1345,68 @@ return [
         $t->same([], $rendererPreview['pixels']);
         $t->contains('iccbased_image_stream_preview_only_before_rgb_conversion', implode(',', $rendererPreview['notes']));
     },
+    'marks filters declared after DCTDecode as unreachable native image stages' => static function (TestRunner $t): void {
+        $extractor = new PortLibs\MarkerPDF\PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $imageDictionary = '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/DCTDecode /ASCIIHexDecode /JPXDecode] /DecodeParms [<< /ColorTransform 1 >> null null] >>';
+        $expectedBoundary = [
+            'declared_filter' => 'DCTDecode',
+            'canonical_filter' => 'DCTDecode',
+            'alias_used' => false,
+            'non_null_filter_index' => 0,
+            'filters_before_dctdecode' => [],
+            'native_prefix_filters' => [],
+            'preview_only_filters_before_dctdecode' => [],
+            'filters_after_dctdecode' => ['ASCIIHexDecode', 'JPXDecode'],
+            'native_filters_after_dctdecode' => ['ASCIIHexDecode'],
+            'preview_only_filters_after_dctdecode' => ['JPXDecode'],
+            'dctdecode_is_terminal_filter' => false,
+            'post_dctdecode_filters_present' => true,
+            'post_dctdecode_filters_block_native_decode' => true,
+            'source_filter_preserved' => true,
+            'review_only' => true,
+            'native_raster_decode' => false,
+        ];
+
+        $plan = $renderer->imageColorSpaceSoftMaskPlan($imageDictionary);
+
+        $t->same(['DCTDecode', 'ASCIIHexDecode', 'JPXDecode'], $plan['image_filters']);
+        $t->same(['DCTDecode', 'JPXDecode'], $plan['image_filter_boundary']['preview_only_filters']);
+        $t->same(false, $plan['image_filter_boundary']['native_raster_decode']);
+        $t->same($expectedBoundary, $plan['dctdecode_filter_boundary']);
+        $t->contains('dctdecode_post_filters_block_native_decode', implode(',', $plan['notes']));
+
+        $before = 'BT /F1 12 Tf 72 720 Td (Before post DCT filters) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After post DCT filters) Tj ET';
+        $jpegPayload = "\xff\xd8\xff\xe0JFIF\0BT /F1 12 Tf 72 700 Td (Post DCT filter payload noise) Tj ET\xff\xd9";
+        $pageContent = $before . "\nq 24 0 0 24 72 680 cm /Photo Do Q\n" . $after;
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Photo 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/DCTDecode /ASCIIHexDecode /JPXDecode] /DecodeParms [<< /ColorTransform 1 >> null null] /Length " . strlen($jpegPayload) . " >>\nstream\n{$jpegPayload}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+        $plainText = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? null;
+        $reviewJson = json_encode($review, JSON_THROW_ON_ERROR);
+
+        $t->same(['Before post DCT filters', 'After post DCT filters'], $extractor->extractTextLines($pdf));
+        $t->same("Before post DCT filters\nAfter post DCT filters", $plainText);
+        $t->true(!str_contains($plainText, 'Post DCT filter payload noise'));
+        $t->true(!str_contains($plainText, 'JFIF'));
+        $t->true(is_array($entry), 'Image XObject review row should be present.');
+        $t->same(['DCTDecode', 'ASCIIHexDecode', 'JPXDecode'], $entry['filters'] ?? null);
+        $t->same(['DCTDecode', 'JPXDecode'], $entry['preview_only_filters'] ?? null);
+        $t->same($expectedBoundary, $entry['dctdecode_filter_boundary'] ?? null);
+        $t->same(strlen($jpegPayload), $entry['raw_length'] ?? null);
+        $t->same(false, $entry['native_raster_decode'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        $t->true(!str_contains($reviewJson, 'Post DCT filter payload noise'));
+        $t->true(!str_contains($reviewJson, 'JFIF'));
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
 ];

@@ -5774,6 +5774,7 @@ final class PdfTextExtractor
         $ccittDecodeBoundary = $this->ccittFaxDecodeBoundaryReview($filterDetails, $imageWidth, $imageHeight);
         $ccittFilterBoundary = $this->ccittFaxFilterBoundaryReview($filterDetails);
         $ccittCodingBoundary = $this->ccittFaxCodingBoundaryReview($filterDetails);
+        $dctDecodeFilterBoundary = $this->dctDecodeFilterBoundaryReview($filterDetails);
         $ccittImageMaskPolarityBoundary = $this->ccittFaxImageMaskPolarityBoundary(
             $ccittDecodeBoundary,
             $imageMask,
@@ -5897,6 +5898,7 @@ final class PdfTextExtractor
             'filters' => $resolvedFilters,
             'preview_only_filters' => $previewOnlyFilters,
             'filter_details' => $filterDetails,
+            'dctdecode_filter_boundary' => $dctDecodeFilterBoundary,
             'ccitt_fax_filter_boundary' => $ccittFilterBoundary,
             'ccitt_fax_decode_boundary' => $ccittDecodeBoundary,
             'ccitt_fax_coding_boundary' => $ccittCodingBoundary,
@@ -6059,6 +6061,7 @@ final class PdfTextExtractor
             $decode,
             $effectiveBits ?? 1
         );
+        $dctFilterReview = $this->nestedImageXObjectDctFilterReview($filters, $stream['dict'], $objects);
         $maxSample = (2 ** min($effectiveBits ?? 1, 30)) - 1;
 
         return [
@@ -6077,6 +6080,7 @@ final class PdfTextExtractor
             'opacity_for_max' => $decode !== null ? $this->imageXObjectDecodedSampleValue($maxSample, $decode, $effectiveBits ?? 1) : null,
             'filters' => $resolvedFilters,
             'preview_only_filters' => $previewOnlyFilters,
+            ...$dctFilterReview,
             ...$ccittFilterReview,
             'native_raster_decode' => $filters !== null && $previewOnlyFilters === [],
             'raw_length' => strlen($stream['stream']),
@@ -6197,6 +6201,7 @@ final class PdfTextExtractor
             $decode,
             $effectiveBits ?? 1
         );
+        $dctFilterReview = $this->nestedImageXObjectDctFilterReview($filters, $stream['dict'], $objects);
 
         return [
             'type' => $imageMask ? 'image_mask_stream' : 'explicit_mask_stream',
@@ -6213,6 +6218,7 @@ final class PdfTextExtractor
             'opacity_for_one' => $imageMask && $decode !== null ? $this->imageXObjectDecodedSampleValue((2 ** min($effectiveBits ?? 1, 30)) - 1, $decode, $effectiveBits ?? 1) : null,
             'filters' => $resolvedFilters,
             'preview_only_filters' => $previewOnlyFilters,
+            ...$dctFilterReview,
             ...$ccittFilterReview,
             'native_raster_decode' => $filters !== null && $previewOnlyFilters === [],
             'raw_length' => strlen($stream['stream']),
@@ -6429,6 +6435,9 @@ final class PdfTextExtractor
             $decode,
             $effectiveBits ?? 1
         );
+        $dctFilterReview = $filterDetails === []
+            ? $this->nestedImageXObjectDctFilterReview($filters, $stream['dict'], $objects)
+            : $this->imageXObjectDctFilterReview($filterDetails);
 
         return [
             'object_number' => $objectNumber,
@@ -6442,6 +6451,7 @@ final class PdfTextExtractor
             'image_mask' => $imageMask,
             'filters' => $resolvedFilters,
             'preview_only_filters' => $previewOnlyFilters,
+            ...$dctFilterReview,
             ...($filterDetails === [] ? [] : ['filter_details' => $filterDetails]),
             ...$ccittFilterReview,
             'native_raster_decode' => $filters !== null && $previewOnlyFilters === [],
@@ -6616,6 +6626,46 @@ final class PdfTextExtractor
         }
 
         return $review;
+    }
+
+    /**
+     * @param list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null|list<string>>|null}> $filterDetails
+     * @return array{filter_details: list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null|list<string>>|null}>, dctdecode_filter_boundary: array<string, mixed>}|array{}
+     */
+    private function imageXObjectDctFilterReview(array $filterDetails): array
+    {
+        $boundary = $this->dctDecodeFilterBoundaryReview($filterDetails);
+        if ($boundary === null) {
+            return [];
+        }
+
+        return [
+            'filter_details' => $filterDetails,
+            'dctdecode_filter_boundary' => $boundary,
+        ];
+    }
+
+    /**
+     * @param list<string|null>|null $filters
+     * @param array<int, string> $objects
+     * @return array{filter_details: list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null|list<string>>|null}>, dctdecode_filter_boundary: array<string, mixed>}|array{}
+     */
+    private function nestedImageXObjectDctFilterReview(?array $filters, string $dictionary, array $objects): array
+    {
+        if ($filters === null || $filters === []) {
+            return [];
+        }
+
+        $decodeParms = $this->streamDecodeParms($dictionary, $objects);
+        $filterDetails = $this->imageXObjectFilterDetails(
+            $filters,
+            $decodeParms,
+            $objects,
+            $this->topLevelNameValueOffset($dictionary, 'DecodeParms') !== null,
+            $dictionary
+        );
+
+        return $this->imageXObjectDctFilterReview($filterDetails);
     }
 
     /**
@@ -7013,6 +7063,70 @@ final class PdfTextExtractor
                     'ccitt_is_terminal_filter' => $filtersAfterCcitt === [],
                     'post_ccitt_filters_present' => $filtersAfterCcitt !== [],
                     'post_ccitt_filters_block_native_decode' => $filtersAfterCcitt !== [],
+                    'source_filter_preserved' => true,
+                    'review_only' => true,
+                    'native_raster_decode' => false,
+                ];
+            }
+
+            $filters[] = $filter;
+            if (($detail['preview_only'] ?? false) === true) {
+                $previewOnly[] = $filter;
+            } else {
+                $nativePrefix[] = $filter;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null|list<string>>|null}> $filterDetails
+     * @return array<string, mixed>|null
+     */
+    private function dctDecodeFilterBoundaryReview(array $filterDetails): ?array
+    {
+        $filters = [];
+        $previewOnly = [];
+        $nativePrefix = [];
+        foreach ($filterDetails as $detailIndex => $detail) {
+            $filter = $detail['filter'] ?? null;
+            if (!is_string($filter)) {
+                continue;
+            }
+
+            if ($filter === 'DCTDecode' || $filter === 'DCT') {
+                $filtersAfterDctDecode = [];
+                $nativeFiltersAfterDctDecode = [];
+                $previewOnlyFiltersAfterDctDecode = [];
+                for ($afterIndex = $detailIndex + 1, $count = count($filterDetails); $afterIndex < $count; $afterIndex++) {
+                    $afterFilter = $filterDetails[$afterIndex]['filter'] ?? null;
+                    if (!is_string($afterFilter)) {
+                        continue;
+                    }
+
+                    $filtersAfterDctDecode[] = $afterFilter;
+                    if (($filterDetails[$afterIndex]['preview_only'] ?? false) === true) {
+                        $previewOnlyFiltersAfterDctDecode[] = $afterFilter;
+                    } else {
+                        $nativeFiltersAfterDctDecode[] = $afterFilter;
+                    }
+                }
+
+                return [
+                    'declared_filter' => $filter,
+                    'canonical_filter' => 'DCTDecode',
+                    'alias_used' => $filter === 'DCT',
+                    'non_null_filter_index' => count($filters),
+                    'filters_before_dctdecode' => $filters,
+                    'native_prefix_filters' => $nativePrefix,
+                    'preview_only_filters_before_dctdecode' => $previewOnly,
+                    'filters_after_dctdecode' => $filtersAfterDctDecode,
+                    'native_filters_after_dctdecode' => $nativeFiltersAfterDctDecode,
+                    'preview_only_filters_after_dctdecode' => $previewOnlyFiltersAfterDctDecode,
+                    'dctdecode_is_terminal_filter' => $filtersAfterDctDecode === [],
+                    'post_dctdecode_filters_present' => $filtersAfterDctDecode !== [],
+                    'post_dctdecode_filters_block_native_decode' => $filtersAfterDctDecode !== [],
                     'source_filter_preserved' => true,
                     'review_only' => true,
                     'native_raster_decode' => false,
