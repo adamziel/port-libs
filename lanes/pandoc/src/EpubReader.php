@@ -34,6 +34,7 @@ final class EpubReader
      *     spineProperties:array<string, mixed>,
      *     nav:?array<string, mixed>,
      *     ncx:?array<string, mixed>,
+     *     navigation:array<string, mixed>,
      *     guide:array<string, mixed>,
      *     collections:list<array<string, mixed>>,
      *     renditions:array<string, mixed>,
@@ -73,6 +74,7 @@ final class EpubReader
             $opf['remoteResources'],
             $opf['mediaDurations'],
             $opf['pageBreaks'],
+            $opf['navigation'],
             $opf['xhtmlResourceReport'],
             $renditions
         );
@@ -89,6 +91,7 @@ final class EpubReader
             'spineProperties' => $opf['spineProperties'],
             'nav' => $opf['nav'],
             'ncx' => $opf['ncx'],
+            'navigation' => $opf['navigation'],
             'guide' => $opf['guide'],
             'collections' => $opf['collections'],
             'renditions' => $renditions,
@@ -127,6 +130,7 @@ final class EpubReader
                 ],
                 'nav' => $opf['nav'],
                 'ncx' => $opf['ncx'],
+                'navigation' => $opf['navigation'],
                 'guide' => $opf['guide'],
                 'collections' => $opf['collections'],
                 'renditions' => $renditions,
@@ -258,6 +262,7 @@ final class EpubReader
      *     spineProperties:array<string, mixed>,
      *     nav:?array<string, mixed>,
      *     ncx:?array<string, mixed>,
+     *     navigation:array<string, mixed>,
      *     guide:array<string, mixed>,
      *     collections:list<array<string, mixed>>,
      *     bindings:array<string, mixed>,
@@ -320,6 +325,7 @@ final class EpubReader
         $assetReport = $this->assetReport($package, $opfPart, $manifest, $metadata);
         $nav = $navItem === null ? null : $this->readNavDocument($package, $navItem);
         $ncx = $ncxItem === null ? null : $this->readNcxDocument($package, $ncxItem);
+        $navigation = self::navigationReport($nav, $ncx, $spine);
         $pageBreaks = self::pageBreakReport($nav, $spine);
         $xhtmlAssets = $this->xhtmlAssets($package, $manifest, self::manifestByPart($manifestById));
         $xhtmlResourceReport = self::xhtmlResourceReport($xhtmlAssets);
@@ -344,6 +350,7 @@ final class EpubReader
             'spineProperties' => $spineProperties,
             'nav' => $nav,
             'ncx' => $ncx,
+            'navigation' => $navigation,
             'guide' => $guide,
             'collections' => $collections,
             'bindings' => $bindings,
@@ -2942,6 +2949,295 @@ final class EpubReader
     }
 
     /**
+     * @param ?array<string, mixed> $nav
+     * @param ?array<string, mixed> $ncx
+     * @param list<array<string, mixed>> $spine
+     *
+     * @return array<string, mixed>
+     */
+    private static function navigationReport(?array $nav, ?array $ncx, array $spine): array
+    {
+        $spineByContentPart = [];
+        $spineCoverage = [];
+        foreach ($spine as $spineItem) {
+            $contentPart = is_string($spineItem['contentPart'] ?? null)
+                ? $spineItem['contentPart']
+                : (is_string($spineItem['part'] ?? null) ? $spineItem['part'] : null);
+            $spineIndex = (int) ($spineItem['index'] ?? count($spineCoverage));
+
+            if ($contentPart !== null && $contentPart !== '' && !isset($spineByContentPart[$contentPart])) {
+                $spineByContentPart[$contentPart] = $spineItem;
+            }
+
+            $spineCoverage[$spineIndex] = [
+                'index' => $spineIndex,
+                'id' => is_string($spineItem['id'] ?? null) ? $spineItem['id'] : null,
+                'idref' => (string) ($spineItem['idref'] ?? ''),
+                'part' => is_string($spineItem['part'] ?? null) ? $spineItem['part'] : null,
+                'contentId' => is_string($spineItem['contentId'] ?? null) ? $spineItem['contentId'] : null,
+                'contentPart' => $contentPart,
+                'mediaType' => is_string($spineItem['mediaType'] ?? null) ? $spineItem['mediaType'] : null,
+                'contentMediaType' => is_string($spineItem['contentMediaType'] ?? null) ? $spineItem['contentMediaType'] : null,
+                'linear' => (bool) ($spineItem['linear'] ?? true),
+                'pageSpread' => $spineItem['pageSpread'] ?? null,
+                'targetCount' => 0,
+                'navTocCount' => 0,
+                'ncxCount' => 0,
+                'presentInNavigation' => false,
+                'targets' => [],
+                'navTocTargets' => [],
+                'ncxTargets' => [],
+                'diagnostics' => [],
+            ];
+        }
+        ksort($spineCoverage);
+
+        $items = [];
+        $diagnostics = [];
+        $targetsBySpineIndex = [];
+        $navTocCount = 0;
+        $ncxCount = 0;
+        $mappedCount = 0;
+        $externalCount = 0;
+        $missingCount = 0;
+        $outsideSpineCount = 0;
+
+        $navItems = is_array($nav) && is_array($nav['items'] ?? null) ? $nav['items'] : [];
+        foreach (self::flattenNavigationItems($navItems) as $sourceIndex => $flat) {
+            $item = self::navigationTargetItem(
+                $flat['item'],
+                'nav',
+                $sourceIndex,
+                (int) $flat['depth'],
+                count($items),
+                $spineByContentPart
+            );
+            ++$navTocCount;
+            $items[] = $item;
+            self::accumulateNavigationTarget(
+                $item,
+                $diagnostics,
+                $targetsBySpineIndex,
+                $mappedCount,
+                $externalCount,
+                $missingCount,
+                $outsideSpineCount
+            );
+        }
+
+        $ncxItems = is_array($ncx) && is_array($ncx['items'] ?? null) ? $ncx['items'] : [];
+        foreach (self::flattenNavigationItems($ncxItems) as $sourceIndex => $flat) {
+            $item = self::navigationTargetItem(
+                $flat['item'],
+                'ncx',
+                $sourceIndex,
+                (int) $flat['depth'],
+                count($items),
+                $spineByContentPart
+            );
+            ++$ncxCount;
+            $items[] = $item;
+            self::accumulateNavigationTarget(
+                $item,
+                $diagnostics,
+                $targetsBySpineIndex,
+                $mappedCount,
+                $externalCount,
+                $missingCount,
+                $outsideSpineCount
+            );
+        }
+
+        $uncoveredLinearSpineItems = [];
+        $spineDiagnostics = [];
+        foreach ($spineCoverage as $index => $coverage) {
+            $targets = $targetsBySpineIndex[$index] ?? [];
+            $navTargets = array_values(array_filter(
+                $targets,
+                static fn (array $target): bool => ($target['source'] ?? null) === 'nav',
+            ));
+            $ncxTargets = array_values(array_filter(
+                $targets,
+                static fn (array $target): bool => ($target['source'] ?? null) === 'ncx',
+            ));
+
+            $coverage['targets'] = $targets;
+            $coverage['navTocTargets'] = $navTargets;
+            $coverage['ncxTargets'] = $ncxTargets;
+            $coverage['targetCount'] = count($targets);
+            $coverage['navTocCount'] = count($navTargets);
+            $coverage['ncxCount'] = count($ncxTargets);
+            $coverage['presentInNavigation'] = $targets !== [];
+
+            if (($coverage['linear'] ?? true) === true && $targets === []) {
+                $diagnostic = [
+                    'type' => 'linear-spine-item-missing-navigation',
+                    'index' => $coverage['index'],
+                    'idref' => $coverage['idref'],
+                    'contentPart' => $coverage['contentPart'],
+                    'message' => 'EPUB linear spine item is not targeted by the nav TOC or NCX navigation map',
+                ];
+                $coverage['diagnostics'][] = $diagnostic;
+                $spineDiagnostics[] = $diagnostic;
+                $uncoveredLinearSpineItems[] = [
+                    'index' => $coverage['index'],
+                    'idref' => $coverage['idref'],
+                    'contentPart' => $coverage['contentPart'],
+                    'linear' => true,
+                    'diagnostics' => [$diagnostic],
+                ];
+            }
+
+            $spineCoverage[$index] = $coverage;
+        }
+
+        return [
+            'present' => $navTocCount > 0 || $ncxCount > 0,
+            'source' => 'nav-ncx',
+            'navTocCount' => $navTocCount,
+            'ncxCount' => $ncxCount,
+            'targetCount' => count($items),
+            'mappedSpineTargetCount' => $mappedCount,
+            'outsideSpineTargetCount' => $outsideSpineCount,
+            'missingTargetCount' => $missingCount,
+            'externalTargetCount' => $externalCount,
+            'uncoveredLinearSpineItemCount' => count($uncoveredLinearSpineItems),
+            'items' => $items,
+            'spineCoverage' => array_values($spineCoverage),
+            'uncoveredLinearSpineItems' => $uncoveredLinearSpineItems,
+            'diagnostics' => $diagnostics,
+            'spineDiagnostics' => $spineDiagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, array<string, mixed>> $spineByContentPart
+     *
+     * @return array<string, mixed>
+     */
+    private static function navigationTargetItem(
+        array $item,
+        string $source,
+        int $sourceIndex,
+        int $depth,
+        int $index,
+        array $spineByContentPart
+    ): array {
+        $target = is_string($item['target'] ?? null) ? $item['target'] : null;
+        $part = is_string($item['part'] ?? null) ? $item['part'] : null;
+        $spineItem = $part !== null ? ($spineByContentPart[$part] ?? null) : null;
+        $sourceDiagnostics = is_array($item['diagnostics'] ?? null) ? array_values($item['diagnostics']) : [];
+        $diagnostics = [];
+
+        if (($item['external'] ?? false) === true) {
+            $diagnostics[] = [
+                'type' => 'external-navigation-target',
+                'source' => $source,
+                'target' => $target,
+                'message' => 'EPUB navigation target points outside the package and was not fetched',
+            ];
+        } elseif ($target === null) {
+            $diagnostics[] = [
+                'type' => 'missing-navigation-target',
+                'source' => $source,
+                'message' => 'EPUB navigation item does not carry a resolvable target',
+            ];
+        } elseif (($item['exists'] ?? true) !== true) {
+            $diagnostics[] = [
+                'type' => 'missing-navigation-target',
+                'source' => $source,
+                'part' => $part,
+                'message' => 'EPUB navigation target is missing from the package',
+            ];
+        } elseif (!is_array($spineItem)) {
+            $diagnostics[] = [
+                'type' => 'navigation-target-outside-spine',
+                'source' => $source,
+                'part' => $part,
+                'message' => 'EPUB navigation target exists in the package but is not part of the resolved spine handoff',
+            ];
+        }
+
+        return [
+            'index' => $index,
+            'source' => $source,
+            'sourceIndex' => $sourceIndex,
+            'depth' => $depth,
+            'id' => is_string($item['id'] ?? null) ? $item['id'] : null,
+            'playOrder' => is_string($item['playOrder'] ?? null) ? $item['playOrder'] : null,
+            'label' => is_string($item['title'] ?? null) ? $item['title'] : '',
+            'href' => is_string($item['href'] ?? null) ? $item['href'] : null,
+            'target' => $target,
+            'part' => $part,
+            'fragment' => self::targetFragment($target),
+            'external' => (bool) ($item['external'] ?? false),
+            'exists' => (bool) ($item['exists'] ?? false),
+            'type' => is_string($item['type'] ?? null) ? $item['type'] : null,
+            'types' => is_array($item['types'] ?? null) ? array_values($item['types']) : [],
+            'spineIndex' => is_array($spineItem) ? (int) ($spineItem['index'] ?? 0) : null,
+            'spineIdref' => is_array($spineItem) ? (string) ($spineItem['idref'] ?? '') : null,
+            'spineItemId' => is_array($spineItem) && is_string($spineItem['id'] ?? null) ? $spineItem['id'] : null,
+            'spinePart' => is_array($spineItem) ? (string) ($spineItem['part'] ?? '') : null,
+            'contentPart' => is_array($spineItem) ? (string) ($spineItem['contentPart'] ?? $spineItem['part'] ?? '') : null,
+            'linear' => is_array($spineItem) ? (bool) ($spineItem['linear'] ?? true) : null,
+            'pageSpread' => is_array($spineItem) ? ($spineItem['pageSpread'] ?? null) : null,
+            'sourceDiagnostics' => $sourceDiagnostics,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param list<array<string, mixed>> $diagnostics
+     * @param array<int, list<array<string, mixed>>> $targetsBySpineIndex
+     */
+    private static function accumulateNavigationTarget(
+        array $item,
+        array &$diagnostics,
+        array &$targetsBySpineIndex,
+        int &$mappedCount,
+        int &$externalCount,
+        int &$missingCount,
+        int &$outsideSpineCount
+    ): void {
+        foreach ($item['diagnostics'] as $diagnostic) {
+            if (!is_array($diagnostic)) {
+                continue;
+            }
+
+            $diagnostics[] = [
+                'index' => $item['index'],
+                'source' => $item['source'],
+                'sourceIndex' => $item['sourceIndex'],
+            ] + $diagnostic;
+        }
+
+        if (($item['external'] ?? false) === true) {
+            ++$externalCount;
+        }
+        if (($item['exists'] ?? true) !== true && ($item['external'] ?? false) !== true) {
+            ++$missingCount;
+        }
+
+        $hasOutsideSpineDiagnostic = false;
+        foreach ($item['diagnostics'] as $diagnostic) {
+            if (($diagnostic['type'] ?? null) === 'navigation-target-outside-spine') {
+                $hasOutsideSpineDiagnostic = true;
+                break;
+            }
+        }
+        if ($hasOutsideSpineDiagnostic) {
+            ++$outsideSpineCount;
+        }
+
+        if (is_int($item['spineIndex'] ?? null)) {
+            ++$mappedCount;
+            $targetsBySpineIndex[$item['spineIndex']][] = $item;
+        }
+    }
+
+    /**
      * @param array<string, array<string, mixed>> $manifestById
      *
      * @return array<string, array<string, mixed>>
@@ -4227,6 +4523,7 @@ final class EpubReader
      * @param array<string, mixed> $remoteResources
      * @param array<string, mixed> $mediaDurations
      * @param array<string, mixed> $pageBreaks
+     * @param array<string, mixed> $navigation
      * @param array<string, mixed> $xhtmlResourceReport
      * @param array<string, mixed> $renditions
      */
@@ -4244,6 +4541,7 @@ final class EpubReader
         array $remoteResources,
         array $mediaDurations,
         array $pageBreaks,
+        array $navigation,
         array $xhtmlResourceReport,
         array $renditions
     ): AstNode {
@@ -4323,6 +4621,7 @@ final class EpubReader
             'spineProperties' => $spineProperties,
             'resourceProperties' => $resourceProperties,
             'remoteResources' => $remoteResources,
+            'navigation' => $navigation,
             'xhtmlResourceReport' => $xhtmlResourceReport,
             'mediaDurations' => $mediaDurations,
             'pageBreaks' => $pageBreaks,

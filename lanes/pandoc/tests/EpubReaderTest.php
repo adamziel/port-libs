@@ -619,6 +619,136 @@ return [
         $t->same('Media audit', $ncx['items'][1]['children'][0]['title']);
         $t->same('/OEBPS/text/chapter2.xhtml#media', $ncx['items'][1]['children'][0]['target']);
     },
+    'reconciles EPUB navigation targets with resolved spine coverage' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $coverageNavXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="text/chapter1.xhtml#intro">Imported packet</a></li>
+        <li><a href="appendix/outside.xhtml">Outside appendix</a></li>
+        <li><a href="https://cdn.example.test/epub/remote.xhtml">Remote appendix</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $coverageNcxXml = <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>
+    <navPoint id="navpoint-1" playOrder="1">
+      <navLabel><text>Imported packet</text></navLabel>
+      <content src="text/chapter1.xhtml#intro"/>
+    </navPoint>
+    <navPoint id="navpoint-2" playOrder="2">
+      <navLabel><text>Review appendix</text></navLabel>
+      <content src="text/chapter2.xhtml"/>
+    </navPoint>
+    <navPoint id="navpoint-missing" playOrder="3">
+      <navLabel><text>Missing note</text></navLabel>
+      <content src="text/missing.xhtml"/>
+    </navPoint>
+  </navMap>
+</ncx>
+XML;
+
+        $opfWithUncoveredChapter = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="chapter-3" href="text/chapter3.xhtml" media-type="application/xhtml+xml"/><item id="appendix" href="appendix/outside.xhtml" media-type="application/xhtml+xml"/><item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            $opfXml
+        );
+        $opfWithUncoveredChapter = str_replace(
+            '<itemref idref="chapter-2" linear="no"/>',
+            '<itemref idref="chapter-2" linear="no"/><itemref idref="chapter-3"/>',
+            $opfWithUncoveredChapter
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithUncoveredChapter,
+            null,
+            [
+                ['name' => 'OEBPS/text/chapter3.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Unlisted chapter</h1></body></html>'],
+                ['name' => 'OEBPS/appendix/outside.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Outside appendix</h1></body></html>'],
+            ],
+            $coverageNavXhtml,
+            $coverageNcxXml
+        ));
+
+        $navigation = $result['navigation'];
+        $t->same(true, $navigation['present']);
+        $t->same(3, $navigation['navTocCount']);
+        $t->same(3, $navigation['ncxCount']);
+        $t->same(6, $navigation['targetCount']);
+        $t->same(3, $navigation['mappedSpineTargetCount']);
+        $t->same(1, $navigation['outsideSpineTargetCount']);
+        $t->same(1, $navigation['missingTargetCount']);
+        $t->same(1, $navigation['externalTargetCount']);
+        $t->same(1, $navigation['uncoveredLinearSpineItemCount']);
+        $t->same($navigation, $result['importReport']['navigation']);
+        $t->same($navigation, $result['document']->attr('navigation'));
+
+        $first = $navigation['items'][0];
+        $t->same('nav', $first['source']);
+        $t->same(0, $first['sourceIndex']);
+        $t->same(0, $first['depth']);
+        $t->same('Imported packet', $first['label']);
+        $t->same('/OEBPS/text/chapter1.xhtml#intro', $first['target']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $first['part']);
+        $t->same('intro', $first['fragment']);
+        $t->same(0, $first['spineIndex']);
+        $t->same('chapter-1', $first['spineIdref']);
+        $t->same(true, $first['linear']);
+        $t->same([], $first['diagnostics']);
+
+        $outside = $navigation['items'][1];
+        $t->same('nav', $outside['source']);
+        $t->same('/OEBPS/appendix/outside.xhtml', $outside['part']);
+        $t->same(true, $outside['exists']);
+        $t->same(null, $outside['spineIndex']);
+        $t->same('navigation-target-outside-spine', $outside['diagnostics'][0]['type']);
+
+        $remote = $navigation['items'][2];
+        $t->same(true, $remote['external']);
+        $t->same(null, $remote['part']);
+        $t->same('external-nav-reference', $remote['sourceDiagnostics'][0]['type']);
+        $t->same('external-navigation-target', $remote['diagnostics'][0]['type']);
+
+        $chapter2Ncx = $navigation['items'][4];
+        $t->same('ncx', $chapter2Ncx['source']);
+        $t->same('2', $chapter2Ncx['playOrder']);
+        $t->same('/OEBPS/text/chapter2.xhtml', $chapter2Ncx['part']);
+        $t->same(1, $chapter2Ncx['spineIndex']);
+        $t->same('chapter-2', $chapter2Ncx['spineIdref']);
+        $t->same(false, $chapter2Ncx['linear']);
+
+        $missing = $navigation['items'][5];
+        $t->same('/OEBPS/text/missing.xhtml', $missing['part']);
+        $t->same(false, $missing['exists']);
+        $t->same('missing-ncx-reference', $missing['sourceDiagnostics'][0]['type']);
+        $t->same('missing-navigation-target', $missing['diagnostics'][0]['type']);
+
+        $chapter1Coverage = $navigation['spineCoverage'][0];
+        $t->same('chapter-1', $chapter1Coverage['idref']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $chapter1Coverage['contentPart']);
+        $t->same(true, $chapter1Coverage['linear']);
+        $t->same(2, $chapter1Coverage['targetCount']);
+        $t->same(1, $chapter1Coverage['navTocCount']);
+        $t->same(1, $chapter1Coverage['ncxCount']);
+        $t->same([], $chapter1Coverage['diagnostics']);
+
+        $chapter3Coverage = $navigation['spineCoverage'][2];
+        $t->same('chapter-3', $chapter3Coverage['idref']);
+        $t->same(true, $chapter3Coverage['linear']);
+        $t->same(0, $chapter3Coverage['targetCount']);
+        $t->same('linear-spine-item-missing-navigation', $chapter3Coverage['diagnostics'][0]['type']);
+        $t->same('chapter-3', $navigation['uncoveredLinearSpineItems'][0]['idref']);
+
+        $t->same(3, count($navigation['diagnostics']));
+        $t->same('navigation-target-outside-spine', $navigation['diagnostics'][0]['type']);
+        $t->same('external-navigation-target', $navigation['diagnostics'][1]['type']);
+        $t->same('missing-navigation-target', $navigation['diagnostics'][2]['type']);
+    },
     'parses typed EPUB3 landmarks and page-list navigation sections' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $result = (new EpubReader())->readPackage($buildEpubPackage());
         $nav = $result['nav'];

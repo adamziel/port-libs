@@ -299,6 +299,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['ncx']['items'][1]['external'] ?? null) !== true || ($result['ncx']['items'][1]['diagnostics'][0]['type'] ?? null) !== 'external-ncx-reference') {
         throw new RuntimeException('Expected remote NCX reference to stay unfetched for review');
     }
+    if (($result['navigation']['targetCount'] ?? null) !== 4 || ($result['navigation']['mappedSpineTargetCount'] ?? null) !== 2) {
+        throw new RuntimeException('Expected EPUB nav/NCX targets to reconcile with resolved spine coverage');
+    }
+    if (($result['navigation']['externalTargetCount'] ?? null) !== 2 || ($result['navigation']['uncoveredLinearSpineItemCount'] ?? null) !== 0) {
+        throw new RuntimeException('Expected EPUB navigation report to keep remote targets visible without flagging covered linear spine items');
+    }
+    if (($result['navigation']['spineCoverage'][0]['targetCount'] ?? null) !== 2 || ($result['navigation']['spineCoverage'][0]['idref'] ?? null) !== 'chapter') {
+        throw new RuntimeException('Expected EPUB navigation coverage to attach nav and NCX targets to the source chapter');
+    }
+    if (($result['importReport']['navigation']['externalTargetCount'] ?? null) !== 2 || ($result['document']->attr('navigation')['mappedSpineTargetCount'] ?? null) !== 2) {
+        throw new RuntimeException('Expected WordPress EPUB document handoff to expose navigation coverage metadata');
+    }
     if (($result['nav']['landmarks'][0]['type'] ?? null) !== 'bodymatter') {
         throw new RuntimeException('Expected EPUB nav landmarks to preserve item type');
     }
@@ -581,6 +593,10 @@ echo 'fallbackPageSpread=' . ($result['spine'][1]['pageSpread'] ?? '') . "\n";
 echo 'fallbackSpineContent=' . ($result['spine'][1]['contentPart'] ?? '') . "\n";
 echo 'navTarget=' . ($result['nav']['items'][0]['target'] ?? '') . "\n";
 echo 'remoteNavExternal=' . (($result['nav']['items'][1]['external'] ?? false) ? 'yes' : 'no') . "\n";
+echo 'navigationTargets=' . ($result['navigation']['targetCount'] ?? 0) . "\n";
+echo 'navigationMappedTargets=' . ($result['navigation']['mappedSpineTargetCount'] ?? 0) . "\n";
+echo 'navigationExternalTargets=' . ($result['navigation']['externalTargetCount'] ?? 0) . "\n";
+echo 'navigationUncoveredLinear=' . ($result['navigation']['uncoveredLinearSpineItemCount'] ?? 0) . "\n";
 echo 'landmarkTarget=' . ($result['nav']['landmarks'][0]['target'] ?? '') . "\n";
 echo 'pageListTarget=' . ($result['nav']['pageList'][0]['target'] ?? '') . "\n";
 echo 'pageBreaks=' . ($result['pageBreaks']['count'] ?? 0) . "\n";
