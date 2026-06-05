@@ -2993,7 +2993,7 @@ final class PdfAttachmentExtractor
                 if ($row === '') {
                     continue;
                 }
-                if (preg_match('/^(\d{10})\s+(\d{5})\s+([nf])\b/', $row, $match) !== 1) {
+                if (preg_match('/^(\d{10})\s+(\d{5})\s+([nf])(?:\s*(?:%.*)?)$/', $row, $match) !== 1) {
                     if ($rowIndex === 0 && $entries !== []) {
                         return $entries;
                     }
