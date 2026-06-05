@@ -125,6 +125,8 @@ final class OdfReader
                     'noteCount' => $contentStats['noteCount'],
                     'bookmarkCount' => $contentStats['bookmarkCount'],
                     'bookmarkReferenceCount' => $contentStats['bookmarkReferenceCount'],
+                    'referenceMarkCount' => $contentStats['referenceMarkCount'],
+                    'referenceReferenceCount' => $contentStats['referenceReferenceCount'],
                     'trackedChangeCount' => $contentStats['trackedChangeCount'],
                     'mathCount' => $contentStats['mathCount'],
                 ],
@@ -953,10 +955,27 @@ final class OdfReader
                 }
                 continue;
             }
+            if ($this->isElement($child, self::TEXT_NS, 'reference-mark') || $this->isElement($child, self::TEXT_NS, 'reference-mark-start')) {
+                $referenceMark = $this->referenceMarkAnchorNode($child);
+                if ($referenceMark instanceof AstNode) {
+                    $nodes[] = $referenceMark;
+                }
+                continue;
+            }
+            if ($this->isElement($child, self::TEXT_NS, 'reference-mark-end')) {
+                continue;
+            }
             if ($this->isElement($child, self::TEXT_NS, 'bookmark-ref')) {
                 $bookmarkRef = $this->bookmarkReferenceNode($child, $catalog, $package);
                 if ($bookmarkRef instanceof AstNode) {
                     $nodes[] = $bookmarkRef;
+                }
+                continue;
+            }
+            if ($this->isElement($child, self::TEXT_NS, 'reference-ref')) {
+                $reference = $this->referenceReferenceNode($child, $catalog, $package);
+                if ($reference instanceof AstNode) {
+                    $nodes[] = $reference;
                 }
                 continue;
             }
@@ -1174,6 +1193,23 @@ final class OdfReader
         ]);
     }
 
+    private function referenceMarkAnchorNode(\DOMElement $referenceMark): ?AstNode
+    {
+        $name = self::attr($referenceMark, self::TEXT_NS, 'name');
+        if ($name === '') {
+            return null;
+        }
+
+        return new AstNode('span', [
+            'sourceFormat' => 'odt',
+            'id' => self::referenceId($name),
+            'classes' => ['anchor', 'odf-reference-mark'],
+            'attributes' => [
+                'data-odf-reference-name' => $name,
+            ],
+        ]);
+    }
+
     /**
      * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
      */
@@ -1196,6 +1232,40 @@ final class OdfReader
             'sourceFormat' => 'odt',
             'url' => '#' . self::bookmarkId($name),
             'classes' => ['odf-bookmark-ref'],
+            'attributes' => [
+                'data-odf-ref-name' => $name,
+            ],
+        ];
+        $format = self::attr($reference, self::TEXT_NS, 'reference-format');
+        if ($format !== '') {
+            $attrs['attributes']['data-odf-reference-format'] = $format;
+        }
+
+        return new AstNode('link', $attrs, $children);
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     */
+    private function referenceReferenceNode(\DOMElement $reference, array $catalog, ?ZipPackage $package): ?AstNode
+    {
+        $name = self::attr($reference, self::TEXT_NS, 'ref-name');
+        if ($name === '') {
+            $name = self::attr($reference, self::TEXT_NS, 'name');
+        }
+        if ($name === '') {
+            return null;
+        }
+
+        $children = $this->coalesceTextNodes($this->inlineNodes($reference, $catalog, $package));
+        if ($children === []) {
+            $children = [new AstNode('text', ['text' => $name])];
+        }
+
+        $attrs = [
+            'sourceFormat' => 'odt',
+            'url' => '#' . self::referenceId($name),
+            'classes' => ['odf-reference-ref'],
             'attributes' => [
                 'data-odf-ref-name' => $name,
             ],
@@ -1699,7 +1769,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, trackedChangeCount:int, mathCount:int}
+     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, trackedChangeCount:int, mathCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -1707,6 +1777,8 @@ final class OdfReader
             'noteCount' => 0,
             'bookmarkCount' => 0,
             'bookmarkReferenceCount' => 0,
+            'referenceMarkCount' => 0,
+            'referenceReferenceCount' => 0,
             'trackedChangeCount' => 0,
             'mathCount' => 0,
         ];
@@ -1719,6 +1791,12 @@ final class OdfReader
             }
             if ($node->type === 'link' && $this->nodeHasClass($node, 'odf-bookmark-ref')) {
                 $stats['bookmarkReferenceCount']++;
+            }
+            if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-reference-mark')) {
+                $stats['referenceMarkCount']++;
+            }
+            if ($node->type === 'link' && $this->nodeHasClass($node, 'odf-reference-ref')) {
+                $stats['referenceReferenceCount']++;
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-change')) {
                 $stats['trackedChangeCount']++;
@@ -1970,5 +2048,13 @@ final class OdfReader
         $id = trim($id, '-');
 
         return $id === '' ? 'odf-bookmark' : $id;
+    }
+
+    private static function referenceId(string $name): string
+    {
+        $id = strtolower(preg_replace('/[^A-Za-z0-9]+/', '-', trim($name)) ?? '');
+        $id = trim($id, '-');
+
+        return $id === '' ? 'odf-reference' : $id;
     }
 }

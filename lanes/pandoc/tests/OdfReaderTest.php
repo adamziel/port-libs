@@ -320,6 +320,62 @@ XML;
         $t->contains('<li id="fn-1"><p>ODF footnote body.</p>', $blocksHtml);
         $t->contains('<li id="fn-2"><p>ODF endnote body with <a href="https://example.test/review">review link</a>.</p>', $blocksHtml);
     },
+    'maps ODT reference marks and references into internal review links' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithReferenceMarks = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Range <text:reference-mark-start text:name="Source Claim"/>source claim<text:reference-mark-end text:name="Source Claim"/> and point <text:reference-mark text:name="Point Review"/>marker.</text:p>
+      <text:p>See <text:reference-ref text:ref-name="Source Claim" text:reference-format="text">source claim</text:reference-ref> and <text:reference-ref text:ref-name="Point Review" text:reference-format="page">point marker</text:reference-ref>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithReferenceMarks));
+        $blocks = $result['document']->children;
+
+        $t->same(2, count($blocks));
+        $sourceAnchor = $blocks[0]->children[1];
+        $pointAnchor = $blocks[0]->children[3];
+        $sourceReference = $blocks[1]->children[1];
+        $pointReference = $blocks[1]->children[3];
+
+        $t->same('span', $sourceAnchor->type);
+        $t->same('source-claim', $sourceAnchor->attr('id'));
+        $t->same(['anchor', 'odf-reference-mark'], $sourceAnchor->attr('classes'));
+        $t->same('Source Claim', $sourceAnchor->attr('attributes')['data-odf-reference-name']);
+        $t->same('source claim and point ', $blocks[0]->children[2]->attr('text'));
+        $t->same('span', $pointAnchor->type);
+        $t->same('point-review', $pointAnchor->attr('id'));
+        $t->same('Point Review', $pointAnchor->attr('attributes')['data-odf-reference-name']);
+        $t->same('Range source claim and point marker.', $blocks[0]->attr('text'));
+
+        $t->same('link', $sourceReference->type);
+        $t->same('#source-claim', $sourceReference->attr('url'));
+        $t->same(['odf-reference-ref'], $sourceReference->attr('classes'));
+        $t->same('Source Claim', $sourceReference->attr('attributes')['data-odf-ref-name']);
+        $t->same('text', $sourceReference->attr('attributes')['data-odf-reference-format']);
+        $t->same('source claim', $sourceReference->children[0]->attr('text'));
+        $t->same('link', $pointReference->type);
+        $t->same('#point-review', $pointReference->attr('url'));
+        $t->same('page', $pointReference->attr('attributes')['data-odf-reference-format']);
+        $t->same('point marker', $pointReference->children[0]->attr('text'));
+
+        $t->same(2, $result['importReport']['content']['referenceMarkCount']);
+        $t->same(2, $result['importReport']['content']['referenceReferenceCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[]{#source-claim .anchor .odf-reference-mark data-odf-reference-name="Source Claim"}source claim', $markdown);
+        $t->contains('[source claim](#source-claim){.odf-reference-ref data-odf-ref-name="Source Claim" data-odf-reference-format="text"}', $markdown);
+        $t->contains('<span id="source-claim" class="anchor odf-reference-mark" data-odf-reference-name="Source Claim"></span>source claim', $blocksHtml);
+        $t->contains('<a href="#source-claim" class="odf-reference-ref" data-odf-ref-name="Source Claim" data-odf-reference-format="text">source claim</a>', $blocksHtml);
+        $t->contains('<span id="point-review" class="anchor odf-reference-mark" data-odf-reference-name="Point Review"></span>marker.', $blocksHtml);
+        $t->contains('<a href="#point-review" class="odf-reference-ref" data-odf-ref-name="Point Review" data-odf-reference-format="page">point marker</a>', $blocksHtml);
+    },
     'maps ODT tracked changes into review spans and import report metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithTrackedChanges = <<<'XML'
 <office:document-content

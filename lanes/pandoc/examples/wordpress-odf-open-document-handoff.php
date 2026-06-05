@@ -76,7 +76,7 @@ $contentXml = <<<'XML'
         </text:changed-region>
       </text:tracked-changes>
       <text:h text:outline-level="1" text:style-name="ImportHeading">ODT source packet</text:h>
-      <text:p>Reviewer <text:span text:style-name="StrongSource">summary</text:span> keeps <text:change-start text:change-id="chg-add-source-note"/>tracked source note<text:change-end text:change-id="chg-add-source-note"/> and <text:change text:change-id="chg-delete-draft-claim"/>, <text:bookmark-start text:name="Review Anchor"/>review anchor<text:bookmark-end text:name="Review Anchor"/>, <text:bookmark-ref text:ref-name="Review Anchor" text:reference-format="text">internal reference</text:bookmark-ref>, <text:a xlink:href="https://example.test/odt-source">source URL</text:a>, formula <draw:frame draw:name="Migration formula"><draw:object xlink:href="./Object 1"/></draw:frame>, and annotations<text:note text:id="ftn-review" text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>ODT footnote reviewer context.</text:p></text:note-body></text:note><office:annotation><dc:creator>Migration Desk</dc:creator><dc:date>2026-06-04T23:20:00Z</dc:date><text:p>Check imported captions before publishing.</text:p></office:annotation>.</text:p>
+      <text:p>Reviewer <text:span text:style-name="StrongSource">summary</text:span> keeps <text:change-start text:change-id="chg-add-source-note"/>tracked source note<text:change-end text:change-id="chg-add-source-note"/> and <text:change text:change-id="chg-delete-draft-claim"/>, <text:bookmark-start text:name="Review Anchor"/>review anchor<text:bookmark-end text:name="Review Anchor"/>, <text:bookmark-ref text:ref-name="Review Anchor" text:reference-format="text">internal reference</text:bookmark-ref>, <text:reference-mark-start text:name="Source Claim"/>source claim<text:reference-mark-end text:name="Source Claim"/> with <text:reference-ref text:ref-name="Source Claim" text:reference-format="text">source claim reference</text:reference-ref>, <text:a xlink:href="https://example.test/odt-source">source URL</text:a>, formula <draw:frame draw:name="Migration formula"><draw:object xlink:href="./Object 1"/></draw:frame>, and annotations<text:note text:id="ftn-review" text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>ODT footnote reviewer context.</text:p></text:note-body></text:note><office:annotation><dc:creator>Migration Desk</dc:creator><dc:date>2026-06-04T23:20:00Z</dc:date><text:p>Check imported captions before publishing.</text:p></office:annotation>.</text:p>
       <text:list text:style-name="ReviewSteps">
         <text:list-item><text:p>Match ODT media to WordPress attachments</text:p></text:list-item>
         <text:list-item><text:p>Review table spans</text:p></text:list-item>
@@ -171,6 +171,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<a href="#review-anchor" class="odf-bookmark-ref" data-odf-ref-name="Review Anchor" data-odf-reference-format="text">internal reference</a>')) {
         throw new RuntimeException('Expected ODT bookmark reference to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, '<span id="source-claim" class="anchor odf-reference-mark" data-odf-reference-name="Source Claim"></span>source claim')) {
+        throw new RuntimeException('Expected ODT reference mark to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, '<a href="#source-claim" class="odf-reference-ref" data-odf-ref-name="Source Claim" data-odf-reference-format="text">source claim reference</a>')) {
+        throw new RuntimeException('Expected ODT reference-ref to render in WordPress blocks');
+    }
+    if (($result['importReport']['content']['referenceMarkCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT reference marks to be counted in the import report');
+    }
+    if (($result['importReport']['content']['referenceReferenceCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT reference refs to be counted in the import report');
     }
     if (($result['importReport']['content']['noteCount'] ?? 0) < 2) {
         throw new RuntimeException('Expected ODT footnote and annotation notes to be reported');
