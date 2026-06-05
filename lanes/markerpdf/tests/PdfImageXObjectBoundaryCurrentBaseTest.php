@@ -2113,6 +2113,67 @@ return [
         $t->true(!str_contains($encoded, $malformedPayload));
         $t->true(!str_contains($encoded, $validPayload));
     },
+    'keeps image XObject Do operators inside text objects unpainted' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before text object image boundary) Tj /Fake#20Text#20Image Do (Still text) Tj ET\n"
+            . "q 14 0 0 7 104 690 cm /Painted#20Image Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After text object image boundary) Tj ET';
+        $fakePayload = 'BT /F1 12 Tf 72 720 Td (Fake Text Object Image Payload Noise) Tj ET';
+        $paintedPayload = 'BT /F1 12 Tf 72 720 Td (Painted Image Payload Noise) Tj ET';
+        $fakeCompressed = gzcompress($fakePayload);
+        $paintedCompressed = gzcompress($paintedPayload);
+        if (!is_string($fakeCompressed) || !is_string($paintedCompressed)) {
+            throw new RuntimeException('Unable to compress text-object image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Fake#20Text#20Image 5 0 R /Painted#20Image 6 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($fakeCompressed) . " >>\nstream\n{$fakeCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($paintedCompressed) . " >>\nstream\n{$paintedCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(1, $review['uninvoked_image_xobject_count']);
+
+        $fake = $entriesByName['Fake Text Image'];
+        $t->same(false, $fake['invoked']);
+        $t->same(0, $fake['invocation_count']);
+        $t->same([], $fake['invocation_matrices']);
+        $t->same(null, $fake['image_unit_bbox']);
+        $t->same(true, $fake['decoded_with_current_filters']);
+        $t->same(hash('sha256', $fakePayload), $fake['decoded_sha256']);
+        $t->same(false, $fake['payload_in_visible_text']);
+
+        $painted = $entriesByName['Painted Image'];
+        $t->same(true, $painted['invoked']);
+        $t->same(1, $painted['invocation_count']);
+        $t->same([[14.0, 0.0, 0.0, 7.0, 104.0, 690.0]], $painted['invocation_matrices']);
+        $t->same([104.0, 690.0, 118.0, 697.0], $painted['image_unit_bbox']);
+        $t->same(true, $painted['decoded_with_current_filters']);
+        $t->same(hash('sha256', $paintedPayload), $painted['decoded_sha256']);
+        $t->same(false, $painted['payload_in_visible_text']);
+
+        $t->same(['Before text object image boundaryStill text', 'After text object image boundary'], $extractor->extractTextLines($pdf));
+        $t->same("Before text object image boundaryStill text\nAfter text object image boundary", $plainText);
+        $t->true(!str_contains($plainText, 'Fake Text Object Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Painted Image Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $fakePayload));
+        $t->true(!str_contains($encoded, $paintedPayload));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"

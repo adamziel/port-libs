@@ -4272,10 +4272,28 @@ final class PdfTextExtractor
         $graphicsStateStack = [];
         $invocations = [];
         $operands = [];
+        $insideTextObject = false;
 
         foreach ($this->contentTokens($content) as $token) {
             if (!$this->isOperator($token)) {
                 $operands[] = $token;
+                continue;
+            }
+
+            if ($token === 'BT') {
+                $insideTextObject = true;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'ET') {
+                $insideTextObject = false;
+                $operands = [];
+                continue;
+            }
+
+            if ($insideTextObject) {
+                $operands = [];
                 continue;
             }
 
