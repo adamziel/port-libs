@@ -902,8 +902,8 @@ final class PdfTextExtractor
             $dictionaryFilterOperandCount = $this->dictionaryStreamFilterOperandCount($operandGroups['Filter']);
             $malformedFilterOperandCount = $this->malformedStreamFilterOperandCount($operandGroups['Filter']);
             $unsupportedFilterCount = $this->unsupportedTextStreamFilterCount($filters, $decodeParms, $objects);
-            $invalidDecodeParmsOperandCount = $this->invalidStreamDecodeParmsOperandCount($operandGroups['DecodeParms'], $filters);
-            $malformedDecodeParmsOperandCount = $this->malformedStreamDecodeParmsOperandCount($operandGroups['DecodeParms'], $filters);
+            $invalidDecodeParmsOperandCount = $this->invalidStreamDecodeParmsOperandCount($operandGroups['DecodeParms'], $filters, $decodeParms);
+            $malformedDecodeParmsOperandCount = $this->malformedStreamDecodeParmsOperandCount($operandGroups['DecodeParms'], $filters, $decodeParms);
             $invalidDecodeParmsParameterCount = $this->invalidDecodeParmsParameterCount($filters, $decodeParms, $objects);
             $decoded = $this->decodedCMapBody($body, $objects);
             $parserBoundedDecoded = $decoded === null ? null : $this->decodedCMapBodyForParsing($body, $objects);
@@ -9713,15 +9713,63 @@ final class PdfTextExtractor
             return null;
         }
 
-        if ($dict[$offset] !== '[') {
-            return $this->decodeParmsValueList($dict, $offset, $objects);
+        return $this->decodeParmsValueListForFilters($dict, $offset, $objects, $filters);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string|null> $filters
+     * @param array<int, true> $seen
+     * @return list<string|null>|null
+     */
+    private function decodeParmsValueListForFilters(
+        string $value,
+        int $offset,
+        array $objects,
+        array $filters,
+        array $seen = []
+    ): ?array {
+        $offset = $this->skipPdfWhitespace($value, $offset);
+        if ($offset >= strlen($value)) {
+            return null;
         }
 
-        $arrayBody = $this->readPdfArrayAt($dict, $offset);
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) === 1) {
+            $objectNumber = (int) $match[1];
+            $generation = (int) $match[2];
+            $objectKey = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || isset($seen[$objectKey])) {
+                return null;
+            }
+
+            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            if ($body === null) {
+                return null;
+            }
+
+            $seen[$objectKey] = true;
+            return $this->decodeParmsValueListForFilters(trim($body), 0, $objects, $filters, $seen);
+        }
+
+        if ($value[$offset] !== '[') {
+            return $this->decodeParmsValueList($value, $offset, $objects, $seen);
+        }
+
+        $arrayBody = $this->readPdfArrayAt($value, $offset);
         if ($arrayBody === null) {
             return null;
         }
 
+        return $this->decodeParmsArrayItemsForFilters($arrayBody, $objects, $filters);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string|null> $filters
+     * @return list<string|null>|null
+     */
+    private function decodeParmsArrayItemsForFilters(string $arrayBody, array $objects, array $filters): ?array
+    {
         $rawItems = $this->decodeParmsArrayRawItems($arrayBody);
         if ($rawItems === null) {
             return null;
@@ -18159,10 +18207,17 @@ final class PdfTextExtractor
     /**
      * @param list<array<string, mixed>> $operands
      */
-    private function invalidStreamDecodeParmsOperandCount(array $operands, ?array $filters = null): int
+    private function invalidStreamDecodeParmsOperandCount(array $operands, ?array $filters = null, ?array $decodeParms = null): int
     {
         $count = 0;
+        $singleResolvedContainer = count($operands) === 1
+            && $decodeParms !== null
+            && $this->decodeParmsContainerOperandIsResolvedForFilters($operands[0], $filters);
         foreach ($operands as $index => $operand) {
+            if ($singleResolvedContainer) {
+                continue;
+            }
+
             if (
                 $filters !== null
                 && $this->decodeParmsIndexIsAlignedToNullFilter($filters, $index, count($operands))
@@ -18189,10 +18244,17 @@ final class PdfTextExtractor
     /**
      * @param list<array<string, mixed>> $operands
      */
-    private function malformedStreamDecodeParmsOperandCount(array $operands, ?array $filters = null): int
+    private function malformedStreamDecodeParmsOperandCount(array $operands, ?array $filters = null, ?array $decodeParms = null): int
     {
         $count = 0;
+        $singleResolvedContainer = count($operands) === 1
+            && $decodeParms !== null
+            && $this->decodeParmsContainerOperandIsResolvedForFilters($operands[0], $filters);
         foreach ($operands as $index => $operand) {
+            if ($singleResolvedContainer) {
+                continue;
+            }
+
             if (
                 $filters !== null
                 && $this->decodeParmsIndexIsAlignedToNullFilter($filters, $index, count($operands))
@@ -18206,6 +18268,18 @@ final class PdfTextExtractor
         }
 
         return $count;
+    }
+
+    /**
+     * @param array<string, mixed> $operand
+     * @param list<string|null>|null $filters
+     */
+    private function decodeParmsContainerOperandIsResolvedForFilters(array $operand, ?array $filters): bool
+    {
+        return $filters !== null
+            && ($operand['kind'] ?? null) === 'indirect'
+            && ($operand['resolved'] ?? false) === true
+            && ($operand['token_type'] ?? null) === 'array';
     }
 
     /**
