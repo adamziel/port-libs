@@ -344,6 +344,19 @@ $implicitOpeningDocument = (new MarkdownReader())->read($implicitOpeningMarkdown
 $implicitOpeningMeta = $implicitOpeningDocument->attr('meta', []);
 $implicitOpeningBlocks = (new WordPressBlockWriter())->write($implicitOpeningDocument);
 
+$invalidBlockScalarMarkdown = <<<'MARKDOWN'
+---
+title: Invalid block scalar **Packet**
+abstract: |
+This source line is not indented relative to the block scalar.
+---
+
+# Invalid scalar body
+MARKDOWN;
+
+$invalidBlockScalarDocument = (new MarkdownReader())->read($invalidBlockScalarMarkdown);
+$invalidBlockScalarBlocks = (new WordPressBlockWriter())->write($invalidBlockScalarDocument);
+
 if (($argv[1] ?? '') === '--self-test') {
     if (($meta['review']['status'] ?? '') !== 'needs-review') {
         throw new RuntimeException('YAML metadata self-test missing later review override');
@@ -831,6 +844,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($implicitOpeningBlocks, '<h1 id="imported-body">Imported Body</h1>')) {
         throw new RuntimeException('YAML metadata self-test missing omitted-opening imported body heading');
+    }
+    if ($invalidBlockScalarDocument->attr('meta') !== null) {
+        throw new RuntimeException('YAML metadata self-test accepted invalid unindented block scalar metadata');
+    }
+    if (!str_contains($invalidBlockScalarBlocks, '<p>title: Invalid block scalar <strong>Packet</strong>')) {
+        throw new RuntimeException('YAML metadata self-test failed to keep invalid block scalar title source visible');
+    }
+    if (!str_contains($invalidBlockScalarBlocks, 'This source line is not indented relative to the block scalar.</p>')) {
+        throw new RuntimeException('YAML metadata self-test failed to keep invalid block scalar body source visible');
     }
 
     echo "yaml metadata handoff self-test ok\n";

@@ -842,6 +842,30 @@ return [
         $t->same('import-packet', $document->children[0]->attr('id'));
         $t->contains('<h1 id="import-packet">Import packet</h1>', $blocks);
     },
+    'keeps invalid pandoc yaml block scalar indentation as markdown body' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Invalid block scalar **Packet**',
+            'abstract: |',
+            'This literal block line is not indented.',
+            '---',
+            '',
+            '# Invalid scalar body',
+        ]));
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(null, $document->attr('meta'));
+        $t->same(4, count($document->children));
+        $t->same('horizontal_rule', $document->children[0]->type);
+        $t->same('paragraph', $document->children[1]->type);
+        $t->same('title: Invalid block scalar Packet abstract: | This literal block line is not indented.', $document->children[1]->attr('text'));
+        $t->same('horizontal_rule', $document->children[2]->type);
+        $t->same('heading', $document->children[3]->type);
+        $t->same('invalid-scalar-body', $document->children[3]->attr('id'));
+        $t->contains('<p>title: Invalid block scalar <strong>Packet</strong>', $blocks);
+        $t->contains('This literal block line is not indented.</p>', $blocks);
+        $t->contains('<h1 id="invalid-scalar-body">Invalid scalar body</h1>', $blocks);
+    },
     'maps pandoc yaml metadata with omitted opening marker at document start' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             'title: "Implicit **Packet**"',

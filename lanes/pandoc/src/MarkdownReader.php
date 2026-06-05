@@ -32,6 +32,8 @@ final class MarkdownReader
     /** @var list<array<string, string>> */
     private array $yamlMetadataTagProvenance = [];
 
+    private bool $yamlMetadataInvalid = false;
+
     /** @var array<string, string> */
     private array $yamlMetadataTagHandles = [
         '!!' => 'tag:yaml.org,2002:',
@@ -491,13 +493,18 @@ final class MarkdownReader
         $previousYamlMetadataAnchors = $this->yamlMetadataAnchors;
         $previousYamlMetadataDiagnostics = $this->yamlMetadataDiagnostics;
         $previousYamlMetadataTagProvenance = $this->yamlMetadataTagProvenance;
+        $previousYamlMetadataInvalid = $this->yamlMetadataInvalid;
         $previousYamlMetadataTagHandles = $this->yamlMetadataTagHandles;
         $this->yamlMetadataAnchors = [];
         $this->yamlMetadataDiagnostics = [];
         $this->yamlMetadataTagProvenance = [];
+        $this->yamlMetadataInvalid = false;
         $this->yamlMetadataTagHandles = ['!!' => 'tag:yaml.org,2002:'];
         try {
             $metadata = $this->parseYamlMetadataLines($yamlLines);
+            if ($this->yamlMetadataInvalid) {
+                return [];
+            }
             if ($this->yamlMetadataDiagnostics !== []) {
                 $metadata['__yamlMetadataDiagnostics'] = $this->yamlMetadataDiagnostics;
             }
@@ -510,6 +517,7 @@ final class MarkdownReader
             $this->yamlMetadataAnchors = $previousYamlMetadataAnchors;
             $this->yamlMetadataDiagnostics = $previousYamlMetadataDiagnostics;
             $this->yamlMetadataTagProvenance = $previousYamlMetadataTagProvenance;
+            $this->yamlMetadataInvalid = $previousYamlMetadataInvalid;
             $this->yamlMetadataTagHandles = $previousYamlMetadataTagHandles;
         }
     }
@@ -959,12 +967,17 @@ final class MarkdownReader
         if ($multilineFlow !== null) {
             $value = $multilineFlow;
         } elseif ($blockScalarHeader !== null) {
-            $value = $this->parseYamlBlockScalar(
-                $children,
-                $blockScalarHeader['style'],
-                $blockScalarHeader['chomp'],
-                $blockScalarHeader['indent']
-            );
+            if (!$this->yamlBlockScalarIndentationIsValid($children, $blockScalarHeader['indent'])) {
+                $this->yamlMetadataInvalid = true;
+                $value = null;
+            } else {
+                $value = $this->parseYamlBlockScalar(
+                    $children,
+                    $blockScalarHeader['style'],
+                    $blockScalarHeader['chomp'],
+                    $blockScalarHeader['indent']
+                );
+            }
         } elseif ($sourceValue === '') {
             $value = $this->parseYamlIndentedValue($children);
         } else {
@@ -1067,6 +1080,24 @@ final class MarkdownReader
         $trailingNewlines = preg_match('/\n+$/', $rawText, $m) === 1 ? $m[0] : '';
         $foldedText = $this->foldYamlBlockScalarText(rtrim($rawText, "\n"));
         return $chomp === '+' ? $foldedText . $trailingNewlines : $foldedText;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function yamlBlockScalarIndentationIsValid(array $lines, ?int $indent): bool
+    {
+        $requiredIndent = $indent ?? 1;
+        foreach ($lines as $line) {
+            $expanded = $this->expandTabsToSpaces($line);
+            if (trim($expanded) === '') {
+                continue;
+            }
+
+            return strspn($expanded, ' ') >= $requiredIndent;
+        }
+
+        return true;
     }
 
     private function foldYamlBlockScalarText(string $text): string
@@ -1250,12 +1281,17 @@ final class MarkdownReader
             }
 
             if ($blockScalarHeader !== null) {
-                $value = $this->parseYamlBlockScalar(
-                    $children,
-                    $blockScalarHeader['style'],
-                    $blockScalarHeader['chomp'],
-                    $blockScalarHeader['indent']
-                );
+                if (!$this->yamlBlockScalarIndentationIsValid($children, $blockScalarHeader['indent'])) {
+                    $this->yamlMetadataInvalid = true;
+                    $value = null;
+                } else {
+                    $value = $this->parseYamlBlockScalar(
+                        $children,
+                        $blockScalarHeader['style'],
+                        $blockScalarHeader['chomp'],
+                        $blockScalarHeader['indent']
+                    );
+                }
                 $value = $this->applyYamlExplicitScalarTagToParsedValue($value, $tags);
                 $this->rememberYamlAnchor($anchorName, $value);
                 $items[] = $value;
