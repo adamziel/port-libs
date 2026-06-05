@@ -310,6 +310,25 @@ return [
             $t->true(UnicodeText::displayWidth($line) <= 8, 'Emoji tag wrapped line exceeds requested width');
         }
     },
+    'measures emoji zwj variation sequences as a single display cluster' => static function (TestRunner $t): void {
+        $heartOnFire = "\u{2764}\u{FE0F}\u{200D}\u{1F525}";
+        $rainbowFlag = "\u{1F3F3}\u{FE0F}\u{200D}\u{1F308}";
+        $eyeBubble = "\u{1F441}\u{FE0F}\u{200D}\u{1F5E8}\u{FE0F}";
+        $text = $heartOnFire . $rainbowFlag . 'X';
+        $wrapped = UnicodeText::wrapByDisplayWidth("Emoji {$heartOnFire} {$rainbowFlag} tail", 9, '  ');
+
+        $t->same(2, UnicodeText::displayWidth($heartOnFire));
+        $t->same(2, UnicodeText::displayWidth($rainbowFlag));
+        $t->same(2, UnicodeText::displayWidth($eyeBubble));
+        $t->same([$heartOnFire, $rainbowFlag, 'X'], UnicodeText::graphemes($text));
+        $t->same([$heartOnFire, $rainbowFlag . 'X'], UnicodeText::splitAtDisplayWidth($text, 1));
+        $t->same([$heartOnFire, $rainbowFlag, 'X'], UnicodeText::splitByDisplayBreakpoints($text, [2, 4]));
+        $t->same($heartOnFire . '  ', UnicodeText::padDisplay($heartOnFire, 4));
+        $t->same(['Emoji ' . $heartOnFire, '  ' . $rainbowFlag . ' tail'], $wrapped);
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 9, 'Emoji ZWJ variation wrapped line exceeds requested width');
+        }
+    },
     'applies east asian ambiguous width policy for display columns' => static function (TestRunner $t): void {
         $ambiguous = "\u{00B7}\u{03A9}\u{2014}\u{2026}\u{2122}";
         $combining = "A\u{0301}\u{00B7}";

@@ -1037,11 +1037,11 @@ final class UnicodeText
         if ($hasKeycap && $hasKeycapBase) {
             return 2;
         }
+        if ($hasJoiner && ($hasWide || $hasEmojiVariation || $hasEmojiVariationBase)) {
+            return 2;
+        }
         if ($hasEmojiVariation && $hasEmojiVariationBase) {
             return max(2, $width);
-        }
-        if ($hasJoiner && $hasWide) {
-            return 2;
         }
 
         return $width;
