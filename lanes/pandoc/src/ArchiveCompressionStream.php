@@ -244,11 +244,7 @@ final class ArchiveCompressionStream
             ],
             self::FORMAT_GZIP_TAR => self::gzipStreamInspection($bytes, $maxUncompressedBytes),
             self::FORMAT_ZLIB_TAR => self::zlibStreamInspection($bytes, $maxUncompressedBytes),
-            self::FORMAT_RAW_DEFLATE_TAR => [
-                'type' => 'raw-deflate',
-                'compressedSize' => strlen($bytes),
-                'memberCount' => 1,
-            ],
+            self::FORMAT_RAW_DEFLATE_TAR => self::rawDeflateStreamInspection($bytes, $maxUncompressedBytes),
             self::FORMAT_LZ4_TAR => self::lz4StreamInspection($bytes, $maxUncompressedBytes),
             default => throw new \RuntimeException("Unsupported archive compression stream format: {$format}"),
         };
@@ -310,6 +306,8 @@ final class ArchiveCompressionStream
      *     type:string,
      *     memberCount:int,
      *     compressedSize:int,
+     *     compressedPayloadSize:int,
+     *     uncompressedSize:int,
      *     compressionMethod:int,
      *     windowSize:int,
      *     compressionLevelHint:string,
@@ -324,10 +322,34 @@ final class ArchiveCompressionStream
             'type' => 'zlib-deflate',
             'memberCount' => 1,
             'compressedSize' => strlen($bytes),
+            'compressedPayloadSize' => $metadata['compressedSize'],
+            'uncompressedSize' => $metadata['uncompressedSize'],
             'compressionMethod' => $metadata['compressionMethod'],
             'windowSize' => $metadata['windowSize'],
             'compressionLevelHint' => $metadata['compressionLevelHint'],
             'adler32' => $metadata['adler32'],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     type:string,
+     *     memberCount:int,
+     *     compressedSize:int,
+     *     compressedPayloadSize:int,
+     *     uncompressedSize:int
+     * }
+     */
+    private static function rawDeflateStreamInspection(string $bytes, ?int $maxUncompressedBytes): array
+    {
+        $metadata = DeflateStream::inspectRaw($bytes, $maxUncompressedBytes);
+
+        return [
+            'type' => 'raw-deflate',
+            'memberCount' => 1,
+            'compressedSize' => strlen($bytes),
+            'compressedPayloadSize' => $metadata['compressedSize'],
+            'uncompressedSize' => $metadata['uncompressedSize'],
         ];
     }
 

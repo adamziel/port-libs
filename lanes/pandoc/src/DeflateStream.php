@@ -52,11 +52,7 @@ final class DeflateStream
             return self::inspectZlib($bytes, $maxUncompressedBytes)['data'];
         }
 
-        $inflated = self::inflateComplete($bytes, ZLIB_ENCODING_RAW, 'raw DEFLATE stream');
-        $data = $inflated['data'];
-        self::assertDecodedSize($data, $maxUncompressedBytes, 'DEFLATE stream');
-
-        return $data;
+        return self::inspectRaw($bytes, $maxUncompressedBytes)['data'];
     }
 
     /**
@@ -120,6 +116,33 @@ final class DeflateStream
             'adler32' => $adler32,
             'uncompressedSize' => strlen($data),
             'compressedSize' => strlen($bytes) - 6,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     format:string,
+     *     data:string,
+     *     uncompressedSize:int,
+     *     compressedSize:int
+     * }
+     */
+    public static function inspectRaw(string $bytes, ?int $maxUncompressedBytes = null): array
+    {
+        self::assertLimit($maxUncompressedBytes, 'DEFLATE max uncompressed byte limit');
+        if ($bytes === '') {
+            throw new \RuntimeException('Raw DEFLATE stream is empty');
+        }
+
+        $inflated = self::inflateComplete($bytes, ZLIB_ENCODING_RAW, 'raw DEFLATE stream');
+        $data = $inflated['data'];
+        self::assertDecodedSize($data, $maxUncompressedBytes, 'raw DEFLATE stream');
+
+        return [
+            'format' => self::FORMAT_RAW,
+            'data' => $data,
+            'uncompressedSize' => strlen($data),
+            'compressedSize' => strlen($bytes),
         ];
     }
 

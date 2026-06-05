@@ -948,6 +948,63 @@ return [
         $t->same($metadata['adler32'], intval(hash('adler32', $archive->bytes()), 16));
     },
 
+    'inspects raw and zlib deflate stream provenance for tar review packets' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"deflate-provenance","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# Deflate provenance\n\nReady for stream review.\n",
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $unpackedBytes = strlen($archive->read('/packet/manifest.json'))
+            + strlen($archive->read('/packet/content.md'));
+        $zlib = DeflateStream::build($tarBytes, [
+            'format' => DeflateStream::FORMAT_ZLIB,
+            'compressionLevel' => 9,
+        ]);
+        $raw = DeflateStream::build($tarBytes, [
+            'format' => DeflateStream::FORMAT_RAW,
+            'compressionLevel' => 9,
+        ]);
+
+        $zlibInspection = ArchiveCompressionStream::inspectTarStream(
+            $zlib,
+            ArchiveCompressionStream::FORMAT_ZLIB_TAR,
+            strlen($tarBytes),
+            $unpackedBytes
+        );
+        $rawInspection = ArchiveCompressionStream::inspectTarStream(
+            $raw,
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_TAR,
+            strlen($tarBytes),
+            $unpackedBytes
+        );
+
+        $t->same(ArchiveCompressionStream::FORMAT_ZLIB_TAR, $zlibInspection['format']);
+        $t->same('zlib-deflate', $zlibInspection['stream']['type']);
+        $t->same(1, $zlibInspection['stream']['memberCount']);
+        $t->same(strlen($zlib), $zlibInspection['stream']['compressedSize']);
+        $t->same(strlen($zlib) - 6, $zlibInspection['stream']['compressedPayloadSize']);
+        $t->same(strlen($tarBytes), $zlibInspection['stream']['uncompressedSize']);
+        $t->same(32768, $zlibInspection['stream']['windowSize']);
+        $t->same('maximum', $zlibInspection['stream']['compressionLevelHint']);
+        $t->same(intval(hash('adler32', $tarBytes), 16), $zlibInspection['stream']['adler32']);
+        $t->same("# Deflate provenance\n\nReady for stream review.\n", $zlibInspection['archive']->read('/packet/content.md'));
+
+        $t->same(ArchiveCompressionStream::FORMAT_RAW_DEFLATE_TAR, $rawInspection['format']);
+        $t->same('raw-deflate', $rawInspection['stream']['type']);
+        $t->same(1, $rawInspection['stream']['memberCount']);
+        $t->same(strlen($raw), $rawInspection['stream']['compressedSize']);
+        $t->same(strlen($raw), $rawInspection['stream']['compressedPayloadSize']);
+        $t->same(strlen($tarBytes), $rawInspection['stream']['uncompressedSize']);
+        $t->same(['packet/manifest.json', 'packet/content.md'], $rawInspection['entryNames']);
+        $t->same('{"source":"deflate-provenance","target":"wordpress"}', $rawInspection['archive']->read('/packet/manifest.json'));
+    },
+
     'rejects malformed deflate streams and bounded decode overflows' => static function (TestRunner $t): void {
         $zlib = DeflateStream::build('review packet', [
             'format' => DeflateStream::FORMAT_ZLIB,

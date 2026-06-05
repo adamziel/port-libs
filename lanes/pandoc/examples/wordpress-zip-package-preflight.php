@@ -1164,11 +1164,23 @@ $deflateReviewPacket = DeflateStream::build($tarPacket->bytes(), [
     'compressionLevel' => 9,
 ]);
 $deflateReviewMetadata = DeflateStream::inspectZlib($deflateReviewPacket);
+$deflateTarInspection = ArchiveCompressionStream::inspectTarStream(
+    $deflateReviewPacket,
+    ArchiveCompressionStream::FORMAT_ZLIB_TAR,
+    strlen($tarPacketBytes),
+    $tarPacketUnpackedBytes
+);
 $deflateTarPacketRoundTrip = TarArchive::fromString(DeflateStream::decode($deflateReviewPacket));
 $rawDeflateReviewPacket = DeflateStream::build($tarPacket->bytes(), [
     'format' => DeflateStream::FORMAT_RAW,
     'compressionLevel' => 9,
 ]);
+$rawDeflateTarInspection = ArchiveCompressionStream::inspectTarStream(
+    $rawDeflateReviewPacket,
+    ArchiveCompressionStream::FORMAT_RAW_DEFLATE_TAR,
+    strlen($tarPacketBytes),
+    $tarPacketUnpackedBytes
+);
 $rawDeflateTarPacketRoundTrip = TarArchive::fromString(DeflateStream::decode(
     $rawDeflateReviewPacket,
     DeflateStream::FORMAT_RAW
@@ -1694,8 +1706,24 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected zlib-wrapped deflate review packet metadata to be inspectable');
     }
 
+    if (($deflateTarInspection['stream']['compressedPayloadSize'] ?? null) !== strlen($deflateReviewPacket) - 6) {
+        throw new RuntimeException('Expected zlib-wrapped deflate compressed payload size to be inspectable');
+    }
+
+    if (($deflateTarInspection['stream']['uncompressedSize'] ?? null) !== strlen($tarPacketBytes)) {
+        throw new RuntimeException('Expected zlib-wrapped deflate uncompressed tar size to be inspectable');
+    }
+
     if ($deflateTarPacketRoundTrip->read('/packet/word/document.xml') !== '<w:document><w:body><w:p>Tar packet WordPress source</w:p></w:body></w:document>') {
         throw new RuntimeException('Expected zlib-wrapped deflate tar document bytes to round-trip');
+    }
+
+    if (($rawDeflateTarInspection['stream']['compressedPayloadSize'] ?? null) !== strlen($rawDeflateReviewPacket)) {
+        throw new RuntimeException('Expected raw deflate compressed payload size to be inspectable');
+    }
+
+    if (($rawDeflateTarInspection['stream']['uncompressedSize'] ?? null) !== strlen($tarPacketBytes)) {
+        throw new RuntimeException('Expected raw deflate uncompressed tar size to be inspectable');
     }
 
     if ($rawDeflateTarPacketRoundTrip->read('/packet/manifest.json') !== '{"source":"wordpress-import","container":"tar"}') {
@@ -1957,7 +1985,11 @@ echo 'tar.base256ModifiedAt=' . $base256NumericPacket->entry('/packet/base256/do
 echo 'deflate.format=' . $deflateReviewMetadata['format'] . "\n";
 echo 'deflate.windowSize=' . $deflateReviewMetadata['windowSize'] . "\n";
 echo 'deflate.levelHint=' . $deflateReviewMetadata['compressionLevelHint'] . "\n";
+echo 'deflate.compressedPayloadSize=' . $deflateTarInspection['stream']['compressedPayloadSize'] . "\n";
+echo 'deflate.uncompressedSize=' . $deflateTarInspection['stream']['uncompressedSize'] . "\n";
 echo 'deflate.document.xml=' . $deflateTarPacketRoundTrip->read('/packet/word/document.xml') . "\n";
+echo 'deflate.rawCompressedPayloadSize=' . $rawDeflateTarInspection['stream']['compressedPayloadSize'] . "\n";
+echo 'deflate.rawUncompressedSize=' . $rawDeflateTarInspection['stream']['uncompressedSize'] . "\n";
 echo 'deflate.rawManifest=' . $rawDeflateTarPacketRoundTrip->read('/packet/manifest.json') . "\n";
 echo 'deflate.trailingBytesPolicy=' . ($deflateTrailingBytesRejected && $rawDeflateTrailingBytesRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'lz4.frames=' . count($lz4ReviewFrames) . "\n";
