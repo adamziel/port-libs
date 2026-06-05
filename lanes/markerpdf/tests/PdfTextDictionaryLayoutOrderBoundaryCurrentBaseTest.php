@@ -1076,4 +1076,46 @@ return [
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(0, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'rejects non-finite supplied page markers before first-page pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(0, [
+                    ['text' => 'Second nonfinite marker column remains source ordered', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First nonfinite marker column has no trusted order', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'page' => INF,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                    ],
+                    'raw_payload' => 'nonfinite marker order payload must stay hidden',
+                ],
+            ],
+            orderImages: [
+                ['page' => INF, 'image' => 'nonfinite-marker-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 0
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([0], $result['page_range']);
+        $t->same(0, $result['pages'][0]['pnum']);
+        $t->same(['Second nonfinite marker column remains source ordered', 'First nonfinite marker column has no trusted order'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('Second nonfinite marker column remains source ordered First nonfinite marker column has no trusted order', $blocks[0]['text']);
+        $t->same(null, $result['pages'][0]['order'] ?? null);
+        $t->true(!str_contains($encoded, 'nonfinite marker order payload'));
+        $t->same(0, $result['metadata']['order_plan']['image_count']);
+        $t->same(0, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(0, $result['metadata']['order_plan']['assigned_pages']);
+    },
 ];

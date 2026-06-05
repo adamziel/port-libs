@@ -174,13 +174,14 @@ final class PdfPageArtifactSelector
     }
 
     /**
-     * @return array{source_indexes?: list<int>, selected_indexes?: list<int>, pages?: list<int>, page_numbers?: list<int>, selected_page_numbers?: list<int>, ambiguous_wrapper_lists?: list<int>}
+     * @return array{source_indexes?: list<int>, selected_indexes?: list<int>, pages?: list<int>, page_numbers?: list<int>, selected_page_numbers?: list<int>, ambiguous_wrapper_lists?: list<int>, malformed_page_markers?: list<int>}
      */
     private function pageMarkers(array $artifact): array
     {
         $markers = [];
         $sources = $this->pageMarkerSources($artifact);
         $hasAmbiguousWrapperList = $this->pageMarkerSourcesHaveAmbiguousWrapperList($sources);
+        $hasMalformedMarker = $this->pageMarkerSourcesHaveMalformedMarkers($sources);
 
         $sourceIndexes = $this->integerFieldsFromSources($sources, ['page_index', 'doc_page_index', 'document_page_index', 'source_page_index', 'page_range', 'source_page_range', 'document_page_range', 'page_indices', 'source_page_indices', 'document_page_indices']);
         if ($sourceIndexes !== []) {
@@ -205,6 +206,10 @@ final class PdfPageArtifactSelector
         $selectedPageNumbers = $this->integerFieldsFromSources($sources, ['selected_page_number', 'trimmed_page_number', 'relative_page_number']);
         if ($selectedPageNumbers !== []) {
             $markers['selected_page_numbers'] = $selectedPageNumbers;
+        }
+
+        if ($hasMalformedMarker) {
+            $markers['malformed_page_markers'] = [1];
         }
 
         if ($markers === [] && $hasAmbiguousWrapperList) {
@@ -300,7 +305,7 @@ final class PdfPageArtifactSelector
     private function pageMarkerSourcesHaveMarkers(array $sources): bool
     {
         foreach ($sources as $source) {
-            if (($source[self::AMBIGUOUS_PAGE_MARKER_WRAPPER] ?? false) === true) {
+            if (($source[self::AMBIGUOUS_PAGE_MARKER_WRAPPER] ?? false) === true || $this->pageMarkerSourceHasMalformedMarkers($source)) {
                 return true;
             }
 
@@ -329,11 +334,64 @@ final class PdfPageArtifactSelector
     }
 
     /**
-     * @param array{source_indexes?: list<int>, selected_indexes?: list<int>, pages?: list<int>, page_numbers?: list<int>, selected_page_numbers?: list<int>, ambiguous_wrapper_lists?: list<int>} $markers
+     * @param list<array<string, mixed>> $sources
+     */
+    private function pageMarkerSourcesHaveMalformedMarkers(array $sources): bool
+    {
+        foreach ($sources as $source) {
+            if ($this->pageMarkerSourceHasMalformedMarkers($source)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     */
+    private function pageMarkerSourceHasMalformedMarkers(array $source): bool
+    {
+        foreach (self::PAGE_MARKER_FIELD_GROUPS as $fields) {
+            foreach ($fields as $field) {
+                if (!array_key_exists($field, $source)) {
+                    continue;
+                }
+
+                if (!$this->isValidPageMarkerValue($source[$field])) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function isValidPageMarkerValue(mixed $value): bool
+    {
+        if ($this->integerValue($value) !== null) {
+            return true;
+        }
+
+        if (!is_array($value) || !array_is_list($value) || $value === []) {
+            return false;
+        }
+
+        foreach ($value as $item) {
+            if ($this->integerValue($item) === null) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array{source_indexes?: list<int>, selected_indexes?: list<int>, pages?: list<int>, page_numbers?: list<int>, selected_page_numbers?: list<int>, ambiguous_wrapper_lists?: list<int>, malformed_page_markers?: list<int>} $markers
      */
     private function pageMarkerMatchScore(array $markers, int $sourceIndex, ?int $pageNumber, int $selectedIndex): ?int
     {
-        if (($markers['ambiguous_wrapper_lists'] ?? []) !== []) {
+        if (($markers['ambiguous_wrapper_lists'] ?? []) !== [] || ($markers['malformed_page_markers'] ?? []) !== []) {
             return null;
         }
 
@@ -427,8 +485,13 @@ final class PdfPageArtifactSelector
             return $value;
         }
 
-        if (is_float($value) && floor($value) === $value) {
-            return (int) $value;
+        if (is_float($value)) {
+            if (!is_finite($value)) {
+                return null;
+            }
+            if (floor($value) === $value) {
+                return (int) $value;
+            }
         }
 
         if (is_string($value)) {

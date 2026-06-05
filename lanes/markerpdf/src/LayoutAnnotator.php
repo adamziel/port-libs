@@ -118,7 +118,7 @@ final class LayoutAnnotator
             if (!is_array($layoutResults[$index])) {
                 throw new InvalidArgumentException('Supplied layout predictions must be arrays.');
             }
-            if ($this->hasAmbiguousLayoutPayloadWrapper($layoutResults[$index])) {
+            if ($this->hasAmbiguousLayoutPayloadWrapper($layoutResults[$index]) || $this->hasMalformedLayoutPageMarkers($layoutResults[$index])) {
                 continue;
             }
             $pages[$index]['layout'] = $this->sanitizeSuppliedLayoutResult($layoutResults[$index]);
@@ -349,7 +349,7 @@ final class LayoutAnnotator
     private function layoutResultPageMarkerSourcesHaveMarkers(array $sources): bool
     {
         foreach ($sources as $source) {
-            if (($source[self::AMBIGUOUS_PAGE_MARKER_WRAPPER] ?? false) === true) {
+            if (($source[self::AMBIGUOUS_PAGE_MARKER_WRAPPER] ?? false) === true || $this->layoutResultPageMarkerSourceHasMalformedMarkers($source)) {
                 return true;
             }
 
@@ -361,6 +361,59 @@ final class LayoutAnnotator
         }
 
         return false;
+    }
+
+    /**
+     * @param array<string, mixed> $layoutResult
+     */
+    private function hasMalformedLayoutPageMarkers(array $layoutResult): bool
+    {
+        foreach ($this->layoutResultPageMarkerSources($layoutResult) as $source) {
+            if ($this->layoutResultPageMarkerSourceHasMalformedMarkers($source)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     */
+    private function layoutResultPageMarkerSourceHasMalformedMarkers(array $source): bool
+    {
+        foreach (self::LAYOUT_RESULT_PAGE_MARKER_FIELD_GROUPS as $fields) {
+            foreach ($fields as $field) {
+                if (!array_key_exists($field, $source)) {
+                    continue;
+                }
+
+                if (!$this->isValidPageMarkerValue($source[$field])) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function isValidPageMarkerValue(mixed $value): bool
+    {
+        if ($this->integerValue($value) !== null) {
+            return true;
+        }
+
+        if (!is_array($value) || !array_is_list($value) || $value === []) {
+            return false;
+        }
+
+        foreach ($value as $item) {
+            if ($this->integerValue($item) === null) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -388,8 +441,13 @@ final class LayoutAnnotator
             return $value;
         }
 
-        if (is_float($value) && floor($value) === $value) {
-            return (int) $value;
+        if (is_float($value)) {
+            if (!is_finite($value)) {
+                return null;
+            }
+            if (floor($value) === $value) {
+                return (int) $value;
+            }
         }
 
         if (is_string($value)) {

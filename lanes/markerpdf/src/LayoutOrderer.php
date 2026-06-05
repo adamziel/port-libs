@@ -126,7 +126,7 @@ final class LayoutOrderer
             if (!is_array($orderResults[$index])) {
                 throw new InvalidArgumentException('Supplied ordering predictions must be arrays.');
             }
-            if ($this->hasAmbiguousOrderPayloadWrapper($orderResults[$index])) {
+            if ($this->hasAmbiguousOrderPayloadWrapper($orderResults[$index]) || $this->hasMalformedOrderPageMarkers($orderResults[$index])) {
                 continue;
             }
             $pages[$index]['order'] = $this->sanitizeSuppliedOrderResult($orderResults[$index]);
@@ -406,7 +406,7 @@ final class LayoutOrderer
     private function orderResultPageMarkerSourcesHaveMarkers(array $sources): bool
     {
         foreach ($sources as $source) {
-            if (($source[self::AMBIGUOUS_PAGE_MARKER_WRAPPER] ?? false) === true) {
+            if (($source[self::AMBIGUOUS_PAGE_MARKER_WRAPPER] ?? false) === true || $this->orderResultPageMarkerSourceHasMalformedMarkers($source)) {
                 return true;
             }
 
@@ -418,6 +418,59 @@ final class LayoutOrderer
         }
 
         return false;
+    }
+
+    /**
+     * @param array<string, mixed> $orderResult
+     */
+    private function hasMalformedOrderPageMarkers(array $orderResult): bool
+    {
+        foreach ($this->orderResultPageMarkerSources($orderResult) as $source) {
+            if ($this->orderResultPageMarkerSourceHasMalformedMarkers($source)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     */
+    private function orderResultPageMarkerSourceHasMalformedMarkers(array $source): bool
+    {
+        foreach (self::ORDER_RESULT_PAGE_MARKER_FIELD_GROUPS as $fields) {
+            foreach ($fields as $field) {
+                if (!array_key_exists($field, $source)) {
+                    continue;
+                }
+
+                if (!$this->isValidPageMarkerValue($source[$field])) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function isValidPageMarkerValue(mixed $value): bool
+    {
+        if ($this->integerValue($value) !== null) {
+            return true;
+        }
+
+        if (!is_array($value) || !array_is_list($value) || $value === []) {
+            return false;
+        }
+
+        foreach ($value as $item) {
+            if ($this->integerValue($item) === null) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -445,8 +498,13 @@ final class LayoutOrderer
             return $value;
         }
 
-        if (is_float($value) && floor($value) === $value) {
-            return (int) $value;
+        if (is_float($value)) {
+            if (!is_finite($value)) {
+                return null;
+            }
+            if (floor($value) === $value) {
+                return (int) $value;
+            }
         }
 
         if (is_string($value)) {
