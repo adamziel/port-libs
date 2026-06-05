@@ -605,7 +605,11 @@ final class PdfMetadataExtractor
         }
 
         $stream = $this->decodeStreamEntryObject($objectBody, $objects);
-        if ($stream === null || !$this->isDocumentXmpMetadataStream($stream['dictionary'], $objects)) {
+        if (
+            $stream === null
+            || !$this->metadataStreamObjectConsumesSingleStreamToken($objectBody, $objects)
+            || !$this->isDocumentXmpMetadataStream($stream['dictionary'], $objects)
+        ) {
             return [];
         }
 
@@ -673,6 +677,31 @@ final class PdfMetadataExtractor
             return $review;
         }
 
+        if (!$this->metadataStreamObjectConsumesSingleStreamToken($objectBody, $objects)) {
+            $review = $base + [
+                'status' => 'rejected_malformed_metadata_stream_object',
+                'object_number' => $objectNumber,
+                'bytes' => strlen($stream['content']),
+                'sha256' => hash('sha256', $stream['content']),
+            ];
+
+            foreach ($this->metadataStreamDictionaryLabels($stream['dictionary'], $objects) as $key => $metadataValue) {
+                $review[$key] = $metadataValue;
+            }
+
+            $filters = $this->streamFilters($stream['dictionary'], $objects);
+            if ($filters !== []) {
+                $review['filters'] = $filters;
+            }
+
+            $xmpSummary = $this->xmpPacketReviewSummary($stream['content']);
+            if ($xmpSummary !== []) {
+                $review['xmp_summary'] = $xmpSummary;
+            }
+
+            return $review;
+        }
+
         if ($this->isDocumentXmpMetadataStream($stream['dictionary'], $objects)) {
             $xmpSummary = $this->xmpPacketReviewSummary($stream['content']);
             if (($xmpSummary['status'] ?? null) === 'rejected_dtd_or_entity_declaration') {
@@ -721,6 +750,44 @@ final class PdfMetadataExtractor
         }
 
         return $review;
+    }
+
+    /**
+     * Catalog /Metadata may point to an indirect stream object, but that
+     * object must not carry extra top-level tokens after the stream body.
+     * Otherwise a malformed stream like `endstream /A ...` would promote XMP
+     * while silently dropping action or sibling tokens.
+     *
+     * @param array<int, string> $objects
+     */
+    private function metadataStreamObjectConsumesSingleStreamToken(string $objectBody, array $objects): bool
+    {
+        $dictionaryOffset = $this->skipPdfWhitespace($objectBody, 0);
+        $dictionary = $this->readPdfDictionaryAt($objectBody, $dictionaryOffset);
+        if ($dictionary === null) {
+            return false;
+        }
+
+        $streamKeywordOffset = $this->skipPdfWhitespace($objectBody, $dictionaryOffset + strlen($dictionary) + 4);
+        if (!$this->pdfKeywordAt($objectBody, $streamKeywordOffset, 'stream')) {
+            return false;
+        }
+
+        $streamStart = $streamKeywordOffset + strlen('stream');
+        if (substr($objectBody, $streamStart, 2) === "\r\n") {
+            $streamStart += 2;
+        } elseif (($objectBody[$streamStart] ?? '') === "\n" || ($objectBody[$streamStart] ?? '') === "\r") {
+            $streamStart++;
+        }
+
+        $streamEnd = $this->streamPayloadEndOffset($objectBody, $streamStart, $dictionary, $objects);
+        if ($streamEnd === null || !$this->endstreamKeywordAt($objectBody, $streamEnd)) {
+            return false;
+        }
+
+        $afterEndstream = $this->skipPdfWhitespace($objectBody, $streamEnd + strlen('endstream'));
+
+        return $afterEndstream >= strlen($objectBody);
     }
 
     /**
