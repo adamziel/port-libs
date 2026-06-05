@@ -46,6 +46,7 @@ final class SyntaxHighlighter
         'html5' => 'html',
         'haskell' => 'haskell',
         'hs' => 'haskell',
+        'atom' => 'xml',
         'cfg' => 'ini',
         'editorconfig' => 'ini',
         'gitconfig' => 'ini',
@@ -90,6 +91,8 @@ final class SyntaxHighlighter
         'python3' => 'python',
         'q' => 'r',
         'r' => 'r',
+        'rdf' => 'xml',
+        'rss' => 'xml',
         'r-script' => 'r',
         'rscript' => 'r',
         'rake' => 'ruby',
@@ -99,6 +102,7 @@ final class SyntaxHighlighter
         'sh' => 'bash',
         'shell' => 'bash',
         'sql' => 'sql',
+        'svg' => 'xml',
         'tex' => 'tex',
         'toml' => 'toml',
         'ts' => 'typescript',
@@ -106,7 +110,10 @@ final class SyntaxHighlighter
         'udiff' => 'diff',
         'unified-diff' => 'diff',
         'xhtml' => 'html',
-        'xml' => 'html',
+        'xml' => 'xml',
+        'xsd' => 'xml',
+        'xsl' => 'xslt',
+        'xslt' => 'xslt',
         'yaml' => 'yaml',
         'yml' => 'yaml',
     ];
@@ -537,6 +544,8 @@ final class SyntaxHighlighter
             'tex' => $this->tokenizeTex($code),
             'toml' => $this->tokenizeToml($code),
             'typescript' => $this->tokenizeTypeScript($code),
+            'xml' => $this->tokenizeXml($code),
+            'xslt' => $this->tokenizeXml($code),
             'yaml' => $this->tokenizeYaml($code),
             default => [['type' => 'text', 'text' => $code, 'class' => '']],
         };
@@ -1016,6 +1025,26 @@ final class SyntaxHighlighter
             ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
             ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
             ['operator', '/^\\/?>|^=/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeXml(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^<!--[\\s\\S]*?-->/'],
+            ['string', '/^<!\\[CDATA\\[[\\s\\S]*?\\]\\]>/'],
+            ['preprocessor', '/^<\\?[A-Za-z_][A-Za-z0-9_.:-]*/'],
+            ['preprocessor', '/^<!(?:DOCTYPE|ELEMENT|ENTITY|ATTLIST|NOTATION)\\b/i'],
+            ['keyword', '/^<\\/?[A-Za-z_][A-Za-z0-9_.:-]*/'],
+            ['attribute', '/^(?:xmlns(?::[A-Za-z_][A-Za-z0-9_.:-]*)?|[A-Za-z_:][A-Za-z0-9_.:-]*)(?=\\s*=)/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['constant', '/^&(?:#[0-9]+|#x[0-9A-Fa-f]+|[A-Za-z_:][A-Za-z0-9_.:-]*);/'],
+            ['number', '/^-?\\b\\d+(?:\\.\\d+)?\\b/'],
+            ['operator', '/^(?:\\?>|\\/?>|=|\\[|\\])/'],
         ]);
     }
 

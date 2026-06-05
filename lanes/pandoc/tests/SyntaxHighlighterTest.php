@@ -66,6 +66,11 @@ return [
         $t->same('perl', SyntaxHighlighter::normalizeLanguage('PL'));
         $t->same('perl', SyntaxHighlighter::normalizeLanguage('pm'));
         $t->same('java', SyntaxHighlighter::normalizeLanguage('java'));
+        $t->same('xml', SyntaxHighlighter::normalizeLanguage('xml'));
+        $t->same('xml', SyntaxHighlighter::normalizeLanguage('svg'));
+        $t->same('xml', SyntaxHighlighter::normalizeLanguage('xsd'));
+        $t->same('xslt', SyntaxHighlighter::normalizeLanguage('xsl'));
+        $t->same('xslt', SyntaxHighlighter::normalizeLanguage('xslt'));
         $t->same('ruby', SyntaxHighlighter::normalizeLanguage('rb'));
         $t->same('ruby', SyntaxHighlighter::normalizeLanguage('rake'));
         $t->same('lua', SyntaxHighlighter::normalizeLanguage('lua'));
@@ -891,6 +896,52 @@ return [
         $t->contains('<span class="dt">Optional</span><span class="op">.</span><span class="fu">empty</span><span class="op">();</span>', $wordpressBlock);
         $t->same('java', $record['language']);
         $t->contains('<span class="kw">record</span> <span class="dt">ImportTask</span><span class="op">(</span><span class="dt">String</span> <span class="va">title</span><span class="op">,</span> <span class="dt">int</span> <span class="va">count</span><span class="op">)</span>', $record['html']);
+    },
+    'highlights xml and xslt review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[18] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include an XML code block');
+        }
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'haddock');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'haddock');
+        $xslt = (new SyntaxHighlighter())->highlight(
+            "<xsl:template match=\"/rss/channel/item\">\n  <xsl:value-of select=\"normalize-space(title)\"/>\n</xsl:template>",
+            'xsl'
+        );
+        $svg = (new SyntaxHighlighter())->highlight('<svg viewBox="0 0 10 10"><use href="#icon"/></svg>', 'svg');
+
+        $t->same('xml', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('xml', $highlighted['language']);
+        $t->same('xml', $highlighted['requestedLanguage']);
+        $t->same('haddock', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(33, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource xml numberLines"><code class="sourceCode xml" style="counter-reset: source-line 32;">', $highlighted['html']);
+        $t->contains('<span id="wxr-xml-review-33"><a href="#wxr-xml-review-33"></a><span class="pp">&lt;?xml</span> <span class="ot">version</span><span class="op">=</span><span class="st">&quot;1.0&quot;</span> <span class="ot">encoding</span><span class="op">=</span><span class="st">&quot;UTF-8&quot;</span><span class="op">?&gt;</span></span>', $highlighted['html']);
+        $t->contains('<span class="pp">&lt;!DOCTYPE</span> rss <span class="op">[</span><span class="pp">&lt;!ENTITY</span> legacy <span class="st">&quot;Legacy&quot;</span><span class="op">&gt;]&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="co">&lt;!-- WordPress WXR media review --&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;rss</span> <span class="ot">version</span><span class="op">=</span><span class="st">&quot;2.0&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">xmlns:wp</span><span class="op">=</span><span class="st">&quot;http://wordpress.org/export/1.2/&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;wp:wxr_version</span><span class="op">&gt;</span><span class="dv">1.2</span><span class="kw">&lt;/wp:wxr_version</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;item</span> <span class="ot">data-source</span><span class="op">=</span><span class="st">&quot;legacy-42&quot;</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;title</span><span class="op">&gt;</span><span class="cn">&amp;legacy;</span> <span class="cn">&amp;amp;</span> Reviewed<span class="kw">&lt;/title</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="st">&lt;![CDATA[&lt;!-- wp:paragraph --&gt;&lt;p&gt;Legacy shortcode [gallery]&lt;/p&gt;]]&gt;</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="haddock">', $wordpressBlock);
+        $t->contains('<span class="kw">&lt;content:encoded</span><span class="op">&gt;</span>', $wordpressBlock);
+        $t->same('xslt', $xslt['language']);
+        $t->same('xsl', $xslt['requestedLanguage']);
+        $t->contains('<pre class="sourceCode xslt"><code class="sourceCode xslt"><span class="kw">&lt;xsl:template</span> <span class="ot">match</span><span class="op">=</span><span class="st">&quot;/rss/channel/item&quot;</span><span class="op">&gt;</span>', $xslt['html']);
+        $t->contains('<span class="kw">&lt;xsl:value-of</span> <span class="ot">select</span><span class="op">=</span><span class="st">&quot;normalize-space(title)&quot;</span><span class="op">/&gt;</span>', $xslt['html']);
+        $t->same('xml', $svg['language']);
+        $t->contains('<span class="kw">&lt;svg</span> <span class="ot">viewBox</span><span class="op">=</span><span class="st">&quot;0 0 10 10&quot;</span><span class="op">&gt;</span>', $svg['html']);
+        $t->contains('<span class="kw">&lt;use</span> <span class="ot">href</span><span class="op">=</span><span class="st">&quot;#icon&quot;</span><span class="op">/&gt;</span>', $svg['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

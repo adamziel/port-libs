@@ -144,6 +144,16 @@ if (!$javaCodeBlock instanceof PortLibs\Pandoc\AstNode || $javaCodeBlock->type !
 }
 $java = $highlighter->highlightCodeBlock($javaCodeBlock, 'tango');
 $javaWordpressBlock = $highlighter->wordpressHtmlBlock($javaCodeBlock, 'tango');
+$xmlCodeBlock = $document->children[18] ?? null;
+if (!$xmlCodeBlock instanceof PortLibs\Pandoc\AstNode || $xmlCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include an XML code block');
+}
+$xml = $highlighter->highlightCodeBlock($xmlCodeBlock, 'haddock');
+$xmlWordpressBlock = $highlighter->wordpressHtmlBlock($xmlCodeBlock, 'haddock');
+$xslt = $highlighter->highlight(
+    "<xsl:template match=\"/rss/channel/item\">\n  <xsl:value-of select=\"normalize-space(title)\"/>\n</xsl:template>",
+    'xsl'
+);
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -559,6 +569,36 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($javaWordpressBlock, '<span class="dt">Optional</span><span class="op">.</span><span class="fu">empty</span><span class="op">();</span>')) {
         throw new RuntimeException('Expected Java Optional method token handoff');
     }
+    if (($xml['language'] ?? '') !== 'xml') {
+        throw new RuntimeException('Expected XML alias to normalize to XML highlighting');
+    }
+    if (($xml['lineNumbering']['start'] ?? null) !== 33) {
+        throw new RuntimeException('Expected XML source startFrom line-number handoff');
+    }
+    if (!str_contains($xml['html'], '<span class="pp">&lt;?xml</span> <span class="ot">version</span>')) {
+        throw new RuntimeException('Expected XML declaration token handoff');
+    }
+    if (!str_contains($xml['html'], '<span class="pp">&lt;!DOCTYPE</span> rss <span class="op">[</span><span class="pp">&lt;!ENTITY</span> legacy')) {
+        throw new RuntimeException('Expected XML doctype/entity token handoff');
+    }
+    if (!str_contains($xml['html'], '<span class="kw">&lt;wp:wxr_version</span><span class="op">&gt;</span><span class="dv">1.2</span>')) {
+        throw new RuntimeException('Expected XML namespaced tag token handoff');
+    }
+    if (!str_contains($xml['html'], '<span class="cn">&amp;legacy;</span> <span class="cn">&amp;amp;</span> Reviewed')) {
+        throw new RuntimeException('Expected XML entity token handoff');
+    }
+    if (!str_contains($xml['html'], '<span class="st">&lt;![CDATA[&lt;!-- wp:paragraph --&gt;&lt;p&gt;Legacy shortcode [gallery]&lt;/p&gt;]]&gt;</span>')) {
+        throw new RuntimeException('Expected XML CDATA token handoff');
+    }
+    if (!str_contains($xmlWordpressBlock, '<style data-pandoc-highlight-style="haddock">')) {
+        throw new RuntimeException('Expected XML WordPress style metadata');
+    }
+    if (($xslt['language'] ?? '') !== 'xslt') {
+        throw new RuntimeException('Expected XSL alias to normalize to XSLT highlighting');
+    }
+    if (!str_contains($xslt['html'], '<span class="kw">&lt;xsl:value-of</span> <span class="ot">select</span>')) {
+        throw new RuntimeException('Expected XSLT value-of token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -600,6 +640,8 @@ echo "iniHighlightedHtml:\n" . $ini['html'] . "\n";
 echo "tomlHighlightedHtml:\n" . $toml['html'] . "\n";
 echo "perlHighlightedHtml:\n" . $perl['html'] . "\n";
 echo "javaHighlightedHtml:\n" . $java['html'] . "\n";
+echo "xmlHighlightedHtml:\n" . $xml['html'] . "\n";
+echo "xsltHighlightedHtml:\n" . $xslt['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -613,4 +655,5 @@ echo "iniWordpressBlock:\n" . $iniWordpressBlock . "\n";
 echo "tomlWordpressBlock:\n" . $tomlWordpressBlock . "\n";
 echo "perlWordpressBlock:\n" . $perlWordpressBlock . "\n";
 echo "javaWordpressBlock:\n" . $javaWordpressBlock . "\n";
+echo "xmlWordpressBlock:\n" . $xmlWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

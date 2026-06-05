@@ -234,3 +234,20 @@ public final class ReviewPacket {
     }
 }
 ```
+
+``` {.xml #wxr-xml-review .numberLines startFrom=33}
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE rss [<!ENTITY legacy "Legacy">]>
+<!-- WordPress WXR media review -->
+<rss version="2.0"
+     xmlns:wp="http://wordpress.org/export/1.2/"
+     xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <wp:wxr_version>1.2</wp:wxr_version>
+    <item data-source="legacy-42">
+      <title>&legacy; &amp; Reviewed</title>
+      <content:encoded><![CDATA[<!-- wp:paragraph --><p>Legacy shortcode [gallery]</p>]]></content:encoded>
+    </item>
+  </channel>
+</rss>
+```
