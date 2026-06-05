@@ -311,6 +311,25 @@ $allNullFilterPdf = "%PDF-1.4\n"
     . "99 0 obj\n{$allNullDecodeParmsObject}\nendobj\n"
     . "%%EOF";
 
+$indirectNullFilterRowOne = 'BT /F1 12 Tf 72 720 Td (Indirect Null Filter Predictor) Tj T* ';
+$indirectNullFilterRowTwo = str_pad('(Indirect Null DecodeParms Applies) Tj ET', strlen($indirectNullFilterRowOne));
+$indirectNullFilterCompressed = $zlibStored($pngSubPredictorEncode(
+    $indirectNullFilterRowOne . $indirectNullFilterRowTwo,
+    strlen($indirectNullFilterRowOne)
+));
+$indirectNullFilterVisibleAfter = 'BT /F1 12 Tf 72 680 Td (Visible After Indirect Null Filter) Tj ET';
+$indirectNullFilterDecodeParmsObject = 'BT /F1 12 Tf 72 640 Td (Indirect Null DecodeParms Helper Leak) Tj ET';
+$indirectNullFilterPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Filter [ 7 0 R /FlateDecode ] /DecodeParms [ 99 0 R << /Predictor 12 /Columns " . strlen($indirectNullFilterRowOne) . " >> ] /Length " . strlen($indirectNullFilterCompressed) . " >>\nstream\n{$indirectNullFilterCompressed}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "6 0 obj\n<< /Length " . strlen($indirectNullFilterVisibleAfter) . " >>\nstream\n{$indirectNullFilterVisibleAfter}\nendstream\nendobj\n"
+    . "7 0 obj\nnull\nendobj\n"
+    . "99 0 obj\n{$indirectNullFilterDecodeParmsObject}\nendobj\n"
+    . "%%EOF";
+
 $cryptFirstContent = "BT /F1 12 Tf 72 720 Td (Identity Crypt First Before) Tj ET\n"
     . "\nendstream\n"
     . "BT /F1 12 Tf 72 704 Td (Identity Crypt First After) Tj ET";
@@ -355,6 +374,7 @@ $compactDecodeParmsLines = $extractor->extractTextLines($compactDecodeParmsPdf);
 $aliasCompactDecodeParmsLines = $extractor->extractTextLines($aliasCompactDecodeParmsPdf);
 $strayDecodeParmsLines = $extractor->extractTextLines($strayDecodeParmsPdf);
 $allNullFilterLines = $extractor->extractTextLines($allNullFilterPdf);
+$indirectNullFilterLines = $extractor->extractTextLines($indirectNullFilterPdf);
 $cryptIdentityLines = $extractor->extractTextLines($cryptIdentityPdf);
 $allLines = [
     ...$lines,
@@ -370,6 +390,7 @@ $allLines = [
     ...$aliasCompactDecodeParmsLines,
     ...$strayDecodeParmsLines,
     ...$allNullFilterLines,
+    ...$indirectNullFilterLines,
     ...$cryptIdentityLines,
 ];
 $joined = implode("\n", $allLines);
@@ -391,6 +412,7 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         ['A85', null, 'Fl'],
         [],
         [null],
+        [null, 'FlateDecode'],
         ['Crypt', 'FlateDecode'],
         ['FlateDecode', 'Crypt'],
         ['Crypt', 'FlateDecode'],
@@ -418,6 +440,11 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         'All Null Filter Visible',
         'Identity Stack Preserved',
     ],
+    'indirect_null_filter_object_decodeparms_aligned' => $indirectNullFilterLines === [
+        'Indirect Null Filter Predictor',
+        'Indirect Null DecodeParms Applies',
+        'Visible After Indirect Null Filter',
+    ],
     'identity_crypt_filter_stack_passthrough' => $cryptIdentityLines === [
         'Identity Crypt First Before',
         'Identity Crypt First After',
@@ -437,6 +464,7 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
     'fake_endstream_payload_excluded' => !str_contains($joined, 'endstream'),
     'stray_decodeparms_helper_excluded' => !str_contains($joined, 'Stray DecodeParms Helper Leak'),
     'all_null_decodeparms_helper_excluded' => !str_contains($joined, 'All Null DecodeParms Helper Leak'),
+    'indirect_null_decodeparms_helper_excluded' => !str_contains($joined, 'Indirect Null DecodeParms Helper Leak'),
     'crypt_filter_decodeparms_excluded' => !str_contains($joined, 'CryptFilterDecodeParms') && !str_contains($joined, 'PrivateCF'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
