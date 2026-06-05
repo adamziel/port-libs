@@ -315,6 +315,29 @@ $yamlDiagnostics = $document->attr('yamlMetadataDiagnostics', []);
 $yamlTagProvenance = $document->attr('yamlMetadataTagProvenance', []);
 $blocks = (new WordPressBlockWriter())->write($document);
 
+$implicitOpeningMarkdown = <<<'MARKDOWN'
+title: "Implicit **Packet**"
+author:
+  - Data Liberation reviewer
+keywords: [migration, wordpress]
+reviewDefaults_: &review_defaults
+  status: queued
+  priority: 4
+review:
+  <<: *review_defaults
+  owner: Import Desk
+references:
+  - id: implicit-yaml-ref
+    title: Source metadata
+...
+
+# Imported Body
+MARKDOWN;
+
+$implicitOpeningDocument = (new MarkdownReader())->read($implicitOpeningMarkdown);
+$implicitOpeningMeta = $implicitOpeningDocument->attr('meta', []);
+$implicitOpeningBlocks = (new WordPressBlockWriter())->write($implicitOpeningDocument);
+
 if (($argv[1] ?? '') === '--self-test') {
     if (($meta['review']['status'] ?? '') !== 'needs-review') {
         throw new RuntimeException('YAML metadata self-test missing later review override');
@@ -776,6 +799,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<h1 id="imported-body">Imported Body</h1>')) {
         throw new RuntimeException('YAML metadata self-test missing imported body heading');
     }
+    if (($implicitOpeningMeta['title'] ?? '') !== 'Implicit **Packet**') {
+        throw new RuntimeException('YAML metadata self-test missing omitted-opening title metadata');
+    }
+    if (($implicitOpeningMeta['review']['priority'] ?? null) !== 4) {
+        throw new RuntimeException('YAML metadata self-test missing omitted-opening merge metadata');
+    }
+    if (($implicitOpeningMeta['references'][0]['id'] ?? '') !== 'implicit-yaml-ref') {
+        throw new RuntimeException('YAML metadata self-test missing omitted-opening reference metadata');
+    }
+    if (!str_contains($implicitOpeningBlocks, '<h1 id="imported-body">Imported Body</h1>')) {
+        throw new RuntimeException('YAML metadata self-test missing omitted-opening imported body heading');
+    }
 
     echo "yaml metadata handoff self-test ok\n";
     return;
@@ -815,3 +850,7 @@ echo 'Single quoted source note: ' . ($meta['single-quoted-source-note'] ?? '') 
 echo 'Plain continuation note: ' . ($meta['plain-continuation-review']['note'] ?? '') . "\n";
 echo 'Reference: ' . ($meta['references'][0]['id'] ?? '') . ' / ' . ($meta['references'][0]['title'] ?? '') . "\n\n";
 echo $blocks . "\n";
+echo 'Implicit opening title: ' . ($implicitOpeningMeta['title'] ?? '') . "\n";
+echo 'Implicit opening review: ' . ($implicitOpeningMeta['review']['status'] ?? '') . ' / priority ' . ($implicitOpeningMeta['review']['priority'] ?? '') . "\n";
+echo 'Implicit opening reference: ' . ($implicitOpeningMeta['references'][0]['id'] ?? '') . "\n";
+echo $implicitOpeningBlocks . "\n";

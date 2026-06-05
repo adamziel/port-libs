@@ -842,6 +842,45 @@ return [
         $t->same('import-packet', $document->children[0]->attr('id'));
         $t->contains('<h1 id="import-packet">Import packet</h1>', $blocks);
     },
+    'maps pandoc yaml metadata with omitted opening marker at document start' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'title: "Implicit **Packet**"',
+            'author:',
+            '  - Data Liberation reviewer',
+            'keywords: [migration, wordpress]',
+            'reviewDefaults_: &review_defaults',
+            '  status: queued',
+            '  priority: 4',
+            'review:',
+            '  <<: *review_defaults',
+            '  owner: Import Desk',
+            'references:',
+            '  - id: implicit-yaml-ref',
+            '    title: Source metadata',
+            '...',
+            '',
+            '# Imported Body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Implicit **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same(['Data Liberation reviewer'], $meta['authors']);
+        $t->same(['migration', 'wordpress'], $meta['keywords']);
+        $t->same('queued', $meta['review']['status']);
+        $t->same(4, $meta['review']['priority']);
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same('implicit-yaml-ref', $meta['references'][0]['id']);
+        $t->same('Source metadata', $meta['references'][0]['title']);
+        $t->same(null, $meta['reviewDefaults_'] ?? null);
+        $t->same(1, count($document->children));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('imported-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="imported-body">Imported Body</h1>', $blocks);
+    },
     'maps pandoc yaml folded metadata and scalar author aliases' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

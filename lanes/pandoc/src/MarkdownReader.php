@@ -338,6 +338,14 @@ final class MarkdownReader
         $count = count($lines);
 
         for ($index = 0; $index < $count; $index++) {
+            $implicitBlock = $index === 0 ? $this->tryReadImplicitYamlMetadataBlock($lines) : null;
+            if ($implicitBlock !== null) {
+                $metadata = $this->mergeYamlMetadataBlock($metadata, $implicitBlock['metadata']);
+                $hasMetadata = true;
+                $index = $implicitBlock['end'];
+                continue;
+            }
+
             $fencedCodeEnd = $this->yamlMetadataFencedCodeBlockEnd($lines, $index);
             if ($fencedCodeEnd !== null) {
                 for (; $index <= $fencedCodeEnd; $index++) {
@@ -392,6 +400,56 @@ final class MarkdownReader
      * @param list<string> $lines
      * @return array{end:int, metadata:array<string, mixed>}|null
      */
+    private function tryReadImplicitYamlMetadataBlock(array $lines): ?array
+    {
+        $firstLine = $lines[0] ?? null;
+        if ($firstLine === null || !$this->canStartImplicitYamlMetadataBlock(trim($firstLine))) {
+            return null;
+        }
+
+        $yamlLines = [];
+        $count = count($lines);
+        for ($cursor = 0; $cursor < $count; $cursor++) {
+            if ($cursor > 0 && preg_match('/^(?:---|\.\.\.)[ \t]*$/', $lines[$cursor]) === 1) {
+                $metadata = $this->parseIsolatedYamlMetadataBlock($yamlLines);
+                if ($metadata === []) {
+                    return null;
+                }
+
+                return ['end' => $cursor, 'metadata' => $metadata];
+            }
+
+            $yamlLines[] = $lines[$cursor];
+        }
+
+        return null;
+    }
+
+    private function canStartImplicitYamlMetadataBlock(string $trimmed): bool
+    {
+        if ($trimmed === '' || str_starts_with($trimmed, '#') || $trimmed === '---') {
+            return false;
+        }
+
+        $directive = trim($this->stripYamlTrailingComment($trimmed));
+        if (
+            preg_match('/^%YAML[ \t]+\d+(?:\.\d+)?$/i', $directive) === 1
+            || preg_match('/^%TAG[ \t]+(!|!!|![A-Za-z0-9_.-]+!)[ \t]+\S+$/', $directive) === 1
+        ) {
+            return true;
+        }
+
+        if ($trimmed[0] === '{') {
+            return true;
+        }
+
+        return $this->parseYamlMappingLine($trimmed) !== null || $this->isYamlExplicitMappingKeyLine($trimmed);
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{end:int, metadata:array<string, mixed>}|null
+     */
     private function tryReadYamlMetadataBlock(array $lines, int $start): ?array
     {
         if (preg_match('/^---[ \t]*$/', $lines[$start] ?? '') !== 1) {
@@ -410,28 +468,7 @@ final class MarkdownReader
         $count = count($lines);
         for ($cursor = $start + 1; $cursor < $count; $cursor++) {
             if (preg_match('/^(?:---|\.\.\.)[ \t]*$/', $lines[$cursor]) === 1) {
-                $previousYamlMetadataAnchors = $this->yamlMetadataAnchors;
-                $previousYamlMetadataDiagnostics = $this->yamlMetadataDiagnostics;
-                $previousYamlMetadataTagProvenance = $this->yamlMetadataTagProvenance;
-                $previousYamlMetadataTagHandles = $this->yamlMetadataTagHandles;
-                $this->yamlMetadataAnchors = [];
-                $this->yamlMetadataDiagnostics = [];
-                $this->yamlMetadataTagProvenance = [];
-                $this->yamlMetadataTagHandles = ['!!' => 'tag:yaml.org,2002:'];
-                try {
-                    $metadata = $this->parseYamlMetadataLines($yamlLines);
-                    if ($this->yamlMetadataDiagnostics !== []) {
-                        $metadata['__yamlMetadataDiagnostics'] = $this->yamlMetadataDiagnostics;
-                    }
-                    if ($this->yamlMetadataTagProvenance !== []) {
-                        $metadata['__yamlMetadataTagProvenance'] = $this->yamlMetadataTagProvenance;
-                    }
-                } finally {
-                    $this->yamlMetadataAnchors = $previousYamlMetadataAnchors;
-                    $this->yamlMetadataDiagnostics = $previousYamlMetadataDiagnostics;
-                    $this->yamlMetadataTagProvenance = $previousYamlMetadataTagProvenance;
-                    $this->yamlMetadataTagHandles = $previousYamlMetadataTagHandles;
-                }
+                $metadata = $this->parseIsolatedYamlMetadataBlock($yamlLines);
                 if ($metadata === []) {
                     return null;
                 }
@@ -443,6 +480,38 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $yamlLines
+     * @return array<string, mixed>
+     */
+    private function parseIsolatedYamlMetadataBlock(array $yamlLines): array
+    {
+        $previousYamlMetadataAnchors = $this->yamlMetadataAnchors;
+        $previousYamlMetadataDiagnostics = $this->yamlMetadataDiagnostics;
+        $previousYamlMetadataTagProvenance = $this->yamlMetadataTagProvenance;
+        $previousYamlMetadataTagHandles = $this->yamlMetadataTagHandles;
+        $this->yamlMetadataAnchors = [];
+        $this->yamlMetadataDiagnostics = [];
+        $this->yamlMetadataTagProvenance = [];
+        $this->yamlMetadataTagHandles = ['!!' => 'tag:yaml.org,2002:'];
+        try {
+            $metadata = $this->parseYamlMetadataLines($yamlLines);
+            if ($this->yamlMetadataDiagnostics !== []) {
+                $metadata['__yamlMetadataDiagnostics'] = $this->yamlMetadataDiagnostics;
+            }
+            if ($this->yamlMetadataTagProvenance !== []) {
+                $metadata['__yamlMetadataTagProvenance'] = $this->yamlMetadataTagProvenance;
+            }
+
+            return $metadata;
+        } finally {
+            $this->yamlMetadataAnchors = $previousYamlMetadataAnchors;
+            $this->yamlMetadataDiagnostics = $previousYamlMetadataDiagnostics;
+            $this->yamlMetadataTagProvenance = $previousYamlMetadataTagProvenance;
+            $this->yamlMetadataTagHandles = $previousYamlMetadataTagHandles;
+        }
     }
 
     /**
