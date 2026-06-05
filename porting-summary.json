@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 07:50:12 UTC",
-    "sourceCommit": "2b6d4d3bd67dbfdd122acaef5289c2c6e4852040",
-    "sourceCommitShort": "2b6d4d3bd67d",
+    "generated": "2026-06-05 07:50:21 UTC",
+    "sourceCommit": "b2f0eb399e20308e9cd288b39cf6b4a9ff05e7e5",
+    "sourceCommitShort": "b2f0eb399e20",
     "sourceBranch": "unknown",
-    "dashboardCommit": "2b6d4d3bd67dbfdd122acaef5289c2c6e4852040",
-    "dashboardCommitShort": "2b6d4d3bd67d",
+    "dashboardCommit": "b2f0eb399e20308e9cd288b39cf6b4a9ff05e7e5",
+    "dashboardCommitShort": "b2f0eb399e20",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -139,9 +139,9 @@
             "unmapped": "1,061",
             "php": "756 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-05 UTC charset/Unicode current-base slice on accepted base ed...",
+            "audit": "2026-06-05 UTC upstream-runner dependency audit on accepted base 77f7...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For charset/Unicode follow-up, keep full Unicode normalizatio...",
+            "nextTarget": "For EPUB3 package follow-up, keep richer SMIL clock grammar,...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },
