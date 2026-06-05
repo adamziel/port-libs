@@ -1326,12 +1326,14 @@ final class PdfPagePropertyExtractor
             }
 
             $resourceReference = $this->objectReferenceFromValue($resourceValue);
-            if (
-                $resourceReference !== null
-                && isset($objects[$resourceReference['objectNumber']])
-                && ($this->currentObjectGenerations[$resourceReference['objectNumber']] ?? null) === $resourceReference['generation']
-                && $this->objectBodyIsStreamObject($objects[$resourceReference['objectNumber']])
-            ) {
+            $resourceObject = $resourceReference === null
+                ? null
+                : $this->resolvedObjectValueFromReference(
+                    $objects,
+                    $resourceReference['objectNumber'],
+                    $resourceReference['generation']
+                );
+            if ($resourceObject !== null && $this->objectBodyIsStreamObject($resourceObject['body'])) {
                 return $this->malformedPageResourcesMetadata(
                     $pageObjectNumber,
                     $objectNumber,
@@ -1396,10 +1398,13 @@ final class PdfPagePropertyExtractor
             return false;
         }
 
-        $objectNumber = $reference['objectNumber'];
-        return isset($objects[$objectNumber])
-            && ($this->currentObjectGenerations[$objectNumber] ?? null) === $reference['generation']
-            && trim($objects[$objectNumber]) === 'null';
+        $resolved = $this->resolvedObjectValueFromReference(
+            $objects,
+            $reference['objectNumber'],
+            $reference['generation']
+        );
+
+        return $resolved !== null && trim($resolved['body']) === 'null';
     }
 
     /**
@@ -1459,10 +1464,13 @@ final class PdfPagePropertyExtractor
             return false;
         }
 
-        $objectNumber = $reference['objectNumber'];
-        return isset($objects[$objectNumber])
-            && ($this->currentObjectGenerations[$objectNumber] ?? null) === $reference['generation']
-            && $this->objectBodyIsStreamObject($objects[$objectNumber]);
+        $resolved = $this->resolvedObjectValueFromReference(
+            $objects,
+            $reference['objectNumber'],
+            $reference['generation']
+        );
+
+        return $resolved !== null && $this->objectBodyIsStreamObject($resolved['body']);
     }
 
     /**
@@ -1486,12 +1494,12 @@ final class PdfPagePropertyExtractor
         }
 
         if (!$this->resourceCategoryAllowsStreamEntries($category)) {
-            $objectNumber = $reference['objectNumber'];
-            if (
-                isset($objects[$objectNumber])
-                && ($this->currentObjectGenerations[$objectNumber] ?? null) === $reference['generation']
-                && $this->objectBodyIsStreamObject($objects[$objectNumber])
-            ) {
+            $resolvedObject = $this->resolvedObjectValueFromReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            );
+            if ($resolvedObject !== null && $this->objectBodyIsStreamObject($resolvedObject['body'])) {
                 return false;
             }
         }
@@ -2582,19 +2590,23 @@ final class PdfPagePropertyExtractor
 
         $reference = $this->objectReferenceFromValue($value);
         if ($reference !== null) {
-            $objectNumber = $reference['objectNumber'];
-            if (!isset($objects[$objectNumber])) {
+            $resolved = $this->resolvedObjectValueFromReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            );
+            if ($resolved === null) {
                 return null;
             }
 
-            if (($this->currentObjectGenerations[$objectNumber] ?? null) !== $reference['generation']) {
-                return null;
-            }
-
-            $body = $this->dictionaryObjectBody($objects[$objectNumber]);
+            $body = $this->dictionaryObjectBody($resolved['body']);
             return $body === null
                 ? null
-                : ['body' => $body, 'object' => $objectNumber, 'generation' => $reference['generation']];
+                : [
+                    'body' => $body,
+                    'object' => $resolved['object'],
+                    'generation' => $resolved['generation'],
+                ];
         }
 
         $resolved = $this->resolveRawValue($value, $objects);
@@ -2617,12 +2629,52 @@ final class PdfPagePropertyExtractor
             return $trimmed;
         }
 
-        $objectNumber = $reference['objectNumber'];
-        if (($this->currentObjectGenerations[$objectNumber] ?? null) !== $reference['generation']) {
+        $resolved = $this->resolvedObjectValueFromReference(
+            $objects,
+            $reference['objectNumber'],
+            $reference['generation']
+        );
+
+        return $resolved['body'] ?? null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     * @return array{body: string, object: int, generation: int}|null
+     */
+    private function resolvedObjectValueFromReference(
+        array $objects,
+        int $objectNumber,
+        int $generation,
+        array $seen = []
+    ): ?array {
+        $referenceKey = $objectNumber . ':' . $generation;
+        if (
+            isset($seen[$referenceKey])
+            || !isset($objects[$objectNumber])
+            || ($this->currentObjectGenerations[$objectNumber] ?? null) !== $generation
+        ) {
             return null;
         }
 
-        return $objects[$objectNumber] ?? null;
+        $body = $objects[$objectNumber];
+        $seen[$referenceKey] = true;
+        $trimmed = trim($body);
+        if (preg_match('/^(\d+)\s+(\d+)\s+R\s*$/s', $trimmed, $match) === 1) {
+            return $this->resolvedObjectValueFromReference(
+                $objects,
+                (int) $match[1],
+                (int) $match[2],
+                $seen
+            );
+        }
+
+        return [
+            'body' => $body,
+            'object' => $objectNumber,
+            'generation' => $generation,
+        ];
     }
 
     private function dictionaryObjectBody(string $objectBody): ?string

@@ -12974,11 +12974,12 @@ final class PdfTextExtractor
         if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) === 1) {
             $objectNumber = (int) $match[1];
             $generation = (int) $match[2];
-            $objectBody = $this->objectBodyForResourceReference($objects, $objectNumber, $generation);
-            if ($objectBody === null) {
+            $resolved = $this->resolvedResourceObjectBody($objects, $objectNumber, $generation);
+            if ($resolved === null) {
                 return ['state' => 'blocked'];
             }
 
+            $objectBody = $resolved['body'];
             if ($this->objectBodyIsStreamObject($objectBody)) {
                 return ['state' => 'blocked'];
             }
@@ -12990,7 +12991,12 @@ final class PdfTextExtractor
             $body = $this->dictionaryObjectBody($objectBody);
             return $body === null
                 ? ['state' => 'blocked']
-                : ['state' => 'resolved', 'body' => $body, 'object' => $objectNumber, 'generation' => $generation];
+                : [
+                    'state' => 'resolved',
+                    'body' => $body,
+                    'object' => $resolved['object'],
+                    'generation' => $resolved['generation'],
+                ];
         }
 
         if (str_starts_with($value, '<<')) {
@@ -13021,15 +13027,54 @@ final class PdfTextExtractor
         if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) === 1) {
             $objectNumber = (int) $match[1];
             $generation = (int) $match[2];
-            $objectBody = $this->objectBodyForResourceReference($objects, $objectNumber, $generation);
-            if ($objectBody === null || $this->objectBodyIsStreamObject($objectBody)) {
+            $resolved = $this->resolvedResourceObjectBody($objects, $objectNumber, $generation);
+            if ($resolved === null || $this->objectBodyIsStreamObject($resolved['body'])) {
                 return null;
             }
 
-            return $this->dictionaryObjectBody($objectBody);
+            return $this->dictionaryObjectBody($resolved['body']);
         }
 
         return str_starts_with($value, '<<') ? $this->readPdfDictionaryAt($value, 0) : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     * @return array{body: string, object: int, generation: int}|null
+     */
+    private function resolvedResourceObjectBody(
+        array $objects,
+        int $objectNumber,
+        int $generation,
+        array $seen = []
+    ): ?array {
+        $referenceKey = $objectNumber . ':' . $generation;
+        if (isset($seen[$referenceKey])) {
+            return null;
+        }
+
+        $body = $this->objectBodyForResourceReference($objects, $objectNumber, $generation);
+        if ($body === null) {
+            return null;
+        }
+
+        $seen[$referenceKey] = true;
+        $trimmed = trim($body);
+        if (preg_match('/^(\d+)\s+(\d+)\s+R\s*$/s', $trimmed, $match) === 1) {
+            return $this->resolvedResourceObjectBody(
+                $objects,
+                (int) $match[1],
+                (int) $match[2],
+                $seen
+            );
+        }
+
+        return [
+            'body' => $body,
+            'object' => $objectNumber,
+            'generation' => $generation,
+        ];
     }
 
     /**
@@ -14634,12 +14679,12 @@ final class PdfTextExtractor
         if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) === 1) {
             $objectNumber = (int) $match[1];
             $generation = (int) $match[2];
-            $objectBody = $this->objectBodyForResourceReference($objects, $objectNumber, $generation);
-            if ($objectBody === null || $this->objectBodyIsStreamObject($objectBody)) {
+            $resolved = $this->resolvedResourceObjectBody($objects, $objectNumber, $generation);
+            if ($resolved === null || $this->objectBodyIsStreamObject($resolved['body'])) {
                 return null;
             }
 
-            return $this->dictionaryObjectBody($objectBody);
+            return $this->dictionaryObjectBody($resolved['body']);
         }
 
         return str_starts_with($value, '<<') ? $this->readPdfDictionaryAt($value, 0) : null;
