@@ -3607,6 +3607,12 @@ final class PdfAcroFormExtractor
         $fieldHierarchy = $this->fieldHierarchyBoundary($currentHierarchyPath, $effective, $inherited, $objectNumber, $password);
         $valueState = $this->fieldValueState($fieldType, $flags, $effective, $password, $value, $defaultValue, $options, $widgets, $objects);
         $valueState['hierarchy_boundary'] = $this->fieldHierarchyValueState($fieldHierarchy);
+        $quaddingReview = $this->quaddingReviewForField($objectNumber, $name, $fieldType, $effective, $objects);
+        $valueState['quadding'] = $quaddingReview['quadding'];
+        $valueState['quadding_label'] = $quaddingReview['quadding_label'];
+        $valueState['quadding_valid'] = $quaddingReview['quadding_valid'];
+        $valueState['quadding_source_object'] = $quaddingReview['quadding_source_object'];
+        $valueState['quadding_inherited'] = $quaddingReview['quadding_inherited'];
         $maxLengthReview = $fieldType === 'Tx'
             ? $this->maxLengthReviewForField($objectNumber, $name, $effective, $value, $defaultValue, $password, $objects)
             : null;
@@ -3643,6 +3649,9 @@ final class PdfAcroFormExtractor
             'value_redacted' => $password,
             'default_value' => $defaultValue,
             'max_length' => $maxLengthReview['max_length'] ?? null,
+            'quadding' => $quaddingReview['quadding'],
+            'text_alignment' => $quaddingReview['quadding_label'],
+            'quadding_review' => $quaddingReview,
             'value_state' => $valueState,
             'field_hierarchy' => $fieldHierarchy,
             'field_name_review' => $this->fieldNameReview($objectNumber, $name, $partialName, $alternateName, $mappingName, $fieldType, $currentHierarchyPath),
@@ -3901,6 +3910,73 @@ final class PdfAcroFormExtractor
             'executes_form_actions' => false,
             'executes_javascript' => false,
         ];
+    }
+
+    /**
+     * @param array<string, array{value: string, source: string, source_object: int|null}> $effective
+     * @return array<string, mixed>
+     */
+    private function quaddingReviewForField(
+        int $fieldObject,
+        string $fieldName,
+        ?string $fieldType,
+        array $effective,
+        array $objects
+    ): array {
+        $present = isset($effective['Q']);
+        $sourceObject = $present ? $effective['Q']['source_object'] : null;
+        $quadding = $present ? $this->integerFromEffectiveOrNull($effective, 'Q', $objects) : null;
+        $resolved = $quadding !== null;
+
+        return [
+            'source' => 'acroform_field_quadding_boundary',
+            'field_object' => $fieldObject,
+            'field_name' => $fieldName,
+            'field_type' => $fieldType,
+            'present' => $present,
+            'raw_value' => $present ? $effective['Q']['value'] : null,
+            'quadding' => $quadding,
+            'quadding_label' => $this->quaddingLabel($quadding),
+            'quadding_valid' => $present ? in_array($quadding, [0, 1, 2], true) : null,
+            'quadding_resolved' => $resolved,
+            'quadding_source' => $present ? $effective['Q']['source'] : null,
+            'quadding_source_object' => $sourceObject,
+            'quadding_inherited' => $present && $sourceObject !== $fieldObject,
+            'quadding_source_boundary' => $this->quaddingSourceBoundary($present, $sourceObject, $fieldObject),
+            'applies_to_variable_text' => in_array($fieldType, ['Tx', 'Ch'], true),
+            'review_only' => true,
+            'quadding_used_for_visible_text' => false,
+            'quadding_used_for_import' => false,
+            'appearance_alignment_used_for_import' => false,
+            'executes_form_actions' => false,
+            'executes_javascript' => false,
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
+        ];
+    }
+
+    private function quaddingLabel(?int $quadding): ?string
+    {
+        return match ($quadding) {
+            0 => 'left',
+            1 => 'center',
+            2 => 'right',
+            null => null,
+            default => 'unknown',
+        };
+    }
+
+    private function quaddingSourceBoundary(bool $present, ?int $sourceObject, int $fieldObject): ?string
+    {
+        if (!$present) {
+            return null;
+        }
+
+        if ($sourceObject === null) {
+            return 'acroform_default';
+        }
+
+        return $sourceObject === $fieldObject ? 'field_terminal' : 'field_hierarchy_inherited';
     }
 
     private function utf8CharacterLength(string $value): int
