@@ -3056,10 +3056,12 @@ final class PdfTextExtractor
         }
 
         $properties = [];
-        if (preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+\d+\s+R\b/s', $propertiesDictionary, $matches, PREG_SET_ORDER)) {
+        if (preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+(\d+)\s+R\b/s', $propertiesDictionary, $matches, PREG_SET_ORDER)) {
             foreach ($matches as $match) {
                 $objectNumber = (int) $match[2];
-                $dictionary = isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
+                $generation = (int) $match[3];
+                $objectBody = $this->objectBodyForResourceReference($objects, $objectNumber, $generation);
+                $dictionary = $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
                 if ($dictionary !== null) {
                     $properties[$this->decodePdfName($match[1])] = $dictionary;
                 }
@@ -3451,13 +3453,20 @@ final class PdfTextExtractor
             return [];
         }
 
-        if (!preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+\d+\s+R\b/', $xObjectDictionary, $matches, PREG_SET_ORDER)) {
+        if (!preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+(\d+)\s+R\b/', $xObjectDictionary, $matches, PREG_SET_ORDER)) {
             return [];
         }
 
         $resourceObjects = [];
         foreach ($matches as $resource) {
-            $resourceObjects[$this->decodePdfName($resource[1])] = (int) $resource[2];
+            $objectNumber = (int) $resource[2];
+            $generation = (int) $resource[3];
+            $objectBody = $this->objectBodyForResourceReference($objects, $objectNumber, $generation);
+            if ($objectBody === null || !isset($objects[$objectNumber]) || $objects[$objectNumber] !== $objectBody) {
+                continue;
+            }
+
+            $resourceObjects[$this->decodePdfName($resource[1])] = $objectNumber;
         }
 
         return $resourceObjects;
@@ -9068,16 +9077,25 @@ final class PdfTextExtractor
         }
 
         $maps = [];
-        if (preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+\d+\s+R\b/', $fontDictionary, $resourceMatches, PREG_SET_ORDER)) {
+        $namedCMapBodies = $this->namedCMapBodies($objects);
+        if (preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+(\d+)\s+R\b/', $fontDictionary, $resourceMatches, PREG_SET_ORDER)) {
             foreach ($resourceMatches as $resourceMatch) {
                 $fontObjectNumber = (int) $resourceMatch[2];
-                if (isset($fontObjectMaps[$fontObjectNumber])) {
-                    $maps[$this->decodePdfName($resourceMatch[1])] = $fontObjectMaps[$fontObjectNumber];
+                $fontGeneration = (int) $resourceMatch[3];
+                $fontBody = $this->objectBodyForResourceReference($objects, $fontObjectNumber, $fontGeneration);
+                if ($fontBody === null) {
+                    continue;
+                }
+
+                $map = isset($objects[$fontObjectNumber], $fontObjectMaps[$fontObjectNumber]) && $objects[$fontObjectNumber] === $fontBody
+                    ? $fontObjectMaps[$fontObjectNumber]
+                    : $this->fontMapFromFontBody($fontBody, $objects, $namedCMapBodies);
+                if ($map !== null) {
+                    $maps[$this->decodePdfName($resourceMatch[1])] = $map;
                 }
             }
         }
 
-        $namedCMapBodies = $this->namedCMapBodies($objects);
         foreach ($this->directFontResourceDictionaries($fontDictionary) as $name => $fontBody) {
             if (isset($maps[$name])) {
                 continue;
@@ -9169,7 +9187,7 @@ final class PdfTextExtractor
 
         $properties = [];
         if (preg_match_all(
-            '/\/([^\s\[\]()<>{}\/%]+)\s*(?:(\d+)\s+\d+\s+R|<<)/s',
+            '/\/([^\s\[\]()<>{}\/%]+)\s*(?:(\d+)\s+(\d+)\s+R|<<)/s',
             $propertiesDictionary,
             $matches,
             PREG_SET_ORDER | PREG_OFFSET_CAPTURE
@@ -9178,7 +9196,9 @@ final class PdfTextExtractor
                 $name = $this->decodePdfName($match[1][0]);
                 if (($match[2][0] ?? '') !== '') {
                     $objectNumber = (int) $match[2][0];
-                    $dictionary = isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
+                    $generation = (int) ($match[3][0] ?? '0');
+                    $objectBody = $this->objectBodyForResourceReference($objects, $objectNumber, $generation);
+                    $dictionary = $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
                 } else {
                     $offset = strpos($propertiesDictionary, '<<', $match[0][1]);
                     $dictionary = $offset === false ? null : $this->readPdfDictionaryAt($propertiesDictionary, $offset);

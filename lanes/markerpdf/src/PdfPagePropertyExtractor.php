@@ -1415,7 +1415,33 @@ final class PdfPagePropertyExtractor
             return [];
         }
 
-        return array_keys($this->dictionaryEntries($subdictionary['body']));
+        $names = [];
+        foreach ($this->dictionaryEntries($subdictionary['body']) as $name => $value) {
+            if ($this->resourceSubdictionaryEntryIsResolvable($value, $objects)) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function resourceSubdictionaryEntryIsResolvable(string $value, array $objects): bool
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '' || $trimmed === 'null') {
+            return false;
+        }
+
+        $reference = $this->objectReferenceFromValue($trimmed);
+        if ($reference === null) {
+            return true;
+        }
+
+        $resolved = $this->resolveRawValue($trimmed, $objects);
+        return $resolved !== null && $this->dictionaryObjectBody($resolved) !== null;
     }
 
     /**
