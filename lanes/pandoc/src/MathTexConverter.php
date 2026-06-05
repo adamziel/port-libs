@@ -890,6 +890,10 @@ final class MathTexConverter
             return '<mi>' . $this->esc($operatorName) . '</mi>';
         }
 
+        if ($command === 'ref' || $command === 'eqref') {
+            return $this->parseEquationReferenceCommand($source, $offset, $command);
+        }
+
         if ($command === 'substack') {
             return $this->parseSubstackCommand($source, $offset);
         }
@@ -1343,6 +1347,22 @@ final class MathTexConverter
         }
 
         return '<mover>' . $arrow . $above . '</mover>';
+    }
+
+    private function parseEquationReferenceCommand(string $source, int &$offset, string $command): string
+    {
+        $label = trim($this->readRequiredGroupText($source, $offset));
+        if ($label === '') {
+            throw new \InvalidArgumentException('Expected TeX \\' . $command . ' label at offset ' . $offset);
+        }
+
+        $targetId = $this->normalizeEquationLabelId($label);
+        $reference = '<mtext href="#' . $this->esc($targetId) . '">' . $this->esc($label) . '</mtext>';
+        if ($command === 'eqref') {
+            return '<mrow><mo>(</mo>' . $reference . '<mo>)</mo></mrow>';
+        }
+
+        return $reference;
     }
 
     private function parseArrowAccentCommand(string $source, int &$offset, string $command): string

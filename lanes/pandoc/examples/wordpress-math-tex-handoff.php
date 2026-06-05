@@ -53,6 +53,8 @@ Extensible arrow audit $\xrightarrow[\text{review}]{\operatorname{publish}} p_i 
 
 Tagged equation audit:
 $$p_i + m_i \label{eq:review-flow} \tag{WP-2}$$
+
+Equation reference audit $\label{eq:plain}x_i + \eqref{eq:plain} + \ref{review row/2}$ stays linked.
 MARKDOWN;
 
 $document = (new MarkdownReader())->read($markdown);
@@ -104,6 +106,7 @@ $summary = [
     'middleDelimiterMathml' => $converter->texToMathMl('\\left\\{p_i \\middle| p_i \\in P\\right\\} + \\left\\langle x \\middle/ y \\right\\rangle'),
     'extensibleArrowMathml' => $converter->texToMathMl('\\xrightarrow[\\text{review}]{\\operatorname{publish}} p_i + \\xleftarrow{draft} m_i + \\overrightarrow{AB}_i'),
     'taggedEquationMathml' => $converter->texToMathMl('p_i + m_i \\label{eq:review-flow} \\tag{WP-2}', true),
+    'equationReferenceMathml' => $converter->texToMathMl('\\label{eq:plain}x_i + \\eqref{eq:plain} + \\ref{review row/2}', true),
 ];
 
 if (($argv[1] ?? '') === '--self-test') {
@@ -130,6 +133,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\left\\{p_i \\middle| p_i \\in P\\right\\} + \\left\\langle x \\middle/ y \\right\\rangle\\)</span>',
         '<span class="math inline">\\(\\xrightarrow[\\text{review}]{\\operatorname{publish}} p_i + \\xleftarrow{draft} m_i + \\overrightarrow{AB}_i\\)</span>',
         '<span class="math display">\\[p_i + m_i \\label{eq:review-flow} \\tag{WP-2}\\]</span>',
+        '<span class="math inline">\\(\\label{eq:plain}x_i + \\eqref{eq:plain} + \\ref{review row/2}\\)</span>',
         '<mo>⟨</mo>',
         '<mo>⟩</mo>',
         '<annotation encoding="application/x-tex">\\langle post_id,media_id \\rangle</annotation>',
@@ -220,6 +224,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<annotation encoding="application/x-tex">\\xrightarrow[\\text{review}]{\\operatorname{publish}} p_i + \\xleftarrow{draft} m_i + \\overrightarrow{AB}_i</annotation>',
         '<annotation encoding="application/x-tex">p_i + m_i \\label{eq:review-flow} \\tag{WP-2}</annotation>',
         '<annotation encoding="application/x-tex-label">eq:review-flow</annotation>',
+        '<mrow id="eq:plain"><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:plain">eq:plain</mtext><mo>)</mo></mrow><mo>+</mo><mtext href="#review-row-2">review row/2</mtext></mrow>',
+        '<annotation encoding="application/x-tex">\\label{eq:plain}x_i + \\eqref{eq:plain} + \\ref{review row/2}</annotation>',
         '<annotation encoding="application/x-tex">\\sum_{i=1}^{n} \\operatorname{migrate}(p_i) + \\frac{a_1}{\\sqrt{b^2}} + \\sqrt[3]{x_i + y_i} + \\binom{n}{k} + \\tbinom{p_i}{2} + \\dbinom{a+b}{c} + \\dfrac{q_i}{r_i} + \\genfrac{\\langle}{\\rangle}{0pt}{0}{n}{k} + \\widehat{\\operatorname{quality}} + \\vec{v}_i + \\begin{pmatrix}p_1 &amp; m_1 \\\\ p_2 &amp; m_2\\end{pmatrix} + \\begin{aligned}x_i &amp;= \\operatorname{score}(p_i) \\\\ y_i &amp;= \\frac{a_i}{b_i}\\end{aligned} + \\begin{array}{l|c|r}\\alpha &amp; \\beta &amp; \\omega \\\\ 1 &amp; 2 &amp; 3\\end{array} + \\begin{cases}p_i &amp; p_i \\in P \\\\ 0 &amp; \\text{otherwise}\\end{cases} + \\forall p_i \\in P \\Rightarrow p_i \\notin \\emptyset + \\alpha \\times \\omega</annotation>',
         '<annotation encoding="application/x-tex">\\wptuple{post_id,media_id}</annotation>',
         '\\[\\sum_{i=1}^{n} \\operatorname{migrate}(p_i) + \\frac{a_1}{\\sqrt{b^2}} + \\sqrt[3]{x_i + y_i} + \\binom{n}{k} + \\tbinom{p_i}{2} + \\dbinom{a+b}{c} + \\dfrac{q_i}{r_i} + \\genfrac{\\langle}{\\rangle}{0pt}{0}{n}{k} + \\widehat{\\operatorname{quality}} + \\vec{v}_i + \\begin{pmatrix}p_1 & m_1 \\\\ p_2 & m_2\\end{pmatrix} + \\begin{aligned}x_i &= \\operatorname{score}(p_i) \\\\ y_i &= \\frac{a_i}{b_i}\\end{aligned} + \\begin{array}{l|c|r}\\alpha & \\beta & \\omega \\\\ 1 & 2 & 3\\end{array} + \\begin{cases}p_i & p_i \\in P \\\\ 0 & \\text{otherwise}\\end{cases} + \\forall p_i \\in P \\Rightarrow p_i \\notin \\emptyset + \\alpha \\times \\omega\\]',

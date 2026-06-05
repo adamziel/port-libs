@@ -279,6 +279,17 @@ return [
         $t->contains('<mtext>review</mtext></mtd><mtd><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow></mtd>', $starredTagMathml);
         $t->contains('<mrow id="eq:plain"><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><msub><mi>y</mi><mi>i</mi></msub></mrow>', $labelOnlyMathml);
     },
+    'converts bounded tex equation references to mathml handoff links' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $referenceMathml = $converter->texToMathMl('\\label{eq:plain}x_i + \\eqref{eq:plain} + \\ref{review row/2}', true);
+        $rowReferenceMathml = $converter->texToMathMl('\\begin{align}p_i &= m_i \\label{eq:row-review}\\end{align} + \\eqref{eq:row-review}');
+
+        $t->contains('<mrow id="eq:plain"><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:plain">eq:plain</mtext><mo>)</mo></mrow><mo>+</mo><mtext href="#review-row-2">review row/2</mtext></mrow>', $referenceMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\label{eq:plain}x_i + \\eqref{eq:plain} + \\ref{review row/2}</annotation><annotation encoding="application/x-tex-label">eq:plain</annotation>', $referenceMathml);
+        $t->contains('<mtr id="eq:row-review"><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr></mtable><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:row-review">eq:row-review</mtext><mo>)</mo></mrow>', $rowReferenceMathml);
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\ref{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\eqref{###}'));
+    },
     'converts bounded tex relation set logic and arrow commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $setMathml = $converter->texToMathMl('\\forall p_i \\in P \\land m_i \\notin M \\Rightarrow p_i \\subseteq Q \\cup R', true);
@@ -520,6 +531,8 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('x \\tag{A} \\tag{B}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\tag*'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\label{}x'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\ref'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\eqref{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hat'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\vec_1'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underline^2'));
