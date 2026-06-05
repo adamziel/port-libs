@@ -1110,6 +1110,69 @@ return [
         $t->same('mo-chapter-1', $result['document']->children[0]->attr('mediaOverlay'));
         $t->same($overlay, $result['importReport']['mediaOverlays']['mo-chapter-1']);
     },
+    'reports OPF media overlay duration metadata for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $smilXml): void {
+        $opfWithOverlayDuration = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+            . '<meta property="media:duration">0:00:12.500</meta>'
+            . '<meta property="media:duration" refines="#mo-chapter-1">0:00:06.500</meta>'
+            . '<meta property="media:duration" refines="#missing-overlay">not-a-clock</meta>',
+            $opfXml
+        );
+        $opfWithOverlayDuration = str_replace(
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" media-overlay="mo-chapter-1"/><item id="mo-chapter-1" href="overlays/chapter1.smil" media-type="application/smil+xml"/><item id="audio-chapter-1" href="audio/chapter1.mp3" media-type="audio/mpeg"/>',
+            $opfWithOverlayDuration
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithOverlayDuration,
+            null,
+            [
+                ['name' => 'OEBPS/overlays/chapter1.smil', 'data' => $smilXml],
+                ['name' => 'OEBPS/audio/chapter1.mp3', 'data' => 'MP3-DATA'],
+            ]
+        ));
+
+        $durations = $result['mediaDurations'];
+        $t->same(true, $durations['present']);
+        $t->same('0:00:12.500', $durations['total']['duration']);
+        $t->same(12.5, $durations['total']['durationSeconds']);
+        $t->same(true, $durations['total']['validClock']);
+        $t->same('publication', $durations['total']['scope']);
+        $t->same(null, $durations['total']['refines']);
+        $t->same(null, $durations['total']['subjectId']);
+        $t->same([], $durations['total']['diagnostics']);
+        $t->same(1, count($durations['totals']));
+
+        $overlayDuration = $durations['overlaysById']['mo-chapter-1'];
+        $t->same('0:00:06.500', $overlayDuration['duration']);
+        $t->same(6.5, $overlayDuration['durationSeconds']);
+        $t->same(true, $overlayDuration['validClock']);
+        $t->same('media-overlay', $overlayDuration['scope']);
+        $t->same('#mo-chapter-1', $overlayDuration['refines']);
+        $t->same('mo-chapter-1', $overlayDuration['subjectId']);
+        $t->same('mo-chapter-1', $overlayDuration['manifestId']);
+        $t->same('/OEBPS/overlays/chapter1.smil', $overlayDuration['manifestPart']);
+        $t->same('application/smil+xml', $overlayDuration['manifestMediaType']);
+        $t->same(['chapter-1'], $overlayDuration['referencedBy']);
+        $t->same([], $overlayDuration['diagnostics']);
+
+        $t->same(3, count($durations['items']));
+        $t->same(2, count($durations['diagnostics']));
+        $t->same('invalid-media-duration-clock', $durations['diagnostics'][0]['type']);
+        $t->same('not-a-clock', $durations['diagnostics'][0]['duration']);
+        $t->same('media-duration-refines-missing-manifest-item', $durations['diagnostics'][1]['type']);
+        $t->same('missing-overlay', $durations['diagnostics'][1]['subjectId']);
+
+        $overlay = $result['mediaOverlays']['mo-chapter-1'];
+        $t->same('0:00:06.500', $overlay['duration']);
+        $t->same(6.5, $overlay['durationSeconds']);
+        $t->same($overlayDuration, $overlay['durationMetadata']);
+        $t->same($durations, $result['metadata']['mediaDurations']);
+        $t->same($durations, $result['importReport']['mediaDurations']);
+        $t->same($durations, $result['document']->attr('mediaDurations'));
+    },
     'retains remote nav NCX and media-overlay references without fetching' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $remoteNavXhtml, $remoteNcxXml, $remoteSmilXml): void {
         $opfWithOverlay = str_replace(
             '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',

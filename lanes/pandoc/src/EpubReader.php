@@ -41,6 +41,7 @@ final class EpubReader
      *     resourceProperties:array<string, mixed>,
      *     encryption:array<string, mixed>,
      *     mediaOverlays:array<string, array<string, mixed>>,
+     *     mediaDurations:array<string, mixed>,
      *     xhtmlAssets:list<array<string, mixed>>,
      *     assets:list<array<string, mixed>>,
      *     assetReport:array<string, mixed>,
@@ -66,6 +67,7 @@ final class EpubReader
             $opf['bindings'],
             $opf['accessibility'],
             $opf['resourceProperties'],
+            $opf['mediaDurations'],
             $renditions
         );
 
@@ -88,6 +90,7 @@ final class EpubReader
             'resourceProperties' => $opf['resourceProperties'],
             'encryption' => $opf['encryption'],
             'mediaOverlays' => $opf['mediaOverlays'],
+            'mediaDurations' => $opf['mediaDurations'],
             'xhtmlAssets' => $opf['xhtmlAssets'],
             'assets' => $opf['assets'],
             'assetReport' => $opf['assetReport'],
@@ -123,6 +126,7 @@ final class EpubReader
                 'resourceProperties' => $opf['resourceProperties'],
                 'encryption' => $opf['encryption'],
                 'mediaOverlays' => $opf['mediaOverlays'],
+                'mediaDurations' => $opf['mediaDurations'],
                 'assets' => $opf['assetReport'],
             ],
         ];
@@ -249,6 +253,7 @@ final class EpubReader
      *     resourceProperties:array<string, mixed>,
      *     encryption:array<string, mixed>,
      *     mediaOverlays:array<string, array<string, mixed>>,
+     *     mediaDurations:array<string, mixed>,
      *     xhtmlAssets:list<array<string, mixed>>,
      *     assets:list<array<string, mixed>>,
      *     assetReport:array<string, mixed>
@@ -287,7 +292,9 @@ final class EpubReader
         $spineProperties = self::readSpineProperties($spineElement);
         $spine = $this->readSpine($spineElement, $manifestById, $bindings);
         $spineProperties = self::spinePropertiesWithItemDiagnostics($spineProperties, $spine);
-        $mediaOverlays = $this->readMediaOverlays($package, $manifestById);
+        $mediaDurations = self::mediaDurationReport($metadata, $manifestById);
+        $metadata['mediaDurations'] = $mediaDurations;
+        $mediaOverlays = $this->readMediaOverlays($package, $manifestById, $mediaDurations);
         $manifest = array_values($manifestById);
         $resourceProperties = self::resourcePropertyReport($manifest);
         $navItem = $this->firstManifestItemWithProperty($manifest, 'nav');
@@ -315,6 +322,7 @@ final class EpubReader
             'resourceProperties' => $resourceProperties,
             'encryption' => $encryption,
             'mediaOverlays' => $mediaOverlays,
+            'mediaDurations' => $mediaDurations,
             'xhtmlAssets' => $this->xhtmlAssets($package, $manifest),
             'assets' => $assetReport['items'],
             'assetReport' => $assetReport,
@@ -1422,6 +1430,192 @@ final class EpubReader
     }
 
     /**
+     * @param array<string, mixed> $metadata
+     * @param array<string, array<string, mixed>> $manifestById
+     *
+     * @return array{
+     *     present:bool,
+     *     total:?array<string, mixed>,
+     *     totals:list<array<string, mixed>>,
+     *     overlaysById:array<string, array<string, mixed>>,
+     *     items:list<array<string, mixed>>,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function mediaDurationReport(array $metadata, array $manifestById): array
+    {
+        $entries = is_array($metadata['metaProperties']['media:duration'] ?? null)
+            ? array_values($metadata['metaProperties']['media:duration'])
+            : [];
+        $overlayReferences = self::mediaOverlayReferences($manifestById);
+        $total = null;
+        $totals = [];
+        $overlaysById = [];
+        $items = [];
+        $diagnostics = [];
+
+        foreach ($entries as $index => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $duration = self::metadataEntryValue($entry);
+            $seconds = self::smilClockSeconds($duration);
+            $refines = is_string($entry['refines'] ?? null) ? $entry['refines'] : null;
+            $subjectId = self::metadataRefinementSubject($refines);
+            $itemDiagnostics = [];
+            $item = [
+                'index' => $index,
+                'duration' => $duration,
+                'durationSeconds' => $seconds,
+                'seconds' => $seconds,
+                'validClock' => $seconds !== null,
+                'scope' => $subjectId === null ? 'publication' : 'media-overlay',
+                'refines' => $refines,
+                'subjectId' => $subjectId,
+                'metadataId' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'manifestId' => null,
+                'manifestHref' => null,
+                'manifestTarget' => null,
+                'manifestPart' => null,
+                'manifestMediaType' => null,
+                'referencedBy' => [],
+                'diagnostics' => [],
+            ];
+
+            if ($seconds === null) {
+                $itemDiagnostics[] = [
+                    'type' => 'invalid-media-duration-clock',
+                    'duration' => $duration,
+                    'message' => 'EPUB media:duration must be a bounded SMIL clock value',
+                ];
+            }
+
+            if ($subjectId === null) {
+                $totals[] = $item;
+                if ($total === null) {
+                    $total = $item;
+                } else {
+                    $itemDiagnostics[] = [
+                        'type' => 'duplicate-publication-media-duration',
+                        'duration' => $duration,
+                        'message' => 'EPUB package contains more than one publication-level media:duration entry',
+                    ];
+                }
+            } else {
+                $manifestItem = $manifestById[$subjectId] ?? null;
+                $item['manifestId'] = $subjectId;
+                if (!is_array($manifestItem)) {
+                    $itemDiagnostics[] = [
+                        'type' => 'media-duration-refines-missing-manifest-item',
+                        'subjectId' => $subjectId,
+                        'message' => 'EPUB media:duration refinement does not reference an OPF manifest item',
+                    ];
+                } else {
+                    $item['manifestHref'] = (string) ($manifestItem['href'] ?? '');
+                    $item['manifestTarget'] = is_string($manifestItem['target'] ?? null) ? $manifestItem['target'] : null;
+                    $item['manifestPart'] = is_string($manifestItem['part'] ?? null) ? $manifestItem['part'] : null;
+                    $item['manifestMediaType'] = (string) ($manifestItem['mediaType'] ?? '');
+                    $item['referencedBy'] = $overlayReferences[$subjectId] ?? [];
+
+                    if (($manifestItem['mediaType'] ?? null) !== self::SMIL_MEDIA_TYPE) {
+                        $itemDiagnostics[] = [
+                            'type' => 'media-duration-refines-non-overlay-manifest-item',
+                            'subjectId' => $subjectId,
+                            'mediaType' => (string) ($manifestItem['mediaType'] ?? ''),
+                            'message' => 'EPUB media:duration refinement should reference an OPF media-overlay SMIL item',
+                        ];
+                    } elseif (!isset($overlaysById[$subjectId])) {
+                        $overlaysById[$subjectId] = $item;
+                    } else {
+                        $itemDiagnostics[] = [
+                            'type' => 'duplicate-media-overlay-duration',
+                            'subjectId' => $subjectId,
+                            'message' => 'EPUB media-overlay manifest item has more than one media:duration entry',
+                        ];
+                    }
+                }
+            }
+
+            foreach ($itemDiagnostics as $diagnostic) {
+                $diagnostics[] = ['index' => $index] + $diagnostic;
+            }
+            $item['diagnostics'] = $itemDiagnostics;
+            if ($subjectId !== null && isset($overlaysById[$subjectId]) && (int) $overlaysById[$subjectId]['index'] === $index) {
+                $overlaysById[$subjectId] = $item;
+            }
+            if ($subjectId === null) {
+                $totals[count($totals) - 1] = $item;
+                if ($total !== null && (int) $total['index'] === $index) {
+                    $total = $item;
+                }
+            }
+            $items[] = $item;
+        }
+
+        return [
+            'present' => $entries !== [],
+            'total' => $total,
+            'totals' => $totals,
+            'overlaysById' => $overlaysById,
+            'items' => $items,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestById
+     *
+     * @return array<string, list<string>>
+     */
+    private static function mediaOverlayReferences(array $manifestById): array
+    {
+        $references = [];
+        foreach ($manifestById as $item) {
+            $mediaOverlay = $item['mediaOverlay'] ?? null;
+            if (!is_string($mediaOverlay) || $mediaOverlay === '') {
+                continue;
+            }
+
+            $references[$mediaOverlay][] = (string) ($item['id'] ?? '');
+        }
+
+        return $references;
+    }
+
+    private static function smilClockSeconds(string $value): ?float
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('/^([0-9]+):([0-5][0-9]):([0-5][0-9](?:\.[0-9]+)?)$/', $value, $matches) === 1) {
+            return ((int) $matches[1] * 3600)
+                + ((int) $matches[2] * 60)
+                + (float) $matches[3];
+        }
+
+        if (preg_match('/^([0-9]+):([0-5][0-9](?:\.[0-9]+)?)$/', $value, $matches) === 1) {
+            return ((int) $matches[1] * 60) + (float) $matches[2];
+        }
+
+        if (preg_match('/^([0-9]+(?:\.[0-9]+)?)(h|min|s|ms)$/i', $value, $matches) === 1) {
+            $amount = (float) $matches[1];
+
+            return match (strtolower($matches[2])) {
+                'h' => $amount * 3600,
+                'min' => $amount * 60,
+                'ms' => $amount / 1000,
+                default => $amount,
+            };
+        }
+
+        return null;
+    }
+
+    /**
      * @param array<string, mixed> $bindings
      *
      * @return ?array<string, mixed>
@@ -2392,7 +2586,7 @@ final class EpubReader
      *
      * @return array<string, array<string, mixed>>
      */
-    private function readMediaOverlays(ZipPackage $package, array $manifestById): array
+    private function readMediaOverlays(ZipPackage $package, array $manifestById, array $mediaDurations): array
     {
         $references = [];
         foreach ($manifestById as $item) {
@@ -2418,6 +2612,9 @@ final class EpubReader
                     'referencedBy' => $referencedBy,
                     'encrypted' => false,
                     'canExposeBytes' => false,
+                    'duration' => null,
+                    'durationSeconds' => null,
+                    'durationMetadata' => null,
                     'textRef' => null,
                     'textRefTarget' => null,
                     'items' => [],
@@ -2430,7 +2627,10 @@ final class EpubReader
                 continue;
             }
 
-            $overlays[$id] = $this->readMediaOverlayItem($package, $item, $referencedBy);
+            $durationMetadata = is_array($mediaDurations['overlaysById'][$id] ?? null)
+                ? $mediaDurations['overlaysById'][$id]
+                : null;
+            $overlays[$id] = $this->readMediaOverlayItem($package, $item, $referencedBy, $durationMetadata);
         }
 
         return $overlays;
@@ -2442,7 +2642,7 @@ final class EpubReader
      *
      * @return array<string, mixed>
      */
-    private function readMediaOverlayItem(ZipPackage $package, array $item, array $referencedBy): array
+    private function readMediaOverlayItem(ZipPackage $package, array $item, array $referencedBy, ?array $durationMetadata): array
     {
         $diagnostics = [];
         if (($item['mediaType'] ?? null) !== self::SMIL_MEDIA_TYPE) {
@@ -2506,6 +2706,9 @@ final class EpubReader
             'referencedBy' => $referencedBy,
             'encrypted' => self::isEncryptedManifestItem($item),
             'canExposeBytes' => (bool) ($item['canExposeBytes'] ?? true),
+            'duration' => is_array($durationMetadata) ? $durationMetadata['duration'] : null,
+            'durationSeconds' => is_array($durationMetadata) ? $durationMetadata['durationSeconds'] : null,
+            'durationMetadata' => $durationMetadata,
             'textRef' => $textRef,
             'textRefTarget' => $textRefTarget,
             'textRefExternal' => $textRefReference['external'] ?? false,
@@ -3027,6 +3230,7 @@ final class EpubReader
      * @param array<string, mixed> $bindings
      * @param array<string, mixed> $accessibility
      * @param array<string, mixed> $resourceProperties
+     * @param array<string, mixed> $mediaDurations
      * @param array<string, mixed> $renditions
      */
     private function documentNode(
@@ -3040,6 +3244,7 @@ final class EpubReader
         array $bindings,
         array $accessibility,
         array $resourceProperties,
+        array $mediaDurations,
         array $renditions
     ): AstNode {
         $assetsByPart = [];
@@ -3101,6 +3306,7 @@ final class EpubReader
             'accessibility' => $accessibility,
             'spineProperties' => $spineProperties,
             'resourceProperties' => $resourceProperties,
+            'mediaDurations' => $mediaDurations,
             'renditions' => $renditions,
             'title' => $metadata['title'] ?? '',
         ], $children);

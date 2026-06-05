@@ -25,6 +25,8 @@ $opfXml = <<<'XML'
     <dc:creator id="creator">Migration Desk</dc:creator>
     <dc:language>en</dc:language>
     <meta property="dcterms:modified">2026-06-04T21:45:00Z</meta>
+    <meta property="media:duration">0:00:08.000</meta>
+    <meta property="media:duration" refines="#mo-chapter">0:00:08.000</meta>
     <meta property="schema:accessMode">textual</meta>
     <meta property="schema:accessMode">visual</meta>
     <meta property="schema:accessModeSufficient">textual</meta>
@@ -394,6 +396,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['mediaOverlays']['mo-chapter']['items'][2]['audioExternal'] ?? null) !== true || ($result['mediaOverlays']['mo-chapter']['items'][2]['diagnostics'][0]['type'] ?? null) !== 'external-media-overlay-reference') {
         throw new RuntimeException('Expected remote EPUB media-overlay audio to stay unfetched for review');
     }
+    if (($result['mediaDurations']['total']['duration'] ?? null) !== '0:00:08.000' || ($result['mediaDurations']['total']['durationSeconds'] ?? null) !== 8.0) {
+        throw new RuntimeException('Expected EPUB package-level media duration metadata');
+    }
+    if (($result['mediaDurations']['overlaysById']['mo-chapter']['referencedBy'] ?? []) !== ['chapter']) {
+        throw new RuntimeException('Expected EPUB media duration refinement to resolve to the SMIL overlay manifest item');
+    }
+    if (($result['mediaOverlays']['mo-chapter']['duration'] ?? null) !== '0:00:08.000' || ($result['mediaOverlays']['mo-chapter']['durationSeconds'] ?? null) !== 8.0) {
+        throw new RuntimeException('Expected EPUB media-overlay report to expose OPF duration metadata');
+    }
+    if (($result['document']->attr('mediaDurations')['overlaysById']['mo-chapter']['duration'] ?? null) !== '0:00:08.000') {
+        throw new RuntimeException('Expected WordPress document handoff to expose EPUB media duration metadata');
+    }
     if (($result['importReport']['manifest']['externalItems'][0]['id'] ?? null) !== 'remote-audio-note') {
         throw new RuntimeException('Expected remote EPUB manifest resource to be reported separately from missing ZIP assets');
     }
@@ -496,6 +510,8 @@ echo 'obfuscatedFonts=' . count($result['encryption']['obfuscatedFonts']) . "\n"
 echo 'mediaOverlayItems=' . count($result['mediaOverlays']['mo-chapter']['items'] ?? []) . "\n";
 echo 'mediaOverlayAudio=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['audioTarget'] ?? '') . "\n";
 echo 'remoteOverlayAudio=' . ($result['mediaOverlays']['mo-chapter']['items'][2]['audioTarget'] ?? '') . "\n";
+echo 'mediaDuration=' . ($result['mediaDurations']['total']['duration'] ?? '') . "\n";
+echo 'mediaOverlayDuration=' . ($result['mediaOverlays']['mo-chapter']['duration'] ?? '') . "\n";
 echo 'remoteManifestResources=' . count($result['importReport']['manifest']['externalItems'] ?? []) . "\n";
 echo 'assets=' . count($result['assets']) . "\n";
 echo 'coverAttachment=' . ($result['importReport']['assets']['coverImage']['part'] ?? '') . "\n";
