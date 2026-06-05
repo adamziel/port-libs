@@ -912,6 +912,7 @@ final class UnicodeText
     private static function isCombiningOrZeroWidth(int $codepoint): bool
     {
         return ($codepoint >= 0x0300 && $codepoint <= 0x036f)
+            || $codepoint === 0x00ad
             || ($codepoint >= 0x0483 && $codepoint <= 0x0489)
             || ($codepoint >= 0x0591 && $codepoint <= 0x05bd)
             || $codepoint === 0x05bf
@@ -960,6 +961,7 @@ final class UnicodeText
             || ($codepoint >= 0xe0020 && $codepoint <= 0xe007f)
             || ($codepoint >= 0xfe00 && $codepoint <= 0xfe0f)
             || ($codepoint >= 0xfe20 && $codepoint <= 0xfe2f)
+            || $codepoint === 0xfeff
             || ($codepoint >= 0xe0100 && $codepoint <= 0xe01ef);
     }
 

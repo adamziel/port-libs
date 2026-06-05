@@ -28,6 +28,8 @@ $emojiSlices = UnicodeText::splitByDisplayBreakpoints($emojiCheckbox . $emojiKey
 $emojiTagFlag = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}";
 $ambiguousText = "\u{00B7}\u{03A9}\u{2014}\u{2026}\u{2122}";
 $ambiguousWideSlices = UnicodeText::splitByDisplayBreakpoints($ambiguousText, [2, 4, 6, 8], 'wide');
+$defaultIgnorableText = "soft\u{00AD}hyphen / \u{FEFF}Title";
+$defaultIgnorableWidth = UnicodeText::displayWidth("soft\u{00AD}hyphen") . ',' . UnicodeText::displayWidth("\u{FEFF}Title");
 $lineEndingConversions = $source->attr('sourceLineEndings')['conversions'] ?? 0;
 $normalizedSource = (new MarkdownReader())->readBytes("# Cafe\xCC\x81 Review\n\nLegacy \xE2\x84\xAB source", 'utf-8', 'nfc');
 $compatibilityNormalization = UnicodeText::normalize("\u{2460} \u{FB01} Cafe\u{0301} \u{212B}", 'nfkc');
@@ -104,6 +106,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(static fn (string $slice): int => UnicodeText::displayWidth($slice, 'wide'), $ambiguousWideSlices))])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Default ignorables'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $defaultIgnorableText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $defaultIgnorableWidth])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Line endings'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'CRLF and CR normalized'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => (string) $lineEndingConversions])]),
@@ -164,6 +171,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>Ambiguous wide slices</td><td>\u{00B7} / \u{03A9} / \u{2014} / \u{2026} / \u{2122}</td><td>2,2,2,2,2</td>")) {
         throw new RuntimeException('charset handoff self-test missing ambiguous-width split audit');
+    }
+    if (!str_contains($blocks, "<td>Default ignorables</td><td>soft\u{00AD}hyphen / \u{FEFF}Title</td><td>10,5</td>")) {
+        throw new RuntimeException('charset handoff self-test missing default-ignorable width audit');
     }
     if (!str_contains($blocks, '<td>Line endings</td><td>CRLF and CR normalized</td><td>3</td>')) {
         throw new RuntimeException('charset handoff self-test missing line ending table audit');

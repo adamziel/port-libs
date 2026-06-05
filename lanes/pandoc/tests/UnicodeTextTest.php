@@ -296,6 +296,20 @@ return [
             $t->true(UnicodeText::displayWidth($line) <= 10, 'Soft-break wrapped line exceeds requested width');
         }
     },
+    'keeps default ignorable controls zero width for display accounting' => static function (TestRunner $t): void {
+        $softHyphen = "soft\u{00AD}hyphen";
+        $leadingBom = "\u{FEFF}Title";
+        $embeddedBom = "A\u{FEFF}B\u{00AD}C";
+
+        $t->same(10, UnicodeText::displayWidth($softHyphen));
+        $t->same(5, UnicodeText::displayWidth($leadingBom));
+        $t->same(3, UnicodeText::displayWidth($embeddedBom));
+        $t->same(["soft\u{00AD}", 'hyphen'], UnicodeText::splitAtDisplayWidth($softHyphen, 4));
+        $t->same([$leadingBom, 'X'], UnicodeText::splitAtDisplayWidth($leadingBom . 'X', 5));
+        $t->same($leadingBom . ' ', UnicodeText::padDisplay($leadingBom, 6));
+        $t->same(["Pre {$leadingBom}"], UnicodeText::wrapByDisplayWidth("Pre {$leadingBom}", 9, '  '));
+        $t->same(3, UnicodeText::displayWidth("A\u{00AD}\u{00B7}", 'wide'));
+    },
     'writes markdown pipe table padding with unicode display widths' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('table', [
