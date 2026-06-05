@@ -40,24 +40,27 @@ $xmpPacket = static function (
 };
 
 $wrongNamespace = $xmpPacket(
-    'Wrong Namespace Decoy XMP Title',
-    'A non-Adobe xmpmeta local-name wrapper must not block the current packet.',
+    'Wrong Same Prefix Namespace XMP Title',
+    'A complete non-Adobe x:xmpmeta packet must not leak its nested RDF.',
     '2026-06-05T06:59:59Z',
-    'notxmp',
+    'x',
     'urn:not-adobe-xmp'
 );
 $currentXmp = $xmpPacket(
-    'Current Namespace Boundary XMP Title',
-    'Current Adobe XMP root follows a non-document xmpmeta wrapper',
+    'Current Same Prefix Boundary XMP Title',
+    'Current Adobe XMP packet follows a same-prefix wrong namespace packet',
     '2026-06-05T02:23:17-04:00'
 );
 $trailingXmp = $xmpPacket(
-    'Trailing Namespace Decoy XMP Title',
-    'Trailing namespace packet stays outside the current root.',
+    'Trailing Same Prefix Namespace Decoy XMP Title',
+    'Trailing same-prefix namespace packet stays outside the current packet.',
     '2026-06-05T07:00:00Z'
 );
 $metadataBytes = '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
     . $wrongNamespace
+    . '<?xpacket end="w"?>'
+    . "\0\0"
+    . '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
     . $currentXmp
     . '<?xpacket end="w"?>'
     . "\0\0"
@@ -81,31 +84,31 @@ $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
 $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
 $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
 
-if (($metadata['title'] ?? null) !== 'Current Namespace Boundary XMP Title') {
-    throw new RuntimeException('Expected current Adobe XMP title to win past a non-Adobe xmpmeta wrapper.');
+if (($metadata['title'] ?? null) !== 'Current Same Prefix Boundary XMP Title') {
+    throw new RuntimeException('Expected current Adobe XMP packet title to win past a same-prefix non-Adobe xmpmeta packet.');
 }
 if (($metadata['xmp']['packet_boundary_applied'] ?? null) !== true) {
     throw new RuntimeException('Expected XMP namespace boundary fallback to be recorded.');
 }
-if (!is_string($encoded) || str_contains($encoded, 'Wrong Namespace Decoy XMP Title') || str_contains($encoded, 'Trailing Namespace Decoy XMP Title')) {
-    throw new RuntimeException('Expected non-document and trailing XMP titles to stay out of metadata JSON.');
+if (!is_string($encoded) || str_contains($encoded, 'Wrong Same Prefix Namespace XMP Title') || str_contains($encoded, 'Trailing Same Prefix Namespace Decoy XMP Title')) {
+    throw new RuntimeException('Expected same-prefix non-document and trailing XMP titles to stay out of metadata JSON.');
 }
-if (str_contains($plainText, 'Current Namespace Boundary XMP Title') || str_contains($plainText, 'Wrong Namespace Decoy XMP Title')) {
+if (str_contains($plainText, 'Current Same Prefix Boundary XMP Title') || str_contains($plainText, 'Wrong Same Prefix Namespace XMP Title')) {
     throw new RuntimeException('Expected XMP packet text to stay out of visible WordPress paragraphs.');
 }
 
 echo '<!-- markerpdf-pdf-xmp-namespace-boundary-currentbase ' . $htmlJson([
     'support_component' => 'native-pdf-xmp-root-namespace-boundary',
-    'native_boundary' => 'Catalog /Metadata XMP root scan skips non-Adobe xmpmeta wrappers before promoting document XMP',
+    'native_boundary' => 'Catalog /Metadata XMP packet scan skips complete same-prefix non-Adobe xmpmeta packets before promoting document XMP',
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
     'source' => $metadata['source'],
-    'title_from_current_adobe_xmp' => ($metadata['title'] ?? null) === 'Current Namespace Boundary XMP Title',
+    'title_from_current_adobe_xmp' => ($metadata['title'] ?? null) === 'Current Same Prefix Boundary XMP Title',
     'packet_boundary_applied' => $metadata['xmp']['packet_boundary_applied'] ?? false,
-    'wrong_namespace_decoy_excluded' => is_string($encoded) && !str_contains($encoded, 'Wrong Namespace Decoy XMP Title'),
-    'trailing_decoy_excluded' => is_string($encoded) && !str_contains($encoded, 'Trailing Namespace Decoy XMP Title'),
-    'visible_text_excludes_xmp' => !str_contains($plainText, 'Current Namespace Boundary XMP Title')
-        && !str_contains($plainText, 'Wrong Namespace Decoy XMP Title'),
+    'same_prefix_wrong_namespace_decoy_excluded' => is_string($encoded) && !str_contains($encoded, 'Wrong Same Prefix Namespace XMP Title'),
+    'trailing_decoy_excluded' => is_string($encoded) && !str_contains($encoded, 'Trailing Same Prefix Namespace Decoy XMP Title'),
+    'visible_text_excludes_xmp' => !str_contains($plainText, 'Current Same Prefix Boundary XMP Title')
+        && !str_contains($plainText, 'Wrong Same Prefix Namespace XMP Title'),
 ]) . " -->\n";
 
 echo "<!-- wp:paragraph -->\n";

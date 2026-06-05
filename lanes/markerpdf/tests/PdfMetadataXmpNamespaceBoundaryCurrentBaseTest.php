@@ -58,6 +58,36 @@ $xmpNamespaceBoundaryBytes = static function (
         . $trailing;
 };
 
+$xmpSamePrefixWrongNamespacePacketBytes = static function (
+    string $title,
+    string $description,
+    string $date
+) use ($xmpNamespaceBoundaryPacket): string {
+    $wrongNamespace = $xmpNamespaceBoundaryPacket(
+        'Wrong Same Prefix Namespace XMP Title',
+        'A complete non-Adobe x:xmpmeta packet must not leak its nested RDF.',
+        '2026-06-05T07:09:59Z',
+        'x',
+        'urn:not-adobe-xmp'
+    );
+    $current = $xmpNamespaceBoundaryPacket($title, $description, $date);
+    $trailing = $xmpNamespaceBoundaryPacket(
+        'Trailing Same Prefix Namespace Decoy XMP Title',
+        'Trailing same-prefix namespace packet stays outside the current packet.',
+        '2026-06-05T07:10:00Z'
+    );
+
+    return '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
+        . $wrongNamespace
+        . '<?xpacket end="w"?>'
+        . "\0\0"
+        . '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
+        . $current
+        . '<?xpacket end="w"?>'
+        . "\0\0"
+        . $trailing;
+};
+
 $xmpUnmappedAdobeRootBoundaryBytes = static function () use ($xmpNamespaceBoundaryPacket): string {
     $unmappedCurrentRoot = '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
         . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
@@ -134,6 +164,80 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, 'Trailing Namespace Decoy XMP Title'));
         $t->true(!str_contains($plainText, 'Current Namespace Boundary XMP Title'));
         $t->true(!str_contains($plainText, 'Wrong Namespace Decoy XMP Title'));
+    },
+    'skips complete same-prefix non-Adobe xmpmeta packets before document XMP' => static function (
+        TestRunner $t
+    ) use ($xmpSamePrefixWrongNamespacePacketBytes, $xmpNamespaceBoundaryPdf): void {
+        $metadataBytes = $xmpSamePrefixWrongNamespacePacketBytes(
+            'Current Same Prefix Boundary XMP Title',
+            'Current Adobe XMP packet follows a same-prefix wrong namespace packet',
+            '2026-06-05T03:10:17-04:00'
+        );
+        $pdf = $xmpNamespaceBoundaryPdf(
+            $metadataBytes,
+            '/Type /Metadata /Subtype /XML',
+            'Same Prefix Namespace XMP Boundary Body'
+        );
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['xmp', 'info'], $metadata['source']);
+        $t->same('Current Same Prefix Boundary XMP Title', $metadata['title']);
+        $t->same('Current Adobe XMP packet follows a same-prefix wrong namespace packet', $metadata['description']);
+        $t->same(['Namespace Boundary Editor', 'Import Review Team'], $metadata['authors']);
+        $t->same(['wordpress', 'xmp-namespace-boundary'], $metadata['keywords']);
+        $t->same('2026-06-05T03:10:17-04:00', $metadata['created_at']);
+        $t->same('2026-06-05T07:10:17Z', $metadata['created_at_utc']);
+        $t->same(true, $metadata['xmp']['packet_boundary_applied'] ?? null);
+        $t->same('Same Prefix Namespace XMP Boundary Body', $plainText);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Wrong Same Prefix Namespace XMP Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Trailing Same Prefix Namespace Decoy XMP Title'));
+        $t->true(!str_contains($plainText, 'Current Same Prefix Boundary XMP Title'));
+        $t->true(!str_contains($plainText, 'Wrong Same Prefix Namespace XMP Title'));
+    },
+    'summarizes rejected XML streams after complete same-prefix non-Adobe xmpmeta packets' => static function (
+        TestRunner $t
+    ) use ($xmpSamePrefixWrongNamespacePacketBytes, $xmpNamespaceBoundaryPdf): void {
+        $metadataBytes = $xmpSamePrefixWrongNamespacePacketBytes(
+            'Rejected Same Prefix Boundary XMP Title',
+            'Rejected Adobe XMP packet follows a same-prefix wrong namespace packet',
+            '2026-06-05T07:11:17Z'
+        );
+        $pdf = $xmpNamespaceBoundaryPdf(
+            $metadataBytes,
+            '/Type /EmbeddedFile /Subtype /text#2Fxml',
+            'Rejected Same Prefix Namespace XMP Boundary Body'
+        );
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $review = $metadata['catalog']['metadata_stream_review'] ?? [];
+        $summary = $review['xmp_summary'] ?? [];
+
+        $t->same(['info', 'catalog'], $metadata['source']);
+        $t->same([], $metadata['xmp']);
+        $t->same('Namespace Boundary Info Title', $metadata['title']);
+        $t->same('Rejected Same Prefix Namespace XMP Boundary Body', $plainText);
+        $t->same('rejected_non_metadata_xml_stream', $review['status'] ?? null);
+        $t->same(false, $review['accepted_as_document_xmp'] ?? null);
+        $t->same(false, $review['payload_included'] ?? null);
+        $t->same('EmbeddedFile', $review['type'] ?? null);
+        $t->same('text/xml', $review['subtype'] ?? null);
+        $t->same(['FlateDecode'], $review['filters'] ?? null);
+        $t->same(strlen($metadataBytes), $review['bytes'] ?? null);
+        $t->same(hash('sha256', $metadataBytes), $review['sha256'] ?? null);
+        $t->same(['title', 'description', 'creator_tool', 'producer', 'created_at', 'metadata_date', 'authors', 'keywords'], $summary['field_names'] ?? null);
+        $t->same(true, $summary['packet_boundary_applied'] ?? null);
+        $t->same(false, $summary['payload_included'] ?? null);
+        $t->same(true, $summary['text_values_redacted'] ?? null);
+        $t->same('2026-06-05T07:11:17Z', $summary['dates_utc']['created_at'] ?? null);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Rejected Same Prefix Boundary XMP Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Wrong Same Prefix Namespace XMP Title'));
+        $t->true(!str_contains($plainText, 'Rejected Same Prefix Boundary XMP Title'));
+        $t->true(!str_contains($plainText, 'Wrong Same Prefix Namespace XMP Title'));
     },
     'summarizes rejected XML streams after non-Adobe xmpmeta wrappers' => static function (
         TestRunner $t

@@ -7084,17 +7084,32 @@ final class PdfMetadataExtractor
     {
         $candidates = [];
         $offset = 0;
+        $sawXmpmetaRoot = false;
+        $sawAdobeXmpmetaRoot = false;
         while (true) {
             $entry = $this->boundedXmlRootCandidateEntry($xml, 'xmpmeta', $offset);
             if ($entry === null) {
+                if (
+                    $offset === 0
+                    && $this->xmlWholeRootHasLocalName($xml, 'xmpmeta')
+                    && !$this->xmpmetaRootDeclaresAdobeNamespace($xml)
+                ) {
+                    return [];
+                }
+
                 break;
             }
 
+            $sawXmpmetaRoot = true;
             $candidates[] = $entry['xml'];
             $offset = max($entry['end_offset'], $entry['start_offset'] + 1);
+            $isAdobeXmpmetaRoot = !$entry['self_closing']
+                && $this->xmpmetaRootDeclaresAdobeNamespace($entry['xml']);
+            if ($isAdobeXmpmetaRoot) {
+                $sawAdobeXmpmetaRoot = true;
+            }
             if (
-                !$entry['self_closing']
-                && $this->xmpmetaRootDeclaresAdobeNamespace($entry['xml'])
+                $isAdobeXmpmetaRoot
                 && $this->xmlRootStartForLocalName($entry['xml'], 'RDF') !== null
             ) {
                 return $candidates;
@@ -7104,6 +7119,10 @@ final class PdfMetadataExtractor
         $candidate = $this->boundedXmlRootCandidate($xml, 'RDF', $offset);
         if ($candidate !== null) {
             $candidates[] = $candidate;
+        }
+
+        if ($candidate === null && $sawXmpmetaRoot && !$sawAdobeXmpmetaRoot) {
+            return [];
         }
 
         return $candidates;
@@ -7237,6 +7256,34 @@ final class PdfMetadataExtractor
 
         $prefix = preg_quote(substr($tagName, 0, $colon), '/');
         return preg_match('/\sxmlns:' . $prefix . '\s*=\s*([\'"])adobe:ns:meta\/\1/i', $openTag) === 1;
+    }
+
+    private function xmlWholeRootHasLocalName(string $xml, string $localName): bool
+    {
+        $root = $this->xmlRootStartForLocalName($xml, $localName);
+        if ($root === null) {
+            return false;
+        }
+
+        $start = $root['offset'];
+        if (trim(substr($xml, 0, $start), " \t\r\n\0") !== '') {
+            return false;
+        }
+
+        $openEnd = $this->xmlTagEndOffset($xml, $start);
+        if ($openEnd === null) {
+            return false;
+        }
+
+        $openTag = substr($xml, $start, $openEnd - $start);
+        $end = str_ends_with(rtrim($openTag), '/>')
+            ? $openEnd
+            : $this->matchingXmlRootEndOffset($xml, $openEnd, $root['tag_name']);
+        if ($end === null) {
+            return false;
+        }
+
+        return trim(substr($xml, $end), " \t\r\n\0") === '';
     }
 
     private function boundedXmlRootCandidate(string $xml, string $localName, int $offset = 0): ?string
