@@ -1424,7 +1424,12 @@ final class PdfPagePropertyExtractor
      */
     private function resourceSubdictionaryNames(string $resourceDictionary, string $key, array $objects): array
     {
-        $subdictionary = $this->resolveDictionaryFromValue($this->dictionaryRawValue($resourceDictionary, $key), $objects);
+        $value = $this->dictionaryRawValue($resourceDictionary, $key);
+        if ($this->resourceCategoryValueResolvesToStreamObject($value, $objects)) {
+            return [];
+        }
+
+        $subdictionary = $this->resolveDictionaryFromValue($value, $objects);
         if ($subdictionary === null) {
             return [];
         }
@@ -1437,6 +1442,26 @@ final class PdfPagePropertyExtractor
         }
 
         return $names;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function resourceCategoryValueResolvesToStreamObject(?string $value, array $objects): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference === null) {
+            return false;
+        }
+
+        $objectNumber = $reference['objectNumber'];
+        return isset($objects[$objectNumber])
+            && ($this->currentObjectGenerations[$objectNumber] ?? null) === $reference['generation']
+            && $this->objectBodyIsStreamObject($objects[$objectNumber]);
     }
 
     /**

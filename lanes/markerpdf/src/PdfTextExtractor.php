@@ -11855,7 +11855,11 @@ final class PdfTextExtractor
             $objectNumber = (int) $match[1];
             $generation = (int) $match[2];
             $objectBody = $this->objectBodyForResourceReference($objects, $objectNumber, $generation);
-            return $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
+            if ($objectBody === null || $this->objectBodyIsStreamObject($objectBody)) {
+                return null;
+            }
+
+            return $this->dictionaryObjectBody($objectBody);
         }
 
         return str_starts_with($value, '<<') ? $this->readPdfDictionaryAt($value, 0) : null;
