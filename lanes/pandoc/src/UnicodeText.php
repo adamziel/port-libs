@@ -209,6 +209,145 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const WINDOWS_1250_REPLACEMENTS = [
+        0x80 => 0x20ac,
+        0x82 => 0x201a,
+        0x84 => 0x201e,
+        0x85 => 0x2026,
+        0x86 => 0x2020,
+        0x87 => 0x2021,
+        0x89 => 0x2030,
+        0x8a => 0x0160,
+        0x8b => 0x2039,
+        0x8c => 0x015a,
+        0x8d => 0x0164,
+        0x8e => 0x017d,
+        0x8f => 0x0179,
+        0x91 => 0x2018,
+        0x92 => 0x2019,
+        0x93 => 0x201c,
+        0x94 => 0x201d,
+        0x95 => 0x2022,
+        0x96 => 0x2013,
+        0x97 => 0x2014,
+        0x99 => 0x2122,
+        0x9a => 0x0161,
+        0x9b => 0x203a,
+        0x9c => 0x015b,
+        0x9d => 0x0165,
+        0x9e => 0x017e,
+        0x9f => 0x017a,
+        0xa1 => 0x02c7,
+        0xa2 => 0x02d8,
+        0xa3 => 0x0141,
+        0xa5 => 0x0104,
+        0xaa => 0x015e,
+        0xaf => 0x017b,
+        0xb2 => 0x02db,
+        0xb3 => 0x0142,
+        0xb9 => 0x0105,
+        0xba => 0x015f,
+        0xbc => 0x013d,
+        0xbd => 0x02dd,
+        0xbe => 0x013e,
+        0xbf => 0x017c,
+        0xc0 => 0x0154,
+        0xc3 => 0x0102,
+        0xc5 => 0x0139,
+        0xc6 => 0x0106,
+        0xc8 => 0x010c,
+        0xca => 0x0118,
+        0xcc => 0x011a,
+        0xcf => 0x010e,
+        0xd0 => 0x0110,
+        0xd1 => 0x0143,
+        0xd2 => 0x0147,
+        0xd5 => 0x0150,
+        0xd8 => 0x0158,
+        0xd9 => 0x016e,
+        0xdb => 0x0170,
+        0xde => 0x0162,
+        0xe0 => 0x0155,
+        0xe3 => 0x0103,
+        0xe5 => 0x013a,
+        0xe6 => 0x0107,
+        0xe8 => 0x010d,
+        0xea => 0x0119,
+        0xec => 0x011b,
+        0xef => 0x010f,
+        0xf0 => 0x0111,
+        0xf1 => 0x0144,
+        0xf2 => 0x0148,
+        0xf5 => 0x0151,
+        0xf8 => 0x0159,
+        0xf9 => 0x016f,
+        0xfb => 0x0171,
+        0xfe => 0x0163,
+        0xff => 0x02d9,
+    ];
+
+    /** @var array<int, int> */
+    private const ISO_8859_2_REPLACEMENTS = [
+        0xa1 => 0x0104,
+        0xa2 => 0x02d8,
+        0xa3 => 0x0141,
+        0xa5 => 0x013d,
+        0xa6 => 0x015a,
+        0xa9 => 0x0160,
+        0xaa => 0x015e,
+        0xab => 0x0164,
+        0xac => 0x0179,
+        0xae => 0x017d,
+        0xaf => 0x017b,
+        0xb1 => 0x0105,
+        0xb2 => 0x02db,
+        0xb3 => 0x0142,
+        0xb5 => 0x013e,
+        0xb6 => 0x015b,
+        0xb7 => 0x02c7,
+        0xb9 => 0x0161,
+        0xba => 0x015f,
+        0xbb => 0x0165,
+        0xbc => 0x017a,
+        0xbd => 0x02dd,
+        0xbe => 0x017e,
+        0xbf => 0x017c,
+        0xc0 => 0x0154,
+        0xc3 => 0x0102,
+        0xc5 => 0x0139,
+        0xc6 => 0x0106,
+        0xc8 => 0x010c,
+        0xca => 0x0118,
+        0xcc => 0x011a,
+        0xcf => 0x010e,
+        0xd0 => 0x0110,
+        0xd1 => 0x0143,
+        0xd2 => 0x0147,
+        0xd5 => 0x0150,
+        0xd8 => 0x0158,
+        0xd9 => 0x016e,
+        0xdb => 0x0170,
+        0xde => 0x0162,
+        0xe0 => 0x0155,
+        0xe3 => 0x0103,
+        0xe5 => 0x013a,
+        0xe6 => 0x0107,
+        0xe8 => 0x010d,
+        0xea => 0x0119,
+        0xec => 0x011b,
+        0xef => 0x010f,
+        0xf0 => 0x0111,
+        0xf1 => 0x0144,
+        0xf2 => 0x0148,
+        0xf5 => 0x0151,
+        0xf8 => 0x0159,
+        0xf9 => 0x016f,
+        0xfb => 0x0171,
+        0xfe => 0x0163,
+        0xff => 0x02d9,
+    ];
+
+    /** @var array<int, int> */
     private const MAC_ROMAN_REPLACEMENTS = [
         0x80 => 0x00c4,
         0x81 => 0x00c5,
@@ -452,7 +591,13 @@ final class UnicodeText
             return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
         }
 
-        if ($normalized === 'windows-1252' || $normalized === 'iso-8859-1' || $normalized === 'iso-8859-15' || $normalized === 'macintosh') {
+        if ($normalized === 'windows-1252'
+            || $normalized === 'windows-1250'
+            || $normalized === 'iso-8859-1'
+            || $normalized === 'iso-8859-2'
+            || $normalized === 'iso-8859-15'
+            || $normalized === 'macintosh'
+        ) {
             [$text, $repairs] = self::decodeSingleByte($bytes, $normalized);
 
             return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
@@ -901,7 +1046,9 @@ final class UnicodeText
             'utf32le', 'ucs4le' => 'utf-32le',
             'utf32be', 'ucs4be' => 'utf-32be',
             'windows1252', 'cp1252', 'msansi' => 'windows-1252',
+            'windows1250', 'cp1250', 'microsoftcp1250' => 'windows-1250',
             'iso88591', 'latin1', 'latin-1' => 'iso-8859-1',
+            'iso88592', 'iso88592:1987', 'latin2', 'latin-2', 'l2', 'isoir101', 'csisolatin2' => 'iso-8859-2',
             'iso885915', 'iso8859151999', 'latin9', 'latin-9' => 'iso-8859-15',
             'macintosh', 'macroman', 'mac-roman', 'xmacroman', 'x-mac-roman', 'mac' => 'macintosh',
             'csshiftjis', 'ms932', 'mskanji', 'shiftjis', 'sjis', 'windows31j', 'xsjis', 'cp932' => 'shift_jis',
@@ -1263,6 +1410,14 @@ final class UnicodeText
             }
             if ($encoding === 'iso-8859-15' && isset(self::ISO_8859_15_REPLACEMENTS[$byte])) {
                 $out .= self::fromCodepoint(self::ISO_8859_15_REPLACEMENTS[$byte]);
+                continue;
+            }
+            if ($encoding === 'windows-1250' && isset(self::WINDOWS_1250_REPLACEMENTS[$byte])) {
+                $out .= self::fromCodepoint(self::WINDOWS_1250_REPLACEMENTS[$byte]);
+                continue;
+            }
+            if ($encoding === 'iso-8859-2' && isset(self::ISO_8859_2_REPLACEMENTS[$byte])) {
+                $out .= self::fromCodepoint(self::ISO_8859_2_REPLACEMENTS[$byte]);
                 continue;
             }
             if ($encoding === 'macintosh' && $byte >= 0x80) {

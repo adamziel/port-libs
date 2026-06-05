@@ -124,6 +124,33 @@ return [
         $t->contains('<h1 id="mac-import">Mac Import</h1>', $blocks);
         $t->contains("<p>Classic \u{201C}quoted\u{201D} source \u{2014} price \u{20AC}10; caf\u{00E9} and \u{FB01}le.</p>", $blocks);
     },
+    'decodes central european single byte labels into wordpress blocks' => static function (TestRunner $t): void {
+        $windowsBytes = "# Central Import\n\nZa\xBF\xF3\xB3\xE6 g\xEA\x9Cl\xB9 ja\x9F\xF1; \xC8esk\xFD \x8At\xECp\xE1n; k\xF9\xF2; \xF5\xFB; \x93quoted\x94 \x97 \x8010.";
+        $latin2Bytes = "# Latin2 Import\n\nZa\xBF\xF3\xB3\xE6 g\xEA\xB6l\xB1 ja\xBC\xF1; \xC8esk\xFD \xA9t\xECp\xE1n; k\xF9\xF2; \xF5\xFB.";
+        $windowsDecoded = UnicodeText::decodeBytes($windowsBytes, 'cp1250');
+        $latin2Decoded = UnicodeText::decodeBytes($latin2Bytes, 'latin-2');
+        $windowsDocument = (new MarkdownReader())->readBytes($windowsBytes, 'microsoft-cp1250');
+        $latin2Document = (new MarkdownReader())->readBytes($latin2Bytes, 'iso-8859-2:1987');
+        $windowsBlocks = (new WordPressBlockWriter())->write($windowsDocument);
+        $latin2Blocks = (new WordPressBlockWriter())->write($latin2Document);
+
+        $t->same('windows-1250', $windowsDecoded['encoding']);
+        $t->same(0, $windowsDecoded['repairs']);
+        $t->same("# Central Import\n\nZażółć gęślą jaźń; Český Štěpán; kůň; őű; “quoted” — €10.", $windowsDecoded['text']);
+        $t->same('iso-8859-2', $latin2Decoded['encoding']);
+        $t->same(0, $latin2Decoded['repairs']);
+        $t->same("# Latin2 Import\n\nZażółć gęślą jaźń; Český Štěpán; kůň; őű.", $latin2Decoded['text']);
+        $t->same(['encoding' => 'windows-1250', 'bom' => null, 'repairs' => 0], $windowsDocument->attr('sourceEncoding'));
+        $t->same(['encoding' => 'iso-8859-2', 'bom' => null, 'repairs' => 0], $latin2Document->attr('sourceEncoding'));
+        $t->same('Central Import', $windowsDocument->children[0]->attr('text'));
+        $t->same('Latin2 Import', $latin2Document->children[0]->attr('text'));
+        $t->same("Zażółć gęślą jaźń; Český Štěpán; kůň; őű; “quoted” — €10.", $windowsDocument->children[1]->attr('text'));
+        $t->same('Zażółć gęślą jaźń; Český Štěpán; kůň; őű.', $latin2Document->children[1]->attr('text'));
+        $t->same(57, UnicodeText::displayWidth((string) $windowsDocument->children[1]->attr('text')));
+        $t->same(41, UnicodeText::displayWidth((string) $latin2Document->children[1]->attr('text')));
+        $t->contains("<p>Zażółć gęślą jaźń; Český Štěpán; kůň; őű; “quoted” — €10.</p>", $windowsBlocks);
+        $t->contains('<p>Zażółć gęślą jaźń; Český Štěpán; kůň; őű.</p>', $latin2Blocks);
+    },
     'decodes shift jis japanese source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = (string) hex2bin('23208c7689e60a0a967b95b682c694bc8a70b6c0b6c581418adb874094678160fbfc8de88142');
         $decoded = UnicodeText::decodeBytes($bytes, 'windows-31j');
