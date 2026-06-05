@@ -957,6 +957,58 @@ return [
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'does not replay one keyed order artifact across duplicate selected pdftext page markers' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(500, [
+                    ['text' => 'Duplicate-marker cover page skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(501, [
+                    ['text' => 'Second duplicate-marker first page column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First duplicate-marker first page column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+                $pdftextLinesPage(501, [
+                    ['text' => 'Second duplicate-marker second page keeps source order', 'bbox' => [330.0, 140.0, 560.0, 154.0]],
+                    ['text' => 'First duplicate-marker second page must not reuse order', 'bbox' => [72.0, 140.0, 280.0, 154.0]],
+                ]),
+            ],
+            [
+                [
+                    'page' => 501,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 160.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 160.0]],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['page' => 501, 'image' => 'single-duplicate-marker-order-render'],
+            ],
+            maxPages: 2,
+            startPage: 1
+        );
+
+        $pageOneBlocks = array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        );
+        $pageTwoBlocks = array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][1]['blocks']
+        );
+
+        $t->same([1, 2], $result['page_range']);
+        $t->same(501, $result['pages'][0]['pnum']);
+        $t->same(501, $result['pages'][1]['pnum']);
+        $t->same(['First duplicate-marker first page column', 'Second duplicate-marker first page column'], $pageOneBlocks);
+        $t->same(['Second duplicate-marker second page keeps source order', 'First duplicate-marker second page must not reuse order'], $pageTwoBlocks);
+        $t->same(501, $result['pages'][0]['order']['page']);
+        $t->same(null, $result['pages'][1]['order'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
     'keeps matched layout order artifacts from leaking nested pdftext dictionary payloads' => static function (TestRunner $t) use ($pdftextLinesPage): void {
         $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
             [

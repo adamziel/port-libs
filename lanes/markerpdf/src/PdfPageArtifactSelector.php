@@ -100,11 +100,16 @@ final class PdfPageArtifactSelector
         $hasMarkers = false;
         $selected = [];
         $matched = 0;
+        $usedArtifactIndexes = [];
         foreach (array_values($pageRange) as $selectedIndex => $sourceIndex) {
             $pageNumber = $selectedPageNumbers[$selectedIndex] ?? null;
             $artifact = null;
             $bestScore = null;
-            foreach ($artifacts as $candidate) {
+            $bestArtifactIndex = null;
+            foreach ($artifacts as $artifactIndex => $candidate) {
+                if (isset($usedArtifactIndexes[$artifactIndex])) {
+                    continue;
+                }
                 if (!is_array($candidate)) {
                     continue;
                 }
@@ -119,11 +124,15 @@ final class PdfPageArtifactSelector
                 if ($score !== null && ($bestScore === null || $score > $bestScore)) {
                     $artifact = $candidate;
                     $bestScore = $score;
+                    $bestArtifactIndex = $artifactIndex;
                 }
             }
 
             if ($artifact !== null) {
                 $selected[] = $artifact;
+                if ($bestArtifactIndex !== null) {
+                    $usedArtifactIndexes[$bestArtifactIndex] = true;
+                }
                 $matched++;
                 continue;
             }

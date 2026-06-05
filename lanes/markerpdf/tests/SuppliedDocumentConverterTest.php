@@ -1057,6 +1057,78 @@ return [
             unlink($path);
         }
     },
+    'does not reuse one keyed layout and order artifact across duplicate selected pdftext page markers' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-supplied-layout-order-duplicate-keyed-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% supplied duplicate keyed layout order boundary\n%%EOF");
+        try {
+            $coverPage = $pdftextPage(600, [
+                ['text' => 'Duplicate keyed cover page artifact.', 'bbox' => [72.0, 80.0, 300.0, 94.0]],
+            ]);
+            $firstSelectedPage = $pdftextPage(601, [
+                ['text' => 'Second duplicate keyed first page column.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                ['text' => 'First duplicate keyed first page column.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+            ]);
+            $secondSelectedPage = $pdftextPage(601, [
+                ['text' => 'Second duplicate keyed second page keeps source order.', 'bbox' => [330.0, 140.0, 560.0, 156.0]],
+                ['text' => 'First duplicate keyed second page has no reused order.', 'bbox' => [72.0, 140.0, 280.0, 156.0]],
+            ]);
+
+            $layout = [
+                'page' => 601,
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Text', 'bbox' => [60.0, 96.0, 290.0, 168.0]],
+                    ['label' => 'Text', 'bbox' => [318.0, 96.0, 570.0, 168.0]],
+                ],
+            ];
+            $order = [
+                'page' => 601,
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 168.0]],
+                    ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 168.0]],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$coverPage, $firstSelectedPage, $secondSelectedPage],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 2,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['page' => 601, 'image' => 'single-duplicate-layout-render'],
+                    ],
+                    'layout_results' => [$layout],
+                    'order_images' => [
+                        ['page' => 601, 'image' => 'single-duplicate-order-render'],
+                    ],
+                    'order_results' => [$order],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $text = $result['text'];
+            $t->same([1, 2], $result['metadata']['page_range']);
+            $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries']);
+            $t->same(1, $result['metadata']['layout_plan']['image_count']);
+            $t->same(1, $result['metadata']['layout_plan']['layout_result_count']);
+            $t->same(1, $result['metadata']['layout_plan']['assigned_pages']);
+            $t->same(1, $result['metadata']['order_plan']['image_count']);
+            $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+            $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+            $t->contains('First duplicate keyed first page column.', $text);
+            $t->contains('Second duplicate keyed first page column.', $text);
+            $t->contains('Second duplicate keyed second page keeps source order.', $text);
+            $t->contains('First duplicate keyed second page has no reused order.', $text);
+            $t->true(strpos($text, 'First duplicate keyed first page column.') < strpos($text, 'Second duplicate keyed first page column.'));
+            $t->true(strpos($text, 'Second duplicate keyed second page keeps source order.') < strpos($text, 'First duplicate keyed second page has no reused order.'));
+            $t->true(!str_contains($text, 'Duplicate keyed cover page artifact.'));
+        } finally {
+            unlink($path);
+        }
+    },
     'routes forced OCR table cells through supplied detector output before formatting' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-forced-ocr-table-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% forced OCR table supplied pipeline\n%%EOF");
