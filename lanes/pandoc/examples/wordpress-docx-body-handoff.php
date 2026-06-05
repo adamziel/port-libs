@@ -258,13 +258,13 @@ XML],
       <w:moveTo w:id="17" w:author="Migration Editor" w:date="2026-06-04T18:07:00Z">
         <w:r><w:t xml:space="preserve"> Moved into import checklist.</w:t></w:r>
       </w:moveTo>
-      <w:r><w:footnoteReference w:id="2"/></w:r>
+      <w:r><w:footnoteReference w:id="2" w:customMarkFollows="1"/></w:r>
       <w:r><w:t xml:space="preserve"> Also keep endnote context</w:t></w:r>
-      <w:r><w:endnoteReference w:id="5"/></w:r>
+      <w:r><w:endnoteReference w:id="5" w:customMarkFollows="true"/></w:r>
       <w:r><w:t xml:space="preserve"> and flag missing note references</w:t></w:r>
-      <w:r><w:footnoteReference w:id="404"/></w:r>
+      <w:r><w:footnoteReference w:id="404" w:customMarkFollows="1"/></w:r>
       <w:r><w:t xml:space="preserve">/</w:t></w:r>
-      <w:r><w:endnoteReference w:id="405"/></w:r>
+      <w:r><w:endnoteReference w:id="405" w:customMarkFollows="true"/></w:r>
       <w:commentRangeStart w:id="9"/>
       <w:r><w:t xml:space="preserve"> and reviewer comment</w:t></w:r>
       <w:commentRangeEnd w:id="9"/>
@@ -368,6 +368,18 @@ XML],
       <w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>
       <w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="360" w:footer="360"/>
       <w:cols w:num="2" w:space="360" w:equalWidth="0"/>
+      <w:footnotePr>
+        <w:pos w:val="beneathText"/>
+        <w:numFmt w:val="lowerLetter"/>
+        <w:numStart w:val="3"/>
+        <w:numRestart w:val="eachSect"/>
+      </w:footnotePr>
+      <w:endnotePr>
+        <w:pos w:val="docEnd"/>
+        <w:numFmt w:val="upperRoman"/>
+        <w:numStart w:val="8"/>
+        <w:numRestart w:val="continuous"/>
+      </w:endnotePr>
     </w:sectPr>
   </w:body>
 </w:document>
@@ -572,11 +584,40 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($noteItemsByKey['endnote:405']['missing'] ?? false) !== true) {
         throw new RuntimeException('DOCX body handoff self-test missing unresolved endnote placeholder report');
     }
+    foreach (['footnote:2', 'endnote:5', 'footnote:404', 'endnote:405'] as $key) {
+        if (($noteItemsByKey[$key]['customMarkFollows'] ?? false) !== true) {
+            throw new RuntimeException('DOCX body handoff self-test missing custom note marker report for ' . $key);
+        }
+    }
     if (($summary['sectionProperties'][0]['pageSize']['orientation'] ?? '') !== 'landscape') {
         throw new RuntimeException('DOCX body handoff self-test missing section page orientation');
     }
     if (($summary['sectionProperties'][0]['columns']['count'] ?? 0) !== 2) {
         throw new RuntimeException('DOCX body handoff self-test missing section column count');
+    }
+    if (($summary['sectionProperties'][0]['footnoteProperties']['numberFormat'] ?? '') !== 'lowerLetter') {
+        throw new RuntimeException('DOCX body handoff self-test missing footnote numbering format');
+    }
+    if (($summary['sectionProperties'][0]['footnoteProperties']['numberStart'] ?? 0) !== 3) {
+        throw new RuntimeException('DOCX body handoff self-test missing footnote numbering start');
+    }
+    if (($summary['sectionProperties'][0]['footnoteProperties']['numberRestart'] ?? '') !== 'eachSect') {
+        throw new RuntimeException('DOCX body handoff self-test missing footnote restart policy');
+    }
+    if (($summary['sectionProperties'][0]['footnoteProperties']['position'] ?? '') !== 'beneathText') {
+        throw new RuntimeException('DOCX body handoff self-test missing footnote position policy');
+    }
+    if (($summary['sectionProperties'][0]['endnoteProperties']['numberFormat'] ?? '') !== 'upperRoman') {
+        throw new RuntimeException('DOCX body handoff self-test missing endnote numbering format');
+    }
+    if (($summary['sectionProperties'][0]['endnoteProperties']['numberStart'] ?? 0) !== 8) {
+        throw new RuntimeException('DOCX body handoff self-test missing endnote numbering start');
+    }
+    if (($summary['sectionProperties'][0]['endnoteProperties']['numberRestart'] ?? '') !== 'continuous') {
+        throw new RuntimeException('DOCX body handoff self-test missing endnote restart policy');
+    }
+    if (($summary['sectionProperties'][0]['endnoteProperties']['position'] ?? '') !== 'docEnd') {
+        throw new RuntimeException('DOCX body handoff self-test missing endnote position policy');
     }
     if (($summary['sectionProperties'][0]['headers'][0]['target'] ?? '') !== '/word/header1.xml') {
         throw new RuntimeException('DOCX body handoff self-test missing section header target');

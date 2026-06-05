@@ -179,7 +179,7 @@ final class DocxReader
     }
 
     /**
-     * @return array{count:int, footnoteCount:int, endnoteCount:int, commentCount:int, missingCount:int, items:list<array{id:?string, sourceType:string, missing:bool, blockCount:int, text:string, author:?string, initials:?string, date:?string}>}
+     * @return array{count:int, footnoteCount:int, endnoteCount:int, commentCount:int, missingCount:int, items:list<array{id:?string, sourceType:string, missing:bool, customMarkFollows:bool, blockCount:int, text:string, author:?string, initials:?string, date:?string}>}
      */
     private function notesImportReport(AstNode $document): array
     {
@@ -197,7 +197,7 @@ final class DocxReader
     }
 
     /**
-     * @param list<array{id:?string, sourceType:string, missing:bool, blockCount:int, text:string, author:?string, initials:?string, date:?string}> $items
+     * @param list<array{id:?string, sourceType:string, missing:bool, customMarkFollows:bool, blockCount:int, text:string, author:?string, initials:?string, date:?string}> $items
      */
     private function collectNoteImportReportItems(AstNode $node, array &$items): void
     {
@@ -207,6 +207,7 @@ final class DocxReader
                 'id' => is_string($node->attr('id')) ? $node->attr('id') : null,
                 'sourceType' => is_string($sourceType) && $sourceType !== '' ? $sourceType : 'note',
                 'missing' => $node->attr('missing') === true,
+                'customMarkFollows' => $node->attr('customMarkFollows') === true,
                 'blockCount' => count($node->children),
                 'text' => $this->plainBlockText($node->children),
                 'author' => is_string($node->attr('author')) ? $node->attr('author') : null,
@@ -854,6 +855,16 @@ final class DocxReader
             $attrs['columns'] = $columns;
         }
 
+        $footnoteProperties = $this->sectionNoteProperties($sectionProperties, 'footnotePr');
+        if ($footnoteProperties !== []) {
+            $attrs['footnoteProperties'] = $footnoteProperties;
+        }
+
+        $endnoteProperties = $this->sectionNoteProperties($sectionProperties, 'endnotePr');
+        if ($endnoteProperties !== []) {
+            $attrs['endnoteProperties'] = $endnoteProperties;
+        }
+
         $headers = $this->sectionReferences(
             $sectionProperties,
             'headerReference',
@@ -880,6 +891,44 @@ final class DocxReader
         );
         if ($footers !== []) {
             $attrs['footers'] = $footers;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, int|string>
+     */
+    private function sectionNoteProperties(\DOMElement $sectionProperties, string $localName): array
+    {
+        $properties = $this->firstChildElement($sectionProperties, self::WORDPROCESSINGML_NS, $localName);
+        if (!$properties instanceof \DOMElement) {
+            return [];
+        }
+
+        $attrs = [];
+        foreach ([
+            'numFmt' => 'numberFormat',
+            'numRestart' => 'numberRestart',
+            'pos' => 'position',
+        ] as $childName => $attrName) {
+            $child = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, $childName);
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $value = $this->wordAttr($child, 'val');
+            if ($value !== null && $value !== '') {
+                $attrs[$attrName] = $value;
+            }
+        }
+
+        $start = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'numStart');
+        if ($start instanceof \DOMElement) {
+            $value = $this->optionalIntWordAttr($start, 'val');
+            if ($value !== null) {
+                $attrs['numberStart'] = $value;
+            }
         }
 
         return $attrs;
@@ -2745,9 +2794,10 @@ final class DocxReader
             return;
         }
 
+        $referenceAttrs = $this->noteReferenceAttrs($reference);
         $key = $sourceType . ':' . $id;
         if (isset($referencedNotes[$key])) {
-            $nodes[] = $referencedNotes[$key];
+            $nodes[] = $this->noteWithReferenceAttrs($referencedNotes[$key], $referenceAttrs);
             return;
         }
 
@@ -2755,7 +2805,31 @@ final class DocxReader
             'id' => $id,
             'sourceType' => $sourceType,
             'missing' => true,
-        ]);
+        ] + $referenceAttrs);
+    }
+
+    /**
+     * @return array{customMarkFollows?:bool}
+     */
+    private function noteReferenceAttrs(\DOMElement $reference): array
+    {
+        if (!$this->onOffWordAttr($reference, 'customMarkFollows', false)) {
+            return [];
+        }
+
+        return ['customMarkFollows' => true];
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function noteWithReferenceAttrs(AstNode $note, array $attrs): AstNode
+    {
+        if ($attrs === []) {
+            return $note;
+        }
+
+        return new AstNode($note->type, array_replace($note->attrs, $attrs), $note->children);
     }
 
     /**

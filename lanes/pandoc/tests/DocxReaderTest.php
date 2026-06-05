@@ -1061,6 +1061,56 @@ $sectionPropertiesDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$noteReferencePropertiesDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
+  <Relationship Id="rIdEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="endnotes.xml"/>
+</Relationships>
+XML;
+
+$noteReferencePropertiesDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Custom note marker </w:t></w:r>
+      <w:r><w:footnoteReference w:id="2" w:customMarkFollows="1"/></w:r>
+      <w:r><w:t xml:space="preserve"> and endnote marker </w:t></w:r>
+      <w:r><w:endnoteReference w:id="5" w:customMarkFollows="true"/></w:r>
+      <w:r><w:t xml:space="preserve"> plus unresolved marker </w:t></w:r>
+      <w:r><w:footnoteReference w:id="77" w:customMarkFollows="1"/></w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+    <w:sectPr>
+      <w:footnotePr>
+        <w:pos w:val="beneathText"/>
+        <w:numFmt w:val="lowerLetter"/>
+        <w:numStart w:val="3"/>
+        <w:numRestart w:val="eachSect"/>
+      </w:footnotePr>
+      <w:endnotePr>
+        <w:pos w:val="docEnd"/>
+        <w:numFmt w:val="upperRoman"/>
+        <w:numStart w:val="8"/>
+        <w:numRestart w:val="continuous"/>
+      </w:endnotePr>
+    </w:sectPr>
+  </w:body>
+</w:document>
+XML;
+
+$noteReferencePropertiesFootnotesXml = <<<'XML'
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="-1" w:type="separator"><w:p><w:r><w:t>separator</w:t></w:r></w:p></w:footnote>
+  <w:footnote w:id="2"><w:p><w:r><w:t>Custom-marked footnote body.</w:t></w:r></w:p></w:footnote>
+</w:footnotes>
+XML;
+
+$noteReferencePropertiesEndnotesXml = <<<'XML'
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="5"><w:p><w:r><w:t>Custom-marked endnote body.</w:t></w:r></w:p></w:endnote>
+</w:endnotes>
+XML;
+
 $altChunkContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -1496,6 +1546,24 @@ $buildSectionPropertiesPackage = static function () use (
         ['name' => 'word/header1.xml', 'data' => '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:p><w:r><w:t xml:space="preserve">Default header </w:t></w:r><w:hyperlink r:id="rIdHeaderSource"><w:r><w:t>source link</w:t></w:r></w:hyperlink></w:p></w:hdr>'],
         ['name' => 'word/footer1.xml', 'data' => '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Default footer note</w:t></w:r></w:p></w:ftr>'],
         ['name' => 'word/header-even.xml', 'data' => '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Even section header</w:t></w:r></w:p></w:hdr>'],
+    ]);
+};
+
+$buildNoteReferencePropertiesPackage = static function () use (
+    $contentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $noteReferencePropertiesDocumentRelationshipsXml,
+    $noteReferencePropertiesDocumentXml,
+    $noteReferencePropertiesFootnotesXml,
+    $noteReferencePropertiesEndnotesXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $noteReferencePropertiesDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $noteReferencePropertiesDocumentRelationshipsXml],
+        ['name' => 'word/footnotes.xml', 'data' => $noteReferencePropertiesFootnotesXml],
+        ['name' => 'word/endnotes.xml', 'data' => $noteReferencePropertiesEndnotesXml],
     ]);
 };
 
@@ -2946,6 +3014,70 @@ return [
         $footerMarkdown = (new MarkdownWriter())->write(new AstNode('document', [], $defaultFooter['blocks']));
         $t->contains('<p>Default header <a href="https://example.test/header-source">source link</a></p>', $headerBlocks);
         $t->contains('Default footer note', $footerMarkdown);
+    },
+    'reports DOCX footnote and endnote section policies with custom note marks' => static function (TestRunner $t) use ($buildNoteReferencePropertiesPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildNoteReferencePropertiesPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Custom note marker ', $paragraph->children[0]->attr('text'));
+
+        $footnote = $paragraph->children[1];
+        $t->same('note', $footnote->type);
+        $t->same('2', $footnote->attr('id'));
+        $t->same('footnote', $footnote->attr('sourceType'));
+        $t->same(true, $footnote->attr('customMarkFollows'));
+        $t->same('Custom-marked footnote body.', $footnote->children[0]->children[0]->attr('text'));
+
+        $endnote = $paragraph->children[3];
+        $t->same('note', $endnote->type);
+        $t->same('5', $endnote->attr('id'));
+        $t->same('endnote', $endnote->attr('sourceType'));
+        $t->same(true, $endnote->attr('customMarkFollows'));
+        $t->same('Custom-marked endnote body.', $endnote->children[0]->children[0]->attr('text'));
+
+        $missing = $paragraph->children[5];
+        $t->same('note', $missing->type);
+        $t->same('77', $missing->attr('id'));
+        $t->same('footnote', $missing->attr('sourceType'));
+        $t->same(true, $missing->attr('missing'));
+        $t->same(true, $missing->attr('customMarkFollows'));
+        $t->same('.', $paragraph->children[6]->attr('text'));
+
+        $sections = $document->attr('sectionProperties');
+        $t->same(1, count($sections));
+        $t->same('lowerLetter', $sections[0]['footnoteProperties']['numberFormat']);
+        $t->same(3, $sections[0]['footnoteProperties']['numberStart']);
+        $t->same('eachSect', $sections[0]['footnoteProperties']['numberRestart']);
+        $t->same('beneathText', $sections[0]['footnoteProperties']['position']);
+        $t->same('upperRoman', $sections[0]['endnoteProperties']['numberFormat']);
+        $t->same(8, $sections[0]['endnoteProperties']['numberStart']);
+        $t->same('continuous', $sections[0]['endnoteProperties']['numberRestart']);
+        $t->same('docEnd', $sections[0]['endnoteProperties']['position']);
+
+        $notes = $result['importReport']['notes'];
+        $t->same(3, $notes['count']);
+        $t->same(2, $notes['footnoteCount']);
+        $t->same(1, $notes['endnoteCount']);
+        $t->same(1, $notes['missingCount']);
+        $t->same(true, $notes['items'][0]['customMarkFollows']);
+        $t->same(true, $notes['items'][1]['customMarkFollows']);
+        $t->same(true, $notes['items'][2]['customMarkFollows']);
+        $t->same($sections, $result['importReport']['sections']['items']);
+
+        $t->contains('Custom note marker [^1] and endnote marker [^2] plus unresolved marker [^3].', $markdown);
+        $t->contains('[^1]: Custom-marked footnote body.', $markdown);
+        $t->contains('[^2]: Custom-marked endnote body.', $markdown);
+        $t->contains('[^3]:', $markdown);
+
+        $t->contains('<p>Custom note marker <sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup> and endnote marker <sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup> plus unresolved marker <sup id="fnref-3"><a href="#fn-3" role="doc-noteref">3</a></sup>.</p>', $blocks);
+        $t->contains('<li id="fn-1"><p>Custom-marked footnote body.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-2"><p>Custom-marked endnote body.</p> <a href="#fnref-2" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-3"> <a href="#fnref-3" aria-label="Back to content">Back</a></li>', $blocks);
     },
     'maps DOCX alternative-format HTML and plain-text chunks into AST blocks and reports skipped chunks' => static function (TestRunner $t) use ($buildAltChunkPackage): void {
         $reader = new DocxReader();
