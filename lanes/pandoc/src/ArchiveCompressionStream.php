@@ -11,6 +11,11 @@ final class ArchiveCompressionStream
     public const FORMAT_ZLIB_TAR = 'zlib-tar';
     public const FORMAT_RAW_DEFLATE_TAR = 'raw-deflate-tar';
     public const FORMAT_LZ4_TAR = 'lz4-tar';
+    public const FORMAT_ZIP = 'zip';
+    public const FORMAT_GZIP_ZIP = 'gzip-zip';
+    public const FORMAT_ZLIB_ZIP = 'zlib-zip';
+    public const FORMAT_RAW_DEFLATE_ZIP = 'raw-deflate-zip';
+    public const FORMAT_LZ4_ZIP = 'lz4-zip';
 
     /**
      * @return list<string>
@@ -23,6 +28,20 @@ final class ArchiveCompressionStream
             self::FORMAT_ZLIB_TAR,
             self::FORMAT_RAW_DEFLATE_TAR,
             self::FORMAT_LZ4_TAR,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function supportedZipFormats(): array
+    {
+        return [
+            self::FORMAT_ZIP,
+            self::FORMAT_GZIP_ZIP,
+            self::FORMAT_ZLIB_ZIP,
+            self::FORMAT_RAW_DEFLATE_ZIP,
+            self::FORMAT_LZ4_ZIP,
         ];
     }
 
@@ -59,6 +78,35 @@ final class ArchiveCompressionStream
         ?int $maxUnpackedBytes = null
     ): string {
         return self::detectTarCandidate($bytes, $maxUncompressedBytes, $maxUnpackedBytes)['tarBytes'];
+    }
+
+    public static function openZip(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): ZipPackage {
+        return ZipPackage::fromString(self::decodeZipBytes($bytes, $format, $maxUncompressedBytes));
+    }
+
+    public static function openZipAuto(
+        string $bytes,
+        ?int $maxUncompressedBytes = null
+    ): ZipPackage {
+        return self::detectZipCandidate($bytes, $maxUncompressedBytes)['package'];
+    }
+
+    public static function detectZipFormat(
+        string $bytes,
+        ?int $maxUncompressedBytes = null
+    ): string {
+        return self::detectZipCandidate($bytes, $maxUncompressedBytes)['format'];
+    }
+
+    public static function decodeZipBytesAuto(
+        string $bytes,
+        ?int $maxUncompressedBytes = null
+    ): string {
+        return self::detectZipCandidate($bytes, $maxUncompressedBytes)['zipBytes'];
     }
 
     /**
@@ -116,6 +164,58 @@ final class ArchiveCompressionStream
         );
     }
 
+    /**
+     * @return array{
+     *     format:string,
+     *     zipBytes:string,
+     *     package:ZipPackage,
+     *     entryNames:list<string>,
+     *     entryCount:int,
+     *     packageByteSize:int,
+     *     entryUncompressedSize:int,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectZipStream(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+
+        $zipBytes = self::decodeZipBytes($bytes, $format, $maxUncompressedBytes);
+        $package = ZipPackage::fromString($zipBytes);
+
+        return self::zipStreamInspection($bytes, $format, $zipBytes, $package, $maxUncompressedBytes);
+    }
+
+    /**
+     * @return array{
+     *     format:string,
+     *     zipBytes:string,
+     *     package:ZipPackage,
+     *     entryNames:list<string>,
+     *     entryCount:int,
+     *     packageByteSize:int,
+     *     entryUncompressedSize:int,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectZipStreamAuto(
+        string $bytes,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        $candidate = self::detectZipCandidate($bytes, $maxUncompressedBytes);
+
+        return self::zipStreamInspection(
+            $bytes,
+            $candidate['format'],
+            $candidate['zipBytes'],
+            $candidate['package'],
+            $maxUncompressedBytes
+        );
+    }
+
     public static function decodeTarBytes(
         string $bytes,
         string $format,
@@ -124,7 +224,7 @@ final class ArchiveCompressionStream
         self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
 
         return match ($format) {
-            self::FORMAT_TAR => self::boundedPlainBytes($bytes, $maxUncompressedBytes),
+            self::FORMAT_TAR => self::boundedPlainBytes($bytes, $maxUncompressedBytes, 'Plain TAR stream'),
             self::FORMAT_GZIP_TAR => GzipStream::decode($bytes, $maxUncompressedBytes),
             self::FORMAT_ZLIB_TAR => DeflateStream::decode($bytes, DeflateStream::FORMAT_ZLIB, $maxUncompressedBytes),
             self::FORMAT_RAW_DEFLATE_TAR => DeflateStream::decode($bytes, DeflateStream::FORMAT_RAW, $maxUncompressedBytes),
@@ -133,10 +233,27 @@ final class ArchiveCompressionStream
         };
     }
 
-    private static function boundedPlainBytes(string $bytes, ?int $maxUncompressedBytes): string
+    public static function decodeZipBytes(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): string {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+
+        return match ($format) {
+            self::FORMAT_ZIP => self::boundedPlainBytes($bytes, $maxUncompressedBytes, 'Plain ZIP package stream'),
+            self::FORMAT_GZIP_ZIP => GzipStream::decode($bytes, $maxUncompressedBytes),
+            self::FORMAT_ZLIB_ZIP => DeflateStream::decode($bytes, DeflateStream::FORMAT_ZLIB, $maxUncompressedBytes),
+            self::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::decode($bytes, DeflateStream::FORMAT_RAW, $maxUncompressedBytes),
+            self::FORMAT_LZ4_ZIP => Lz4Frame::decode($bytes, $maxUncompressedBytes),
+            default => throw new \RuntimeException("Unsupported archive compression stream format: {$format}"),
+        };
+    }
+
+    private static function boundedPlainBytes(string $bytes, ?int $maxUncompressedBytes, string $label): string
     {
         if ($maxUncompressedBytes !== null && strlen($bytes) > $maxUncompressedBytes) {
-            throw new \RuntimeException('Plain TAR stream exceeds the configured uncompressed byte limit');
+            throw new \RuntimeException("{$label} exceeds the configured uncompressed byte limit");
         }
 
         return $bytes;
@@ -186,6 +303,47 @@ final class ArchiveCompressionStream
     }
 
     /**
+     * @return array{format:string, zipBytes:string, package:ZipPackage}
+     */
+    private static function detectZipCandidate(
+        string $bytes,
+        ?int $maxUncompressedBytes
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+
+        $matches = [];
+        $errors = [];
+        foreach (self::candidateZipFormats($bytes) as $format) {
+            try {
+                $zipBytes = self::decodeZipBytes($bytes, $format, $maxUncompressedBytes);
+                $matches[] = [
+                    'format' => $format,
+                    'zipBytes' => $zipBytes,
+                    'package' => ZipPackage::fromString($zipBytes),
+                ];
+            } catch (\RuntimeException $exception) {
+                $errors[$format] = $exception->getMessage();
+            }
+        }
+
+        if (count($matches) === 1) {
+            return $matches[0];
+        }
+
+        if (count($matches) > 1) {
+            $formats = implode(', ', array_map(
+                static fn (array $match): string => $match['format'],
+                $matches
+            ));
+
+            throw new \RuntimeException("Ambiguous archive compression stream format; matched ZIP candidates: {$formats}");
+        }
+
+        $details = self::formatDetectionDetails($errors);
+        throw new \RuntimeException('Unable to detect archive compression stream format as ZIP' . ($details === '' ? '' : ": {$details}"));
+    }
+
+    /**
      * @return array{
      *     format:string,
      *     tarBytes:string,
@@ -218,12 +376,57 @@ final class ArchiveCompressionStream
         ];
     }
 
+    /**
+     * @return array{
+     *     format:string,
+     *     zipBytes:string,
+     *     package:ZipPackage,
+     *     entryNames:list<string>,
+     *     entryCount:int,
+     *     packageByteSize:int,
+     *     entryUncompressedSize:int,
+     *     stream:array<string, mixed>
+     * }
+     */
+    private static function zipStreamInspection(
+        string $bytes,
+        string $format,
+        string $zipBytes,
+        ZipPackage $package,
+        ?int $maxUncompressedBytes
+    ): array {
+        $entryNames = $package->names();
+
+        return [
+            'format' => $format,
+            'zipBytes' => $zipBytes,
+            'package' => $package,
+            'entryNames' => $entryNames,
+            'entryCount' => count($entryNames),
+            'packageByteSize' => strlen($zipBytes),
+            'entryUncompressedSize' => self::zipPackageUncompressedSize($package),
+            'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
+        ];
+    }
+
     private static function archiveUnpackedSize(TarArchive $archive): int
     {
         $size = 0;
         foreach ($archive->entries() as $entry) {
             if ($entry->isRegularFile()) {
                 $size += $entry->size;
+            }
+        }
+
+        return $size;
+    }
+
+    private static function zipPackageUncompressedSize(ZipPackage $package): int
+    {
+        $size = 0;
+        foreach ($package->entries() as $entry) {
+            if (!$entry->isDirectory()) {
+                $size += $entry->uncompressedSize;
             }
         }
 
@@ -242,10 +445,16 @@ final class ArchiveCompressionStream
                 'memberCount' => 0,
                 'frameCount' => 0,
             ],
-            self::FORMAT_GZIP_TAR => self::gzipStreamInspection($bytes, $maxUncompressedBytes),
-            self::FORMAT_ZLIB_TAR => self::zlibStreamInspection($bytes, $maxUncompressedBytes),
-            self::FORMAT_RAW_DEFLATE_TAR => self::rawDeflateStreamInspection($bytes, $maxUncompressedBytes),
-            self::FORMAT_LZ4_TAR => self::lz4StreamInspection($bytes, $maxUncompressedBytes),
+            self::FORMAT_ZIP => [
+                'type' => 'plain-zip',
+                'compressedSize' => strlen($bytes),
+                'memberCount' => 0,
+                'frameCount' => 0,
+            ],
+            self::FORMAT_GZIP_TAR, self::FORMAT_GZIP_ZIP => self::gzipStreamInspection($bytes, $maxUncompressedBytes),
+            self::FORMAT_ZLIB_TAR, self::FORMAT_ZLIB_ZIP => self::zlibStreamInspection($bytes, $maxUncompressedBytes),
+            self::FORMAT_RAW_DEFLATE_TAR, self::FORMAT_RAW_DEFLATE_ZIP => self::rawDeflateStreamInspection($bytes, $maxUncompressedBytes),
+            self::FORMAT_LZ4_TAR, self::FORMAT_LZ4_ZIP => self::lz4StreamInspection($bytes, $maxUncompressedBytes),
             default => throw new \RuntimeException("Unsupported archive compression stream format: {$format}"),
         };
     }
@@ -448,6 +657,39 @@ final class ArchiveCompressionStream
         $formats[] = self::FORMAT_RAW_DEFLATE_TAR;
 
         return array_values(array_unique($formats));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function candidateZipFormats(string $bytes): array
+    {
+        $formats = [];
+        if (self::startsWithGzipHeader($bytes)) {
+            $formats[] = self::FORMAT_GZIP_ZIP;
+        }
+
+        if (self::startsWithZlibHeader($bytes)) {
+            $formats[] = self::FORMAT_ZLIB_ZIP;
+        }
+
+        if (self::startsWithLz4Header($bytes)) {
+            $formats[] = self::FORMAT_LZ4_ZIP;
+        }
+
+        if (self::startsWithZipHeader($bytes)) {
+            $formats[] = self::FORMAT_ZIP;
+        }
+
+        $formats[] = self::FORMAT_RAW_DEFLATE_ZIP;
+
+        return array_values(array_unique($formats));
+    }
+
+    private static function startsWithZipHeader(string $bytes): bool
+    {
+        return str_starts_with($bytes, "PK\x03\x04")
+            || str_starts_with($bytes, "PK\x05\x06");
     }
 
     private static function startsWithGzipHeader(string $bytes): bool

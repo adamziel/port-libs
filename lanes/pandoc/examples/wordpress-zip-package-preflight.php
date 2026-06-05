@@ -1453,6 +1453,19 @@ $compressedPackage = GzipStream::build($package->bytes(), [
     'headerCrc' => true,
 ]);
 $compressedPackageMembers = GzipStream::members($compressedPackage);
+$compressedPackageInspection = ArchiveCompressionStream::inspectZipStream(
+    $compressedPackage,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($package->bytes())
+);
+$compressedPackageDetectedFormat = ArchiveCompressionStream::detectZipFormat(
+    $compressedPackage,
+    strlen($package->bytes())
+);
+$compressedPackageRoundTrip = ArchiveCompressionStream::openZipAuto(
+    $compressedPackage,
+    strlen($package->bytes())
+);
 $tarPacketGlobalPaxHeaders = [
     'comment' => 'wordpress import review packet',
     'hdrcharset' => 'BINARY',
@@ -2243,6 +2256,22 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected gzip-wrapped ZIP package bytes to round-trip');
     }
 
+    if ($compressedPackageDetectedFormat !== ArchiveCompressionStream::FORMAT_GZIP_ZIP) {
+        throw new RuntimeException('Expected archive stream detection to classify the gzip-wrapped ZIP package');
+    }
+
+    if (($compressedPackageInspection['entryNames'] ?? []) !== $package->names()) {
+        throw new RuntimeException('Expected gzip-wrapped ZIP package inspection to preserve entry names');
+    }
+
+    if (($compressedPackageInspection['stream']['memberCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected gzip-wrapped ZIP package inspection to expose one gzip member');
+    }
+
+    if ($compressedPackageRoundTrip->read('/word/document.xml') !== $package->read('/word/document.xml')) {
+        throw new RuntimeException('Expected gzip-wrapped ZIP package dispatch to expose document bytes');
+    }
+
     if (($compressedPackageMembers[0]['filename'] ?? null) !== 'wordpress-import-package.zip') {
         throw new RuntimeException('Expected gzip original filename metadata to round-trip');
     }
@@ -2782,6 +2811,9 @@ echo 'unicodePath.encoding=' . $unicodePathEntry->nameEncoding . "\n";
 echo 'unicodePath.comment=' . $unicodePathEntry->comment . "\n";
 echo 'gzip.filename=' . $compressedPackageMembers[0]['filename'] . "\n";
 echo 'gzip.comment=' . $compressedPackageMembers[0]['comment'] . "\n";
+echo 'gzip.zipDetectedFormat=' . $compressedPackageDetectedFormat . "\n";
+echo 'gzip.zipEntries=' . implode(',', $compressedPackageInspection['entryNames']) . "\n";
+echo 'gzip.zipDocument.xml=' . $compressedPackageRoundTrip->read('/word/document.xml') . "\n";
 echo 'gzip.latin1FilenameText=' . $latin1GzipTarMembers[0]['filenameText'] . "\n";
 echo 'gzip.latin1CommentText=' . $latin1GzipTarMembers[0]['commentText'] . "\n";
 echo 'gzip.extraSubfields=' . implode(',', array_map(static fn (array $field): string => $field['identifier'], $compressedPackageMembers[0]['extraFields'])) . "\n";

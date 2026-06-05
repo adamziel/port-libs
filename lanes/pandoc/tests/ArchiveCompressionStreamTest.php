@@ -8,6 +8,7 @@ use PortLibs\Pandoc\GzipStream;
 use PortLibs\Pandoc\Lz4Frame;
 use PortLibs\Pandoc\TarArchive;
 use PortLibs\Pandoc\TarArchiveEntry;
+use PortLibs\Pandoc\ZipPackage;
 
 $rawTarHeader = static function (string $name, string $typeFlag, string $data = '', int $modifiedAt = 0, bool $withEndMarker = true, ?int $headerSize = null): string {
     $octal = static function (int $value, int $length): string {
@@ -1103,6 +1104,134 @@ return [
         ]);
 
         $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectTarStreamAuto($separateCompleteGzipMembers));
+    },
+
+    'opens zip package fixtures through explicit compression stream formats' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => '_rels/.rels',
+                'data' => '<Relationships><Relationship Target="word/document.xml"/></Relationships>',
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>Compressed ZIP stream dispatch</w:p></w:body></w:document>',
+            ],
+            [
+                'name' => 'word/media/',
+                'compressionMethod' => 0,
+            ],
+        ], 'wordpress compressed package review');
+        $zipBytes = $package->bytes();
+        $entryBytes = strlen($package->read('/[Content_Types].xml'))
+            + strlen($package->read('/_rels/.rels'))
+            + strlen($package->read('/word/document.xml'));
+
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-import-package.zip',
+                'comment' => 'gzip zip package fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('zip package reviewer metadata', 9)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        $t->same([
+            ArchiveCompressionStream::FORMAT_ZIP,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP,
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP,
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+        ], ArchiveCompressionStream::supportedZipFormats());
+
+        foreach ($streams as $format => $bytes) {
+            $roundTrip = ArchiveCompressionStream::openZip($bytes, $format, strlen($zipBytes));
+            $inspection = ArchiveCompressionStream::inspectZipStream($bytes, $format, strlen($zipBytes));
+
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytes($bytes, $format, strlen($zipBytes)));
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same($format, $inspection['format']);
+            $t->same($package->names(), $roundTrip->names());
+            $t->same($package->names(), $inspection['entryNames']);
+            $t->same(4, $inspection['entryCount']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same($entryBytes, $inspection['entryUncompressedSize']);
+            $t->same('wordpress compressed package review', $inspection['package']->packageComment());
+            $t->same('<w:document><w:body><w:p>Compressed ZIP stream dispatch</w:p></w:body></w:document>', $roundTrip->read('/word/document.xml'));
+        }
+
+        $gzipInspection = ArchiveCompressionStream::inspectZipStream($streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP], ArchiveCompressionStream::FORMAT_GZIP_ZIP, strlen($zipBytes));
+        $lz4Inspection = ArchiveCompressionStream::inspectZipStream($streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP], ArchiveCompressionStream::FORMAT_LZ4_ZIP, strlen($zipBytes));
+
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same(1, $gzipInspection['stream']['memberCount']);
+        $t->same('wordpress-import-package.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('gzip zip package fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same(1, $lz4Inspection['stream']['skippableFrameCount']);
+        $t->same('zip package reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+    },
+
+    'auto-detects bounded zip package fixture compression streams' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>Auto-detected ZIP stream dispatch</w:p></w:body></w:document>',
+            ],
+        ]);
+        $zipBytes = $package->bytes();
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-auto-package.zip',
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::build($zipBytes, [
+                'contentSize' => true,
+                'contentChecksum' => true,
+            ]),
+        ];
+
+        foreach ($streams as $expectedFormat => $bytes) {
+            $roundTrip = ArchiveCompressionStream::openZipAuto($bytes, strlen($zipBytes));
+
+            $t->same($expectedFormat, ArchiveCompressionStream::detectZipFormat($bytes, strlen($zipBytes)));
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytesAuto($bytes, strlen($zipBytes)));
+            $t->same(['[Content_Types].xml', 'word/document.xml'], $roundTrip->names());
+            $t->same('<w:document><w:body><w:p>Auto-detected ZIP stream dispatch</w:p></w:body></w:document>', $roundTrip->read('/word/document.xml'));
+        }
+
+        $t->throws(\RuntimeException::class, static fn (): string => ArchiveCompressionStream::detectZipFormat('not a zip package'));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ArchiveCompressionStream::openZipAuto($streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP], strlen($zipBytes) - 1));
+        $t->throws(\RuntimeException::class, static fn (): string => ArchiveCompressionStream::decodeZipBytesAuto($zipBytes, -1));
     },
 
     'builds and reads bounded raw and zlib deflate package fixture streams' => static function (TestRunner $t): void {
