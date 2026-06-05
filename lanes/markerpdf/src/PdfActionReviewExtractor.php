@@ -69,6 +69,7 @@ final class PdfActionReviewExtractor
      * @return array{
      *     actions: list<array<string, mixed>>,
      *     additional_actions: list<array<string, mixed>>,
+     *     previous_uri_actions: list<array<string, mixed>>,
      *     executes_actions_on_import: false
      * }
      */
@@ -79,6 +80,7 @@ final class PdfActionReviewExtractor
             return [
                 'actions' => [],
                 'additional_actions' => [],
+                'previous_uri_actions' => [],
                 'executes_actions_on_import' => false,
             ];
         }
@@ -94,9 +96,19 @@ final class PdfActionReviewExtractor
             }
         }
 
+        $previousUriActions = [];
+        if (array_key_exists('PA', $dict)) {
+            $seen = [];
+            foreach ($this->reviewActionsFromValue($dict['PA'], $seen) as $action) {
+                $action['previous_uri_action'] = true;
+                $previousUriActions[] = $action;
+            }
+        }
+
         return [
             'actions' => $actions,
             'additional_actions' => $this->additionalActionMetadata($dict['AA'] ?? null),
+            'previous_uri_actions' => $previousUriActions,
             'executes_actions_on_import' => false,
         ];
     }

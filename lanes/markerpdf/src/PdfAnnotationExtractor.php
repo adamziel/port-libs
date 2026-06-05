@@ -177,6 +177,10 @@ final class PdfAnnotationExtractor
             $actionReview['additional_actions'],
             $actionTargetContext
         );
+        $actionReview['previous_uri_actions'] = $this->actionsWithAnnotationTargetPageContext(
+            $actionReview['previous_uri_actions'] ?? [],
+            $actionTargetContext
+        );
         $structParent = $this->intValueAfterName($body, 'StructParent', $objects);
         $inheritedStructParent = $subtype === 'Widget' && $structParent === null
             ? $this->widgetStructParentFromFieldChain($body, $objects, $record['object'], $structureParentReviewByKey)
@@ -206,6 +210,9 @@ final class PdfAnnotationExtractor
             'additional_actions' => $actionReview['additional_actions'],
             'executes_actions_on_import' => $actionReview['executes_actions_on_import'],
         ];
+        if ($actionReview['previous_uri_actions'] !== []) {
+            $row['previous_uri_actions'] = $actionReview['previous_uri_actions'];
+        }
 
         if ($structParent !== null) {
             $row['struct_parent'] = $structParent;
@@ -264,6 +271,14 @@ final class PdfAnnotationExtractor
                 $structParent,
                 $structureParent
             );
+            if (isset($row['previous_uri_actions'])) {
+                $row['previous_uri_actions'] = PdfActionReviewExtractor::actionsWithAnnotationStructureParentContext(
+                    $row['previous_uri_actions'],
+                    $record['object'],
+                    $structParent,
+                    $structureParent
+                );
+            }
         }
 
         $appearance = $this->appearanceFromAnnotation($body, $objects);
@@ -1083,7 +1098,7 @@ final class PdfAnnotationExtractor
     /**
      * @param array<int, string> $objects
      * @param array<string, mixed>|null $appearance
-     * @param array{actions: list<array<string, mixed>>, additional_actions: list<array<string, mixed>>, executes_actions_on_import: false} $actionReview
+     * @param array{actions: list<array<string, mixed>>, additional_actions: list<array<string, mixed>>, previous_uri_actions?: list<array<string, mixed>>, executes_actions_on_import: false} $actionReview
      * @return array<string, mixed>
      */
     private function widgetReviewFromAnnotation(

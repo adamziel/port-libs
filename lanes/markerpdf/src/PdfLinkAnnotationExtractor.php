@@ -154,6 +154,9 @@ final class PdfLinkAnnotationExtractor
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_executes_on_import'] = false;
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_actions_review'] = $link['actions'];
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_additional_actions_review'] = $link['additional_actions'];
+                        if (array_key_exists('previous_uri_actions', $link)) {
+                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_previous_uri_actions'] = $link['previous_uri_actions'];
+                        }
                         if (array_key_exists('struct_parent', $link)) {
                             $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_struct_parent'] = $link['struct_parent'];
                         }
@@ -508,6 +511,7 @@ final class PdfLinkAnnotationExtractor
         $review = $actionReviewer->reviewAnnotationActions($effectiveAnnotation['body']);
         $review['actions'] = $this->withLinkTargetContextRows($review['actions'], $context);
         $review['additional_actions'] = $this->withLinkTargetContextRows($review['additional_actions'], $context);
+        $review['previous_uri_actions'] = $this->withLinkTargetContextRows($review['previous_uri_actions'] ?? [], $context);
         $primary = $this->primaryLinkAction($review['actions']);
         if ($primary === null) {
             return null;
@@ -531,6 +535,9 @@ final class PdfLinkAnnotationExtractor
             'additional_actions' => $review['additional_actions'],
             'executes_on_import' => false,
         ] + $this->presentationReviewFromAnnotation($annotationBody, $objects);
+        if ($review['previous_uri_actions'] !== []) {
+            $link['previous_uri_actions'] = $review['previous_uri_actions'];
+        }
         if ($quadPoints !== []) {
             $link['quad_points'] = $quadPoints;
             $link['quad_rects'] = $quadRects;
@@ -568,6 +575,14 @@ final class PdfLinkAnnotationExtractor
                     $link['struct_parent'],
                     $link['structure_parent']
                 );
+                if (isset($link['previous_uri_actions'])) {
+                    $link['previous_uri_actions'] = PdfActionReviewExtractor::actionsWithAnnotationStructureParentContext(
+                        $link['previous_uri_actions'],
+                        $annotationObject,
+                        $link['struct_parent'],
+                        $link['structure_parent']
+                    );
+                }
             }
         }
 
