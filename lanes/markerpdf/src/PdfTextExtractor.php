@@ -9615,6 +9615,23 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      */
+    private function decodeStreamForTerminatorRecovery(
+        string $dict,
+        string $stream,
+        array $objects,
+        bool $requireExplicitFilterEndMarkers = false
+    ): ?string {
+        $decoded = $this->decodeStream($dict, $stream, $objects, $requireExplicitFilterEndMarkers);
+        if ($decoded !== null) {
+            return $decoded;
+        }
+
+        return $this->decodeStream($dict, $stream, $objects, $requireExplicitFilterEndMarkers, true);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
     private function startxrefRecoveredStreamTerminatorOffset(
         string $value,
         int $streamStart,
@@ -9676,7 +9693,7 @@ final class PdfTextExtractor
         }
 
         $declaredPayload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $declaredTerminator - $streamStart));
-        if ($this->decodeStream($dict, $declaredPayload, $objects, true) !== null) {
+        if ($this->decodeStreamForTerminatorRecovery($dict, $declaredPayload, $objects, true) !== null) {
             return null;
         }
 
@@ -9777,7 +9794,7 @@ final class PdfTextExtractor
             }
 
             $payload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $candidate - $streamStart));
-            if ($this->decodeStream($dict, $payload, $objects, true) !== null) {
+            if ($this->decodeStreamForTerminatorRecovery($dict, $payload, $objects, true) !== null) {
                 return $candidate;
             }
         }
