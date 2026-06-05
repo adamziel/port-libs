@@ -884,25 +884,26 @@ final class PdfTextExtractor
                 );
             }
 
+            $filterIndirectCount = $this->xrefStreamIndirectOperandCount($operandGroups['Filter']);
+            $lengthIndirectCount = $this->xrefStreamIndirectOperandCount($operandGroups['Length']);
+            $filters = $this->streamFilters($dict, $objects);
+            $decodeParms = $filters === null
+                ? $this->streamDecodeParms($dict, $objects)
+                : $this->streamDecodeParmsForFilters($dict, $objects, $filters);
             $operands = [];
             foreach ($operandGroups as $group) {
                 foreach ($group as $operand) {
                     $operands[] = $operand;
                 }
             }
-
-            $filterIndirectCount = $this->xrefStreamIndirectOperandCount($operandGroups['Filter']);
-            $lengthIndirectCount = $this->xrefStreamIndirectOperandCount($operandGroups['Length']);
             $selectedOperandCount = $this->xrefStreamSelectedOperandCount($operands);
-            $unresolvedOperandCount = $this->xrefStreamUnresolvedOperandCount($operands);
+            $unresolvedOperandCount = $this->xrefStreamCMapUnresolvedOperandCount($operandGroups, $filters);
             $invalidFilterOperandCount = $this->invalidStreamFilterOperandCount($operandGroups['Filter']);
             $dictionaryFilterOperandCount = $this->dictionaryStreamFilterOperandCount($operandGroups['Filter']);
             $malformedFilterOperandCount = $this->malformedStreamFilterOperandCount($operandGroups['Filter']);
-            $filters = $this->streamFilters($dict, $objects);
             $unsupportedFilterCount = $this->unsupportedTextStreamFilterCount($filters);
-            $decodeParms = $this->streamDecodeParms($dict, $objects);
-            $invalidDecodeParmsOperandCount = $this->invalidStreamDecodeParmsOperandCount($operandGroups['DecodeParms']);
-            $malformedDecodeParmsOperandCount = $this->malformedStreamDecodeParmsOperandCount($operandGroups['DecodeParms']);
+            $invalidDecodeParmsOperandCount = $this->invalidStreamDecodeParmsOperandCount($operandGroups['DecodeParms'], $filters);
+            $malformedDecodeParmsOperandCount = $this->malformedStreamDecodeParmsOperandCount($operandGroups['DecodeParms'], $filters);
             $invalidDecodeParmsParameterCount = $this->invalidDecodeParmsParameterCount($filters, $decodeParms, $objects);
             $decoded = $this->decodedCMapBody($body, $objects);
             $parserBoundedDecoded = $decoded === null ? null : $this->decodedCMapBodyForParsing($body, $objects);
@@ -8974,7 +8975,7 @@ final class PdfTextExtractor
             }
         }
 
-        if (count($decodeParms) === count($nonNullFilterIndexes) && count($filters) !== count($decodeParms)) {
+        if ($this->decodeParmsUseCompactNonNullFilterIndexes($filters, count($decodeParms), $nonNullFilterIndexes)) {
             $compactPosition = array_search($index, $nonNullFilterIndexes, true);
             if ($compactPosition !== false) {
                 $decodeParmsIndexes = array_keys($decodeParms);
@@ -9044,6 +9045,40 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @param list<int>|null $nonNullFilterIndexes
+     */
+    private function decodeParmsUseCompactNonNullFilterIndexes(
+        array $filters,
+        int $decodeParmsCount,
+        ?array $nonNullFilterIndexes = null
+    ): bool {
+        if ($nonNullFilterIndexes === null) {
+            $nonNullFilterIndexes = [];
+            foreach ($filters as $filterIndex => $filter) {
+                if (is_string($filter)) {
+                    $nonNullFilterIndexes[] = $filterIndex;
+                }
+            }
+        }
+
+        return $decodeParmsCount === count($nonNullFilterIndexes)
+            && count($filters) !== $decodeParmsCount;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     */
+    private function decodeParmsIndexIsAlignedToNullFilter(array $filters, int $decodeParmsIndex, int $decodeParmsCount): bool
+    {
+        if ($this->decodeParmsUseCompactNonNullFilterIndexes($filters, $decodeParmsCount)) {
+            return false;
+        }
+
+        return array_key_exists($decodeParmsIndex, $filters) && $filters[$decodeParmsIndex] === null;
     }
 
     /**
@@ -9211,11 +9246,11 @@ final class PdfTextExtractor
             }
         }
 
-        $compactArray = count($rawItems) === count($nonNullFilterIndexes) && count($filters) !== count($rawItems);
+        $compactArray = $this->decodeParmsUseCompactNonNullFilterIndexes($filters, count($rawItems), $nonNullFilterIndexes);
         $items = [];
         foreach ($rawItems as $itemIndex => $rawItem) {
             $filterIndex = $compactArray ? ($nonNullFilterIndexes[$itemIndex] ?? null) : $itemIndex;
-            if ($filterIndex !== null && ($filters[$filterIndex] ?? null) === null) {
+            if ($filterIndex !== null && array_key_exists($filterIndex, $filters) && $filters[$filterIndex] === null) {
                 $items[] = null;
                 continue;
             }
@@ -17498,10 +17533,17 @@ final class PdfTextExtractor
     /**
      * @param list<array<string, mixed>> $operands
      */
-    private function invalidStreamDecodeParmsOperandCount(array $operands): int
+    private function invalidStreamDecodeParmsOperandCount(array $operands, ?array $filters = null): int
     {
         $count = 0;
-        foreach ($operands as $operand) {
+        foreach ($operands as $index => $operand) {
+            if (
+                $filters !== null
+                && $this->decodeParmsIndexIsAlignedToNullFilter($filters, $index, count($operands))
+            ) {
+                continue;
+            }
+
             if (
                 ($operand['kind'] ?? null) !== 'direct'
                 && (($operand['resolved'] ?? false) !== true || ($operand['xref_selected'] ?? false) !== true)
@@ -17521,10 +17563,17 @@ final class PdfTextExtractor
     /**
      * @param list<array<string, mixed>> $operands
      */
-    private function malformedStreamDecodeParmsOperandCount(array $operands): int
+    private function malformedStreamDecodeParmsOperandCount(array $operands, ?array $filters = null): int
     {
         $count = 0;
-        foreach ($operands as $operand) {
+        foreach ($operands as $index => $operand) {
+            if (
+                $filters !== null
+                && $this->decodeParmsIndexIsAlignedToNullFilter($filters, $index, count($operands))
+            ) {
+                continue;
+            }
+
             if (($operand['valid_decodeparms_operand'] ?? null) === false) {
                 $count++;
             }
@@ -17589,6 +17638,9 @@ final class PdfTextExtractor
         $count = 0;
         foreach ($decodeParms as $decodeParmsIndex => $decodeParmsValue) {
             if ($decodeParmsValue === null || isset($appliedDecodeParmsIndexes[$decodeParmsIndex])) {
+                continue;
+            }
+            if ($this->decodeParmsIndexIsAlignedToNullFilter($filters, $decodeParmsIndex, count($decodeParms))) {
                 continue;
             }
 
@@ -17747,6 +17799,35 @@ final class PdfTextExtractor
         foreach ($operands as $operand) {
             if (($operand['kind'] ?? null) === 'indirect' && ($operand['xref_selected'] ?? false) === true) {
                 $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $operandGroups
+     * @param list<string|null>|null $filters
+     */
+    private function xrefStreamCMapUnresolvedOperandCount(array $operandGroups, ?array $filters): int
+    {
+        $count = 0;
+        foreach ($operandGroups as $name => $operands) {
+            foreach ($operands as $index => $operand) {
+                if (
+                    $name === 'DecodeParms'
+                    && $filters !== null
+                    && $this->decodeParmsIndexIsAlignedToNullFilter($filters, $index, count($operands))
+                ) {
+                    continue;
+                }
+
+                if (
+                    ($operand['kind'] ?? null) !== 'direct'
+                    && (($operand['resolved'] ?? false) !== true || ($operand['xref_selected'] ?? false) !== true)
+                ) {
+                    $count++;
+                }
             }
         }
 
@@ -18640,7 +18721,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $objects);
+        $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $objects, false, true);
         if ($decoded === null) {
             return null;
         }
@@ -18658,7 +18739,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $objects);
+        $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $objects, false, true);
         if ($decoded === null) {
             return null;
         }
@@ -18742,7 +18823,7 @@ final class PdfTextExtractor
                 return $name;
             }
 
-            $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $objects);
+            $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $objects, false, true);
             return $decoded === null ? null : $this->cMapName($decoded);
         }
 
