@@ -8393,6 +8393,10 @@ final class PdfImageRenderer
         $depth = 0;
         for ($index = $offset; $index < $length; $index++) {
             $char = $source[$index];
+            if ($char === '%') {
+                $index += strcspn($source, "\r\n", $index);
+                continue;
+            }
             if ($char === '(') {
                 $index = $this->skipPdfLiteralString($source, $index) - 1;
                 continue;
@@ -8430,6 +8434,10 @@ final class PdfImageRenderer
         $length = strlen($source);
         $depth = 0;
         for ($index = $offset; $index < $length; $index++) {
+            if ($source[$index] === '%') {
+                $index += strcspn($source, "\r\n", $index);
+                continue;
+            }
             if ($source[$index] === '(') {
                 $index = $this->skipPdfLiteralString($source, $index) - 1;
                 continue;
