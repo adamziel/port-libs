@@ -34,6 +34,7 @@ final class PdfAttachmentExtractor
         }
 
         $catalogObjectIds = $this->selectedCatalogObjectIds($pdfBytes, $objects);
+        $encryptionPolicy = $this->attachmentEncryptionPolicy($pdfBytes, $objects);
         $attachments = [];
         foreach ($this->embeddedFilesNameTreeEntries($objects, $catalogObjectIds) as $entry) {
             $attachment = $this->attachmentFromFileSpecValue(
@@ -42,7 +43,8 @@ final class PdfAttachmentExtractor
                 'embedded-files-name-tree',
                 [
                     'name_key' => $entry['name'],
-                ]
+                ],
+                $encryptionPolicy
             );
             if ($attachment !== null) {
                 $attachments[] = $attachment;
@@ -58,7 +60,8 @@ final class PdfAttachmentExtractor
                     'associated_file' => true,
                     'associated_file_index' => $entry['associatedFileIndex'],
                     'catalog_object_id' => $entry['catalogObjectId'],
-                ]
+                ],
+                $encryptionPolicy
             );
             if ($attachment === null) {
                 continue;
@@ -87,7 +90,8 @@ final class PdfAttachmentExtractor
                     'page_associated_file_index' => $entry['associatedFileIndex'],
                     'page_number' => $entry['pageNumber'],
                     'page_object_id' => $entry['pageObjectId'],
-                ]
+                ],
+                $encryptionPolicy
             );
             if ($attachment === null) {
                 continue;
@@ -118,7 +122,8 @@ final class PdfAttachmentExtractor
                     'annotation_object_id' => $entry['annotationObjectId'],
                     'annotation_contents' => $entry['contents'],
                     'annotation_rect' => $entry['rect'],
-                ]
+                ],
+                $encryptionPolicy
             );
             if ($attachment !== null) {
                 $attachment['file_attachment_annotation'] = true;
@@ -209,8 +214,14 @@ final class PdfAttachmentExtractor
         $attachments = $this->extractAttachments($pdfBytes);
         $summaryAttachments = [];
         $totalBytes = 0;
+        $filenames = [];
         foreach ($attachments as $attachment) {
-            $totalBytes += (int) $attachment['byte_length'];
+            if (isset($attachment['byte_length']) && is_int($attachment['byte_length'])) {
+                $totalBytes += $attachment['byte_length'];
+            }
+            if (isset($attachment['filename']) && is_string($attachment['filename']) && $attachment['filename'] !== '') {
+                $filenames[] = $attachment['filename'];
+            }
             $withoutBytes = $attachment;
             unset($withoutBytes['bytes']);
             $summaryAttachments[] = $withoutBytes;
@@ -219,7 +230,7 @@ final class PdfAttachmentExtractor
         return [
             'attachment_count' => count($attachments),
             'total_bytes' => $totalBytes,
-            'filenames' => array_values(array_map(static fn (array $attachment): string => (string) $attachment['filename'], $attachments)),
+            'filenames' => $filenames,
             'attachments' => $summaryAttachments,
             'executes_python_or_models' => false,
             'executes_external_pdf_tools' => false,
@@ -690,7 +701,8 @@ final class PdfAttachmentExtractor
         mixed $fileSpecValue,
         array $objects,
         string $source,
-        array $context
+        array $context,
+        ?array $encryptionPolicy = null
     ): ?array {
         $fileSpecObjectId = $this->refObjectId($fileSpecValue);
         $fileSpec = $this->dict($this->resolveValue($fileSpecValue, $objects));
@@ -713,8 +725,9 @@ final class PdfAttachmentExtractor
             return null;
         }
 
-        $bytes = $this->decodedStreamBytes($streamObject, $objects);
-        if ($bytes === null) {
+        $embeddedFileStreamsEncrypted = $this->attachmentPolicySuppressesEmbeddedPayload($encryptionPolicy);
+        $bytes = $embeddedFileStreamsEncrypted ? null : $this->decodedStreamBytes($streamObject, $objects);
+        if (!$embeddedFileStreamsEncrypted && $bytes === null) {
             return null;
         }
 
@@ -738,23 +751,25 @@ final class PdfAttachmentExtractor
             'description' => $this->stringValue($this->resolveValue($fileSpec['Desc'] ?? null, $objects)),
             'content_type' => $this->nameValue($this->resolveValue($streamDict['Subtype'] ?? null, $objects)),
             'declared_size' => $declaredSize,
-            'byte_length' => strlen($bytes),
-            'sha256' => hash('sha256', $bytes),
             'checksum_hex' => $checksum,
             'created_at' => $this->stringValue($this->resolveValue($params['CreationDate'] ?? null, $objects)),
             'modified_at' => $this->stringValue($this->resolveValue($params['ModDate'] ?? null, $objects)),
-            'bytes' => $bytes,
             'executes_python_or_models' => false,
             'executes_external_pdf_tools' => false,
         ];
 
+        if ($bytes !== null) {
+            $attachment['byte_length'] = strlen($bytes);
+            $attachment['sha256'] = hash('sha256', $bytes);
+            $attachment['bytes'] = $bytes;
+        }
         if ($filters !== []) {
             $attachment['filters'] = $filters;
         }
-        if ($declaredSize !== null) {
+        if ($declaredSize !== null && $bytes !== null) {
             $attachment['declared_size_matches'] = $declaredSize === strlen($bytes);
         }
-        if ($checksum !== null) {
+        if ($checksum !== null && $bytes !== null) {
             $computedChecksum = md5($bytes);
             $attachment['computed_checksum_hex'] = $computedChecksum;
             $attachment['checksum_matches'] = strtolower($checksum) === $computedChecksum;
@@ -773,7 +788,350 @@ final class PdfAttachmentExtractor
             $attachment['related_files'] = $relatedFiles;
         }
 
+        return $encryptionPolicy === null
+            ? $attachment
+            : $this->redactEncryptedAttachmentRow($attachment, $encryptionPolicy);
+    }
+
+    /**
+     * Attachment preflight is a review path. When a trailer /Encrypt
+     * dictionary says FileSpec strings or embedded-file streams use an
+     * encrypted crypt filter, expose only object identity and policy metadata.
+     *
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return array<string, mixed>|null
+     */
+    private function attachmentEncryptionPolicy(string $pdfBytes, array $objects): ?array
+    {
+        $dictionary = $this->selectedEncryptionDictionary($pdfBytes, $objects);
+        if ($dictionary === null) {
+            return null;
+        }
+
+        $version = $this->intValue($this->resolveValue($dictionary['V'] ?? null, $objects));
+        $cryptFilters = $this->cryptFilterMetadata($dictionary['CF'] ?? null, $objects);
+        $streamFilter = $this->nameOrStringValue($dictionary['StmF'] ?? null, $objects);
+        $stringFilter = $this->nameOrStringValue($dictionary['StrF'] ?? null, $objects);
+        $embeddedFileFilter = $this->nameOrStringValue($dictionary['EFF'] ?? null, $objects);
+        $streamFilterDefaulted = false;
+        $stringFilterDefaulted = false;
+        $embeddedFileFilterDefaulted = false;
+
+        if (in_array($version, [4, 5], true)) {
+            if ($streamFilter === null || $streamFilter === '') {
+                $streamFilter = 'Identity';
+                $streamFilterDefaulted = true;
+            }
+            if ($stringFilter === null || $stringFilter === '') {
+                $stringFilter = 'Identity';
+                $stringFilterDefaulted = true;
+            }
+            if ($embeddedFileFilter === null || $embeddedFileFilter === '') {
+                $embeddedFileFilter = $streamFilter;
+                $embeddedFileFilterDefaulted = true;
+            }
+        } else {
+            $streamFilter ??= 'Standard';
+            $stringFilter ??= 'Standard';
+            $embeddedFileFilter ??= $streamFilter;
+        }
+
+        $streamFilterStatus = $this->attachmentCryptFilterStatus($streamFilter, $cryptFilters, $version);
+        $stringFilterStatus = $this->attachmentCryptFilterStatus($stringFilter, $cryptFilters, $version);
+        $embeddedFileFilterStatus = $this->attachmentCryptFilterStatus($embeddedFileFilter, $cryptFilters, $version);
+        $stringsEncrypted = $stringFilterStatus !== 'identity_crypt_filter';
+        $embeddedStreamsEncrypted = $embeddedFileFilterStatus !== 'identity_crypt_filter';
+
+        $policy = [
+            'source' => 'encrypted_attachment_preflight',
+            'encrypted_document' => true,
+            'decryption_performed' => false,
+            'stream_filter' => $streamFilter,
+            'stream_filter_status' => $streamFilterStatus,
+            'string_filter' => $stringFilter,
+            'string_filter_status' => $stringFilterStatus,
+            'embedded_file_filter' => $embeddedFileFilter,
+            'embedded_file_filter_status' => $embeddedFileFilterStatus,
+            'file_spec_strings_policy' => $stringsEncrypted
+                ? 'suppressed_encrypted_strings'
+                : 'preserved_identity_crypt_filter',
+            'embedded_file_stream_policy' => $embeddedStreamsEncrypted
+                ? 'suppressed_encrypted_embedded_file_streams'
+                : 'preserved_identity_crypt_filter',
+            'payload_hash_available' => !$embeddedStreamsEncrypted,
+            'payload_content_included' => false,
+            'raw_encrypted_bytes_exposed' => false,
+            'executes_decryption' => false,
+        ];
+
+        if ($version !== null) {
+            $policy['version'] = $version;
+        }
+        if ($streamFilterDefaulted) {
+            $policy['stream_filter_defaulted'] = true;
+        }
+        if ($stringFilterDefaulted) {
+            $policy['string_filter_defaulted'] = true;
+        }
+        if ($embeddedFileFilterDefaulted) {
+            $policy['embedded_file_filter_defaulted_from_stream_filter'] = true;
+        }
+        if ($cryptFilters !== []) {
+            $policy['crypt_filters'] = $cryptFilters;
+        }
+
+        return $policy;
+    }
+
+    /**
+     * @param array<string, mixed>|null $policy
+     */
+    private function attachmentPolicySuppressesEmbeddedPayload(?array $policy): bool
+    {
+        return ($policy['embedded_file_stream_policy'] ?? null) === 'suppressed_encrypted_embedded_file_streams';
+    }
+
+    /**
+     * @param array<string, mixed> $attachment
+     * @param array<string, mixed> $policy
+     * @return array<string, mixed>
+     */
+    private function redactEncryptedAttachmentRow(array $attachment, array $policy): array
+    {
+        $stringsEncrypted = ($policy['file_spec_strings_policy'] ?? null) === 'suppressed_encrypted_strings';
+        $payloadEncrypted = $this->attachmentPolicySuppressesEmbeddedPayload($policy);
+
+        if ($stringsEncrypted) {
+            foreach ([
+                'name_key',
+                'filename',
+                'filename_source',
+                'description',
+                'annotation_contents',
+            ] as $key) {
+                unset($attachment[$key]);
+            }
+        }
+
+        if ($payloadEncrypted) {
+            foreach ([
+                'content_type',
+                'declared_size',
+                'declared_size_matches',
+                'byte_length',
+                'sha256',
+                'checksum_hex',
+                'computed_checksum_hex',
+                'checksum_matches',
+                'created_at',
+                'modified_at',
+                'filters',
+                'bytes',
+            ] as $key) {
+                unset($attachment[$key]);
+            }
+            $attachment['encrypted_payload_suppressed'] = true;
+        } else {
+            unset($attachment['bytes']);
+            $attachment['encrypted_payload_suppressed'] = false;
+        }
+
+        if (isset($attachment['related_files']) && is_array($attachment['related_files'])) {
+            $attachment['related_files'] = $this->redactEncryptedRelatedFileRows(
+                $attachment['related_files'],
+                $policy
+            );
+        }
+
+        $attachment['encryption_policy'] = $policy;
+        $attachment['raw_encrypted_bytes_exposed'] = false;
+        $attachment['executes_decryption'] = false;
+
         return $attachment;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relatedFiles
+     * @param array<string, mixed> $policy
+     * @return list<array<string, mixed>>
+     */
+    private function redactEncryptedRelatedFileRows(array $relatedFiles, array $policy): array
+    {
+        $stringsEncrypted = ($policy['file_spec_strings_policy'] ?? null) === 'suppressed_encrypted_strings';
+        $payloadEncrypted = $this->attachmentPolicySuppressesEmbeddedPayload($policy);
+        $rows = [];
+        foreach ($relatedFiles as $row) {
+            if ($stringsEncrypted) {
+                unset($row['related_filename'], $row['related_filename_source']);
+            }
+            if ($payloadEncrypted) {
+                foreach ([
+                    'content_type',
+                    'byte_length',
+                    'sha256',
+                    'declared_size',
+                    'declared_size_matches',
+                    'checksum_hex',
+                    'computed_checksum_hex',
+                    'checksum_matches',
+                    'created_at',
+                    'modified_at',
+                    'filters',
+                ] as $key) {
+                    unset($row[$key]);
+                }
+                $row['encrypted_payload_suppressed'] = true;
+            } else {
+                $row['encrypted_payload_suppressed'] = false;
+            }
+
+            $row['encryption_policy'] = $policy;
+            $row['raw_encrypted_bytes_exposed'] = false;
+            $row['executes_decryption'] = false;
+            $rows[] = $row;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return array<string, mixed>|null
+     */
+    private function selectedEncryptionDictionary(string $pdfBytes, array $objects): ?array
+    {
+        $definitions = $this->directObjectDefinitions($this->bytesThroughTerminalEof($pdfBytes));
+        $trailer = $this->selectedTrailerDictionary($pdfBytes, $definitions);
+        if ($trailer === null || !array_key_exists('Encrypt', $trailer)) {
+            return null;
+        }
+
+        return $this->dict($this->resolveValue($trailer['Encrypt'], $objects));
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<string, mixed>|null
+     */
+    private function selectedTrailerDictionary(string $pdfBytes, array $definitions): ?array
+    {
+        $pdfBytes = $this->bytesThroughTerminalEof($pdfBytes);
+        $offset = $this->latestStartxrefOffset($pdfBytes);
+        if ($offset !== null) {
+            $table = $this->xrefTableSectionAt($pdfBytes, $offset);
+            if ($table !== null) {
+                return $table['trailer'];
+            }
+
+            $stream = $this->xrefStreamSectionAt($offset, $definitions);
+            if ($stream !== null) {
+                return $stream['dictionary'];
+            }
+        }
+
+        $trailerOffset = strrpos($pdfBytes, 'trailer');
+        if ($trailerOffset === false) {
+            return null;
+        }
+
+        $dictionaryOffset = strpos($pdfBytes, '<<', $trailerOffset);
+        if ($dictionaryOffset === false) {
+            return null;
+        }
+
+        $index = $dictionaryOffset;
+
+        return $this->dict($this->parseValue($pdfBytes, $index));
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return array<string, array<string, mixed>>
+     */
+    private function cryptFilterMetadata(mixed $cryptFiltersValue, array $objects): array
+    {
+        $cryptFilters = $this->dict($this->resolveValue($cryptFiltersValue, $objects));
+        if ($cryptFilters === null) {
+            return [];
+        }
+
+        $metadata = [];
+        foreach ($cryptFilters as $name => $value) {
+            if (!is_string($name)) {
+                continue;
+            }
+
+            $dictionary = $this->dict($this->resolveValue($value, $objects));
+            if ($dictionary === null) {
+                continue;
+            }
+
+            $entry = [];
+            $method = $this->nameOrStringValue($dictionary['CFM'] ?? null, $objects);
+            if ($method !== null && $method !== '') {
+                $entry['method'] = $method;
+            }
+
+            $authEvent = $this->nameOrStringValue($dictionary['AuthEvent'] ?? null, $objects);
+            if ($authEvent !== null && $authEvent !== '') {
+                $entry['auth_event'] = $authEvent;
+            }
+
+            $length = $this->intValue($this->resolveValue($dictionary['Length'] ?? null, $objects));
+            if ($length !== null) {
+                $entry['length'] = $length;
+            }
+
+            $metadata[$name] = $entry;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $cryptFilters
+     */
+    private function attachmentCryptFilterStatus(?string $filterName, array $cryptFilters, ?int $version): string
+    {
+        if ($filterName === 'Identity') {
+            return 'identity_crypt_filter';
+        }
+
+        if ($filterName === null || $filterName === '') {
+            return in_array($version, [4, 5], true)
+                ? 'undeclared_crypt_filter_fail_closed'
+                : 'legacy_standard_encryption';
+        }
+
+        $filter = is_array($cryptFilters[$filterName] ?? null) ? $cryptFilters[$filterName] : null;
+        if ($filter === null) {
+            return $filterName === 'Standard'
+                ? 'legacy_standard_encryption'
+                : 'missing_declared_crypt_filter';
+        }
+
+        $method = is_string($filter['method'] ?? null) ? $filter['method'] : null;
+        if ($method === 'Identity' || $method === 'None') {
+            return 'identity_crypt_filter';
+        }
+
+        if (in_array($method, ['V2', 'AESV2', 'AESV3'], true)) {
+            return 'encrypted_crypt_filter';
+        }
+
+        return ($method === null || $method === '')
+            ? 'unknown_crypt_filter_method_fail_closed'
+            : 'unsupported_crypt_filter_method_fail_closed';
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     */
+    private function nameOrStringValue(mixed $value, array $objects): ?string
+    {
+        $resolved = $this->resolveValue($value, $objects);
+
+        return $this->nameValue($resolved) ?? $this->stringValue($resolved);
     }
 
     /**
