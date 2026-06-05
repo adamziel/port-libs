@@ -103,6 +103,13 @@ final class MathTexConverter
     ];
 
     /** @var array<string, string> */
+    private const CANCEL_COMMANDS = [
+        'bcancel' => 'downdiagonalstrike',
+        'cancel' => 'updiagonalstrike',
+        'xcancel' => 'updiagonalstrike downdiagonalstrike',
+    ];
+
+    /** @var array<string, string> */
     private const DELIMITER_COMMANDS = [
         '{' => '{',
         '}' => '}',
@@ -550,6 +557,18 @@ final class MathTexConverter
             return $this->parseStyleCommand($source, $offset, $command);
         }
 
+        if ($command === 'color' || $command === 'textcolor') {
+            return $this->parseColorCommand($source, $offset, $command);
+        }
+
+        if ($command === 'phantom' || $command === 'hphantom' || $command === 'vphantom') {
+            return $this->parsePhantomCommand($source, $offset, $command);
+        }
+
+        if (isset(self::CANCEL_COMMANDS[$command])) {
+            return $this->parseCancelCommand($source, $offset, $command);
+        }
+
         if ($command === 'begin') {
             return $this->parseEnvironment($source, $offset);
         }
@@ -776,6 +795,56 @@ final class MathTexConverter
         $rows = $this->splitAlignmentRows($this->readEnvironmentContent($source, $offset, 'array'), 'array');
 
         return $this->environmentTable($rows, ' columnalign="' . $this->esc($columnAlign) . '"');
+    }
+
+    private function parseColorCommand(string $source, int &$offset, string $command): string
+    {
+        $color = $this->normalizeMathColor($this->readRequiredGroupText($source, $offset));
+        $content = $this->parseRequiredNonEmptyGroup($source, $offset, $command . ' content');
+
+        return '<mstyle mathcolor="' . $this->esc($color) . '">' . $content . '</mstyle>';
+    }
+
+    private function normalizeMathColor(string $color): string
+    {
+        $color = trim($color);
+        if ($color === '') {
+            throw new \InvalidArgumentException('Expected TeX math color');
+        }
+
+        if (preg_match('/^#[0-9A-Fa-f]{3}(?:[0-9A-Fa-f]{3})?$/', $color) === 1) {
+            return $color;
+        }
+
+        if (preg_match('/^[A-Za-z][A-Za-z0-9_-]{0,31}$/', $color) === 1) {
+            return $color;
+        }
+
+        throw new \InvalidArgumentException('Unsupported TeX math color ' . $color);
+    }
+
+    private function parsePhantomCommand(string $source, int &$offset, string $command): string
+    {
+        $content = '<mphantom>'
+            . $this->parseRequiredNonEmptyGroup($source, $offset, $command . ' content')
+            . '</mphantom>';
+
+        if ($command === 'hphantom') {
+            return '<mpadded height="0" depth="0">' . $content . '</mpadded>';
+        }
+
+        if ($command === 'vphantom') {
+            return '<mpadded width="0">' . $content . '</mpadded>';
+        }
+
+        return $content;
+    }
+
+    private function parseCancelCommand(string $source, int &$offset, string $command): string
+    {
+        return '<menclose notation="' . self::CANCEL_COMMANDS[$command] . '">'
+            . $this->parseRequiredNonEmptyGroup($source, $offset, $command . ' content')
+            . '</menclose>';
     }
 
     private function arrayColumnAlign(string $columnSpec): string

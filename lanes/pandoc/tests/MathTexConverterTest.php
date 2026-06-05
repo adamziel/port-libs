@@ -214,6 +214,37 @@ return [
         $t->contains('<mstyle displaystyle="true"><mfrac><mi>a</mi><mi>b</mi></mfrac></mstyle><mo>+</mo><mstyle displaystyle="false"><mi>c</mi></mstyle>', $styleMathml);
         $t->contains('<mstyle scriptlevel="1"><msub><mi>d</mi><mi>i</mi></msub></mstyle><mo>+</mo><mstyle scriptlevel="2"><mi>e</mi></mstyle>', $styleMathml);
     },
+    'converts bounded tex color phantom and cancel commands to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $colorMathml = $converter->texToMathMl('\\color{red}{p_i} + \\textcolor{#336699}{\\operatorname{media}} + \\color{review-blue}{x+y}', true);
+        $phantomMathml = $converter->texToMathMl('\\phantom{p_i + m_i} + \\hphantom{draft} + \\vphantom{\\frac{a}{b}}');
+        $cancelMathml = $converter->texToMathMl('\\cancel{x_i} + \\bcancel{y_i} + \\xcancel{z_i}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $colorMathml);
+        $t->contains('<mstyle mathcolor="red"><msub><mi>p</mi><mi>i</mi></msub></mstyle>', $colorMathml);
+        $t->contains('<mstyle mathcolor="#336699"><mi>media</mi></mstyle>', $colorMathml);
+        $t->contains('<mstyle mathcolor="review-blue"><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow></mstyle>', $colorMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\color{red}{p_i} + \\textcolor{#336699}{\\operatorname{media}} + \\color{review-blue}{x+y}</annotation>', $colorMathml);
+        $t->contains('<mphantom><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow></mphantom>', $phantomMathml);
+        $t->contains('<mpadded height="0" depth="0"><mphantom><mrow><mi>d</mi><mi>r</mi><mi>a</mi><mi>f</mi><mi>t</mi></mrow></mphantom></mpadded>', $phantomMathml);
+        $t->contains('<mpadded width="0"><mphantom><mfrac><mi>a</mi><mi>b</mi></mfrac></mphantom></mpadded>', $phantomMathml);
+        $t->contains('<menclose notation="updiagonalstrike"><msub><mi>x</mi><mi>i</mi></msub></menclose>', $cancelMathml);
+        $t->contains('<menclose notation="downdiagonalstrike"><msub><mi>y</mi><mi>i</mi></msub></menclose>', $cancelMathml);
+        $t->contains('<menclose notation="updiagonalstrike downdiagonalstrike"><msub><mi>z</mi><mi>i</mi></msub></menclose>', $cancelMathml);
+    },
+    'rejects malformed bounded tex color phantom and cancel commands without invoking a tex engine' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\color{}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\color{url(javascript:bad)}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\color{red}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\textcolor{red}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\phantom'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\phantom{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hphantom_1'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\cancel'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\xcancel{}'));
+    },
     'rejects malformed bounded tex above below commands without invoking a tex engine' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
 
