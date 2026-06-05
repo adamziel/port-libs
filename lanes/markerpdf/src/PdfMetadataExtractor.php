@@ -8583,6 +8583,11 @@ final class PdfMetadataExtractor
 
             $value = $this->xmpQualifiedTextValue($element);
             if ($value !== null) {
+                if ($namespace === self::NS_DC && $localName === 'subject') {
+                    $keywords = $this->splitKeywords($value);
+                    return $keywords === [] ? [$value] : $keywords;
+                }
+
                 return [$value];
             }
         }
