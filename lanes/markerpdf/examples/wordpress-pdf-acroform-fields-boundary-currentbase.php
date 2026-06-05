@@ -12,7 +12,7 @@ $secondPageText = 'BT /F1 12 Tf 72 720 Td (Visible AcroForm widget P second page
 $pdf = "%PDF-1.7\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
-    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 41 0 R /Annots [8 0 R (90 0 R) [91 0 R] << /Nested 92 0 R >> % 93 0 R stays a comment\n12 0 R 14 0 R 18 0 R 24 0 R 110 0 R 120 0 R 124 0 R 132 0 R 134 0 R 164 0 R] >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 41 0 R /Annots [8 0 R (90 0 R) [91 0 R] << /Nested 92 0 R >> % 93 0 R stays a comment\n12 0 R 14 0 R 18 0 R 24 0 R 110 0 R 120 0 R 124 0 R 132 0 R 134 0 R 164 0 R 172 0 R 176 0 R] >>\nendobj\n"
     . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 42 0 R /Annots [150 0 R] >>\nendobj\n"
     . "5 0 obj\n<< /Fields [6 0 R 23 0 R 122 0 R 124 0 R (94 0 R) [95 0 R] << /Nested 96 0 R >> % 97 0 R stays a comment\n] /NeedAppearances true /DA (/Helv 9 Tf 0 0 0 rg) /DR << /Font << /Helv 40 0 R >> >> >>\nendobj\n"
     . "6 0 obj\n<< /FT /Tx /T (listed.email) /V (listed@example.test) /Kids [8 0 R (98 0 R) [99 0 R] << /Nested 100 0 R >> % 101 0 R stays a comment\n112 0 R] >>\nendobj\n"
@@ -59,6 +59,10 @@ $pdf = "%PDF-1.7\n"
     . "160 0 obj\n<< /FT /Tx /T (unowned.parent) /V (Unowned parent value must not surface) /Kids [162 0 R] >>\nendobj\n"
     . "162 0 obj\n<< /Subtype /Widget /Parent 160 0 R /Rect [72 100 320 124] /F 4 >>\nendobj\n"
     . "164 0 obj\n<< /Subtype /Widget /Parent 160 0 R /Rect [72 100 320 124] /P 3 0 R /F 4 >>\nendobj\n"
+    . "170 0 obj\n<< /FT /Tx /T (parent.nokids) /TU (Parent without Kids label) /TM (parent-nokids-export) /V (parent no-kids value) >>\nendobj\n"
+    . "172 0 obj\n<< /Subtype /Widget /Parent 170 0 R /Rect [72 60 320 84] /P 3 0 R /F 4 >>\nendobj\n"
+    . "174 0 obj\n<< /FT /Tx /T (explicit.empty.kids) /V (explicit empty kids decoy) /Kids [] >>\nendobj\n"
+    . "176 0 obj\n<< /Subtype /Widget /Parent 174 0 R /Rect [72 20 320 44] /P 3 0 R /F 4 >>\nendobj\n"
     . "41 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
     . "42 0 obj\n<< /Length " . strlen($secondPageText) . " >>\nstream\n{$secondPageText}\nendstream\nendobj\n"
     . "%%EOF";
@@ -70,7 +74,7 @@ foreach ($form['fields'] as $field) {
     $fieldsByName[(string) ($field['name'] ?? '')] = $field;
 }
 
-foreach (['listed.email', 'omitted.category', 'inline.note', 'indirect.geometry', 'review.label', 'childroot.email', 'workflow.status', 'second.page.status'] as $name) {
+foreach (['listed.email', 'omitted.category', 'inline.note', 'indirect.geometry', 'review.label', 'childroot.email', 'workflow.status', 'second.page.status', 'parent.nokids'] as $name) {
     if (!isset($fieldsByName[$name])) {
         throw new RuntimeException("Missing expected AcroForm field {$name}.");
     }
@@ -85,6 +89,9 @@ foreach (['wrongpage.parent', 'wrongpage.inline'] as $wrongPageName) {
 }
 if (isset($fieldsByName['unowned.parent'])) {
     throw new RuntimeException('Page widget /Parent repair must require the parent field /Kids tree to own that widget.');
+}
+if (isset($fieldsByName['explicit.empty.kids'])) {
+    throw new RuntimeException('Explicit empty AcroForm field /Kids must not be treated as omitted /Kids.');
 }
 
 $indirectWidget = $fieldsByName['indirect.geometry']['widgets'][0] ?? null;
@@ -164,6 +171,14 @@ if (($secondPageStatus['object'] ?? null) !== 148 || array_column($secondPageSta
     throw new RuntimeException('Widget /P references that match their listing page must remain page-owned form fields.');
 }
 
+$parentNoKids = $fieldsByName['parent.nokids'];
+if (($parentNoKids['object'] ?? null) !== 170 || array_column($parentNoKids['widgets'] ?? [], 'object') !== [172]) {
+    throw new RuntimeException('Widget /Parent fields without /Kids must be repaired from page-owned widget annotations.');
+}
+if (($parentNoKids['alternate_name'] ?? null) !== 'Parent without Kids label' || ($parentNoKids['mapping_name'] ?? null) !== 'parent-nokids-export') {
+    throw new RuntimeException('Parent-without-Kids AcroForm review names were not preserved.');
+}
+
 $rows = [];
 foreach ($form['fields'] as $field) {
     $widgets = is_array($field['widgets'] ?? null) ? $field['widgets'] : [];
@@ -183,7 +198,7 @@ foreach ($form['fields'] as $field) {
 
 echo '<!-- markerpdf:pdf-acroform-fields-boundary-currentbase ' . htmlspecialchars(json_encode([
     'source' => 'native-pdf-catalog-acroform-page-widget-boundary',
-    'native_boundary' => 'Page-owned Widget annotations and their Parent fields are reviewed when malformed AcroForm Fields omits them only when the parent field /Kids tree owns the widget; explicit Widget /P references must match the listing page; comment-only Widget subtype markers and AcroForm alternate/mapping names stay review-only',
+    'native_boundary' => 'Page-owned Widget annotations and their Parent fields are reviewed when malformed AcroForm Fields omits them when the parent either omits /Kids or its explicit /Kids tree owns the widget; explicit Widget /P references must match the listing page; comment-only Widget subtype markers and AcroForm alternate/mapping names stay review-only',
     'field_count' => count($form['fields']),
     'field_names' => array_column($rows, 'name'),
     'promoted_page_widget_parent_fields' => ['omitted.category'],
@@ -192,6 +207,11 @@ echo '<!-- markerpdf:pdf-acroform-fields-boundary-currentbase ' . htmlspecialcha
     'wrong_page_decoy_names' => ['wrongpage.parent', 'wrongpage.inline'],
     'unowned_widget_parent_repair_excluded' => !isset($fieldsByName['unowned.parent']),
     'unowned_widget_parent_decoy_name' => 'unowned.parent',
+    'parent_without_kids_repaired' => ($parentNoKids['object'] ?? null) === 170
+        && array_column($parentNoKids['widgets'] ?? [], 'object') === [172]
+        && array_column($parentNoKids['widgets'] ?? [], 'page_annotation_index') === [11],
+    'explicit_empty_kids_parent_excluded' => !isset($fieldsByName['explicit.empty.kids']),
+    'explicit_empty_kids_decoy_name' => 'explicit.empty.kids',
     'matching_widget_p_second_page_preserved' => ($secondPageStatus['object'] ?? null) === 148
         && array_column($secondPageStatus['widgets'] ?? [], 'page_object') === [4]
         && array_column($secondPageStatus['widgets'] ?? [], 'page_index') === [1],

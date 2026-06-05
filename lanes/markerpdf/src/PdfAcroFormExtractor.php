@@ -8959,7 +8959,11 @@ final class PdfAcroFormExtractor
             $parentObject = $this->validObjectReferenceValueAfterName($widgetBody, 'Parent', $objects);
             if ($parentObject !== null && isset($objects[$parentObject]) && !isset($reachable[$parentObject])) {
                 $candidate = $this->pageWidgetParentFieldCandidate($parentObject, $objects);
-                if ($candidate !== null && !$this->fieldTreeContainsObject($candidate, $widgetObject, $objects)) {
+                if (
+                    $candidate !== null
+                    && $this->fieldHasKids($candidate, $objects)
+                    && !$this->fieldTreeContainsObject($candidate, $widgetObject, $objects)
+                ) {
                     $candidate = null;
                 }
             } elseif ($this->isFieldWidgetDictionary($widgetBody)) {
@@ -9028,6 +9032,19 @@ final class PdfAcroFormExtractor
 
         $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
         return $this->isFieldDictionaryCandidate($body) ? $objectNumber : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function fieldHasKids(int $objectNumber, array $objects): bool
+    {
+        if (!isset($objects[$objectNumber])) {
+            return false;
+        }
+
+        $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
+        return $this->valueAfterName($body, 'Kids') !== null;
     }
 
     /**
