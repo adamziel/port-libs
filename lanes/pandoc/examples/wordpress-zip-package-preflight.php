@@ -468,6 +468,53 @@ $buildDirectoryPayloadBackedPackage = static function () use ($crc32): string {
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildEncryptedMetadataBackedPackage = static function (int $flags) use ($crc32): string {
+    $name = 'word/media/encrypted-review.xml';
+    $data = "Encrypted metadata should stay blocked\n";
+    $crc = $crc32($data);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        $flags,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        $flags,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 
 $package = ZipPackage::fromParts([
     [
@@ -619,6 +666,18 @@ try {
     ZipPackage::fromString($buildDirectoryPayloadBackedPackage());
 } catch (RuntimeException $exception) {
     $directoryPayloadRejected = str_contains($exception->getMessage(), 'directory entry');
+}
+$strongEncryptionRejected = false;
+try {
+    ZipPackage::fromString($buildEncryptedMetadataBackedPackage(0x0840));
+} catch (RuntimeException $exception) {
+    $strongEncryptionRejected = str_contains($exception->getMessage(), 'Strong-encrypted ZIP entries');
+}
+$centralDirectoryEncryptionRejected = false;
+try {
+    ZipPackage::fromString($buildEncryptedMetadataBackedPackage(0x2800));
+} catch (RuntimeException $exception) {
+    $centralDirectoryEncryptionRejected = str_contains($exception->getMessage(), 'central-directory encryption metadata');
 }
 
 if (in_array('--self-test', $argv, true)) {
@@ -822,6 +881,14 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP directory entries with payload bytes to be rejected before media import');
     }
 
+    if (!$strongEncryptionRejected) {
+        throw new RuntimeException('Expected ZIP strong-encryption metadata to be rejected before media import');
+    }
+
+    if (!$centralDirectoryEncryptionRejected) {
+        throw new RuntimeException('Expected ZIP central-directory encryption metadata to be rejected before media import');
+    }
+
     $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
     if ($unicodePathEntry->rawName !== $unicodePathRawName) {
         throw new RuntimeException('Expected ZIP Unicode path extra field to preserve raw legacy path bytes');
@@ -871,6 +938,8 @@ echo 'symlinkPolicy=' . ($symlinkRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zip64Policy=' . ($zip64Rejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'driveLetterPathPolicy=' . ($driveLetterRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'directoryPayloadPolicy=' . ($directoryPayloadRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'strongEncryptionPolicy=' . ($strongEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
 echo 'unicodePath.name=' . $unicodePathEntry->name . "\n";
 echo 'unicodePath.rawName=' . $unicodePathEntry->rawName . "\n";

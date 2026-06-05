@@ -9,7 +9,10 @@ final class ZipPackage
     private const EOCD_SIGNATURE = "PK\x05\x06";
     private const CENTRAL_DIRECTORY_SIGNATURE = "PK\x01\x02";
     private const LOCAL_FILE_SIGNATURE = "PK\x03\x04";
+    private const ENCRYPTED_GENERAL_PURPOSE_FLAG = 0x0001;
+    private const STRONG_ENCRYPTION_GENERAL_PURPOSE_FLAG = 0x0040;
     private const UTF8_GENERAL_PURPOSE_FLAG = 0x0800;
+    private const CENTRAL_DIRECTORY_ENCRYPTED_GENERAL_PURPOSE_FLAG = 0x2000;
     private const INFOZIP_UNICODE_PATH_EXTRA_ID = 0x7075;
     private const INFOZIP_UNICODE_COMMENT_EXTRA_ID = 0x6375;
     private const UNIX_FILE_TYPE_MASK = 0xf000;
@@ -98,9 +101,7 @@ final class ZipPackage
             $variableLength = $nameLength + $extraLength + $commentLength;
             self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
 
-            if (($flags & 0x0001) !== 0) {
-                throw new \RuntimeException('Encrypted ZIP entries are not supported by the pandoc package reader');
-            }
+            self::assertSupportedGeneralPurposeFlags($flags, "central directory entry {$index}");
 
             if ($diskStart !== 0) {
                 throw new \RuntimeException('Split ZIP entry data is not supported by the pandoc package reader');
@@ -512,6 +513,21 @@ final class ZipPackage
         }
     }
 
+    private static function assertSupportedGeneralPurposeFlags(int $flags, string $label): void
+    {
+        if (($flags & self::ENCRYPTED_GENERAL_PURPOSE_FLAG) !== 0) {
+            throw new \RuntimeException("Encrypted ZIP entries are not supported by the pandoc package reader: {$label}");
+        }
+
+        if (($flags & self::STRONG_ENCRYPTION_GENERAL_PURPOSE_FLAG) !== 0) {
+            throw new \RuntimeException("Strong-encrypted ZIP entries are not supported by the pandoc package reader: {$label}");
+        }
+
+        if (($flags & self::CENTRAL_DIRECTORY_ENCRYPTED_GENERAL_PURPOSE_FLAG) !== 0) {
+            throw new \RuntimeException("ZIP entries with central-directory encryption metadata are not supported by the pandoc package reader: {$label}");
+        }
+    }
+
     private function validateDirectoryLocalHeader(ZipPackageEntry $entry): void
     {
         $localHeader = $this->readLocalHeader($entry);
@@ -616,7 +632,7 @@ final class ZipPackage
             throw new \RuntimeException("ZIP local header Unicode path does not match central directory entry {$entry->name}");
         }
 
-        if (($flags & 0x0001) !== 0 || $flags !== $entry->generalPurposeFlags) {
+        if ($flags !== $entry->generalPurposeFlags) {
             throw new \RuntimeException("ZIP local header flags do not match central directory entry {$entry->name}");
         }
 

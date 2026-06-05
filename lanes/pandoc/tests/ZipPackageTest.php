@@ -903,6 +903,15 @@ return [
         ])));
     },
 
+    'rejects strong and central-directory encrypted zip metadata before package import' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/strong-encryption.xml', 'data' => 'masked strong encryption metadata', 'flags' => 0x0840],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/central-directory-encrypted.xml', 'data' => 'masked local header metadata', 'flags' => 0x2800],
+        ])));
+    },
+
     'verifies crc and local file header names before returning part bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
         $crcMismatch = ZipPackage::fromString($buildZipPackage([
             [
