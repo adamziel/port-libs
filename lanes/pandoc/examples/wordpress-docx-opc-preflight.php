@@ -50,6 +50,7 @@ $documentRelationshipsXml = <<<'XML'
   <Relationship Id="rIdEmbeddedWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/source%20workbook.xlsx"/>
   <Relationship Id="rIdEmbeddedOle" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" Target="embeddings/oleObject1.bin"/>
   <Relationship Id="rIdReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/wp-admin/post.php?post=42&amp;action=edit" TargetMode="External"/>
+  <Relationship Id="rIdRelativeReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="review/source.html#packet" TargetMode="External"/>
   <Relationship Id="rIdUnsafeReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
   <Relationship Id="rIdMalformedType" Type="officeDocument/relationships/hyperlink" Target="https://example.test/source-with-bad-type" TargetMode="External"/>
   <Relationship Id="rIdDraftReview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="draft.xml"/>
@@ -145,6 +146,9 @@ foreach ($graph->preflightTargetsForSource($documentPart) as $target) {
         'externalTargetKind' => $target['externalTargetKind'],
         'externalTargetScheme' => $target['externalTargetScheme'],
         'externalTargetAllowed' => $target['externalTargetAllowed'],
+        'externalTargetRequiresBaseUri' => $target['externalTargetRequiresBaseUri'],
+        'externalTargetRewriteBasePart' => $target['externalTargetRewriteBasePart'],
+        'externalTargetRewriteReason' => $target['externalTargetRewriteReason'],
         'valid' => $target['valid'],
         'issues' => $target['issues'],
     ];
@@ -166,6 +170,9 @@ foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOC
         'externalTargetKind' => $target['externalTargetKind'],
         'externalTargetScheme' => $target['externalTargetScheme'],
         'externalTargetAllowed' => $target['externalTargetAllowed'],
+        'externalTargetRequiresBaseUri' => $target['externalTargetRequiresBaseUri'],
+        'externalTargetRewriteBasePart' => $target['externalTargetRewriteBasePart'],
+        'externalTargetRewriteReason' => $target['externalTargetRewriteReason'],
         'depth' => $target['depth'],
         'valid' => $target['valid'],
         'issues' => $target['issues'],
@@ -309,6 +316,9 @@ $summary = [
                 'kind' => $target['externalTargetKind'],
                 'scheme' => $target['externalTargetScheme'],
                 'allowed' => $target['externalTargetAllowed'],
+                'requiresBaseUri' => $target['externalTargetRequiresBaseUri'],
+                'rewriteBasePart' => $target['externalTargetRewriteBasePart'],
+                'rewriteReason' => $target['externalTargetRewriteReason'],
                 'relationshipTypeKind' => $target['relationshipTypeKind'],
                 'relationshipTypeScheme' => $target['relationshipTypeScheme'],
                 'relationshipTypeValid' => $target['relationshipTypeValid'],
@@ -406,17 +416,25 @@ if (($argv[1] ?? '') === '--self-test') {
         || $summary['integrity']['reachableRelationshipsValid'] !== false
         || ($summary['wordpressImport']['externalTargets'][0]['scheme'] ?? null) !== 'https'
         || ($summary['wordpressImport']['externalTargets'][0]['allowed'] ?? null) !== true
-        || ($summary['wordpressImport']['externalTargets'][1]['id'] ?? null) !== 'rIdUnsafeReviewer'
-        || ($summary['wordpressImport']['externalTargets'][1]['scheme'] ?? null) !== 'javascript'
-        || ($summary['wordpressImport']['externalTargets'][1]['allowed'] ?? null) !== false
-        || ($summary['wordpressImport']['externalTargets'][1]['issues'] ?? null) !== ['external-target-unsafe-scheme']
+        || ($summary['wordpressImport']['externalTargets'][0]['requiresBaseUri'] ?? null) !== false
+        || ($summary['wordpressImport']['externalTargets'][1]['id'] ?? null) !== 'rIdRelativeReviewer'
+        || ($summary['wordpressImport']['externalTargets'][1]['kind'] ?? null) !== 'relative-reference'
+        || ($summary['wordpressImport']['externalTargets'][1]['allowed'] ?? null) !== true
+        || ($summary['wordpressImport']['externalTargets'][1]['requiresBaseUri'] ?? null) !== true
+        || ($summary['wordpressImport']['externalTargets'][1]['rewriteBasePart'] ?? null) !== '/word/document.xml'
+        || ($summary['wordpressImport']['externalTargets'][1]['rewriteReason'] ?? null) !== 'external-target-relative-reference'
+        || ($summary['wordpressImport']['externalTargets'][1]['issues'] ?? null) !== []
+        || ($summary['wordpressImport']['externalTargets'][2]['id'] ?? null) !== 'rIdUnsafeReviewer'
+        || ($summary['wordpressImport']['externalTargets'][2]['scheme'] ?? null) !== 'javascript'
+        || ($summary['wordpressImport']['externalTargets'][2]['allowed'] ?? null) !== false
+        || ($summary['wordpressImport']['externalTargets'][2]['issues'] ?? null) !== ['external-target-unsafe-scheme']
         || ($summary['integrity']['issues'][0]['id'] ?? null) !== 'rIdUnsafeReviewer'
         || ($summary['integrity']['issues'][0]['issues'] ?? null) !== ['external-target-unsafe-scheme']
-        || ($summary['wordpressImport']['externalTargets'][2]['id'] ?? null) !== 'rIdMalformedType'
-        || ($summary['wordpressImport']['externalTargets'][2]['relationshipTypeKind'] ?? null) !== 'relative-reference'
-        || ($summary['wordpressImport']['externalTargets'][2]['relationshipTypeValid'] ?? null) !== false
-        || ($summary['wordpressImport']['externalTargets'][2]['relationshipTypeIssues'] ?? null) !== ['relationship-type-not-absolute-uri']
-        || ($summary['wordpressImport']['externalTargets'][2]['issues'] ?? null) !== ['relationship-type-not-absolute-uri']
+        || ($summary['wordpressImport']['externalTargets'][3]['id'] ?? null) !== 'rIdMalformedType'
+        || ($summary['wordpressImport']['externalTargets'][3]['relationshipTypeKind'] ?? null) !== 'relative-reference'
+        || ($summary['wordpressImport']['externalTargets'][3]['relationshipTypeValid'] ?? null) !== false
+        || ($summary['wordpressImport']['externalTargets'][3]['relationshipTypeIssues'] ?? null) !== ['relationship-type-not-absolute-uri']
+        || ($summary['wordpressImport']['externalTargets'][3]['issues'] ?? null) !== ['relationship-type-not-absolute-uri']
         || ($summary['integrity']['issues'][1]['id'] ?? null) !== 'rIdMalformedType'
         || ($summary['integrity']['issues'][1]['issues'] ?? null) !== ['relationship-type-not-absolute-uri']
     ) {

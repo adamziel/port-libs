@@ -110,8 +110,8 @@ final class DocxReader
     }
 
     /**
-     * @param list<array{id:string, type:string, target:string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, valid:bool, issues:list<string>}> $relationshipPreflight
-     * @param list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, valid:bool, issues:list<string>}> $reachableRelationships
+     * @param list<array{id:string, type:string, target:string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}> $relationshipPreflight
+     * @param list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}> $reachableRelationships
      * @param array{insertionCount:int, deletionCount:int, items:list<array{type:string, accepted:bool, id:?string, author:?string, date:?string, text:string}>} $revisions
      * @param array<string, mixed> $alternativeFormats
      * @return array<string, mixed>
@@ -158,7 +158,7 @@ final class DocxReader
     }
 
     /**
-     * @param list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, valid:bool, issues:list<string>}> $reachableRelationships
+     * @param list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}> $reachableRelationships
      * @return array{count:int, embeddedCount:int, missingCount:int, items:list<array{source:string, id:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, bytes:?int, usedCount:int, altTexts:list<string>, titles:list<string>, issues:list<string>}>}
      */
     private function mediaImportReport(ZipPackage $package, array $reachableRelationships, AstNode $document): array

@@ -154,10 +154,11 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, valid:bool, issues:list<string>}>
+     * @return list<array{id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
      */
     public function preflightTargetsForSource(string $sourcePartName = '/', ?string $relationshipType = null): array
     {
+        $sourcePartName = OpcPackagePath::canonicalPartName($sourcePartName, true);
         $relationships = $this->relationshipsForSource($sourcePartName);
         if (!$relationships instanceof OpcRelationships) {
             return [];
@@ -172,6 +173,7 @@ final class OpcRelationshipGraph
             $typePreflight = $relationship->relationshipTypePreflight();
             if ($relationship->isExternal()) {
                 $externalTarget = $relationship->externalTargetPreflight();
+                $externalRewrite = self::externalTargetRewritePolicy($sourcePartName, $externalTarget);
                 $issues = array_values(array_unique(array_merge($typePreflight['issues'], $externalTarget['issues'])));
                 $preflight[] = [
                     'id' => $relationship->id,
@@ -188,6 +190,9 @@ final class OpcRelationshipGraph
                     'externalTargetKind' => $externalTarget['kind'],
                     'externalTargetScheme' => $externalTarget['scheme'],
                     'externalTargetAllowed' => $externalTarget['allowed'],
+                    'externalTargetRequiresBaseUri' => $externalRewrite['requiresBaseUri'],
+                    'externalTargetRewriteBasePart' => $externalRewrite['basePart'],
+                    'externalTargetRewriteReason' => $externalRewrite['reason'],
                     'valid' => $issues === [],
                     'issues' => $issues,
                 ];
@@ -213,6 +218,9 @@ final class OpcRelationshipGraph
                     'externalTargetKind' => null,
                     'externalTargetScheme' => null,
                     'externalTargetAllowed' => null,
+                    'externalTargetRequiresBaseUri' => null,
+                    'externalTargetRewriteBasePart' => null,
+                    'externalTargetRewriteReason' => null,
                     'valid' => false,
                     'issues' => $issues,
                 ];
@@ -252,6 +260,9 @@ final class OpcRelationshipGraph
                 'externalTargetKind' => null,
                 'externalTargetScheme' => null,
                 'externalTargetAllowed' => null,
+                'externalTargetRequiresBaseUri' => null,
+                'externalTargetRewriteBasePart' => null,
+                'externalTargetRewriteReason' => null,
                 'valid' => $issues === [],
                 'issues' => array_values(array_unique($issues)),
             ];
@@ -322,7 +333,7 @@ final class OpcRelationshipGraph
 
     /**
      * @param list<string> $expectedContentTypes
-     * @return array{relationshipCount:int, expectedContentTypes:list<string>, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, valid:bool, issues:list<string>}>}
+     * @return array{relationshipCount:int, expectedContentTypes:list<string>, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
      */
     public function preflightOfficeDocumentRoot(array $expectedContentTypes = []): array
     {
@@ -370,6 +381,9 @@ final class OpcRelationshipGraph
                 'externalTargetKind' => $target['externalTargetKind'],
                 'externalTargetScheme' => $target['externalTargetScheme'],
                 'externalTargetAllowed' => $target['externalTargetAllowed'],
+                'externalTargetRequiresBaseUri' => $target['externalTargetRequiresBaseUri'],
+                'externalTargetRewriteBasePart' => $target['externalTargetRewriteBasePart'],
+                'externalTargetRewriteReason' => $target['externalTargetRewriteReason'],
                 'valid' => $targetIssues === [],
                 'issues' => $targetIssues,
             ];
@@ -475,7 +489,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{source:string, id:string, type:string, kind:string, target:string, targetPart:?string, contentType:?string, expectedContentType:string, external:bool, exists:?bool, relationshipPartTarget:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, valid:bool, issues:list<string>}>
+     * @return list<array{source:string, id:string, type:string, kind:string, target:string, targetPart:?string, contentType:?string, expectedContentType:string, external:bool, exists:?bool, relationshipPartTarget:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
      */
     public function preflightEmbeddedPackages(string $sourcePartName = '/'): array
     {
@@ -524,6 +538,9 @@ final class OpcRelationshipGraph
                 'externalTargetKind' => $target['externalTargetKind'],
                 'externalTargetScheme' => $target['externalTargetScheme'],
                 'externalTargetAllowed' => $target['externalTargetAllowed'],
+                'externalTargetRequiresBaseUri' => $target['externalTargetRequiresBaseUri'],
+                'externalTargetRewriteBasePart' => $target['externalTargetRewriteBasePart'],
+                'externalTargetRewriteReason' => $target['externalTargetRewriteReason'],
                 'valid' => $issues === [],
                 'issues' => $issues,
             ];
@@ -533,7 +550,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{source:string, depth:int, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, valid:bool, issues:list<string>}>
+     * @return list<array{source:string, depth:int, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
      */
     public function reachableTargetsForSource(string $sourcePartName = '/', ?string $relationshipType = null): array
     {
@@ -576,6 +593,9 @@ final class OpcRelationshipGraph
                     'externalTargetKind' => $target['externalTargetKind'],
                     'externalTargetScheme' => $target['externalTargetScheme'],
                     'externalTargetAllowed' => $target['externalTargetAllowed'],
+                    'externalTargetRequiresBaseUri' => $target['externalTargetRequiresBaseUri'],
+                    'externalTargetRewriteBasePart' => $target['externalTargetRewriteBasePart'],
+                    'externalTargetRewriteReason' => $target['externalTargetRewriteReason'],
                     'valid' => $target['valid'],
                     'issues' => $target['issues'],
                 ];
@@ -604,6 +624,30 @@ final class OpcRelationshipGraph
     private static function isRelationshipPartName(string $name): bool
     {
         return OpcRelationships::isRelationshipPartName($name);
+    }
+
+    /**
+     * @param array{kind:string, scheme:?string, allowed:bool, issues:list<string>} $externalTarget
+     * @return array{requiresBaseUri:bool, basePart:?string, reason:?string}
+     */
+    private static function externalTargetRewritePolicy(string $sourcePartName, array $externalTarget): array
+    {
+        $kind = $externalTarget['kind'];
+        if ($kind === 'relative-reference' || $kind === 'fragment-reference') {
+            return [
+                'requiresBaseUri' => true,
+                'basePart' => OpcPackagePath::canonicalPartName($sourcePartName, true),
+                'reason' => $kind === 'relative-reference'
+                    ? 'external-target-relative-reference'
+                    : 'external-target-fragment-reference',
+            ];
+        }
+
+        return [
+            'requiresBaseUri' => false,
+            'basePart' => null,
+            'reason' => null,
+        ];
     }
 
     /**

@@ -609,6 +609,50 @@ XML;
         $t->same(['external-target-unsafe-scheme'], $closureById['rIdJavascript']['issues']);
         $t->same(null, $closureById['rIdRelative']['targetPart']);
     },
+    'surfaces OPC external relative target rewrite context' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdAbsolute" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source.html" TargetMode="External"/>
+  <Relationship Id="rIdRelative" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="../review/source.html#packet" TargetMode="External"/>
+  <Relationship Id="rIdFragment" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="#local-review" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $preflight = [];
+        foreach ($graph->preflightTargetsForSource('word/./document.xml') as $target) {
+            $preflight[$target['id']] = $target;
+        }
+
+        $t->true(array_key_exists('externalTargetRequiresBaseUri', $preflight['rIdRelative']));
+        $t->same(false, $preflight['rIdAbsolute']['externalTargetRequiresBaseUri']);
+        $t->same(null, $preflight['rIdAbsolute']['externalTargetRewriteBasePart']);
+        $t->same(null, $preflight['rIdAbsolute']['externalTargetRewriteReason']);
+        $t->same(true, $preflight['rIdRelative']['externalTargetRequiresBaseUri']);
+        $t->same('/word/document.xml', $preflight['rIdRelative']['externalTargetRewriteBasePart']);
+        $t->same('external-target-relative-reference', $preflight['rIdRelative']['externalTargetRewriteReason']);
+        $t->same(true, $preflight['rIdRelative']['valid']);
+        $t->same([], $preflight['rIdRelative']['issues']);
+        $t->same(true, $preflight['rIdFragment']['externalTargetRequiresBaseUri']);
+        $t->same('/word/document.xml', $preflight['rIdFragment']['externalTargetRewriteBasePart']);
+        $t->same('external-target-fragment-reference', $preflight['rIdFragment']['externalTargetRewriteReason']);
+
+        $closureById = [];
+        foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
+            $closureById[$target['id']] = $target;
+        }
+
+        $t->same(true, $closureById['rIdRelative']['externalTargetRequiresBaseUri']);
+        $t->same('/word/document.xml', $closureById['rIdRelative']['externalTargetRewriteBasePart']);
+        $t->same('external-target-fragment-reference', $closureById['rIdFragment']['externalTargetRewriteReason']);
+    },
     'preflights OPC relationship Type URI policies' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $valid = new OpcRelationship(
             'rIdImage',
