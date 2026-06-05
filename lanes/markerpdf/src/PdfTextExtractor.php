@@ -4292,10 +4292,33 @@ final class PdfTextExtractor
         $invocations = [];
         $operands = [];
         $insideTextObject = false;
+        $compatibilityDepth = 0;
 
         foreach ($this->contentTokens($content) as $token) {
             if (!$this->isOperator($token)) {
                 $operands[] = $token;
+                continue;
+            }
+
+            if ($insideTextObject) {
+                if ($token === 'ET') {
+                    $insideTextObject = false;
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BX') {
+                $compatibilityDepth++;
+                $operands = [];
+                continue;
+            }
+
+            if ($compatibilityDepth > 0) {
+                if ($token === 'EX') {
+                    $compatibilityDepth--;
+                }
+                $operands = [];
                 continue;
             }
 
@@ -4307,11 +4330,6 @@ final class PdfTextExtractor
 
             if ($token === 'ET') {
                 $insideTextObject = false;
-                $operands = [];
-                continue;
-            }
-
-            if ($insideTextObject) {
                 $operands = [];
                 continue;
             }

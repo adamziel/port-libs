@@ -2174,6 +2174,68 @@ return [
         $t->true(!str_contains($encoded, $fakePayload));
         $t->true(!str_contains($encoded, $paintedPayload));
     },
+    'ignores image XObject Do operators inside compatibility sections' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before compatibility images) Tj ET\n"
+            . "BX q 18 0 0 9 72 690 cm /Compatibility#20Image Do Q EX\n"
+            . "q 12 0 0 6 104 690 cm /Painted#20Compatibility#20Image Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After compatibility images) Tj ET';
+        $compatibilityPayload = 'BT /F1 12 Tf 72 720 Td (Compatibility Image Payload Noise) Tj ET';
+        $paintedPayload = 'BT /F1 12 Tf 72 720 Td (Painted Compatibility Image Payload Noise) Tj ET';
+        $compatibilityCompressed = gzcompress($compatibilityPayload);
+        $paintedCompressed = gzcompress($paintedPayload);
+        if (!is_string($compatibilityCompressed) || !is_string($paintedCompressed)) {
+            throw new RuntimeException('Unable to compress compatibility image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Compatibility#20Image 5 0 R /Painted#20Compatibility#20Image 6 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($compatibilityCompressed) . " >>\nstream\n{$compatibilityCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($paintedCompressed) . " >>\nstream\n{$paintedCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(1, $review['uninvoked_image_xobject_count']);
+
+        $compatibility = $entriesByName['Compatibility Image'];
+        $t->same(false, $compatibility['invoked']);
+        $t->same(0, $compatibility['invocation_count']);
+        $t->same([], $compatibility['invocation_matrices']);
+        $t->same(null, $compatibility['image_unit_bbox']);
+        $t->same(true, $compatibility['decoded_with_current_filters']);
+        $t->same(hash('sha256', $compatibilityPayload), $compatibility['decoded_sha256']);
+        $t->same(false, $compatibility['payload_in_visible_text']);
+
+        $painted = $entriesByName['Painted Compatibility Image'];
+        $t->same(true, $painted['invoked']);
+        $t->same(1, $painted['invocation_count']);
+        $t->same([[12.0, 0.0, 0.0, 6.0, 104.0, 690.0]], $painted['invocation_matrices']);
+        $t->same([104.0, 690.0, 116.0, 696.0], $painted['image_unit_bbox']);
+        $t->same(true, $painted['decoded_with_current_filters']);
+        $t->same(hash('sha256', $paintedPayload), $painted['decoded_sha256']);
+        $t->same(false, $painted['payload_in_visible_text']);
+
+        $t->same(['Before compatibility images', 'After compatibility images'], $extractor->extractTextLines($pdf));
+        $t->same("Before compatibility images\nAfter compatibility images", $plainText);
+        $t->true(!str_contains($plainText, 'Compatibility Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Painted Compatibility Image Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $compatibilityPayload));
+        $t->true(!str_contains($encoded, $paintedPayload));
+    },
     'normalizes empty intersections from consecutive image XObject clipping paths' => static function (TestRunner $t): void {
         $pageContent = "BT /F1 12 Tf 72 720 Td (Before compound clip images) Tj ET\n"
             . "q 0 0 20 20 re W n 40 40 10 10 re W n 50 0 0 40 0 0 cm /Empty#20Compound#20Clip Do Q\n"
