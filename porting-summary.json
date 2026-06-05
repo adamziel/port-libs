@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 07:24:04 UTC",
-    "sourceCommit": "41b0db5aa0b4ff3bd0b36974e1318a98ce56bab0",
-    "sourceCommitShort": "41b0db5aa0b4",
+    "generated": "2026-06-05 07:24:22 UTC",
+    "sourceCommit": "dd63682c2e6a08edb3598383baba9b6c89e0fd45",
+    "sourceCommitShort": "dd63682c2e6a",
     "sourceBranch": "unknown",
-    "dashboardCommit": "41b0db5aa0b4ff3bd0b36974e1318a98ce56bab0",
-    "dashboardCommitShort": "41b0db5aa0b4",
+    "dashboardCommit": "dd63682c2e6a08edb3598383baba9b6c89e0fd45",
+    "dashboardCommitShort": "dd63682c2e6a",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -138,10 +138,10 @@
             "mapPercent": "52.8%",
             "unmapped": "1,075",
             "php": "742 pass / 0 fail",
-            "phase": "cloned inventory plus native Markdown/HTML reader/writer, WordPress w...",
-            "audit": "2026-06-05 UTC table geometry occupied-slot handoff slice on accepted...",
-            "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence,...",
-            "nextTarget": "For table geometry follow-up, keep writer-specific table down...",
+            "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
+            "audit": "2026-06-05 UTC EPUB3 media-duration metadata slice on accepted base b...",
+            "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
+            "nextTarget": "For DOCX/OpenXML follow-up, keep full Markup Compatibility Pr...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },
