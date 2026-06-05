@@ -17972,7 +17972,7 @@ final class PdfTextExtractor
     private function xrefTableEntries(string $pdfBytes, ?array $definitions = null): array
     {
         $entries = [];
-        foreach ($this->xrefTableKeywordOffsets($pdfBytes) as $xrefOffset) {
+        foreach ($this->xrefTableKeywordOffsets($pdfBytes, $definitions) as $xrefOffset) {
             if ($definitions !== null && $this->offsetOwnedByDirectObjectBody($xrefOffset, $definitions)) {
                 continue;
             }
@@ -17993,12 +17993,25 @@ final class PdfTextExtractor
     /**
      * @return list<int>
      */
-    private function xrefTableKeywordOffsets(string $pdfBytes): array
+    private function xrefTableKeywordOffsets(string $pdfBytes, ?array $definitions = null): array
     {
         $offsets = [];
         $length = strlen($pdfBytes);
         $index = 0;
         while ($index < $length) {
+            if ($definitions !== null) {
+                foreach ($definitions as $entries) {
+                    foreach ($entries as $definition) {
+                        $bodyStart = $definition['bodyStart'] ?? null;
+                        $bodyEnd = $definition['bodyEnd'] ?? null;
+                        if (is_int($bodyStart) && is_int($bodyEnd) && $index >= $bodyStart && $index <= $bodyEnd) {
+                            $index = $bodyEnd + 1;
+                            continue 3;
+                        }
+                    }
+                }
+            }
+
             $char = $pdfBytes[$index];
 
             if ($char === '%') {
@@ -18667,7 +18680,7 @@ final class PdfTextExtractor
         ?array $definitions = null,
         ?int $candidateBeforeOffset = null
     ): ?int {
-        $offsets = $this->xrefTableKeywordOffsets($pdfBytes);
+        $offsets = $this->xrefTableKeywordOffsets($pdfBytes, $definitions);
         for ($index = count($offsets) - 1; $index >= 0; $index--) {
             $offset = $offsets[$index];
             if ($candidateBeforeOffset !== null && $offset > $candidateBeforeOffset) {
@@ -18752,7 +18765,7 @@ final class PdfTextExtractor
      */
     private function latestXrefSectionOffsetBefore(string $pdfBytes, int $currentOffset, array $definitions): ?int
     {
-        $offsets = $this->xrefTableKeywordOffsets($pdfBytes);
+        $offsets = $this->xrefTableKeywordOffsets($pdfBytes, $definitions);
         foreach ($this->xrefStreamDefinitionsInFileOrder($definitions) as $definition) {
             $offsets[] = (int) $definition['offset'];
         }
