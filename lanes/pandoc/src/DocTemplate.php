@@ -720,12 +720,13 @@ final class DocTemplate
     {
         [$bodyStart, $bodyEnd, $separatorStart, $separatorEnd, $nextIndex, $blockMultiline] = $this->collectForSlices($tokens, $start, $end);
         $expression = $this->parseVariableExpression($variable);
+        $baseExists = $this->resolve($expression['name'], $context)['exists'];
         $resolved = $this->resolveParsedExpression($expression, $context);
         $iterations = $this->loopIterations($resolved['exists'], $resolved['value']);
         $rendered = [];
 
         foreach ($iterations as $item) {
-            $iterationContext = $this->contextForLoopIteration($context, $expression['name'], $item);
+            $iterationContext = $this->contextForLoopIteration($context, $expression['name'], $item, $baseExists);
             $rendered[] = $this->renderRangeDroppingLeadingLineEnding(
                 $tokens,
                 $bodyStart,
@@ -961,9 +962,10 @@ final class DocTemplate
             return '';
         }
 
+        $baseExists = $this->resolve($appliedPartial['variable']['name'], $context)['exists'];
         $rendered = [];
         foreach ($iterations as $item) {
-            $iterationContext = $this->contextForLoopIteration($context, $appliedPartial['variable']['name'], $item);
+            $iterationContext = $this->contextForLoopIteration($context, $appliedPartial['variable']['name'], $item, $baseExists);
             $value = $this->renderPartial($appliedPartial['partial']['name'], $iterationContext, $partials, $partialStack, $preserveBreakableSpaces);
             foreach ($appliedPartial['partial']['pipes'] as $pipe) {
                 $value = $this->applyPipe($pipe, $value);
@@ -1814,27 +1816,29 @@ final class DocTemplate
      * @param array<string, mixed> $context
      * @return array<string, mixed>
      */
-    private function contextForLoopIteration(array $context, string $path, mixed $item): array
+    private function contextForLoopIteration(array $context, string $path, mixed $item, bool $rebindPath): array
     {
         $next = $context;
         $next['it'] = $item;
 
         $segments = explode('.', $path);
-        if ($segments[0] !== 'it') {
-            $cursor = &$next;
-            foreach ($segments as $offset => $segment) {
-                if ($offset === count($segments) - 1) {
-                    $cursor[$segment] = $item;
-                    break;
-                }
-
-                if (!isset($cursor[$segment]) || !is_array($cursor[$segment])) {
-                    $cursor[$segment] = [];
-                }
-                $cursor = &$cursor[$segment];
-            }
-            unset($cursor);
+        if (!$rebindPath || $segments[0] === 'it') {
+            return $next;
         }
+
+        $cursor = &$next;
+        foreach ($segments as $offset => $segment) {
+            if ($offset === count($segments) - 1) {
+                $cursor[$segment] = $item;
+                break;
+            }
+
+            if (!isset($cursor[$segment]) || !is_array($cursor[$segment])) {
+                $cursor[$segment] = [];
+            }
+            $cursor = &$cursor[$segment];
+        }
+        unset($cursor);
 
         return $next;
     }

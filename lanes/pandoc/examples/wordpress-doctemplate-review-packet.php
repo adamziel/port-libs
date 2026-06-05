@@ -30,6 +30,7 @@ for $title$$~$</p>
 <p class="review-sources">${ reviewSources/rest/uppercase[ / ] }</p>
 <p class="chomped-review-sources">${ reviewSourcesWithNewlines/chomp/uppercase[ / ] }</p>
 <p class="review-meta">$for(reviewMeta/pairs)$$it.key$=$it.value$$sep$; $endfor$</p>
+<p class="derived-missing-count">${ missingWarnings/length:components/missing-count() }</p>
 <pre class="plain-text-summary">$wrappedPlainSummary$</pre>
 <p class="labeled-note">$^$Note: $summaryNote$</p>
 <p class="dedented-note">$^$$dedentedNote$
@@ -51,6 +52,7 @@ HTML,
 <p class="source-summary" data-état="$révision.état$">$révision.titre$ $^$$révision.note$</p>
 HTML,
     'review-packets/components/next-warning.html' => '$warnings.source$/$it.source$: $warnings.message$',
+    'review-packets/components/missing-count.html' => 'missing=<$missingWarnings$>; it=$it$',
     'review-packets/components/crlf-note.html' => '<p class="crlf-note">CRLF partial final line ending stripped</p>' . "\r\n",
     'review-packets/components/trailing-note.html' => '<p class="partial-spacing">Partial spacing survives reviewer packet boundaries</p>' . "\n\n",
     'review-packets/components/warning-list.html' => <<<'HTML'
@@ -136,6 +138,7 @@ if (in_array('--self-test', $argv, true)) {
         '<p class="review-sources">LINKS / LAYOUT</p>',
         '<p class="chomped-review-sources">MEDIA / LINKS / LAYOUT</p>',
         '<p class="review-meta">alpha=queued-first; review-id=PR-42; zeta=queued-last</p>',
+        '<p class="derived-missing-count">missing=<>; it=0</p>',
         "<pre class=\"plain-text-summary\">Review queue includes media links layout and\nmultilingual source packet follow-ups.</pre>",
         $labeledNotePrefix . 'Note: Review imported title blocks' . "\n"
             . str_repeat(' ', UnicodeText::displayWidth($labeledNotePrefix))

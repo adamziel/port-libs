@@ -741,6 +741,30 @@ TPL, [
         ]), $output);
     },
 
+    'keeps piped missing doctemplate loop values from inventing variable paths' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->render(<<<'TPL'
+Missing loop: $for(missing/length)$missing=<$missing$>; it=<$it$>$endfor$
+Existing null loop: $for(nullish/length)$nullish=<$nullish$>; it=<$it$>$endfor$
+Nested missing loop: $for(meta.absent/length)$meta.absent=<$meta.absent$>; it=<$it$>; meta=<$meta$>$endfor$
+Applied missing: ${ missing/length:missing-row() }
+Applied existing: ${ nullish/length:nullish-row() }
+TPL, [
+            'nullish' => null,
+            'meta' => ['present' => 'yes'],
+        ], [
+            'missing-row' => 'missing=<$missing$>; it=<$it$>',
+            'nullish-row' => 'nullish=<$nullish$>; it=<$it$>',
+        ]);
+
+        $t->same(implode("\n", [
+            'Missing loop: missing=<>; it=<0>',
+            'Existing null loop: nullish=<0>; it=<0>',
+            'Nested missing loop: meta.absent=<>; it=<0>; meta=<true>',
+            'Applied missing: missing=<>; it=<0>',
+            'Applied existing: nullish=<0>; it=<0>',
+        ]), $output);
+    },
+
     'renders pandoc doctemplate partials nested partials and strips final newlines' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 ${ review-header() }
