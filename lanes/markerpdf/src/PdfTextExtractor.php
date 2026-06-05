@@ -4882,6 +4882,11 @@ final class PdfTextExtractor
             'color_space_resolved_from_resources' => $colorSpaceReview['resolved_from_resources'],
             'color_space_resource_source' => $colorSpaceReview['resource_source'],
             'bits_per_component' => $effectiveBitsPerComponent,
+            'image_decode' => $imageDecode,
+            'image_decode_applied_before_rgb' => $imageDecode !== null
+                && ($imageDecode['valid_for_components'] ?? false) === true,
+            'image_decode_component_mismatch' => $imageDecode !== null
+                && ($imageDecode['valid_for_components'] ?? false) !== true,
             'image_mask' => $imageMask,
             'interpolate' => $this->pdfBooleanValueAfterNameResolvingObjects($stream['dict'], 'Interpolate', $objects),
             'rendering_intent' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Intent', $objects),

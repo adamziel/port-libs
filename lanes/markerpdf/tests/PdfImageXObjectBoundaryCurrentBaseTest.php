@@ -804,6 +804,108 @@ return [
         $t->true(!str_contains($encoded, $maskPayload));
         $t->true(!str_contains($encoded, $colorKeyPayload));
     },
+    'exposes image XObject Decode arrays before RGB preview review' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before Decode images) Tj ET\n"
+            . "q 24 0 0 12 72 690 cm /Rgb#20Decode Do Q\n"
+            . "q 24 0 0 12 108 690 cm /Cmyk#20Mismatch Do Q\n"
+            . "q 12 0 0 12 144 690 cm /Stencil#20Default Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After Decode images) Tj ET';
+        $rgbPayload = 'BT /F1 12 Tf 72 720 Td (RGB Decode Image Payload Noise) Tj ET';
+        $mismatchPayload = 'BT /F1 12 Tf 72 720 Td (CMYK Decode Mismatch Payload Noise) Tj ET';
+        $stencilPayload = 'BT /F1 12 Tf 72 720 Td (Stencil Default Decode Payload Noise) Tj ET';
+        $rgbCompressed = gzcompress($rgbPayload);
+        $mismatchCompressed = gzcompress($mismatchPayload);
+        $stencilCompressed = gzcompress($stencilPayload);
+        if (!is_string($rgbCompressed) || !is_string($mismatchCompressed) || !is_string($stencilCompressed)) {
+            throw new RuntimeException('Unable to compress image Decode fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Rgb#20Decode 5 0 R /Cmyk#20Mismatch 6 0 R /Stencil#20Default 7 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Decode [1 0 0 1 0 1] /Length " . strlen($rgbCompressed) . " >>\nstream\n{$rgbCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceCMYK /BitsPerComponent 8 /Filter /FlateDecode /Decode [0 1 1 0] /Length " . strlen($mismatchCompressed) . " >>\nstream\n{$mismatchCompressed}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ImageMask true /Filter /FlateDecode /Length " . strlen($stencilCompressed) . " >>\nstream\n{$stencilCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(3, $review['image_xobject_count']);
+        $t->same(3, $review['invoked_image_xobject_count']);
+
+        $rgb = $entriesByName['Rgb Decode'];
+        $t->same([
+            'ranges' => [
+                ['min' => 1.0, 'max' => 0.0],
+                ['min' => 0.0, 'max' => 1.0],
+                ['min' => 0.0, 'max' => 1.0],
+            ],
+            'component_count' => 3,
+            'expected_components' => 3,
+            'valid_for_components' => true,
+            'identity' => false,
+            'inverted_components' => [0],
+            'source' => 'explicit',
+        ], $rgb['image_decode']);
+        $t->same(true, $rgb['image_decode_applied_before_rgb']);
+        $t->same(false, $rgb['image_decode_component_mismatch']);
+        $t->same(hash('sha256', $rgbPayload), $rgb['decoded_sha256']);
+
+        $mismatch = $entriesByName['Cmyk Mismatch'];
+        $t->same([
+            'ranges' => [
+                ['min' => 0.0, 'max' => 1.0],
+                ['min' => 1.0, 'max' => 0.0],
+            ],
+            'component_count' => 2,
+            'expected_components' => 4,
+            'valid_for_components' => false,
+            'identity' => false,
+            'inverted_components' => [1],
+            'source' => 'explicit',
+        ], $mismatch['image_decode']);
+        $t->same(false, $mismatch['image_decode_applied_before_rgb']);
+        $t->same(true, $mismatch['image_decode_component_mismatch']);
+        $t->same(hash('sha256', $mismatchPayload), $mismatch['decoded_sha256']);
+
+        $stencil = $entriesByName['Stencil Default'];
+        $t->same(true, $stencil['image_mask']);
+        $t->same(1, $stencil['bits_per_component']);
+        $t->same([
+            'ranges' => [
+                ['min' => 0.0, 'max' => 1.0],
+            ],
+            'component_count' => 1,
+            'expected_components' => 1,
+            'valid_for_components' => true,
+            'identity' => true,
+            'inverted_components' => [],
+            'source' => 'default',
+        ], $stencil['image_decode']);
+        $t->same(true, $stencil['image_decode_applied_before_rgb']);
+        $t->same(false, $stencil['image_decode_component_mismatch']);
+        $t->same(hash('sha256', $stencilPayload), $stencil['decoded_sha256']);
+
+        $t->same(['Before Decode images', 'After Decode images'], $extractor->extractTextLines($pdf));
+        $t->same("Before Decode images\nAfter Decode images", $plainText);
+        $t->true(!str_contains($plainText, 'RGB Decode Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'CMYK Decode Mismatch Payload Noise'));
+        $t->true(!str_contains($plainText, 'Stencil Default Decode Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $rgbPayload));
+        $t->true(!str_contains($encoded, $mismatchPayload));
+        $t->true(!str_contains($encoded, $stencilPayload));
+    },
     'records image XObject SMask stream metadata by exact generation without leaking alpha bytes' => static function (TestRunner $t): void {
         $pageContent = "BT /F1 12 Tf 72 720 Td (Before soft mask image) Tj ET\n"
             . "q 36 0 0 12 72 690 cm /Soft#20Mask#20Logo Do Q\n"
