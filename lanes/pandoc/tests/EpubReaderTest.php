@@ -244,6 +244,75 @@ $buildEpubPackage = static function (
     ], $extraParts));
 };
 
+$buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array $centralOrder): ZipPackage {
+    $crc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
+    $body = '';
+    $centralRecords = [];
+
+    foreach ($parts as $part) {
+        $name = $part['name'];
+        $data = $part['data'] ?? '';
+        $method = $part['compressionMethod'] ?? ($data === '' || str_ends_with($name, '/') ? 0 : 8);
+        $compressed = $method === 8 ? gzdeflate($data) : $data;
+        $offset = strlen($body);
+        $crc = $crc32($data);
+
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            0x0800,
+            $method,
+            0,
+            0,
+            $crc,
+            strlen($compressed),
+            strlen($data),
+            strlen($name),
+            0
+        );
+        $body .= $name . $compressed;
+
+        $centralRecords[$name] = pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            0x0800,
+            $method,
+            0,
+            0,
+            $crc,
+            strlen($compressed),
+            strlen($data),
+            strlen($name),
+            0,
+            0,
+            0,
+            0,
+            str_ends_with($name, '/') ? 0x10 : 0,
+            $offset
+        ) . $name;
+    }
+
+    $central = '';
+    foreach ($centralOrder as $name) {
+        if (!isset($centralRecords[$name])) {
+            throw new RuntimeException("Missing central directory record for {$name}");
+        }
+
+        $central .= $centralRecords[$name];
+    }
+
+    $centralOffset = strlen($body);
+
+    return ZipPackage::fromString(
+        $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, count($parts), count($parts), strlen($central), $centralOffset, 0)
+    );
+};
+
 return [
     'reads EPUB3 container OPF metadata manifest spine and XHTML assets' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $reader = new EpubReader();
@@ -944,7 +1013,36 @@ return [
         $t->same($overlay, $result['importReport']['mediaOverlays']['mo-chapter-1']);
         $t->same(2, count($result['document']->children));
     },
-    'rejects malformed EPUB packages before conversion handoff' => static function (TestRunner $t) use ($buildEpubPackage, $containerXml, $opfXml): void {
+    'checks EPUB mimetype placement by local ZIP header order' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $containerXml, $opfXml, $navXhtml, $chapter1Xhtml, $chapter2Xhtml, $ncxXml): void {
+        $parts = [
+            ['name' => 'mimetype', 'data' => EpubReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $containerXml],
+            ['name' => 'OEBPS/package.opf', 'data' => $opfXml],
+            ['name' => 'OEBPS/nav.xhtml', 'data' => $navXhtml],
+            ['name' => 'OEBPS/text/chapter1.xhtml', 'data' => $chapter1Xhtml],
+            ['name' => 'OEBPS/text/chapter2.xhtml', 'data' => $chapter2Xhtml],
+            ['name' => 'OEBPS/toc.ncx', 'data' => $ncxXml],
+            ['name' => 'OEBPS/styles/book.css', 'data' => 'body { color: #222; }'],
+            ['name' => 'OEBPS/images/cover.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+        ];
+
+        $result = (new EpubReader())->readPackage($buildZipPackageWithCentralDirectoryOrder($parts, [
+            'META-INF/container.xml',
+            'OEBPS/package.opf',
+            'OEBPS/nav.xhtml',
+            'OEBPS/text/chapter1.xhtml',
+            'OEBPS/text/chapter2.xhtml',
+            'OEBPS/toc.ncx',
+            'OEBPS/styles/book.css',
+            'OEBPS/images/cover.png',
+            'mimetype',
+        ]));
+
+        $t->same('WordPress Import EPUB', $result['metadata']['title']);
+        $t->same('/OEBPS/package.opf', $result['opfPart']);
+        $t->same(2, count($result['document']->children));
+    },
+    'rejects malformed EPUB packages before conversion handoff' => static function (TestRunner $t) use ($buildEpubPackage, $buildZipPackageWithCentralDirectoryOrder, $containerXml, $opfXml): void {
         $reader = new EpubReader();
 
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage(ZipPackage::fromParts([
@@ -961,6 +1059,15 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): array => $reader->readPackage(ZipPackage::fromParts([
             ['name' => 'mimetype', 'data' => EpubReader::MIMETYPE, 'compressionMethod' => 0],
             ['name' => 'META-INF/container.xml', 'data' => '<container/>'],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage($buildZipPackageWithCentralDirectoryOrder([
+            ['name' => 'META-INF/container.xml', 'data' => $containerXml],
+            ['name' => 'mimetype', 'data' => EpubReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'OEBPS/package.opf', 'data' => $opfXml],
+        ], [
+            'mimetype',
+            'META-INF/container.xml',
+            'OEBPS/package.opf',
         ])));
 
         $missingSpineOpf = str_replace('<itemref idref="chapter-2" linear="no"/>', '<itemref idref="missing"/>', $opfXml);

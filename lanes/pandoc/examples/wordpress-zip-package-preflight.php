@@ -970,6 +970,14 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected package comment metadata to round-trip from the generated ZIP package');
     }
 
+    if (($package->localNames()[0] ?? null) !== '[Content_Types].xml') {
+        throw new RuntimeException('Expected local ZIP entry order to be inspectable for package preflight');
+    }
+
+    if (($package->localEntries()[0]->localHeaderOffset ?? -1) !== 0) {
+        throw new RuntimeException('Expected first local ZIP entry to start at package offset zero');
+    }
+
     $documentEntry = $package->entry('/word/document.xml');
     if ($documentEntry->lastModifiedTimestamp() !== $documentModifiedAt) {
         throw new RuntimeException('Expected document part ZIP timestamp metadata to round-trip');
@@ -1242,6 +1250,7 @@ if (in_array('--self-test', $argv, true)) {
 
 echo "ZIP package parts for WordPress import preflight:\n";
 echo 'packageComment=' . $package->packageComment() . "\n";
+echo 'localOrder=' . implode(',', $package->localNames()) . "\n";
 foreach ($package->entries() as $entry) {
     $modifiedAt = $entry->lastModifiedTimestamp();
     echo '- ' . $entry->name

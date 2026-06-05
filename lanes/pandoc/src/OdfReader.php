@@ -179,9 +179,9 @@ final class OdfReader
             throw new \RuntimeException('ODT package is missing the root mimetype entry');
         }
 
-        $entries = $package->entries();
+        $entries = $package->localEntries();
         if ($entries === [] || $entries[0]->name !== 'mimetype') {
-            throw new \RuntimeException('ODT mimetype entry must be the first ZIP entry');
+            throw new \RuntimeException('ODT mimetype entry must be the first local ZIP entry');
         }
 
         $mimetype = $package->entry('mimetype');

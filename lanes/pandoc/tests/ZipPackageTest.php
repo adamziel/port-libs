@@ -55,14 +55,15 @@ $buildNtfsExtra = static function (int $modifiedAt, int $accessedAt, int $create
  *     versionMadeBy?:int,
  *     diskStart?:int,
  *     externalAttributes?:int,
- *     comment?:string
+ *     comment?:string,
+ *     centralIndex?:int
  * }> $entries
  */
 $buildZipPackage = static function (array $entries, string $comment = '') use ($crc32): string {
     $body = '';
-    $central = '';
+    $centralRecords = [];
 
-    foreach ($entries as $entry) {
+    foreach ($entries as $entryIndex => $entry) {
         $name = $entry['name'];
         $localName = $entry['localName'] ?? $name;
         $data = $entry['data'] ?? '';
@@ -119,7 +120,7 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
         }
 
         $entryComment = $entry['comment'] ?? '';
-        $central .= pack(
+        $centralRecord = pack(
             'VvvvvvvVVVvvvvvVV',
             0x02014b50,
             $entry['versionMadeBy'] ?? 0x0314,
@@ -139,9 +140,19 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
             $entry['externalAttributes'] ?? 0,
             $offset
         );
-        $central .= $name . $centralExtra . $entryComment;
+        $centralRecord .= $name . $centralExtra . $entryComment;
+        $centralRecords[] = [
+            'order' => $entry['centralIndex'] ?? $entryIndex,
+            'index' => $entryIndex,
+            'record' => $centralRecord,
+        ];
     }
 
+    usort(
+        $centralRecords,
+        static fn (array $left, array $right): int => [$left['order'], $left['index']] <=> [$right['order'], $right['index']]
+    );
+    $central = implode('', array_map(static fn (array $record): string => $record['record'], $centralRecords));
     $centralOffset = strlen($body);
     $centralSize = strlen($central);
 
@@ -204,6 +215,40 @@ return [
         $t->true($package->centralDirectoryOffset() > 0);
         $t->same('package comment', $package->packageComment());
         $t->same($zip, $package->bytes());
+    },
+
+    'exposes zip package entries in local header order for container preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'mimetype',
+                'data' => 'application/epub+zip',
+                'method' => 0,
+                'centralIndex' => 2,
+            ],
+            [
+                'name' => 'META-INF/container.xml',
+                'data' => '<container/>',
+                'method' => 8,
+                'centralIndex' => 0,
+            ],
+            [
+                'name' => 'OEBPS/package.opf',
+                'data' => '<package/>',
+                'method' => 8,
+                'centralIndex' => 1,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $localEntries = $package->localEntries();
+
+        $t->same(['META-INF/container.xml', 'OEBPS/package.opf', 'mimetype'], $package->names());
+        $t->same(['mimetype', 'META-INF/container.xml', 'OEBPS/package.opf'], $package->localNames());
+        $t->same('mimetype', $localEntries[0]->name);
+        $t->true($localEntries[0]->localHeaderOffset < $localEntries[1]->localHeaderOffset);
+        $t->true($localEntries[1]->localHeaderOffset < $localEntries[2]->localHeaderOffset);
+        $t->same('application/epub+zip', $package->read('/mimetype'));
+        $t->same('<container/>', $package->read('/META-INF/container.xml'));
     },
 
     'reads package entries whose local header uses a data descriptor' => static function (TestRunner $t) use ($buildZipPackage): void {

@@ -131,9 +131,9 @@ final class EpubReader
             throw new \RuntimeException('EPUB package is missing the root mimetype entry');
         }
 
-        $entries = $package->entries();
+        $entries = $package->localEntries();
         if ($entries === [] || $entries[0]->name !== 'mimetype') {
-            throw new \RuntimeException('EPUB mimetype entry must be the first ZIP entry');
+            throw new \RuntimeException('EPUB mimetype entry must be the first local ZIP entry');
         }
 
         $mimetypeEntry = $package->entry('mimetype');

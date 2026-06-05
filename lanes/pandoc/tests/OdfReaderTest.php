@@ -145,6 +145,75 @@ $buildOdtPackage = static function (
     ], $extraParts));
 };
 
+$buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array $centralOrder): ZipPackage {
+    $crc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
+    $body = '';
+    $centralRecords = [];
+
+    foreach ($parts as $part) {
+        $name = $part['name'];
+        $data = $part['data'] ?? '';
+        $method = $part['compressionMethod'] ?? ($data === '' || str_ends_with($name, '/') ? 0 : 8);
+        $compressed = $method === 8 ? gzdeflate($data) : $data;
+        $offset = strlen($body);
+        $crc = $crc32($data);
+
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            0x0800,
+            $method,
+            0,
+            0,
+            $crc,
+            strlen($compressed),
+            strlen($data),
+            strlen($name),
+            0
+        );
+        $body .= $name . $compressed;
+
+        $centralRecords[$name] = pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            0x0800,
+            $method,
+            0,
+            0,
+            $crc,
+            strlen($compressed),
+            strlen($data),
+            strlen($name),
+            0,
+            0,
+            0,
+            0,
+            str_ends_with($name, '/') ? 0x10 : 0,
+            $offset
+        ) . $name;
+    }
+
+    $central = '';
+    foreach ($centralOrder as $name) {
+        if (!isset($centralRecords[$name])) {
+            throw new RuntimeException("Missing central directory record for {$name}");
+        }
+
+        $central .= $centralRecords[$name];
+    }
+
+    $centralOffset = strlen($body);
+
+    return ZipPackage::fromString(
+        $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, count($parts), count($parts), strlen($central), $centralOffset, 0)
+    );
+};
+
 return [
     'reads ODT manifest metadata styles and package media' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $result = (new OdfReader())->readPackage($buildOdtPackage());
@@ -1111,7 +1180,30 @@ XML;
         $blocks = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('<img src="Pictures/hero.png" alt="Hero alt text" title="Hero title"/>', $blocks);
     },
-    'rejects malformed ODT packages before conversion handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
+    'checks ODT mimetype placement by local ZIP header order' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $parts = [
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
+            ['name' => 'content.xml', 'data' => $contentXml],
+            ['name' => 'styles.xml', 'data' => $stylesXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+        ];
+
+        $result = (new OdfReader())->readPackage($buildZipPackageWithCentralDirectoryOrder($parts, [
+            'META-INF/manifest.xml',
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'Pictures/hero.png',
+            'mimetype',
+        ]));
+
+        $t->same('ODT Import Packet', $result['metadata']['title']);
+        $t->same('odt', $result['document']->attr('source'));
+        $t->same('Pictures/hero.png', $result['media'][0]['part']);
+    },
+    'rejects malformed ODT packages before conversion handoff' => static function (TestRunner $t) use ($buildOdtPackage, $buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml): void {
         $reader = new OdfReader();
 
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage(ZipPackage::fromParts([
@@ -1130,6 +1222,16 @@ XML;
 
         $unsafeManifest = str_replace('Pictures/hero.png', 'Pictures/../secret.png', $manifestXml);
         $t->throws(\InvalidArgumentException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $unsafeManifest)));
+
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage($buildZipPackageWithCentralDirectoryOrder([
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'content.xml', 'data' => $contentXml],
+        ], [
+            'mimetype',
+            'META-INF/manifest.xml',
+            'content.xml',
+        ])));
 
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage(ZipPackage::fromParts([
             ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],

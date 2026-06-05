@@ -350,11 +350,33 @@ final class ZipPackage
     }
 
     /**
+     * @return list<ZipPackageEntry>
+     */
+    public function localEntries(): array
+    {
+        $entries = $this->entries;
+        usort(
+            $entries,
+            static fn (ZipPackageEntry $left, ZipPackageEntry $right): int => $left->localHeaderOffset <=> $right->localHeaderOffset
+        );
+
+        return $entries;
+    }
+
+    /**
      * @return list<string>
      */
     public function names(): array
     {
         return array_map(static fn (ZipPackageEntry $entry): string => $entry->name, $this->entries);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function localNames(): array
+    {
+        return array_map(static fn (ZipPackageEntry $entry): string => $entry->name, $this->localEntries());
     }
 
     public function bytes(): string
