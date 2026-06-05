@@ -41,6 +41,10 @@ final class PdfAttachmentExtractor
 
     private const EMBEDDED_FILE_FALLBACK_KEYS = ['UF', 'F', 'Unix', 'Mac', 'DOS'];
 
+    private const FILE_SPEC_ATTACHMENT_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac', 'EF'];
+
+    private const EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
+
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
         0x19 => 0x02c7,
@@ -984,6 +988,17 @@ final class PdfAttachmentExtractor
         ?array $encryptionPolicy = null
     ): ?array {
         $fileSpecObjectId = $this->refObjectId($fileSpecValue);
+        $fileSpecObject = $this->objectForReference($fileSpecValue, $objects);
+        $fileSpecDictionaryBody = $fileSpecObject === null
+            ? null
+            : $this->topLevelDictionaryBodyFromObjectBody($fileSpecObject['body']);
+        if (
+            $fileSpecDictionaryBody !== null
+            && $this->dictionaryHasDuplicateKeys($fileSpecDictionaryBody, self::FILE_SPEC_ATTACHMENT_BOUNDARY_KEYS)
+        ) {
+            return null;
+        }
+
         $fileSpec = $this->dict($this->resolveValue($fileSpecValue, $objects));
         if ($fileSpec === null) {
             return null;
@@ -996,6 +1011,17 @@ final class PdfAttachmentExtractor
             $objects,
             $filenameSource
         );
+        if ($fileSpecDictionaryBody !== null) {
+            $efValue = $this->rawDictionaryEntryValue($fileSpecDictionaryBody, 'EF');
+            $efDictionaryBody = is_string($efValue) ? $this->rawDictionaryBodyFromValue($efValue, $objects) : null;
+            if (
+                $efDictionaryBody !== null
+                && $this->dictionaryHasDuplicateKeys($efDictionaryBody, self::EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS)
+            ) {
+                return null;
+            }
+        }
+
         if ($streamReference === null || !isset($objects[$streamReference['objectId']])) {
             return null;
         }
@@ -5820,6 +5846,114 @@ final class PdfAttachmentExtractor
         }
 
         return preg_replace("/\r\n$|\n$|\r$/", '', $stream) ?? $stream;
+    }
+
+    private function topLevelDictionaryBodyFromObjectBody(string $body): ?string
+    {
+        $index = 0;
+        $raw = $this->rawValueAt($body, $index);
+        if ($raw === null) {
+            return null;
+        }
+
+        $raw = trim($raw);
+        if (!str_starts_with($raw, '<<') || !str_ends_with($raw, '>>')) {
+            return null;
+        }
+
+        return substr($raw, 2, -2);
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     */
+    private function rawDictionaryBodyFromValue(string $value, array $objects): ?string
+    {
+        $index = 0;
+        $parsed = $this->parseValue($value, $index);
+        $object = $this->objectForReference($parsed, $objects);
+        if ($object !== null) {
+            return $this->topLevelDictionaryBodyFromObjectBody($object['body']);
+        }
+
+        return $this->topLevelDictionaryBodyFromObjectBody($value);
+    }
+
+    /**
+     * @param list<string> $keys
+     */
+    private function dictionaryHasDuplicateKeys(string $dictionaryBody, array $keys): bool
+    {
+        $counts = [];
+        foreach ($this->rawDictionaryEntries($dictionaryBody) as $name => $values) {
+            $counts[$name] = count($values);
+        }
+
+        foreach ($keys as $key) {
+            if (($counts[$key] ?? 0) > 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function rawDictionaryEntryValue(string $dictionaryBody, string $key): ?string
+    {
+        $entries = $this->rawDictionaryEntries($dictionaryBody);
+        $values = $entries[$key] ?? [];
+
+        if ($values === []) {
+            return null;
+        }
+
+        $value = end($values);
+
+        return is_string($value) ? $value : null;
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    private function rawDictionaryEntries(string $dictionaryBody): array
+    {
+        $entries = [];
+        for ($index = 0, $length = strlen($dictionaryBody); $index < $length;) {
+            $this->skipWhitespaceAndComments($dictionaryBody, $index);
+            if ($index >= $length) {
+                break;
+            }
+
+            if (($dictionaryBody[$index] ?? '') !== '/') {
+                $index++;
+                continue;
+            }
+
+            $name = $this->parseName($dictionaryBody, $index);
+            $raw = $this->rawValueAt($dictionaryBody, $index);
+            if ($raw === null) {
+                continue;
+            }
+
+            $entries[$name][] = $raw;
+        }
+
+        return $entries;
+    }
+
+    private function rawValueAt(string $text, int &$index): ?string
+    {
+        $this->skipWhitespaceAndComments($text, $index);
+        $start = $index;
+        $probe = $index;
+        $this->parseValue($text, $probe);
+        if ($probe <= $start) {
+            return null;
+        }
+
+        $index = $probe;
+
+        return substr($text, $start, $probe - $start);
     }
 
     private function parseValue(string $text, int &$index): mixed

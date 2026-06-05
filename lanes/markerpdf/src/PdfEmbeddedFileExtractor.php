@@ -19,6 +19,10 @@ final class PdfEmbeddedFileExtractor
 
     private const EMBEDDED_FILE_FALLBACK_KEYS = ['UF', 'F', 'Unix', 'Mac', 'DOS'];
 
+    private const FILE_SPEC_ATTACHMENT_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac', 'EF'];
+
+    private const EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
+
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
         0x19 => 0x02c7,
@@ -316,8 +320,15 @@ final class PdfEmbeddedFileExtractor
         }
 
         $body = $fileSpec['body'];
+        if ($this->dictionaryHasDuplicateKeys($body, self::FILE_SPEC_ATTACHMENT_BOUNDARY_KEYS)) {
+            return null;
+        }
+
         $ef = $this->resolveDictionaryFromValue($this->dictionaryRawValue($body, 'EF'), $objects);
         if ($ef === null) {
+            return null;
+        }
+        if ($this->dictionaryHasDuplicateKeys($ef['body'], self::EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS)) {
             return null;
         }
 
@@ -6014,6 +6025,21 @@ final class PdfEmbeddedFileExtractor
     }
 
     /**
+     * @param list<string> $keys
+     */
+    private function dictionaryHasDuplicateKeys(string $dictionary, array $keys): bool
+    {
+        $counts = $this->dictionaryEntryCounts($dictionary);
+        foreach ($keys as $key) {
+            if (($counts[$key] ?? 0) > 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param array<int, string> $objects
      */
     private function stringValueFromRaw(string $value, array $objects): ?string
@@ -6476,6 +6502,43 @@ final class PdfEmbeddedFileExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function dictionaryEntryCounts(string $dictionary): array
+    {
+        $counts = [];
+        for ($offset = 0, $length = strlen($dictionary); $offset < $length;) {
+            $offset = $this->skipWhitespace($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (($dictionary[$offset] ?? '') !== '/') {
+                $offset++;
+                continue;
+            }
+
+            $remaining = substr($dictionary, $offset);
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', $remaining, $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $name = $this->decodePdfName($match[1]);
+            $value = $this->readPdfValueAt($dictionary, $offset + strlen($match[0]));
+            if ($value === null) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $counts[$name] = ($counts[$name] ?? 0) + 1;
+            $offset = $value['end'];
+        }
+
+        return $counts;
     }
 
     /**
