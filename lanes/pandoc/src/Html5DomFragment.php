@@ -648,11 +648,11 @@ final class Html5DomFragment
         ?string $foreignContext,
         ?string $baseUrl
     ): array {
-        if (!$element->hasAttributes()) {
+        if (!$element->hasAttributes() && $mode !== 'xml') {
             return [];
         }
 
-        $attrs = [];
+        $attrs = $mode === 'xml' ? self::xmlNamespaceDeclarationAttributes($element) : [];
         foreach ($element->attributes as $attribute) {
             $name = $mode === 'xml'
                 ? self::xmlAttributeName($attribute)
@@ -780,6 +780,70 @@ final class Html5DomFragment
         }
 
         return $attribute->name;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function xmlNamespaceDeclarationAttributes(\DOMElement $element): array
+    {
+        $attrs = [];
+        $namespaceUri = $element->namespaceURI;
+        $prefix = $element->prefix;
+
+        if (is_string($namespaceUri) && $namespaceUri !== '') {
+            if (is_string($prefix) && $prefix !== '') {
+                if ($prefix !== 'xml') {
+                    $attrs['xmlns:' . $prefix] = $namespaceUri;
+                }
+            } elseif (self::requiresXmlDefaultNamespaceDeclaration($element, $namespaceUri)) {
+                $attrs['xmlns'] = $namespaceUri;
+            }
+        } elseif (self::requiresXmlDefaultNamespaceReset($element)) {
+            $attrs['xmlns'] = '';
+        }
+
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            $attributePrefix = $attribute->prefix;
+            $attributeNamespace = $attribute->namespaceURI;
+            if (
+                !is_string($attributePrefix)
+                || $attributePrefix === ''
+                || $attributePrefix === 'xml'
+                || $attributePrefix === 'xmlns'
+                || !is_string($attributeNamespace)
+                || $attributeNamespace === ''
+            ) {
+                continue;
+            }
+
+            $attrs['xmlns:' . $attributePrefix] ??= $attributeNamespace;
+        }
+
+        return $attrs;
+    }
+
+    private static function requiresXmlDefaultNamespaceDeclaration(\DOMElement $element, string $namespaceUri): bool
+    {
+        $parent = $element->parentNode;
+        if (!$parent instanceof \DOMElement) {
+            return true;
+        }
+
+        return ($parent->prefix ?? '') !== ''
+            || ($parent->namespaceURI ?? '') !== $namespaceUri;
+    }
+
+    private static function requiresXmlDefaultNamespaceReset(\DOMElement $element): bool
+    {
+        $parent = $element->parentNode;
+
+        return $parent instanceof \DOMElement
+            && ($parent->lookupNamespaceURI(null) ?? '') !== '';
     }
 
     private static function isBlockedAttribute(string $name): bool

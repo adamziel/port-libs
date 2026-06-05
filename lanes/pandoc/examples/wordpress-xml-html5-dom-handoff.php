@@ -5,6 +5,7 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\Html5DomFragment;
 use PortLibs\Pandoc\WordPressBlockWriter;
 use PortLibs\Pandoc\XmlHtmlDom;
 
@@ -27,6 +28,13 @@ $reviewXml = XmlHtmlDom::loadXmlDocument(
     '<?xml version="1.0" encoding="UTF-8"?><review><item source="legacy">DOM packet</item></review>',
     'WordPress XML review packet',
     preserveWhiteSpace: false
+);
+$namespacedReviewFragment = Html5DomFragment::fromXml(
+    '<review xmlns="urn:packet"><w:p xmlns:w="urn:word" w:rsidR="001">'
+    . '<w:t xml:space="preserve"> Namespaced packet </w:t>'
+    . '<r:link xmlns:r="urn:rel" r:id="rId1">media</r:link>'
+    . '<plain xmlns="">fallback</plain>'
+    . '</w:p></review>'
 );
 $document = new AstNode('document', [], [
     new AstNode('raw_html', ['format' => 'html', 'html' => $html]),
@@ -58,6 +66,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($reviewXml->documentElement?->tagName ?? '') !== 'review' || $reviewXml->documentElement->textContent !== 'DOM packet') {
         throw new RuntimeException('Expected XML declaration-bearing review packet to parse safely');
     }
+    $namespacedXml = $namespacedReviewFragment->serialize();
+    foreach ([
+        '<review xmlns="urn:packet">',
+        '<w:p xmlns:w="urn:word" w:rsidR="001">',
+        '<w:t xmlns:w="urn:word" xml:space="preserve"> Namespaced packet </w:t>',
+        '<r:link xmlns:r="urn:rel" r:id="rId1">media</r:link>',
+        '<plain xmlns="">fallback</plain>',
+    ] as $expectedXml) {
+        if (!str_contains($namespacedXml, $expectedXml)) {
+            throw new RuntimeException('Expected namespaced XML fragment to retain binding: ' . $expectedXml);
+        }
+    }
+    if (Html5DomFragment::fromXml($namespacedXml)->serialize() !== $namespacedXml) {
+        throw new RuntimeException('Expected namespaced XML fragment serialization to round-trip through the safe parser');
+    }
     try {
         XmlHtmlDom::loadXmlDocument(
             '<?xml-stylesheet href="https://example.invalid/review.xsl"?><review><item>bad</item></review>',
@@ -77,4 +100,5 @@ if (($argv[1] ?? '') === '--self-test') {
 
 echo "XML/HTML5 DOM handoff for WordPress import:\n";
 echo "fragmentHtml:\n" . $html . "\n";
+echo "namespacedReviewXml:\n" . $namespacedReviewFragment->serialize() . "\n";
 echo "wordpressBlocks:\n" . $blocks . "\n";

@@ -390,6 +390,41 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): Html5DomFragment => Html5DomFragment::fromXml('<root><unclosed></root>'));
         $t->throws(\InvalidArgumentException::class, static fn (): Html5DomFragment => Html5DomFragment::fromXml('<!DOCTYPE root [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><root>&xxe;</root>'));
     },
+    'preserves XML namespace bindings for prefixed fragment serialization' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromXml(
+            '<root xmlns="urn:packet"><w:p xmlns:w="urn:word" w:rsidR="001">'
+            . '<w:t xml:space="preserve"> Review </w:t>'
+            . '<r:link xmlns:r="urn:rel" r:id="rId1">media</r:link>'
+            . '<plain xmlns="">fallback</plain>'
+            . '</w:p></root>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $serialized = $fragment->serialize();
+        $roundTrip = Html5DomFragment::fromXml($serialized);
+
+        $expected = '<root xmlns="urn:packet"><w:p xmlns:w="urn:word" w:rsidR="001">'
+            . '<w:t xmlns:w="urn:word" xml:space="preserve"> Review </w:t>'
+            . '<r:link xmlns:r="urn:rel" r:id="rId1">media</r:link>'
+            . '<plain xmlns="">fallback</plain>'
+            . '</w:p></root>';
+
+        $t->same($expected, $serialized);
+        $t->same($expected, $roundTrip->serialize());
+        $t->same('xml', $summary['mode']);
+        $t->same(['plain', 'r:link', 'root', 'w:p', 'w:t'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same([], $fragment->diagnosticCodes());
+        $t->same(['xmlns' => 'urn:packet'], $nodes[0]['attrs']);
+        $t->same(['xmlns:w' => 'urn:word', 'w:rsidR' => '001'], $nodes[0]['children'][0]['attrs']);
+        $t->same(['xmlns:w' => 'urn:word', 'xml:space' => 'preserve'], $nodes[0]['children'][0]['children'][0]['attrs']);
+        $t->same(['xmlns:r' => 'urn:rel', 'r:id' => 'rId1'], $nodes[0]['children'][0]['children'][1]['attrs']);
+        $t->same(['xmlns' => ''], $nodes[0]['children'][0]['children'][2]['attrs']);
+        $t->contains('xmlns:w="urn:word"', $serialized);
+        $t->contains('xmlns:r="urn:rel"', $serialized);
+        $t->contains('<plain xmlns="">fallback</plain>', $serialized);
+    },
     'normalizes svg and mathml foreign content for raw html review packets' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<aside><svg viewBox="0 0 10 10" preserveAspectRatio="xMidYMid meet"><linearGradient id="g"><stop offset="0"></stop></linearGradient><textPath href="#label">Logo</textPath></svg>'
