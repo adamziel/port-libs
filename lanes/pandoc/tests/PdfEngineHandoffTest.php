@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\GzipStream;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\PdfEngineHandoff;
 
@@ -223,6 +224,84 @@ MARKDOWN);
         ], $plan['expectedEngineArtifacts']);
         $t->contains('pdf-engine-log:handoff/review.log', implode(',', $plan['diagnostics']));
         $t->contains('pdf-engine-artifacts:6', implode(',', $plan['diagnostics']));
+    },
+
+    'plans and parses synctex source map sidecars without executing engines' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'xelatex',
+            'outputPath' => 'handoff/review.pdf',
+            'engineOptions' => ['-file-line-error', '-synctex=1'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake bounded handoff with source map\n%%EOF\n";
+        $sourceMap = implode("\n", [
+            'SyncTeX Version:1',
+            'Input:1:handoff/review.tex',
+            'Input:2:chapters/source-note.tex',
+            'Output:pdf',
+            'Content:',
+            '!1',
+            '{1',
+            '[1,4:100,200:300,400',
+            '(2,12:120,220',
+            '(2,18:130,240',
+            ']',
+            '}',
+            'Postamble:',
+            'Count:3',
+            '',
+        ]);
+        $sourceMapBytes = GzipStream::build($sourceMap, ['filename' => 'review.synctex']);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'handoff/review.tex' => (string) $plan['sourceBytes'],
+                'handoff/review.synctex.gz' => $sourceMapBytes,
+                'handoff/review.pdf' => $pdfBytes,
+            ],
+        ]);
+        $stale = $handoff->fakeRun($plan, [
+            'files' => [
+                'handoff/review.synctex' => "SyncTeX Version:1\nInput:1:other-source.tex\nContent:\n[1,1:0,0\n",
+                'handoff/review.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'handoff/review.synctex.gz' => $sourceMapBytes,
+                    'handoff/review.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->contains('handoff/review.synctex.gz', implode(',', $plan['expectedEngineArtifacts']));
+        $t->contains('pdf-source-map:handoff/review.synctex.gz', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same(['handoff/review.synctex.gz'], $result['sourceMapFiles']);
+        $t->same(['handoff/review.synctex.gz' => hash('sha256', $sourceMapBytes)], $result['sourceMapArtifactsSha256']);
+        $t->same([
+            ['tag' => 1, 'path' => 'handoff/review.tex'],
+            ['tag' => 2, 'path' => 'chapters/source-note.tex'],
+        ], $result['sourceMapInputs']);
+        $t->same(['chapters/source-note.tex', 'handoff/review.tex'], $result['sourceMapInputFiles']);
+        $t->same([
+            ['tag' => 1, 'path' => 'handoff/review.tex', 'minLine' => 4, 'maxLine' => 4, 'references' => 1],
+            ['tag' => 2, 'path' => 'chapters/source-note.tex', 'minLine' => 12, 'maxLine' => 18, 'references' => 2],
+        ], $result['sourceMapLineRanges']);
+        $t->same([], $result['sourceMapExternalInputs']);
+        $t->contains('source-map-files:1', implode(',', $result['diagnostics']));
+        $t->contains('source-map-inputs:2', implode(',', $result['diagnostics']));
+        $t->contains('source-map-line-ranges:2', implode(',', $result['diagnostics']));
+        $t->same(false, $stale['ok']);
+        $t->same('source-map-source-missing', $stale['reason']);
+        $t->contains('source-map-source-missing:handoff/review.tex', implode(',', $stale['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same(['handoff/review.synctex.gz' => hash('sha256', $sourceMapBytes)], $sequence['finalSourceMapArtifactsSha256']);
+        $t->same([
+            ['tag' => 1, 'path' => 'handoff/review.tex', 'minLine' => 4, 'maxLine' => 4, 'references' => 1],
+            ['tag' => 2, 'path' => 'chapters/source-note.tex', 'minLine' => 12, 'maxLine' => 18, 'references' => 2],
+        ], $sequence['finalSourceMapLineRanges']);
     },
 
     'fake runner validates staged source and pdf-like output bytes' => static function (TestRunner $t) use ($document): void {

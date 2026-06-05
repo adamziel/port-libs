@@ -6,6 +6,8 @@ namespace PortLibs\Pandoc;
 
 final class PdfEngineHandoff
 {
+    private const MAX_SOURCE_MAP_BYTES = 1048576;
+
     /**
      * @var array<string, array{family:string, intermediate:string, extension:string, defaultArgs:list<string>}>
      */
@@ -110,6 +112,10 @@ final class PdfEngineHandoff
             static fn (?string $path): bool => $path !== null && $path !== ''
         ));
         $expectedEngineArtifacts = $this->expectedEngineArtifactsFor($engine, $profile['family'], $sourceFile);
+        $sourceMapFile = $this->sourceMapFileFor($profile['family'], $sourceFile, $engineOptions);
+        if ($sourceMapFile !== null && !in_array($sourceMapFile, $expectedEngineArtifacts, true)) {
+            $expectedEngineArtifacts[] = $sourceMapFile;
+        }
         $engineLogFile = $this->firstEngineLogFile($expectedEngineArtifacts);
 
         $diagnostics = ['pdf-engine-not-executed'];
@@ -143,6 +149,9 @@ final class PdfEngineHandoff
         }
         if ($engineLogFile !== null) {
             $diagnostics[] = 'pdf-engine-log:' . $engineLogFile;
+        }
+        if ($sourceMapFile !== null) {
+            $diagnostics[] = 'pdf-source-map:' . $sourceMapFile;
         }
         if ($expectedEngineArtifacts !== []) {
             $diagnostics[] = 'pdf-engine-artifacts:' . count($expectedEngineArtifacts);
@@ -197,6 +206,12 @@ final class PdfEngineHandoff
      *     producedArtifactsSha256: array<string, string>,
      *     bibliographyArtifactsSha256: array<string, string>,
      *     bibliographyLogFiles: list<string>,
+     *     sourceMapArtifactsSha256: array<string, string>,
+     *     sourceMapFiles: list<string>,
+     *     sourceMapInputs: list<array{tag:int, path:string}>,
+     *     sourceMapInputFiles: list<string>,
+     *     sourceMapExternalInputs: list<string>,
+     *     sourceMapLineRanges: list<array{tag:int, path:string, minLine:int, maxLine:int, references:int}>,
      *     engineLogFiles: list<string>,
      *     engineWarnings: list<string>,
      *     engineErrors: list<string>,
@@ -240,6 +255,12 @@ final class PdfEngineHandoff
         $bibliographyArtifactsSha256 = [];
         $bibliographyLogFiles = [];
         $bibliographyLogTexts = [];
+        $sourceMapArtifactsSha256 = [];
+        $sourceMapFiles = [];
+        $sourceMapInputsByKey = [];
+        $sourceMapInputFiles = [];
+        $sourceMapExternalInputs = [];
+        $sourceMapLineRangesByKey = [];
         $engineLogFiles = [];
         $engineLogTexts = [];
         $status = 'ok';
@@ -311,6 +332,40 @@ final class PdfEngineHandoff
                     $bibliographyLogTexts[] = $bytes;
                 }
             }
+            if ($this->isSourceMapArtifactPath($path)) {
+                $sourceMapFiles[] = $path;
+                $sourceMapArtifactsSha256[$path] = hash('sha256', $bytes);
+                try {
+                    $sourceMap = $this->extractSourceMapArtifact($path, $bytes);
+                } catch (\RuntimeException $exception) {
+                    if ($reason === null) {
+                        $status = 'failed';
+                        $reason = 'source-map-decode-error';
+                    }
+                    $diagnostics[] = 'source-map-decode-error:' . $path . ':' . $exception->getMessage();
+                    continue;
+                }
+
+                foreach ($sourceMap['inputs'] as $input) {
+                    $sourceMapInputsByKey[$input['tag'] . ':' . $input['path']] = $input;
+                }
+                foreach ($sourceMap['inputFiles'] as $inputFile) {
+                    $sourceMapInputFiles[$inputFile] = true;
+                }
+                foreach ($sourceMap['externalInputs'] as $externalInput) {
+                    $sourceMapExternalInputs[$externalInput] = true;
+                }
+                foreach ($sourceMap['lineRanges'] as $range) {
+                    $key = $range['tag'] . ':' . $range['path'];
+                    if (!isset($sourceMapLineRangesByKey[$key])) {
+                        $sourceMapLineRangesByKey[$key] = $range;
+                        continue;
+                    }
+                    $sourceMapLineRangesByKey[$key]['minLine'] = min($sourceMapLineRangesByKey[$key]['minLine'], $range['minLine']);
+                    $sourceMapLineRangesByKey[$key]['maxLine'] = max($sourceMapLineRangesByKey[$key]['maxLine'], $range['maxLine']);
+                    $sourceMapLineRangesByKey[$key]['references'] += $range['references'];
+                }
+            }
             if ($this->isEngineLogPath($path)) {
                 $engineLogFiles[] = $path;
                 $engineLogTexts[] = $bytes;
@@ -318,8 +373,18 @@ final class PdfEngineHandoff
         }
         ksort($producedArtifactsSha256);
         ksort($bibliographyArtifactsSha256);
+        ksort($sourceMapArtifactsSha256);
         sort($engineLogFiles);
         sort($bibliographyLogFiles);
+        sort($sourceMapFiles);
+        $sourceMapInputs = array_values($sourceMapInputsByKey);
+        usort($sourceMapInputs, static fn (array $a, array $b): int => [$a['tag'], $a['path']] <=> [$b['tag'], $b['path']]);
+        $sourceMapInputFileList = array_keys($sourceMapInputFiles);
+        sort($sourceMapInputFileList);
+        $sourceMapExternalInputList = array_keys($sourceMapExternalInputs);
+        sort($sourceMapExternalInputList);
+        $sourceMapLineRanges = array_values($sourceMapLineRangesByKey);
+        usort($sourceMapLineRanges, static fn (array $a, array $b): int => [$a['tag'], $a['path']] <=> [$b['tag'], $b['path']]);
         if ($producedArtifactsSha256 !== []) {
             $diagnostics[] = 'produced-engine-artifacts:' . count($producedArtifactsSha256);
         }
@@ -328,6 +393,32 @@ final class PdfEngineHandoff
         }
         if ($bibliographyLogFiles !== []) {
             $diagnostics[] = 'bibliography-log-files:' . count($bibliographyLogFiles);
+        }
+        if ($sourceMapFiles !== []) {
+            $diagnostics[] = 'source-map-files:' . count($sourceMapFiles);
+        }
+        if ($sourceMapInputs !== []) {
+            $diagnostics[] = 'source-map-inputs:' . count($sourceMapInputs);
+        }
+        if ($sourceMapLineRanges !== []) {
+            $diagnostics[] = 'source-map-line-ranges:' . count($sourceMapLineRanges);
+        }
+        if ($sourceMapExternalInputList !== []) {
+            $diagnostics[] = 'source-map-external-inputs:' . count($sourceMapExternalInputList);
+        }
+        if ($sourceMapFiles !== [] && $sourceMapInputs === [] && $reason === null) {
+            $status = 'failed';
+            $reason = 'source-map-empty';
+            $diagnostics[] = 'source-map-empty';
+        }
+        if (
+            $sourceMapInputs !== []
+            && !$this->sourceMapReferencesSource($sourceFile, $sourceMapInputs)
+            && $reason === null
+        ) {
+            $status = 'failed';
+            $reason = 'source-map-source-missing';
+            $diagnostics[] = 'source-map-source-missing:' . $sourceFile;
         }
 
         $engineTexts = array_merge(
@@ -443,6 +534,12 @@ final class PdfEngineHandoff
             'producedArtifactsSha256' => $producedArtifactsSha256,
             'bibliographyArtifactsSha256' => $bibliographyArtifactsSha256,
             'bibliographyLogFiles' => $bibliographyLogFiles,
+            'sourceMapArtifactsSha256' => $sourceMapArtifactsSha256,
+            'sourceMapFiles' => $sourceMapFiles,
+            'sourceMapInputs' => $sourceMapInputs,
+            'sourceMapInputFiles' => $sourceMapInputFileList,
+            'sourceMapExternalInputs' => $sourceMapExternalInputList,
+            'sourceMapLineRanges' => $sourceMapLineRanges,
             'engineLogFiles' => $engineLogFiles,
             'engineWarnings' => $engineMessages['warnings'],
             'engineErrors' => $engineMessages['errors'],
@@ -483,6 +580,12 @@ final class PdfEngineHandoff
      *     sourceSha256: string|null,
      *     finalResourceArtifactsSha256: array<string, string>,
      *     finalBibliographyArtifactsSha256: array<string, string>,
+     *     finalSourceMapArtifactsSha256: array<string, string>,
+     *     finalSourceMapFiles: list<string>,
+     *     finalSourceMapInputs: list<array{tag:int, path:string}>,
+     *     finalSourceMapInputFiles: list<string>,
+     *     finalSourceMapExternalInputs: list<string>,
+     *     finalSourceMapLineRanges: list<array{tag:int, path:string, minLine:int, maxLine:int, references:int}>,
      *     missingResourceFiles: list<string>,
      *     engineWarnings: list<string>,
      *     engineErrors: list<string>,
@@ -607,6 +710,12 @@ final class PdfEngineHandoff
             'sourceSha256' => is_array($finalRun) && is_string($finalRun['sourceSha256'] ?? null) ? $finalRun['sourceSha256'] : null,
             'finalResourceArtifactsSha256' => is_array($finalRun) && is_array($finalRun['resourceArtifactsSha256'] ?? null) ? $finalRun['resourceArtifactsSha256'] : [],
             'finalBibliographyArtifactsSha256' => is_array($finalRun) && is_array($finalRun['bibliographyArtifactsSha256'] ?? null) ? $finalRun['bibliographyArtifactsSha256'] : [],
+            'finalSourceMapArtifactsSha256' => is_array($finalRun) && is_array($finalRun['sourceMapArtifactsSha256'] ?? null) ? $finalRun['sourceMapArtifactsSha256'] : [],
+            'finalSourceMapFiles' => is_array($finalRun) && is_array($finalRun['sourceMapFiles'] ?? null) ? $finalRun['sourceMapFiles'] : [],
+            'finalSourceMapInputs' => is_array($finalRun) && is_array($finalRun['sourceMapInputs'] ?? null) ? $finalRun['sourceMapInputs'] : [],
+            'finalSourceMapInputFiles' => is_array($finalRun) && is_array($finalRun['sourceMapInputFiles'] ?? null) ? $finalRun['sourceMapInputFiles'] : [],
+            'finalSourceMapExternalInputs' => is_array($finalRun) && is_array($finalRun['sourceMapExternalInputs'] ?? null) ? $finalRun['sourceMapExternalInputs'] : [],
+            'finalSourceMapLineRanges' => is_array($finalRun) && is_array($finalRun['sourceMapLineRanges'] ?? null) ? $finalRun['sourceMapLineRanges'] : [],
             'missingResourceFiles' => is_array($finalRun) && is_array($finalRun['missingResourceFiles'] ?? null) ? $finalRun['missingResourceFiles'] : [],
             'engineWarnings' => array_values(array_unique($warnings)),
             'engineErrors' => array_values(array_unique($errors)),
@@ -949,6 +1058,34 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @param list<string> $engineOptions
+     */
+    private function sourceMapFileFor(string $family, string $sourceFile, array $engineOptions): ?string
+    {
+        if ($family !== 'latex') {
+            return null;
+        }
+
+        foreach ($engineOptions as $option) {
+            if ($this->isSyncTexEngineOption($option)) {
+                return $this->sourceStem($sourceFile) . '.synctex.gz';
+            }
+        }
+
+        return null;
+    }
+
+    private function isSyncTexEngineOption(string $option): bool
+    {
+        $option = strtolower(trim($option));
+        if (!str_contains($option, 'synctex')) {
+            return false;
+        }
+
+        return preg_match('/synctex\s*=\s*(?:0|false|off|no)\b/i', $option) !== 1;
+    }
+
+    /**
      * @param list<string> $artifacts
      */
     private function firstEngineLogFile(array $artifacts): ?string
@@ -992,6 +1129,7 @@ final class PdfEngineHandoff
             'log',
             'out',
             'run.xml',
+            'synctex',
             'synctex.gz',
             'toc',
             'tuc',
@@ -1009,9 +1147,179 @@ final class PdfEngineHandoff
         return preg_match('/\.blg\z/i', $path) === 1;
     }
 
+    private function isSourceMapArtifactPath(string $path): bool
+    {
+        return preg_match('/\.synctex(?:\.gz)?\z/i', $path) === 1;
+    }
+
     private function isEngineLogPath(string $path): bool
     {
         return preg_match('/\.log\z/i', $path) === 1;
+    }
+
+    /**
+     * @return array{
+     *     inputs:list<array{tag:int, path:string}>,
+     *     inputFiles:list<string>,
+     *     externalInputs:list<string>,
+     *     lineRanges:list<array{tag:int, path:string, minLine:int, maxLine:int, references:int}>
+     * }
+     */
+    private function extractSourceMapArtifact(string $path, string $bytes): array
+    {
+        if (preg_match('/\.gz\z/i', $path) === 1) {
+            $text = GzipStream::decode($bytes, self::MAX_SOURCE_MAP_BYTES);
+        } else {
+            if (strlen($bytes) > self::MAX_SOURCE_MAP_BYTES) {
+                throw new \RuntimeException('source map exceeds bounded byte limit');
+            }
+            $text = $bytes;
+        }
+
+        $inputs = [];
+        $inputFiles = [];
+        $externalInputs = [];
+        $lineStats = [];
+
+        foreach (preg_split('/\R/u', $text) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+
+            if (preg_match('/\AInput:(\d+):(.+)\z/', $line, $matches) === 1) {
+                $tag = (int) $matches[1];
+                $input = $this->normalizeSourceMapInputPath($matches[2]);
+                $inputs[$tag] = ['tag' => $tag, 'path' => $input['path']];
+                if ($input['local']) {
+                    $inputFiles[$input['path']] = true;
+                } else {
+                    $externalInputs[$input['path']] = true;
+                }
+                continue;
+            }
+
+            if (preg_match_all('/[\[\(]\s*(\d+),(\d+):/', $line, $matches, PREG_SET_ORDER) < 1) {
+                continue;
+            }
+
+            foreach ($matches as $match) {
+                $tag = (int) $match[1];
+                $sourceLine = (int) $match[2];
+                if ($sourceLine < 1) {
+                    continue;
+                }
+                if (!isset($lineStats[$tag])) {
+                    $lineStats[$tag] = [
+                        'minLine' => $sourceLine,
+                        'maxLine' => $sourceLine,
+                        'references' => 0,
+                    ];
+                }
+                $lineStats[$tag]['minLine'] = min($lineStats[$tag]['minLine'], $sourceLine);
+                $lineStats[$tag]['maxLine'] = max($lineStats[$tag]['maxLine'], $sourceLine);
+                $lineStats[$tag]['references']++;
+            }
+        }
+
+        ksort($inputs);
+        $ranges = [];
+        foreach ($lineStats as $tag => $stats) {
+            if (!isset($inputs[$tag])) {
+                continue;
+            }
+
+            $ranges[] = [
+                'tag' => (int) $tag,
+                'path' => $inputs[$tag]['path'],
+                'minLine' => $stats['minLine'],
+                'maxLine' => $stats['maxLine'],
+                'references' => $stats['references'],
+            ];
+        }
+        usort($ranges, static fn (array $a, array $b): int => [$a['tag'], $a['path']] <=> [$b['tag'], $b['path']]);
+
+        $inputFileList = array_keys($inputFiles);
+        sort($inputFileList);
+        $externalInputList = array_keys($externalInputs);
+        sort($externalInputList);
+
+        return [
+            'inputs' => array_values($inputs),
+            'inputFiles' => $inputFileList,
+            'externalInputs' => $externalInputList,
+            'lineRanges' => $ranges,
+        ];
+    }
+
+    /**
+     * @return array{path:string, local:bool}
+     */
+    private function normalizeSourceMapInputPath(string $path): array
+    {
+        $path = str_replace('\\', '/', trim($path));
+        $path = trim($path, " \t\n\r\0\x0B'\"`");
+        if ($path === '') {
+            throw new \RuntimeException('source map input path is empty');
+        }
+        if (str_contains($path, "\0")) {
+            throw new \RuntimeException('source map input path contains NUL bytes');
+        }
+
+        if (preg_match('/\Afile:\/\//i', $path) === 1) {
+            $uriPath = parse_url($path, PHP_URL_PATH);
+            if (is_string($uriPath) && $uriPath !== '') {
+                $path = rawurldecode($uriPath);
+            }
+        }
+
+        if (
+            str_starts_with($path, '/')
+            || preg_match('/\A[A-Za-z]:\//', $path) === 1
+            || $this->isUriResourceReference($path)
+        ) {
+            return ['path' => $this->externalSourceMapInputName($path), 'local' => false];
+        }
+
+        try {
+            return ['path' => $this->normalizeRelativePath($path, 'SyncTeX input path'), 'local' => true];
+        } catch (\InvalidArgumentException) {
+            return ['path' => $this->externalSourceMapInputName($path), 'local' => false];
+        }
+    }
+
+    private function externalSourceMapInputName(string $path): string
+    {
+        $path = str_replace('\\', '/', trim($path));
+        $uriPath = parse_url($path, PHP_URL_PATH);
+        if (is_string($uriPath) && $uriPath !== '') {
+            $path = $uriPath;
+        }
+
+        $basename = basename($path);
+
+        return $basename === '' || $basename === '.' ? 'external-source' : $basename;
+    }
+
+    /**
+     * @param list<array{tag:int, path:string}> $inputs
+     */
+    private function sourceMapReferencesSource(string $sourceFile, array $inputs): bool
+    {
+        $sourceFile = str_replace('\\', '/', $sourceFile);
+        $sourceBasename = basename($sourceFile);
+        foreach ($inputs as $input) {
+            $inputPath = str_replace('\\', '/', $input['path']);
+            if (
+                $inputPath === $sourceFile
+                || str_ends_with($inputPath, '/' . $sourceFile)
+                || basename($inputPath) === $sourceBasename
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

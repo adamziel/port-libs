@@ -6,6 +6,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\PdfEngineHandoff;
+use PortLibs\Pandoc\GzipStream;
 
 $markdown = <<<'MARKDOWN'
 ---
@@ -36,7 +37,7 @@ $plan = $handoff->plan($document, [
         'colorlinks' => true,
         'mainfont' => 'Source Serif 4',
     ],
-    'engineOptions' => ['-file-line-error'],
+    'engineOptions' => ['-file-line-error', '-synctex=1'],
 ]);
 $fakePdfBytes = "%PDF-1.7\n% fake WordPress import review packet\n%%EOF\n";
 $fakeLog = implode("\n", [
@@ -46,6 +47,17 @@ $fakeLog = implode("\n", [
     'Output written on handoff/pdf-review-packet.pdf (1 page, ' . strlen($fakePdfBytes) . ' bytes).',
     '',
 ]);
+$fakeSourceMap = implode("\n", [
+    'SyncTeX Version:1',
+    'Input:1:handoff/pdf-review-packet.tex',
+    'Input:2:templates/review-header.tex',
+    'Output:pdf',
+    'Content:',
+    '[1,4:100,200:300,400',
+    '(2,1:120,240',
+    '',
+]);
+$fakeSourceMapBytes = GzipStream::build($fakeSourceMap, ['filename' => 'pdf-review-packet.synctex']);
 $fakeBibliographyLog = implode("\n", [
     'This is Biber 2.19',
     'Biber warning: Entry migration-log not found in bibliography',
@@ -65,6 +77,7 @@ $fakeFirstRun = [
         'handoff/pdf-review-packet.run.xml' => '<requests />',
         'handoff/pdf-review-packet.blg' => $fakeBibliographyLog,
         'handoff/pdf-review-packet.out' => "\n",
+        'handoff/pdf-review-packet.synctex.gz' => $fakeSourceMapBytes,
         'handoff/pdf-review-packet.log' => $fakeLog,
         $plan['outputFile'] => $fakePdfBytes,
     ],
@@ -90,6 +103,7 @@ $fakeSequence = $handoff->fakeRunSequence($plan, [
             'handoff/pdf-review-packet.bbl' => "\\begin{thebibliography}{1}\n\\end{thebibliography}\n",
             'handoff/pdf-review-packet.blg' => "This is Biber 2.19\n",
             'handoff/pdf-review-packet.out' => "\n",
+            'handoff/pdf-review-packet.synctex.gz' => $fakeSourceMapBytes,
             'handoff/pdf-review-packet.log' => $fakeFinalLog,
             $plan['outputFile'] => $fakeFinalPdfBytes,
         ],
@@ -126,6 +140,12 @@ $summary = [
         'producedArtifactsSha256' => $fakeResult['producedArtifactsSha256'],
         'bibliographyArtifactsSha256' => $fakeResult['bibliographyArtifactsSha256'],
         'bibliographyLogFiles' => $fakeResult['bibliographyLogFiles'],
+        'sourceMapArtifactsSha256' => $fakeResult['sourceMapArtifactsSha256'],
+        'sourceMapFiles' => $fakeResult['sourceMapFiles'],
+        'sourceMapInputs' => $fakeResult['sourceMapInputs'],
+        'sourceMapInputFiles' => $fakeResult['sourceMapInputFiles'],
+        'sourceMapExternalInputs' => $fakeResult['sourceMapExternalInputs'],
+        'sourceMapLineRanges' => $fakeResult['sourceMapLineRanges'],
         'engineLogFiles' => $fakeResult['engineLogFiles'],
         'engineWarnings' => $fakeResult['engineWarnings'],
         'engineErrors' => $fakeResult['engineErrors'],
@@ -149,6 +169,10 @@ $summary = [
         'finalPdfSha256' => $fakeSequence['finalPdfSha256'],
         'finalResourceArtifactsSha256' => $fakeSequence['finalResourceArtifactsSha256'],
         'finalBibliographyArtifactsSha256' => $fakeSequence['finalBibliographyArtifactsSha256'],
+        'finalSourceMapArtifactsSha256' => $fakeSequence['finalSourceMapArtifactsSha256'],
+        'finalSourceMapFiles' => $fakeSequence['finalSourceMapFiles'],
+        'finalSourceMapInputs' => $fakeSequence['finalSourceMapInputs'],
+        'finalSourceMapLineRanges' => $fakeSequence['finalSourceMapLineRanges'],
         'missingResourceFiles' => $fakeSequence['missingResourceFiles'],
         'finalDeclaredOutputPages' => $fakeSequence['finalDeclaredOutputPages'],
         'bibliographyWarnings' => $fakeSequence['bibliographyWarnings'],
@@ -178,7 +202,9 @@ if (in_array('--self-test', $argv, true)) {
         'handoff/pdf-review-packet.bbl',
         'handoff/pdf-review-packet.blg',
         'handoff/pdf-review-packet.run.xml',
+        'handoff/pdf-review-packet.synctex.gz',
         'documentclass=scrartcl',
+        '-synctex=1',
         '--resource-path=media:review assets',
         'Source Serif 4',
         'resourceFileManifest',
@@ -187,9 +213,14 @@ if (in_array('--self-test', $argv, true)) {
         'source-artifacts-validated:2',
         'resource-files-validated:2',
         'resourceArtifactsSha256',
-        'produced-engine-artifacts:6',
+        'produced-engine-artifacts:7',
         'bibliography-sidecars:3',
         'bibliography-log-files:1',
+        'source-map-files:1',
+        'source-map-inputs:2',
+        'source-map-line-ranges:2',
+        'sourceMapArtifactsSha256',
+        'sourceMapLineRanges',
         'bibliography-warnings:3',
         'bibliography-run-needed',
         'engine-log-warnings:2',
@@ -207,6 +238,8 @@ if (in_array('--self-test', $argv, true)) {
         'fake-runner-final-bibliography-cleared',
         'finalResourceArtifactsSha256',
         'finalBibliographyArtifactsSha256',
+        'finalSourceMapArtifactsSha256',
+        'finalSourceMapLineRanges',
         'bibliographyWarnings',
         '"successfulAttempts":2',
         '"rerunNeeded":false',
