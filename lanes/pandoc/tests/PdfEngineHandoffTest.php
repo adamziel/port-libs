@@ -329,6 +329,93 @@ return [
         $t->contains('engine-log-errors:2', implode(',', $result['diagnostics']));
     },
 
+    'fake runner sequence records multipass rerun clearing without executing engines' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'review.pdf']);
+        $firstPdf = "%PDF-1.7\n% fake first pass\n%%EOF\n";
+        $finalPdf = "%PDF-1.7\n% fake final pass after rerun\n%%EOF\n";
+        $firstLog = implode("\n", [
+            'This is XeTeX, Version 3.141592653',
+            'LaTeX Warning: Reference `fig:packet\' on page 1 undefined on input line 8.',
+            'LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.',
+            'Output written on review.pdf (1 page, ' . strlen($firstPdf) . ' bytes).',
+            '',
+        ]);
+        $finalLog = 'Output written on review.pdf (1 page, ' . strlen($finalPdf) . " bytes).\n";
+
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'review.aux' => "\\relax\n",
+                    'review.log' => $firstLog,
+                    'review.pdf' => $firstPdf,
+                ],
+            ],
+            [
+                'files' => [
+                    'review.aux' => "\\relax\n\\newlabel{fig:packet}{{1}{1}}\n",
+                    'review.log' => $finalLog,
+                    'review.pdf' => $finalPdf,
+                ],
+            ],
+        ]);
+
+        $t->same(true, $sequence['ok']);
+        $t->same('ok', $sequence['status']);
+        $t->same(null, $sequence['reason']);
+        $t->same(2, $sequence['attempts']);
+        $t->same(2, $sequence['successfulAttempts']);
+        $t->same(false, $sequence['rerunNeeded']);
+        $t->same(2, $sequence['finalRunIndex']);
+        $t->same(strlen($finalPdf), $sequence['finalBytes']);
+        $t->same(hash('sha256', $finalPdf), $sequence['finalPdfSha256']);
+        $t->same(1, $sequence['finalDeclaredOutputPages']);
+        $t->same(false, $sequence['runs'][1]['rerunNeeded']);
+        $t->contains('Reference `fig:packet\' on page 1 undefined', implode("\n", $sequence['engineWarnings']));
+        $t->contains('fake-runner-attempts:2', implode(',', $sequence['diagnostics']));
+        $t->contains('fake-runner-attempt-rerun-needed:1', implode(',', $sequence['diagnostics']));
+        $t->contains('fake-runner-final-rerun-cleared', implode(',', $sequence['diagnostics']));
+    },
+
+    'fake runner sequence reports failed attempts and final rerun-needed state' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'lualatex', 'outputPath' => 'review.pdf']);
+        $pdfBytes = "%PDF-1.7\n% fake bounded handoff\n%%EOF\n";
+        $rerunLog = implode("\n", [
+            'LaTeX Warning: Citation `packet\' on page 1 undefined on input line 4.',
+            'LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.',
+            'Output written on review.pdf (1 page, ' . strlen($pdfBytes) . ' bytes).',
+            '',
+        ]);
+
+        $stillNeedsRerun = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'review.log' => $rerunLog,
+                    'review.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $failedAttempt = $handoff->fakeRunSequence($plan, [
+            ['exitCode' => 1, 'stderr' => 'engine failed before pdf output'],
+            [
+                'files' => [
+                    'review.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same(false, $stillNeedsRerun['ok']);
+        $t->same('failed', $stillNeedsRerun['status']);
+        $t->same('rerun-still-needed', $stillNeedsRerun['reason']);
+        $t->same(true, $stillNeedsRerun['rerunNeeded']);
+        $t->contains('fake-runner-rerun-still-needed', implode(',', $stillNeedsRerun['diagnostics']));
+        $t->same(false, $failedAttempt['ok']);
+        $t->same('attempt-1-engine-exit-1', $failedAttempt['reason']);
+        $t->same(1, $failedAttempt['successfulAttempts']);
+        $t->contains('fake-runner-attempt-failed:1:engine-exit-1', implode(',', $failedAttempt['diagnostics']));
+    },
+
     'fake runner reports missing output non pdf bytes source mismatch and engine failures' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'pdflatex', 'outputPath' => 'review.pdf']);
@@ -368,5 +455,8 @@ return [
         $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan($document(), ['variables' => ['bad variable' => 'value']]));
         $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan($document(), ['variables' => ['mainfont' => "bad\0font"]]));
         $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan(new AstNode('paragraph')));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->fakeRunSequence($handoff->plan($document()), []));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->fakeRunSequence($handoff->plan($document()), array_fill(0, 9, [])));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->fakeRunSequence($handoff->plan($document()), ['not a result']));
     },
 ];

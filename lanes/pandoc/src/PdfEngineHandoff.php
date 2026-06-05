@@ -376,6 +376,128 @@ final class PdfEngineHandoff
         ];
     }
 
+    /**
+     * @param array<string, mixed> $plan
+     * @param list<array{exitCode?: int, stdout?: string, stderr?: string, files?: array<string, string>}> $runs
+     * @return array{
+     *     ok: bool,
+     *     status: string,
+     *     reason: string|null,
+     *     engine: string,
+     *     outputFile: string,
+     *     attempts: int,
+     *     successfulAttempts: int,
+     *     finalRunIndex: int,
+     *     finalRun: array<string, mixed>|null,
+     *     runs: list<array<string, mixed>>,
+     *     finalBytes: int,
+     *     finalPdfSha256: string|null,
+     *     finalDeclaredOutputFile: string|null,
+     *     finalDeclaredOutputPages: int|null,
+     *     finalDeclaredOutputBytes: int|null,
+     *     sourceSha256: string|null,
+     *     engineWarnings: list<string>,
+     *     engineErrors: list<string>,
+     *     rerunNeeded: bool,
+     *     diagnostics: list<string>
+     * }
+     */
+    public function fakeRunSequence(array $plan, array $runs): array
+    {
+        $engine = $this->requirePlanString($plan, 'engine');
+        $outputFile = $this->requirePlanString($plan, 'outputFile');
+        if ($runs === []) {
+            throw new \InvalidArgumentException('PDF fake runner sequence requires at least one attempt');
+        }
+        if (count($runs) > 8) {
+            throw new \InvalidArgumentException('PDF fake runner sequence is bounded to 8 attempts');
+        }
+
+        $attemptResults = [];
+        $warnings = [];
+        $errors = [];
+        $diagnostics = ['fake-runner-attempts:' . count($runs)];
+        $successfulAttempts = 0;
+        $status = 'ok';
+        $reason = null;
+        $finalRun = null;
+        $finalRunIndex = 0;
+        $hadRerunNeededAttempt = false;
+
+        foreach ($runs as $index => $run) {
+            if (!is_array($run)) {
+                throw new \InvalidArgumentException('PDF fake runner sequence attempts must be result arrays');
+            }
+
+            $attemptIndex = $index + 1;
+            $attempt = $this->fakeRun($plan, $run);
+            $attemptResults[] = $attempt;
+            $finalRun = $attempt;
+            $finalRunIndex = $attemptIndex;
+
+            if ($attempt['ok'] === true) {
+                $successfulAttempts++;
+            } elseif ($reason === null) {
+                $attemptReason = is_string($attempt['reason'] ?? null) && $attempt['reason'] !== ''
+                    ? $attempt['reason']
+                    : 'failed';
+                $status = 'failed';
+                $reason = 'attempt-' . $attemptIndex . '-' . $attemptReason;
+                $diagnostics[] = 'fake-runner-attempt-failed:' . $attemptIndex . ':' . $attemptReason;
+            }
+
+            if (($attempt['rerunNeeded'] ?? false) === true) {
+                $hadRerunNeededAttempt = true;
+                $diagnostics[] = 'fake-runner-attempt-rerun-needed:' . $attemptIndex;
+            }
+
+            foreach ($attempt['engineWarnings'] ?? [] as $warning) {
+                if (is_string($warning) && $warning !== '') {
+                    $warnings[] = $warning;
+                }
+            }
+            foreach ($attempt['engineErrors'] ?? [] as $error) {
+                if (is_string($error) && $error !== '') {
+                    $errors[] = $error;
+                }
+            }
+        }
+
+        $finalRerunNeeded = is_array($finalRun) && ($finalRun['rerunNeeded'] ?? false) === true;
+        if ($finalRerunNeeded) {
+            $diagnostics[] = 'fake-runner-rerun-still-needed';
+            if ($reason === null) {
+                $status = 'failed';
+                $reason = 'rerun-still-needed';
+            }
+        } elseif ($hadRerunNeededAttempt) {
+            $diagnostics[] = 'fake-runner-final-rerun-cleared';
+        }
+
+        return [
+            'ok' => $status === 'ok',
+            'status' => $status,
+            'reason' => $reason,
+            'engine' => $engine,
+            'outputFile' => $outputFile,
+            'attempts' => count($runs),
+            'successfulAttempts' => $successfulAttempts,
+            'finalRunIndex' => $finalRunIndex,
+            'finalRun' => $finalRun,
+            'runs' => $attemptResults,
+            'finalBytes' => is_array($finalRun) ? (int) ($finalRun['bytes'] ?? 0) : 0,
+            'finalPdfSha256' => is_array($finalRun) && is_string($finalRun['pdfSha256'] ?? null) ? $finalRun['pdfSha256'] : null,
+            'finalDeclaredOutputFile' => is_array($finalRun) && is_string($finalRun['declaredOutputFile'] ?? null) ? $finalRun['declaredOutputFile'] : null,
+            'finalDeclaredOutputPages' => is_array($finalRun) && is_int($finalRun['declaredOutputPages'] ?? null) ? $finalRun['declaredOutputPages'] : null,
+            'finalDeclaredOutputBytes' => is_array($finalRun) && is_int($finalRun['declaredOutputBytes'] ?? null) ? $finalRun['declaredOutputBytes'] : null,
+            'sourceSha256' => is_array($finalRun) && is_string($finalRun['sourceSha256'] ?? null) ? $finalRun['sourceSha256'] : null,
+            'engineWarnings' => array_values(array_unique($warnings)),
+            'engineErrors' => array_values(array_unique($errors)),
+            'rerunNeeded' => $finalRerunNeeded,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
     private function engineName(string $engineProgram): string
     {
         $engineProgram = $this->requireString($engineProgram, 'PDF engine');

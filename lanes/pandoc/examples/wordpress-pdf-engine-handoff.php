@@ -41,7 +41,7 @@ $fakeLog = implode("\n", [
     'Output written on handoff/pdf-review-packet.pdf (1 page, ' . strlen($fakePdfBytes) . ' bytes).',
     '',
 ]);
-$fakeResult = $handoff->fakeRun($plan, [
+$fakeFirstRun = [
     'stdout' => 'fake xelatex runner accepted the planned argv',
     'files' => [
         $plan['sourceFile'] => (string) $plan['sourceBytes'],
@@ -51,6 +51,28 @@ $fakeResult = $handoff->fakeRun($plan, [
         'handoff/pdf-review-packet.out' => "\n",
         'handoff/pdf-review-packet.log' => $fakeLog,
         $plan['outputFile'] => $fakePdfBytes,
+    ],
+];
+$fakeResult = $handoff->fakeRun($plan, $fakeFirstRun);
+$fakeFinalPdfBytes = "%PDF-1.7\n% fake WordPress import review packet final pass\n%%EOF\n";
+$fakeFinalLog = implode("\n", [
+    'This is XeTeX, Version 3.141592653',
+    'Output written on handoff/pdf-review-packet.pdf (1 page, ' . strlen($fakeFinalPdfBytes) . ' bytes).',
+    '',
+]);
+$fakeSequence = $handoff->fakeRunSequence($plan, [
+    $fakeFirstRun,
+    [
+        'stdout' => 'fake xelatex runner accepted the final planned argv',
+        'files' => [
+            $plan['sourceFile'] => (string) $plan['sourceBytes'],
+            'templates/review-packet.tex' => '\documentclass{$documentclass$}' . "\n" . '$for(include-in-header)$$include-in-header$$endfor$' . "\n" . '\begin{document}$body$\end{document}',
+            'templates/review-header.tex' => '\usepackage{fontspec}',
+            'handoff/pdf-review-packet.aux' => "\\relax\n\\citation{migration-log}\n",
+            'handoff/pdf-review-packet.out' => "\n",
+            'handoff/pdf-review-packet.log' => $fakeFinalLog,
+            $plan['outputFile'] => $fakeFinalPdfBytes,
+        ],
     ],
 ]);
 
@@ -86,6 +108,19 @@ $summary = [
         'pdfTrailerComplete' => $fakeResult['pdfTrailerComplete'],
         'diagnostics' => $fakeResult['diagnostics'],
     ],
+    'fakeRunSequence' => [
+        'ok' => $fakeSequence['ok'],
+        'reason' => $fakeSequence['reason'],
+        'attempts' => $fakeSequence['attempts'],
+        'successfulAttempts' => $fakeSequence['successfulAttempts'],
+        'finalRunIndex' => $fakeSequence['finalRunIndex'],
+        'finalBytes' => $fakeSequence['finalBytes'],
+        'finalPdfSha256' => $fakeSequence['finalPdfSha256'],
+        'finalDeclaredOutputPages' => $fakeSequence['finalDeclaredOutputPages'],
+        'rerunNeeded' => $fakeSequence['rerunNeeded'],
+        'engineWarnings' => $fakeSequence['engineWarnings'],
+        'diagnostics' => $fakeSequence['diagnostics'],
+    ],
 ];
 
 if (in_array('--self-test', $argv, true)) {
@@ -111,6 +146,12 @@ if (in_array('--self-test', $argv, true)) {
         'pdfTrailerComplete',
         'migration-log',
         'fake-runner-no-execution',
+        'fakeRunSequence',
+        'fake-runner-attempts:2',
+        'fake-runner-attempt-rerun-needed:1',
+        'fake-runner-final-rerun-cleared',
+        '"successfulAttempts":2',
+        '"rerunNeeded":false',
     ] as $needle) {
         if (!str_contains(json_encode($summary, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES), $needle)) {
             throw new RuntimeException('PDF engine handoff self-test missing: ' . $needle);
