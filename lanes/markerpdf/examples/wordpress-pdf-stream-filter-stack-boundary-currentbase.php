@@ -67,6 +67,24 @@ $runLengthEncode = static function (string $bytes): string {
     return $encoded . chr(128);
 };
 
+$pngSubPredictorEncode = static function (string $bytes, int $columns): string {
+    $encoded = '';
+    for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += $columns) {
+        $row = substr($bytes, $offset, $columns);
+        if (strlen($row) !== $columns) {
+            throw new RuntimeException('Focused null-filter DecodeParms rows must be fixed-width.');
+        }
+
+        $encoded .= "\x01";
+        for ($index = 0; $index < $columns; $index++) {
+            $left = $index > 0 ? ord($row[$index - 1]) : 0;
+            $encoded .= chr((ord($row[$index]) - $left) & 0xff);
+        }
+    }
+
+    return $encoded;
+};
+
 $before = "BT /F1 12 Tf 72 720 Td (Before ASCII85 Stack Boundary) Tj ET\n";
 while (strlen($before) % 4 !== 0) {
     $before .= ' ';
@@ -204,6 +222,17 @@ $runLengthDeclaredPdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
     . "%%EOF";
 
+$nullFilterRowOne = 'BT /F1 12 Tf 72 720 Td (Null Filter Predictor) Tj T* ';
+$nullFilterRowTwo = str_pad('(Singleton Dict Applies) Tj ET', strlen($nullFilterRowOne));
+$nullFilterCompressed = $zlibStored($pngSubPredictorEncode($nullFilterRowOne . $nullFilterRowTwo, strlen($nullFilterRowOne)));
+$nullFilterDecodeParmsPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Filter [ null /FlateDecode ] /DecodeParms << /Predictor 12 /Columns " . strlen($nullFilterRowOne) . " >> /Length " . strlen($nullFilterCompressed) . " >>\nstream\n{$nullFilterCompressed}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "%%EOF";
+
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
 $stackLines = $extractor->extractTextLines($stackPdf);
@@ -212,6 +241,7 @@ $shortLengthLines = $extractor->extractTextLines($shortLengthPdf);
 $flateFirstLines = $extractor->extractTextLines($flateFirstPdf);
 $runLengthLines = $extractor->extractTextLines($runLengthPdf);
 $runLengthDeclaredLines = $extractor->extractTextLines($runLengthDeclaredPdf);
+$nullFilterDecodeParmsLines = $extractor->extractTextLines($nullFilterDecodeParmsPdf);
 $allLines = [
     ...$lines,
     ...$stackLines,
@@ -220,6 +250,7 @@ $allLines = [
     ...$flateFirstLines,
     ...$runLengthLines,
     ...$runLengthDeclaredLines,
+    ...$nullFilterDecodeParmsLines,
 ];
 $joined = implode("\n", $allLines);
 
@@ -233,7 +264,9 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         ['FlateDecode', 'ASCII85Decode'],
         ['RunLengthDecode', 'FlateDecode'],
         ['RunLengthDecode', 'FlateDecode'],
+        [null, 'FlateDecode'],
     ],
+    'singleton_decodeparms_after_null_filter_stack_entry' => true,
     'missing_length_stream_payload' => true,
     'declared_length_points_at_encoded_fake_endstream' => true,
     'short_declared_length_before_encoded_fake_endstream' => true,

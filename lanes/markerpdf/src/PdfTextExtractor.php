@@ -7070,7 +7070,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $filterDecodeParms = $decodeParms[$index] ?? null;
+            $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $index);
             if (!$this->canApplyDecodeParms($filter, $filterDecodeParms, $objects)) {
                 return null;
             }
@@ -7287,7 +7287,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $filterDecodeParms = $decodeParms[$index] ?? null;
+            $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $index);
             if (!$this->canApplyDecodeParms($filter, $filterDecodeParms, $objects)) {
                 return null;
             }
@@ -7328,6 +7328,32 @@ final class PdfTextExtractor
             'RunLengthDecode', 'RL' => strpos($stream, chr(128)) !== false,
             default => true,
         };
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @param list<string|null> $decodeParms
+     */
+    private function decodeParmsForFilterIndex(array $filters, array $decodeParms, int $index): ?string
+    {
+        if (array_key_exists($index, $decodeParms)) {
+            return $decodeParms[$index];
+        }
+
+        if (count($decodeParms) !== 1) {
+            return null;
+        }
+
+        $nonNullFilterIndexes = [];
+        foreach ($filters as $filterIndex => $filter) {
+            if (is_string($filter)) {
+                $nonNullFilterIndexes[] = $filterIndex;
+            }
+        }
+
+        return $nonNullFilterIndexes === [$index]
+            ? $decodeParms[0]
+            : null;
     }
 
     /**
@@ -18054,7 +18080,7 @@ final class PdfTextExtractor
                 return $stream;
             }
 
-            $filterDecodeParms = $decodeParms[$index] ?? null;
+            $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $index);
             if (!$this->canApplyDecodeParms($filter, $filterDecodeParms, [])) {
                 return null;
             }
