@@ -495,6 +495,60 @@ XML;
         $t->contains('<ol start="4" type="a">', $blocksHtml);
         $t->contains('<ol start="4">', $blocksHtml);
     },
+    'inherits parent ODT list style for styleless nested lists' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithInheritedList = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:styles>
+    <text:list-style style:name="ReviewSteps">
+      <text:list-level-style-number text:level="1" style:num-format="1" text:start-value="2"/>
+      <text:list-level-style-number text:level="2" style:num-format="a" text:start-value="4"/>
+    </text:list-style>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithStylelessNestedList = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:list text:style-name="ReviewSteps">
+        <text:list-item>
+          <text:p>Top-level review item</text:p>
+          <text:list>
+            <text:list-item><text:p>Inherited nested review item</text:p></text:list-item>
+          </text:list>
+        </text:list-item>
+      </text:list>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithStylelessNestedList, null, $stylesWithInheritedList));
+        $outer = $result['document']->children[0];
+        $inner = $outer->children[0]->children[1];
+
+        $t->same('ordered_list', $outer->type);
+        $t->same('ReviewSteps', $outer->attr('styleName'));
+        $t->same(2, $outer->attr('start'));
+        $t->same('ordered_list', $inner->type);
+        $t->same('ReviewSteps', $inner->attr('inheritedStyleName'));
+        $t->same(4, $inner->attr('start'));
+        $t->same('lower_alpha', $inner->attr('style'));
+        $t->same(2, $inner->attr('listLevel'));
+        $t->same('Inherited nested review item', $inner->children[0]->children[0]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('2.  Top-level review item', $markdown);
+        $t->contains('  d.  Inherited nested review item', $markdown);
+        $t->contains('<ol start="2">', $blocksHtml);
+        $t->contains('<ol start="4" type="a">', $blocksHtml);
+    },
     'maps ODT footnotes endnotes and bookmark references into reviewable AST nodes' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithNotesAndBookmarks = <<<'XML'
 <office:document-content

@@ -29,6 +29,9 @@ final class OdfReader
     /** @var array<int, int> */
     private array $listContinuationStartCounters = [];
 
+    /** @var list<string> */
+    private array $currentListStyleNames = [];
+
     private int $currentListLevel = 0;
 
     /**
@@ -343,6 +346,7 @@ final class OdfReader
 
         $this->trackedChanges = $this->trackedChangesFromText($text);
         $this->listContinuationStartCounters = [];
+        $this->currentListStyleNames = [];
         $this->currentListLevel = 0;
 
         return [
@@ -669,7 +673,9 @@ final class OdfReader
      */
     private function listNodeAtCurrentLevel(\DOMElement $list, ZipPackage $package, array $catalog): AstNode
     {
-        $styleName = self::attr($list, self::TEXT_NS, 'style-name');
+        $explicitStyleName = self::attr($list, self::TEXT_NS, 'style-name');
+        $inheritedStyleName = $explicitStyleName === '' ? $this->currentListStyleName() : '';
+        $styleName = $explicitStyleName !== '' ? $explicitStyleName : $inheritedStyleName;
         $level = max(1, $this->currentListLevel);
         $definition = $this->listDefinition($styleName, $level, $catalog);
         $ordered = $definition['type'] === 'number';
@@ -682,8 +688,10 @@ final class OdfReader
             'sourceFormat' => 'odt',
             'listLevel' => $level,
         ];
-        if ($styleName !== '') {
-            $attrs['styleName'] = $styleName;
+        if ($explicitStyleName !== '') {
+            $attrs['styleName'] = $explicitStyleName;
+        } elseif ($inheritedStyleName !== '') {
+            $attrs['inheritedStyleName'] = $inheritedStyleName;
         }
         if ($continueNumbering) {
             $attrs['continued'] = true;
@@ -696,20 +704,50 @@ final class OdfReader
         }
 
         $items = [];
-        foreach (self::childElements($list) as $child) {
-            if (!$this->isElement($child, self::TEXT_NS, 'list-item') && !$this->isElement($child, self::TEXT_NS, 'list-header')) {
-                continue;
-            }
+        $pushedStyleName = $this->pushCurrentListStyleName($styleName, $catalog);
+        try {
+            foreach (self::childElements($list) as $child) {
+                if (!$this->isElement($child, self::TEXT_NS, 'list-item') && !$this->isElement($child, self::TEXT_NS, 'list-header')) {
+                    continue;
+                }
 
-            $itemBlocks = $this->blockNodes($child, $package, $catalog);
-            $items[] = new AstNode('list_item', [
-                'sourceFormat' => 'odt',
-            ], $itemBlocks);
+                $itemBlocks = $this->blockNodes($child, $package, $catalog);
+                $items[] = new AstNode('list_item', [
+                    'sourceFormat' => 'odt',
+                ], $itemBlocks);
+            }
+        } finally {
+            if ($pushedStyleName) {
+                array_pop($this->currentListStyleNames);
+            }
         }
 
         $this->listContinuationStartCounters[$level] = $start + count($items);
 
         return new AstNode($ordered ? 'ordered_list' : 'bullet_list', $attrs, $items);
+    }
+
+    private function currentListStyleName(): string
+    {
+        if ($this->currentListStyleNames === []) {
+            return '';
+        }
+
+        return $this->currentListStyleNames[array_key_last($this->currentListStyleNames)];
+    }
+
+    /**
+     * @param array{listStyles:array<string, array<string, mixed>>} $catalog
+     */
+    private function pushCurrentListStyleName(string $styleName, array $catalog): bool
+    {
+        if ($styleName === '' || !isset($catalog['listStyles'][$styleName])) {
+            return false;
+        }
+
+        $this->currentListStyleNames[] = $styleName;
+
+        return true;
     }
 
     /**

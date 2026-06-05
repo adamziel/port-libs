@@ -44,6 +44,7 @@ $stylesXml = <<<'XML'
     </style:style>
     <text:list-style style:name="ReviewSteps">
       <text:list-level-style-number text:level="1" style:num-format="1" text:start-value="1"/>
+      <text:list-level-style-number text:level="2" style:num-format="a" text:start-value="4"/>
     </text:list-style>
   </office:styles>
   <office:master-styles>
@@ -93,7 +94,12 @@ $contentXml = <<<'XML'
       </text:section>
       <text:p>Reviewer <text:span text:style-name="StrongSource">summary</text:span> keeps <office:annotation office:name="ann-source-range"><dc:creator>Migration Reviewer</dc:creator><dc:date>2026-06-05T05:58:00Z</dc:date><text:p>Range comment for the annotated source claim.</text:p></office:annotation>annotated source claim<office:annotation-end office:name="ann-source-range"/>, <text:change-start text:change-id="chg-add-source-note"/>tracked source note<text:change-end text:change-id="chg-add-source-note"/> and <text:change text:change-id="chg-delete-draft-claim"/>, <text:bookmark-start text:name="Review Anchor"/>review anchor<text:bookmark-end text:name="Review Anchor"/>, <text:bookmark-ref text:ref-name="Review Anchor" text:reference-format="text">internal reference</text:bookmark-ref>, <text:reference-mark-start text:name="Source Claim"/>source claim<text:reference-mark-end text:name="Source Claim"/> with <text:reference-ref text:ref-name="Source Claim" text:reference-format="text">source claim reference</text:reference-ref>, caption <text:sequence text:name="Illustration" text:formula="ooow:Illustration+1" text:ref-name="source-hero-seq">Figure 1</text:sequence>, review field <text:variable-set text:name="ReviewStatus" office:value-type="string" office:string-value="Ready">Ready</text:variable-set> by <text:user-field-get text:name="Reviewer">Migration Desk</text:user-field-get> on page <text:page-number text:select-page="current">2</text:page-number>, <text:a xlink:href="https://example.test/odt-source">source URL</text:a>, citation <text:bibliography-mark text:identifier="source-review" text:number="2">source review packet</text:bibliography-mark>, formula <draw:frame draw:name="Migration formula"><draw:object xlink:href="./Object 1"/></draw:frame>, and annotations<text:note text:id="ftn-review" text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>ODT footnote reviewer context.</text:p></text:note-body></text:note><office:annotation><dc:creator>Migration Desk</dc:creator><dc:date>2026-06-04T23:20:00Z</dc:date><text:p>Check imported captions before publishing.</text:p></office:annotation>.</text:p>
       <text:list text:style-name="ReviewSteps">
-        <text:list-item><text:p>Match ODT media to WordPress attachments</text:p></text:list-item>
+        <text:list-item>
+          <text:p>Match ODT media to WordPress attachments</text:p>
+          <text:list>
+            <text:list-item><text:p>Check inherited nested checklist style</text:p></text:list-item>
+          </text:list>
+        </text:list-item>
         <text:list-item><text:p>Review table spans</text:p></text:list-item>
       </text:list>
       <text:list text:style-name="ReviewSteps" text:continue-numbering="true">
@@ -279,6 +285,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<ol start="3"><li>Publish continued review checklist</li></ol>')) {
         throw new RuntimeException('Expected ODT continued list numbering to survive WordPress blocks');
+    }
+    if (!str_contains($blocks, '<ol start="4" type="a"><li>Check inherited nested checklist style</li></ol>')) {
+        throw new RuntimeException('Expected ODT nested lists without explicit style names to inherit parent list style');
     }
     if (($result['importReport']['content']['noteCount'] ?? 0) < 2) {
         throw new RuntimeException('Expected ODT footnote and annotation notes to be reported');
