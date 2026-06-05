@@ -58,6 +58,8 @@ non-specific-review:
   status: ! queued
   labels: [! front-matter, ! "WordPress #import"]
 flow-non-specific-review: {owner: ! "Flow Desk", status: ! approved, labels: [! yaml, ! metadata]}
+verbatim-tag-review: {owner: !<tag:example.test,2026:reviewer> Import Desk, labels: [!<tag:example.test,2026:label> migration, !<tag:example.test,2026:label> wordpress], source-uri: !<tag:example.test,2026:source-uri> https://example.test/exports/packet#verbatim-tag}
+verbatim-tag-label-set: !!set {!<tag:example.test,2026:label> migration, !<tag:example.test,2026:label> wordpress}
 non-specific-defaults_: ! &non_specific_defaults {status: queued, priority: 8}
 non-specific-merge:
   <<: ! *non_specific_defaults
@@ -345,6 +347,21 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['flow-non-specific-review']['labels'] ?? []) !== ['yaml', 'metadata']) {
         throw new RuntimeException('YAML metadata self-test missing bare non-specific tag flow metadata');
+    }
+    if (($meta['verbatim-tag-review']['owner'] ?? '') !== 'Import Desk') {
+        throw new RuntimeException('YAML metadata self-test missing verbatim tag owner metadata');
+    }
+    if (($meta['verbatim-tag-review']['labels'] ?? []) !== ['migration', 'wordpress']) {
+        throw new RuntimeException('YAML metadata self-test missing verbatim tag flow labels');
+    }
+    if (($meta['verbatim-tag-review']['source-uri'] ?? '') !== 'https://example.test/exports/packet#verbatim-tag') {
+        throw new RuntimeException('YAML metadata self-test missing verbatim tag source URI');
+    }
+    if (array_keys($meta['verbatim-tag-label-set'] ?? []) !== ['migration', 'wordpress']) {
+        throw new RuntimeException('YAML metadata self-test missing verbatim tag set labels');
+    }
+    if (str_contains(json_encode($meta, JSON_THROW_ON_ERROR), '!<tag:example.test')) {
+        throw new RuntimeException('YAML metadata self-test leaked raw verbatim tag text');
     }
     if (($meta['non-specific-merge']['priority'] ?? null) !== 8 || ($meta['non-specific-merge']['status'] ?? '') !== 'approved') {
         throw new RuntimeException('YAML metadata self-test missing bare non-specific tag alias merge metadata');

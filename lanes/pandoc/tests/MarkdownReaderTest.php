@@ -1640,6 +1640,39 @@ return [
         $t->same('non-specific-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="non-specific-yaml-body">Non-specific YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml verbatim tags inside flow metadata collections' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Verbatim tag **Packet**',
+            'review: {owner: !<tag:example.test,2026:reviewer> Import Desk, status: !<tag:example.test,2026:state> queued, labels: [!<tag:example.test,2026:label> migration, !<tag:example.test,2026:label> wordpress]}',
+            'tagged-labels: [!<tag:example.test,2026:label> migration, !<tag:example.test,2026:label> wordpress]',
+            'tagged-set: !!set {!<tag:example.test,2026:label> migration, !<tag:example.test,2026:label> wordpress}',
+            'flow-explicit: {? !<tag:example.test,2026:key> "source:key": !<tag:example.test,2026:value> metadata value}',
+            'references: [{id: tagged-flow-ref, title: !<tag:example.test,2026:title> Source Export, review: {source: !<tag:example.test,2026:uri> https://example.test/source}}]',
+            '...',
+            '',
+            '# Verbatim tag YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Verbatim tag **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same('queued', $meta['review']['status']);
+        $t->same(['migration', 'wordpress'], $meta['review']['labels']);
+        $t->same(['migration', 'wordpress'], $meta['tagged-labels']);
+        $t->same(['migration', 'wordpress'], array_keys($meta['tagged-set']));
+        $t->same('metadata value', $meta['flow-explicit']['source:key']);
+        $t->same('tagged-flow-ref', $meta['references'][0]['id']);
+        $t->same('Source Export', $meta['references'][0]['title']);
+        $t->same('https://example.test/source', $meta['references'][0]['review']['source']);
+        $t->same(false, str_contains(json_encode($meta, JSON_THROW_ON_ERROR), '!<tag:example.test'));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('verbatim-tag-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="verbatim-tag-yaml-body">Verbatim tag YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml explicit set tags in metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

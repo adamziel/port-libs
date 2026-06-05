@@ -1363,6 +1363,7 @@ final class MarkdownReader
     {
         $clean = '';
         $quote = null;
+        $inVerbatimTag = false;
         $length = strlen($source);
         for ($offset = 0; $offset < $length; $offset++) {
             $char = $source[$offset];
@@ -1380,8 +1381,22 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($inVerbatimTag) {
+                $clean .= $char;
+                if ($char === '>') {
+                    $inVerbatimTag = false;
+                }
+                continue;
+            }
+
             if ($char === '"' || $char === "'") {
                 $quote = $char;
+                $clean .= $char;
+                continue;
+            }
+
+            if ($this->isYamlVerbatimTagStart($source, $offset)) {
+                $inVerbatimTag = true;
                 $clean .= $char;
                 continue;
             }
@@ -1406,6 +1421,7 @@ final class MarkdownReader
     private function isBalancedYamlFlowCollection(string $source): bool
     {
         $quote = null;
+        $inVerbatimTag = false;
         $squareDepth = 0;
         $curlyDepth = 0;
         $length = strlen($source);
@@ -1422,8 +1438,20 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($inVerbatimTag) {
+                if ($char === '>') {
+                    $inVerbatimTag = false;
+                }
+                continue;
+            }
+
             if ($char === '"' || $char === "'") {
                 $quote = $char;
+                continue;
+            }
+
+            if ($this->isYamlVerbatimTagStart($source, $offset)) {
+                $inVerbatimTag = true;
                 continue;
             }
 
@@ -1453,7 +1481,12 @@ final class MarkdownReader
             }
         }
 
-        return $quote === null && $squareDepth === 0 && $curlyDepth === 0;
+        return $quote === null && !$inVerbatimTag && $squareDepth === 0 && $curlyDepth === 0;
+    }
+
+    private function isYamlVerbatimTagStart(string $source, int $offset): bool
+    {
+        return ($source[$offset] ?? '') === '!' && ($source[$offset + 1] ?? '') === '<';
     }
 
     /**
@@ -1721,6 +1754,7 @@ final class MarkdownReader
         $items = [];
         $buffer = '';
         $quote = null;
+        $inVerbatimTag = false;
         $squareDepth = 0;
         $curlyDepth = 0;
         $length = strlen($source);
@@ -1739,8 +1773,22 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($inVerbatimTag) {
+                $buffer .= $char;
+                if ($char === '>') {
+                    $inVerbatimTag = false;
+                }
+                continue;
+            }
+
             if ($char === '"' || $char === "'") {
                 $quote = $char;
+                $buffer .= $char;
+                continue;
+            }
+
+            if ($this->isYamlVerbatimTagStart($source, $offset)) {
+                $inVerbatimTag = true;
                 $buffer .= $char;
                 continue;
             }
@@ -1791,6 +1839,7 @@ final class MarkdownReader
     private function splitYamlFlowMappingItem(string $item): ?array
     {
         $quote = null;
+        $inVerbatimTag = false;
         $squareDepth = 0;
         $curlyDepth = 0;
         $length = strlen($item);
@@ -1807,8 +1856,20 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($inVerbatimTag) {
+                if ($char === '>') {
+                    $inVerbatimTag = false;
+                }
+                continue;
+            }
+
             if ($char === '"' || $char === "'") {
                 $quote = $char;
+                continue;
+            }
+
+            if ($this->isYamlVerbatimTagStart($item, $offset)) {
+                $inVerbatimTag = true;
                 continue;
             }
 
