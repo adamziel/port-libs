@@ -467,6 +467,50 @@ return [
         $t->same('left', $result['document']->children[0]->attr('pageSpread'));
         $t->same($spineProperties, $result['document']->attr('spineProperties'));
     },
+    'reports invalid OPF spine linear values without dropping reading order' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithInvalidLinear = str_replace(
+            '<itemref idref="chapter-1"/>',
+            '<itemref idref="chapter-1" linear="maybe"/>',
+            $opfXml
+        );
+        $opfWithInvalidLinear = str_replace(
+            '<itemref idref="chapter-2" linear="no"/>',
+            '<itemref idref="chapter-2" linear="yes"/>',
+            $opfWithInvalidLinear
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithInvalidLinear));
+        $spineProperties = $result['spineProperties'];
+
+        $t->same(2, count($result['spine']));
+        $t->same(true, $result['spine'][0]['linear']);
+        $t->same('maybe', $result['spine'][0]['linearRaw']);
+        $t->same(true, $result['spine'][0]['linearSpecified']);
+        $t->same(false, $result['spine'][0]['linearValid']);
+        $t->same('invalid-spine-linear-value', $result['spine'][0]['spineItemDiagnostics'][0]['type']);
+        $t->same('maybe', $result['spine'][0]['spineItemDiagnostics'][0]['value']);
+        $t->same('chapter-1', $result['spine'][0]['spineItemProperties']['linear']['idref']);
+        $t->same(false, $result['spine'][0]['spineItemProperties']['linear']['valid']);
+
+        $t->same(true, $result['spine'][1]['linear']);
+        $t->same('yes', $result['spine'][1]['linearRaw']);
+        $t->same(true, $result['spine'][1]['linearSpecified']);
+        $t->same(true, $result['spine'][1]['linearValid']);
+        $t->same([], $result['spine'][1]['spineItemDiagnostics']);
+
+        $t->same(1, count($spineProperties['itemDiagnostics']));
+        $t->same('invalid-spine-linear-value', $spineProperties['itemDiagnostics'][0]['type']);
+        $t->same(0, $spineProperties['itemDiagnostics'][0]['index']);
+        $t->same('chapter-1', $spineProperties['itemDiagnostics'][0]['idref']);
+        $t->same('maybe', $spineProperties['itemDiagnostics'][0]['value']);
+        $t->same($spineProperties, $result['importReport']['spine']['properties']);
+        $t->same($spineProperties, $result['document']->attr('spineProperties'));
+
+        $t->same(true, $result['document']->children[0]->attr('linear'));
+        $t->same('maybe', $result['document']->children[0]->attr('linearRaw'));
+        $t->same(false, $result['document']->children[0]->attr('linearValid'));
+        $t->same($result['spine'][0]['spineItemDiagnostics'], $result['document']->children[0]->attr('spineItemDiagnostics'));
+    },
     'summarizes alternate EPUB rootfile renditions without changing selected spine' => static function (TestRunner $t) use ($buildEpubPackage, $containerXml, $alternateOpfXml): void {
         $multiRootContainer = str_replace(
             '</rootfiles>',

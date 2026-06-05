@@ -1770,6 +1770,10 @@ final class EpubReader
             $binding = self::bindingForMediaType($bindings, (string) $manifestItem['mediaType']);
             $properties = self::spaceDelimited($itemref->getAttribute('properties'));
             $itemProperties = self::spineItemPropertyReport($properties);
+            $linearProperties = self::spineItemLinearReport($itemref, $idref);
+            $itemProperties['linear'] = $linearProperties;
+            $itemDiagnostics = array_merge($itemProperties['diagnostics'], $linearProperties['diagnostics']);
+            $itemProperties['diagnostics'] = $itemDiagnostics;
             $spine[] = [
                 'index' => $index,
                 'id' => $itemrefId,
@@ -1778,11 +1782,14 @@ final class EpubReader
                 'part' => $manifestItem['part'],
                 'href' => $manifestItem['href'],
                 'mediaType' => $manifestItem['mediaType'],
-                'linear' => strtolower(trim($itemref->getAttribute('linear'))) !== 'no',
+                'linear' => $linearProperties['linear'],
+                'linearRaw' => $linearProperties['raw'],
+                'linearSpecified' => $linearProperties['specified'],
+                'linearValid' => $linearProperties['valid'],
                 'properties' => $properties,
                 'refinements' => self::metadataRefinementsForId($refinementsById, $itemrefId),
                 'spineItemProperties' => $itemProperties,
-                'spineItemDiagnostics' => $itemProperties['diagnostics'],
+                'spineItemDiagnostics' => $itemDiagnostics,
                 'pageSpread' => $itemProperties['pageSpread']['placement'],
                 'pageSpreadProperties' => $itemProperties['pageSpread']['properties'],
                 'mediaOverlay' => $manifestItem['mediaOverlay'],
@@ -1938,6 +1945,40 @@ final class EpubReader
                 'matches' => $matches,
                 'conflicting' => $conflicting,
             ],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array{raw:?string, specified:bool, linear:bool, valid:bool, idref:string, diagnostics:list<array<string, mixed>>}
+     */
+    private static function spineItemLinearReport(\DOMElement $itemref, string $idref): array
+    {
+        $raw = trim($itemref->getAttribute('linear'));
+        $specified = $raw !== '';
+        $normalized = strtolower($raw);
+        $linear = true;
+        $valid = true;
+        $diagnostics = [];
+
+        if ($specified && $normalized === 'no') {
+            $linear = false;
+        } elseif ($specified && $normalized !== 'yes') {
+            $valid = false;
+            $diagnostics[] = [
+                'type' => 'invalid-spine-linear-value',
+                'idref' => $idref,
+                'value' => $raw,
+                'message' => 'EPUB spine itemref linear must be yes, no, or omitted; invalid values are treated as yes',
+            ];
+        }
+
+        return [
+            'raw' => $specified ? $raw : null,
+            'specified' => $specified,
+            'linear' => $linear,
+            'valid' => $valid,
+            'idref' => $idref,
             'diagnostics' => $diagnostics,
         ];
     }
@@ -3609,11 +3650,15 @@ final class EpubReader
                 'id' => $item['idref'],
                 'spineItemId' => $item['id'] ?? null,
                 'linear' => $item['linear'],
+                'linearRaw' => $item['linearRaw'] ?? null,
+                'linearSpecified' => $item['linearSpecified'] ?? false,
+                'linearValid' => $item['linearValid'] ?? true,
                 'refinements' => $item['refinements'] ?? [],
                 'pageProgressionDirection' => $spineProperties['pageProgressionDirection'] ?? 'default',
                 'pageSpread' => $item['pageSpread'] ?? null,
                 'pageSpreadProperties' => $item['pageSpreadProperties'] ?? [],
                 'spineItemProperties' => $item['spineItemProperties'] ?? [],
+                'spineItemDiagnostics' => $item['spineItemDiagnostics'] ?? [],
                 'mediaOverlay' => $item['mediaOverlay'],
                 'pageBreaks' => is_array($pageBreaks['itemsByPart'][$contentPart] ?? null)
                     ? array_values($pageBreaks['itemsByPart'][$contentPart])

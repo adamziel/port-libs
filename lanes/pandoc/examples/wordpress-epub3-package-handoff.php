@@ -66,7 +66,7 @@ $opfXml = <<<'XML'
     <item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
   </manifest>
   <spine id="source-spine" toc="toc" page-progression-direction="rtl">
-    <itemref id="chapter-spine" idref="chapter" properties="rendition:page-spread-right page-spread-right"/>
+    <itemref id="chapter-spine" idref="chapter" linear="maybe" properties="rendition:page-spread-right page-spread-right"/>
     <itemref idref="slideshow" linear="no" properties="page-spread-left"/>
   </spine>
   <guide>
@@ -252,6 +252,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['document']->children[0]->attr('pageProgressionDirection') ?? null) !== 'rtl' || ($result['document']->children[0]->attr('pageSpread') ?? null) !== 'right') {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB reading-order metadata');
+    }
+    if (($result['spine'][0]['linearRaw'] ?? null) !== 'maybe' || ($result['spine'][0]['linearValid'] ?? null) !== false) {
+        throw new RuntimeException('Expected invalid EPUB spine linear value to remain visible for review');
+    }
+    if (($result['spineProperties']['itemDiagnostics'][0]['type'] ?? null) !== 'invalid-spine-linear-value') {
+        throw new RuntimeException('Expected invalid EPUB spine linear value to be reported as a package diagnostic');
+    }
+    if (($result['document']->children[0]->attr('linearRaw') ?? null) !== 'maybe' || ($result['document']->children[0]->attr('linearValid') ?? null) !== false) {
+        throw new RuntimeException('Expected WordPress chapter handoff block to expose invalid EPUB spine linear metadata');
     }
     if (($result['document']->children[1]->attr('pageSpread') ?? null) !== 'left') {
         throw new RuntimeException('Expected WordPress fallback handoff block to expose EPUB page-spread metadata');
@@ -520,6 +529,9 @@ echo 'spineItems=' . count($result['spine']) . "\n";
 echo 'pageProgressionDirection=' . ($result['spineProperties']['pageProgressionDirection'] ?? '') . "\n";
 echo 'rightToLeft=' . (($result['spineProperties']['rightToLeft'] ?? false) ? 'yes' : 'no') . "\n";
 echo 'firstPageSpread=' . ($result['spine'][0]['pageSpread'] ?? '') . "\n";
+echo 'firstLinearRaw=' . ($result['spine'][0]['linearRaw'] ?? '') . "\n";
+echo 'firstLinearValid=' . (($result['spine'][0]['linearValid'] ?? true) ? 'yes' : 'no') . "\n";
+echo 'spineLinearDiagnostics=' . count($result['spineProperties']['itemDiagnostics'] ?? []) . "\n";
 echo 'fallbackPageSpread=' . ($result['spine'][1]['pageSpread'] ?? '') . "\n";
 echo 'fallbackSpineContent=' . ($result['spine'][1]['contentPart'] ?? '') . "\n";
 echo 'navTarget=' . ($result['nav']['items'][0]['target'] ?? '') . "\n";
