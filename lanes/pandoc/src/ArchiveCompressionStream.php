@@ -257,7 +257,11 @@ final class ArchiveCompressionStream
      *     compressedSize:int,
      *     members:list<array{
      *         filename:?string,
+     *         filenameText:?string,
+     *         filenameEncoding:?string,
      *         comment:?string,
+     *         commentText:?string,
+     *         commentEncoding:?string,
      *         modifiedAt:int,
      *         extraFlags:int,
      *         operatingSystem:int,
@@ -277,7 +281,11 @@ final class ArchiveCompressionStream
         $members = array_map(
             static fn (array $member): array => [
                 'filename' => $member['filename'],
+                'filenameText' => $member['filenameText'],
+                'filenameEncoding' => $member['filenameEncoding'],
                 'comment' => $member['comment'],
+                'commentText' => $member['commentText'],
+                'commentEncoding' => $member['commentEncoding'],
                 'modifiedAt' => $member['modifiedAt'],
                 'extraFlags' => $member['extraFlags'],
                 'operatingSystem' => $member['operatingSystem'],

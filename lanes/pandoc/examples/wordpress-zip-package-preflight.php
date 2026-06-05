@@ -1309,6 +1309,18 @@ $compressedTarPacket = GzipStream::build($tarPacketBytes, [
     'comment' => 'gzip tar review packet',
     'headerCrc' => true,
 ]);
+$latin1GzipTarPacket = GzipStream::build($tarPacketBytes, [
+    'modifiedAt' => $documentModifiedAt,
+    'filename' => "wordpress-r\xE9sum\xE9-packet.tar",
+    'comment' => "caf\xE9 gzip tar review packet",
+]);
+$latin1GzipTarMembers = GzipStream::members($latin1GzipTarPacket);
+$latin1GzipTarInspection = ArchiveCompressionStream::inspectTarStream(
+    $latin1GzipTarPacket,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($tarPacketBytes),
+    $tarPacketUnpackedBytes
+);
 $tarPacketRoundTrip = TarArchive::fromString(GzipStream::decode($compressedTarPacket));
 $streamDetectedTarFormat = ArchiveCompressionStream::detectTarFormat(
     $compressedTarPacket,
@@ -1947,6 +1959,26 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected gzip extra field subfield payload to be inspectable');
     }
 
+    if (($latin1GzipTarMembers[0]['filename'] ?? null) !== "wordpress-r\xE9sum\xE9-packet.tar") {
+        throw new RuntimeException('Expected gzip Latin-1 filename raw bytes to stay available');
+    }
+
+    if (($latin1GzipTarMembers[0]['filenameText'] ?? null) !== "wordpress-r\u{00E9}sum\u{00E9}-packet.tar") {
+        throw new RuntimeException('Expected gzip Latin-1 filename to decode to UTF-8 review text');
+    }
+
+    if (($latin1GzipTarMembers[0]['commentText'] ?? null) !== "caf\u{00E9} gzip tar review packet") {
+        throw new RuntimeException('Expected gzip Latin-1 comment to decode to UTF-8 review text');
+    }
+
+    if (($latin1GzipTarInspection['stream']['members'][0]['filenameText'] ?? null) !== "wordpress-r\u{00E9}sum\u{00E9}-packet.tar") {
+        throw new RuntimeException('Expected archive inspection to expose decoded gzip filename text');
+    }
+
+    if ($latin1GzipTarInspection['archive']->read('/packet/manifest.json') !== '{"source":"wordpress-import","container":"tar"}') {
+        throw new RuntimeException('Expected Latin-1 gzip tar packet manifest bytes to round-trip');
+    }
+
     if (!$tarPacketRoundTrip->has('/packet/word/document.xml')) {
         throw new RuntimeException('Expected tar packet document part to be discoverable');
     }
@@ -2400,6 +2432,8 @@ echo 'unicodePath.encoding=' . $unicodePathEntry->nameEncoding . "\n";
 echo 'unicodePath.comment=' . $unicodePathEntry->comment . "\n";
 echo 'gzip.filename=' . $compressedPackageMembers[0]['filename'] . "\n";
 echo 'gzip.comment=' . $compressedPackageMembers[0]['comment'] . "\n";
+echo 'gzip.latin1FilenameText=' . $latin1GzipTarMembers[0]['filenameText'] . "\n";
+echo 'gzip.latin1CommentText=' . $latin1GzipTarMembers[0]['commentText'] . "\n";
 echo 'gzip.extraSubfields=' . implode(',', array_map(static fn (array $field): string => $field['identifier'], $compressedPackageMembers[0]['extraFields'])) . "\n";
 echo 'gzip.compressedSize=' . $compressedPackageMembers[0]['compressedSize'] . "\n";
 echo 'tar.entries=' . implode(',', $tarPacketRoundTrip->names()) . "\n";

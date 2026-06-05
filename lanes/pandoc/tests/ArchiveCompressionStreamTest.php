@@ -646,6 +646,40 @@ return [
         $t->same("# GZIP extra metadata\n\nReady for review.\n", $roundTrip->read('/packet/content.md'));
     },
 
+    'decodes gzip latin1 filename and comment text for review packet provenance' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"gzip-latin1","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# GZIP Latin-1 provenance\n\nReady for review.\n",
+            ],
+        ]);
+        $rawFilename = "review-r\xE9sum\xE9-packet.tar";
+        $rawComment = "caf\xE9 archive packet";
+        $gzip = GzipStream::build($archive->bytes(), [
+            'filename' => $rawFilename,
+            'comment' => $rawComment,
+        ]);
+
+        $members = GzipStream::members($gzip);
+        $inspection = ArchiveCompressionStream::inspectTarStreamAuto($gzip, strlen($archive->bytes()));
+        $inspectionMember = $inspection['stream']['members'][0];
+
+        $t->same($rawFilename, $members[0]['filename']);
+        $t->same("review-r\u{00E9}sum\u{00E9}-packet.tar", $members[0]['filenameText'] ?? null);
+        $t->same('gzip-latin1', $members[0]['filenameEncoding'] ?? null);
+        $t->same($rawComment, $members[0]['comment']);
+        $t->same("caf\u{00E9} archive packet", $members[0]['commentText'] ?? null);
+        $t->same('gzip-latin1', $members[0]['commentEncoding'] ?? null);
+        $t->same("review-r\u{00E9}sum\u{00E9}-packet.tar", $inspectionMember['filenameText'] ?? null);
+        $t->same("caf\u{00E9} archive packet", $inspectionMember['commentText'] ?? null);
+        $t->same('{"source":"gzip-latin1","target":"wordpress"}', $inspection['archive']->read('/packet/manifest.json'));
+        $t->same("# GZIP Latin-1 provenance\n\nReady for review.\n", $inspection['archive']->read('/packet/content.md'));
+    },
+
     'rejects malformed gzip extra subfields before package bytes are exposed' => static function (TestRunner $t): void {
         $valid = GzipStream::build('review packet', [
             'filename' => 'packet.txt',

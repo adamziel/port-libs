@@ -137,7 +137,11 @@ final class GzipStream
      *     extraFieldData:?string,
      *     extraFields:list<array{identifier:string,id1:int,id2:int,length:int,data:string}>,
      *     filename:?string,
+     *     filenameText:?string,
+     *     filenameEncoding:?string,
      *     comment:?string,
+     *     commentText:?string,
+     *     commentEncoding:?string,
      *     headerCrc16:?int,
      *     crc32:int,
      *     uncompressedSize:int,
@@ -196,13 +200,21 @@ final class GzipStream
             }
 
             $filename = null;
+            $filenameText = null;
+            $filenameEncoding = null;
             if (($flags & self::FLAG_FILENAME) !== 0) {
                 [$filename, $cursor] = self::readZeroTerminatedField($bytes, $cursor, 'filename');
+                $filenameText = self::latin1ToUtf8($filename);
+                $filenameEncoding = 'gzip-latin1';
             }
 
             $comment = null;
+            $commentText = null;
+            $commentEncoding = null;
             if (($flags & self::FLAG_COMMENT) !== 0) {
                 [$comment, $cursor] = self::readZeroTerminatedField($bytes, $cursor, 'comment');
+                $commentText = self::latin1ToUtf8($comment);
+                $commentEncoding = 'gzip-latin1';
             }
 
             $headerCrc16 = null;
@@ -251,7 +263,11 @@ final class GzipStream
                 'extraFieldData' => $extraFieldData,
                 'extraFields' => $extraFields,
                 'filename' => $filename,
+                'filenameText' => $filenameText,
+                'filenameEncoding' => $filenameEncoding,
                 'comment' => $comment,
+                'commentText' => $commentText,
+                'commentEncoding' => $commentEncoding,
                 'headerCrc16' => $headerCrc16,
                 'crc32' => $crc32,
                 'uncompressedSize' => $uncompressedSize,
@@ -338,6 +354,22 @@ final class GzipStream
             substr($bytes, $offset, $terminator - $offset),
             $terminator + 1,
         ];
+    }
+
+    private static function latin1ToUtf8(string $bytes): string
+    {
+        $text = '';
+        for ($index = 0, $length = strlen($bytes); $index < $length; $index++) {
+            $byte = ord($bytes[$index]);
+            if ($byte < 0x80) {
+                $text .= chr($byte);
+                continue;
+            }
+
+            $text .= chr(0xc0 | ($byte >> 6)) . chr(0x80 | ($byte & 0x3f));
+        }
+
+        return $text;
     }
 
     private static function assertTerminatedStringInput(mixed $value, string $label): void
