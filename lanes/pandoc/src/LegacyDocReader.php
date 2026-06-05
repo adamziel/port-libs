@@ -11,7 +11,7 @@ final class LegacyDocReader
     private const FMTID_USER_DEFINED_PROPERTIES = '05d5cdd59c2e1b10939708002b2cf9ae';
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, fib:array<string,mixed>, embeddedObjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, fib:array<string,mixed>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readBytes(string $bytes): array
     {
@@ -19,7 +19,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, fib:array<string,mixed>, embeddedObjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, fib:array<string,mixed>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -51,6 +51,12 @@ final class LegacyDocReader
         if ($embeddedObjects !== []) {
             $metadata['embeddedObjectCount'] = count($embeddedObjects);
         }
+        $macroProjects = $this->macroProjectReport($compoundFile);
+        if ($macroProjects !== []) {
+            $metadata['containsMacros'] = true;
+            $metadata['macroProjectCount'] = count($macroProjects);
+            $metadata['macroPolicy'] = 'disabled-native-review';
+        }
 
         $attrs = [
             'sourceFormat' => 'doc',
@@ -59,6 +65,7 @@ final class LegacyDocReader
             'tableStream' => $tableStreamName,
             'meta' => $metadata,
             'embeddedObjects' => $embeddedObjects,
+            'macroProjects' => $macroProjects,
         ];
 
         return [
@@ -67,6 +74,7 @@ final class LegacyDocReader
             'streams' => $compoundFile->streamNames(),
             'fib' => $fib + ['textSource' => $textResult['source']],
             'embeddedObjects' => $embeddedObjects,
+            'macroProjects' => $macroProjects,
         ];
     }
 
@@ -708,6 +716,150 @@ final class LegacyDocReader
                 default => 'unknown',
             },
         ];
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function macroProjectReport(CompoundFileBinary $compoundFile): array
+    {
+        $projects = [];
+        foreach ($compoundFile->entries() as $entry) {
+            if ($entry['type'] !== 2) {
+                continue;
+            }
+
+            $path = (string) $entry['path'];
+            $segments = explode('/', $path);
+            $root = $this->macroProjectRoot($segments);
+            if ($root === null) {
+                continue;
+            }
+
+            $streamName = implode('/', array_slice($segments, 1));
+            if ($streamName === '') {
+                continue;
+            }
+
+            $role = $this->macroProjectStreamRole($streamName);
+            $stream = [
+                'path' => $path,
+                'name' => $streamName,
+                'role' => $role,
+                'bytes' => (int) $entry['size'],
+                'canExposeBytes' => false,
+            ];
+
+            $projects[$root] ??= [
+                'storagePath' => $root,
+                'policy' => 'macro-execution-disabled',
+                'canExecute' => false,
+                'canExposeBytes' => false,
+                'streamCount' => 0,
+                'totalBytes' => 0,
+                'hasVbaStorage' => false,
+                'hasDirStream' => false,
+                'hasProjectStream' => false,
+                'hasProjectWmStream' => false,
+                'hasPerformanceCache' => false,
+                'moduleStreams' => [],
+                'streams' => [],
+            ];
+
+            $projects[$root]['streamCount']++;
+            $projects[$root]['totalBytes'] += (int) $entry['size'];
+            $projects[$root]['hasVbaStorage'] = $projects[$root]['hasVbaStorage']
+                || str_starts_with(strtolower($streamName), 'vba/');
+            $projects[$root]['hasDirStream'] = $projects[$root]['hasDirStream']
+                || $role === 'vba-dir-compressed';
+            $projects[$root]['hasProjectStream'] = $projects[$root]['hasProjectStream']
+                || $role === 'project-properties';
+            $projects[$root]['hasProjectWmStream'] = $projects[$root]['hasProjectWmStream']
+                || $role === 'project-codepage';
+            $projects[$root]['hasPerformanceCache'] = $projects[$root]['hasPerformanceCache']
+                || $role === 'vba-performance-cache';
+            if ($role === 'module-stream') {
+                $projects[$root]['moduleStreams'][] = basename($streamName);
+            }
+            $projects[$root]['streams'][] = $stream;
+        }
+
+        $result = array_values($projects);
+        foreach ($result as &$project) {
+            $moduleStreams = array_values(array_unique(array_map(
+                static fn (mixed $name): string => (string) $name,
+                $project['moduleStreams']
+            )));
+            sort($moduleStreams, SORT_STRING);
+            $project['moduleStreams'] = $moduleStreams;
+
+            usort(
+                $project['streams'],
+                static fn (array $left, array $right): int => strcmp((string) $left['path'], (string) $right['path'])
+            );
+
+            $diagnostics = [];
+            if ($project['hasVbaStorage'] === true && $project['hasDirStream'] !== true) {
+                $diagnostics[] = [
+                    'code' => 'missing-vba-dir-stream',
+                    'message' => 'VBA storage is present but the compressed dir stream was not found',
+                ];
+            }
+            if ($project['hasDirStream'] === true) {
+                $diagnostics[] = [
+                    'code' => 'compressed-vba-dir-not-expanded',
+                    'message' => 'VBA dir stream bytes are retained for reviewer policy only and are not decompressed or executed',
+                ];
+            }
+            $project['diagnostics'] = $diagnostics;
+        }
+        unset($project);
+
+        usort(
+            $result,
+            static fn (array $left, array $right): int => strcmp((string) $left['storagePath'], (string) $right['storagePath'])
+        );
+
+        return $result;
+    }
+
+    /**
+     * @param list<string> $segments
+     */
+    private function macroProjectRoot(array $segments): ?string
+    {
+        if ($segments === []) {
+            return null;
+        }
+
+        $root = (string) $segments[0];
+
+        return in_array(strtolower($root), ['macros', '_vba_project_cur'], true) ? $root : null;
+    }
+
+    private function macroProjectStreamRole(string $streamName): string
+    {
+        $normalized = strtolower(str_replace('\\', '/', $streamName));
+        $baseName = basename($streamName);
+        $lowerBaseName = strtolower($baseName);
+
+        if ($normalized === 'vba/dir') {
+            return 'vba-dir-compressed';
+        }
+        if ($normalized === 'vba/_vba_project') {
+            return 'vba-performance-cache';
+        }
+        if ($streamName === 'PROJECT') {
+            return 'project-properties';
+        }
+        if ($streamName === 'PROJECTwm') {
+            return 'project-codepage';
+        }
+        if (str_starts_with($normalized, 'vba/') && !in_array($lowerBaseName, ['dir', '_vba_project'], true)) {
+            return 'module-stream';
+        }
+
+        return 'private-macro-data';
     }
 
     /**

@@ -277,6 +277,12 @@ $streams = [
     'ObjectPool/_42/' . "\x03" . 'ObjInfo' => "\0\0" . $u16(0x0014),
     'ObjectPool/_42/' . "\x01" . 'Ole10Native' => 'opaque legacy embedded spreadsheet bytes',
     'ObjectPool/_42/' . "\x02" . 'OlePres000' => 'opaque embedded object presentation preview',
+    'Macros/PROJECT' => "ID=\"LegacyMacros\"\r\nDocument=ThisDocument/&H00000000\r\nModule=MigrationTools\r\n",
+    'Macros/PROJECTwm' => "LegacyMacros\0ThisDocument\0MigrationTools\0",
+    'Macros/VBA/dir' => 'compressed vba directory bytes',
+    'Macros/VBA/_VBA_PROJECT' => 'performance cache bytes',
+    'Macros/VBA/ThisDocument' => "Attribute VB_Name = \"ThisDocument\"\r\nPrivate Sub Document_Open()\r\nEnd Sub\r\n",
+    'Macros/VBA/MigrationTools' => "Attribute VB_Name = \"MigrationTools\"\r\nSub ImportPacket()\r\nEnd Sub\r\n",
 ];
 
 $miniSectorSize = 64;
@@ -470,6 +476,7 @@ $summary = [
     'textSource' => $result['document']->attr('textSource'),
     'fib' => $result['fib'],
     'embeddedObjects' => $result['embeddedObjects'],
+    'macroProjects' => $result['macroProjects'],
     'blockCount' => count($result['document']->children),
     'wordpressBlocks' => $blocks,
 ];
@@ -521,6 +528,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['embeddedObjects'][0]['canExposeBytes'] ?? null) !== false) {
         throw new RuntimeException('Legacy DOC handoff self-test exposed embedded object bytes');
     }
+    if (($summary['metadata']['containsMacros'] ?? null) !== true || ($summary['metadata']['macroProjectCount'] ?? null) !== 1) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing macro project preflight metadata');
+    }
+    if (($summary['metadata']['macroPolicy'] ?? '') !== 'disabled-native-review') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing disabled macro policy');
+    }
+    if (($summary['macroProjects'][0]['storagePath'] ?? '') !== 'Macros') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing Macros storage report');
+    }
+    if (($summary['macroProjects'][0]['policy'] ?? '') !== 'macro-execution-disabled' || ($summary['macroProjects'][0]['canExecute'] ?? null) !== false) {
+        throw new RuntimeException('Legacy DOC handoff self-test did not disable macro execution');
+    }
+    if (($summary['macroProjects'][0]['canExposeBytes'] ?? null) !== false) {
+        throw new RuntimeException('Legacy DOC handoff self-test exposed macro project bytes');
+    }
+    if (($summary['macroProjects'][0]['moduleStreams'] ?? []) !== ['MigrationTools', 'ThisDocument']) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing macro module stream inventory');
+    }
+    if (($summary['macroProjects'][0]['hasDirStream'] ?? null) !== true || ($summary['macroProjects'][0]['hasPerformanceCache'] ?? null) !== true) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing VBA project stream roles');
+    }
     if (($summary['textSource'] ?? '') !== 'piece-table' || ($summary['fib']['complex'] ?? null) !== true || ($summary['fib']['tableStream'] ?? '') !== '1Table') {
         throw new RuntimeException('Legacy DOC handoff self-test missing CLX piece-table preflight');
     }
@@ -537,6 +565,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (str_contains($blocks, 'opaque legacy embedded spreadsheet bytes') || str_contains($blocks, 'opaque embedded object presentation preview')) {
         throw new RuntimeException('Legacy DOC handoff self-test rendered embedded object payload bytes');
+    }
+    if (str_contains($blocks, 'Document_Open') || str_contains($blocks, 'ImportPacket')) {
+        throw new RuntimeException('Legacy DOC handoff self-test rendered macro module payload bytes');
     }
     if (($summary['fib']['extendedCharacters'] ?? null) !== true || ($summary['fib']['encrypted'] ?? null) !== false) {
         throw new RuntimeException('Legacy DOC handoff self-test missing FIB preflight flags');

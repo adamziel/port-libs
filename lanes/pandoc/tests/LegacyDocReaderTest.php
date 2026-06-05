@@ -819,6 +819,52 @@ return [
         $t->true(!str_contains($blocks, 'native spreadsheet bytes'), 'Embedded OLE native bytes should not render to WordPress blocks');
         $t->true(!str_contains($blocks, 'presentation preview bytes'), 'Embedded OLE presentation bytes should not render to WordPress blocks');
     },
+    'reports legacy DOC VBA macro project streams as disabled review metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Macro-enabled legacy packet\r"),
+            'Macros/PROJECT' => "ID=\"LegacyMacros\"\r\nDocument=ThisDocument/&H00000000\r\nModule=MigrationTools\r\n",
+            'Macros/PROJECTwm' => "LegacyMacros\0ThisDocument\0MigrationTools\0",
+            'Macros/VBA/dir' => "compressed vba directory bytes",
+            'Macros/VBA/_VBA_PROJECT' => "performance cache bytes",
+            'Macros/VBA/ThisDocument' => "Attribute VB_Name = \"ThisDocument\"\r\nPrivate Sub Document_Open()\r\nEnd Sub\r\n",
+            'Macros/VBA/MigrationTools' => "Attribute VB_Name = \"MigrationTools\"\r\nSub ImportPacket()\r\nEnd Sub\r\n",
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $document = $result['document'];
+        $metadata = $result['metadata'];
+        $projects = $result['macroProjects'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(true, $metadata['containsMacros']);
+        $t->same(1, $metadata['macroProjectCount']);
+        $t->same('disabled-native-review', $metadata['macroPolicy']);
+        $t->same($projects, $document->attr('macroProjects'));
+        $t->same(1, count($projects));
+        $t->same('Macros', $projects[0]['storagePath']);
+        $t->same('macro-execution-disabled', $projects[0]['policy']);
+        $t->same(false, $projects[0]['canExecute']);
+        $t->same(false, $projects[0]['canExposeBytes']);
+        $t->same(true, $projects[0]['hasVbaStorage']);
+        $t->same(true, $projects[0]['hasDirStream']);
+        $t->same(true, $projects[0]['hasProjectStream']);
+        $t->same(true, $projects[0]['hasProjectWmStream']);
+        $t->same(true, $projects[0]['hasPerformanceCache']);
+        $t->same(['MigrationTools', 'ThisDocument'], $projects[0]['moduleStreams']);
+        $t->same([
+            'project-properties',
+            'project-codepage',
+            'module-stream',
+            'module-stream',
+            'vba-performance-cache',
+            'vba-dir-compressed',
+        ], array_map(static fn (array $stream): string => $stream['role'], $projects[0]['streams']));
+        $t->same(false, $projects[0]['streams'][2]['canExposeBytes']);
+        $t->same(strlen("Attribute VB_Name = \"MigrationTools\"\r\nSub ImportPacket()\r\nEnd Sub\r\n"), $projects[0]['streams'][2]['bytes']);
+        $t->contains('<p>Macro-enabled legacy packet</p>', $blocks);
+        $t->true(!str_contains($blocks, 'Document_Open'), 'Legacy DOC VBA module bytes should not render to WordPress blocks');
+        $t->true(!str_contains($blocks, 'ImportPacket'), 'Legacy DOC VBA module bytes should not render to WordPress blocks');
+    },
     'extracts complex legacy DOC piece-table text from the selected 1Table stream' => static function (TestRunner $t) use ($buildCfb, $buildPieceTableDocStreams): void {
         $streams = $buildPieceTableDocStreams();
         $docBytes = $buildCfb($streams);
