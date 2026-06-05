@@ -1772,6 +1772,110 @@ XML);
         $t->same('Remote', $manual['eventPlace'] ?? null);
         $t->same('2026-06-05', $manual['eventDate']['display'] ?? null);
     },
+    'maps bounded biblatex event organizer metadata into csl handoff' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@proceedings{organized-proceedings,
+  editor        = {Curator, Eli},
+  title         = {WordPress Import Conference Proceedings},
+  eventtitle    = {WordCamp Migration Summit},
+  organization  = {{WordCamp Foundation} and {Migration Desk}},
+  venue         = {Portland},
+  eventdate     = {2026-06-04/2026-06-05},
+  date          = {2026},
+  publisher     = {Migration Desk Publications}
+}
+
+@inproceedings{organized-paper,
+  author    = {Ng, Nia},
+  title     = {Source Packet Organizer Review},
+  pages     = {44--48},
+  crossref  = {organized-proceedings}
+}
+
+@online{organizer-webinar,
+  author         = {Smith, Ada},
+  title          = {Remote Review Webinar},
+  eventtitle     = {Remote Import Clinic},
+  eventorganizer = {{Review Team} and Curator, Eli},
+  date           = {2025},
+  url            = {https://example.test/organizer-webinar}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(3, count($items));
+        $t->same([['literal' => 'WordCamp Foundation'], ['literal' => 'Migration Desk']], $items[0]['event-organizer']);
+        $t->same([['literal' => 'WordCamp Foundation'], ['literal' => 'Migration Desk']], $items[1]['event-organizer']);
+        $t->same('WordCamp Migration Summit', $items[1]['event']);
+        $t->same('Portland', $items[1]['event-place']);
+        $t->same('Migration Desk Publications', $items[1]['publisher']);
+        $t->same([['literal' => 'Review Team'], ['family' => 'Curator', 'given' => 'Eli']], $items[2]['event-organizer']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $paper = $processor->item('organized-paper');
+        $webinar = $processor->item('organizer-webinar');
+        $t->same('WordCamp Foundation', $paper['eventOrganizers'][0]['literal'] ?? null);
+        $t->same('Migration Desk', $paper['eventOrganizers'][1]['literal'] ?? null);
+        $t->same('Review Team', $webinar['eventOrganizers'][0]['literal'] ?? null);
+        $t->same('Curator', $webinar['eventOrganizers'][1]['family'] ?? null);
+        $t->same('(Curator 2026; Ng 2026; Smith 2025)', $processor->renderCitationCluster([
+            $citation('organized-proceedings', '[@organized-proceedings]'),
+            $citation('organized-paper', '[@organized-paper]'),
+            $citation('organizer-webinar', '[@organizer-webinar]'),
+        ]));
+        $t->same(
+            'Ng, Nia. Source Packet Organizer Review. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event organizer: WordCamp Foundation; Migration Desk. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk Publications, 2026. 44-48.',
+            $processor->renderBibliographyEntry('organized-paper')
+        );
+        $t->same(
+            'Smith, Ada. Remote Review Webinar. Event: Remote Import Clinic. Event organizer: Review Team; Curator, Eli. 2025. https://example.test/organizer-webinar.',
+            $processor->renderBibliographyEntry('organizer-webinar')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author editor"/>
+        <names variable="event-organizer"/>
+        <text variable="event"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="event-organizer"/>
+      <text variable="event"/>
+      <date variable="event-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Curator | WordCamp Foundation and Migration Desk | WordCamp Migration Summit; Ng | WordCamp Foundation and Migration Desk | WordCamp Migration Summit; Smith | Review Team and Curator | Remote Import Clinic]', $styled->renderCitationCluster([
+            $citation('organized-proceedings', '[@organized-proceedings]'),
+            $citation('organized-paper', '[@organized-paper]'),
+            $citation('organizer-webinar', '[@organizer-webinar]'),
+        ]));
+        $t->same('Source Packet Organizer Review :: WordCamp Foundation; Migration Desk :: WordCamp Migration Summit :: 2026-06-04/2026-06-05', $styled->renderBibliographyEntry('organized-paper'));
+
+        $document = (new MarkdownReader())->read('Organizer paper @organized-paper and webinar [@organizer-webinar] keep event review owners.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Organizer paper Ng (2026) and webinar (Smith 2025) keep event review owners.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Source Packet Organizer Review. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event organizer: WordCamp Foundation; Migration Desk. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk Publications, 2026. 44-48.</dd>', $blocks);
+        $t->contains('<dt>Smith 2025</dt><dd>Smith, Ada. Remote Review Webinar. Event: Remote Import Clinic. Event organizer: Review Team; Curator, Eli. 2025. https://example.test/organizer-webinar.</dd>', $blocks);
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-organizer',
+            'title' => 'Manual Organizer Source',
+            'event-organizer' => [
+                ['literal' => 'Manual Review Desk'],
+            ],
+        ]])->item('manual-organizer');
+        $t->same('Manual Review Desk', $manual['eventOrganizers'][0]['literal'] ?? null);
+    },
     'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
         $document = (new MarkdownReader())->read(

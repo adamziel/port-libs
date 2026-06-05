@@ -49,6 +49,8 @@ Software source @import-tool and dataset [@source-dataset] preserve version and 
 
 Event paper @event-paper and proceedings [@event-proceedings] preserve conference metadata.
 
+Organizer paper @organized-paper and webinar [@organizer-webinar] keep event review owners visible.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -377,6 +379,33 @@ $bibtex = <<<'BIB'
   pages    = {44--48},
   crossref = {event-proceedings}
 }
+
+@proceedings{organized-proceedings,
+  editor        = {Curator, Eli},
+  title         = {WordPress Import Organizer Proceedings},
+  eventtitle    = {WordCamp Migration Summit},
+  organization  = {{WordCamp Foundation} and {Migration Desk}},
+  venue         = {Portland},
+  eventdate     = {2026-06-04/2026-06-05},
+  date          = {2026},
+  publisher     = {Migration Desk Publications}
+}
+
+@inproceedings{organized-paper,
+  author   = {Ng, Nia},
+  title    = {Source Packet Organizer Review},
+  pages    = {52--56},
+  crossref = {organized-proceedings}
+}
+
+@online{organizer-webinar,
+  author         = {Smith, Ada},
+  title          = {Remote Review Webinar},
+  eventtitle     = {Remote Import Clinic},
+  eventorganizer = {{Review Team} and Curator, Eli},
+  date           = {2025},
+  url            = {https://example.test/organizer-webinar}
+}
 BIB;
 
 $processor = CitationCslProcessor::fromBibtex($bibtex);
@@ -601,6 +630,23 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($eventProceedings['eventTitle'] ?? null) !== 'WordCamp Migration Summit') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve proceedings event title metadata');
     }
+    $organizedPaper = $processor->item('organized-paper');
+    if (($organizedPaper['eventOrganizers'][0]['literal'] ?? null) !== 'WordCamp Foundation') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not inherit organized-paper event organizer metadata');
+    }
+    if (($organizedPaper['eventOrganizers'][1]['literal'] ?? null) !== 'Migration Desk') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve organized-paper second event organizer');
+    }
+    if (($organizedPaper['publisher'] ?? null) !== 'Migration Desk Publications') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve organized-paper publisher metadata');
+    }
+    $organizerWebinar = $processor->item('organizer-webinar');
+    if (($organizerWebinar['eventOrganizers'][0]['literal'] ?? null) !== 'Review Team') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve explicit webinar event organizer metadata');
+    }
+    if (($organizerWebinar['eventOrganizers'][1]['family'] ?? null) !== 'Curator') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not parse explicit webinar event organizer names');
+    }
 
     foreach ([
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
@@ -648,6 +694,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Event paper Ng (2026) and proceedings (Curator 2026) preserve conference metadata.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Source Packet Event Review. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event addendum: Reviewer track. Event type: conference. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 44-48.</dd>',
         '<dt>Curator 2026</dt><dd>Curator, Eli. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event addendum: Reviewer track. Event type: conference. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk, 2026.</dd>',
+        '<p>Organizer paper Ng (2026) and webinar (Smith 2025) keep event review owners visible.</p>',
+        '<dt>Ng 2026</dt><dd>Ng, Nia. Source Packet Organizer Review. WordPress Import Organizer Proceedings. Event: WordCamp Migration Summit. Event organizer: WordCamp Foundation; Migration Desk. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk Publications, 2026. 52-56.</dd>',
+        '<dt>Smith 2025</dt><dd>Smith, Ada. Remote Review Webinar. Event: Remote Import Clinic. Event organizer: Review Team; Curator, Eli. 2025. https://example.test/organizer-webinar.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {

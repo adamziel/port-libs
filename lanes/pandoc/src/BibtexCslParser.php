@@ -656,6 +656,11 @@ final class BibtexCslParser
             $item['translator'] = $translator;
         }
 
+        $eventOrganizer = self::eventOrganizerNames($type, $fields);
+        if ($eventOrganizer !== []) {
+            $item['event-organizer'] = $eventOrganizer;
+        }
+
         $originalAuthor = self::namesFromFirstBibtexField($fields, ['origauthor', 'originalauthor']);
         if ($originalAuthor !== []) {
             $item['original-author'] = $originalAuthor;
@@ -949,6 +954,24 @@ final class BibtexCslParser
         }
 
         return $roles;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return list<array<string, mixed>>
+     */
+    private static function eventOrganizerNames(string $type, array $fields): array
+    {
+        $organizer = self::namesFromFirstBibtexField($fields, ['eventorganizer', 'organizer']);
+        if ($organizer !== []) {
+            return $organizer;
+        }
+
+        if (!in_array(strtolower($type), ['conference', 'inproceedings', 'proceedings'], true)) {
+            return [];
+        }
+
+        return self::namesFromBibtexField($fields, 'organization');
     }
 
     private static function normalizedEditorialRoleType(string $type): string
