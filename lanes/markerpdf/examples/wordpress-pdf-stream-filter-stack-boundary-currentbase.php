@@ -284,6 +284,17 @@ $strayDecodeParmsPdf = "%PDF-1.4\n"
     . "99 0 obj\n{$strayDecodeParmsObject}\nendobj\n"
     . "%%EOF";
 
+$allNullFilterContent = 'BT /F1 12 Tf 72 720 Td (All Null Filter Visible) Tj T* (Identity Stack Preserved) Tj ET';
+$allNullDecodeParmsObject = 'BT /F1 12 Tf 72 680 Td (All Null DecodeParms Helper Leak) Tj ET';
+$allNullFilterPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Filter [ null ] /DecodeParms 99 0 R /Length " . strlen($allNullFilterContent) . " >>\nstream\n{$allNullFilterContent}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "99 0 obj\n{$allNullDecodeParmsObject}\nendobj\n"
+    . "%%EOF";
+
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
 $stackLines = $extractor->extractTextLines($stackPdf);
@@ -296,6 +307,7 @@ $nullFilterDecodeParmsLines = $extractor->extractTextLines($nullFilterDecodeParm
 $compactDecodeParmsLines = $extractor->extractTextLines($compactDecodeParmsPdf);
 $aliasCompactDecodeParmsLines = $extractor->extractTextLines($aliasCompactDecodeParmsPdf);
 $strayDecodeParmsLines = $extractor->extractTextLines($strayDecodeParmsPdf);
+$allNullFilterLines = $extractor->extractTextLines($allNullFilterPdf);
 $allLines = [
     ...$lines,
     ...$stackLines,
@@ -308,6 +320,7 @@ $allLines = [
     ...$compactDecodeParmsLines,
     ...$aliasCompactDecodeParmsLines,
     ...$strayDecodeParmsLines,
+    ...$allNullFilterLines,
 ];
 $joined = implode("\n", $allLines);
 
@@ -325,6 +338,7 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         [null, 'ASCII85Decode', 'FlateDecode'],
         ['A85', null, 'Fl'],
         [],
+        [null],
     ],
     'singleton_decodeparms_after_null_filter_stack_entry' => true,
     'compact_decodeparms_ignore_null_filter_placeholders' => $compactDecodeParmsLines === [
@@ -339,6 +353,10 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         'Stray DecodeParms Visible',
         'Unfiltered Stream Preserved',
     ],
+    'all_null_filter_array_decodeparms_ignored' => $allNullFilterLines === [
+        'All Null Filter Visible',
+        'Identity Stack Preserved',
+    ],
     'missing_length_stream_payload' => true,
     'declared_length_points_at_encoded_fake_endstream' => true,
     'short_declared_length_before_encoded_fake_endstream' => true,
@@ -349,6 +367,7 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
     'requires_flate_stage_before_ascii85_eod_boundary' => true,
     'fake_endstream_payload_excluded' => !str_contains($joined, 'endstream'),
     'stray_decodeparms_helper_excluded' => !str_contains($joined, 'Stray DecodeParms Helper Leak'),
+    'all_null_decodeparms_helper_excluded' => !str_contains($joined, 'All Null DecodeParms Helper Leak'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
     'paragraphs' => $allLines,

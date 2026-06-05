@@ -201,6 +201,20 @@ $parserStreamFilterStackBoundaryCurrentBaseStrayDecodeParmsPdf = static function
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseAllNullFilterPdf = static function (): string {
+    $content = 'BT /F1 12 Tf 72 720 Td (All Null Filter Visible) Tj T* (Identity Stack Preserved) Tj ET';
+    $staleDecodeParmsObject = 'BT /F1 12 Tf 72 680 Td (All Null DecodeParms Helper Leak) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Filter [ null ] /DecodeParms 99 0 R /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "99 0 obj\n{$staleDecodeParmsObject}\nendobj\n"
+        . "%%EOF";
+};
+
 $parserStreamFilterStackBoundaryCurrentBaseStackedPdf = static function () use (
     $parserStreamFilterStackBoundaryCurrentBaseAscii85,
     $parserStreamFilterStackBoundaryCurrentBaseZlibStored
@@ -457,6 +471,23 @@ return [
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->true(!str_contains($text, 'Stray DecodeParms Helper Leak'));
+        $t->true(!str_contains($text, '99 0 obj'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'treats all-null filter arrays as an empty stack before resolving stray DecodeParms' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseAllNullFilterPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseAllNullFilterPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = ['All Null Filter Visible', 'Identity Stack Preserved'];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same("All Null Filter Visible\nIdentity Stack Preserved", $text);
+        $t->same("All Null Filter Visible\nIdentity Stack Preserved\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'All Null DecodeParms Helper Leak'));
+        $t->true(!str_contains($text, 'DecodeParms'));
         $t->true(!str_contains($text, '99 0 obj'));
         $t->true(!str_contains($text, "\0"));
     },

@@ -8699,7 +8699,8 @@ final class PdfTextExtractor
 
         if ($dict[$offset] === '[') {
             $arrayBody = $this->readPdfArrayAt($dict, $offset);
-            return $arrayBody === null ? null : $this->filterNamesFromValue($arrayBody, $objects, [], false);
+            $filters = $arrayBody === null ? null : $this->filterNamesFromValue($arrayBody, $objects, [], false);
+            return $filters === null ? null : $this->normalizeStreamFilterStack($filters);
         }
 
         if ($dict[$offset] === '/') {
@@ -8719,12 +8720,28 @@ final class PdfTextExtractor
             $objectNumber = (int) $match[1];
             $generation = (int) $match[2];
             $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
-            return $body === null
+            $filters = $body === null
                 ? null
                 : $this->filterNamesFromValue(trim($body), $objects, [$objectNumber . ':' . $generation => true]);
+            return $filters === null ? null : $this->normalizeStreamFilterStack($filters);
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @return list<string|null>
+     */
+    private function normalizeStreamFilterStack(array $filters): array
+    {
+        foreach ($filters as $filter) {
+            if (is_string($filter)) {
+                return $filters;
+            }
+        }
+
+        return [];
     }
 
     /**
