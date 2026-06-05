@@ -9,6 +9,11 @@ final class CslStyle
     private const CSL_NS = 'http://purl.org/net/xbiblio/csl';
     private const XML_NS = 'http://www.w3.org/XML/1998/namespace';
 
+    /** @var array{punctuationInQuote:bool} */
+    private const DEFAULT_LOCALE_OPTIONS = [
+        'punctuationInQuote' => false,
+    ];
+
     /** @var array<string, array{single:string, multiple:string}> */
     private const DEFAULT_TERMS = [
         'and|long' => ['single' => 'and', 'multiple' => 'and'],
@@ -128,6 +133,7 @@ final class CslStyle
      * @param array<string, list<array<string, mixed>>> $macros
      * @param array{citation:array<string, mixed>, bibliography:array<string, mixed>} $nameRendering
      * @param array<string, array{single:string, multiple:string}> $terms
+     * @param array{punctuationInQuote:bool} $localeOptions
      * @param array{title:string, id:string, class:string, defaultLocale:string} $metadata
      */
     private function __construct(
@@ -142,6 +148,7 @@ final class CslStyle
         private readonly array $macros,
         private readonly array $nameRendering,
         private readonly array $terms,
+        private readonly array $localeOptions,
         private readonly array $metadata,
     ) {
     }
@@ -160,6 +167,7 @@ final class CslStyle
             [],
             self::DEFAULT_NAME_RENDERING,
             self::DEFAULT_TERMS,
+            self::DEFAULT_LOCALE_OPTIONS,
             ['title' => '', 'id' => '', 'class' => 'in-text', 'defaultLocale' => '']
         );
     }
@@ -186,17 +194,21 @@ final class CslStyle
         $defaultLocale = trim($root->getAttribute('default-locale'));
         $macros = self::parseMacros($root);
         $terms = self::DEFAULT_TERMS;
+        $localeOptions = self::DEFAULT_LOCALE_OPTIONS;
         foreach ($localeXmls as $index => $localeXml) {
             if (!is_string($localeXml)) {
                 throw new \InvalidArgumentException('CSL locale XML at index ' . $index . ' must be a string');
             }
 
-            $terms = self::parseLocaleXmlTerms($localeXml, $terms);
+            $locale = self::parseLocaleXml($localeXml);
+            $terms = self::applyLocaleElementTerms($locale, $terms);
+            $localeOptions = self::applyLocaleElementOptions($locale, $localeOptions);
         }
 
         foreach (self::directChildren($root, 'locale') as $locale) {
             if (self::localeMatches($locale, $defaultLocale)) {
                 $terms = self::applyLocaleElementTerms($locale, $terms);
+                $localeOptions = self::applyLocaleElementOptions($locale, $localeOptions);
             }
         }
 
@@ -262,6 +274,7 @@ final class CslStyle
                 'bibliography' => $bibliographyNameRendering,
             ],
             $terms,
+            $localeOptions,
             $metadata
         );
     }
@@ -397,8 +410,13 @@ final class CslStyle
         return $this->metadata['defaultLocale'];
     }
 
+    public function punctuationInQuote(): bool
+    {
+        return $this->localeOptions['punctuationInQuote'];
+    }
+
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, localeOptions:array{punctuationInQuote:bool}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function summary(): array
     {
@@ -414,6 +432,7 @@ final class CslStyle
             'bibliographyRendering' => $this->bibliographyRenderingElements,
             'macros' => $this->macros,
             'nameRendering' => $this->nameRendering,
+            'localeOptions' => $this->localeOptions,
             'terms' => [
                 'and' => $this->term('and'),
                 'etAl' => $this->term('et-al'),
@@ -1381,7 +1400,7 @@ final class CslStyle
      * @param array<string, array{single:string, multiple:string}> $terms
      * @return array<string, array{single:string, multiple:string}>
      */
-    private static function parseLocaleXmlTerms(string $localeXml, array $terms): array
+    private static function parseLocaleXml(string $localeXml): \DOMElement
     {
         $dom = self::loadXml($localeXml, 'CSL locale XML');
         $root = $dom->documentElement;
@@ -1397,7 +1416,7 @@ final class CslStyle
             throw new \InvalidArgumentException('CSL locale XML must declare version 1.0');
         }
 
-        return self::applyLocaleElementTerms($root, $terms);
+        return $root;
     }
 
     /**
@@ -1447,6 +1466,33 @@ final class CslStyle
         }
 
         return $terms;
+    }
+
+    /**
+     * @param array{punctuationInQuote:bool} $options
+     * @return array{punctuationInQuote:bool}
+     */
+    private static function applyLocaleElementOptions(\DOMElement $locale, array $options): array
+    {
+        $styleOptions = self::directChild($locale, 'style-options');
+        if (!$styleOptions instanceof \DOMElement || !$styleOptions->hasAttribute('punctuation-in-quote')) {
+            return $options;
+        }
+
+        $value = strtolower(trim($styleOptions->getAttribute('punctuation-in-quote')));
+        if ($value === 'true') {
+            $options['punctuationInQuote'] = true;
+
+            return $options;
+        }
+
+        if ($value === 'false') {
+            $options['punctuationInQuote'] = false;
+
+            return $options;
+        }
+
+        throw new \InvalidArgumentException('CSL locale style-options attribute punctuation-in-quote must be true or false');
     }
 
     private static function isOrdinalSuffixTerm(string $name): bool

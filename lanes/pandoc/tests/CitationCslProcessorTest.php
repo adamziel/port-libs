@@ -3576,6 +3576,97 @@ XML
 XML
         ));
     },
+    'applies bounded csl punctuation in quote locale option' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'quote-source',
+                'type' => 'article-journal',
+                'title' => 'source packet',
+                'container-title' => 'Review Journal.',
+                'author' => [
+                    ['literal' => 'Quote Desk'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'publisher' => 'Review Press',
+            ],
+            [
+                'id' => 'suffix-source',
+                'type' => 'report',
+                'title' => 'suffix packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Punctuation In Quote Review Style</title>
+    <id>https://example.test/styles/bounded-punctuation-in-quote-review</id>
+    <updated>2026-06-05T11:08:28+00:00</updated>
+  </info>
+  <locale xml:lang="en-US">
+    <style-options punctuation-in-quote="true"/>
+    <terms>
+      <term name="open-quote">“</term>
+      <term name="close-quote">”</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=", ">
+        <text variable="title" quotes="true" text-case="title"/>
+        <text variable="publisher"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". ">
+      <text variable="title" quotes="true" text-case="title"/>
+      <text variable="container-title" quotes="true"/>
+      <text value="reviewed" suffix="." quotes="true"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Punctuation In Quote Review Style', $summary['title'] ?? null);
+        $t->same(true, $summary['localeOptions']['punctuationInQuote'] ?? null);
+        $t->same(true, $summary['citationRendering'][0]['children'][0]['quotes'] ?? null);
+
+        $t->same('(“Source Packet,” Review Press; “Suffix Packet”)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'quote-source', 'text' => '[@quote-source]']),
+            new AstNode('citation', ['id' => 'suffix-source', 'text' => '[@suffix-source]']),
+        ]));
+        $t->same('“Source Packet.” “Review Journal.” “reviewed.”', $processor->renderBibliographyEntry('quote-source'));
+        $t->same('“Suffix Packet.” “reviewed.”', $processor->renderBibliographyEntry('suffix-source'));
+
+        $document = (new MarkdownReader())->read('Quoted source @quote-source and suffix [@suffix-source] keep localized punctuation.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Quoted source Quote Desk (2026) and suffix (“Suffix Packet”) keep localized punctuation.', $markdown);
+        $t->contains('Quote Desk 2026' . "\n" . ':   “Source Packet.” “Review Journal.” “reviewed.”', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Quoted source Quote Desk (2026) and suffix (“Suffix Packet”) keep localized punctuation.</p>', $blocks);
+        $t->contains('<dt>Quote Desk 2026</dt><dd>“Source Packet.” “Review Journal.” “reviewed.”</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <locale>
+    <style-options punctuation-in-quote="sometimes"/>
+  </locale>
+  <citation><layout><text variable="title"/></layout></citation>
+</style>
+XML
+        ));
+    },
     'applies bounded csl macro rendering references for citations and bibliography' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

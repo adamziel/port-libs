@@ -127,7 +127,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, localeOptions:array{punctuationInQuote:bool}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function cslStyleSummary(): array
     {
@@ -3107,6 +3107,7 @@ final class CitationCslProcessor
         $output = array_shift($rendered);
         foreach ($rendered as $value) {
             $separator = $delimiter;
+            [$output, $separator] = $this->moveFollowingPunctuationInsideClosingQuote($output, $separator);
             if ($separator !== '' && $output !== '' && preg_match('/^[.,;:!?]/', $separator) === 1) {
                 $punctuation = $separator[0];
                 if (str_ends_with($output, $punctuation)) {
@@ -3789,7 +3790,40 @@ final class CitationCslProcessor
             return '';
         }
 
-        return (string) ($element['prefix'] ?? '') . $value . (string) ($element['suffix'] ?? '');
+        $suffix = (string) ($element['suffix'] ?? '');
+        [$value, $suffix] = $this->moveFollowingPunctuationInsideClosingQuote($value, $suffix);
+
+        return (string) ($element['prefix'] ?? '') . $value . $suffix;
+    }
+
+    /**
+     * @return array{0:string, 1:string}
+     */
+    private function moveFollowingPunctuationInsideClosingQuote(string $value, string $following): array
+    {
+        if (!$this->style->punctuationInQuote() || $value === '' || $following === '') {
+            return [$value, $following];
+        }
+
+        $punctuation = $following[0];
+        if ($punctuation !== '.' && $punctuation !== ',') {
+            return [$value, $following];
+        }
+
+        $closeQuote = $this->style->term('close-quote');
+        if ($closeQuote === '' || !str_ends_with($value, $closeQuote)) {
+            return [$value, $following];
+        }
+
+        $inside = substr($value, 0, -strlen($closeQuote));
+        if (preg_match('/[.,!?]\z/u', $inside) !== 1) {
+            $inside .= $punctuation;
+        }
+
+        $rest = substr($following, 1);
+        $following = trim($rest) === '' && $rest !== '' ? ' ' : ltrim($rest);
+
+        return [$inside . $closeQuote, $following];
     }
 
     /**
