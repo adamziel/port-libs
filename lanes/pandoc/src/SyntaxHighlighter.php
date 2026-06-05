@@ -115,6 +115,8 @@ final class SyntaxHighlighter
         'rake' => 'ruby',
         'rb' => 'ruby',
         'ruby' => 'ruby',
+        'rs' => 'rust',
+        'rust' => 'rust',
         's' => 'r',
         'sh' => 'bash',
         'shell' => 'bash',
@@ -561,6 +563,7 @@ final class SyntaxHighlighter
             'python' => $this->tokenizePython($code),
             'r' => $this->tokenizeR($code),
             'ruby' => $this->tokenizeRuby($code),
+            'rust' => $this->tokenizeRust($code),
             'sql' => $this->tokenizeSql($code),
             'tex' => $this->tokenizeTex($code),
             'toml' => $this->tokenizeToml($code),
@@ -1216,6 +1219,31 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*[!?=]?(?=\\s*\\()/'],
             ['variable', '/^\\b[a-z_][A-Za-z0-9_]*[!?=]?\\b/'],
             ['operator', '/^(?:::|=>|->|===|==|!=|<=|>=|=~|!~|&&|\\|\\||\\.\\.\\.?|\\+=|-=|\\*=|\\/=|%=|[{}()[\\];,.+*\\/%=!<>?:&|^-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeRust(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['attribute', '/^#!?\\[[^\\]\\n]*\\]/'],
+            ['string', '/^r#+".*?"#+/s'],
+            ['string', '/^(?:b|br|r)?"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^b?'(?:\\\\.|[^'\\\\])'/s"],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*!(?=\\s*[\\({\\[])/'],
+            ['keyword', '/^\\b(?:as|async|await|break|const|continue|crate|dyn|else|enum|extern|fn|for|if|impl|in|let|loop|match|mod|move|mut|pub|ref|return|self|static|struct|super|trait|type|unsafe|use|where|while)\\b/'],
+            ['constant', '/^\\b(?:Err|None|Ok|Some|false|true)\\b/'],
+            ['datatype', '/^\\b(?:Box|Debug|HashMap|HashSet|Option|Path|PathBuf|Result|Self|String|Value|Vec|bool|char|f32|f64|i8|i16|i32|i64|i128|isize|str|u8|u16|u32|u64|u128|usize)\\b/'],
+            ['attribute', "/^'[A-Za-z_][A-Za-z0-9_]*/"],
+            ['number', '/^\\b(?:0[xX][0-9A-Fa-f](?:_?[0-9A-Fa-f])*|0[bB][01](?:_?[01])*|\\d(?:_?\\d)*(?:\\.\\d(?:_?\\d)*)?(?:[eE][+-]?\\d(?:_?\\d)*)?)(?:[iu](?:8|16|32|64|128|size)|f(?:32|64))?\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[<({]|::|\\b))/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*(?:\\(|::<))/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:::|->|=>|==|!=|<=|>=|&&|\\|\\||\\.\\.|[{}()[\\];,.+*\\/%=!<>?:&|^~-])/'],
         ]);
     }
 

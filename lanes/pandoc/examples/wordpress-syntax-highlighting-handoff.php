@@ -172,6 +172,12 @@ if (!$cssCodeBlock instanceof PortLibs\Pandoc\AstNode || $cssCodeBlock->type !==
 }
 $css = $highlighter->highlightCodeBlock($cssCodeBlock, 'espresso');
 $cssWordpressBlock = $highlighter->wordpressHtmlBlock($cssCodeBlock, 'espresso');
+$rustCodeBlock = $document->children[22] ?? null;
+if (!$rustCodeBlock instanceof PortLibs\Pandoc\AstNode || $rustCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Rust code block');
+}
+$rust = $highlighter->highlightCodeBlock($rustCodeBlock, 'zenburn');
+$rustWordpressBlock = $highlighter->wordpressHtmlBlock($rustCodeBlock, 'zenburn');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -677,6 +683,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($cssWordpressBlock, '<style data-pandoc-highlight-style="espresso">')) {
         throw new RuntimeException('Expected CSS WordPress style metadata');
     }
+    if (($rust['language'] ?? '') !== 'rust') {
+        throw new RuntimeException('Expected Rust alias to normalize to Rust highlighting');
+    }
+    if (($rust['lineNumbering']['start'] ?? null) !== 88) {
+        throw new RuntimeException('Expected Rust source startFrom line-number handoff');
+    }
+    if (!str_contains($rust['html'], '<span class="kw">use</span> <span class="va">serde_json</span><span class="op">::</span><span class="dt">Value</span>')) {
+        throw new RuntimeException('Expected Rust use path token handoff');
+    }
+    if (!str_contains($rust['html'], '<span class="kw">pub</span> <span class="kw">struct</span> <span class="dt">ReviewPacket</span>')) {
+        throw new RuntimeException('Expected Rust struct token handoff');
+    }
+    if (!str_contains($rust['html'], '<span class="kw">return</span> <span class="fu">format!</span>')) {
+        throw new RuntimeException('Expected Rust macro token handoff');
+    }
+    if (!str_contains($rustWordpressBlock, '<style data-pandoc-highlight-style="zenburn">')) {
+        throw new RuntimeException('Expected Rust WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -723,6 +747,7 @@ echo "xsltHighlightedHtml:\n" . $xslt['html'] . "\n";
 echo "shellHighlightedHtml:\n" . $shell['html'] . "\n";
 echo "tokenTitleHighlightedHtml:\n" . $tokenTitle['html'] . "\n";
 echo "cssHighlightedHtml:\n" . $css['html'] . "\n";
+echo "rustHighlightedHtml:\n" . $rust['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -740,4 +765,5 @@ echo "xmlWordpressBlock:\n" . $xmlWordpressBlock . "\n";
 echo "shellWordpressBlock:\n" . $shellWordpressBlock . "\n";
 echo "tokenTitleWordpressBlock:\n" . $tokenTitleWordpressBlock . "\n";
 echo "cssWordpressBlock:\n" . $cssWordpressBlock . "\n";
+echo "rustWordpressBlock:\n" . $rustWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

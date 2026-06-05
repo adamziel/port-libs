@@ -282,3 +282,24 @@ echo esc_html($title); // reviewer token titles
   }
 }
 ```
+
+``` {.rs #rust-review .numberLines startFrom=88}
+// WordPress import review helper
+use serde_json::Value;
+
+#[derive(Debug)]
+pub struct ReviewPacket<'a> {
+    pub title: Option<&'a str>,
+    source_id: u64,
+}
+
+impl<'a> ReviewPacket<'a> {
+    pub fn normalized_title(&self) -> String {
+        let title = self.title.unwrap_or("Untitled");
+        if title.trim().is_empty() {
+            return format!("import-{}", self.source_id);
+        }
+        title.to_string()
+    }
+}
+```

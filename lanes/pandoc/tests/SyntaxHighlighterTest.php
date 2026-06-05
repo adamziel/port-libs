@@ -73,6 +73,9 @@ return [
         $t->same('xslt', SyntaxHighlighter::normalizeLanguage('xslt'));
         $t->same('ruby', SyntaxHighlighter::normalizeLanguage('rb'));
         $t->same('ruby', SyntaxHighlighter::normalizeLanguage('rake'));
+        $t->same('rust', SyntaxHighlighter::normalizeLanguage('rs'));
+        $t->same('rust', SyntaxHighlighter::normalizeLanguage('rust'));
+        $t->same('rust', SyntaxHighlighter::normalizeLanguage('language-rs'));
         $t->same('lua', SyntaxHighlighter::normalizeLanguage('lua'));
         $t->same('lua', SyntaxHighlighter::normalizeLanguage('pandoc-lua'));
         $t->same('bash', SyntaxHighlighter::normalizeLanguage('bash'));
@@ -279,6 +282,47 @@ return [
         $t->same('css', $directCss['language']);
         $t->contains('<span class="kw">@supports</span> <span class="op">(</span><span class="ot">display</span><span class="op">:</span> <span class="kw">grid</span><span class="op">)</span>', $directCss['html']);
         $t->contains('<span class="dt">#site-header</span><span class="fu">::before</span>', $directCss['html']);
+    },
+    'highlights rust review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[22] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Rust code block');
+        }
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'zenburn');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'zenburn');
+        $directRust = (new SyntaxHighlighter())->highlight('let block: Option<&str> = Some(r#"ok"#);', 'rust');
+
+        $t->same('rs', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('rust', SyntaxHighlighter::normalizeLanguage('rs'));
+        $t->same('rust', $highlighted['language']);
+        $t->same('rs', $highlighted['requestedLanguage']);
+        $t->same('zenburn', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(88, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource rs numberLines"><code class="sourceCode rust" style="counter-reset: source-line 87;">', $highlighted['html']);
+        $t->contains('<span id="rust-review-88"><a href="#rust-review-88"></a><span class="co">// WordPress import review helper</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">use</span> <span class="va">serde_json</span><span class="op">::</span><span class="dt">Value</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">#[derive(Debug)]</span>', $highlighted['html']);
+        $t->contains('<span class="kw">pub</span> <span class="kw">struct</span> <span class="dt">ReviewPacket</span><span class="op">&lt;</span><span class="ot">&#039;a</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">pub</span> <span class="va">title</span><span class="op">:</span> <span class="dt">Option</span><span class="op">&lt;&amp;</span><span class="ot">&#039;a</span> <span class="dt">str</span><span class="op">&gt;,</span>', $highlighted['html']);
+        $t->contains('<span class="va">source_id</span><span class="op">:</span> <span class="dt">u64</span><span class="op">,</span>', $highlighted['html']);
+        $t->contains('<span class="kw">impl</span><span class="op">&lt;</span><span class="ot">&#039;a</span><span class="op">&gt;</span> <span class="dt">ReviewPacket</span><span class="op">&lt;</span><span class="ot">&#039;a</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">pub</span> <span class="kw">fn</span> <span class="fu">normalized_title</span><span class="op">(&amp;</span><span class="kw">self</span><span class="op">)</span> <span class="op">-&gt;</span> <span class="dt">String</span>', $highlighted['html']);
+        $t->contains('<span class="kw">let</span> <span class="va">title</span> <span class="op">=</span> <span class="kw">self</span><span class="op">.</span><span class="va">title</span><span class="op">.</span><span class="fu">unwrap_or</span><span class="op">(</span><span class="st">&quot;Untitled&quot;</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="va">title</span><span class="op">.</span><span class="fu">trim</span><span class="op">().</span><span class="fu">is_empty</span><span class="op">()</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="fu">format!</span><span class="op">(</span><span class="st">&quot;import-{}&quot;</span><span class="op">,</span> <span class="kw">self</span><span class="op">.</span><span class="va">source_id</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<span class="va">title</span><span class="op">.</span><span class="fu">to_string</span><span class="op">()</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="zenburn">', $wordpressBlock);
+        $t->contains('<span class="fu">format!</span><span class="op">(</span><span class="st">&quot;import-{}&quot;</span>', $wordpressBlock);
+        $t->same('rust', $directRust['language']);
+        $t->contains('<span class="kw">let</span> <span class="va">block</span><span class="op">:</span> <span class="dt">Option</span><span class="op">&lt;&amp;</span><span class="dt">str</span><span class="op">&gt;</span> <span class="op">=</span> <span class="cn">Some</span><span class="op">(</span><span class="st">r#&quot;ok&quot;#</span><span class="op">);</span>', $directRust['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();
