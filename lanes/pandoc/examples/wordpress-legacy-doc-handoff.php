@@ -326,11 +326,33 @@ $secondPieceText = "\rReviewer notes keep hard\vbreaks for block review with "
     . ".\r";
 $firstPieceBytes = $utf16le($firstPieceText);
 $secondPieceBytes = $utf16le($secondPieceText);
+$subdocumentSeparatorBytes = $utf16le("\r");
+$footnoteSubdocumentText = "Footnote body retained for metadata-only review.\r";
+$headerSubdocumentText = "Header text retained for layout review.\r";
+$commentSubdocumentText = "Comment body retained for annotation review.\r";
+$endnoteSubdocumentText = "Endnote body retained for metadata-only review.\r";
+$footnoteSubdocumentBytes = $utf16le($footnoteSubdocumentText);
+$headerSubdocumentBytes = $utf16le($headerSubdocumentText);
+$commentSubdocumentBytes = $utf16le($commentSubdocumentText);
+$endnoteSubdocumentBytes = $utf16le($endnoteSubdocumentText);
 $firstPieceStart = 1024;
 $secondPieceStart = $firstPieceStart + strlen($firstPieceBytes);
 $mainTextByteEnd = $secondPieceStart + strlen($secondPieceBytes);
+$subdocumentSeparatorStart = $mainTextByteEnd;
+$footnoteSubdocumentStart = $subdocumentSeparatorStart + strlen($subdocumentSeparatorBytes);
+$headerSubdocumentStart = $footnoteSubdocumentStart + strlen($footnoteSubdocumentBytes);
+$commentSubdocumentStart = $headerSubdocumentStart + strlen($headerSubdocumentBytes);
+$endnoteSubdocumentStart = $commentSubdocumentStart + strlen($commentSubdocumentBytes);
+$subdocumentByteEnd = $endnoteSubdocumentStart + strlen($endnoteSubdocumentBytes);
 
-$wordDocument = str_repeat("\0", $firstPieceStart) . $firstPieceBytes . $secondPieceBytes;
+$wordDocument = str_repeat("\0", $firstPieceStart)
+    . $firstPieceBytes
+    . $secondPieceBytes
+    . $subdocumentSeparatorBytes
+    . $footnoteSubdocumentBytes
+    . $headerSubdocumentBytes
+    . $commentSubdocumentBytes
+    . $endnoteSubdocumentBytes;
 $sepxFc = strlen($wordDocument) + 64;
 $wordDocument = str_pad($wordDocument, $sepxFc, "\0") . $u16(4) . "\x34\x12\x00\x00";
 $appendFkp = static function (string &$wordDocument, int $runCount): int {
@@ -350,15 +372,41 @@ $wordDocument = substr_replace($wordDocument, $u16(0x0409), 6, 2);
 $wordDocument = substr_replace($wordDocument, $u16(0x3e34), 10, 2);
 $wordDocument = substr_replace($wordDocument, $u16(0x00bf), 12, 2);
 $wordDocument = substr_replace($wordDocument, $u32(0), 24, 4);
-$wordDocument = substr_replace($wordDocument, $u32($mainTextByteEnd), 28, 4);
+$wordDocument = substr_replace($wordDocument, $u32($subdocumentByteEnd), 28, 4);
 
 $firstPieceCharacters = intdiv(strlen($firstPieceBytes), 2);
 $secondPieceCharacters = intdiv(strlen($secondPieceBytes), 2);
+$footnoteSubdocumentCharacters = intdiv(strlen($footnoteSubdocumentBytes), 2);
+$headerSubdocumentCharacters = intdiv(strlen($headerSubdocumentBytes), 2);
+$commentSubdocumentCharacters = intdiv(strlen($commentSubdocumentBytes), 2);
+$endnoteSubdocumentCharacters = intdiv(strlen($endnoteSubdocumentBytes), 2);
+$totalPieceCharacters = $firstPieceCharacters + $secondPieceCharacters;
+$footnoteSubdocumentCpStart = $totalPieceCharacters + 1;
+$headerSubdocumentCpStart = $footnoteSubdocumentCpStart + $footnoteSubdocumentCharacters;
+$commentSubdocumentCpStart = $headerSubdocumentCpStart + $headerSubdocumentCharacters;
+$endnoteSubdocumentCpStart = $commentSubdocumentCpStart + $commentSubdocumentCharacters;
+$pieceTableLastCp = $endnoteSubdocumentCpStart + $endnoteSubdocumentCharacters;
+$wordDocument = substr_replace($wordDocument, $u32(strlen($wordDocument)), 0x0040, 4);
+$wordDocument = substr_replace($wordDocument, $u32($totalPieceCharacters), 0x004c, 4);
+$wordDocument = substr_replace($wordDocument, $u32($footnoteSubdocumentCharacters), 0x0050, 4);
+$wordDocument = substr_replace($wordDocument, $u32($headerSubdocumentCharacters), 0x0054, 4);
+$wordDocument = substr_replace($wordDocument, $u32($commentSubdocumentCharacters), 0x005c, 4);
+$wordDocument = substr_replace($wordDocument, $u32($endnoteSubdocumentCharacters), 0x0060, 4);
 $plcPcd = $u32(0)
     . $u32($firstPieceCharacters)
     . $u32($firstPieceCharacters + $secondPieceCharacters)
+    . $u32($footnoteSubdocumentCpStart)
+    . $u32($headerSubdocumentCpStart)
+    . $u32($commentSubdocumentCpStart)
+    . $u32($endnoteSubdocumentCpStart)
+    . $u32($pieceTableLastCp)
     . $u16(0x0001) . $u32($firstPieceStart) . "\0\0"
-    . $u16(0) . $u32($secondPieceStart) . "\0\0";
+    . $u16(0) . $u32($secondPieceStart) . "\0\0"
+    . $u16(0) . $u32($subdocumentSeparatorStart) . "\0\0"
+    . $u16(0) . $u32($footnoteSubdocumentStart) . "\0\0"
+    . $u16(0) . $u32($headerSubdocumentStart) . "\0\0"
+    . $u16(0) . $u32($commentSubdocumentStart) . "\0\0"
+    . $u16(0) . $u32($endnoteSubdocumentStart) . "\0\0";
 $clx = "\x02" . $u32(strlen($plcPcd)) . $plcPcd;
 $bookmarkName = 'legacy_anchor';
 $bookmarkNameBytes = $utf16le($bookmarkName);
@@ -367,7 +415,6 @@ $sttbfBkmk = $u16(0xffff)
     . $u16(0)
     . $u16(intdiv(strlen($bookmarkNameBytes), 2))
     . $bookmarkNameBytes;
-$totalPieceCharacters = $firstPieceCharacters + $secondPieceCharacters;
 $plcfBkf = $u32(0)
     . $u32($totalPieceCharacters + 1)
     . $u16(0) . $u16(0);
@@ -814,6 +861,58 @@ if (($argv[1] ?? '') === '--self-test') {
     ]) {
         throw new RuntimeException('Legacy DOC handoff self-test missing FIB state flags');
     }
+    $fibRgLw97 = $summary['metadata']['fibRgLw97'] ?? null;
+    if (!is_array($fibRgLw97) || ($fibRgLw97['ccpText'] ?? null) !== $totalPieceCharacters) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing FibRgLw97 main-text count');
+    }
+    if (($fibRgLw97['cbMac'] ?? null) !== strlen($wordDocument)) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing FibRgLw97 cbMac boundary');
+    }
+    if (
+        ($fibRgLw97['ccpFtn'] ?? null) !== $footnoteSubdocumentCharacters
+        || ($fibRgLw97['ccpHdd'] ?? null) !== $headerSubdocumentCharacters
+        || ($fibRgLw97['ccpAtn'] ?? null) !== $commentSubdocumentCharacters
+        || ($fibRgLw97['ccpEdn'] ?? null) !== $endnoteSubdocumentCharacters
+    ) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing FibRgLw97 supplemental subdocument counts');
+    }
+    if (($fibRgLw97['pieceTableExpectedLastCp'] ?? null) !== $pieceTableLastCp || ($fibRgLw97['hasSupplementalSubdocuments'] ?? null) !== true) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing FibRgLw97 piece-table boundary');
+    }
+    if (($fibRgLw97['subdocuments'] ?? []) !== [
+        [
+            'type' => 'main',
+            'startCp' => 0,
+            'endCp' => $totalPieceCharacters,
+            'characterCount' => $totalPieceCharacters,
+        ],
+        [
+            'type' => 'footnote',
+            'startCp' => $footnoteSubdocumentCpStart,
+            'endCp' => $headerSubdocumentCpStart,
+            'characterCount' => $footnoteSubdocumentCharacters,
+        ],
+        [
+            'type' => 'header',
+            'startCp' => $headerSubdocumentCpStart,
+            'endCp' => $commentSubdocumentCpStart,
+            'characterCount' => $headerSubdocumentCharacters,
+        ],
+        [
+            'type' => 'comment',
+            'startCp' => $commentSubdocumentCpStart,
+            'endCp' => $endnoteSubdocumentCpStart,
+            'characterCount' => $commentSubdocumentCharacters,
+        ],
+        [
+            'type' => 'endnote',
+            'startCp' => $endnoteSubdocumentCpStart,
+            'endCp' => $pieceTableLastCp,
+            'characterCount' => $endnoteSubdocumentCharacters,
+        ],
+    ]) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing FibRgLw97 subdocument ranges');
+    }
     if (($summary['metadata']['styleCount'] ?? null) !== 3 || ($summary['styles'][0]['name'] ?? '') !== 'Review Heading') {
         throw new RuntimeException('Legacy DOC handoff self-test missing stylesheet style inventory');
     }
@@ -1019,6 +1118,11 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (str_contains($blocks, 'HYPERLINK')) {
         throw new RuntimeException('Legacy DOC handoff self-test rendered hidden field instructions');
+    }
+    foreach ([$footnoteSubdocumentText, $headerSubdocumentText, $commentSubdocumentText, $endnoteSubdocumentText] as $supplementalSubdocumentText) {
+        if (str_contains($blocks, trim($supplementalSubdocumentText))) {
+            throw new RuntimeException('Legacy DOC handoff self-test rendered supplemental subdocument text');
+        }
     }
     if (str_contains($blocks, $embeddedNativeData) || str_contains($blocks, 'opaque embedded object presentation preview')) {
         throw new RuntimeException('Legacy DOC handoff self-test rendered embedded object payload bytes');

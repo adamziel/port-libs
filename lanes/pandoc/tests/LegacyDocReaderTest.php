@@ -625,6 +625,67 @@ $buildPieceTableDocStreams = static function (
     ];
 };
 
+$buildSubdocumentPieceTableDocStreams = static function () use ($u16, $u32): array {
+    $mainText = 'Main review body';
+    $separator = "\r";
+    $footnoteText = 'Footnote body must stay metadata-only';
+    $headerText = 'Header packet should not render';
+    $commentText = 'Comment body stays annotation-only';
+
+    $pieces = [
+        $mainText,
+        $separator,
+        $footnoteText,
+        $headerText,
+        $commentText,
+    ];
+    $cpOffsets = [0];
+    foreach ($pieces as $piece) {
+        $cpOffsets[] = end($cpOffsets) + strlen($piece);
+    }
+
+    $pieceStart = 1024;
+    $wordDocument = str_repeat("\0", $pieceStart);
+    $pcds = '';
+    foreach ($pieces as $piece) {
+        $fc = strlen($wordDocument);
+        $wordDocument .= $piece;
+        $pcds .= $u16(0) . $u32(($fc * 2) | 0x40000000) . "\0\0";
+    }
+
+    $plc = '';
+    foreach ($cpOffsets as $cp) {
+        $plc .= $u32($cp);
+    }
+    $plc .= $pcds;
+    $clx = "\x02" . $u32(strlen($plc)) . $plc;
+
+    $wordDocument = substr_replace($wordDocument, $u16(0xa5ec), 0, 2);
+    $wordDocument = substr_replace($wordDocument, $u16(0x00c1), 2, 2);
+    $wordDocument = substr_replace($wordDocument, $u16(0x0204), 10, 2);
+    $wordDocument = substr_replace($wordDocument, $u32(0), 24, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($wordDocument)), 28, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($wordDocument)), 0x0040, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($mainText)), 0x004c, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($footnoteText)), 0x0050, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($headerText)), 0x0054, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($commentText)), 0x005c, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(0), 0x01a2, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($clx)), 0x01a6, 4);
+
+    return [
+        'streams' => [
+            'WordDocument' => $wordDocument,
+            '1Table' => $clx,
+        ],
+        'mainText' => $mainText,
+        'footnoteText' => $footnoteText,
+        'headerText' => $headerText,
+        'commentText' => $commentText,
+        'expectedLastCp' => end($cpOffsets),
+    ];
+};
+
 $buildBookmarkTableDocStreams = static function () use ($buildSimpleWordDocument, $utf16le, $u16, $u32): array {
     $text = "Intro target text\rJump to anchor\r";
     $wordDocument = $buildSimpleWordDocument($text);
@@ -1490,6 +1551,65 @@ return [
         $t->same('Legacy “smart” Unicode Ω import', $document->children[0]->children[0]->attr('text'));
         $t->contains('<p>Legacy “smart” Unicode Ω import</p>', $blocks);
     },
+    'uses FibRgLw97 subdocument CP counts to keep supplemental piece-table text out of rendered main blocks' => static function (TestRunner $t) use ($buildCfb, $buildSubdocumentPieceTableDocStreams): void {
+        $fixture = $buildSubdocumentPieceTableDocStreams();
+        $result = (new LegacyDocReader())->readBytes($buildCfb($fixture['streams']));
+        $document = $result['document'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $fibRgLw97 = $result['fib']['fibRgLw97'];
+
+        $mainCharacters = strlen($fixture['mainText']);
+        $footnoteCharacters = strlen($fixture['footnoteText']);
+        $headerCharacters = strlen($fixture['headerText']);
+        $commentCharacters = strlen($fixture['commentText']);
+        $footnoteStartCp = $mainCharacters + 1;
+        $headerStartCp = $footnoteStartCp + $footnoteCharacters;
+        $commentStartCp = $headerStartCp + $headerCharacters;
+
+        $t->same('piece-table', $document->attr('textSource'));
+        $t->same(1, count($document->children));
+        $t->same('Main review body', $document->children[0]->children[0]->attr('text'));
+        $t->contains('<p>Main review body</p>', $blocks);
+        $t->true(!str_contains($blocks, 'Footnote body must stay metadata-only'));
+        $t->true(!str_contains($blocks, 'Header packet should not render'));
+        $t->true(!str_contains($blocks, 'Comment body stays annotation-only'));
+
+        $t->same($fibRgLw97, $result['metadata']['fibRgLw97']);
+        $t->same($fibRgLw97, $document->attr('meta')['fibRgLw97']);
+        $t->same($mainCharacters, $fibRgLw97['ccpText']);
+        $t->same($footnoteCharacters, $fibRgLw97['ccpFtn']);
+        $t->same($headerCharacters, $fibRgLw97['ccpHdd']);
+        $t->same($commentCharacters, $fibRgLw97['ccpAtn']);
+        $t->same($fixture['expectedLastCp'], $fibRgLw97['pieceTableExpectedLastCp']);
+        $t->same($fixture['expectedLastCp'] - $mainCharacters - 1, $fibRgLw97['supplementalSubdocumentCharacters']);
+        $t->same(true, $fibRgLw97['hasSupplementalSubdocuments']);
+        $t->same([
+            [
+                'type' => 'main',
+                'startCp' => 0,
+                'endCp' => $mainCharacters,
+                'characterCount' => $mainCharacters,
+            ],
+            [
+                'type' => 'footnote',
+                'startCp' => $footnoteStartCp,
+                'endCp' => $headerStartCp,
+                'characterCount' => $footnoteCharacters,
+            ],
+            [
+                'type' => 'header',
+                'startCp' => $headerStartCp,
+                'endCp' => $commentStartCp,
+                'characterCount' => $headerCharacters,
+            ],
+            [
+                'type' => 'comment',
+                'startCp' => $commentStartCp,
+                'endCp' => $fixture['expectedLastCp'],
+                'characterCount' => $commentCharacters,
+            ],
+        ], $fibRgLw97['subdocuments']);
+    },
     'honors legacy DOC piece-table no-paragraph-last flags on non-paragraph pieces' => static function (TestRunner $t) use ($buildCfb, $buildPieceTableDocStreams): void {
         $streams = $buildPieceTableDocStreams(0x0001);
         $docBytes = $buildCfb($streams);
@@ -1513,6 +1633,45 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb(
             $buildPieceTableDocStreams(0, 0x0001)
         )));
+    },
+    'rejects malformed legacy DOC FibRgLw97 subdocument counts before exposing piece-table text' => static function (TestRunner $t) use ($buildCfb, $buildSubdocumentPieceTableDocStreams, $u32): void {
+        $reader = new LegacyDocReader();
+
+        $negativeFootnoteCount = $buildSubdocumentPieceTableDocStreams();
+        $negativeFootnoteCount['streams']['WordDocument'] = substr_replace(
+            $negativeFootnoteCount['streams']['WordDocument'],
+            $u32(0xffffffff),
+            0x0050,
+            4
+        );
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($negativeFootnoteCount['streams'])));
+
+        $nonzeroReserved3 = $buildSubdocumentPieceTableDocStreams();
+        $nonzeroReserved3['streams']['WordDocument'] = substr_replace(
+            $nonzeroReserved3['streams']['WordDocument'],
+            $u32(1),
+            0x0058,
+            4
+        );
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($nonzeroReserved3['streams'])));
+
+        $badPieceTableLimit = $buildSubdocumentPieceTableDocStreams();
+        $badPieceTableLimit['streams']['1Table'] = substr_replace(
+            $badPieceTableLimit['streams']['1Table'],
+            $u32($badPieceTableLimit['expectedLastCp'] + 1),
+            5 + (5 * 4),
+            4
+        );
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badPieceTableLimit['streams'])));
+
+        $badCbMac = $buildSubdocumentPieceTableDocStreams();
+        $badCbMac['streams']['WordDocument'] = substr_replace(
+            $badCbMac['streams']['WordDocument'],
+            $u32(strlen($badCbMac['streams']['WordDocument']) + 1),
+            0x0040,
+            4
+        );
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badCbMac['streams'])));
     },
     'uses FIB extended-character flag for direct Unicode WordDocument text ranges' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $docBytes = $buildCfb([

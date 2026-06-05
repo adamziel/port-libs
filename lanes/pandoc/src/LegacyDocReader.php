@@ -35,6 +35,25 @@ final class LegacyDocReader
     private const FIB_LCB_PLCFEND_REF = 0x020e;
     private const FIB_FC_PLCFEND_TXT = 0x0212;
     private const FIB_LCB_PLCFEND_TXT = 0x0216;
+    private const FIB_RGLW97_CB_MAC = 0x0040;
+    private const FIB_RGLW97_RESERVED3 = 0x0058;
+    private const FIB_RGLW97_CCP_FIELDS = [
+        'ccpText' => 0x004c,
+        'ccpFtn' => 0x0050,
+        'ccpHdd' => 0x0054,
+        'ccpAtn' => 0x005c,
+        'ccpEdn' => 0x0060,
+        'ccpTxbx' => 0x0064,
+        'ccpHdrTxbx' => 0x0068,
+    ];
+    private const FIB_RGLW97_SUBDOCUMENT_TYPES = [
+        'ccpFtn' => 'footnote',
+        'ccpHdd' => 'header',
+        'ccpAtn' => 'comment',
+        'ccpEdn' => 'endnote',
+        'ccpTxbx' => 'textbox',
+        'ccpHdrTxbx' => 'header-textbox',
+    ];
 
     /**
      * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
@@ -74,11 +93,14 @@ final class LegacyDocReader
             $tableStream = $compoundFile->readStream('1Table');
         }
 
-        $textResult = $this->extractText($wordDocument, $tableStream);
+        $textResult = $this->extractText($wordDocument, $tableStream, $fib);
         $streamDirectory = $this->streamDirectoryReport($compoundFile);
         $directoryEntries = $this->directoryEntryReport($compoundFile);
         $metadata = $this->readMetadata($compoundFile);
         $metadata['fibBase'] = $this->fibBaseReviewMetadata($fib);
+        if (isset($fib['fibRgLw97']) && is_array($fib['fibRgLw97'])) {
+            $metadata['fibRgLw97'] = $fib['fibRgLw97'];
+        }
         if ($streamDirectory !== []) {
             $metadata['cfbStreamCount'] = count($streamDirectory);
         }
@@ -226,8 +248,9 @@ final class LegacyDocReader
         $lKey = self::u32($wordDocument, 14);
         $fcMin = self::u32($wordDocument, 24);
         $fcMac = self::u32($wordDocument, 28);
+        $fibRgLw97 = $this->fibRgLw97ReviewMetadata($wordDocument);
 
-        return [
+        $fib = [
             'wIdent' => $wIdent,
             'nFib' => self::u16($wordDocument, 2),
             'nFibBack' => $nFibBack,
@@ -253,6 +276,11 @@ final class LegacyDocReader
             'farEast' => ($flags & 0x4000) !== 0,
             'obfuscated' => ($flags & 0x8000) !== 0,
         ];
+        if ($fibRgLw97 !== []) {
+            $fib['fibRgLw97'] = $fibRgLw97;
+        }
+
+        return $fib;
     }
 
     /**
@@ -283,8 +311,98 @@ final class LegacyDocReader
         if (($fib['languageTag'] ?? null) !== null) {
             $metadata['languageTag'] = (string) $fib['languageTag'];
         }
+        if (isset($fib['fibRgLw97']) && is_array($fib['fibRgLw97'])) {
+            $metadata['fibRgLw97'] = $fib['fibRgLw97'];
+        }
 
         return $metadata;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function fibRgLw97ReviewMetadata(string $wordDocument): array
+    {
+        if (strlen($wordDocument) < 0x006c) {
+            return [];
+        }
+
+        $reserved3 = self::signed32(self::u32($wordDocument, self::FIB_RGLW97_RESERVED3));
+        if ($reserved3 !== 0) {
+            throw new \RuntimeException('Legacy DOC FibRgLw97 reserved3 must be zero');
+        }
+
+        $record = [
+            'cbMac' => self::u32($wordDocument, self::FIB_RGLW97_CB_MAC),
+        ];
+        if ($record['cbMac'] > strlen($wordDocument)) {
+            throw new \RuntimeException('Legacy DOC FibRgLw97 cbMac points outside WordDocument');
+        }
+
+        $supplementalCharacters = 0;
+        foreach (self::FIB_RGLW97_CCP_FIELDS as $field => $offset) {
+            $value = self::signed32(self::u32($wordDocument, $offset));
+            if ($value < 0) {
+                throw new \RuntimeException('Legacy DOC FibRgLw97 ' . $field . ' must not be negative');
+            }
+            $record[$field] = $value;
+            if ($field !== 'ccpText') {
+                $supplementalCharacters += $value;
+            }
+        }
+
+        $declaresCpCounts = (int) $record['ccpText'] > 0 || $supplementalCharacters > 0;
+        if (!$declaresCpCounts && (int) $record['cbMac'] === 0) {
+            return [];
+        }
+
+        $record['supplementalSubdocumentCharacters'] = $supplementalCharacters;
+        $record['hasSupplementalSubdocuments'] = $supplementalCharacters > 0;
+        if ($declaresCpCounts) {
+            $record['pieceTableExpectedLastCp'] = (int) $record['ccpText']
+                + ($supplementalCharacters > 0 ? 1 : 0)
+                + $supplementalCharacters;
+            $record['subdocuments'] = $this->fibRgLw97SubdocumentRanges($record);
+        }
+
+        return $record;
+    }
+
+    /**
+     * @param array<string,mixed> $fibRgLw97
+     * @return list<array{type:string,startCp:int,endCp:int,characterCount:int}>
+     */
+    private function fibRgLw97SubdocumentRanges(array $fibRgLw97): array
+    {
+        $mainCount = (int) ($fibRgLw97['ccpText'] ?? 0);
+        $ranges = [[
+            'type' => 'main',
+            'startCp' => 0,
+            'endCp' => $mainCount,
+            'characterCount' => $mainCount,
+        ]];
+
+        $cursor = $mainCount;
+        $hasSupplemental = ($fibRgLw97['hasSupplementalSubdocuments'] ?? false) === true;
+        if ($hasSupplemental) {
+            $cursor++;
+        }
+        foreach (self::FIB_RGLW97_SUBDOCUMENT_TYPES as $field => $type) {
+            $count = (int) ($fibRgLw97[$field] ?? 0);
+            if ($count === 0) {
+                continue;
+            }
+
+            $ranges[] = [
+                'type' => $type,
+                'startCp' => $cursor,
+                'endCp' => $cursor + $count,
+                'characterCount' => $count,
+            ];
+            $cursor += $count;
+        }
+
+        return $ranges;
     }
 
     /**
@@ -341,10 +459,15 @@ final class LegacyDocReader
     /**
      * @return array{text:string,source:string}
      */
-    private function extractText(string $wordDocument, ?string $tableStream): array
+    private function extractText(string $wordDocument, ?string $tableStream, ?array $fib = null): array
     {
+        $fib ??= $this->readFib($wordDocument);
         if ($tableStream !== null) {
-            $pieceText = $this->extractPieceTableText($wordDocument, $tableStream);
+            $pieceText = $this->extractPieceTableText(
+                $wordDocument,
+                $tableStream,
+                is_array($fib['fibRgLw97'] ?? null) ? $fib['fibRgLw97'] : []
+            );
             if ($pieceText !== null) {
                 return [
                     'text' => $pieceText,
@@ -353,7 +476,6 @@ final class LegacyDocReader
             }
         }
 
-        $fib = $this->readFib($wordDocument);
         $fcMin = (int) $fib['fcMin'];
         $fcMac = (int) $fib['fcMac'];
         if ($fcMin > $fcMac || $fcMac > strlen($wordDocument)) {
@@ -378,7 +500,10 @@ final class LegacyDocReader
         ];
     }
 
-    private function extractPieceTableText(string $wordDocument, string $tableStream): ?string
+    /**
+     * @param array<string,mixed> $fibRgLw97
+     */
+    private function extractPieceTableText(string $wordDocument, string $tableStream, array $fibRgLw97): ?string
     {
         foreach ([0x01a2, 0x010c] as $offset) {
             if (strlen($wordDocument) < $offset + 8) {
@@ -394,13 +519,16 @@ final class LegacyDocReader
                 continue;
             }
 
-            return $this->parseClx(substr($tableStream, $fcClx, $lcbClx), $wordDocument);
+            return $this->parseClx(substr($tableStream, $fcClx, $lcbClx), $wordDocument, $fibRgLw97);
         }
 
         return null;
     }
 
-    private function parseClx(string $clx, string $wordDocument): string
+    /**
+     * @param array<string,mixed> $fibRgLw97
+     */
+    private function parseClx(string $clx, string $wordDocument, array $fibRgLw97): string
     {
         $cursor = 0;
         $length = strlen($clx);
@@ -429,13 +557,16 @@ final class LegacyDocReader
                 throw new \RuntimeException('Legacy DOC piece table points outside the Clx');
             }
 
-            return $this->parsePlcPcd(substr($clx, $cursor, $pieceTableLength), $wordDocument);
+            return $this->parsePlcPcd(substr($clx, $cursor, $pieceTableLength), $wordDocument, $fibRgLw97);
         }
 
         throw new \RuntimeException('Legacy DOC Clx does not contain a piece table');
     }
 
-    private function parsePlcPcd(string $plcPcd, string $wordDocument): string
+    /**
+     * @param array<string,mixed> $fibRgLw97
+     */
+    private function parsePlcPcd(string $plcPcd, string $wordDocument, array $fibRgLw97): string
     {
         $length = strlen($plcPcd);
         if ($length < 4 || ($length - 4) % 12 !== 0) {
@@ -444,8 +575,31 @@ final class LegacyDocReader
 
         $pieceCount = intdiv($length - 4, 12);
         $cpOffsets = [];
+        $previousCp = null;
         for ($index = 0; $index <= $pieceCount; $index++) {
-            $cpOffsets[] = self::u32($plcPcd, $index * 4);
+            $cp = self::u32($plcPcd, $index * 4);
+            if ($previousCp !== null && $cp <= $previousCp) {
+                throw new \RuntimeException('Legacy DOC piece table contains duplicate or unsorted CPs');
+            }
+            $previousCp = $cp;
+            $cpOffsets[] = $cp;
+        }
+
+        $expectedLastCp = isset($fibRgLw97['pieceTableExpectedLastCp'])
+            ? (int) $fibRgLw97['pieceTableExpectedLastCp']
+            : null;
+        if ($expectedLastCp !== null && $cpOffsets[$pieceCount] !== $expectedLastCp) {
+            throw new \RuntimeException('Legacy DOC piece table final CP does not match FibRgLw97 subdocument counts');
+        }
+
+        $mainTextCpLimit = isset($fibRgLw97['ccpText']) && (
+            (int) $fibRgLw97['ccpText'] > 0
+            || ($fibRgLw97['hasSupplementalSubdocuments'] ?? false) === true
+        )
+            ? (int) $fibRgLw97['ccpText']
+            : null;
+        if ($mainTextCpLimit !== null && $mainTextCpLimit > $cpOffsets[$pieceCount]) {
+            throw new \RuntimeException('Legacy DOC FibRgLw97 main-text CP count exceeds the piece table');
         }
 
         $pcdOffset = ($pieceCount + 1) * 4;
@@ -454,6 +608,12 @@ final class LegacyDocReader
             $characters = $cpOffsets[$index + 1] - $cpOffsets[$index];
             if ($characters <= 0) {
                 continue;
+            }
+            if ($mainTextCpLimit !== null) {
+                if ($cpOffsets[$index] >= $mainTextCpLimit) {
+                    break;
+                }
+                $characters = min($characters, $mainTextCpLimit - $cpOffsets[$index]);
             }
 
             $pcdFlags = self::u16($plcPcd, $pcdOffset + ($index * 8));
