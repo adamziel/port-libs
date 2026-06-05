@@ -143,10 +143,13 @@ final class PdfOutlineExtractor
             return [];
         }
 
+        $destinations = $this->destinationActionReviewMap($catalog, $objects)
+            + $this->destinationMap($catalog, $objects);
+
         return $this->remoteGoToOutlineItems(
             $outlineRoot['First'] ?? null,
             $objects,
-            $this->destinationMap($catalog, $objects),
+            $destinations,
             $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects),
             $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
             max(1, $maxDepth)
@@ -173,7 +176,7 @@ final class PdfOutlineExtractor
         foreach ($pageObjectNumbers as $index => $objectNumber) {
             $pageIndexes[$objectNumber] = $index;
         }
-        $destinations = $this->destinationMap($catalog, $objects, $pageIndexes);
+        $destinations = $this->destinationActionReviewMap($catalog, $objects) + $this->destinationMap($catalog, $objects, $pageIndexes);
 
         $destinationAction = $this->destinationActionReviewValue($catalog['OpenAction'], $objects, $destinations);
         if ($destinationAction !== null) {
@@ -301,6 +304,7 @@ final class PdfOutlineExtractor
         }
 
         $destinations = $this->destinationMap($catalog, $objects, $pageIndexes);
+        $actionDestinations = $this->destinationActionReviewMap($catalog, $objects) + $destinations;
         $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
         $pagePresentations = $this->getPageTransitionActionMetadata($pdfBytes);
         $articleThreads = $this->articleThreadNavigationMetadata($catalog, $objects, $pageIndexes, $pageLabels);
@@ -314,6 +318,7 @@ final class PdfOutlineExtractor
                 $pageIndexes,
                 array_flip($pageIndexes),
                 $destinations,
+                $actionDestinations,
                 $pageLabels,
                 $this->pagePresentationsByPageIndex($pagePresentations),
                 $this->articleBeadsByPageIndex($articleThreads),
@@ -425,6 +430,7 @@ final class PdfOutlineExtractor
             $pageIndexes[$objectNumber] = $index;
         }
         $destinations = $this->destinationMap($catalog, $objects, $pageIndexes);
+        $actionDestinations = $this->destinationActionReviewMap($catalog, $objects) + $destinations;
         $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
         $catalogView = $this->catalogReviewContext($pdfBytes);
 
@@ -437,7 +443,7 @@ final class PdfOutlineExtractor
 
             $displayDuration = $this->numericOrNullValue($this->resolveValue($page['Dur'] ?? null, $objects));
             $transition = $this->pageTransitionMetadata($page['Trans'] ?? null, $objects);
-            $actions = $this->pageAdditionalActionMetadata($page['AA'] ?? null, $objects, $pageIndexes, $destinations);
+            $actions = $this->pageAdditionalActionMetadata($page['AA'] ?? null, $objects, $pageIndexes, $actionDestinations);
             if ($displayDuration === null && $transition === null && $actions === []) {
                 continue;
             }
@@ -504,6 +510,7 @@ final class PdfOutlineExtractor
         }
 
         $destinations = $this->destinationMap($catalog, $objects, $pageIndexes);
+        $actionDestinations = $this->destinationActionReviewMap($catalog, $objects) + $destinations;
         $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
         $pagePresentations = $this->getPageTransitionActionMetadata($pdfBytes);
         $pagePresentationsByPage = $this->pagePresentationsByPageIndex($pagePresentations);
@@ -523,6 +530,7 @@ final class PdfOutlineExtractor
                     $pageIndexes,
                     array_flip($pageIndexes),
                     $destinations,
+                    $actionDestinations,
                     $pageLabels,
                     $pagePresentationsByPage,
                     $articleBeadsByPage,
@@ -542,7 +550,7 @@ final class PdfOutlineExtractor
                     $outlineRoot['First'] ?? null,
                     $objects,
                     $pageIndexes,
-                    $destinations,
+                    $actionDestinations,
                     $pageLabels,
                     $pagePresentationsByPage,
                     $articleBeadsByPage,
@@ -2676,12 +2684,48 @@ final class PdfOutlineExtractor
      */
     private function destinationMap(array $catalog, array $objects, array $pageIndexes = []): array
     {
+        $rawDestinations = [];
+
+        $legacyDests = $this->resolveDictionary($catalog['Dests'] ?? null, $objects);
+        if ($legacyDests !== null) {
+            foreach ($legacyDests as $name => $destination) {
+                $rawDestinations[$name] = $destination;
+            }
+        }
+
+        $names = $this->resolveDictionary($catalog['Names'] ?? null, $objects);
+        $nameTreeRoot = $names === null ? null : $this->resolveDictionary($names['Dests'] ?? null, $objects);
+        if ($nameTreeRoot !== null) {
+            $this->collectNameTreeDestinations($nameTreeRoot, $objects, $rawDestinations);
+        }
+
+        if ($pageIndexes === []) {
+            return $rawDestinations;
+        }
+
+        $destinations = [];
+        foreach ($rawDestinations as $name => $destination) {
+            if ($this->destinationValueAllowedForMap($destination, $objects, $pageIndexes, $rawDestinations)) {
+                $destinations[$name] = $destination;
+            }
+        }
+
+        return $destinations;
+    }
+
+    /**
+     * @param array<string, mixed> $catalog
+     * @param array<int, mixed> $objects
+     * @return array<string, mixed>
+     */
+    private function destinationActionReviewMap(array $catalog, array $objects): array
+    {
         $destinations = [];
 
         $legacyDests = $this->resolveDictionary($catalog['Dests'] ?? null, $objects);
         if ($legacyDests !== null) {
             foreach ($legacyDests as $name => $destination) {
-                if ($this->destinationValueAllowedForMap($destination, $objects, $pageIndexes)) {
+                if ($this->destinationActionValueAllowedForMap($destination, $objects)) {
                     $destinations[$name] = $destination;
                 }
             }
@@ -2690,7 +2734,7 @@ final class PdfOutlineExtractor
         $names = $this->resolveDictionary($catalog['Names'] ?? null, $objects);
         $nameTreeRoot = $names === null ? null : $this->resolveDictionary($names['Dests'] ?? null, $objects);
         if ($nameTreeRoot !== null) {
-            $this->collectNameTreeDestinations($nameTreeRoot, $objects, $destinations, [], [], $pageIndexes);
+            $this->collectNameTreeActionDestinations($nameTreeRoot, $objects, $destinations);
         }
 
         return $destinations;
@@ -2748,10 +2792,61 @@ final class PdfOutlineExtractor
     }
 
     /**
+     * @param array<string, mixed> $node
+     * @param array<int, mixed> $objects
+     * @param array<string, mixed> $destinations
+     * @param list<array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}> $activeLimits
+     */
+    private function collectNameTreeActionDestinations(array $node, array $objects, array &$destinations, array $seen = [], array $activeLimits = []): void
+    {
+        $nodeLimits = $this->nameTreeLimits($node, $objects);
+        if ($nodeLimits !== null) {
+            $activeLimits[] = $nodeLimits;
+        }
+
+        $kids = $this->resolveArray($node['Kids'] ?? null, $objects);
+        $names = $this->resolveArray($node['Names'] ?? null, $objects);
+        if (($kids === null || $kids === []) && $names !== null) {
+            for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
+                $name = $this->destinationNameDetails($names[$index], $objects);
+                if (
+                    $name !== null
+                    && $this->nameWithinNameTreeLimits($name['text'], $activeLimits, $name['bytes'])
+                    && $this->destinationActionValueAllowedForMap($names[$index + 1], $objects)
+                ) {
+                    $destinations[$name['text']] = $names[$index + 1];
+                }
+            }
+        }
+
+        if ($kids === null) {
+            return;
+        }
+
+        foreach ($kids as $kid) {
+            $objectNumber = $this->validReferenceObjectNumber($kid, $objects);
+            if ($objectNumber === null) {
+                continue;
+            }
+
+            if (isset($seen[$objectNumber])) {
+                continue;
+            }
+            $seen[$objectNumber] = true;
+
+            $child = $this->resolveDictionary($kid, $objects);
+            if ($child !== null) {
+                $this->collectNameTreeActionDestinations($child, $objects, $destinations, $seen, $activeLimits);
+            }
+        }
+    }
+
+    /**
      * @param array<int, mixed> $objects
      * @param array<int, int> $pageIndexes
+     * @param array<string, mixed> $destinations
      */
-    private function destinationValueAllowedForMap(mixed $value, array $objects, array $pageIndexes): bool
+    private function destinationValueAllowedForMap(mixed $value, array $objects, array $pageIndexes, array $destinations = []): bool
     {
         if ($pageIndexes === []) {
             return true;
@@ -2762,7 +2857,22 @@ final class PdfOutlineExtractor
             return true;
         }
 
-        return $this->destinationViewDetails($value, $objects, $pageIndexes, [], null) !== null;
+        return $this->destinationViewDetails($value, $objects, $pageIndexes, $destinations, null) !== null;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     */
+    private function destinationActionValueAllowedForMap(mixed $value, array $objects): bool
+    {
+        $resolved = $this->resolveValue($value, $objects);
+        if ($this->stringOrNameValue($resolved) !== null) {
+            return true;
+        }
+
+        $dict = $this->dictionaryItems($resolved);
+
+        return $dict !== null && (array_key_exists('S', $dict) || array_key_exists('Next', $dict));
     }
 
     /**
@@ -2998,6 +3108,7 @@ final class PdfOutlineExtractor
      * @param array<int, int> $pageIndexes
      * @param array<int, int> $pageObjectsByIndex
      * @param array<string, mixed> $destinations
+     * @param array<string, mixed> $actionDestinations
      * @param list<string> $pageLabels
      * @param array<int, array<string, mixed>> $pagePresentationsByPage
      * @param array<int, list<array<string, mixed>>> $articleBeadsByPage
@@ -3012,6 +3123,7 @@ final class PdfOutlineExtractor
         array $pageIndexes,
         array $pageObjectsByIndex,
         array $destinations,
+        array $actionDestinations,
         array $pageLabels,
         array $pagePresentationsByPage,
         array $articleBeadsByPage,
@@ -3094,7 +3206,7 @@ final class PdfOutlineExtractor
                     $destination,
                     $objects,
                     $pageIndexes,
-                    $destinations,
+                    $actionDestinations,
                     $pageLabels,
                     $pagePresentationsByPage,
                     $articleBeadsByPage,
@@ -3112,6 +3224,7 @@ final class PdfOutlineExtractor
                     $pageIndexes,
                     $pageObjectsByIndex,
                     $destinations,
+                    $actionDestinations,
                     $pageLabels,
                     $pagePresentationsByPage,
                     $articleBeadsByPage,
