@@ -192,6 +192,26 @@ XML;
         $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="/word/document.xml" ContentType="application/xml"/><Override PartName="word/document.xml" ContentType="application/xml"/></Types>'));
         $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="../evil.xml" ContentType="application/xml"/></Types>'));
     },
+    'enforces OPC content type XML part-name and extension record grammar' => static function (TestRunner $t): void {
+        $builder = new OpcContentTypes();
+        $builder->addDefault('.xml', 'application/xml');
+        $builder->addOverride('word/document.xml', 'application/xml');
+
+        $t->same('application/xml', $builder->contentTypeForPart('/word/document.xml'));
+        $t->contains('Extension="xml"', $builder->toXml());
+        $t->contains('PartName="/word/document.xml"', $builder->toXml());
+
+        foreach ([
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension=".xml" ContentType="application/xml"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="word/document.xml" ContentType="application/xml"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="/word/./document.xml" ContentType="application/xml"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="/word//document.xml" ContentType="application/xml"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="/word/%2E/document.xml" ContentType="application/xml"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="/word/document.xml/" ContentType="application/xml"/></Types>',
+        ] as $xml) {
+            $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml($xml));
+        }
+    },
     'rejects OPC content type records with unexpected attributes or child content' => static function (TestRunner $t): void {
         $validWithWhitespace = OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension="xml" ContentType="application/xml">   </Default><Override PartName="/word/document.xml" ContentType="application/xml"/></Types>');
         $t->same('application/xml', $validWithWhitespace->contentTypeForPart('/word/document.xml'));

@@ -241,6 +241,9 @@ $digitalSignatureParts = array_values(array_unique($digitalSignatureParts));
 $corePropertiesPart = $graph->firstTargetOfType('http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties');
 $strictXmlShapeGuards = [
     'contentTypeUnexpectedAttributeRejected' => false,
+    'contentTypeDefaultDotExtensionRejected' => false,
+    'contentTypeOverrideRelativePartNameRejected' => false,
+    'contentTypeOverrideDotSegmentRejected' => false,
     'contentTypeRootAttributeRejected' => false,
     'relationshipChildContentRejected' => false,
     'relationshipRootTextRejected' => false,
@@ -256,6 +259,21 @@ try {
     OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension="xml" ContentType="application/xml" Extra="1"/></Types>');
 } catch (InvalidArgumentException) {
     $strictXmlShapeGuards['contentTypeUnexpectedAttributeRejected'] = true;
+}
+try {
+    OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension=".xml" ContentType="application/xml"/></Types>');
+} catch (InvalidArgumentException) {
+    $strictXmlShapeGuards['contentTypeDefaultDotExtensionRejected'] = true;
+}
+try {
+    OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="word/document.xml" ContentType="application/xml"/></Types>');
+} catch (InvalidArgumentException) {
+    $strictXmlShapeGuards['contentTypeOverrideRelativePartNameRejected'] = true;
+}
+try {
+    OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="/word/./document.xml" ContentType="application/xml"/></Types>');
+} catch (InvalidArgumentException) {
+    $strictXmlShapeGuards['contentTypeOverrideDotSegmentRejected'] = true;
 }
 try {
     OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" Extra="1"><Default Extension="xml" ContentType="application/xml"/></Types>');
@@ -471,6 +489,9 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['invalidRelationshipParts'][0]['partName'] ?? null) !== '/word/_rels/draft.xml.rels'
         || ($summary['integrity']['invalidRelationshipParts'][0]['relationshipSourceLoaded'] ?? null) !== false
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeUnexpectedAttributeRejected'] ?? null) !== true
+        || ($summary['integrity']['strictXmlShapeGuards']['contentTypeDefaultDotExtensionRejected'] ?? null) !== true
+        || ($summary['integrity']['strictXmlShapeGuards']['contentTypeOverrideRelativePartNameRejected'] ?? null) !== true
+        || ($summary['integrity']['strictXmlShapeGuards']['contentTypeOverrideDotSegmentRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeRootAttributeRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['relationshipChildContentRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['relationshipRootTextRejected'] ?? null) !== true

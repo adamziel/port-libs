@@ -41,12 +41,14 @@ final class OpcContentTypes
 
             if ($child->localName === 'Default') {
                 self::assertRecordShape($child, ['Extension', 'ContentType'], 'OPC Default content-type record', $ignorableNamespaces);
+                self::assertXmlDefaultExtension($child->getAttribute('Extension'));
                 $types->addDefault($child->getAttribute('Extension'), $child->getAttribute('ContentType'));
                 continue;
             }
 
             if ($child->localName === 'Override') {
                 self::assertRecordShape($child, ['PartName', 'ContentType'], 'OPC Override content-type record', $ignorableNamespaces);
+                self::assertXmlOverridePartName($child->getAttribute('PartName'));
                 $types->addOverride($child->getAttribute('PartName'), $child->getAttribute('ContentType'));
                 continue;
             }
@@ -188,6 +190,29 @@ final class OpcContentTypes
         }
 
         return $extension;
+    }
+
+    private static function assertXmlDefaultExtension(string $extension): void
+    {
+        if (str_starts_with($extension, '.')) {
+            throw new \InvalidArgumentException('OPC Default extension must not include a leading dot');
+        }
+    }
+
+    private static function assertXmlOverridePartName(string $partName): void
+    {
+        if (!str_starts_with($partName, '/')) {
+            throw new \InvalidArgumentException('OPC Override part name must be an absolute package URI');
+        }
+
+        $segments = explode('/', $partName);
+        array_shift($segments);
+        foreach ($segments as $segment) {
+            $decoded = rawurldecode($segment);
+            if ($decoded === '' || $decoded === '.' || $decoded === '..') {
+                throw new \InvalidArgumentException('OPC Override part name must not contain empty or dot path segments');
+            }
+        }
     }
 
     private static function assertContentType(string $contentType): void
