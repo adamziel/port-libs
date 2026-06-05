@@ -68,7 +68,7 @@ final class PdfNamedDestinationExtractor
         }
 
         $cache = [];
-        $catalog = $this->catalogDictionary($objects, $cache);
+        $catalog = $this->catalogDictionary($pdfBytes, $objects, $cache);
         if ($catalog === null) {
             return [];
         }
@@ -172,13 +172,95 @@ final class PdfNamedDestinationExtractor
      * @param array<int, mixed> $cache
      * @return array<string, mixed>|null
      */
-    private function catalogDictionary(array $objects, array &$cache): ?array
+    private function catalogDictionary(string $pdfBytes, array $objects, array &$cache): ?array
     {
+        $rootRef = $this->currentTrailerRootRef($pdfBytes);
+        $rootObjectId = $this->validRefObjectId($rootRef, $objects);
+        if ($rootObjectId !== null) {
+            $dictionary = $this->objectDictionary($rootObjectId, $objects, $cache, $this->refGeneration($rootRef));
+            if ($dictionary !== null && $this->nameValue($dictionary['Type'] ?? null) === 'Catalog') {
+                return $dictionary;
+            }
+        }
+
         foreach (array_keys($objects) as $objectId) {
             $dictionary = $this->objectDictionary($objectId, $objects, $cache);
             if ($dictionary !== null && $this->nameValue($dictionary['Type'] ?? null) === 'Catalog') {
                 return $dictionary;
             }
+        }
+
+        return null;
+    }
+
+    private function currentTrailerRootRef(string $pdfBytes): mixed
+    {
+        $pdfBytes = $this->bytesThroughCurrentEof($pdfBytes);
+        $xrefOffset = $this->latestStartxrefOffset($pdfBytes);
+        if ($xrefOffset === null || $xrefOffset < 0 || $xrefOffset >= strlen($pdfBytes)) {
+            return null;
+        }
+
+        $section = substr($pdfBytes, $xrefOffset);
+        if (str_starts_with(ltrim($section), 'xref')) {
+            $dictionary = $this->trailerDictionaryFromXrefSection($section);
+
+            return $dictionary['Root'] ?? null;
+        }
+
+        $dictionary = $this->firstDictionaryFromTokens($section);
+        if (!$this->isDictionary($dictionary) || $this->nameValue($dictionary['Type'] ?? null) !== 'XRef') {
+            return null;
+        }
+
+        return $dictionary['Root'] ?? null;
+    }
+
+    private function latestStartxrefOffset(string $pdfBytes): ?int
+    {
+        if (preg_match_all('/\bstartxref\s+(\d+)/s', $pdfBytes, $matches) < 1) {
+            return null;
+        }
+
+        $offset = end($matches[1]);
+
+        return is_string($offset) ? (int) $offset : null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function trailerDictionaryFromXrefSection(string $section): ?array
+    {
+        $tokens = $this->tokens($section);
+        for ($index = 0, $count = count($tokens); $index + 1 < $count; $index++) {
+            if (($tokens[$index]['type'] ?? null) !== 'keyword' || ($tokens[$index]['value'] ?? null) !== 'trailer') {
+                continue;
+            }
+
+            $valueIndex = $index + 1;
+            $dictionary = $this->parseValue($tokens, $valueIndex);
+
+            return $this->isDictionary($dictionary) ? $dictionary : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function firstDictionaryFromTokens(string $source): ?array
+    {
+        $tokens = $this->tokens($source);
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            if (($tokens[$index]['type'] ?? null) !== 'dict-start') {
+                continue;
+            }
+
+            $dictionary = $this->parseValue($tokens, $index);
+
+            return $this->isDictionary($dictionary) ? $dictionary : null;
         }
 
         return null;
