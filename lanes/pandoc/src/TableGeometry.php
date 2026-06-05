@@ -1140,21 +1140,28 @@ final class TableGeometry
     private static function captionMetadata(AstNode $table): array
     {
         return [
-            'long' => self::captionRecord($table, 'caption', 'captionInlines'),
-            'short' => self::captionRecord($table, 'shortCaption', 'shortCaptionInlines'),
+            'long' => self::captionRecord($table, 'caption', 'captionInlines', 'captionBlocks'),
+            'short' => self::captionRecord($table, 'shortCaption', 'shortCaptionInlines', 'shortCaptionBlocks'),
         ];
     }
 
     /**
      * @return array<string, mixed>
      */
-    private static function captionRecord(AstNode $table, string $textAttribute, string $inlineAttribute): array
+    private static function captionRecord(AstNode $table, string $textAttribute, string $inlineAttribute, string $blockAttribute): array
     {
         $rawText = trim((string) $table->attr($textAttribute, ''));
-        $inlines = self::inlineNodes($table->attr($inlineAttribute, []));
-        $inlineText = self::plainTextFromNodes($inlines);
-        $text = $inlines === [] ? $rawText : $inlineText;
-        $source = $inlines === [] ? ($rawText === '' ? 'none' : $textAttribute) : $inlineAttribute;
+        $blocks = self::blockNodes($table->attr($blockAttribute, []));
+        if ($blocks !== []) {
+            $inlines = [];
+            $text = self::plainTextFromBlockNodes($blocks);
+            $source = $blockAttribute;
+        } else {
+            $inlines = self::inlineNodes($table->attr($inlineAttribute, []));
+            $inlineText = self::plainTextFromNodes($inlines);
+            $text = $inlines === [] ? $rawText : $inlineText;
+            $source = $inlines === [] ? ($rawText === '' ? 'none' : $textAttribute) : $inlineAttribute;
+        }
 
         $record = [
             'text' => $text,
@@ -1163,6 +1170,10 @@ final class TableGeometry
             'inlineTypes' => self::inlineTypes($inlines),
             'hasInlineFormatting' => self::inlinesHaveFormatting($inlines),
             'inlines' => self::serializableInlines($inlines),
+            'blockCount' => count($blocks),
+            'blockTypes' => self::blockTypes($blocks),
+            'hasBlockContent' => $blocks !== [],
+            'blocks' => self::serializableBlocks($blocks),
         ];
         if ($rawText !== '' && $rawText !== $text) {
             $record['rawText'] = $rawText;
@@ -1184,10 +1195,39 @@ final class TableGeometry
     }
 
     /**
+     * @return list<AstNode>
+     */
+    private static function blockNodes(mixed $nodes): array
+    {
+        if (!is_array($nodes)) {
+            return [];
+        }
+
+        return array_values(array_filter($nodes, static fn (mixed $node): bool => $node instanceof AstNode));
+    }
+
+    /**
      * @param list<AstNode> $nodes
      * @return list<string>
      */
     private static function inlineTypes(array $nodes): array
+    {
+        $types = [];
+        foreach ($nodes as $node) {
+            $type = trim($node->type);
+            if ($type !== '') {
+                $types[] = $type;
+            }
+        }
+
+        return array_values(array_unique($types));
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<string>
+     */
+    private static function blockTypes(array $nodes): array
     {
         $types = [];
         foreach ($nodes as $node) {
@@ -1230,6 +1270,101 @@ final class TableGeometry
         }
 
         return $records;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<array<string, mixed>>
+     */
+    private static function serializableBlocks(array $nodes): array
+    {
+        $records = [];
+        foreach ($nodes as $node) {
+            $records[] = self::serializableBlock($node);
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function serializableBlock(AstNode $node): array
+    {
+        $record = [
+            'type' => $node->type,
+            'text' => self::plainText($node),
+        ];
+
+        foreach (['level', 'start', 'style', 'format', 'html', 'tex'] as $attribute) {
+            $value = $node->attr($attribute, null);
+            if (is_scalar($value) && (string) $value !== '') {
+                $record[$attribute] = is_int($value) ? $value : (string) $value;
+            }
+        }
+
+        $sourceAttributes = self::sourceAttributeSummary($node);
+        if ($sourceAttributes !== []) {
+            $record['sourceAttributes'] = $sourceAttributes;
+        }
+
+        if ($node->children === []) {
+            return $record;
+        }
+
+        if (self::childrenAreInlineNodes($node->children)) {
+            $record['inlines'] = self::serializableInlines($node->children);
+        } else {
+            $record['children'] = self::serializableBlocks($node->children);
+        }
+
+        return $record;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private static function childrenAreInlineNodes(array $nodes): bool
+    {
+        if ($nodes === []) {
+            return false;
+        }
+
+        foreach ($nodes as $node) {
+            if (!self::isInlineNode($node)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function isInlineNode(AstNode $node): bool
+    {
+        return in_array($node->type, [
+            'text',
+            'emph',
+            'strong',
+            'small_caps',
+            'underline',
+            'strikeout',
+            'superscript',
+            'subscript',
+            'space',
+            'softbreak',
+            'linebreak',
+            'span',
+            'quoted',
+            'math',
+            'raw_tex',
+            'raw_html_inline',
+            'code',
+            'link',
+            'image',
+            'note',
+            'citation',
+            'citation_group',
+        ], true);
     }
 
     /**
@@ -1495,6 +1630,18 @@ final class TableGeometry
             'shortCaptionInlineTypes' => array_values(array_map(
                 static fn (mixed $type): string => (string) $type,
                 is_array($captions['short']['inlineTypes'] ?? null) ? $captions['short']['inlineTypes'] : []
+            )),
+            'hasCaptionBlocks' => (int) ($captions['long']['blockCount'] ?? 0) > 0,
+            'captionBlockCount' => (int) ($captions['long']['blockCount'] ?? 0),
+            'captionBlockTypes' => array_values(array_map(
+                static fn (mixed $type): string => (string) $type,
+                is_array($captions['long']['blockTypes'] ?? null) ? $captions['long']['blockTypes'] : []
+            )),
+            'hasShortCaptionBlocks' => (int) ($captions['short']['blockCount'] ?? 0) > 0,
+            'shortCaptionBlockCount' => (int) ($captions['short']['blockCount'] ?? 0),
+            'shortCaptionBlockTypes' => array_values(array_map(
+                static fn (mixed $type): string => (string) $type,
+                is_array($captions['short']['blockTypes'] ?? null) ? $captions['short']['blockTypes'] : []
             )),
             'hasSpans' => $hasSpans,
             'hasSourceCoordinateShifts' => $sourceCoordinateShiftCount > 0,
@@ -1822,6 +1969,19 @@ final class TableGeometry
         }
 
         return $text;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private static function plainTextFromBlockNodes(array $nodes): string
+    {
+        $parts = [];
+        foreach ($nodes as $node) {
+            $parts[] = self::plainText($node);
+        }
+
+        return implode("\n", $parts);
     }
 
     /**

@@ -431,9 +431,8 @@ final class WordPressBlockWriter
         }
         $html .= '</table>';
 
-        $caption = (string) $node->attr('caption', '');
-        if ($caption !== '') {
-            $html .= '<figcaption class="wp-element-caption">' . $this->renderCaptionInlines($node) . '</figcaption>';
+        if ($this->tableHasCaption($node)) {
+            $html .= '<figcaption class="wp-element-caption">' . $this->renderTableCaptionContent($node) . '</figcaption>';
         }
 
         return $html;
@@ -472,6 +471,34 @@ final class WordPressBlockWriter
         }
 
         return $html;
+    }
+
+    private function tableHasCaption(AstNode $node): bool
+    {
+        return (string) $node->attr('caption', '') !== '' || $this->tableCaptionBlocks($node) !== [];
+    }
+
+    private function renderTableCaptionContent(AstNode $node): string
+    {
+        $captionBlocks = $this->tableCaptionBlocks($node);
+        if ($captionBlocks !== []) {
+            return $this->renderBlocksAsHtml($captionBlocks);
+        }
+
+        return $this->renderCaptionInlines($node);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableCaptionBlocks(AstNode $node): array
+    {
+        $captionBlocks = $node->attr('captionBlocks', []);
+        if (!is_array($captionBlocks)) {
+            return [];
+        }
+
+        return array_values(array_filter($captionBlocks, static fn (mixed $block): bool => $block instanceof AstNode));
     }
 
     private function renderTableColgroup(AstNode $node): string

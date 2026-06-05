@@ -108,6 +108,36 @@ $captionMetadataTables = [
     ]),
 ];
 
+$blockCaptionTable = new AstNode('table', [
+    'caption' => 'Fallback block caption text',
+    'captionBlocks' => [
+        new AstNode('paragraph', [], [
+            new AstNode('text', ['text' => 'Block ']),
+            new AstNode('strong', [], [new AstNode('text', ['text' => 'caption'])]),
+            new AstNode('text', ['text' => ' for reviewer']),
+        ]),
+        new AstNode('bullet_list', [], [
+            new AstNode('list_item', [], [
+                new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Queue note'])]),
+            ]),
+        ]),
+    ],
+    'alignments' => ['left', 'right'],
+], [
+    new AstNode('table_head', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+            new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+        ]),
+    ]),
+    new AstNode('table_body', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+            new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+        ]),
+    ]),
+]);
+
 $overfullWidthTable = new AstNode('table', [
     'caption' => 'Overfull source width audit',
     'alignments' => ['left', 'right', 'center'],
@@ -451,6 +481,7 @@ $document = new AstNode('document', [], [
     ...$colgroupMismatchTables,
     ...$readerHandoffTables,
     ...$captionMetadataTables,
+    $blockCaptionTable,
 ]);
 
 $blocks = (new WordPressBlockWriter())->write($document);
@@ -903,6 +934,20 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing WordPress output for caption metadata handoff');
     }
     json_encode($captionPacket, JSON_THROW_ON_ERROR);
+
+    $blockCaptionPacket = TableGeometry::reviewPacket($blockCaptionTable, ['accessibility' => false]);
+    if (
+        ($blockCaptionPacket['captions']['long']['source'] ?? null) !== 'captionBlocks'
+        || ($blockCaptionPacket['captions']['long']['blockTypes'] ?? null) !== ['paragraph', 'bullet_list']
+        || ($blockCaptionPacket['summary']['hasCaptionBlocks'] ?? null) !== true
+        || ($blockCaptionPacket['summary']['captionBlockCount'] ?? null) !== 2
+    ) {
+        throw new RuntimeException('Table geometry self-test missing block-level caption review-packet metadata');
+    }
+    if (!str_contains($blocks, '<figcaption class="wp-element-caption"><p>Block <strong>caption</strong> for reviewer</p><ul><li>Queue note</li></ul></figcaption>')) {
+        throw new RuntimeException('Table geometry self-test missing WordPress output for block-level table caption');
+    }
+    json_encode($blockCaptionPacket, JSON_THROW_ON_ERROR);
 
     echo "table geometry handoff self-test ok\n";
     return;

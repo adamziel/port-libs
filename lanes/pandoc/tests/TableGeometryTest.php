@@ -1374,4 +1374,60 @@ return [
         $t->same(false, array_key_exists('node', $packet['captions']['long']['inlines'][1] ?? []));
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'serializes block-level table caption provenance for importer review packets' => static function (TestRunner $t): void {
+        $table = new AstNode('table', [
+            'caption' => 'Fallback block caption text',
+            'captionInlines' => [
+                new AstNode('text', ['text' => 'Fallback inline caption']),
+            ],
+            'captionBlocks' => [
+                new AstNode('paragraph', [], [
+                    new AstNode('text', ['text' => 'Block ']),
+                    new AstNode('strong', [], [new AstNode('text', ['text' => 'caption'])]),
+                    new AstNode('text', ['text' => ' for reviewer']),
+                ]),
+                new AstNode('bullet_list', [], [
+                    new AstNode('list_item', [], [
+                        new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Queue note'])]),
+                    ]),
+                ]),
+            ],
+            'alignments' => ['left', 'right'],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]);
+
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$table]));
+
+        $t->same('Block caption for reviewer' . "\n" . 'Queue note', $packet['captions']['long']['text'] ?? null);
+        $t->same('captionBlocks', $packet['captions']['long']['source'] ?? null);
+        $t->same('Fallback block caption text', $packet['captions']['long']['rawText'] ?? null);
+        $t->same(2, $packet['captions']['long']['blockCount'] ?? null);
+        $t->same(['paragraph', 'bullet_list'], $packet['captions']['long']['blockTypes'] ?? null);
+        $t->same(true, $packet['captions']['long']['hasBlockContent'] ?? null);
+        $t->same('paragraph', $packet['captions']['long']['blocks'][0]['type'] ?? null);
+        $t->same('strong', $packet['captions']['long']['blocks'][0]['inlines'][1]['type'] ?? null);
+        $t->same('caption', $packet['captions']['long']['blocks'][0]['inlines'][1]['children'][0]['text'] ?? null);
+        $t->same('bullet_list', $packet['captions']['long']['blocks'][1]['type'] ?? null);
+        $t->same('list_item', $packet['captions']['long']['blocks'][1]['children'][0]['type'] ?? null);
+        $t->same(true, $packet['summary']['hasCaption'] ?? null);
+        $t->same(true, $packet['summary']['hasCaptionBlocks'] ?? null);
+        $t->same(2, $packet['summary']['captionBlockCount'] ?? null);
+        $t->same(['paragraph', 'bullet_list'], $packet['summary']['captionBlockTypes'] ?? null);
+        $t->contains('<figcaption class="wp-element-caption"><p>Block <strong>caption</strong> for reviewer</p><ul><li>Queue note</li></ul></figcaption>', $blocks);
+        $t->same(false, array_key_exists('node', $packet['captions']['long']['blocks'][0] ?? []));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
 ];
