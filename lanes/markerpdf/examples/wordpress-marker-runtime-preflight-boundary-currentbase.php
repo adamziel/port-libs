@@ -92,6 +92,7 @@ try {
 
     $batch = new BatchConverter();
     $textLength = static fn (string $filepath): int => basename($filepath) === 'short-text.pdf' ? 12 : 180;
+    $modelSlots = ['layout-detector', null, 'ocr-recognizer', 'table-recognizer', null];
     $runtimePlan = $batch->runtimeMainPreflightPlan(
         $input,
         $output,
@@ -103,7 +104,8 @@ try {
         minLength: 80,
         workers: 8,
         torchDevice: 'cuda',
-        torchDeviceModel: 'cpu'
+        torchDeviceModel: 'cpu',
+        modelSlots: $modelSlots
     );
     $mpsRuntimePlan = $batch->runtimeMainPreflightPlan(
         $input,
@@ -111,7 +113,8 @@ try {
         minLength: 80,
         workers: 8,
         torchDevice: 'cpu',
-        torchDeviceModel: 'mps'
+        torchDeviceModel: 'mps',
+        modelSlots: $modelSlots
     );
     $spawnCollisionPlan = $batch->runtimeMainPreflightPlan(
         $input,
@@ -520,6 +523,18 @@ try {
     ) {
         throw new RuntimeException('Expected CUDA/CPU runtime preflight to record parent load_all_models/share_memory handoff without execution.');
     }
+    $runtimeShareMemoryReview = $runtimePlan['model_handoff']['model_share_memory_review'];
+    if (
+        $runtimeShareMemoryReview['review_reached'] !== true
+        || $runtimeShareMemoryReview['model_slot_count'] !== 5
+        || $runtimeShareMemoryReview['none_model_slot_indexes'] !== [1, 4]
+        || $runtimeShareMemoryReview['share_memory_model_slot_indexes'] !== [0, 2, 3]
+        || $runtimeShareMemoryReview['share_memory_call_count'] !== 3
+        || $runtimeShareMemoryReview['none_slots_skipped_before_share_memory'] !== true
+        || $runtimeShareMemoryReview['executes_python_or_models'] !== false
+    ) {
+        throw new RuntimeException('Expected model-slot share_memory review to skip None slots and avoid model execution.');
+    }
     if (
         $mpsRuntimePlan['model_handoff']['uses_mps_no_shared_memory_branch'] !== true
         || $mpsRuntimePlan['model_handoff']['main_load_all_models'] !== false
@@ -528,6 +543,16 @@ try {
         || !str_contains((string) $mpsRuntimePlan['model_handoff']['warning'], 'Cannot use MPS with torch multiprocessing share_memory')
     ) {
         throw new RuntimeException('Expected MPS runtime preflight to keep model loading in workers and avoid shared-memory handoff.');
+    }
+    $mpsShareMemoryReview = $mpsRuntimePlan['model_handoff']['model_share_memory_review'];
+    if (
+        $mpsShareMemoryReview['review_reached'] !== false
+        || $mpsShareMemoryReview['blocked_by'] !== 'mps-worker-loads-models'
+        || $mpsShareMemoryReview['model_list_value'] !== 'None'
+        || $mpsShareMemoryReview['share_memory_loop_reached'] !== false
+        || $mpsShareMemoryReview['model_slot_fixture_used'] !== false
+    ) {
+        throw new RuntimeException('Expected MPS runtime preflight to skip parent share_memory slot review.');
     }
     if (
         $spawnCollisionPlan['spawn_start_method']['start_method_success'] !== false
@@ -916,9 +941,16 @@ try {
         'runtime_parent_loads_models' => $runtimePlan['model_handoff']['main_load_all_models'],
         'runtime_parent_share_memory_before_pool' => $runtimePlan['model_handoff']['share_memory_before_pool'],
         'runtime_worker_init_argument' => $runtimePlan['model_handoff']['worker_init_argument'],
+        'runtime_model_share_memory_review_reached' => $runtimeShareMemoryReview['review_reached'],
+        'runtime_model_share_memory_none_slot_indexes' => $runtimeShareMemoryReview['none_model_slot_indexes'],
+        'runtime_model_share_memory_slot_indexes' => $runtimeShareMemoryReview['share_memory_model_slot_indexes'],
+        'runtime_model_share_memory_call_count' => $runtimeShareMemoryReview['share_memory_call_count'],
+        'runtime_model_share_memory_skips_none_slots' => $runtimeShareMemoryReview['none_slots_skipped_before_share_memory'],
         'runtime_model_handoff_executes_python_or_models' => $runtimePlan['model_handoff']['executes_python_or_models'],
         'mps_runtime_uses_worker_model_loading' => $mpsRuntimePlan['model_handoff']['worker_loads_models_when_init_arg_null'],
         'mps_runtime_parent_loads_models' => $mpsRuntimePlan['model_handoff']['main_load_all_models'],
+        'mps_runtime_share_memory_review_reached' => $mpsShareMemoryReview['review_reached'],
+        'mps_runtime_share_memory_blocked_by' => $mpsShareMemoryReview['blocked_by'],
         'mps_runtime_warning_recorded' => str_contains((string) $mpsRuntimePlan['model_handoff']['warning'], 'Cannot use MPS with torch multiprocessing share_memory'),
         'spawn_start_method_reached' => $spawnCollisionPlan['spawn_start_method']['start_method_reached'],
         'spawn_start_method_success' => $spawnCollisionPlan['spawn_start_method']['start_method_success'],

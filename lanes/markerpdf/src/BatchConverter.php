@@ -474,7 +474,8 @@ final class BatchConverter
         ?string $metadataFile = null,
         ?string $torchDevice = null,
         ?string $torchDeviceModel = null,
-        bool $spawnStartMethodAlreadySet = false
+        bool $spawnStartMethodAlreadySet = false,
+        ?array $modelSlots = null
     ): array {
         $absoluteInputFolder = $this->absolutePath($inputFolder);
         $absoluteOutputFolder = $this->absolutePath($outputFolder);
@@ -931,7 +932,7 @@ final class BatchConverter
             ];
         }
 
-        $modelHandoff = $this->convertMainModelHandoffPlan($torchDevice, $torchDeviceModel);
+        $modelHandoff = $this->convertMainModelHandoffPlan($torchDevice, $torchDeviceModel, modelSlots: $modelSlots);
         if (!$runtimeMetadataPlan['metadata_get_available'] && $selectedFiles !== []) {
             return [
                 'schema' => 'markerpdf.convert_main_runtime_preflight.v1',
@@ -1252,7 +1253,8 @@ final class BatchConverter
         ?string $metadataFile = null,
         ?string $torchDevice = null,
         ?string $torchDeviceModel = null,
-        bool $spawnStartMethodAlreadySet = false
+        bool $spawnStartMethodAlreadySet = false,
+        ?array $modelSlots = null
     ): array {
         $absoluteInputFolder = $this->absolutePath($inputFolder);
         $absoluteOutputFolder = $this->absolutePath($outputFolder);
@@ -1279,7 +1281,8 @@ final class BatchConverter
                 $metadataFile,
                 $torchDevice,
                 $torchDeviceModel,
-                $spawnStartMethodAlreadySet
+                $spawnStartMethodAlreadySet,
+                $modelSlots
             );
 
             return [
@@ -2934,6 +2937,7 @@ final class BatchConverter
      *     worker_init_argument: string|null,
      *     worker_loads_models_when_init_arg_null: bool,
      *     warning: string|null,
+     *     model_share_memory_review: array<string, mixed>,
      *     native_plan_loads_models: false,
      *     upstream_model_execution_required: bool,
      *     executes_python_or_models: false
@@ -2942,7 +2946,8 @@ final class BatchConverter
     private function convertMainModelHandoffPlan(
         ?string $torchDevice,
         ?string $torchDeviceModel,
-        ?string $blockedBy = null
+        ?string $blockedBy = null,
+        ?array $modelSlots = null
     ): array {
         $reached = $blockedBy === null;
         $normalizedDevice = $torchDevice === null ? null : strtolower(trim($torchDevice));
@@ -2965,10 +2970,97 @@ final class BatchConverter
             'warning' => $usesMps
                 ? "Cannot use MPS with torch multiprocessing share_memory. This will make things less memory efficient. If you want to share memory, you have to use CUDA or CPU.\nSet the TORCH_DEVICE environment variable to change the device."
                 : null,
+            'model_share_memory_review' => $this->convertMainModelShareMemoryReview(
+                $reached,
+                $usesMps,
+                $blockedBy,
+                $modelSlots
+            ),
             'native_plan_loads_models' => false,
             'upstream_model_execution_required' => $reached,
             'executes_python_or_models' => false,
         ];
+    }
+
+    /**
+     * @param list<mixed>|null $modelSlots
+     * @return array<string, mixed>
+     */
+    private function convertMainModelShareMemoryReview(
+        bool $modelHandoffReached,
+        bool $usesMps,
+        ?string $blockedBy,
+        ?array $modelSlots
+    ): array {
+        $reviewReached = $modelHandoffReached && !$usesMps;
+        $effectiveBlockedBy = null;
+        if (!$modelHandoffReached) {
+            $effectiveBlockedBy = $blockedBy ?? 'model-handoff-blocked';
+        } elseif ($usesMps) {
+            $effectiveBlockedBy = 'mps-worker-loads-models';
+        }
+
+        $slotRows = [];
+        $noneSlotIndexes = [];
+        $shareMemorySlotIndexes = [];
+        if ($reviewReached && $modelSlots !== null) {
+            foreach (array_values($modelSlots) as $index => $slot) {
+                $isNone = $slot === null;
+                if ($isNone) {
+                    $noneSlotIndexes[] = $index;
+                } else {
+                    $shareMemorySlotIndexes[] = $index;
+                }
+
+                $slotRows[] = [
+                    'index' => $index,
+                    'label' => $this->runtimeModelSlotLabel($slot),
+                    'is_none' => $isNone,
+                    'share_memory_called' => !$isNone,
+                ];
+            }
+        }
+
+        $fixtureUsed = $reviewReached && $modelSlots !== null;
+
+        return [
+            'source' => 'convert.py load_all_models share_memory slot boundary',
+            'order' => 'after_load_all_models_before_conversion_summary',
+            'review_reached' => $reviewReached,
+            'blocked_by' => $effectiveBlockedBy,
+            'model_list_source' => $reviewReached ? 'load_all_models()' : null,
+            'model_list_value' => $modelHandoffReached ? ($usesMps ? 'None' : 'model_lst') : null,
+            'model_slot_fixture_used' => $fixtureUsed,
+            'model_slot_count' => $fixtureUsed ? count($modelSlots) : null,
+            'model_slots' => $slotRows,
+            'none_model_slot_indexes' => $noneSlotIndexes,
+            'share_memory_model_slot_indexes' => $shareMemorySlotIndexes,
+            'share_memory_call_count' => $fixtureUsed ? count($shareMemorySlotIndexes) : null,
+            'none_slots_skipped_before_share_memory' => $fixtureUsed ? $noneSlotIndexes !== [] : null,
+            'none_skip_condition' => 'if model is None: continue',
+            'share_memory_call' => 'model.share_memory()',
+            'share_memory_loop_reached' => $reviewReached,
+            'blocks_conversion_summary' => !$modelHandoffReached,
+            'blocks_task_args' => !$modelHandoffReached,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    private function runtimeModelSlotLabel(mixed $slot): ?string
+    {
+        if ($slot === null) {
+            return null;
+        }
+        if (is_bool($slot)) {
+            return $slot ? 'true' : 'false';
+        }
+        if (is_scalar($slot)) {
+            return (string) $slot;
+        }
+
+        return get_debug_type($slot);
     }
 
     /**

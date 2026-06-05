@@ -345,6 +345,92 @@ return [
             $removeTree($blockedRoot);
         }
     },
+    'records convert.py model share_memory slot skip boundary before task args' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'beta.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+
+            $modelSlots = ['layout-detector', null, 'ocr-recognizer', 'table-recognizer', null];
+            $batch = new BatchConverter();
+            $cuda = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 4,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu',
+                modelSlots: $modelSlots
+            );
+            $mps = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 4,
+                torchDevice: 'mps',
+                torchDeviceModel: 'cpu',
+                modelSlots: $modelSlots
+            );
+            $spawnBlocked = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 4,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu',
+                spawnStartMethodAlreadySet: true,
+                modelSlots: $modelSlots
+            );
+
+            $review = $cuda['model_handoff']['model_share_memory_review'];
+            $t->same('convert.py load_all_models share_memory slot boundary', $review['source']);
+            $t->same('after_load_all_models_before_conversion_summary', $review['order']);
+            $t->same(true, $review['review_reached']);
+            $t->same(null, $review['blocked_by']);
+            $t->same('load_all_models()', $review['model_list_source']);
+            $t->same('model_lst', $review['model_list_value']);
+            $t->same(true, $review['model_slot_fixture_used']);
+            $t->same(5, $review['model_slot_count']);
+            $t->same([
+                ['index' => 0, 'label' => 'layout-detector', 'is_none' => false, 'share_memory_called' => true],
+                ['index' => 1, 'label' => null, 'is_none' => true, 'share_memory_called' => false],
+                ['index' => 2, 'label' => 'ocr-recognizer', 'is_none' => false, 'share_memory_called' => true],
+                ['index' => 3, 'label' => 'table-recognizer', 'is_none' => false, 'share_memory_called' => true],
+                ['index' => 4, 'label' => null, 'is_none' => true, 'share_memory_called' => false],
+            ], $review['model_slots']);
+            $t->same([1, 4], $review['none_model_slot_indexes']);
+            $t->same([0, 2, 3], $review['share_memory_model_slot_indexes']);
+            $t->same(3, $review['share_memory_call_count']);
+            $t->same(true, $review['none_slots_skipped_before_share_memory']);
+            $t->same('if model is None: continue', $review['none_skip_condition']);
+            $t->same('model.share_memory()', $review['share_memory_call']);
+            $t->same(true, $review['share_memory_loop_reached']);
+            $t->same(false, $review['blocks_conversion_summary']);
+            $t->same(false, $review['blocks_task_args']);
+            $t->same(false, $review['executes_python_or_models']);
+            $t->same(false, $cuda['executes_python_or_models']);
+
+            $mpsReview = $mps['model_handoff']['model_share_memory_review'];
+            $t->same(false, $mpsReview['review_reached']);
+            $t->same('mps-worker-loads-models', $mpsReview['blocked_by']);
+            $t->same('None', $mpsReview['model_list_value']);
+            $t->same(false, $mpsReview['model_slot_fixture_used']);
+            $t->same(null, $mpsReview['model_slot_count']);
+            $t->same([], $mpsReview['model_slots']);
+            $t->same([], $mpsReview['share_memory_model_slot_indexes']);
+            $t->same(null, $mpsReview['share_memory_call_count']);
+            $t->same(false, $mpsReview['share_memory_loop_reached']);
+            $t->same(false, $mpsReview['executes_python_or_models']);
+
+            $blockedReview = $spawnBlocked['model_handoff']['model_share_memory_review'];
+            $t->same(false, $blockedReview['review_reached']);
+            $t->same('spawn-start-method-failed', $blockedReview['blocked_by']);
+            $t->same(false, $blockedReview['share_memory_loop_reached']);
+            $t->same(false, $spawnBlocked['executes_python_or_models']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'records repeated spawn start method failure after metadata and before model handoff' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
