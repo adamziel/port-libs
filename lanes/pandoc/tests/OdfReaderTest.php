@@ -1200,6 +1200,37 @@ XML;
         $t->contains('<span class="odf-soft-page-break" data-odf-soft-page-break="true"></span>after source page boundary.', $blocksHtml);
         $t->contains('<h2>Appendix marker<span class="odf-soft-page-break" data-odf-soft-page-break="true"></span>continued heading</h2>', $blocksHtml);
     },
+    'maps ODT tab stops to Pandoc spaces in inline content' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithTabs = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Before<text:tab/>after and <text:span>inner<text:tab/>tab</text:span>.</text:p>
+      <text:h text:outline-level="2">Heading<text:tab/>tab</text:h>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithTabs));
+        $paragraph = $result['document']->children[0];
+        $heading = $result['document']->children[1];
+
+        $t->same('Before after and inner tab.', $paragraph->attr('text'));
+        $t->same('Before after and inner tab.', $paragraph->children[0]->attr('text'));
+        $t->true(!str_contains($paragraph->attr('text'), "\t"), 'ODF tabs should normalize to Pandoc spaces in plain text');
+        $t->same('Heading tab', $heading->children[0]->attr('text'));
+        $t->true(!str_contains($heading->children[0]->attr('text'), "\t"), 'ODF tabs should normalize to Pandoc spaces in headings');
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Before after and inner tab.', $markdown);
+        $t->contains('## Heading tab', $markdown);
+        $t->contains('<p>Before after and inner tab.</p>', $blocksHtml);
+        $t->contains('<h2>Heading tab</h2>', $blocksHtml);
+    },
     'maps ODT form controls into review placeholders' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithForms = <<<'XML'
 <office:document-content
