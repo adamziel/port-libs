@@ -35,14 +35,18 @@ $encoded = json_encode([$metadata, $preflight], JSON_UNESCAPED_SLASHES);
 
 echo '<!-- markerpdf-encrypted-authevent-preflight-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-encrypted-authevent-preflight-currentbase',
-    'native_boundary' => 'crypt-filter AuthEvent defaults and role mismatches are surfaced before encrypted WordPress import',
+    'native_boundary' => 'crypt-filter AuthEvent defaults and document-content role mismatches fail closed before encrypted WordPress import',
     'encrypted_text_blocked' => (new PdfTextExtractor())->extractPlainText($pdf) === '',
     'permission_policy' => $preflight['permission_preflight']['policy'] ?? null,
+    'content_extraction_boundary' => $preflight['permission_preflight']['content_extraction_boundary'] ?? null,
+    'text_content_policy' => $review['text_content_policy'] ?? null,
     'doc_stream_auth_event' => $metadata['encryption']['crypt_filters']['DocStreams']['auth_event'] ?? null,
     'doc_stream_auth_event_defaulted' => $metadata['encryption']['crypt_filters']['DocStreams']['auth_event_defaulted'] ?? null,
     'auth_event_statuses' => $review['auth_event_statuses'] ?? [],
     'auth_event_defaulted_role_names' => $review['auth_event_defaulted_role_names'] ?? [],
     'auth_event_mismatch_role_names' => $review['auth_event_mismatch_role_names'] ?? [],
+    'fail_closed_role_names' => $review['fail_closed_role_names'] ?? [],
+    'fail_closed_filter_names' => $review['fail_closed_filter_names'] ?? [],
     'raw_key_material_exposed' => is_string($encoded) && (
         str_contains($encoded, $ownerKey)
         || str_contains($encoded, $userKey)
@@ -62,7 +66,7 @@ echo "<!-- /wp:heading -->\n\n";
 
 echo "<!-- wp:paragraph -->\n";
 echo '<p>' . htmlspecialchars(
-    'Encrypted PDF text remains blocked. The import preflight records crypt-filter authorization events, including default DocOpen behavior and EFOpen filters selected for document content.',
+    'Encrypted PDF text remains blocked. The import preflight records crypt-filter authorization events, default DocOpen behavior, and fail-closed document-content filters selected with embedded-file authorization.',
     ENT_QUOTES | ENT_SUBSTITUTE,
     'UTF-8'
 ) . "</p>\n";
@@ -79,5 +83,8 @@ echo '<!-- markerpdf:encrypted-authevent-preflight ' . htmlspecialchars(json_enc
         'defaulted_filters' => $review['auth_event_defaulted_filter_names'] ?? [],
         'mismatch_roles' => $review['auth_event_mismatch_role_names'] ?? [],
         'mismatch_filters' => $review['auth_event_mismatch_filter_names'] ?? [],
+        'fail_closed_roles' => $review['fail_closed_role_names'] ?? [],
+        'fail_closed_filters' => $review['fail_closed_filter_names'] ?? [],
+        'text_content_policy' => $review['text_content_policy'] ?? null,
     ],
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";

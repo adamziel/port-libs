@@ -743,6 +743,8 @@ final class PdfSecurityPreflight
             if ($this->cryptFilterRoleFailsClosed($row)) {
                 return $this->cryptFilterFailClosedPolicy($row);
             }
+        }
+        foreach ($rows as $row) {
             if (($row['identity_crypt_filter'] ?? false) !== true) {
                 return 'review_only_encrypted_document_boundary';
             }
@@ -776,12 +778,16 @@ final class PdfSecurityPreflight
      */
     private function cryptFilterRoleFailsClosed(array $row): bool
     {
-        return in_array($row['status'] ?? null, [
+        if (in_array($row['status'] ?? null, [
             'undeclared_crypt_filter_fail_closed',
             'missing_declared_crypt_filter',
             'unknown_crypt_filter_method_fail_closed',
             'unsupported_crypt_filter_method_fail_closed',
-        ], true);
+        ], true)) {
+            return true;
+        }
+
+        return ($row['auth_event_applies_to_role'] ?? null) === false;
     }
 
     /**
@@ -790,12 +796,23 @@ final class PdfSecurityPreflight
     private function cryptFilterFailClosedPolicy(array $row): string
     {
         $status = is_string($row['status'] ?? null) ? $row['status'] : null;
+        $authEventStatus = is_string($row['auth_event_status'] ?? null) ? $row['auth_event_status'] : null;
 
-        return match ($status) {
+        $statusPolicy = match ($status) {
             'missing_declared_crypt_filter' => 'missing_declared_filter_fail_closed',
             'undeclared_crypt_filter_fail_closed' => 'undeclared_crypt_filter_fail_closed',
             'unknown_crypt_filter_method_fail_closed' => 'unknown_crypt_filter_method_fail_closed',
             'unsupported_crypt_filter_method_fail_closed' => 'unsupported_crypt_filter_method_fail_closed',
+            default => null,
+        };
+        if ($statusPolicy !== null) {
+            return $statusPolicy;
+        }
+
+        return match ($authEventStatus) {
+            'embedded_file_auth_event_on_document_content_review' => 'authorization_event_role_mismatch_fail_closed',
+            'unknown_authorization_event_review' => 'unknown_authorization_event_fail_closed',
+            'authorization_event_unavailable_review' => 'authorization_event_unavailable_fail_closed',
             default => 'encrypted_document_fail_closed',
         };
     }
@@ -807,6 +824,9 @@ final class PdfSecurityPreflight
             'undeclared_crypt_filter_fail_closed' => 'blocked_by_undeclared_document_crypt_filter',
             'unknown_crypt_filter_method_fail_closed' => 'blocked_by_unknown_document_crypt_filter_method',
             'unsupported_crypt_filter_method_fail_closed' => 'blocked_by_unsupported_document_crypt_filter_method',
+            'authorization_event_role_mismatch_fail_closed' => 'blocked_by_document_crypt_filter_auth_event_mismatch',
+            'unknown_authorization_event_fail_closed' => 'blocked_by_unknown_document_crypt_filter_auth_event',
+            'authorization_event_unavailable_fail_closed' => 'blocked_by_unavailable_document_crypt_filter_auth_event',
             'encrypted_document_fail_closed' => 'blocked_by_unresolved_document_crypt_filter',
             default => null,
         };
