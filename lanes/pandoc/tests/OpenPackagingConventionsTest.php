@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\OpcContentTypes;
+use PortLibs\Pandoc\OpcMarkupCompatibility;
 use PortLibs\Pandoc\OpcPackagePath;
 use PortLibs\Pandoc\OpcRelationship;
 use PortLibs\Pandoc\OpcRelationshipGraph;
@@ -310,6 +311,88 @@ XML;
         ] as $xml) {
             $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => OpcRelationships::fromXml($xml, '/word/document.xml'));
         }
+    },
+    'processes bounded OPC markup compatibility ProcessContent wrappers' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:pc="urn:wordpress-opc-process-content" mc:Ignorable="pc" mc:ProcessContent="pc:Records">
+  <pc:Records>
+    <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+    <Default Extension="xml" ContentType="application/xml"/>
+    <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  </pc:Records>
+  <pc:Ignored>
+    <Override PartName="/word/hidden.xml" ContentType="application/xml"/>
+  </pc:Ignored>
+</Types>
+XML;
+
+        $relationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:pc="urn:wordpress-opc-process-content" mc:Ignorable="pc" mc:ProcessContent="pc:Records">
+  <pc:Records>
+    <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+    <Relationship Id="rIdAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/review.xml"/>
+  </pc:Records>
+  <pc:Ignored>
+    <Relationship Id="rIdHidden" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/hidden.xml"/>
+  </pc:Ignored>
+</Relationships>
+XML;
+
+        $types = OpcContentTypes::fromXml($contentTypesXml);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $types->contentTypeForPart('/word/document.xml'));
+        $t->same('application/xml', $types->contentTypeForPart('/word/review.xml'));
+        $t->same(null, $types->contentTypeForPart('/word/hidden.bin'));
+        $t->same([
+            'rels' => 'application/vnd.openxmlformats-package.relationships+xml',
+            'xml' => 'application/xml',
+        ], $types->defaults());
+        $t->same([
+            '/word/document.xml' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+        ], $types->overrides());
+
+        $relationships = OpcRelationships::fromXml($relationshipsXml);
+        $t->same(2, count($relationships->all()));
+        $t->same('/word/document.xml', $relationships->resolveTarget('rIdDocument'));
+        $t->same('/word/review.xml', $relationships->resolveTarget('rIdAudit'));
+        $t->same(null, $relationships->byId('rIdHidden'));
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $relationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/review.xml', 'data' => '<review/>'],
+            ['name' => 'word/hidden.xml', 'data' => '<hidden/>'],
+        ]));
+
+        $t->same(['rIdDocument', 'rIdAudit'], array_map(
+            static fn (OpcRelationship $relationship): string => $relationship->id,
+            $graph->requireRelationshipsForSource('/')->all()
+        ));
+        $root = $graph->preflightOfficeDocumentRoot(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES);
+        $t->same(1, $root['relationshipCount']);
+        $t->same(true, $root['valid']);
+        $t->same('/word/document.xml', $root['relationships'][0]['targetPart']);
+
+        $targets = [];
+        foreach ($graph->preflightTargetsForSource('/') as $target) {
+            $targets[$target['id']] = $target;
+        }
+        $t->same(['rIdDocument', 'rIdAudit'], array_keys($targets));
+        $t->same('/word/review.xml', $targets['rIdAudit']['target']);
+        $t->same('application/xml', $targets['rIdAudit']['contentType']);
+        $t->same(true, $targets['rIdAudit']['valid']);
+
+        foreach ([
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:pc="urn:wordpress-opc-process-content" mc:Ignorable="pc" mc:ProcessContent="pc"><pc:Records><Default Extension="xml" ContentType="application/xml"/></pc:Records></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" mc:ProcessContent="missing:Records"><Default Extension="xml" ContentType="application/xml"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:pc="urn:wordpress-opc-process-content" mc:ProcessContent="pc:Records"><Default Extension="xml" ContentType="application/xml"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:pc="urn:wordpress-opc-process-content" mc:Ignorable="pc" mc:ProcessContent="pc:Records"><pc:Records>text<Default Extension="xml" ContentType="application/xml"/></pc:Records></Types>',
+        ] as $xml) {
+            $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml($xml));
+        }
+
+        $badRelationshipsXml = '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:pc="urn:wordpress-opc-process-content" mc:Ignorable="pc" mc:ProcessContent="pc:Records"><pc:Records>text<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></pc:Records></Relationships>';
+        $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => OpcRelationships::fromXml($badRelationshipsXml, '/word/document.xml'));
     },
     'maps OPC source parts and relationship part names' => static function (TestRunner $t): void {
         $t->same('/_rels/.rels', OpcRelationships::relationshipPartNameForSource('/'));

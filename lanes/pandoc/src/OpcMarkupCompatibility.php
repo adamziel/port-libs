@@ -55,6 +55,94 @@ final class OpcMarkupCompatibility
         return $attribute->namespaceURI === self::NAMESPACE_URI && $attribute->localName === 'Ignorable';
     }
 
+    public static function isProcessContentDeclaration(\DOMAttr $attribute): bool
+    {
+        return $attribute->namespaceURI === self::NAMESPACE_URI && $attribute->localName === 'ProcessContent';
+    }
+
+    /**
+     * @param array<string, true> $ignorableNamespaces
+     * @return array<string, true>
+     */
+    public static function processContentElementsForElement(\DOMElement $element, array $ignorableNamespaces, string $label): array
+    {
+        $value = $element->getAttributeNS(self::NAMESPACE_URI, 'ProcessContent');
+        if (trim($value) === '') {
+            return [];
+        }
+
+        $elements = [];
+        foreach (preg_split('/\s+/', trim($value)) ?: [] as $name) {
+            if (preg_match('/^([A-Za-z_][A-Za-z0-9._-]*):([A-Za-z_][A-Za-z0-9._-]*|\*)$/D', $name, $matches) !== 1) {
+                throw new \InvalidArgumentException($label . ' mc:ProcessContent contains invalid QName: ' . $name);
+            }
+
+            $namespace = $element->lookupNamespaceURI($matches[1]);
+            if ($namespace === null || $namespace === '') {
+                throw new \InvalidArgumentException($label . ' mc:ProcessContent references undeclared prefix: ' . $matches[1]);
+            }
+
+            if (!isset($ignorableNamespaces[$namespace])) {
+                throw new \InvalidArgumentException($label . ' mc:ProcessContent must reference ignorable extension namespaces: ' . $matches[1]);
+            }
+
+            $elements[$namespace . "\0" . $matches[2]] = true;
+        }
+
+        return $elements;
+    }
+
+    /**
+     * @param array<string, true> $ignorableNamespaces
+     * @param array<string, true> $processContentElements
+     * @return list<\DOMElement>
+     */
+    public static function packageChildElements(
+        \DOMElement $element,
+        string $packageNamespace,
+        array $ignorableNamespaces,
+        array $processContentElements,
+        string $unsupportedElementMessage,
+        string $textContentMessage,
+    ): array {
+        $children = [];
+
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                if ($child->namespaceURI === $packageNamespace) {
+                    $children[] = $child;
+                    continue;
+                }
+
+                if (self::isIgnorableExtensionElement($child, $ignorableNamespaces)) {
+                    if (self::shouldProcessContent($child, $processContentElements)) {
+                        array_push(
+                            $children,
+                            ...self::packageChildElements(
+                                $child,
+                                $packageNamespace,
+                                $ignorableNamespaces,
+                                $processContentElements,
+                                $unsupportedElementMessage,
+                                $textContentMessage
+                            )
+                        );
+                    }
+
+                    continue;
+                }
+
+                throw new \InvalidArgumentException($unsupportedElementMessage);
+            }
+
+            if (($child instanceof \DOMText || $child instanceof \DOMCdataSection) && trim($child->nodeValue ?? '') !== '') {
+                throw new \InvalidArgumentException($textContentMessage);
+            }
+        }
+
+        return $children;
+    }
+
     /**
      * @param array<string, true> $ignorableNamespaces
      */
@@ -73,5 +161,16 @@ final class OpcMarkupCompatibility
         $namespace = $element->namespaceURI ?? '';
 
         return $namespace !== '' && isset($ignorableNamespaces[$namespace]);
+    }
+
+    /**
+     * @param array<string, true> $processContentElements
+     */
+    private static function shouldProcessContent(\DOMElement $element, array $processContentElements): bool
+    {
+        $namespace = $element->namespaceURI ?? '';
+
+        return isset($processContentElements[$namespace . "\0" . $element->localName])
+            || isset($processContentElements[$namespace . "\0*"]);
     }
 }

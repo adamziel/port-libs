@@ -29,19 +29,19 @@ final class OpcRelationships
         }
 
         $ignorableNamespaces = OpcMarkupCompatibility::ignorableNamespacesForElement($root, self::NAMESPACE_URI, 'OPC relationships XML root');
+        $processContentElements = OpcMarkupCompatibility::processContentElementsForElement($root, $ignorableNamespaces, 'OPC relationships XML root');
         self::assertRootShape($root, $ignorableNamespaces);
 
         $relationships = new self($sourcePartName);
-        foreach ($root->childNodes as $child) {
-            if (!$child instanceof \DOMElement) {
-                continue;
-            }
-
-            if ($child->namespaceURI !== self::NAMESPACE_URI || $child->localName !== 'Relationship') {
-                if (OpcMarkupCompatibility::isIgnorableExtensionElement($child, $ignorableNamespaces)) {
-                    continue;
-                }
-
+        foreach (OpcMarkupCompatibility::packageChildElements(
+            $root,
+            self::NAMESPACE_URI,
+            $ignorableNamespaces,
+            $processContentElements,
+            'OPC relationships XML may only contain Relationship children',
+            'OPC relationships XML root may not contain text content'
+        ) as $child) {
+            if ($child->localName !== 'Relationship') {
                 throw new \InvalidArgumentException('OPC relationships XML may only contain Relationship children');
             }
 
@@ -228,6 +228,7 @@ final class OpcRelationships
             if (
                 OpcMarkupCompatibility::isNamespaceDeclaration($attribute)
                 || OpcMarkupCompatibility::isIgnorableDeclaration($attribute)
+                || OpcMarkupCompatibility::isProcessContentDeclaration($attribute)
                 || OpcMarkupCompatibility::isIgnorableExtensionAttribute($attribute, $ignorableNamespaces)
             ) {
                 continue;

@@ -26,22 +26,18 @@ final class OpcContentTypes
         }
 
         $ignorableNamespaces = OpcMarkupCompatibility::ignorableNamespacesForElement($root, self::NAMESPACE_URI, 'OPC content-types XML root');
+        $processContentElements = OpcMarkupCompatibility::processContentElementsForElement($root, $ignorableNamespaces, 'OPC content-types XML root');
         self::assertRootShape($root, $ignorableNamespaces);
 
         $types = new self();
-        foreach ($root->childNodes as $child) {
-            if (!$child instanceof \DOMElement) {
-                continue;
-            }
-
-            if ($child->namespaceURI !== self::NAMESPACE_URI) {
-                if (OpcMarkupCompatibility::isIgnorableExtensionElement($child, $ignorableNamespaces)) {
-                    continue;
-                }
-
-                throw new \InvalidArgumentException('OPC content-types children must use the package namespace');
-            }
-
+        foreach (OpcMarkupCompatibility::packageChildElements(
+            $root,
+            self::NAMESPACE_URI,
+            $ignorableNamespaces,
+            $processContentElements,
+            'OPC content-types children must use the package namespace',
+            'OPC content-types XML root may not contain text content'
+        ) as $child) {
             if ($child->localName === 'Default') {
                 self::assertRecordShape($child, ['Extension', 'ContentType'], 'OPC Default content-type record', $ignorableNamespaces);
                 self::assertXmlDefaultExtension($child->getAttribute('Extension'));
@@ -177,6 +173,7 @@ final class OpcContentTypes
             if (
                 OpcMarkupCompatibility::isNamespaceDeclaration($attribute)
                 || OpcMarkupCompatibility::isIgnorableDeclaration($attribute)
+                || OpcMarkupCompatibility::isProcessContentDeclaration($attribute)
                 || OpcMarkupCompatibility::isIgnorableExtensionAttribute($attribute, $ignorableNamespaces)
             ) {
                 continue;

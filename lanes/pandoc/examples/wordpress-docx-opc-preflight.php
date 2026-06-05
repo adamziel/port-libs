@@ -207,6 +207,52 @@ $caseCollisionPackage = ZipPackage::fromParts([
     ['name' => 'word/media/hero.png', 'data' => 'PNG'],
 ]);
 
+$processContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:pc="urn:wordpress-opc-process-content" mc:Ignorable="pc" mc:ProcessContent="pc:Records">
+  <pc:Records>
+    <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+    <Default Extension="xml" ContentType="application/xml"/>
+    <Override PartName="/word/process-document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  </pc:Records>
+  <pc:Ignored>
+    <Override PartName="/word/hidden.xml" ContentType="application/xml"/>
+  </pc:Ignored>
+</Types>
+XML;
+
+$processContentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:pc="urn:wordpress-opc-process-content" mc:Ignorable="pc" mc:ProcessContent="pc:Records">
+  <pc:Records>
+    <Relationship Id="rIdProcessDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/process-document.xml"/>
+    <Relationship Id="rIdProcessAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/process-audit.xml"/>
+  </pc:Records>
+  <pc:Ignored>
+    <Relationship Id="rIdHidden" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/hidden.xml"/>
+  </pc:Ignored>
+</Relationships>
+XML;
+
+$processContentGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => $processContentTypesXml],
+    ['name' => '_rels/.rels', 'data' => $processContentRelationshipsXml],
+    ['name' => 'word/process-document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => 'word/process-audit.xml', 'data' => '<review/>'],
+    ['name' => 'word/hidden.xml', 'data' => '<hidden/>'],
+]));
+$processContentRoot = $processContentGraph->preflightOfficeDocumentRoot(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES);
+$processContentRelationships = $processContentGraph->requireRelationshipsForSource('/');
+$markupCompatibilityProcessContent = [
+    'sourceParts' => $processContentGraph->sourcePartNames(),
+    'relationshipIds' => array_map(
+        static fn ($relationship): string => $relationship->id,
+        $processContentRelationships->all()
+    ),
+    'officeDocumentTargetPart' => $processContentRoot['relationships'][0]['targetPart'] ?? null,
+    'officeDocumentValid' => $processContentRoot['valid'],
+    'auditContentType' => $processContentGraph->contentTypes()->contentTypeForPart('/word/process-audit.xml'),
+    'hiddenRelationshipLoaded' => $processContentRelationships->byId('rIdHidden') !== null,
+];
+
 $caseEquivalentTypes = new OpcContentTypes();
 $caseEquivalentTypes->addDefault('xml', 'application/xml');
 $caseEquivalentTypes->addOverride('/Word/Document.XML', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml');
@@ -627,6 +673,7 @@ $summary = [
         )),
         'strictXmlShapeGuards' => $strictXmlShapeGuards,
         'markupCompatibilityGuards' => $markupCompatibilityGuards,
+        'markupCompatibilityProcessContent' => $markupCompatibilityProcessContent,
         'relationshipSourceAliasGraphRejected' => $relationshipSourceAliasGraphRejected,
         'partNameCaseCollisionGraphRejected' => $partNameCaseCollisionGraphRejected,
         'contentTypeOverrideCaseLookup' => $caseEquivalentTypes->contentTypeForPart('/word/document.xml'),
@@ -829,6 +876,12 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['markupCompatibilityGuards']['undeclaredContentTypeExtensionRejected'] ?? null) !== true
         || ($summary['integrity']['markupCompatibilityGuards']['undeclaredRelationshipExtensionRejected'] ?? null) !== true
         || ($summary['integrity']['markupCompatibilityGuards']['unsupportedMarkupCompatibilityAttributeRejected'] ?? null) !== true
+        || ($summary['integrity']['markupCompatibilityProcessContent']['sourceParts'] ?? null) !== ['/']
+        || ($summary['integrity']['markupCompatibilityProcessContent']['relationshipIds'] ?? null) !== ['rIdProcessDocument', 'rIdProcessAudit']
+        || ($summary['integrity']['markupCompatibilityProcessContent']['officeDocumentTargetPart'] ?? null) !== '/word/process-document.xml'
+        || ($summary['integrity']['markupCompatibilityProcessContent']['officeDocumentValid'] ?? null) !== true
+        || ($summary['integrity']['markupCompatibilityProcessContent']['auditContentType'] ?? null) !== 'application/xml'
+        || ($summary['integrity']['markupCompatibilityProcessContent']['hiddenRelationshipLoaded'] ?? null) !== false
         || $summary['packageParts']['/_rels/.rels']['relationshipSource'] !== '/'
         || $summary['packageParts']['/_rels/.rels']['relationshipSourceIsRelationshipPart'] !== false
         || $summary['packageParts']['/_rels/.rels']['relationshipSourceLoaded'] !== true
