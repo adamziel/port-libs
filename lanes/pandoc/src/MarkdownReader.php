@@ -642,6 +642,16 @@ final class MarkdownReader
             return $jsonMetadata;
         }
 
+        $flowMetadata = $this->parseYamlFlowMetadataDocument($lines);
+        if ($flowMetadata !== null) {
+            $metadata = $flowMetadata['metadata'];
+            if ($topLevel && $flowMetadata['fieldQuoteMap'] !== []) {
+                $metadata['__yamlMetadataFieldQuoteMap'] = $flowMetadata['fieldQuoteMap'];
+            }
+
+            return $metadata;
+        }
+
         $metadata = [];
         $fieldQuoteMap = [];
         $count = count($lines);
@@ -1866,23 +1876,63 @@ final class MarkdownReader
     }
 
     /**
+     * @param list<string> $lines
+     * @return array{metadata:array<string, mixed>, fieldQuoteMap:array<string, bool>}|null
+     */
+    private function parseYamlFlowMetadataDocument(array $lines): ?array
+    {
+        $source = trim(implode("\n", $lines));
+        if ($source === '' || $source[0] !== '{') {
+            return null;
+        }
+
+        $candidate = $this->stripYamlTrailingComment(trim($this->stripYamlFlowComments($source)));
+        if ($candidate === '' || $candidate[0] !== '{' || !str_ends_with(rtrim($candidate), '}')) {
+            return null;
+        }
+
+        if (!$this->isBalancedYamlFlowCollection($candidate)) {
+            return null;
+        }
+
+        $parsed = $this->parseYamlInlineMapWithFieldQuoteMap(substr(rtrim($candidate), 1, -1));
+        if ($parsed['metadata'] === []) {
+            return null;
+        }
+
+        return $parsed;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function parseYamlInlineMap(string $source): array
     {
+        return $this->parseYamlInlineMapWithFieldQuoteMap($source)['metadata'];
+    }
+
+    /**
+     * @return array{metadata:array<string, mixed>, fieldQuoteMap:array<string, bool>}
+     */
+    private function parseYamlInlineMapWithFieldQuoteMap(string $source): array
+    {
         $map = [];
+        $fieldQuoteMap = [];
         foreach ($this->splitYamlFlowItems($source) as $item) {
             $mapping = $this->splitYamlFlowMappingItem($item);
             if ($mapping === null) {
                 $key = $this->normalizeYamlFlowKeyOnlyItem($item);
                 if ($key !== '') {
                     $map[$key] = null;
+                    if ($this->isYamlQuotedFlowKey($item)) {
+                        $fieldQuoteMap[(string) $key] = true;
+                    }
                 }
                 continue;
             }
 
-            [$key, $value] = $mapping;
-            $key = $this->normalizeYamlFlowKey($key);
+            [$sourceKey, $value] = $mapping;
+            $key = $this->normalizeYamlFlowKey($sourceKey);
             if ($key === '') {
                 continue;
             }
@@ -1892,10 +1942,13 @@ final class MarkdownReader
                 $map = $this->mergeYamlMapValue($map, $value);
             } else {
                 $map[$key] = $value;
+                if ($this->isYamlQuotedFlowKey($sourceKey)) {
+                    $fieldQuoteMap[(string) $key] = true;
+                }
             }
         }
 
-        return $map;
+        return ['metadata' => $map, 'fieldQuoteMap' => $fieldQuoteMap];
     }
 
     /**

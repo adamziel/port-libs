@@ -1018,6 +1018,43 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('json-metadata-body', $document->children[0]->attr('id'));
     },
+    'maps pandoc yaml metadata from top-level flow mapping documents' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '{',
+            '  title: Flow document **Packet**,',
+            '  authors: [Flow Reviewer, "WordPress Editor"],',
+            '  review: {status: queued, priority: !!int "2", labels: [metadata, wordpress]},',
+            '  references: [{id: flow-document-ref, title: "Flow document source", issued: {date-parts: [[2026, 6, 5]]}}],',
+            '  "yes": quoted boolean-looking flow field,',
+            '  ? "15": quoted numeric-looking flow field',
+            '}',
+            '...',
+            '',
+            '# Flow document YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $diagnostics = $document->attr('yamlMetadataDiagnostics', []);
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Flow document **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same(['Flow Reviewer', 'WordPress Editor'], $meta['authors']);
+        $t->same('queued', $meta['review']['status']);
+        $t->same(2, $meta['review']['priority']);
+        $t->same(['metadata', 'wordpress'], $meta['review']['labels']);
+        $t->same('flow-document-ref', $meta['references'][0]['id']);
+        $t->same('Flow document source', $meta['references'][0]['title']);
+        $t->same([[2026, 6, 5]], $meta['references'][0]['issued']['date-parts']);
+        $t->same('quoted boolean-looking flow field', $meta['yes']);
+        $t->same('quoted numeric-looking flow field', $meta[15]);
+        $t->same([], $diagnostics);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('flow-document-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="flow-document-yaml-body">Flow document YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml flow maps and nested flow sequences' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

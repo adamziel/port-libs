@@ -312,6 +312,15 @@ summary: >- # later metadata block overrides the first review status
   before rendering the imported body.
 ---
 
+---
+{
+  flow-document-review: {status: queued, priority: !!int "2", labels: [flow, metadata]},
+  flow-document-references: [{id: flow-document-ref, title: "Flow document source", issued: {date-parts: [[2026, 6, 5]]}}],
+  "flow-document:no": quoted top-level flow field,
+  ? "flow-document:15": quoted explicit flow key
+}
+---
+
 The block import keeps the source metadata available for audit tooling.
 MARKDOWN;
 
@@ -722,6 +731,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (array_key_exists('source', $meta['flow-colon-key-review'] ?? []) || array_key_exists('dc', $meta['flow-colon-key-review'] ?? [])) {
         throw new RuntimeException('YAML metadata self-test split a flow plain colon key too early');
     }
+    if (($meta['flow-document-review']['priority'] ?? null) !== 2) {
+        throw new RuntimeException('YAML metadata self-test missing top-level flow document integer metadata');
+    }
+    if (($meta['flow-document-review']['labels'] ?? []) !== ['flow', 'metadata']) {
+        throw new RuntimeException('YAML metadata self-test missing top-level flow document label metadata');
+    }
+    if (($meta['flow-document-references'][0]['id'] ?? '') !== 'flow-document-ref') {
+        throw new RuntimeException('YAML metadata self-test missing top-level flow document reference metadata');
+    }
+    if (($meta['flow-document-references'][0]['issued']['date-parts'][0] ?? []) !== [2026, 6, 5]) {
+        throw new RuntimeException('YAML metadata self-test missing top-level flow document date-parts');
+    }
+    if (($meta['flow-document:no'] ?? '') !== 'quoted top-level flow field') {
+        throw new RuntimeException('YAML metadata self-test missing quoted top-level flow field');
+    }
+    if (($meta['flow-document:15'] ?? '') !== 'quoted explicit flow key') {
+        throw new RuntimeException('YAML metadata self-test missing quoted explicit top-level flow key');
+    }
     if (array_key_exists('yes', $meta) || array_key_exists('True', $meta) || array_key_exists('15', $meta) || array_key_exists('0x2A', $meta)) {
         throw new RuntimeException('YAML metadata self-test promoted ambiguous top-level field names');
     }
@@ -874,6 +901,7 @@ echo 'Sequence item explicit key: ' . ($meta['sequence-explicit-review-items'][0
 echo 'Ordered review duplicate key: ' . ($meta['ordered-review']['steps'][0]['key'] ?? '') . ' => ' . ($meta['ordered-review']['steps'][0]['value'] ?? '') . ' / ' . ($meta['ordered-review']['steps'][1]['value'] ?? '') . "\n";
 echo 'Plain key review: ' . ($meta['plain-key-review']['source owner'] ?? '') . ' / ' . ($meta['source label'] ?? '') . "\n";
 echo 'Flow colon key review: ' . ($meta['flow-colon-key-review']['source:key'] ?? '') . ' / ' . ($meta['flow-colon-key-review']['dc:title'] ?? '') . "\n";
+echo 'Flow document review: ' . ($meta['flow-document-review']['status'] ?? '') . ' / priority ' . ($meta['flow-document-review']['priority'] ?? '') . "\n";
 echo 'Ambiguous field diagnostics: ' . implode(', ', array_column(array_slice($yamlDiagnostics, 0, 4), 'field')) . "\n";
 echo 'Quoted ambiguous fields: ' . ($meta['no'] ?? '') . ' / ' . ($meta['Off'] ?? '') . ' / ' . ($meta['3.14'] ?? '') . ' / ' . ($meta['0o52'] ?? '') . "\n";
 echo 'YAML alias diagnostics: ' . count($yamlDiagnostics) . "\n";
