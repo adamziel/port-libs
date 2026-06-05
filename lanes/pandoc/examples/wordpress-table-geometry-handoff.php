@@ -152,6 +152,48 @@ $document = new AstNode('document', [], [
             ]),
         ]),
     ]),
+    new AstNode('table', [
+        'caption' => 'Source attributed grid',
+        'alignments' => ['left', 'right'],
+        'accessibilityHeaders' => true,
+        'accessibilityIdPrefix' => 'Source Grid',
+    ], [
+        new AstNode('table_head', [], [
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', [
+                    'text' => 'Scope',
+                    'htmlAttributes' => [
+                        'id' => 'docx-source-scope',
+                        'class' => 'source-cell',
+                        'data-origin' => 'docx',
+                    ],
+                ], [new AstNode('text', ['text' => 'Scope'])]),
+                new AstNode('table_cell', [
+                    'text' => 'Status',
+                    'id' => 'ast-status-source',
+                    'classes' => ['ast-header'],
+                ], [new AstNode('text', ['text' => 'Status'])]),
+            ]),
+        ]),
+        new AstNode('table_body', [], [
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', [
+                    'text' => 'Posts',
+                    'htmlAttributes' => [
+                        'class' => 'body-source',
+                        'data-origin' => 'docx',
+                    ],
+                ], [new AstNode('text', ['text' => 'Posts'])]),
+                new AstNode('table_cell', [
+                    'text' => 'Ready',
+                    'htmlAttributes' => [
+                        'headers' => 'legacy-status',
+                        'data-origin' => 'docx',
+                    ],
+                ], [new AstNode('text', ['text' => 'Ready'])]),
+            ]),
+        ]),
+    ]),
 ]);
 
 $blocks = (new WordPressBlockWriter())->write($document);
@@ -289,6 +331,29 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing review-packet accessibility relationships');
     }
     json_encode($reviewPacket, JSON_THROW_ON_ERROR);
+
+    $sourceAccessibility = TableGeometry::accessibilityAttributes($document->children[6], 'Source Grid');
+    if (($sourceAccessibility['head:0:0:0']['id'] ?? null) !== 'docx-source-scope') {
+        throw new RuntimeException('Table geometry self-test missing source header cell id in accessibility handoff');
+    }
+    if (($sourceAccessibility['head:0:1:1']['id'] ?? null) !== 'ast-status-source') {
+        throw new RuntimeException('Table geometry self-test missing AST header cell id in accessibility handoff');
+    }
+    if (($sourceAccessibility['body:0:0:0']['headers'] ?? null) !== ['docx-source-scope']) {
+        throw new RuntimeException('Table geometry self-test missing source header id reference on data cell');
+    }
+    if (!str_contains($blocks, '<th scope="col" id="docx-source-scope" class="source-cell" data-origin="docx" style="text-align:left">Scope</th>')) {
+        throw new RuntimeException('Table geometry self-test missing source table cell attributes');
+    }
+    if (!str_contains($blocks, '<th scope="col" id="ast-status-source" class="ast-header" style="text-align:right">Status</th>')) {
+        throw new RuntimeException('Table geometry self-test missing AST table cell attributes');
+    }
+    if (!str_contains($blocks, '<td headers="docx-source-scope" class="body-source" data-origin="docx" style="text-align:left">Posts</td>')) {
+        throw new RuntimeException('Table geometry self-test missing source-id headers handoff');
+    }
+    if (!str_contains($blocks, '<td headers="legacy-status" data-origin="docx" style="text-align:right">Ready</td>')) {
+        throw new RuntimeException('Table geometry self-test missing source headers override preservation');
+    }
 
     echo "table geometry handoff self-test ok\n";
     return;

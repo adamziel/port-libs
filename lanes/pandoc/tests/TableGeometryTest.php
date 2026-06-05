@@ -315,6 +315,53 @@ $buildAccessibleHeaderDocument = static function (): AstNode {
     ]);
 };
 
+$buildAttributedCellDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Source attributed grid',
+            'alignments' => ['left', 'right'],
+            'accessibilityHeaders' => true,
+            'accessibilityIdPrefix' => 'Source Grid',
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [
+                        'text' => 'Scope',
+                        'htmlAttributes' => [
+                            'id' => 'docx-source-scope',
+                            'class' => 'source-cell',
+                            'data-origin' => 'docx',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'Status',
+                        'id' => 'ast-status-source',
+                        'classes' => ['ast-header'],
+                    ], [new AstNode('text', ['text' => 'Status'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [
+                        'text' => 'Posts',
+                        'htmlAttributes' => [
+                            'class' => 'body-source',
+                            'data-origin' => 'docx',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'Ready',
+                        'htmlAttributes' => [
+                            'headers' => 'legacy-status',
+                            'data-origin' => 'docx',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 $buildRowspanOverlapDocument = static function (): AstNode {
     return new AstNode('document', [], [
         new AstNode('table', [
@@ -690,6 +737,28 @@ return [
         $t->contains('<th id="migration-grid-body-r2c1" scope="rowgroup" rowspan="2" style="text-align:left">Posts</th><td headers="migration-grid-head-r1c1 migration-grid-body-r1c2 migration-grid-body-r2c1" style="text-align:right">42</td><td headers="migration-grid-head-r1c3 migration-grid-body-r1c3 migration-grid-body-r2c1" style="text-align:center">Review</td>', $blocks);
         $t->contains('<tr><td headers="migration-grid-head-r1c1 migration-grid-body-r1c2 migration-grid-body-r2c1" style="text-align:right">7</td><td headers="migration-grid-head-r1c3 migration-grid-body-r1c3 migration-grid-body-r2c1" style="text-align:center">Import</td></tr>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">Accessible review grid</figcaption>', $blocks);
+    },
+    'preserves source table cell attributes while computing accessibility handoff ids' => static function (TestRunner $t) use ($buildAttributedCellDocument): void {
+        $document = $buildAttributedCellDocument();
+        $table = $document->children[0];
+        $accessibility = TableGeometry::accessibilityAttributes($table, 'Source Grid');
+        $packet = TableGeometry::reviewPacket($table, ['idPrefix' => 'Source Grid']);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('docx-source-scope', $accessibility['head:0:0:0']['id'] ?? null);
+        $t->same('col', $accessibility['head:0:0:0']['scope'] ?? null);
+        $t->same('ast-status-source', $accessibility['head:0:1:1']['id'] ?? null);
+        $t->same(['docx-source-scope'], $accessibility['body:0:0:0']['headers'] ?? null);
+        $t->same(['ast-status-source'], $accessibility['body:0:1:1']['headers'] ?? null);
+        $t->same('docx-source-scope', $packet['accessibility']['head:0:0:0']['id'] ?? null);
+        $t->same('ast-status-source', $packet['accessibility']['head:0:1:1']['id'] ?? null);
+        $t->same(['docx-source-scope'], $packet['accessibility']['body:0:0:0']['headers'] ?? null);
+        $t->same('Scope', $packet['sections'][0]['rows'][0]['slots'][0]['text']);
+        $t->contains('<th scope="col" id="docx-source-scope" class="source-cell" data-origin="docx" style="text-align:left">Scope</th>', $blocks);
+        $t->contains('<th scope="col" id="ast-status-source" class="ast-header" style="text-align:right">Status</th>', $blocks);
+        $t->contains('<td headers="docx-source-scope" class="body-source" data-origin="docx" style="text-align:left">Posts</td>', $blocks);
+        $t->contains('<td headers="legacy-status" data-origin="docx" style="text-align:right">Ready</td>', $blocks);
+        $t->true(!str_contains($blocks, 'headers="source-grid-head-r1c2" data-origin="docx" headers="legacy-status"'), 'Source headers attribute must not be duplicated by computed accessibility headers');
     },
     'builds serializable review packets for importer table geometry handoff' => static function (TestRunner $t) use ($buildAccessibleHeaderDocument, $buildDeclaredColumnOverflowDocument): void {
         $accessibleTable = $buildAccessibleHeaderDocument()->children[0];

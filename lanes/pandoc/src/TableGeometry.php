@@ -346,7 +346,8 @@ final class TableGeometry
                         (int) ($slot['sourceCell'] ?? 0),
                         (int) ($slot['sourceColumn'] ?? 0)
                     );
-                    $id = $idPrefix . '-' . self::normalizeHtmlId($section)
+                    $sourceId = self::cellSourceHtmlId($slot['node'] ?? null);
+                    $id = $sourceId !== '' ? $sourceId : $idPrefix . '-' . self::normalizeHtmlId($section)
                         . '-r' . ((int) $rowIndex + 1)
                         . 'c' . ((int) ($slot['anchorColumn'] ?? $slot['column'] ?? 0) + 1);
                     $scope = self::headerScope($slot);
@@ -701,6 +702,23 @@ final class TableGeometry
         $prefix = trim((string) $table->attr('id', ''));
 
         return $prefix === '' ? 'pandoc-table' : $prefix;
+    }
+
+    private static function cellSourceHtmlId(mixed $node): string
+    {
+        if (!$node instanceof AstNode) {
+            return '';
+        }
+
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (is_array($htmlAttributes) && isset($htmlAttributes['id'])) {
+            $id = trim((string) $htmlAttributes['id']);
+            if ($id !== '') {
+                return $id;
+            }
+        }
+
+        return trim((string) $node->attr('id', ''));
     }
 
     /**

@@ -671,7 +671,7 @@ final class WordPressBlockWriter
     private function renderTableCellAttrs(AstNode $table, int $column, int $colspan, int $rowspan, AstNode $cell, array $accessibilityAttrs = []): string
     {
         $attrs = $this->renderComputedTableAccessibilityAttrs($cell, $accessibilityAttrs);
-        $attrs .= $this->renderStoredHtmlAttrs($cell, false, ['style']);
+        $attrs .= $this->renderStoredHtmlAttrs($cell, true, ['style']);
         if ($colspan > 1) {
             $attrs .= ' colspan="' . $colspan . '"';
         }
@@ -719,7 +719,7 @@ final class WordPressBlockWriter
         $attrs = '';
 
         $id = (string) ($accessibilityAttrs['id'] ?? '');
-        if ($id !== '') {
+        if ($id !== '' && $this->sourceHtmlId($cell) === '') {
             $attrs .= ' id="' . $this->esc($id) . '"';
         }
 
@@ -736,13 +736,30 @@ final class WordPressBlockWriter
         return $attrs;
     }
 
+    private function sourceHtmlId(AstNode $node): string
+    {
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (is_array($htmlAttributes) && isset($htmlAttributes['id'])) {
+            $id = trim((string) $htmlAttributes['id']);
+            if ($id !== '') {
+                return $id;
+            }
+        }
+
+        return trim((string) $node->attr('id', ''));
+    }
+
     /**
      * @param list<string> $skip
      */
     private function renderStoredHtmlAttrs(AstNode $node, bool $includeIdentity, array $skip): string
     {
         $htmlAttributes = $node->attr('htmlAttributes', []);
-        if (!is_array($htmlAttributes) || $htmlAttributes === []) {
+        if (!is_array($htmlAttributes)) {
+            $htmlAttributes = [];
+        }
+
+        if ($htmlAttributes === [] && !$includeIdentity) {
             return '';
         }
 
