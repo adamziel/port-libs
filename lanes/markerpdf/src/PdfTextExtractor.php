@@ -1930,7 +1930,7 @@ final class PdfTextExtractor
      * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>}|null
      * @param array<int, string> $objects
      * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
-     * @param array<int, bool> $optionalContentStates
+     * @param array<int|string, bool> $optionalContentStates
      */
     private function expandedPageContentStreamWithFontMaps(
         int $pageObjectNumber,
@@ -3236,7 +3236,7 @@ final class PdfTextExtractor
      * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
      * @param array<string, array{actualText: string|null, altText: string|null}> $markedContentProperties
-     * @param array<int, bool> $optionalContentStates
+     * @param array<int|string, bool> $optionalContentStates
      * @param array<int, true> $activeFormObjectNumbers
      * @param list<float>|null $initialTransformationMatrix
      * @param list<float>|null $formBoundingBox
@@ -3972,7 +3972,7 @@ final class PdfTextExtractor
      * @return list<array<string, mixed>>
      * @param array<int, string> $objects
      * @param list<string> $decodedContents
-     * @param array<int, bool> $optionalContentStates
+     * @param array<int|string, bool> $optionalContentStates
      * @param list<string> $resourcePath
      * @param array<string, true> $activeFormObjectNumbers
      */
@@ -5339,7 +5339,7 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
-     * @param array<int, bool> $optionalContentStates
+     * @param array<int|string, bool> $optionalContentStates
      */
     private function annotationAppearanceStreamsWithFontMaps(
         string $pageBody,
@@ -5587,7 +5587,7 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
-     * @param array<int, bool> $optionalContentStates
+     * @param array<int|string, bool> $optionalContentStates
      */
     private function decodedAppearanceStreamWithFontMaps(
         int $appearanceObjectNumber,
@@ -5645,7 +5645,7 @@ final class PdfTextExtractor
     /**
      * Native boundary for PDFium-style default-view optional content checks.
      *
-     * @return array<int, bool>
+     * @return array<string, bool>
      * @param array<int, string> $objects
      */
     private function optionalContentVisibilityStates(array $objects): array
@@ -5661,8 +5661,8 @@ final class PdfTextExtractor
         }
 
         $states = [];
-        foreach ($this->objectReferences($ocgArray) as $objectNumber) {
-            $states[$objectNumber] = true;
+        foreach ($this->optionalContentObjectReferencesFromValue($ocgArray, $objects) as $reference) {
+            $states[$this->optionalContentReferenceKey($reference['objectNumber'], $reference['generation'])] = true;
         }
 
         if ($states === []) {
@@ -5676,9 +5676,15 @@ final class PdfTextExtractor
 
         $configIntents = $this->optionalContentIntentNames($defaultConfig, $objects, ['View']);
         $intentMatches = [];
-        foreach (array_keys($states) as $objectNumber) {
-            $intentMatches[$objectNumber] = $this->optionalContentReferenceMatchesIntent(
-                $objectNumber,
+        foreach (array_keys($states) as $referenceKey) {
+            $reference = $this->optionalContentReferenceFromKey((string) $referenceKey);
+            if ($reference === null) {
+                continue;
+            }
+
+            $intentMatches[$referenceKey] = $this->optionalContentReferenceMatchesIntent(
+                $reference['objectNumber'],
+                $reference['generation'],
                 $objects,
                 $configIntents
             );
@@ -5686,26 +5692,28 @@ final class PdfTextExtractor
 
         $baseState = $this->pdfNameValueAfterName($defaultConfig, 'BaseState') ?? 'ON';
         $baseVisible = $baseState !== 'OFF';
-        foreach (array_keys($states) as $objectNumber) {
-            $states[$objectNumber] = $baseVisible && ($intentMatches[$objectNumber] ?? true);
+        foreach (array_keys($states) as $referenceKey) {
+            $states[$referenceKey] = $baseVisible && ($intentMatches[$referenceKey] ?? true);
         }
 
-        foreach ($this->optionalContentObjectNumbersAfterName($defaultConfig, 'ON', $objects) as $objectNumber) {
-            if (array_key_exists($objectNumber, $states) && ($intentMatches[$objectNumber] ?? true)) {
-                $states[$objectNumber] = true;
+        foreach ($this->optionalContentObjectReferencesAfterName($defaultConfig, 'ON', $objects) as $reference) {
+            $referenceKey = $this->optionalContentReferenceKey($reference['objectNumber'], $reference['generation']);
+            if (array_key_exists($referenceKey, $states) && ($intentMatches[$referenceKey] ?? true)) {
+                $states[$referenceKey] = true;
             }
         }
 
-        foreach ($this->optionalContentObjectNumbersAfterName($defaultConfig, 'OFF', $objects) as $objectNumber) {
-            if (array_key_exists($objectNumber, $states)) {
-                $states[$objectNumber] = false;
+        foreach ($this->optionalContentObjectReferencesAfterName($defaultConfig, 'OFF', $objects) as $reference) {
+            $referenceKey = $this->optionalContentReferenceKey($reference['objectNumber'], $reference['generation']);
+            if (array_key_exists($referenceKey, $states)) {
+                $states[$referenceKey] = false;
             }
         }
 
         $states = $this->optionalContentUsageApplicationStates($defaultConfig, $objects, $states, $configIntents);
-        foreach ($intentMatches as $objectNumber => $matches) {
+        foreach ($intentMatches as $referenceKey => $matches) {
             if (!$matches) {
-                $states[$objectNumber] = false;
+                $states[$referenceKey] = false;
             }
         }
 
@@ -5727,20 +5735,20 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return list<int>
+     * @return list<array{objectNumber: int, generation: int}>
      * @param array<int, string> $objects
      */
-    private function optionalContentObjectNumbersAfterName(string $dictionary, string $name, array $objects): array
+    private function optionalContentObjectReferencesAfterName(string $dictionary, string $name, array $objects): array
     {
         $arrayBody = $this->pdfArrayValueAfterNameResolved($dictionary, $name, $objects);
-        return $arrayBody === null ? [] : $this->objectReferences($arrayBody);
+        return $arrayBody === null ? [] : $this->optionalContentObjectReferencesFromValue($arrayBody, $objects);
     }
 
     /**
      * @param array<int, string> $objects
-     * @param array<int, bool> $states
+     * @param array<string, bool> $states
      * @param list<string> $configIntents
-     * @return array<int, bool>
+     * @return array<string, bool>
      */
     private function optionalContentUsageApplicationStates(
         string $defaultConfig,
@@ -5774,12 +5782,18 @@ final class PdfTextExtractor
                 continue;
             }
 
-            foreach ($this->optionalContentObjectNumbersFromValue($ocgValue, $objects) as $objectNumber) {
-                if (!array_key_exists($objectNumber, $states) || !isset($objects[$objectNumber])) {
+            foreach ($this->optionalContentObjectReferencesFromValue($ocgValue, $objects) as $reference) {
+                $referenceKey = $this->optionalContentReferenceKey($reference['objectNumber'], $reference['generation']);
+                if (!array_key_exists($referenceKey, $states)) {
                     continue;
                 }
 
-                $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+                $objectBody = $this->objectBodyForExactReference(
+                    $objects,
+                    $reference['objectNumber'],
+                    $reference['generation']
+                );
+                $dictionary = $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
                 if (
                     $dictionary === null
                     || !$this->optionalContentDictionaryMatchesIntent($dictionary, $objects, $configIntents)
@@ -5789,7 +5803,7 @@ final class PdfTextExtractor
 
                 $usageState = $this->optionalContentUsageStateForCategories($dictionary, $categories, $objects);
                 if ($usageState !== null) {
-                    $states[$objectNumber] = $usageState;
+                    $states[$referenceKey] = $usageState;
                 }
             }
         }
@@ -5798,39 +5812,68 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return list<int>
+     * @return list<array{objectNumber: int, generation: int}>
      * @param array<int, string> $objects
      */
-    private function optionalContentObjectNumbersFromValue(string $value, array $objects): array
+    private function optionalContentObjectReferencesFromValue(string $value, array $objects): array
     {
         $value = trim($value);
         if ($value === '') {
             return [];
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) === 1) {
-            $objectNumber = (int) $match[1];
+        if (preg_match('/^(\d+)\s+(\d+)\s+R\s*$/s', $value, $match) === 1) {
+            $reference = [
+                'objectNumber' => (int) $match[1],
+                'generation' => (int) $match[2],
+            ];
             $arrayBody = $this->pdfArrayFromValue($value, $objects);
-            return $arrayBody === null ? [$objectNumber] : $this->objectReferences($arrayBody);
+            return $arrayBody === null ? [$reference] : $this->objectReferencePairs($arrayBody);
         }
 
         $arrayBody = $this->pdfArrayFromValue($value, $objects);
-        return $arrayBody === null ? [] : $this->objectReferences($arrayBody);
+        return $arrayBody === null ? $this->objectReferencePairs($value) : $this->objectReferencePairs($arrayBody);
     }
 
     /**
      * @param array<int, string> $objects
      * @param list<string> $configIntents
      */
-    private function optionalContentReferenceMatchesIntent(int $objectNumber, array $objects, array $configIntents): bool
+    private function optionalContentReferenceMatchesIntent(
+        int $objectNumber,
+        int $generation,
+        array $objects,
+        array $configIntents
+    ): bool
     {
-        if (!isset($objects[$objectNumber])) {
+        $objectBody = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
+        if ($objectBody === null) {
             return true;
         }
 
-        $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+        $dictionary = $this->dictionaryObjectBody($objectBody);
         return $dictionary === null
             || $this->optionalContentDictionaryMatchesIntent($dictionary, $objects, $configIntents);
+    }
+
+    private function optionalContentReferenceKey(int $objectNumber, int $generation): string
+    {
+        return $objectNumber . ':' . $generation;
+    }
+
+    /**
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function optionalContentReferenceFromKey(string $referenceKey): ?array
+    {
+        if (preg_match('/^(\d+):(\d+)$/', $referenceKey, $match) !== 1) {
+            return null;
+        }
+
+        return [
+            'objectNumber' => (int) $match[1],
+            'generation' => (int) $match[2],
+        ];
     }
 
     /**
@@ -5968,7 +6011,7 @@ final class PdfTextExtractor
     /**
      * @return array<string, bool>
      * @param array<int, string> $objects
-     * @param array<int, bool> $optionalContentStates
+     * @param array<int|string, bool> $optionalContentStates
      */
     private function pageOptionalContentPropertyVisibilityMap(
         int $pageObjectNumber,
@@ -5990,7 +6033,7 @@ final class PdfTextExtractor
     /**
      * @return array<string, bool>
      * @param array<int, string> $objects
-     * @param array<int, bool> $optionalContentStates
+     * @param array<int|string, bool> $optionalContentStates
      */
     private function optionalContentPropertyVisibilityMapForResourceOwnerBody(
         string $resourceOwnerBody,
@@ -6012,9 +6055,10 @@ final class PdfTextExtractor
                 break;
             }
 
-            if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $propertiesDictionary, $referenceMatch, 0, $valueOffset) === 1) {
+            if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $propertiesDictionary, $referenceMatch, 0, $valueOffset) === 1) {
                 $properties[$name] = $this->optionalContentReferenceVisible(
                     (int) $referenceMatch[1],
+                    (int) $referenceMatch[2],
                     $objects,
                     $optionalContentStates
                 );
@@ -6147,7 +6191,7 @@ final class PdfTextExtractor
      * @param list<string> $operands
      * @param array<string, bool> $propertyVisibility
      * @param array<int, string> $objects
-     * @param array<int, bool> $optionalContentStates
+     * @param array<int|string, bool> $optionalContentStates
      */
     private function markedOptionalContentIsHidden(
         array $operands,
@@ -6190,8 +6234,13 @@ final class PdfTextExtractor
             return isset($propertyVisibility[$propertyName]) && !$propertyVisibility[$propertyName];
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $propertyOperand, $match) === 1) {
-            return !$this->optionalContentReferenceVisible((int) $match[1], $objects, $optionalContentStates);
+        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $propertyOperand, $match) === 1) {
+            return !$this->optionalContentReferenceVisible(
+                (int) $match[1],
+                (int) $match[2],
+                $objects,
+                $optionalContentStates
+            );
         }
 
         if (str_starts_with($propertyOperand, '<<')) {
@@ -6205,7 +6254,7 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
-     * @param array<int, bool> $optionalContentStates
+     * @param array<int|string, bool> $optionalContentStates
      */
     private function optionalContentObjectVisible(string $objectBody, array $objects, array $optionalContentStates): bool
     {
@@ -6220,7 +6269,7 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
-     * @param array<int, bool> $optionalContentStates
+     * @param array<int|string, bool> $optionalContentStates
      */
     private function optionalContentValueVisible(string $value, array $objects, array $optionalContentStates): bool
     {
@@ -6229,8 +6278,13 @@ final class PdfTextExtractor
             return true;
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) === 1) {
-            return $this->optionalContentReferenceVisible((int) $match[1], $objects, $optionalContentStates);
+        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) === 1) {
+            return $this->optionalContentReferenceVisible(
+                (int) $match[1],
+                (int) $match[2],
+                $objects,
+                $optionalContentStates
+            );
         }
 
         if (str_starts_with($value, '<<')) {
@@ -6249,31 +6303,52 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
-     * @param array<int, bool> $optionalContentStates
+     * @param array<int|string, bool> $optionalContentStates
      */
-    private function optionalContentReferenceVisible(int $objectNumber, array $objects, array $optionalContentStates): bool
+    private function optionalContentReferenceVisible(
+        int $objectNumber,
+        int $generation,
+        array $objects,
+        array $optionalContentStates
+    ): bool
     {
-        if (!isset($objects[$objectNumber])) {
+        $referenceKey = $this->optionalContentReferenceKey($objectNumber, $generation);
+        if (array_key_exists($referenceKey, $optionalContentStates)) {
+            return $optionalContentStates[$referenceKey];
+        }
+        if ($generation === 0 && array_key_exists($objectNumber, $optionalContentStates)) {
+            return $optionalContentStates[$objectNumber];
+        }
+
+        $objectBody = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
+        if ($objectBody === null) {
             return true;
         }
 
-        $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+        $dictionary = $this->dictionaryObjectBody($objectBody);
         if ($dictionary === null) {
             return true;
         }
 
-        return $this->optionalContentDictionaryVisible($dictionary, $objects, $optionalContentStates, $objectNumber);
+        return $this->optionalContentDictionaryVisible(
+            $dictionary,
+            $objects,
+            $optionalContentStates,
+            $objectNumber,
+            $generation
+        );
     }
 
     /**
      * @param array<int, string> $objects
-     * @param array<int, bool> $optionalContentStates
+     * @param array<int|string, bool> $optionalContentStates
      */
     private function optionalContentDictionaryVisible(
         string $dictionary,
         array $objects,
         array $optionalContentStates,
-        ?int $objectNumber = null
+        ?int $objectNumber = null,
+        int $generation = 0
     ): bool {
         $type = $this->pdfNameValueAfterName($dictionary, 'Type') ?? 'OCG';
         if ($type === 'OCMD') {
@@ -6284,8 +6359,14 @@ final class PdfTextExtractor
             return true;
         }
 
-        if ($objectNumber !== null && array_key_exists($objectNumber, $optionalContentStates)) {
-            return $optionalContentStates[$objectNumber];
+        if ($objectNumber !== null) {
+            $referenceKey = $this->optionalContentReferenceKey($objectNumber, $generation);
+            if (array_key_exists($referenceKey, $optionalContentStates)) {
+                return $optionalContentStates[$referenceKey];
+            }
+            if ($generation === 0 && array_key_exists($objectNumber, $optionalContentStates)) {
+                return $optionalContentStates[$objectNumber];
+            }
         }
 
         if (!$this->optionalContentDictionaryMatchesIntent($dictionary, $objects, ['View'])) {
@@ -6297,7 +6378,7 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
-     * @param array<int, bool> $optionalContentStates
+     * @param array<int|string, bool> $optionalContentStates
      */
     private function optionalContentMembershipVisible(
         string $dictionary,
@@ -6326,7 +6407,7 @@ final class PdfTextExtractor
     /**
      * @return list<bool>
      * @param array<int, string> $objects
-     * @param array<int, bool> $optionalContentStates
+     * @param array<int|string, bool> $optionalContentStates
      */
     private function optionalContentVisibilityValuesFromValue(
         string $value,
@@ -6338,8 +6419,15 @@ final class PdfTextExtractor
             return [];
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) === 1) {
-            return [$this->optionalContentReferenceVisible((int) $match[1], $objects, $optionalContentStates)];
+        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) === 1) {
+            return [
+                $this->optionalContentReferenceVisible(
+                    (int) $match[1],
+                    (int) $match[2],
+                    $objects,
+                    $optionalContentStates
+                ),
+            ];
         }
 
         if (str_starts_with($value, '<<')) {
@@ -6353,8 +6441,13 @@ final class PdfTextExtractor
         }
 
         $values = [];
-        foreach ($this->objectReferences($arrayBody) as $objectNumber) {
-            $values[] = $this->optionalContentReferenceVisible($objectNumber, $objects, $optionalContentStates);
+        foreach ($this->objectReferencePairs($arrayBody) as $reference) {
+            $values[] = $this->optionalContentReferenceVisible(
+                $reference['objectNumber'],
+                $reference['generation'],
+                $objects,
+                $optionalContentStates
+            );
         }
 
         return $values;

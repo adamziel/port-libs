@@ -11,6 +11,7 @@ $contentOpen = "BT /F1 12 Tf 72 720 Td (Current Image Boundary Intro) Tj ET\n"
 $contentClose = "/Logo#20Form Do Q\n"
     . "/OC /LayerOff BDC q 12 0 0 12 110 690 cm /HiddenMarked Do Q EMC\n"
     . "q 12 0 0 12 126 690 cm /HiddenObject Do Q\n"
+    . "q 12 0 0 12 142 690 cm /GenerationVisible Do Q\n"
     . 'BT /F1 12 Tf 72 668 Td (Current Image Boundary Outro) Tj ET';
 $formContent = 'q 4 2 8 4 re W n 16 0 0 8 2 2 cm /Hero#20Image Do Q';
 $imagePayload = 'BT /F1 12 Tf 72 720 Td (WordPress Image XObject Payload Noise) Tj ET';
@@ -25,6 +26,7 @@ $stalePrintAlternatePayload = 'BT /F1 12 Tf 72 720 Td (WordPress Stale Print Alt
 $screenAlternatePayload = "\xff\x4fBT /F1 12 Tf 72 720 Td (WordPress Screen Alternate Image Noise) Tj ET\xff\xd9";
 $hiddenMarkedPayload = 'BT /F1 12 Tf 72 720 Td (WordPress Hidden Marked Image Noise) Tj ET';
 $hiddenObjectPayload = 'BT /F1 12 Tf 72 720 Td (WordPress Hidden Object Image Noise) Tj ET';
+$generationVisiblePayload = 'BT /F1 12 Tf 72 720 Td (WordPress Generation Visible Image Noise) Tj ET';
 $compressedImagePayload = gzcompress($imagePayload);
 $compressedMaskPayload = gzcompress($maskPayload);
 $compressedStaleMaskPayload = gzcompress($staleMaskPayload);
@@ -36,6 +38,7 @@ $compressedPrintAlternatePayload = gzcompress($printAlternatePayload);
 $compressedStalePrintAlternatePayload = gzcompress($stalePrintAlternatePayload);
 $compressedHiddenMarkedPayload = gzcompress($hiddenMarkedPayload);
 $compressedHiddenObjectPayload = gzcompress($hiddenObjectPayload);
+$compressedGenerationVisiblePayload = gzcompress($generationVisiblePayload);
 if (
     !is_string($compressedImagePayload)
     || !is_string($compressedMaskPayload)
@@ -48,6 +51,7 @@ if (
     || !is_string($compressedStalePrintAlternatePayload)
     || !is_string($compressedHiddenMarkedPayload)
     || !is_string($compressedHiddenObjectPayload)
+    || !is_string($compressedGenerationVisiblePayload)
 ) {
     throw new RuntimeException('Unable to compress image XObject smoke payload.');
 }
@@ -55,8 +59,8 @@ $encodedImagePayload = strtoupper(bin2hex($compressedImagePayload)) . '>';
 $encodedSoftMaskPayload = strtoupper(bin2hex($compressedSoftMaskPayload)) . '>';
 
 $pdf = "%PDF-1.4\n"
-    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Metadata 11 1 R /AuxGenerationDecoys [12 1 R 15 1 R] /OCProperties << /OCGs [20 0 R 21 0 R] /D << /BaseState /OFF /ON [20 0 R] /Order [20 0 R 21 0 R] >> >> >>\nendobj\n"
-    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /ColorSpace << /CSHero 17 0 R >> /Properties << /LayerOn 20 0 R /LayerOff 21 0 R >> /XObject << /Logo#20Form 5 0 R /Hero#20Image 6 0 R /HiddenMarked 7 0 R /HiddenObject 8 0 R >> >> >>\nendobj\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Metadata 11 1 R /AuxGenerationDecoys [12 1 R 15 1 R] /OCProperties << /OCGs [20 0 R 21 0 R 21 1 R] /D << /BaseState /OFF /ON [20 0 R 21 1 R] /Order [20 0 R 21 0 R 21 1 R] >> >> >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /ColorSpace << /CSHero 17 0 R >> /Properties << /LayerOn 20 0 R /LayerOff 21 0 R >> /XObject << /Logo#20Form 5 0 R /Hero#20Image 6 0 R /HiddenMarked 7 0 R /HiddenObject 8 0 R /GenerationVisible 18 0 R >> >> >>\nendobj\n"
     . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 14 0 R] >>\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($contentOpen) . " >>\nstream\n{$contentOpen}\nendstream\nendobj\n"
     . "5 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 32 16] /Length " . strlen($formContent) . " >>\nstream\n{$formContent}\nendstream\nendobj\n"
@@ -76,16 +80,18 @@ $pdf = "%PDF-1.4\n"
     . "16 1 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter [/ASCIIHexDecode /FlateDecode] /Decode [1 0] /Length " . strlen($encodedSoftMaskPayload) . " >>\nstream\n{$encodedSoftMaskPayload}\nendstream\nendobj\n"
     . "17 0 obj\n[/DeviceRGB]\nendobj\n"
     . "17 1 obj\n[/DeviceGray]\nendobj\n"
+    . "18 0 obj\n<< /Type /XObject /Subtype /Image /OC 21 1 R /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($compressedGenerationVisiblePayload) . " >>\nstream\n{$compressedGenerationVisiblePayload}\nendstream\nendobj\n"
     . "20 0 obj\n<< /Type /OCG /Name (Visible WordPress Image Layer) >>\nendobj\n"
-    . "21 0 obj\n<< /Type /OCG /Name (Hidden WordPress Image Layer) >>\nendobj\n%%EOF";
+    . "21 0 obj\n<< /Type /OCG /Name (Hidden WordPress Image Layer) >>\nendobj\n"
+    . "21 1 obj\n<< /Type /OCG /Name (Visible WordPress Generation Image Layer) >>\nendobj\n%%EOF";
 
 $extractor = new PdfTextExtractor();
 $review = $extractor->extractImageXObjectBoundaryReview($pdf);
 $plainText = $extractor->extractPlainText($pdf);
 
 if (
-    ($review['image_xobject_count'] ?? 0) !== 3
-    || ($review['invoked_image_xobject_count'] ?? 0) !== 1
+    ($review['image_xobject_count'] ?? 0) !== 4
+    || ($review['invoked_image_xobject_count'] ?? 0) !== 2
     || ($review['entries'][0]['image_unit_bbox'] ?? null) !== [136.0, 722.0, 648.0, 850.0]
     || ($review['entries'][0]['image_visible_bbox'] ?? null) !== [200.0, 722.0, 456.0, 786.0]
     || ($review['entries'][0]['clip_reduces_painted_bbox'] ?? false) !== true
@@ -124,6 +130,7 @@ if (
     || str_contains($plainText, 'WordPress Screen Alternate Image Noise')
     || str_contains($plainText, 'WordPress Hidden Marked Image Noise')
     || str_contains($plainText, 'WordPress Hidden Object Image Noise')
+    || str_contains($plainText, 'WordPress Generation Visible Image Noise')
 ) {
     throw new RuntimeException('Image XObject boundary smoke failed.');
 }
@@ -198,6 +205,9 @@ $metadata = [
     'hidden_marked_color_key_valid' => $entriesByName['HiddenMarked']['mask_review']['valid_for_components'] ?? false,
     'hidden_object_optional_content_visible' => $entriesByName['HiddenObject']['optional_content_visible'] ?? true,
     'hidden_object_invoked' => $entriesByName['HiddenObject']['invoked'] ?? true,
+    'generation_visible_optional_content_visible' => $entriesByName['GenerationVisible']['optional_content_visible'] ?? false,
+    'generation_visible_invoked' => $entriesByName['GenerationVisible']['invoked'] ?? false,
+    'generation_visible_sha256_matches' => ($entriesByName['GenerationVisible']['decoded_sha256'] ?? null) === hash('sha256', $generationVisiblePayload),
     'payload_in_visible_text' => $review['entries'][0]['payload_in_visible_text'] ?? true,
 ];
 

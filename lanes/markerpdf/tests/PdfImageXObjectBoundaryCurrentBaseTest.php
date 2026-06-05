@@ -1172,6 +1172,71 @@ return [
         $t->true(!str_contains($plainText, 'Private Image Payload Noise'));
         $t->true(!str_contains($plainText, 'Private Form Text Leak'));
     },
+    'keeps optional-content Image XObject invocations generation-specific' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before generation layers) Tj ET\n"
+            . "q 12 0 0 12 72 690 cm /Hidden#20Generation Do Q\n"
+            . "q 12 0 0 12 96 690 cm /Visible#20Generation Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After generation layers) Tj ET';
+        $hiddenPayload = 'BT /F1 12 Tf 72 720 Td (Hidden OCG Generation Image Noise) Tj ET';
+        $visiblePayload = 'BT /F1 12 Tf 72 720 Td (Visible OCG Generation Image Noise) Tj ET';
+        $hiddenCompressed = gzcompress($hiddenPayload);
+        $visibleCompressed = gzcompress($visiblePayload);
+        if (!is_string($hiddenCompressed) || !is_string($visibleCompressed)) {
+            throw new RuntimeException('Unable to compress optional-content generation fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.5\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [21 0 R 21 1 R] /D << /BaseState /OFF /ON [21 1 R] /Order [21 0 R 21 1 R] >> >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 10 0 R >> /XObject << /Hidden#20Generation 5 0 R /Visible#20Generation 6 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /OC 21 0 R /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($hiddenCompressed) . " >>\nstream\n{$hiddenCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /OC 21 1 R /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($visibleCompressed) . " >>\nstream\n{$visibleCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "21 0 obj\n<< /Type /OCG /Name (Hidden Generation Layer) >>\nendobj\n"
+            . "21 1 obj\n<< /Type /OCG /Name (Visible Generation Layer) >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(1, $review['uninvoked_image_xobject_count']);
+
+        $hidden = $entriesByName['Hidden Generation'];
+        $t->same(false, $hidden['optional_content_visible']);
+        $t->same(false, $hidden['invoked']);
+        $t->same(0, $hidden['invocation_count']);
+        $t->same([], $hidden['invocation_matrices']);
+        $t->same(true, $hidden['decoded_with_current_filters']);
+        $t->same(hash('sha256', $hiddenPayload), $hidden['decoded_sha256']);
+
+        $visible = $entriesByName['Visible Generation'];
+        $t->same(true, $visible['optional_content_visible']);
+        $t->same(true, $visible['invoked']);
+        $t->same(1, $visible['invocation_count']);
+        $t->same([[12.0, 0.0, 0.0, 12.0, 96.0, 690.0]], $visible['invocation_matrices']);
+        $t->same([96.0, 690.0, 108.0, 702.0], $visible['image_unit_bbox']);
+        $t->same(true, $visible['decoded_with_current_filters']);
+        $t->same(hash('sha256', $visiblePayload), $visible['decoded_sha256']);
+
+        $t->same(['Before generation layers', 'After generation layers'], $extractor->extractTextLines($pdf));
+        $t->same("Before generation layers\nAfter generation layers", $plainText);
+        $t->true(!str_contains($plainText, 'Hidden OCG Generation Image Noise'));
+        $t->true(!str_contains($plainText, 'Visible OCG Generation Image Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(str_contains($encoded, hash('sha256', $hiddenPayload)));
+        $t->true(str_contains($encoded, hash('sha256', $visiblePayload)));
+        $t->true(!str_contains($encoded, $hiddenPayload));
+        $t->true(!str_contains($encoded, $visiblePayload));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
