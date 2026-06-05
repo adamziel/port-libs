@@ -10129,23 +10129,130 @@ final class PdfAcroFormExtractor
     {
         $objects = [];
         $this->objectGenerations = [];
-        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
-            return $objects;
-        }
 
-        foreach ($matches as $match) {
-            $objectNumber = (int) $match[1];
-            $generation = (int) $match[2];
+        $offset = 0;
+        while (preg_match('/(\d+)\s+(\d+)\s+obj\b/s', $pdfBytes, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $bodyStart = $match[0][1] + strlen($match[0][0]);
+            $bodyEnd = $this->pdfObjectEndOffset($pdfBytes, $bodyStart);
+            if ($bodyEnd === null) {
+                break;
+            }
+
+            $objectNumber = (int) $match[1][0];
+            $generation = (int) $match[2][0];
             $selectedGeneration = $this->objectGenerations[$objectNumber] ?? null;
             if ($selectedGeneration !== null && $generation < $selectedGeneration) {
+                $offset = $bodyEnd + strlen('endobj');
                 continue;
             }
 
-            $objects[$objectNumber] = $match[3];
+            $objects[$objectNumber] = substr($pdfBytes, $bodyStart, $bodyEnd - $bodyStart);
             $this->objectGenerations[$objectNumber] = $generation;
+            $offset = $bodyEnd + strlen('endobj');
         }
 
         return $objects;
+    }
+
+    private function pdfObjectEndOffset(string $pdfBytes, int $offset): ?int
+    {
+        $index = $offset;
+        $length = strlen($pdfBytes);
+        while ($index < $length) {
+            $char = $pdfBytes[$index];
+            if ($char === '%') {
+                $index = $this->skipPdfComment($pdfBytes, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $index = $this->skipLiteralString($pdfBytes, $index);
+                continue;
+            }
+
+            if ($char === '<') {
+                if (($pdfBytes[$index + 1] ?? '') === '<') {
+                    $endOffset = null;
+                    $this->readPdfDictionaryAt($pdfBytes, $index, $endOffset);
+                    if ($endOffset !== null) {
+                        $index = $endOffset;
+                        continue;
+                    }
+                } else {
+                    $index = $this->skipHexString($pdfBytes, $index);
+                    continue;
+                }
+            }
+
+            if ($char === '[') {
+                $endOffset = null;
+                $this->readPdfArrayAt($pdfBytes, $index, $endOffset);
+                if ($endOffset !== null) {
+                    $index = $endOffset;
+                    continue;
+                }
+            }
+
+            if ($char === '/') {
+                $index = $this->skipPdfName($pdfBytes, $index);
+                continue;
+            }
+
+            if ($this->pdfKeywordAt($pdfBytes, $index, 'stream')) {
+                $streamEnd = $this->pdfStreamEndOffset($pdfBytes, $index);
+                if ($streamEnd !== null) {
+                    $index = $streamEnd + strlen('endstream');
+                    continue;
+                }
+            }
+
+            if ($this->pdfKeywordAt($pdfBytes, $index, 'endobj')) {
+                return $index;
+            }
+
+            $index++;
+        }
+
+        return null;
+    }
+
+    private function pdfStreamEndOffset(string $pdfBytes, int $streamKeywordOffset): ?int
+    {
+        $offset = $streamKeywordOffset + strlen('stream');
+        if (substr($pdfBytes, $offset, 2) === "\r\n") {
+            $offset += 2;
+        } elseif (($pdfBytes[$offset] ?? '') === "\n" || ($pdfBytes[$offset] ?? '') === "\r") {
+            $offset++;
+        }
+
+        $searchOffset = $offset;
+        while (($candidate = strpos($pdfBytes, 'endstream', $searchOffset)) !== false) {
+            if ($this->pdfKeywordAt($pdfBytes, $candidate, 'endstream')) {
+                return $candidate;
+            }
+
+            $searchOffset = $candidate + 1;
+        }
+
+        return null;
+    }
+
+    private function pdfKeywordAt(string $body, int $offset, string $keyword): bool
+    {
+        if (substr($body, $offset, strlen($keyword)) !== $keyword) {
+            return false;
+        }
+
+        $before = $offset === 0 ? null : $body[$offset - 1];
+        $afterOffset = $offset + strlen($keyword);
+        $after = $afterOffset >= strlen($body) ? null : $body[$afterOffset];
+
+        return $this->isPdfKeywordBoundary($before) && $this->isPdfKeywordBoundary($after);
+    }
+
+    private function isPdfKeywordBoundary(?string $char): bool
+    {
+        return $char === null || ctype_space($char) || str_contains('[]()<>{}/%', $char);
     }
 
     /**
