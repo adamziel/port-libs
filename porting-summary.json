@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 12:50:52 UTC",
-    "sourceCommit": "af2575a57bdb5d0f0b53fdb98a89256019c109bb",
-    "sourceCommitShort": "af2575a57bdb",
+    "generated": "2026-06-05 12:50:59 UTC",
+    "sourceCommit": "26cbd2dde4d4f50c4ac8eab2a5a202e4eb7b007f",
+    "sourceCommitShort": "26cbd2dde4d4",
     "sourceBranch": "unknown",
-    "dashboardCommit": "af2575a57bdb5d0f0b53fdb98a89256019c109bb",
-    "dashboardCommitShort": "af2575a57bdb",
+    "dashboardCommit": "26cbd2dde4d4f50c4ac8eab2a5a202e4eb7b007f",
+    "dashboardCommitShort": "26cbd2dde4d4",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -139,10 +139,10 @@
             "unmapped": "915",
             "php": "903 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-05 UTC ZIP EOCD/archive-layout slice on accepted base b075679...",
+            "audit": "2026-06-05 UTC upstream-runner dependency audit on accepted base 4f71...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For ZIP/package follow-up, keep full ZIP64 large-archive supp...",
-            "remainingGate": "No local blocker",
+            "nextTarget": "For upstream-runner dependency closure, hydrate a local Pando...",
+            "remainingGate": "Upstream runner dependency blocker: full upstream Pandoc runner parit...",
             "commit": "pending fast ac..."
         },
         {
