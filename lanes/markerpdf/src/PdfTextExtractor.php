@@ -17819,7 +17819,8 @@ final class PdfTextExtractor
                     $nextOffset = $this->objectStreamMemberEndOffset(
                         $memberTable['members'],
                         $member['offset'],
-                        $objectDataLength
+                        $objectDataLength,
+                        $memberTable
                     );
                     if ($nextOffset === null) {
                         continue;
@@ -20609,7 +20610,12 @@ final class PdfTextExtractor
      *
      * @param list<array{objectNumber: int, offset: int, index: int}> $members
      */
-    private function objectStreamMemberEndOffset(array $members, int $memberOffset, int $objectDataLength): ?int
+    private function objectStreamMemberEndOffset(
+        array $members,
+        int $memberOffset,
+        int $objectDataLength,
+        ?array $memberTable = null
+    ): ?int
     {
         if ($memberOffset < 0 || $memberOffset >= $objectDataLength) {
             return null;
@@ -20619,6 +20625,10 @@ final class PdfTextExtractor
         foreach ($members as $candidate) {
             $candidateOffset = $candidate['offset'];
             if ($candidateOffset > $memberOffset && $candidateOffset < $endOffset) {
+                if ($memberTable !== null && !$this->objectStreamMemberOffsetHasTokenBoundary($memberTable, $candidate)) {
+                    continue;
+                }
+
                 $endOffset = $candidateOffset;
             }
         }
@@ -20640,7 +20650,8 @@ final class PdfTextExtractor
         $nextOffset = $this->objectStreamMemberEndOffset(
             $memberTable['members'],
             $member['offset'],
-            $objectDataLength
+            $objectDataLength,
+            $memberTable
         );
         if ($nextOffset === null) {
             return null;
@@ -22326,7 +22337,8 @@ final class PdfTextExtractor
                     $nextOffset = $this->objectStreamMemberEndOffset(
                         $memberTable['members'],
                         $member['offset'],
-                        $objectDataLength
+                        $objectDataLength,
+                        $memberTable
                     );
                     if ($nextOffset === null) {
                         continue;
