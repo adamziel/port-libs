@@ -957,4 +957,76 @@ return [
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'keeps matched layout order artifacts from leaking nested pdftext dictionary payloads' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(400, [
+                    ['text' => 'Adapter payload cover page skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(401, [
+                    ['text' => 'Second sanitized order column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First sanitized order column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'metadata' => [
+                        'page' => 401,
+                        'raw_private_payload' => 'hidden order adapter payload should not cross page order metadata',
+                    ],
+                    'pdftext' => $pdftextLinesPage(401, [
+                        ['text' => 'Nested pdftext page copy must stay out of order metadata', 'bbox' => [72.0, 160.0, 500.0, 174.0]],
+                    ]),
+                    'blocks' => [[
+                        'lines' => [[
+                            'spans' => [[
+                                'text' => 'Raw order-result text block should not be copied',
+                                'bbox' => [72.0, 180.0, 500.0, 194.0],
+                            ]],
+                        ]],
+                    ]],
+                    'raw_pdf_bytes' => 'hidden order-result raw PDF bytes',
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                    ],
+                ],
+            ],
+            orderImages: [
+                [
+                    'metadata' => ['page' => 401],
+                    'raw_render_payload' => 'hidden rendered page payload should not affect selected order',
+                    'image' => 'matched-order-render',
+                ],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $processor = new MarkdownPostProcessor();
+        $blocks = $processor->mergeBlocks($processor->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([1], $result['page_range']);
+        $t->same(401, $result['pages'][0]['pnum']);
+        $t->same(['First sanitized order column', 'Second sanitized order column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First sanitized order column Second sanitized order column', $blocks[0]['text']);
+        $t->same(401, $result['pages'][0]['order']['page']);
+        $t->same([0.0, 0.0, 612.0, 792.0], $result['pages'][0]['order']['image_bbox']);
+        $t->same(2, count($result['pages'][0]['order']['bboxes']));
+        $t->true(!array_key_exists('metadata', $result['pages'][0]['order']));
+        $t->true(!array_key_exists('pdftext', $result['pages'][0]['order']));
+        $t->true(!array_key_exists('blocks', $result['pages'][0]['order']));
+        $t->true(!str_contains($encoded, 'hidden order adapter payload'));
+        $t->true(!str_contains($encoded, 'Nested pdftext page copy must stay out'));
+        $t->true(!str_contains($encoded, 'Raw order-result text block should not be copied'));
+        $t->true(!str_contains($encoded, 'hidden order-result raw PDF bytes'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
 ];

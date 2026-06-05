@@ -8,6 +8,35 @@ use InvalidArgumentException;
 
 final class LayoutOrderer
 {
+    private const ORDER_RESULT_PAGE_MARKER_KEYS = [
+        'page_index',
+        'doc_page_index',
+        'document_page_index',
+        'source_page_index',
+        'selected_page_index',
+        'trimmed_page_index',
+        'relative_page_index',
+        'pnum',
+        'page',
+        'pdftext_page',
+        'page_number',
+        'selected_page_number',
+        'trimmed_page_number',
+        'relative_page_number',
+    ];
+    private const ORDER_RESULT_PAGE_MARKER_WRAPPERS = [
+        'metadata',
+        'page_metadata',
+        'page_meta',
+        'page_info',
+        'page_data',
+        'page_result',
+        'result_metadata',
+        'artifact_metadata',
+        'source',
+        'pdftext',
+    ];
+
     private MarkerSettings $settings;
 
     public function __construct(?MarkerSettings $settings = null)
@@ -63,7 +92,7 @@ final class LayoutOrderer
             if (!is_array($orderResults[$index])) {
                 throw new InvalidArgumentException('Supplied ordering predictions must be arrays.');
             }
-            $pages[$index]['order'] = $orderResults[$index];
+            $pages[$index]['order'] = $this->sanitizeSuppliedOrderResult($orderResults[$index]);
             $assignedPages++;
         }
 
@@ -80,6 +109,91 @@ final class LayoutOrderer
                 'order_max_bboxes' => $maxBboxes,
             ],
         ];
+    }
+
+    /**
+     * Supplied adapters sometimes carry page identity by wrapping the ordering
+     * payload with pdftext dictionaries. Upstream page.order is the Surya
+     * ordering result, so keep only ordering geometry plus scalar page markers.
+     *
+     * @param array<string, mixed> $orderResult
+     * @return array<string, mixed>
+     */
+    private function sanitizeSuppliedOrderResult(array $orderResult): array
+    {
+        $sanitized = [];
+        foreach (['image_bbox', 'bboxes'] as $key) {
+            if (array_key_exists($key, $orderResult)) {
+                $sanitized[$key] = $orderResult[$key];
+            }
+        }
+
+        foreach ($this->orderResultPageMarkerSources($orderResult) as $source) {
+            foreach (self::ORDER_RESULT_PAGE_MARKER_KEYS as $key) {
+                if (!array_key_exists($key, $source) || array_key_exists($key, $sanitized)) {
+                    continue;
+                }
+
+                $value = $this->integerValue($source[$key]);
+                if ($value !== null) {
+                    $sanitized[$key] = $value;
+                }
+            }
+        }
+
+        return $sanitized;
+    }
+
+    /**
+     * @param array<string, mixed> $orderResult
+     * @return list<array<string, mixed>>
+     */
+    private function orderResultPageMarkerSources(array $orderResult): array
+    {
+        $sources = [];
+        $this->collectOrderResultPageMarkerSources($orderResult, $sources);
+
+        return $sources;
+    }
+
+    /**
+     * @param array<string, mixed> $artifact
+     * @param list<array<string, mixed>> $sources
+     */
+    private function collectOrderResultPageMarkerSources(array $artifact, array &$sources, int $depth = 0): void
+    {
+        $sources[] = $artifact;
+        if ($depth >= 2) {
+            return;
+        }
+
+        foreach (self::ORDER_RESULT_PAGE_MARKER_WRAPPERS as $key) {
+            $value = $artifact[$key] ?? null;
+            if (!is_array($value) || array_is_list($value)) {
+                continue;
+            }
+            $this->collectOrderResultPageMarkerSources($value, $sources, $depth + 1);
+        }
+    }
+
+    private function integerValue(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_float($value) && floor($value) === $value) {
+            return (int) $value;
+        }
+
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if (preg_match('/^-?\d+$/', $trimmed) === 1) {
+                return (int) $trimmed;
+            }
+        }
+
+        return null;
     }
 
     /**
