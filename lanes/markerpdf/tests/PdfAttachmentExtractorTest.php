@@ -378,6 +378,133 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, 'stale-eof.csv'));
         $t->true(is_string($encoded) && !str_contains($encoded, 'Stale EOF Attachment'));
     },
+    'uses current xref rows before stale same-object attachment preflight rows' => static function (TestRunner $t): void {
+        $currentPayload = "Title,Status\nCurrent XRef Attachment,Ready\n";
+        $stalePayload = "Title,Status\nStale XRef Attachment,Ignore\n";
+        $currentChecksum = md5($currentPayload);
+        $staleChecksum = md5($stalePayload);
+
+        $pdf = "%PDF-1.7\n";
+        $offsets = [];
+        $addObject = static function (int $objectNumber, string $body) use (&$pdf, &$offsets): void {
+            $offsets[$objectNumber] = strlen($pdf);
+            $pdf .= "{$objectNumber} 0 obj\n{$body}\nendobj\n";
+        };
+
+        $addObject(1, '<< /Type /Catalog /Names << /EmbeddedFiles 2 0 R >> /AF [4 0 R] >>');
+        $addObject(2, '<< /Names [(current-xref.csv) 4 0 R] >>');
+        $addObject(4, '<< /Type /Filespec /F (current-xref.csv) /Desc (Current xref-selected attachment rows) /AFRelationship /Data /EF << /F 5 0 R >> >>');
+        $addObject(5, "<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($currentPayload) . " /CheckSum <{$currentChecksum}> /ModDate (D:20260605001158Z) >> /Length " . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+        $pdf .= "4 0 obj\n<< /Type /Filespec /F (stale-xref.csv) /Desc (Stale unindexed attachment rows) /AFRelationship /Alternative /EF << /F 5 0 R >> >>\nendobj\n"
+            . "5 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($stalePayload) . " /CheckSum <{$staleChecksum}> >> /Length " . strlen($stalePayload) . " >>\n"
+            . "stream\n{$stalePayload}\nendstream\nendobj\n";
+
+        $xrefOffset = strlen($pdf);
+        $xrefRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+        $pdf .= "xref\n0 6\n"
+            . $xrefRow(0, 65535, 'f')
+            . $xrefRow($offsets[1])
+            . $xrefRow($offsets[2])
+            . $xrefRow(0, 0, 'f')
+            . $xrefRow($offsets[4])
+            . $xrefRow($offsets[5])
+            . "trailer\n<< /Size 6 /Root 1 0 R >>\n"
+            . "startxref\n{$xrefOffset}\n%%EOF\n";
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $encoded = json_encode($summary, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(strlen($currentPayload), $summary['total_bytes']);
+        $t->same(['current-xref.csv'], $summary['filenames']);
+
+        $attachment = $summary['attachments'][0];
+        $t->same('embedded-files-name-tree', $attachment['source']);
+        $t->same('current-xref.csv', $attachment['name_key']);
+        $t->same('current-xref.csv', $attachment['filename']);
+        $t->same('Current xref-selected attachment rows', $attachment['description']);
+        $t->same('Data', $attachment['relationship']);
+        $t->same('base_data_for_visual_presentation', $attachment['relationship_role']);
+        $t->same('text/csv', $attachment['content_type']);
+        $t->same(strlen($currentPayload), $attachment['byte_length']);
+        $t->same($currentChecksum, $attachment['checksum_hex']);
+        $t->same($currentChecksum, $attachment['computed_checksum_hex']);
+        $t->same(true, $attachment['checksum_matches']);
+        $t->same('D:20260605001158Z', $attachment['modified_at']);
+        $t->same(true, $attachment['associated_file']);
+        $t->same('catalog_af', $attachment['associated_file_source']);
+        $t->same(false, array_key_exists('bytes', $attachment));
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'stale-xref.csv'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Stale XRef Attachment'));
+    },
+    'uses current xref stream rows before stale same-object attachment preflight rows' => static function (TestRunner $t): void {
+        $currentPayload = "Title,Status\nCurrent XRef Stream Attachment,Ready\n";
+        $stalePayload = "Title,Status\nStale XRef Stream Attachment,Ignore\n";
+        $currentChecksum = md5($currentPayload);
+        $staleChecksum = md5($stalePayload);
+
+        $pdf = "%PDF-1.7\n";
+        $offsets = [];
+        $addObject = static function (int $objectNumber, string $body) use (&$pdf, &$offsets): void {
+            $offsets[$objectNumber] = strlen($pdf);
+            $pdf .= "{$objectNumber} 0 obj\n{$body}\nendobj\n";
+        };
+
+        $addObject(1, '<< /Type /Catalog /Names << /EmbeddedFiles 2 0 R >> >>');
+        $addObject(2, '<< /Names [(current-xref-stream.csv) 4 0 R] >>');
+        $addObject(4, '<< /Type /Filespec /F (current-xref-stream.csv) /Desc (Current xref-stream-selected attachment rows) /AFRelationship /Source /EF << /F 5 0 R >> >>');
+        $addObject(5, "<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($currentPayload) . " /CheckSum <{$currentChecksum}> /ModDate (D:20260605001201Z) >> /Length " . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+        $pdf .= "4 0 obj\n<< /Type /Filespec /F (stale-xref-stream.csv) /Desc (Stale xref-stream attachment rows) /AFRelationship /Alternative /EF << /F 5 0 R >> >>\nendobj\n"
+            . "5 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($stalePayload) . " /CheckSum <{$staleChecksum}> >> /Length " . strlen($stalePayload) . " >>\n"
+            . "stream\n{$stalePayload}\nendstream\nendobj\n";
+
+        $xrefOffset = strlen($pdf);
+        $rows = '';
+        for ($objectNumber = 0; $objectNumber < 10; $objectNumber++) {
+            if ($objectNumber === 0 || (!isset($offsets[$objectNumber]) && $objectNumber !== 9)) {
+                $rows .= pack('CNn', 0, 0, $objectNumber === 0 ? 65535 : 0);
+                continue;
+            }
+
+            $rows .= pack('CNn', 1, $objectNumber === 9 ? $xrefOffset : $offsets[$objectNumber], 0);
+        }
+
+        $compressedXref = gzcompress($rows);
+        if (!is_string($compressedXref)) {
+            throw new RuntimeException('Unable to compress attachment xref stream fixture.');
+        }
+
+        $pdf .= "9 0 obj\n"
+            . '<< /Type /XRef /Size 10 /Root 1 0 R /W [1 4 2] /Filter /FlateDecode /Length ' . strlen($compressedXref) . " >>\n"
+            . "stream\n{$compressedXref}\nendstream\nendobj\n"
+            . "startxref\n{$xrefOffset}\n%%EOF\n";
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $encoded = json_encode($summary, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(['current-xref-stream.csv'], $summary['filenames']);
+
+        $attachment = $summary['attachments'][0];
+        $t->same('embedded-files-name-tree', $attachment['source']);
+        $t->same('current-xref-stream.csv', $attachment['name_key']);
+        $t->same('current-xref-stream.csv', $attachment['filename']);
+        $t->same('Current xref-stream-selected attachment rows', $attachment['description']);
+        $t->same('Source', $attachment['relationship']);
+        $t->same('original_source', $attachment['relationship_role']);
+        $t->same(strlen($currentPayload), $attachment['byte_length']);
+        $t->same($currentChecksum, $attachment['checksum_hex']);
+        $t->same($currentChecksum, $attachment['computed_checksum_hex']);
+        $t->same(true, $attachment['checksum_matches']);
+        $t->same('D:20260605001201Z', $attachment['modified_at']);
+        $t->same(false, array_key_exists('bytes', $attachment));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'stale-xref-stream.csv'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Stale XRef Stream Attachment'));
+    },
     'extracts page FileAttachment annotation embedded streams with page metadata' => static function (TestRunner $t) use ($fileAttachmentAnnotationPdf): void {
         [$pdf, $payload] = $fileAttachmentAnnotationPdf();
         $attachments = (new PdfAttachmentExtractor())->extractAttachments($pdf);
