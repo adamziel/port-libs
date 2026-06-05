@@ -11715,12 +11715,16 @@ final class PdfTextExtractor
     private function simpleFontExplicitWidths(string $fontBody, array $objects): array
     {
         $firstChar = $this->pdfNumberValueAfterNameResolvingObjects($fontBody, 'FirstChar', $objects);
-        if ($firstChar === null) {
+        $firstCode = $this->simpleFontWidthRangeCode($firstChar);
+        if ($firstCode === null) {
             return [];
         }
-        $firstCode = (int) $firstChar;
+
         $lastChar = $this->pdfNumberValueAfterNameResolvingObjects($fontBody, 'LastChar', $objects);
-        $lastCode = $lastChar === null ? null : (int) $lastChar;
+        $lastCode = $lastChar === null ? null : $this->simpleFontWidthRangeCode($lastChar);
+        if ($lastChar !== null && ($lastCode === null || $lastCode < $firstCode)) {
+            return [];
+        }
 
         $widthArray = $this->pdfArrayValueAfterNameResolvingObjects($fontBody, 'Widths', $objects);
         if ($widthArray === null) {
@@ -11742,6 +11746,20 @@ final class PdfTextExtractor
         }
 
         return $widths;
+    }
+
+    private function simpleFontWidthRangeCode(?float $value): ?int
+    {
+        if ($value === null || !is_finite($value)) {
+            return null;
+        }
+
+        $code = (int) round($value);
+        if (abs($value - $code) > 0.000001 || $code < 0 || $code > 255) {
+            return null;
+        }
+
+        return $code;
     }
 
     /**
