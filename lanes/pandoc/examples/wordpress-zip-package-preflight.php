@@ -17,6 +17,7 @@ $documentModifiedAt = 1780479017;
 $mediaModifiedAt = 1780479021;
 $mediaAccessedAt = 1780479022;
 $mediaCreatedAt = 1780479023;
+$documentReviewExtra = pack('vva*', 0xcafe, strlen('wp-review:v1'), 'wp-review:v1');
 
 $packNtfsFileTime = static function (int $timestamp): string {
     $filetime = ($timestamp + 11644473600) * 10000000;
@@ -437,6 +438,7 @@ $package = ZipPackage::fromParts([
         'comment' => 'generated document part',
         'modifiedAt' => $documentModifiedAt,
         'externalAttributes' => 0x81a40000,
+        'extraFieldData' => $documentReviewExtra,
     ],
 ], 'wordpress import package');
 $descriptorPackage = ZipPackage::fromString($buildDescriptorBackedPackage());
@@ -588,6 +590,14 @@ if (in_array('--self-test', $argv, true)) {
 
     if ($package->localExtraField('/word/document.xml', 0x5455) === null) {
         throw new RuntimeException('Expected document part local ZIP extra fields to be inspectable');
+    }
+
+    if ($documentEntry->centralExtraField(0xcafe) !== 'wp-review:v1') {
+        throw new RuntimeException('Expected document part central ZIP review extra field to round-trip');
+    }
+
+    if ($package->localExtraField('/word/document.xml', 0xcafe) !== 'wp-review:v1') {
+        throw new RuntimeException('Expected document part local ZIP review extra field to round-trip');
     }
 
     $extendedTimestamps = $extendedTimestampPackage->localExtendedTimestamps('/word/media/reviewer-note.txt');
@@ -764,6 +774,8 @@ foreach ($package->entries() as $entry) {
         . "\n";
 }
 echo 'document.xml=' . $package->read('/word/document.xml') . "\n";
+echo 'document.xml.reviewExtra=' . ($package->entry('/word/document.xml')->centralExtraField(0xcafe) ?? 'none') . "\n";
+echo 'document.xml.localReviewExtra=' . ($package->localExtraField('/word/document.xml', 0xcafe) ?? 'none') . "\n";
 echo 'descriptor.comments.xml=' . $descriptorPackage->read('/word/comments.xml') . "\n";
 $ntfsTimestamps = $ntfsPackage->entry('/word/media/review.png')->ntfsTimestamps();
 echo 'ntfs.review.png.modifiedAt=' . ($ntfsTimestamps['modifiedAt'] ?? 'none') . "\n";

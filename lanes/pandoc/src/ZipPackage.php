@@ -174,7 +174,7 @@ final class ZipPackage
     }
 
     /**
-     * @param list<array{name:string, data?:string, compressionMethod?:int, comment?:string, modifiedAt?:int, modifiedDosTime?:int, modifiedDosDate?:int, externalAttributes?:int}> $parts
+     * @param list<array{name:string, data?:string, compressionMethod?:int, comment?:string, modifiedAt?:int, modifiedDosTime?:int, modifiedDosDate?:int, externalAttributes?:int, extraFieldData?:string}> $parts
      */
     public static function fromParts(array $parts, string $packageComment = ''): self
     {
@@ -182,7 +182,7 @@ final class ZipPackage
     }
 
     /**
-     * @param list<array{name:string, data?:string, compressionMethod?:int, comment?:string, modifiedAt?:int, modifiedDosTime?:int, modifiedDosDate?:int, externalAttributes?:int}> $parts
+     * @param list<array{name:string, data?:string, compressionMethod?:int, comment?:string, modifiedAt?:int, modifiedDosTime?:int, modifiedDosDate?:int, externalAttributes?:int, extraFieldData?:string}> $parts
      */
     public static function build(array $parts, string $packageComment = ''): string
     {
@@ -830,20 +830,28 @@ final class ZipPackage
      */
     private static function buildExtraFieldData(array $part, string $name): string
     {
-        if (!array_key_exists('modifiedAt', $part)) {
-            return '';
+        $extraFieldData = '';
+        if (array_key_exists('modifiedAt', $part)) {
+            if (!is_int($part['modifiedAt'])) {
+                throw new \RuntimeException("ZIP entry {$name} modifiedAt timestamp must be an integer");
+            }
+
+            $timestamp = $part['modifiedAt'];
+            if ($timestamp >= 0 && $timestamp <= 0xffffffff) {
+                $extraFieldData .= pack('vvCV', 0x5455, 5, 0x01, $timestamp);
+            }
         }
 
-        if (!is_int($part['modifiedAt'])) {
-            throw new \RuntimeException("ZIP entry {$name} modifiedAt timestamp must be an integer");
+        if (array_key_exists('extraFieldData', $part)) {
+            if (!is_string($part['extraFieldData'])) {
+                throw new \RuntimeException("ZIP entry {$name} extraFieldData must be a string");
+            }
+
+            ZipPackageEntry::validateExtraFieldData($part['extraFieldData'], "generated extra fields for {$name}");
+            $extraFieldData .= $part['extraFieldData'];
         }
 
-        $timestamp = $part['modifiedAt'];
-        if ($timestamp < 0 || $timestamp > 0xffffffff) {
-            return '';
-        }
-
-        return pack('vvCV', 0x5455, 5, 0x01, $timestamp);
+        return $extraFieldData;
     }
 
     /**

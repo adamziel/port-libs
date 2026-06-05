@@ -629,6 +629,35 @@ return [
         $t->same('<w:document><w:p>exact modified timestamp</w:p></w:document>', $roundTrip->read('word/document.xml'));
     },
 
+    'writes bounded custom zip extra fields for generated review package parts' => static function (TestRunner $t): void {
+        $modifiedAt = 1780479017;
+        $reviewExtra = pack('vva*', 0xcafe, strlen('wp-review:v1'), 'wp-review:v1');
+        $package = ZipPackage::fromParts([
+            [
+                'name' => 'word/media/reviewer-note.txt',
+                'data' => 'review packet provenance',
+                'modifiedAt' => $modifiedAt,
+                'extraFieldData' => $reviewExtra,
+            ],
+        ]);
+
+        $roundTrip = ZipPackage::fromString($package->bytes());
+        $entry = $roundTrip->entry('word/media/reviewer-note.txt');
+
+        $t->same($modifiedAt, $entry->extendedLastModifiedTimestamp());
+        $t->same('wp-review:v1', $entry->centralExtraField(0xcafe));
+        $t->same('wp-review:v1', $roundTrip->localExtraField('/word/media/reviewer-note.txt', 0xcafe));
+        $t->same([
+            ['id' => 0x5455, 'data' => "\x01" . pack('V', $modifiedAt)],
+            ['id' => 0xcafe, 'data' => 'wp-review:v1'],
+        ], $entry->centralExtraFields());
+        $t->same([
+            ['id' => 0x5455, 'data' => "\x01" . pack('V', $modifiedAt)],
+            ['id' => 0xcafe, 'data' => 'wp-review:v1'],
+        ], $roundTrip->localExtraFields('word/media/reviewer-note.txt'));
+        $t->same('review packet provenance', $roundTrip->read('word/media/reviewer-note.txt'));
+    },
+
     'reads ntfs zip extra field timestamps for office package preflight' => static function (TestRunner $t) use ($buildZipPackage, $buildNtfsExtra): void {
         $modifiedAt = 1780479017;
         $accessedAt = 1780479018;
@@ -789,6 +818,15 @@ return [
         ]));
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
             ['name' => 'word/document.xml', 'data' => 'ok', 'externalAttributes' => -1],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => 'ok', 'extraFieldData' => ['not bytes']],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => 'ok', 'extraFieldData' => pack('vvC', 0xcafe, 4, 1)],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => 'ok', 'extraFieldData' => pack('vv', 0x0001, 8) . str_repeat("\0", 8)],
         ]));
     },
 
