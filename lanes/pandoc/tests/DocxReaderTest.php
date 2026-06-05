@@ -191,6 +191,70 @@ $vmlImageDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$drawingPlaceholderContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>
+  <Override PartName="/word/diagrams/data1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramData+xml"/>
+  <Override PartName="/word/diagrams/layout1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramLayout+xml"/>
+  <Override PartName="/word/diagrams/quickStyle1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramStyle+xml"/>
+  <Override PartName="/word/diagrams/colors1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramColors+xml"/>
+</Types>
+XML;
+
+$drawingPlaceholderRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="charts/chart1.xml"/>
+  <Relationship Id="rIdDiagramData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="diagrams/data1.xml"/>
+  <Relationship Id="rIdDiagramLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="diagrams/layout1.xml"/>
+  <Relationship Id="rIdDiagramStyle" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramQuickStyle" Target="diagrams/quickStyle1.xml"/>
+  <Relationship Id="rIdDiagramColors" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramColors" Target="diagrams/colors1.xml"/>
+</Relationships>
+XML;
+
+$drawingPlaceholderDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
+  xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Report includes </w:t></w:r>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:docPr id="31" name="Quarterly chart" descr="Quarterly sales chart" title="Sales chart title"/>
+            <a:graphic>
+              <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">
+                <c:chart r:id="rIdChart"/>
+              </a:graphicData>
+            </a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:docPr id="32" name="Review workflow" descr="Review workflow diagram" title="SmartArt workflow"/>
+            <a:graphic>
+              <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram">
+                <dgm:relIds r:dm="rIdDiagramData" r:lo="rIdDiagramLayout" r:qs="rIdDiagramStyle" r:cs="rIdDiagramColors"/>
+              </a:graphicData>
+            </a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $corePropertiesXml = <<<'XML'
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
   xmlns:dc="http://purl.org/dc/elements/1.1/"
@@ -926,6 +990,25 @@ $buildVmlImagePackage = static function () use ($vmlImageContentTypesXml, $packa
     ]);
 };
 
+$buildDrawingPlaceholderPackage = static function () use (
+    $drawingPlaceholderContentTypesXml,
+    $packageRelationshipsXml,
+    $drawingPlaceholderRelationshipsXml,
+    $drawingPlaceholderDocumentXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $drawingPlaceholderContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $drawingPlaceholderDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $drawingPlaceholderRelationshipsXml],
+        ['name' => 'word/charts/chart1.xml', 'data' => '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"/>'],
+        ['name' => 'word/diagrams/data1.xml', 'data' => '<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>'],
+        ['name' => 'word/diagrams/layout1.xml', 'data' => '<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>'],
+        ['name' => 'word/diagrams/quickStyle1.xml', 'data' => '<dgm:styleDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>'],
+        ['name' => 'word/diagrams/colors1.xml', 'data' => '<dgm:colorsDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>'],
+    ]);
+};
+
 $buildStylesNumberingPackage = static function () use (
     $stylesNumberingContentTypesXml,
     $stylesNumberingRelationshipsXml,
@@ -1322,6 +1405,75 @@ return [
         $t->same(true, $media['items'][2]['external']);
         $t->same(0, $media['items'][2]['usedCount']);
         $t->same(['external-target-unsafe-scheme'], $media['items'][2]['issues']);
+    },
+    'preserves DOCX chart and diagram drawing references as review placeholders' => static function (TestRunner $t) use ($buildDrawingPlaceholderPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildDrawingPlaceholderPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(5, count($paragraph->children));
+        $t->same('Report includes ', $paragraph->children[0]->attr('text'));
+
+        $chart = $paragraph->children[1];
+        $t->same('span', $chart->type);
+        $t->same(['docx-drawing-placeholder', 'docx-drawing-chart'], $chart->attr('classes'));
+        $t->same('DOCX chart: Quarterly sales chart', $chart->children[0]->attr('text'));
+        $chartAttributes = $chart->attr('attributes');
+        $t->same('chart', $chartAttributes['data-docx-drawing-kind']);
+        $t->same('31', $chartAttributes['data-docx-docpr-id']);
+        $t->same('Quarterly chart', $chartAttributes['data-docx-docpr-name']);
+        $t->same('Quarterly sales chart', $chartAttributes['data-docx-docpr-descr']);
+        $t->same('Sales chart title', $chartAttributes['data-docx-docpr-title']);
+        $t->same('rIdChart', $chartAttributes['data-docx-relationship-id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart', $chartAttributes['data-docx-relationship-type']);
+        $t->same('/word/charts/chart1.xml', $chartAttributes['data-docx-target']);
+        $t->same('/word/charts/chart1.xml', $chartAttributes['data-docx-target-part']);
+        $t->same('false', $chartAttributes['data-docx-external']);
+        $t->same('true', $chartAttributes['data-docx-exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.drawingml.chart+xml', $chartAttributes['data-docx-content-type']);
+
+        $t->same(' and ', $paragraph->children[2]->attr('text'));
+        $diagram = $paragraph->children[3];
+        $t->same('span', $diagram->type);
+        $t->same(['docx-drawing-placeholder', 'docx-drawing-diagram'], $diagram->attr('classes'));
+        $t->same('DOCX diagram: Review workflow diagram', $diagram->children[0]->attr('text'));
+        $diagramAttributes = $diagram->attr('attributes');
+        $t->same('diagram', $diagramAttributes['data-docx-drawing-kind']);
+        $t->same('32', $diagramAttributes['data-docx-docpr-id']);
+        $t->same('Review workflow', $diagramAttributes['data-docx-docpr-name']);
+        $t->same('Review workflow diagram', $diagramAttributes['data-docx-docpr-descr']);
+        $t->same('rIdDiagramData', $diagramAttributes['data-docx-diagram-data-id']);
+        $t->same('/word/diagrams/data1.xml', $diagramAttributes['data-docx-diagram-data-target-part']);
+        $t->same('application/vnd.openxmlformats-officedocument.drawingml.diagramData+xml', $diagramAttributes['data-docx-diagram-data-content-type']);
+        $t->same('rIdDiagramLayout', $diagramAttributes['data-docx-diagram-layout-id']);
+        $t->same('/word/diagrams/layout1.xml', $diagramAttributes['data-docx-diagram-layout-target-part']);
+        $t->same('rIdDiagramStyle', $diagramAttributes['data-docx-diagram-quick-style-id']);
+        $t->same('/word/diagrams/quickStyle1.xml', $diagramAttributes['data-docx-diagram-quick-style-target-part']);
+        $t->same('rIdDiagramColors', $diagramAttributes['data-docx-diagram-colors-id']);
+        $t->same('/word/diagrams/colors1.xml', $diagramAttributes['data-docx-diagram-colors-target-part']);
+        $t->same('.', $paragraph->children[4]->attr('text'));
+
+        $t->contains('[DOCX chart: Quarterly sales chart]{.docx-drawing-placeholder .docx-drawing-chart', $markdown);
+        $t->contains('data-docx-relationship-id="rIdChart"', $markdown);
+        $t->contains('[DOCX diagram: Review workflow diagram]{.docx-drawing-placeholder .docx-drawing-diagram', $markdown);
+        $t->contains('data-docx-diagram-data-id="rIdDiagramData"', $markdown);
+
+        $t->contains('<span class="docx-drawing-placeholder docx-drawing-chart"', $blocks);
+        $t->contains('data-docx-relationship-id="rIdChart"', $blocks);
+        $t->contains('DOCX chart: Quarterly sales chart</span>', $blocks);
+        $t->contains('<span class="docx-drawing-placeholder docx-drawing-diagram"', $blocks);
+        $t->contains('data-docx-diagram-data-id="rIdDiagramData"', $blocks);
+        $t->contains('DOCX diagram: Review workflow diagram</span>', $blocks);
+
+        $report = $result['importReport'];
+        $t->same(5, $report['relationshipCount']);
+        $t->same(5, $report['reachableRelationshipCount']);
+        $t->same([], $report['relationshipIssues']);
+        $t->same(0, $report['media']['count']);
     },
     'reports DOCX media import inventory and missing media relationships' => static function (TestRunner $t) use ($buildDocxPackage): void {
         $result = (new DocxReader())->readPackage($buildDocxPackage());

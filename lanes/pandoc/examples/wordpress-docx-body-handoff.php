@@ -21,6 +21,11 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
   <Override PartName="/word/endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>
   <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+  <Override PartName="/word/charts/review-chart.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>
+  <Override PartName="/word/diagrams/review-data.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramData+xml"/>
+  <Override PartName="/word/diagrams/review-layout.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramLayout+xml"/>
+  <Override PartName="/word/diagrams/review-style.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramStyle+xml"/>
+  <Override PartName="/word/diagrams/review-colors.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramColors+xml"/>
   <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
 </Types>
 XML;
@@ -48,6 +53,11 @@ XML],
   <Relationship Id="rIdFooterDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
   <Relationship Id="rIdReviewChunk" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="chunks/review.html"/>
   <Relationship Id="rIdPlainTextChunk" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="chunks/plain-review.txt"/>
+  <Relationship Id="rIdReviewChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="charts/review-chart.xml"/>
+  <Relationship Id="rIdReviewDiagramData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="diagrams/review-data.xml"/>
+  <Relationship Id="rIdReviewDiagramLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="diagrams/review-layout.xml"/>
+  <Relationship Id="rIdReviewDiagramStyle" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramQuickStyle" Target="diagrams/review-style.xml"/>
+  <Relationship Id="rIdReviewDiagramColors" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramColors" Target="diagrams/review-colors.xml"/>
 </Relationships>
 XML],
     ['name' => 'word/document.xml', 'data' => <<<'XML'
@@ -60,7 +70,9 @@ XML],
   xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"
   xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
   xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
-  xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"
+  xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
+  xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram">
   <w:body>
     <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>DOCX source packet</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="ReviewSubhead"/></w:pPr><w:r><w:t>Reviewer checklist</w:t></w:r></w:p>
@@ -250,6 +262,27 @@ XML],
     </w:sdt>
     <w:p><w:r><w:drawing><wp:inline><wp:docPr id="9" name="Hero" descr="Source hero alt" title="Source hero"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdHero"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline><wp:anchor><wp:docPr id="10" name="Review chart" descr="Linked review chart alt" title="Linked review chart"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:link="rIdExternalChart"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>
     <w:p><w:r><w:pict><v:shape id="_x0000_i42" alt="VML badge alt"><v:imagedata r:id="rIdVmlBadge" o:title="VML badge title"/></v:shape></w:pict></w:r></w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Office drawing review </w:t></w:r>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:docPr id="18" name="Review chart" descr="Imported review chart" title="Review chart"/>
+            <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart r:id="rIdReviewChart"/></a:graphicData></a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:docPr id="19" name="Review workflow" descr="Imported workflow diagram" title="Review workflow"/>
+            <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdReviewDiagramData" r:lo="rIdReviewDiagramLayout" r:qs="rIdReviewDiagramStyle" r:cs="rIdReviewDiagramColors"/></a:graphicData></a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> stay visible.</w:t></w:r>
+    </w:p>
     <w:tbl>
       <w:tr>
         <w:tc>
@@ -347,6 +380,11 @@ XML],
   </w:p>
 </w:ftr>
 XML],
+    ['name' => 'word/charts/review-chart.xml', 'data' => '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"/>'],
+    ['name' => 'word/diagrams/review-data.xml', 'data' => '<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>'],
+    ['name' => 'word/diagrams/review-layout.xml', 'data' => '<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>'],
+    ['name' => 'word/diagrams/review-style.xml', 'data' => '<dgm:styleDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>'],
+    ['name' => 'word/diagrams/review-colors.xml', 'data' => '<dgm:colorsDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>'],
     ['name' => 'word/media/hero.png', 'data' => 'PNGDATA'],
     ['name' => 'word/media/vml-badge.png', 'data' => 'VMLPNGDATA'],
     ['name' => 'docProps/core.xml', 'data' => <<<'XML'
@@ -469,6 +507,12 @@ if (($argv[1] ?? '') === '--self-test') {
         '<img src="word/media/hero.png" alt="Source hero alt" title="Source hero"/>',
         '<img src="https://cdn.example.test/docx-review-chart.png" alt="Linked review chart alt" title="Linked review chart"/>',
         '<img src="word/media/vml-badge.png" alt="VML badge alt" title="VML badge title"/>',
+        '<span class="docx-drawing-placeholder docx-drawing-chart" data-docx-drawing-kind="chart" data-docx-docpr-id="18" data-docx-docpr-name="Review chart" data-docx-docpr-descr="Imported review chart" data-docx-docpr-title="Review chart" data-docx-relationship-id="rIdReviewChart"',
+        'data-docx-target-part="/word/charts/review-chart.xml"',
+        'DOCX chart: Imported review chart</span>',
+        '<span class="docx-drawing-placeholder docx-drawing-diagram" data-docx-drawing-kind="diagram" data-docx-docpr-id="19" data-docx-docpr-name="Review workflow" data-docx-docpr-descr="Imported workflow diagram" data-docx-docpr-title="Review workflow" data-docx-diagram-data-id="rIdReviewDiagramData"',
+        'data-docx-diagram-layout-target-part="/word/diagrams/review-layout.xml"',
+        'DOCX diagram: Imported workflow diagram</span>',
         '<td colspan="2" rowspan="2"><p>Review scope</p></td><td><p>Status</p></td>',
         '<td><p>Owner</p></td><td colspan="2"><p>Migration desk</p></td>',
         'DOCX footnote import note.',

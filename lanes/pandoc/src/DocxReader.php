@@ -9,6 +9,8 @@ final class DocxReader
     public const WORDPROCESSINGML_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
     public const DRAWINGML_MAIN_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     public const DRAWINGML_PICTURE_NS = 'http://schemas.openxmlformats.org/drawingml/2006/picture';
+    public const DRAWINGML_CHART_NS = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
+    public const DRAWINGML_DIAGRAM_NS = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
     public const WORDPROCESSING_DRAWING_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     public const OFFICE_RELATIONSHIPS_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     public const OFFICE_MATH_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
@@ -28,6 +30,11 @@ final class DocxReader
     public const REL_TYPE_NUMBERING = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     public const REL_TYPE_CORE_PROPERTIES = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
     public const REL_TYPE_ALTERNATIVE_FORMAT_IMPORT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
+    public const REL_TYPE_CHART = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
+    public const REL_TYPE_DIAGRAM_DATA = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
+    public const REL_TYPE_DIAGRAM_LAYOUT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout';
+    public const REL_TYPE_DIAGRAM_QUICK_STYLE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramQuickStyle';
+    public const REL_TYPE_DIAGRAM_COLORS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramColors';
 
     /**
      * Bounded subset of Pandoc's DOCX symbol font table for common review
@@ -2628,7 +2635,209 @@ final class DocxReader
             }
         }
 
+        array_push($nodes, ...$this->chartDrawingNodes($drawing, $package, $relationships));
+        array_push($nodes, ...$this->diagramDrawingNodes($drawing, $package, $relationships));
+
         return $nodes;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function chartDrawingNodes(\DOMElement $drawing, ZipPackage $package, OpcRelationships $relationships): array
+    {
+        $nodes = [];
+        foreach ($drawing->getElementsByTagNameNS(self::DRAWINGML_CHART_NS, 'chart') as $chart) {
+            if (!$chart instanceof \DOMElement) {
+                continue;
+            }
+
+            $relationshipId = $this->relationshipAttr($chart, 'id');
+            if ($relationshipId === null || $relationshipId === '') {
+                continue;
+            }
+
+            $relationship = $relationships->byId($relationshipId);
+            if (!$relationship instanceof OpcRelationship || $relationship->type !== self::REL_TYPE_CHART) {
+                continue;
+            }
+
+            $docPr = $this->drawingPropertiesForElement($chart, $drawing);
+            $nodes[] = $this->drawingRelationshipPlaceholderNode(
+                'chart',
+                $relationship,
+                $package,
+                $relationships,
+                $docPr
+            );
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function diagramDrawingNodes(\DOMElement $drawing, ZipPackage $package, OpcRelationships $relationships): array
+    {
+        $nodes = [];
+        foreach ($drawing->getElementsByTagNameNS(self::DRAWINGML_DIAGRAM_NS, 'relIds') as $relIds) {
+            if (!$relIds instanceof \DOMElement) {
+                continue;
+            }
+
+            $relationshipRoles = $this->diagramRelationshipRoles($relIds, $relationships);
+            if ($relationshipRoles === []) {
+                continue;
+            }
+
+            $docPr = $this->drawingPropertiesForElement($relIds, $drawing);
+            $attrs = $this->drawingPlaceholderBaseAttrs('diagram', $docPr);
+            foreach ($relationshipRoles as $role => $relationship) {
+                $rolePrefix = 'data-docx-diagram-' . $role;
+                $attrs['attributes'][$rolePrefix . '-id'] = $relationship->id;
+                $attrs['attributes'][$rolePrefix . '-type'] = $relationship->type;
+                foreach ($this->drawingRelationshipTargetAttrs($relationship, $package, $relationships) as $name => $value) {
+                    $attrs['attributes'][$rolePrefix . '-' . $name] = $value;
+                }
+            }
+
+            $nodes[] = new AstNode('span', $attrs, [
+                new AstNode('text', ['text' => $this->drawingPlaceholderText('diagram', $docPr)]),
+            ]);
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @return array<string, OpcRelationship>
+     */
+    private function diagramRelationshipRoles(\DOMElement $relIds, OpcRelationships $relationships): array
+    {
+        $roles = [
+            'data' => ['dm', self::REL_TYPE_DIAGRAM_DATA],
+            'layout' => ['lo', self::REL_TYPE_DIAGRAM_LAYOUT],
+            'quick-style' => ['qs', self::REL_TYPE_DIAGRAM_QUICK_STYLE],
+            'colors' => ['cs', self::REL_TYPE_DIAGRAM_COLORS],
+        ];
+
+        $matched = [];
+        foreach ($roles as $role => [$attributeName, $expectedType]) {
+            $relationshipId = $this->relationshipAttr($relIds, $attributeName);
+            if ($relationshipId === null || $relationshipId === '') {
+                continue;
+            }
+
+            $relationship = $relationships->byId($relationshipId);
+            if ($relationship instanceof OpcRelationship && $relationship->type === $expectedType) {
+                $matched[$role] = $relationship;
+            }
+        }
+
+        return $matched;
+    }
+
+    private function drawingRelationshipPlaceholderNode(
+        string $kind,
+        OpcRelationship $relationship,
+        ZipPackage $package,
+        OpcRelationships $relationships,
+        ?\DOMElement $docPr
+    ): AstNode {
+        $attrs = $this->drawingPlaceholderBaseAttrs($kind, $docPr);
+        $attrs['attributes']['data-docx-relationship-id'] = $relationship->id;
+        $attrs['attributes']['data-docx-relationship-type'] = $relationship->type;
+        foreach ($this->drawingRelationshipTargetAttrs($relationship, $package, $relationships) as $name => $value) {
+            $attrs['attributes']['data-docx-' . $name] = $value;
+        }
+
+        return new AstNode('span', $attrs, [
+            new AstNode('text', ['text' => $this->drawingPlaceholderText($kind, $docPr)]),
+        ]);
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function drawingPlaceholderBaseAttrs(string $kind, ?\DOMElement $docPr): array
+    {
+        $attributes = [
+            'data-docx-drawing-kind' => $kind,
+        ];
+
+        if ($docPr instanceof \DOMElement) {
+            foreach ([
+                'id' => 'data-docx-docpr-id',
+                'name' => 'data-docx-docpr-name',
+                'descr' => 'data-docx-docpr-descr',
+                'title' => 'data-docx-docpr-title',
+            ] as $source => $target) {
+                $value = $docPr->getAttribute($source);
+                if ($value !== '') {
+                    $attributes[$target] = $value;
+                }
+            }
+        }
+
+        return [
+            'classes' => ['docx-drawing-placeholder', 'docx-drawing-' . $kind],
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function drawingRelationshipTargetAttrs(
+        OpcRelationship $relationship,
+        ZipPackage $package,
+        OpcRelationships $relationships
+    ): array {
+        $target = $relationships->resolveTarget($relationship);
+        $attrs = [
+            'target' => $target,
+        ];
+
+        if ($relationship->isExternal()) {
+            $externalTarget = $relationship->externalTargetPreflight();
+            $attrs['external'] = 'true';
+            $attrs['external-kind'] = $externalTarget['kind'];
+            if ($externalTarget['scheme'] !== null) {
+                $attrs['external-scheme'] = $externalTarget['scheme'];
+            }
+            $attrs['external-allowed'] = $externalTarget['allowed'] ? 'true' : 'false';
+            if ($externalTarget['issues'] !== []) {
+                $attrs['issues'] = implode(' ', $externalTarget['issues']);
+            }
+
+            return $attrs;
+        }
+
+        $targetPart = OpcPackagePath::stripQueryAndFragment($target);
+        $attrs['target-part'] = $targetPart;
+        $attrs['external'] = 'false';
+        $attrs['exists'] = $package->has($targetPart) ? 'true' : 'false';
+        $contentType = $this->contentTypeForPackagePart($package, $targetPart);
+        if ($contentType !== null) {
+            $attrs['content-type'] = $contentType;
+        }
+
+        return $attrs;
+    }
+
+    private function drawingPlaceholderText(string $kind, ?\DOMElement $docPr): string
+    {
+        $label = '';
+        if ($docPr instanceof \DOMElement) {
+            $label = (string) (
+                $docPr->getAttribute('descr')
+                ?: $docPr->getAttribute('title')
+                ?: $docPr->getAttribute('name')
+            );
+        }
+
+        return 'DOCX ' . str_replace('-', ' ', $kind) . ($label === '' ? '' : ': ' . $label);
     }
 
     /**
@@ -2733,7 +2942,12 @@ final class DocxReader
 
     private function drawingPropertiesForBlip(\DOMElement $blip, \DOMElement $drawing): ?\DOMElement
     {
-        $node = $blip->parentNode;
+        return $this->drawingPropertiesForElement($blip, $drawing);
+    }
+
+    private function drawingPropertiesForElement(\DOMElement $element, \DOMElement $drawing): ?\DOMElement
+    {
+        $node = $element->parentNode;
         while ($node instanceof \DOMElement) {
             if (
                 $node->namespaceURI === self::WORDPROCESSING_DRAWING_NS
