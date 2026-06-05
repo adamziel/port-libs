@@ -4589,7 +4589,7 @@ final class PdfTextExtractor
             : array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
         $previewOnlyFilters = $this->previewOnlyImageXObjectFilters($resolvedFilters);
         $decodeParmsPresent = $this->topLevelNameValueOffset($stream['dict'], 'DecodeParms') !== null;
-        $decodeParms = $filters === null ? null : $this->streamDecodeParms($stream['dict'], $objects);
+        $decodeParms = $filters === null ? null : $this->streamDecodeParmsForFilters($stream['dict'], $objects, $filters);
         $filterDetails = $filters === null ? [] : $this->imageXObjectFilterDetails(
             $filters,
             $decodeParms,

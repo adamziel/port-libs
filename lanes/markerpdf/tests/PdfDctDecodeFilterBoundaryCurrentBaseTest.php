@@ -553,6 +553,76 @@ return [
         $t->same(false, $review['executes_python_or_models']);
         $t->same(false, $review['executes_external_pdf_tools']);
     },
+    'preserves DCTDecode DecodeParms when trailing null filter slots are unresolved' => static function (TestRunner $t): void {
+        $extractor = new PortLibs\MarkerPDF\PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before trailing null DCT filter) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After trailing null DCT filter) Tj ET';
+        $fakeObject = 'BT /F1 12 Tf 72 700 Td (Trailing null DCT payload leak) Tj ET';
+        $jpegPayload = "\xff\xd8\xff\xe0JFIF\0JPEG bytes\n"
+            . "endstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($fakeObject) . " >>\nstream\n{$fakeObject}\nendstream\nendobj\n"
+            . "\xff\xd9";
+        $fakeTerminatorOffset = strpos($jpegPayload, "\nendstream\n");
+        if ($fakeTerminatorOffset === false) {
+            throw new RuntimeException('Focused trailing-null DCT fixture must expose a fake endstream marker.');
+        }
+
+        $filterStack = '[/DCTDecode null]';
+        $decodeParms = '[<< /ColorTransform 2 >> 99 0 R]';
+        $streamOnlyPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "2 0 obj\n<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter {$filterStack} /DecodeParms {$decodeParms} /Length {$fakeTerminatorOffset} >>\nstream\n{$jpegPayload}\nendstream\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n%%EOF";
+        $pageContent = $before . "\nq 24 0 0 24 72 680 cm /Photo Do Q\n" . $after;
+        $pagePdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Photo 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter {$filterStack} /DecodeParms {$decodeParms} /Length {$fakeTerminatorOffset} >>\nstream\n{$jpegPayload}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+        $expected = [
+            'Before trailing null DCT filter',
+            'After trailing null DCT filter',
+        ];
+
+        foreach ([$streamOnlyPdf, $pagePdf] as $pdf) {
+            $plainText = $extractor->extractPlainText($pdf);
+
+            $t->same($expected, $extractor->extractTextLines($pdf));
+            $t->same($expected, $extractor->extractTextRuns($pdf));
+            $t->same("Before trailing null DCT filter\nAfter trailing null DCT filter", $plainText);
+            $t->same("Before trailing null DCT filter\nAfter trailing null DCT filter\n", $extractor->naiveGetText($pdf));
+            $t->true(!str_contains($plainText, 'Trailing null DCT payload leak'));
+            $t->true(!str_contains($plainText, 'JFIF'));
+            $t->true(!str_contains($plainText, 'endstream'));
+        }
+
+        $review = $extractor->extractImageXObjectBoundaryReview($pagePdf);
+        $entry = $review['entries'][0] ?? null;
+
+        $t->true(is_array($entry), 'Image XObject review row should be present.');
+        $t->same(strlen($jpegPayload), $entry['raw_length'] ?? null);
+        $t->true(($entry['raw_length'] ?? 0) > $fakeTerminatorOffset);
+        $t->same(['DCTDecode'], $entry['filters'] ?? null);
+        $t->same(['DCTDecode'], $entry['preview_only_filters'] ?? null);
+        $t->same([
+            [
+                'filter' => 'DCTDecode',
+                'preview_only' => true,
+                'decode_parms' => [
+                    'type' => 'DCTDecode',
+                    'color_transform' => 2,
+                    'valid_color_transform' => true,
+                ],
+            ],
+        ], $entry['filter_details'] ?? null);
+        $t->same(false, $entry['native_raster_decode'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
     'keeps prefix-decoded NUL-padded DCTDecode JPEG boundaries before fake endstream payloads' => static function (TestRunner $t) use ($pdfDctDecodeFilterBoundaryCurrentBaseZlibStored): void {
         $extractor = new PortLibs\MarkerPDF\PdfTextExtractor();
         $before = 'BT /F1 12 Tf 72 720 Td (Before padded Flate DCT stream) Tj ET';
