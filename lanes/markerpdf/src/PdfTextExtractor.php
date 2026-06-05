@@ -23052,6 +23052,7 @@ final class PdfTextExtractor
 
             $previousOffset = $this->previousXrefOffsetForSectionBody($pdfBytes, $trailer, $offset, $definitions, $objects);
             $entries = $this->repairCurrentObjectStreamCarrierRows($entries, $definitions, $previousOffset, $offset);
+            $entries = $this->repairOmittedCurrentUpdateGraphRows($entries, $definitions, $trailer, $previousOffset, $offset);
             if ($previousOffset !== null && $previousOffset >= 0) {
                 $previousEntries = $this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
                 foreach ($previousEntries as $objectNumber => $entry) {
@@ -23098,6 +23099,7 @@ final class PdfTextExtractor
         $entries = $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions);
         $previousOffset = $this->previousXrefOffsetForSectionBody($pdfBytes, $streamSection['body'], $offset, $definitions, $streamObjects);
         $entries = $this->repairCurrentObjectStreamCarrierRows($entries, $definitions, $previousOffset, $offset);
+        $entries = $this->repairOmittedCurrentUpdateGraphRows($entries, $definitions, $streamSection['body'], $previousOffset, $offset);
         if ($previousOffset !== null && $previousOffset >= 0) {
             $previousEntries = $this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
             foreach ($previousEntries as $objectNumber => $entry) {
@@ -23124,6 +23126,81 @@ final class PdfTextExtractor
                 }
 
                 $entries[$objectNumber] = $this->xrefEntryInheritedFromPreviousSection($entry, $previousOffset);
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * Some incremental writers append same-generation direct replacements and
+     * omit their rows from the latest xref section. If the latest trailer names
+     * those replacements through /Root or /Info, recover only omitted rows in
+     * the current update window before inheriting stale /Prev rows.
+     *
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
+     */
+    private function repairOmittedCurrentUpdateGraphRows(
+        array $entries,
+        array $definitions,
+        string $sectionBody,
+        ?int $previousOffset,
+        int $currentXrefOffset
+    ): array {
+        if ($previousOffset === null || $previousOffset < 0 || $currentXrefOffset <= $previousOffset) {
+            return $entries;
+        }
+
+        $pending = [];
+        foreach (['Root', 'Info'] as $name) {
+            $reference = $this->objectReferenceAfterName($sectionBody, $name);
+            if ($reference !== null) {
+                $pending[] = $reference;
+            }
+        }
+
+        $seen = [];
+        while ($pending !== [] && count($seen) < 128) {
+            $reference = array_shift($pending);
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
+            if ($objectNumber <= 0 || $generation < 0) {
+                continue;
+            }
+
+            $key = $objectNumber . ':' . $generation;
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            if (isset($entries[$objectNumber])) {
+                continue;
+            }
+
+            $definition = $this->currentUpdateDirectObjectDefinitionForXrefRow(
+                $objectNumber,
+                $generation,
+                $previousOffset,
+                $currentXrefOffset,
+                $definitions
+            );
+            if ($definition === null) {
+                continue;
+            }
+
+            $entries[$objectNumber] = [
+                'type' => 1,
+                'generation' => $definition['generation'],
+                'offset' => $definition['offset'],
+                'offsetIsExplicit' => true,
+            ];
+
+            $body = $this->dictionaryObjectBody($definition['body']) ?? $definition['body'];
+            foreach ($this->pdfObjectReferencePairs($body) as $nestedReference) {
+                $pending[] = $nestedReference;
             }
         }
 

@@ -4464,6 +4464,7 @@ final class PdfAttachmentExtractor
                 $definitions
             );
             $entries = $this->repairCurrentObjectStreamCarrierRows($entries, $definitions, $previousOffset, $offset);
+            $entries = $this->repairOmittedCurrentUpdateGraphRows($entries, $definitions, $table['trailer'], $previousOffset, $offset);
             if ($previousOffset !== null) {
                 foreach ($this->xrefEntriesAtOffset($pdfBytes, $previousOffset, $definitions, $seenOffsets) as $objectNumber => $entry) {
                     $entries[$objectNumber] ??= $entry;
@@ -4486,6 +4487,7 @@ final class PdfAttachmentExtractor
             $definitions
         );
         $entries = $this->repairCurrentObjectStreamCarrierRows($entries, $definitions, $previousOffset, $offset);
+        $entries = $this->repairOmittedCurrentUpdateGraphRows($entries, $definitions, $stream['dictionary'], $previousOffset, $offset);
         if ($previousOffset !== null) {
             foreach ($this->xrefEntriesAtOffset($pdfBytes, $previousOffset, $definitions, $seenOffsets) as $objectNumber => $entry) {
                 $entries[$objectNumber] ??= $entry;
@@ -4493,6 +4495,105 @@ final class PdfAttachmentExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<string, mixed> $sectionDictionary
+     * @return array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}>
+     */
+    private function repairOmittedCurrentUpdateGraphRows(
+        array $entries,
+        array $definitions,
+        array $sectionDictionary,
+        ?int $previousOffset,
+        int $currentXrefOffset
+    ): array {
+        if ($previousOffset === null || $previousOffset < 0 || $currentXrefOffset <= $previousOffset) {
+            return $entries;
+        }
+
+        $pending = [];
+        foreach (['Root', 'Info'] as $name) {
+            $reference = $this->refObjectReference($sectionDictionary[$name] ?? null);
+            if ($reference !== null) {
+                $pending[] = $reference;
+            }
+        }
+
+        $seen = [];
+        while ($pending !== [] && count($seen) < 128) {
+            $reference = array_shift($pending);
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
+            if ($objectNumber <= 0 || $generation < 0) {
+                continue;
+            }
+
+            $key = $objectNumber . ':' . $generation;
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            if (isset($entries[$objectNumber])) {
+                continue;
+            }
+
+            $definition = $this->currentUpdateDirectObjectDefinitionForXrefRow(
+                $objectNumber,
+                $generation,
+                $previousOffset,
+                $currentXrefOffset,
+                $definitions
+            );
+            if ($definition === null) {
+                continue;
+            }
+
+            $entries[$objectNumber] = [
+                'type' => 1,
+                'generation' => $definition['generation'],
+                'offset' => $definition['offset'],
+            ];
+
+            $valueOffset = 0;
+            $value = $this->parseValue(trim($definition['body']), $valueOffset);
+            foreach ($this->objectReferencesInParsedValue($value) as $nestedReference) {
+                $pending[] = $nestedReference;
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return list<array{objectNumber: int, generation: int}>
+     */
+    private function objectReferencesInParsedValue(mixed $value, int $depth = 0): array
+    {
+        if ($depth > 12 || !is_array($value)) {
+            return [];
+        }
+
+        $reference = $this->refObjectReference($value);
+        if ($reference !== null) {
+            return [$reference];
+        }
+
+        if (isset($value['__kind'])) {
+            return [];
+        }
+
+        $references = [];
+        foreach ($value as $child) {
+            foreach ($this->objectReferencesInParsedValue($child, $depth + 1) as $nestedReference) {
+                $references[] = $nestedReference;
+            }
+        }
+
+        return $references;
     }
 
     /**
