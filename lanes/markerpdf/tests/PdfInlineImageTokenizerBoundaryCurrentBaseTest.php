@@ -118,6 +118,22 @@ $inlineImageTokenizerPreviewVisibleEiTextPdf = static function (): string {
         . "%%EOF";
 };
 
+$inlineImageTokenizerPreviewVisibleEiTextArrayPdf = static function (): string {
+    $payload = "\x00\x01\x02 EI BT /F1 12 Tf 72 660 Td (TJ Array Payload EI Noise) Tj ET rawtail\nEI";
+    $content = "BT /F1 12 Tf 72 720 Td (Before TJ Array EI Text) Tj ET\n"
+        . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . $payload . "\n"
+        . "BT /F1 12 Tf 72 704 Td [(Visible EI Array Text)] TJ ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 $inlineImageTokenizerPreviewFilterChainPdf = static function (): string {
     $runLengthEncode = static function (string $bytes): string {
         $encoded = '';
@@ -397,6 +413,25 @@ return [
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
         $t->true(str_contains($plainText, 'Visible EI Marker Text'));
         $t->true(!str_contains($plainText, 'Preview Payload EI Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+    },
+    'closes preview-only inline image fallback before TJ array text containing EI bytes' => static function (TestRunner $t) use ($inlineImageTokenizerPreviewVisibleEiTextArrayPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerPreviewVisibleEiTextArrayPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before TJ Array EI Text',
+            'Visible EI Array Text',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(str_contains($plainText, 'Visible EI Array Text'));
+        $t->true(!str_contains($plainText, 'TJ Array Payload EI Noise'));
         $t->true(!str_contains($plainText, 'rawtail'));
     },
     'keeps preview-only inline image filter chains closed before WordPress text extraction' => static function (TestRunner $t) use ($inlineImageTokenizerPreviewFilterChainPdf): void {

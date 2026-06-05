@@ -20659,6 +20659,11 @@ final class PdfTextExtractor
             }
 
             if ($char === '[') {
+                $arrayIndex = $index;
+                if ($insideTextObject && $this->arraySegmentContainsUnterminatedLiteral($segment, $arrayIndex)) {
+                    return true;
+                }
+
                 $this->readArrayToken($segment, $index);
                 continue;
             }
@@ -20758,6 +20763,58 @@ final class PdfTextExtractor
             if ($token === 'ET') {
                 $insideTextObject = false;
             }
+        }
+
+        return false;
+    }
+
+    private function arraySegmentContainsUnterminatedLiteral(string $segment, int &$index): bool
+    {
+        $length = strlen($segment);
+        $depth = 0;
+
+        while ($index < $length) {
+            $char = $segment[$index];
+            if ($char === '(') {
+                if (!$this->consumeLiteralTokenReportsClosed($segment, $index)) {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if ($char === '<') {
+                if ($index + 1 < $length && $segment[$index + 1] === '<') {
+                    $this->readDictionaryToken($segment, $index);
+                    continue;
+                }
+
+                $this->readHexToken($segment, $index);
+                continue;
+            }
+
+            if ($char === '%') {
+                $this->skipPdfComment($segment, $index);
+                continue;
+            }
+
+            if ($char === '[') {
+                $depth++;
+                $index++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $depth--;
+                $index++;
+                if ($depth <= 0) {
+                    break;
+                }
+
+                continue;
+            }
+
+            $index++;
         }
 
         return false;
