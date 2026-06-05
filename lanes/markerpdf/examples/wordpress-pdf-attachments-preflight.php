@@ -23,7 +23,7 @@ $relatedChecksum = md5($relatedPayload);
 $pdf = "%PDF-1.7\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names 7 0 R /AF [13 0 R] >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
-    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /AF [16 0 R] /Annots [4 0 R] >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /AF [16 0 R] /Annots [4 0 R 19 0 R] >>\nendobj\n"
     . "4 0 obj\n<< /Type /Annot /Subtype /FileAttachment /Rect [72 700 90 718] /Contents (Reviewer notes) /FS 8 0 R >>\nendobj\n"
     . "5 0 obj\n<< /Type /Filespec /F (review-notes.csv) /Desc (WordPress import rows) /AFRelationship /Data /EF << /F 6 0 R >> >>\nendobj\n"
     . "6 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter /FlateDecode /Params << /Size " . strlen($csvPayload) . " /ModDate (D:20260603082617Z) /CheckSum <{$csvChecksum}> >> /Length " . strlen($compressedCsv) . " >>\n"
@@ -45,6 +45,7 @@ $pdf = "%PDF-1.7\n"
     . "17 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($pagePayload) . " /CheckSum <{$pageChecksum}> /ModDate (D:20260604210100Z) >> /Length " . strlen($pagePayload) . " >>\n"
     . "stream\n{$pagePayload}\nendstream\nendobj\n"
     . "18 0 obj\n[(review-notes.csv) 5 0 R (zz-stale.csv) 11 0 R]\nendobj\n"
+    . "19 0 obj\n<< /Type /Annot /Subtype /FileAttachment /Rect [144 660 168 684] /Contents (Mirrored attachment review note) /FS 5 0 R >>\nendobj\n"
     . "%%EOF\n"
     . "5 0 obj\n<< /Type /Filespec /F (post-eof-stale.csv) /Desc (Post EOF stale import rows) /AFRelationship /Alternative /EF << /F 6 0 R >> >>\nendobj\n"
     . "6 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($postEofPayload) . " /CheckSum <{$postEofChecksum}> >> /Length " . strlen($postEofPayload) . " >>\n"
@@ -56,8 +57,12 @@ if (!is_array($csvAttachment)
     || ($csvAttachment['filename'] ?? null) !== 'review-notes.csv'
     || ($csvAttachment['relationship'] ?? null) !== 'Data'
     || ($csvAttachment['checksum_matches'] ?? null) !== true
+    || ($csvAttachment['file_attachment_annotation'] ?? null) !== true
+    || ($csvAttachment['file_attachment_annotation_source'] ?? null) !== 'page_annotation'
+    || ($csvAttachment['annotation_object_id'] ?? null) !== 19
+    || ($csvAttachment['annotation_contents'] ?? null) !== 'Mirrored attachment review note'
 ) {
-    throw new RuntimeException('Expected checksum-matched Data relationship attachment review metadata.');
+    throw new RuntimeException('Expected checksum-matched Data relationship attachment review metadata with mirrored FileAttachment annotation state.');
 }
 $catalogAttachment = $summary['attachments'][1] ?? null;
 if (!is_array($catalogAttachment)
@@ -102,6 +107,10 @@ echo "<!-- markerpdf-pdf-attachments-smoke " . htmlspecialchars(json_encode([
     'filenames' => $summary['filenames'],
     'pruned_out_of_limits_name_tree_entry' => true,
     'indirect_embeddedfiles_names_array_preflight' => ($csvAttachment['source'] ?? null) === 'embedded-files-name-tree',
+    'file_attachment_annotation_mirror_preflight' => ($csvAttachment['file_attachment_annotation'] ?? false) === true,
+    'file_attachment_annotation_duplicate_payload_omitted' => $summary['attachment_count'] === 4
+        && substr_count($summaryJson, 'review-notes.csv') >= 1
+        && !str_contains($summaryJson, $csvPayload),
     'terminal_eof_bounds_attachment_scan' => !str_contains($summaryJson, 'post-eof-stale.csv'),
     'catalog_associated_file_preflight' => ($catalogAttachment['associated_file'] ?? false) === true,
     'page_associated_file_preflight' => ($pageAttachment['page_associated_file'] ?? false) === true,

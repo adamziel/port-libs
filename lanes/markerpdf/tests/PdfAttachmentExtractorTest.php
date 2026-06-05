@@ -320,6 +320,52 @@ return [
         $t->true(is_string($mirroredEncoded) && substr_count($mirroredEncoded, 'page-source.xml') >= 1);
         $t->true(is_string($mirroredEncoded) && !str_contains($mirroredEncoded, $pagePayload));
     },
+    'marks FileAttachment annotation mirrors without duplicating EmbeddedFiles payload summaries' => static function (TestRunner $t): void {
+        $payload = "Title,Status\nAnnotation Mirror,Ready\n";
+        $checksum = md5($payload);
+
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [8 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Filespec /F (review-mirror.csv) /Desc (Annotation mirrored import rows) /AFRelationship /Data /EF << /F 5 0 R >> >>\nendobj\n"
+            . "5 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($payload) . " /CheckSum <{$checksum}> /ModDate (D:20260605022515Z) >> /Length " . strlen($payload) . " >>\n"
+            . "stream\n{$payload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Names [(review-mirror.csv) 4 0 R] >>\nendobj\n"
+            . "8 0 obj\n<< /Type /Annot /Subtype /FileAttachment /Rect [144 660 168 684] /Contents (Mirrored WordPress reviewer note) /FS 4 0 R >>\nendobj\n"
+            . "%%EOF\n";
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $encoded = json_encode($summary, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(strlen($payload), $summary['total_bytes']);
+        $t->same(['review-mirror.csv'], $summary['filenames']);
+
+        $attachment = $summary['attachments'][0];
+        $t->same('embedded-files-name-tree', $attachment['source']);
+        $t->same('review-mirror.csv', $attachment['name_key']);
+        $t->same('review-mirror.csv', $attachment['filename']);
+        $t->same('Data', $attachment['relationship']);
+        $t->same('base_data_for_visual_presentation', $attachment['relationship_role']);
+        $t->same(true, $attachment['file_attachment_annotation']);
+        $t->same('page_annotation', $attachment['file_attachment_annotation_source']);
+        $t->same(1, $attachment['page_number']);
+        $t->same(3, $attachment['page_object_id']);
+        $t->same(8, $attachment['annotation_object_id']);
+        $t->same('Mirrored WordPress reviewer note', $attachment['annotation_contents']);
+        $t->same([144.0, 660.0, 168.0, 684.0], $attachment['annotation_rect']);
+        $t->same(strlen($payload), $attachment['byte_length']);
+        $t->same($checksum, $attachment['checksum_hex']);
+        $t->same($checksum, $attachment['computed_checksum_hex']);
+        $t->same(true, $attachment['checksum_matches']);
+        $t->same('D:20260605022515Z', $attachment['modified_at']);
+        $t->same(false, array_key_exists('bytes', $attachment));
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+        $t->true(is_string($encoded) && substr_count($encoded, 'review-mirror.csv') >= 1);
+        $t->true(is_string($encoded) && !str_contains($encoded, $payload));
+    },
     'summarizes related-file streams in WordPress attachment preflight without bytes' => static function (TestRunner $t): void {
         $sourcePayload = '<wp-export><post id="preflight-related"/></wp-export>';
         $relatedJson = '{"review":"preflight-related"}';

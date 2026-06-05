@@ -120,11 +120,42 @@ final class PdfAttachmentExtractor
                 ]
             );
             if ($attachment !== null) {
+                $attachment['file_attachment_annotation'] = true;
+                $attachment['file_attachment_annotation_source'] = 'page_annotation';
+
+                $duplicateIndex = $this->documentAttachmentIndex($attachments, $attachment);
+                if ($duplicateIndex !== null) {
+                    $this->applyFileAttachmentAnnotationMirrorMetadata($attachments[$duplicateIndex], $attachment);
+                    continue;
+                }
+
                 $attachments[] = $attachment;
             }
         }
 
         return $attachments;
+    }
+
+    /**
+     * @param array<string, mixed> $target
+     * @param array<string, mixed> $annotationAttachment
+     */
+    private function applyFileAttachmentAnnotationMirrorMetadata(array &$target, array $annotationAttachment): void
+    {
+        $target['file_attachment_annotation'] = true;
+        $target['file_attachment_annotation_source'] = 'page_annotation';
+
+        foreach ([
+            'page_number',
+            'page_object_id',
+            'annotation_object_id',
+            'annotation_contents',
+            'annotation_rect',
+        ] as $key) {
+            if (array_key_exists($key, $annotationAttachment)) {
+                $target[$key] = $annotationAttachment[$key];
+            }
+        }
     }
 
     /**
