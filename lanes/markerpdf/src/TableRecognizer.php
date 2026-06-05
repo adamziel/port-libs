@@ -1888,8 +1888,13 @@ final class TableRecognizer
 
         $rotation = (int) ($textLine['rotation'] ?? 0);
         if (isset($textLine['table_blocks']) && is_array($textLine['table_blocks'])) {
+            $blocks = array_values(array_filter($textLine['table_blocks'], static fn (mixed $block): bool => is_array($block)));
+            if ($this->tableBlocksAreCropLocal($textLine)) {
+                return $this->precomputedTableBlocks($blocks, $tableBbox);
+            }
+
             return $this->filterTextBlocksToTable(
-                array_values(array_filter($textLine['table_blocks'], static fn (mixed $block): bool => is_array($block))),
+                $blocks,
                 $tableBbox,
                 $imageSize,
                 $rotation
@@ -1916,6 +1921,49 @@ final class TableRecognizer
         return [
             'cells' => [],
             'boundary_review' => null,
+        ];
+    }
+
+    /**
+     * Serialized output from surya.input.pdflines::get_table_blocks is already
+     * relative to the input table crop. Full-page pdftext payloads keep using
+     * the legacy filter path unless the caller marks this coordinate space.
+     *
+     * @param array<string, mixed> $textLine
+     */
+    private function tableBlocksAreCropLocal(array $textLine): bool
+    {
+        foreach (['table_blocks_coordinate_space', 'table_blocks_geometry_space'] as $key) {
+            if (!isset($textLine[$key]) || !is_scalar($textLine[$key])) {
+                continue;
+            }
+
+            return in_array($this->normalizeCoordinateSpace((string) $textLine[$key]), [
+                'table_crop',
+                'crop',
+                'table_local',
+                'local_table',
+                'relative_table',
+                'table_relative',
+                'precomputed_get_table_blocks',
+            ], true);
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $blocks
+     * @param list<float> $tableBbox
+     * @return array{cells: list<array<string, mixed>>, boundary_review: array<string, mixed>|null}
+     */
+    private function precomputedTableBlocks(array $blocks, array $tableBbox): array
+    {
+        $cells = $this->sortTextCells($this->normalizeCells($blocks));
+
+        return [
+            'cells' => $cells,
+            'boundary_review' => $this->tableTextCellBoundaryReview($cells, $tableBbox, 'precomputed_get_table_blocks'),
         ];
     }
 
