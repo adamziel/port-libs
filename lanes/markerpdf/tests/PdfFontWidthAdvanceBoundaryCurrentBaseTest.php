@@ -104,6 +104,18 @@ $fontWidthUnresolvedSlotBoundaryCurrentBasePdf = static function (): string {
         . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
 };
 
+$fontWidthRotatedTextMatrixBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /Frot 12 Tf '
+        . '0 1 -1 0 72 720 Tm <4142> Tj '
+        . '0.6 0.8 0 1 96 720 Tm <4344> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Frot 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+RotatedAdvance /Encoding 6 0 R /FirstChar 65 /LastChar 68 /Widths [1000 1000 1000 1000] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
+};
+
 $fontVerticalWidthAdvanceBoundaryCurrentBasePdf = static function (): string {
     $encodingCMap = "/CIDInit /ProcSet findresource begin\n"
         . "12 dict begin\n"
@@ -335,6 +347,26 @@ return [
         $t->true(!str_contains($plainText, 'C D'));
         $t->true(!str_contains($plainText, 'SparseAdvance'));
         $t->true(!str_contains($plainText, 'Fsparse'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'uses rotated text matrix horizontal vector for native styled font advance bboxes on current base' => static function (TestRunner $t) use ($fontWidthRotatedTextMatrixBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthRotatedTextMatrixBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['AB CD'], $extractor->extractTextLines($pdf));
+        $t->same(['AB', 'CD'], $extractor->extractTextRuns($pdf));
+        $t->same('AB CD', $plainText);
+        $t->same("AB CD\n", $extractor->naiveGetText($pdf));
+        $t->same(['AB', 'CD'], array_column($spans, 'text'));
+        $t->same([[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]], array_column($spans, 'bbox'));
+        $t->same([0.0, 0.0, 48.0, 12.0], $line['bbox'] ?? null);
+        $t->true(array_column($spans, 'bbox') !== [[0.0, 0.0, 1.0, 12.0], [1.0, 0.0, 15.4, 12.0]]);
+        $t->true(!str_contains($plainText, 'RotatedAdvance'));
+        $t->true(!str_contains($plainText, 'Frot'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'uses vertical CIDFont W2 advances for native styled span bboxes on current base' => static function (TestRunner $t) use ($fontVerticalWidthAdvanceBoundaryCurrentBasePdf): void {

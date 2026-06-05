@@ -18573,6 +18573,7 @@ final class PdfTextExtractor
         $wordSpacing = 0.0;
         $horizontalScale = 100.0;
         $currentTextMatrixHorizontalScale = 1.0;
+        $currentTextMatrixHorizontalExtentScale = 1.0;
         $currentTextMatrixVerticalScale = 1.0;
         $textRise = 0.0;
         $spanId = 0;
@@ -18639,7 +18640,7 @@ final class PdfTextExtractor
                         $toUnicodeMap,
                         $characterSpacing,
                         $wordSpacing,
-                        $horizontalScale * $currentTextMatrixHorizontalScale,
+                        $horizontalScale * $currentTextMatrixHorizontalExtentScale,
                         $currentTextMatrixVerticalScale,
                         $textRise
                     );
@@ -18814,6 +18815,8 @@ final class PdfTextExtractor
                 $currentTextX = $this->textMatrixX($operands);
                 $currentTextY = $matrixY;
                 $currentTextMatrixHorizontalScale = $this->textMatrixHorizontalScale($operands) ?? 1.0;
+                $currentTextMatrixHorizontalExtentScale = $this->textMatrixHorizontalExtentScale($operands)
+                    ?? abs($currentTextMatrixHorizontalScale);
                 $currentTextMatrixVerticalScale = $this->textMatrixVerticalScale($operands) ?? 1.0;
                 $operands = [];
                 continue;
@@ -18826,6 +18829,7 @@ final class PdfTextExtractor
                 } else {
                     $currentTextX = null;
                     $currentTextY = null;
+                    $currentTextMatrixHorizontalExtentScale = 1.0;
                     $currentTextMatrixVerticalScale = 1.0;
                 }
                 $operands = [];
@@ -18835,6 +18839,7 @@ final class PdfTextExtractor
             if ($token === 'BT') {
                 $currentTextX = 0.0;
                 $currentTextY = null;
+                $currentTextMatrixHorizontalExtentScale = 1.0;
                 $currentTextMatrixVerticalScale = 1.0;
                 $operands = [];
                 continue;
@@ -21140,6 +21145,24 @@ final class PdfTextExtractor
         }
 
         return $this->numericOperand($operands[count($operands) - 6]);
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function textMatrixHorizontalExtentScale(array $operands): ?float
+    {
+        if (count($operands) < 6) {
+            return null;
+        }
+
+        $a = $this->numericOperand($operands[count($operands) - 6]);
+        $b = $this->numericOperand($operands[count($operands) - 5]);
+        if ($a === null || $b === null) {
+            return null;
+        }
+
+        return sqrt(($a * $a) + ($b * $b));
     }
 
     /**
