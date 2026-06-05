@@ -11273,11 +11273,11 @@ final class PdfMetadataExtractor
     private function readUnsignedIntegerToken(string $value, int &$offset): ?int
     {
         $offset = $this->skipPdfWhitespace($value, $offset);
-        if (preg_match('/\G(\d+)(?=$|[\s\[\]()<>{}\/%])/s', $value, $match, 0, $offset) !== 1) {
+        if (preg_match('/\G\+?(\d+)(?=$|[\s\[\]()<>{}\/%])/s', $value, $match, 0, $offset) !== 1) {
             return null;
         }
 
-        $offset += strlen($match[1]);
+        $offset += strlen($match[0]);
         return (int) $match[1];
     }
 

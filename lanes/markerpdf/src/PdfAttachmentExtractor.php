@@ -3329,11 +3329,11 @@ final class PdfAttachmentExtractor
     private function readObjectStreamHeaderUnsignedInteger(string $header, int &$offset): ?int
     {
         $this->skipWhitespaceAndComments($header, $offset);
-        if (preg_match('/\G(\d+)(?=$|[\s\[\]()<>{}\/%])/s', $header, $match, 0, $offset) !== 1) {
+        if (preg_match('/\G\+?(\d+)(?=$|[\s\[\]()<>{}\/%])/s', $header, $match, 0, $offset) !== 1) {
             return null;
         }
 
-        $offset += strlen($match[1]);
+        $offset += strlen($match[0]);
 
         return (int) $match[1];
     }

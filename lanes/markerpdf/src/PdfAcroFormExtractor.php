@@ -10714,7 +10714,7 @@ final class PdfAcroFormExtractor
     private function nonNegativeIntegerAt(string $body, int &$offset): ?int
     {
         $this->skipWhitespace($body, $offset);
-        if (preg_match('/\G\d+/s', $body, $match, 0, $offset) !== 1) {
+        if (preg_match('/\G\+?\d+/s', $body, $match, 0, $offset) !== 1) {
             return null;
         }
 

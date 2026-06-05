@@ -2259,24 +2259,62 @@ final class PdfOutlineExtractor
      */
     private function objectStreamHeaderMembers(string $header, int $count): array
     {
-        if (preg_match_all('/(\d+)\s+(\d+)/', $header, $matches, PREG_SET_ORDER) < 1) {
+        $members = [];
+        $offset = 0;
+        for ($index = 0; $index < $count; $index++) {
+            $objectNumber = $this->readObjectStreamHeaderUnsignedInteger($header, $offset);
+            $memberOffset = $this->readObjectStreamHeaderUnsignedInteger($header, $offset);
+            if ($objectNumber === null || $memberOffset === null) {
+                return [];
+            }
+
+            if ($objectNumber > 0) {
+                $members[] = [
+                    'objectNumber' => $objectNumber,
+                    'offset' => $memberOffset,
+                    'index' => $index,
+                ];
+            }
+        }
+
+        if ($this->skipObjectStreamHeaderWhitespace($header, $offset) !== strlen($header)) {
             return [];
         }
 
-        $members = [];
-        foreach ($matches as $index => $match) {
-            if ($index >= $count) {
-                break;
-            }
+        return $members;
+    }
 
-            $members[] = [
-                'objectNumber' => (int) $match[1],
-                'offset' => (int) $match[2],
-                'index' => $index,
-            ];
+    private function readObjectStreamHeaderUnsignedInteger(string $header, int &$offset): ?int
+    {
+        $offset = $this->skipObjectStreamHeaderWhitespace($header, $offset);
+        if (preg_match('/\G\+?(\d+)(?=$|[\s\[\]()<>{}\/%])/s', $header, $match, 0, $offset) !== 1) {
+            return null;
         }
 
-        return $members;
+        $offset += strlen($match[0]);
+        return (int) $match[1];
+    }
+
+    private function skipObjectStreamHeaderWhitespace(string $header, int $offset): int
+    {
+        $length = strlen($header);
+        while ($offset < $length) {
+            if (ctype_space($header[$offset])) {
+                $offset++;
+                continue;
+            }
+
+            if ($header[$offset] === '%') {
+                while ($offset < $length && !in_array($header[$offset], ["\r", "\n"], true)) {
+                    $offset++;
+                }
+                continue;
+            }
+
+            break;
+        }
+
+        return $offset;
     }
 
     /**
