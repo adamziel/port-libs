@@ -39,6 +39,49 @@ $embeddedFilesPdf = static function (): array {
     return [$pdf, $manifest, $notes, strtolower($checksum)];
 };
 
+$ascii85Encode = static function (string $bytes): string {
+    $out = '<~';
+    $length = strlen($bytes);
+    for ($offset = 0; $offset < $length; $offset += 4) {
+        $chunk = substr($bytes, $offset, 4);
+        $pad = 4 - strlen($chunk);
+        if ($pad > 0) {
+            $chunk .= str_repeat("\0", $pad);
+        }
+
+        $value = 0;
+        foreach (unpack('C*', $chunk) ?: [] as $byte) {
+            $value = ($value << 8) + $byte;
+        }
+
+        if ($value === 0 && $pad === 0) {
+            $out .= 'z';
+            continue;
+        }
+
+        $encoded = '';
+        for ($index = 0; $index < 5; $index++) {
+            $encoded = chr(($value % 85) + 33) . $encoded;
+            $value = intdiv($value, 85);
+        }
+
+        $out .= $pad === 0 ? $encoded : substr($encoded, 0, 5 - $pad);
+    }
+
+    return $out . '~>';
+};
+
+$runLengthEncode = static function (string $bytes): string {
+    $out = '';
+    for ($offset = 0, $length = strlen($bytes); $offset < $length;) {
+        $chunk = substr($bytes, $offset, 128);
+        $out .= chr(strlen($chunk) - 1) . $chunk;
+        $offset += strlen($chunk);
+    }
+
+    return $out . chr(128);
+};
+
 return [
     'extracts catalog EmbeddedFiles name-tree attachments for review metadata' => static function (TestRunner $t) use ($embeddedFilesPdf): void {
         [$pdf, $manifest, $notes, $checksum] = $embeddedFilesPdf();
@@ -121,6 +164,58 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, 'unsafe.bin'));
         $t->true(is_string($encoded) && !str_contains($encoded, 'UNSUPPORTED_EMBEDDED_BYTES'));
         $t->true(is_string($encoded) && !str_contains($encoded, strtolower($unsafeChecksum)));
+    },
+    'decodes ASCII85 and RunLength EmbeddedFile stream stacks before checksum review' => static function (TestRunner $t) use ($ascii85Encode, $runLengthEncode): void {
+        $ascii85Payload = '<wp-export><post id="ascii85-embedded-filter-stack"/></wp-export>';
+        $ascii85Compressed = gzcompress($ascii85Payload);
+        if (!is_string($ascii85Compressed)) {
+            throw new RuntimeException('Unable to compress ASCII85 embedded-file fixture.');
+        }
+
+        $runLengthPayload = "Title,Status\nRunLength EmbeddedFile,Ready\n";
+        $runLengthCompressed = gzcompress($runLengthPayload);
+        if (!is_string($runLengthCompressed)) {
+            throw new RuntimeException('Unable to compress RunLength embedded-file fixture.');
+        }
+
+        $ascii85Encoded = $ascii85Encode($ascii85Compressed);
+        $runLengthEncoded = strtoupper(bin2hex($runLengthEncode($runLengthCompressed))) . '>';
+        $ascii85Checksum = strtoupper(hash('md5', $ascii85Payload));
+        $runLengthChecksum = strtoupper(hash('md5', $runLengthPayload));
+
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
+            . "6 0 obj\n<< /Names [(ascii85.xml) 10 0 R (runlength.csv) 20 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (ascii85.xml) /Desc (ASCII85 EmbeddedFile stack) /AFRelationship /Source /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Filter [ null /A85 /FlateDecode ] /Params << /Size " . strlen($ascii85Payload) . " /CheckSum <{$ascii85Checksum}> >> /Length " . strlen($ascii85Encoded) . " >>\nstream\n{$ascii85Encoded}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Type /Filespec /F (runlength.csv) /Desc (RunLength EmbeddedFile stack) /AFRelationship /Data /EF << /F 21 0 R >> >>\nendobj\n"
+            . "21 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCIIHexDecode /RL /Fl ] /Params << /Size " . strlen($runLengthPayload) . " /CheckSum <{$runLengthChecksum}> >> /Length " . strlen($runLengthEncoded) . " >>\nstream\n{$runLengthEncoded}\nendstream\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+
+        $t->same(2, count($files));
+
+        $ascii85File = $files[0];
+        $t->same('ascii85.xml', $ascii85File['filename']);
+        $t->same('ASCII85 EmbeddedFile stack', $ascii85File['description']);
+        $t->same('Source', $ascii85File['relationship']);
+        $t->same(['A85', 'FlateDecode'], $ascii85File['filters']);
+        $t->same(strlen($ascii85Payload), $ascii85File['declared_size']);
+        $t->same($ascii85Payload, $ascii85File['content']);
+        $t->same(strtolower($ascii85Checksum), $ascii85File['checksum']);
+        $t->same(true, $ascii85File['checksum_matches']);
+
+        $runLengthFile = $files[1];
+        $t->same('runlength.csv', $runLengthFile['filename']);
+        $t->same('RunLength EmbeddedFile stack', $runLengthFile['description']);
+        $t->same('Data', $runLengthFile['relationship']);
+        $t->same(['ASCIIHexDecode', 'RL', 'Fl'], $runLengthFile['filters']);
+        $t->same(strlen($runLengthPayload), $runLengthFile['declared_size']);
+        $t->same($runLengthPayload, $runLengthFile['content']);
+        $t->same(strtolower($runLengthChecksum), $runLengthFile['checksum']);
+        $t->same(true, $runLengthFile['checksum_matches']);
     },
     'normalizes embedded-file Params checksums and reports current content match state' => static function (TestRunner $t): void {
         $literalChecksum = static function (string $bytes): string {

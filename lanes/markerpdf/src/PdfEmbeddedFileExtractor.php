@@ -4216,7 +4216,9 @@ final class PdfEmbeddedFileExtractor
         foreach ($filters as $filter) {
             $decoded = match ($filter) {
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
+                'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream),
+                'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
                 default => null,
             };
             if ($decoded === null) {
@@ -4269,6 +4271,79 @@ final class PdfEmbeddedFileExtractor
         return $decoded === false ? null : $decoded;
     }
 
+    private function decodeAscii85Stream(string $stream): ?string
+    {
+        $body = trim($stream);
+        if (str_starts_with($body, '<~')) {
+            $body = substr($body, 2);
+        }
+
+        $terminator = strpos($body, '~>');
+        if ($terminator !== false) {
+            $body = substr($body, 0, $terminator);
+        }
+
+        $out = '';
+        $group = [];
+        $length = strlen($body);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $body[$offset];
+            if (ctype_space($char)) {
+                continue;
+            }
+
+            if ($char === 'z') {
+                if ($group !== []) {
+                    return null;
+                }
+                $out .= "\0\0\0\0";
+                continue;
+            }
+
+            $ord = ord($char);
+            if ($ord < 33 || $ord > 117) {
+                return null;
+            }
+
+            $group[] = $ord - 33;
+            if (count($group) === 5) {
+                $out .= $this->decodeAscii85Group($group, 4);
+                $group = [];
+            }
+        }
+
+        if ($group !== []) {
+            $groupLength = count($group);
+            if ($groupLength === 1) {
+                return null;
+            }
+            while (count($group) < 5) {
+                $group[] = 84;
+            }
+            $out .= $this->decodeAscii85Group($group, $groupLength - 1);
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<int> $group
+     */
+    private function decodeAscii85Group(array $group, int $bytesToReturn): string
+    {
+        $value = 0;
+        foreach ($group as $digit) {
+            $value = ($value * 85) + $digit;
+        }
+
+        $bytes = '';
+        for ($shift = 24; $shift >= 0; $shift -= 8) {
+            $bytes .= chr(($value >> $shift) & 0xff);
+        }
+
+        return substr($bytes, 0, $bytesToReturn);
+    }
+
     private function decodeFlateStream(string $stream): ?string
     {
         $inflated = @gzuncompress($stream);
@@ -4280,6 +4355,36 @@ final class PdfEmbeddedFileExtractor
         }
 
         return $inflated === false ? null : $inflated;
+    }
+
+    private function decodeRunLengthStream(string $stream): ?string
+    {
+        $out = '';
+        $length = strlen($stream);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $control = ord($stream[$offset]);
+            if ($control === 128) {
+                return $out;
+            }
+
+            if ($control <= 127) {
+                $copyLength = $control + 1;
+                if ($offset + $copyLength >= $length) {
+                    return null;
+                }
+                $out .= substr($stream, $offset + 1, $copyLength);
+                $offset += $copyLength;
+                continue;
+            }
+
+            if ($offset + 1 >= $length) {
+                return null;
+            }
+            $out .= str_repeat($stream[$offset + 1], 257 - $control);
+            $offset++;
+        }
+
+        return null;
     }
 
     /**
