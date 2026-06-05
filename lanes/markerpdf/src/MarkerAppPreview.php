@@ -1816,8 +1816,7 @@ final class MarkerAppPreview
             return null;
         }
 
-        return $this->directObjectBodiesByGeneration[$objectId][$generation]
-            ?? ($objects[$objectId]['body'] ?? null);
+        return $this->directObjectBodiesByGeneration[$objectId][$generation] ?? null;
     }
 
     private function valueAfterName(string $body, string $name): ?string

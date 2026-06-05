@@ -235,6 +235,29 @@ $generationBoundaryPageLabelPdf = static function (): string {
         . "%%EOF\n";
 };
 
+$missingGenerationPageLabelPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Missing generation page one imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Missing generation body imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums [0 30 0 R 1 << /S /D /P (Body ) /St 2 >>] >>\nendobj\n"
+        . "30 1 obj\n<< /S /D /P (stale-missing-generation-) /St 99 >>\nendobj\n"
+        . "%%EOF\n";
+};
+
 $indirectKeyPageLabelBoundaryPdf = static function (): string {
     $contents = [
         10 => 'BT /F1 12 Tf 72 720 Td (Opening fallback imported) Tj ET',
@@ -510,6 +533,25 @@ return [
         $t->true(!in_array('stale-high-generation-99', $labels, true));
         $t->true(!in_array('stale-high-generation-100', $previewLabels, true));
         $t->same('Body 5', $preview->getPageImagePlan($pdf, 3)['page_label']);
+    },
+    'rejects missing-generation PageLabels references before preview metadata fallback' => static function (TestRunner $t) use ($missingGenerationPageLabelPdf): void {
+        $pdf = $missingGenerationPageLabelPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['1', 'Body 2'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Missing generation page one imported', 'Missing generation body imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-missing-generation-99', $labels, true));
+        $t->true(!in_array('stale-missing-generation-99', $previewLabels, true));
+        $t->same('1', $summary['pages'][0]['page_label'] ?? null);
+        $t->same('Body 2', $preview->getPageImagePlan($pdf, 2)['page_label']);
     },
     'resolves indirect PageLabels Nums keys by exact generation before WordPress page metadata' => static function (TestRunner $t) use ($indirectKeyPageLabelBoundaryPdf): void {
         $pdf = $indirectKeyPageLabelBoundaryPdf();
