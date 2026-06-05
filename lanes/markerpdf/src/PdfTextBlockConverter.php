@@ -95,6 +95,7 @@ final class PdfTextBlockConverter
         $sourceBbox = $this->bbox($page['bbox'], 'bbox');
         $pageWidth = abs($sourceBbox[2] - $sourceBbox[0]);
         $pageHeight = abs($sourceBbox[3] - $sourceBbox[1]);
+        $sourcePage = $this->integerMetadata($page['page'], 'page');
         $rotation = (int) $page['rotation'];
         if ($rotation === 90 || $rotation === 270) {
             [$pageWidth, $pageHeight] = [$pageHeight, $pageWidth];
@@ -102,11 +103,11 @@ final class PdfTextBlockConverter
 
         return [
             'blocks' => $pageBlocks,
-            'pnum' => (int) $page['page'],
+            'pnum' => $sourcePage,
             'bbox' => [0.0, 0.0, $pageWidth, $pageHeight],
             'rotation' => $rotation,
             'char_blocks' => array_values($page['blocks']),
-            'pdftext_source' => $this->pdftextSourceMetadata($page, $sourceBbox, $rotation),
+            'pdftext_source' => $this->pdftextSourceMetadata($page, $sourceBbox, $rotation, $sourcePage),
         ];
     }
 
@@ -163,7 +164,7 @@ final class PdfTextBlockConverter
     {
         $this->bbox($page['bbox'] ?? null, 'bbox');
         $this->assertNumeric($page['rotation'] ?? null, 'rotation');
-        $this->assertNumeric($page['page'] ?? null, 'page');
+        $this->integerMetadata($page['page'] ?? null, 'page');
 
         if (!isset($page['blocks']) || !is_array($page['blocks']) || !array_is_list($page['blocks'])) {
             throw new InvalidArgumentException('pdftext page blocks must be a list.');
@@ -242,10 +243,10 @@ final class PdfTextBlockConverter
      * @param list<float> $sourceBbox
      * @return array<string, mixed>
      */
-    private function pdftextSourceMetadata(array $page, array $sourceBbox, int $rotation): array
+    private function pdftextSourceMetadata(array $page, array $sourceBbox, int $rotation, int $sourcePage): array
     {
         $source = [
-            'page' => (int) $page['page'],
+            'page' => $sourcePage,
             'bbox' => $sourceBbox,
             'rotation' => $rotation,
         ];

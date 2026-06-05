@@ -305,6 +305,20 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$fractionalDestinationPage], maxPages: 1));
         $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$fractionalIndex], maxPages: 1));
     },
+    'rejects fractional pdftext page numbers before WordPress page metadata' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $fractionalPage = $pdftextLinkedPage();
+        $fractionalPage['page'] = 12.75;
+
+        $integralFloatPage = $pdftextLinkedPage();
+        $integralFloatPage['page'] = 12.0;
+
+        $extractor = new PdfTextDocumentExtractor();
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$fractionalPage], maxPages: 1));
+
+        $document = $extractor->getTextBlocks([$integralFloatPage], maxPages: 1);
+        $t->same(12, $document['pages'][0]['pnum']);
+        $t->same(12, $document['pages'][0]['pdftext_source']['page']);
+    },
     'honors pdftext disable_links at the dictionary core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $page = $pdftextLinkedPage();
         $page['refs'][0]['raw_private_payload'] = 'hidden disabled-link ref payload';

@@ -25,6 +25,15 @@ $page = [
     ]],
 ];
 
+$fractionalPage = $page;
+$fractionalPage['page'] = 18.5;
+$fractionalPageRejected = false;
+try {
+    (new PdfTextDocumentExtractor())->getTextBlocks([$fractionalPage], maxPages: 1);
+} catch (InvalidArgumentException) {
+    $fractionalPageRejected = true;
+}
+
 $document = (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1);
 $source = $document['pages'][0]['pdftext_source'] ?? null;
 $renderedBbox = $document['pages'][0]['bbox'] ?? null;
@@ -43,6 +52,10 @@ if ($renderedBbox !== [0.0, 0.0, 600.0, 400.0]) {
     throw new RuntimeException('Expected rotated Marker page bbox to remain derived from source bbox.');
 }
 
+if (!$fractionalPageRejected) {
+    throw new RuntimeException('Expected fractional pdftext source page numbers to be rejected before WordPress metadata.');
+}
+
 $processor = new MarkdownPostProcessor();
 $blocks = $processor->mergeBlocks($processor->mergeSpans($document['pages']));
 
@@ -55,6 +68,7 @@ echo '<!-- markerpdf-pdftext-dictionary-source-page-currentbase ' . htmlspecialc
     'rendered_marker_bbox' => $renderedBbox,
     'source_dimensions_preserved' => $source['width'] === 400.0 && $source['height'] === 600.0,
     'rotation_bbox_separated' => $renderedBbox === [0.0, 0.0, 600.0, 400.0],
+    'fractional_page_rejected' => $fractionalPageRejected,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n\n";
 
 foreach ($blocks as $block) {
