@@ -4316,6 +4316,7 @@ final class PdfMetadataExtractor
             }
         }
 
+        $kids = $this->destinationNameTreeKidsSortedByLimits($kids, $objects, $limits);
         foreach ($kids as $kid) {
             if ($this->validObjectNumberFromReference($kid, $objects) === null) {
                 continue;
@@ -4326,6 +4327,53 @@ final class PdfMetadataExtractor
                 $this->collectDestinationNameTreeEntries($child, $objects, $entries, $seenObjects, $depth + 1, $limits);
             }
         }
+    }
+
+    /**
+     * @param list<string> $kids
+     * @param array<int, string> $objects
+     * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
+     * @return list<string>
+     */
+    private function destinationNameTreeKidsSortedByLimits(array $kids, array $objects, ?array $inheritedLimits): array
+    {
+        if (count($kids) < 2) {
+            return $kids;
+        }
+
+        $kidNodes = [];
+        foreach ($kids as $order => $kid) {
+            if ($this->validObjectNumberFromReference($kid, $objects) === null) {
+                return $kids;
+            }
+
+            $child = $this->resolveDictionaryFromValue($kid, $objects);
+            if ($child === null) {
+                return $kids;
+            }
+
+            $localLimits = $this->nameTreeNodeLimits($child, $objects);
+            $limits = $this->nameTreeEffectiveLimits($child, $objects, $inheritedLimits);
+            if ($localLimits === null || $limits === null) {
+                return $kids;
+            }
+
+            $kidNodes[] = [
+                'kid' => $kid,
+                'limits' => $limits,
+                'order' => $order,
+            ];
+        }
+
+        usort(
+            $kidNodes,
+            static function (array $left, array $right): int {
+                return strcmp($left['limits']['lower_bytes'], $right['limits']['lower_bytes'])
+                    ?: $left['order'] <=> $right['order'];
+            }
+        );
+
+        return array_values(array_map(static fn (array $node): string => $node['kid'], $kidNodes));
     }
 
     /**
