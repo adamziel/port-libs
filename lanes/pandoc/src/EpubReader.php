@@ -42,6 +42,7 @@ final class EpubReader
      *     encryption:array<string, mixed>,
      *     mediaOverlays:array<string, array<string, mixed>>,
      *     mediaDurations:array<string, mixed>,
+     *     pageBreaks:array<string, mixed>,
      *     xhtmlAssets:list<array<string, mixed>>,
      *     assets:list<array<string, mixed>>,
      *     assetReport:array<string, mixed>,
@@ -68,6 +69,7 @@ final class EpubReader
             $opf['accessibility'],
             $opf['resourceProperties'],
             $opf['mediaDurations'],
+            $opf['pageBreaks'],
             $renditions
         );
 
@@ -91,6 +93,7 @@ final class EpubReader
             'encryption' => $opf['encryption'],
             'mediaOverlays' => $opf['mediaOverlays'],
             'mediaDurations' => $opf['mediaDurations'],
+            'pageBreaks' => $opf['pageBreaks'],
             'xhtmlAssets' => $opf['xhtmlAssets'],
             'assets' => $opf['assets'],
             'assetReport' => $opf['assetReport'],
@@ -127,6 +130,7 @@ final class EpubReader
                 'encryption' => $opf['encryption'],
                 'mediaOverlays' => $opf['mediaOverlays'],
                 'mediaDurations' => $opf['mediaDurations'],
+                'pageBreaks' => $opf['pageBreaks'],
                 'assets' => $opf['assetReport'],
             ],
         ];
@@ -254,6 +258,7 @@ final class EpubReader
      *     encryption:array<string, mixed>,
      *     mediaOverlays:array<string, array<string, mixed>>,
      *     mediaDurations:array<string, mixed>,
+     *     pageBreaks:array<string, mixed>,
      *     xhtmlAssets:list<array<string, mixed>>,
      *     assets:list<array<string, mixed>>,
      *     assetReport:array<string, mixed>
@@ -300,6 +305,9 @@ final class EpubReader
         $navItem = $this->firstManifestItemWithProperty($manifest, 'nav');
         $ncxItem = $this->ncxManifestItem($spineElement, $manifestById, $manifest);
         $assetReport = $this->assetReport($package, $opfPart, $manifest, $metadata);
+        $nav = $navItem === null ? null : $this->readNavDocument($package, $navItem);
+        $ncx = $ncxItem === null ? null : $this->readNcxDocument($package, $ncxItem);
+        $pageBreaks = self::pageBreakReport($nav, $spine);
 
         return [
             'metadata' => $metadata,
@@ -313,8 +321,8 @@ final class EpubReader
             'manifest' => $manifest,
             'spine' => $spine,
             'spineProperties' => $spineProperties,
-            'nav' => $navItem === null ? null : $this->readNavDocument($package, $navItem),
-            'ncx' => $ncxItem === null ? null : $this->readNcxDocument($package, $ncxItem),
+            'nav' => $nav,
+            'ncx' => $ncx,
             'guide' => $guide,
             'collections' => $collections,
             'bindings' => $bindings,
@@ -323,6 +331,7 @@ final class EpubReader
             'encryption' => $encryption,
             'mediaOverlays' => $mediaOverlays,
             'mediaDurations' => $mediaDurations,
+            'pageBreaks' => $pageBreaks,
             'xhtmlAssets' => $this->xhtmlAssets($package, $manifest),
             'assets' => $assetReport['items'],
             'assetReport' => $assetReport,
@@ -2485,6 +2494,170 @@ final class EpubReader
     }
 
     /**
+     * @param ?array<string, mixed> $nav
+     * @param list<array<string, mixed>> $spine
+     *
+     * @return array{
+     *     present:bool,
+     *     source:string,
+     *     count:int,
+     *     items:list<array<string, mixed>>,
+     *     itemsByPart:array<string, list<array<string, mixed>>>,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function pageBreakReport(?array $nav, array $spine): array
+    {
+        $pageList = is_array($nav) && is_array($nav['pageList'] ?? null)
+            ? $nav['pageList']
+            : [];
+        if ($pageList === []) {
+            return [
+                'present' => false,
+                'source' => 'nav-page-list',
+                'count' => 0,
+                'items' => [],
+                'itemsByPart' => [],
+                'diagnostics' => [],
+            ];
+        }
+
+        $spineByContentPart = [];
+        foreach ($spine as $spineItem) {
+            $contentPart = is_string($spineItem['contentPart'] ?? null)
+                ? $spineItem['contentPart']
+                : (is_string($spineItem['part'] ?? null) ? $spineItem['part'] : null);
+            if ($contentPart === null || $contentPart === '' || isset($spineByContentPart[$contentPart])) {
+                continue;
+            }
+
+            $spineByContentPart[$contentPart] = $spineItem;
+        }
+
+        $items = [];
+        $diagnostics = [];
+        foreach (self::flattenNavigationItems($pageList) as $pageItem) {
+            $navItem = $pageItem['item'];
+            $index = count($items);
+            $target = is_string($navItem['target'] ?? null) ? $navItem['target'] : null;
+            $part = is_string($navItem['part'] ?? null) ? $navItem['part'] : null;
+            $spineItem = $part !== null ? ($spineByContentPart[$part] ?? null) : null;
+            $itemDiagnostics = [];
+
+            if (($navItem['external'] ?? false) === true) {
+                $itemDiagnostics[] = [
+                    'type' => 'external-page-list-reference',
+                    'target' => $target,
+                    'message' => 'EPUB page-list entry points outside the package and was not fetched',
+                ];
+            } elseif ($target === null) {
+                $itemDiagnostics[] = [
+                    'type' => 'missing-page-list-target',
+                    'message' => 'EPUB page-list entry does not carry a resolvable target',
+                ];
+            } elseif (($navItem['exists'] ?? false) !== true) {
+                $itemDiagnostics[] = [
+                    'type' => 'missing-page-list-reference',
+                    'part' => $part,
+                    'message' => 'EPUB page-list target is missing from the package',
+                ];
+            } elseif (!is_array($spineItem)) {
+                $itemDiagnostics[] = [
+                    'type' => 'page-list-target-outside-spine',
+                    'part' => $part,
+                    'message' => 'EPUB page-list target exists in the package but is not part of the resolved spine handoff',
+                ];
+            }
+
+            foreach ($itemDiagnostics as $diagnostic) {
+                $diagnostics[] = ['index' => $index] + $diagnostic;
+            }
+
+            $items[] = [
+                'index' => $index,
+                'depth' => $pageItem['depth'],
+                'label' => is_string($navItem['title'] ?? null) ? $navItem['title'] : '',
+                'href' => is_string($navItem['href'] ?? null) ? $navItem['href'] : null,
+                'target' => $target,
+                'part' => $part,
+                'fragment' => self::targetFragment($target),
+                'external' => (bool) ($navItem['external'] ?? false),
+                'exists' => (bool) ($navItem['exists'] ?? false),
+                'type' => is_string($navItem['type'] ?? null) ? $navItem['type'] : null,
+                'types' => is_array($navItem['types'] ?? null) ? array_values($navItem['types']) : [],
+                'spineIndex' => is_array($spineItem) ? (int) ($spineItem['index'] ?? 0) : null,
+                'spineIdref' => is_array($spineItem) ? (string) ($spineItem['idref'] ?? '') : null,
+                'spinePart' => is_array($spineItem) ? (string) ($spineItem['part'] ?? '') : null,
+                'contentPart' => is_array($spineItem) ? (string) ($spineItem['contentPart'] ?? $spineItem['part'] ?? '') : null,
+                'linear' => is_array($spineItem) ? (bool) ($spineItem['linear'] ?? true) : null,
+                'pageSpread' => is_array($spineItem) ? ($spineItem['pageSpread'] ?? null) : null,
+                'navDiagnostics' => is_array($navItem['diagnostics'] ?? null) ? array_values($navItem['diagnostics']) : [],
+                'diagnostics' => $itemDiagnostics,
+            ];
+        }
+
+        $itemsByPart = [];
+        foreach ($items as $item) {
+            if (!is_string($item['part'] ?? null) || $item['part'] === '') {
+                continue;
+            }
+
+            $itemsByPart[$item['part']][] = $item;
+        }
+
+        return [
+            'present' => $items !== [],
+            'source' => 'nav-page-list',
+            'count' => count($items),
+            'items' => $items,
+            'itemsByPart' => $itemsByPart,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     *
+     * @return list<array{item:array<string, mixed>, depth:int}>
+     */
+    private static function flattenNavigationItems(array $items, int $depth = 0): array
+    {
+        $flat = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $flat[] = [
+                'item' => $item,
+                'depth' => $depth,
+            ];
+
+            if (is_array($item['children'] ?? null) && $item['children'] !== []) {
+                array_push($flat, ...self::flattenNavigationItems($item['children'], $depth + 1));
+            }
+        }
+
+        return $flat;
+    }
+
+    private static function targetFragment(?string $target): ?string
+    {
+        if ($target === null) {
+            return null;
+        }
+
+        $offset = strpos($target, '#');
+        if ($offset === false) {
+            return null;
+        }
+
+        $fragment = substr($target, $offset + 1);
+
+        return $fragment === '' ? null : $fragment;
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     private function readNavList(ZipPackage $package, \DOMElement $list, string $navPart): array
@@ -3289,6 +3462,7 @@ final class EpubReader
      * @param array<string, mixed> $accessibility
      * @param array<string, mixed> $resourceProperties
      * @param array<string, mixed> $mediaDurations
+     * @param array<string, mixed> $pageBreaks
      * @param array<string, mixed> $renditions
      */
     private function documentNode(
@@ -3303,6 +3477,7 @@ final class EpubReader
         array $accessibility,
         array $resourceProperties,
         array $mediaDurations,
+        array $pageBreaks,
         array $renditions
     ): AstNode {
         $assetsByPart = [];
@@ -3335,6 +3510,12 @@ final class EpubReader
                 'pageSpreadProperties' => $item['pageSpreadProperties'] ?? [],
                 'spineItemProperties' => $item['spineItemProperties'] ?? [],
                 'mediaOverlay' => $item['mediaOverlay'],
+                'pageBreaks' => is_array($pageBreaks['itemsByPart'][$contentPart] ?? null)
+                    ? array_values($pageBreaks['itemsByPart'][$contentPart])
+                    : [],
+                'pageBreakCount' => is_array($pageBreaks['itemsByPart'][$contentPart] ?? null)
+                    ? count($pageBreaks['itemsByPart'][$contentPart])
+                    : 0,
                 'resourceFlags' => $asset['resourceFlags'] ?? [],
                 'resourceReviewFlags' => $asset['resourceReviewFlags'] ?? [],
                 'source' => $isFallback ? 'epub3-spine-fallback' : 'epub3-spine',
@@ -3365,6 +3546,7 @@ final class EpubReader
             'spineProperties' => $spineProperties,
             'resourceProperties' => $resourceProperties,
             'mediaDurations' => $mediaDurations,
+            'pageBreaks' => $pageBreaks,
             'renditions' => $renditions,
             'title' => $metadata['title'] ?? '',
         ], $children);

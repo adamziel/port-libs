@@ -273,6 +273,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['nav']['pageList'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#page-1') {
         throw new RuntimeException('Expected EPUB page-list target to resolve to the source page marker');
     }
+    if (($result['pageBreaks']['count'] ?? null) !== 1 || ($result['pageBreaks']['items'][0]['fragment'] ?? null) !== 'page-1') {
+        throw new RuntimeException('Expected EPUB page-list entries to be summarized as page-break metadata');
+    }
+    if (($result['pageBreaks']['items'][0]['spineIdref'] ?? null) !== 'chapter' || ($result['document']->children[0]->attr('pageBreakCount') ?? null) !== 1) {
+        throw new RuntimeException('Expected WordPress spine block to expose EPUB page-break metadata');
+    }
     if (($result['guide']['items'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
         throw new RuntimeException('Expected EPUB OPF guide text target to resolve to the source chapter');
     }
@@ -493,6 +499,9 @@ echo 'navTarget=' . ($result['nav']['items'][0]['target'] ?? '') . "\n";
 echo 'remoteNavExternal=' . (($result['nav']['items'][1]['external'] ?? false) ? 'yes' : 'no') . "\n";
 echo 'landmarkTarget=' . ($result['nav']['landmarks'][0]['target'] ?? '') . "\n";
 echo 'pageListTarget=' . ($result['nav']['pageList'][0]['target'] ?? '') . "\n";
+echo 'pageBreaks=' . ($result['pageBreaks']['count'] ?? 0) . "\n";
+echo 'firstPageBreakFragment=' . ($result['pageBreaks']['items'][0]['fragment'] ?? '') . "\n";
+echo 'firstSpinePageBreaks=' . ($result['document']->children[0]->attr('pageBreakCount') ?? 0) . "\n";
 echo 'guideReferences=' . count($result['guide']['items'] ?? []) . "\n";
 echo 'guideTextTarget=' . ($result['guide']['items'][0]['target'] ?? '') . "\n";
 echo 'collectionRole=' . ($result['collections'][0]['role'] ?? '') . "\n";

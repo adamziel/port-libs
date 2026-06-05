@@ -548,6 +548,101 @@ return [
         $t->same('/OEBPS/text/chapter2.xhtml#page-2', $nav['pageList'][1]['target']);
         $t->same($nav['items'], $nav['sections'][0]['items']);
     },
+    'builds EPUB page-break report from page-list navigation for WordPress handoff' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $pageListNavXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="page-list">
+      <h1>Print pages</h1>
+      <ol>
+        <li><a epub:type="pagebreak" href="text/chapter1.xhtml#page-1">1</a></li>
+        <li>
+          <a epub:type="pagebreak" href="text/chapter2.xhtml#page-2">2</a>
+          <ol>
+            <li><a epub:type="pagebreak" href="text/chapter2.xhtml#page-2-note">2 note</a></li>
+          </ol>
+        </li>
+        <li><a epub:type="pagebreak" href="appendix/print-page.xhtml#page-3">iii</a></li>
+        <li><a epub:type="pagebreak" href="https://cdn.example.test/epub/page-4.xhtml#page-4">iv</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            null,
+            null,
+            [
+                ['name' => 'OEBPS/appendix/print-page.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><span id="page-3">iii</span></body></html>'],
+            ],
+            $pageListNavXhtml
+        ));
+
+        $pageBreaks = $result['pageBreaks'];
+        $t->same(true, $pageBreaks['present']);
+        $t->same('nav-page-list', $pageBreaks['source']);
+        $t->same(5, $pageBreaks['count']);
+        $t->same($pageBreaks, $result['importReport']['pageBreaks']);
+        $t->same($pageBreaks, $result['document']->attr('pageBreaks'));
+
+        $first = $pageBreaks['items'][0];
+        $t->same(0, $first['index']);
+        $t->same(0, $first['depth']);
+        $t->same('1', $first['label']);
+        $t->same('text/chapter1.xhtml#page-1', $first['href']);
+        $t->same('/OEBPS/text/chapter1.xhtml#page-1', $first['target']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $first['part']);
+        $t->same('page-1', $first['fragment']);
+        $t->same(false, $first['external']);
+        $t->same(true, $first['exists']);
+        $t->same('pagebreak', $first['type']);
+        $t->same(['pagebreak'], $first['types']);
+        $t->same(0, $first['spineIndex']);
+        $t->same('chapter-1', $first['spineIdref']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $first['contentPart']);
+        $t->same(true, $first['linear']);
+        $t->same([], $first['navDiagnostics']);
+        $t->same([], $first['diagnostics']);
+
+        $t->same('2', $pageBreaks['items'][1]['label']);
+        $t->same(1, $pageBreaks['items'][1]['spineIndex']);
+        $t->same(false, $pageBreaks['items'][1]['linear']);
+        $t->same('2 note', $pageBreaks['items'][2]['label']);
+        $t->same(1, $pageBreaks['items'][2]['depth']);
+        $t->same('page-2-note', $pageBreaks['items'][2]['fragment']);
+        $t->same(1, $pageBreaks['items'][2]['spineIndex']);
+
+        $outsideSpine = $pageBreaks['items'][3];
+        $t->same('iii', $outsideSpine['label']);
+        $t->same('/OEBPS/appendix/print-page.xhtml', $outsideSpine['part']);
+        $t->same(true, $outsideSpine['exists']);
+        $t->same(null, $outsideSpine['spineIndex']);
+        $t->same('page-list-target-outside-spine', $outsideSpine['diagnostics'][0]['type']);
+
+        $remote = $pageBreaks['items'][4];
+        $t->same('iv', $remote['label']);
+        $t->same('https://cdn.example.test/epub/page-4.xhtml#page-4', $remote['target']);
+        $t->same('page-4', $remote['fragment']);
+        $t->same(true, $remote['external']);
+        $t->same(null, $remote['part']);
+        $t->same('external-nav-reference', $remote['navDiagnostics'][0]['type']);
+        $t->same('external-page-list-reference', $remote['diagnostics'][0]['type']);
+
+        $t->same(1, count($pageBreaks['itemsByPart']['/OEBPS/text/chapter1.xhtml']));
+        $t->same(2, count($pageBreaks['itemsByPart']['/OEBPS/text/chapter2.xhtml']));
+        $t->same(1, count($pageBreaks['itemsByPart']['/OEBPS/appendix/print-page.xhtml']));
+        $t->same(2, count($pageBreaks['diagnostics']));
+        $t->same('page-list-target-outside-spine', $pageBreaks['diagnostics'][0]['type']);
+        $t->same(3, $pageBreaks['diagnostics'][0]['index']);
+        $t->same('external-page-list-reference', $pageBreaks['diagnostics'][1]['type']);
+        $t->same(4, $pageBreaks['diagnostics'][1]['index']);
+
+        $t->same(1, $result['document']->children[0]->attr('pageBreakCount'));
+        $t->same('1', $result['document']->children[0]->attr('pageBreaks')[0]['label']);
+        $t->same(2, $result['document']->children[1]->attr('pageBreakCount'));
+        $t->same('2 note', $result['document']->children[1]->attr('pageBreaks')[1]['label']);
+    },
     'parses OPF guide references and collection review metadata' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $result = (new EpubReader())->readPackage($buildEpubPackage());
 
