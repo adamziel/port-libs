@@ -176,6 +176,16 @@ $rightsXml = <<<'XML'
 </rights>
 XML;
 
+$metadataXml = <<<'XML'
+<metadata xmlns="http://www.idpf.org/2013/metadata" xmlns:review="https://example.invalid/epub-review" xml:lang="en">
+  <review:source id="source-record" href="META-INF/review/source.json" media-type="application/ld+json">Migration source record</review:source>
+  <review:policy id="remote-policy" href="https://metadata.example.test/container-policy.json">Remote container policy</review:policy>
+  <review:notice id="missing-notice" href="META-INF/review/missing.json">Missing review notice</review:notice>
+  <review:checksum id="self-check" URI="#container-digest">Container digest</review:checksum>
+  <legacy xmlns="" id="legacy-note">Legacy unqualified note</legacy>
+</metadata>
+XML;
+
 $signaturesXml = <<<'XML'
 <signatures xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
   <ds:Signature Id="package-signature">
@@ -2016,6 +2026,65 @@ XML;
         $t->same([], $result['importReport']['encryption']['diagnostics']);
         $t->same(2, count($result['document']->children));
         $t->contains('Chapter XHTML stays available', $result['document']->children[0]->attr('html'));
+    },
+    'reports OCF metadata sidecar records for container-level review' => static function (TestRunner $t) use ($buildEpubPackage, $metadataXml): void {
+        $sourceBytes = '{"source":"wordpress-import","review":true}';
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            null,
+            null,
+            [
+                ['name' => 'META-INF/metadata.xml', 'data' => $metadataXml],
+                ['name' => 'META-INF/review/source.json', 'data' => $sourceBytes],
+            ]
+        ));
+
+        $ocf = $result['ocf'];
+        $metadata = $ocf['metadata'];
+
+        $t->same(true, $ocf['present']);
+        $t->same(1, $ocf['sidecarCount']);
+        $t->same(4, $ocf['referenceCount']);
+        $t->same(2, $ocf['localReferenceCount']);
+        $t->same(1, $ocf['externalReferenceCount']);
+        $t->same(1, $ocf['missingReferenceCount']);
+        $t->same(['ocf-metadata-remote-reference', 'ocf-metadata-missing-reference', 'unqualified-ocf-metadata-element'], array_map(static fn (array $diagnostic): string => $diagnostic['type'], $ocf['diagnostics']));
+
+        $t->same(true, $metadata['present']);
+        $t->same('/META-INF/metadata.xml', $metadata['part']);
+        $t->same('metadata', $metadata['rootName']);
+        $t->same(EpubReader::OCF_METADATA_NS, $metadata['rootNamespace']);
+        $t->same(true, $metadata['recommendedRoot']);
+        $t->same('en', $metadata['language']);
+        $t->same(strlen($metadataXml), $metadata['byteLength']);
+        $t->same(hash('sha256', $metadataXml), $metadata['byteSha256']);
+        $t->same(5, $metadata['itemCount']);
+        $t->same(4, $metadata['referenceCount']);
+        $t->same(2, $metadata['localReferenceCount']);
+        $t->same(1, $metadata['externalReferenceCount']);
+        $t->same(1, $metadata['missingReferenceCount']);
+
+        $t->same('source-record', $metadata['items'][0]['id']);
+        $t->same('source', $metadata['items'][0]['name']);
+        $t->same('https://example.invalid/epub-review', $metadata['items'][0]['namespace']);
+        $t->same('Migration source record', $metadata['items'][0]['text']);
+        $t->same('/META-INF/review/source.json', $metadata['items'][0]['reference']['target']);
+        $t->same(true, $metadata['items'][0]['reference']['exists']);
+        $t->same(strlen($sourceBytes), $metadata['items'][0]['reference']['byteLength']);
+        $t->same('application/ld+json', $metadata['items'][0]['mediaType']);
+
+        $t->same(true, $metadata['items'][1]['reference']['external']);
+        $t->same('ocf-metadata-remote-reference', $metadata['items'][1]['diagnostics'][0]['type']);
+        $t->same(false, $metadata['items'][2]['reference']['exists']);
+        $t->same('ocf-metadata-missing-reference', $metadata['items'][2]['diagnostics'][0]['type']);
+        $t->same('/META-INF/metadata.xml#container-digest', $metadata['items'][3]['reference']['target']);
+        $t->same(true, $metadata['items'][3]['reference']['exists']);
+        $t->same('legacy', $metadata['items'][4]['name']);
+        $t->same(null, $metadata['items'][4]['namespace']);
+        $t->same(false, $metadata['items'][4]['namespaceQualified']);
+        $t->same('unqualified-ocf-metadata-element', $metadata['items'][4]['diagnostics'][0]['type']);
+
+        $t->same($metadata, $result['importReport']['ocf']['metadata']);
+        $t->same($ocf, $result['document']->attr('ocf'));
     },
     'reports OCF rights and signatures sidecars without validating cryptography' => static function (TestRunner $t) use ($buildEpubPackage, $rightsXml, $signaturesXml): void {
         $licenseBytes = '<license source="wordpress-import">review required</license>';

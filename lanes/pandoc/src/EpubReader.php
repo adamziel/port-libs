@@ -13,6 +13,7 @@ final class EpubReader
     public const XHTML_NS = 'http://www.w3.org/1999/xhtml';
     public const EPUB_OPS_NS = 'http://www.idpf.org/2007/ops';
     public const NCX_NS = 'http://www.daisy.org/z3986/2005/ncx/';
+    public const OCF_METADATA_NS = 'http://www.idpf.org/2013/metadata';
     public const XMLENC_NS = 'http://www.w3.org/2001/04/xmlenc#';
     public const XMLDSIG_NS = 'http://www.w3.org/2000/09/xmldsig#';
     public const XML_EVENTS_NS = 'http://www.w3.org/2001/xml-events';
@@ -1838,25 +1839,144 @@ final class EpubReader
      */
     private function readOcfSidecars(ZipPackage $package): array
     {
+        $metadata = $this->readOcfMetadata($package);
         $rights = $this->readOcfRights($package);
         $signatures = $this->readOcfSignatures($package);
         $diagnostics = array_merge(
+            is_array($metadata['diagnostics'] ?? null) ? $metadata['diagnostics'] : [],
             is_array($rights['diagnostics'] ?? null) ? $rights['diagnostics'] : [],
             is_array($signatures['diagnostics'] ?? null) ? $signatures['diagnostics'] : []
         );
 
         return [
-            'present' => ($rights['present'] ?? false) === true || ($signatures['present'] ?? false) === true,
-            'sidecarCount' => (($rights['present'] ?? false) === true ? 1 : 0)
+            'present' => ($metadata['present'] ?? false) === true
+                || ($rights['present'] ?? false) === true
+                || ($signatures['present'] ?? false) === true,
+            'sidecarCount' => (($metadata['present'] ?? false) === true ? 1 : 0)
+                + (($rights['present'] ?? false) === true ? 1 : 0)
                 + (($signatures['present'] ?? false) === true ? 1 : 0),
-            'referenceCount' => (int) ($rights['referenceCount'] ?? 0) + (int) ($signatures['referenceCount'] ?? 0),
-            'localReferenceCount' => (int) ($rights['localReferenceCount'] ?? 0) + (int) ($signatures['localReferenceCount'] ?? 0),
-            'externalReferenceCount' => (int) ($rights['externalReferenceCount'] ?? 0) + (int) ($signatures['externalReferenceCount'] ?? 0),
-            'missingReferenceCount' => (int) ($rights['missingReferenceCount'] ?? 0) + (int) ($signatures['missingReferenceCount'] ?? 0),
+            'referenceCount' => (int) ($metadata['referenceCount'] ?? 0) + (int) ($rights['referenceCount'] ?? 0) + (int) ($signatures['referenceCount'] ?? 0),
+            'localReferenceCount' => (int) ($metadata['localReferenceCount'] ?? 0) + (int) ($rights['localReferenceCount'] ?? 0) + (int) ($signatures['localReferenceCount'] ?? 0),
+            'externalReferenceCount' => (int) ($metadata['externalReferenceCount'] ?? 0) + (int) ($rights['externalReferenceCount'] ?? 0) + (int) ($signatures['externalReferenceCount'] ?? 0),
+            'missingReferenceCount' => (int) ($metadata['missingReferenceCount'] ?? 0) + (int) ($rights['missingReferenceCount'] ?? 0) + (int) ($signatures['missingReferenceCount'] ?? 0),
+            'metadata' => $metadata,
             'rights' => $rights,
             'signatures' => $signatures,
             'diagnostics' => $diagnostics,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readOcfMetadata(ZipPackage $package): array
+    {
+        $part = '/META-INF/metadata.xml';
+        if (!$package->has($part)) {
+            return self::emptyOcfSidecarReport($part) + [
+                'recommendedRoot' => null,
+                'language' => null,
+                'itemCount' => 0,
+                'items' => [],
+            ];
+        }
+
+        $report = self::ocfSidecarMetadata($package, $part) + [
+            'present' => true,
+            'valid' => true,
+            'rootName' => null,
+            'rootNamespace' => null,
+            'recommendedRoot' => null,
+            'language' => null,
+            'itemCount' => 0,
+            'items' => [],
+            'referenceCount' => 0,
+            'localReferenceCount' => 0,
+            'externalReferenceCount' => 0,
+            'missingReferenceCount' => 0,
+            'diagnostics' => [],
+        ];
+
+        try {
+            $dom = self::loadXml($package->read($part), 'EPUB OCF metadata XML');
+        } catch (\Throwable $exception) {
+            $report['valid'] = false;
+            $report['diagnostics'][] = [
+                'type' => 'invalid-ocf-metadata-xml',
+                'part' => $part,
+                'message' => $exception->getMessage(),
+            ];
+
+            return $report;
+        }
+
+        $root = $dom->documentElement;
+        $report['rootName'] = $root instanceof \DOMElement ? $root->localName : null;
+        $report['rootNamespace'] = $root instanceof \DOMElement ? $root->namespaceURI : null;
+        $report['language'] = $root instanceof \DOMElement ? self::xmlLang($root) : null;
+        $recommendedRoot = $root instanceof \DOMElement
+            && $root->localName === 'metadata'
+            && $root->namespaceURI === self::OCF_METADATA_NS;
+        $report['recommendedRoot'] = $recommendedRoot;
+
+        if (!$root instanceof \DOMElement) {
+            $report['valid'] = false;
+
+            return $report;
+        }
+
+        if (!$recommendedRoot) {
+            $report['diagnostics'][] = [
+                'type' => 'nonstandard-ocf-metadata-root',
+                'part' => $part,
+                'rootName' => $report['rootName'],
+                'rootNamespace' => $report['rootNamespace'],
+                'message' => 'EPUB OCF metadata.xml does not use the recommended metadata root in the IDPF container metadata namespace',
+            ];
+        }
+
+        $items = [];
+        foreach (self::childElements($root) as $index => $child) {
+            $href = self::nullableAttribute($child, 'href')
+                ?? self::nullableAttribute($child, 'src')
+                ?? self::nullableAttribute($child, 'URI');
+            $reference = $href === null
+                ? null
+                : $this->ocfSidecarReference($package, $href, 'metadata');
+            $diagnostics = $reference === null ? [] : $reference['diagnostics'];
+            $namespaceQualified = is_string($child->namespaceURI) && $child->namespaceURI !== '';
+
+            if (!$namespaceQualified) {
+                $diagnostics[] = [
+                    'type' => 'unqualified-ocf-metadata-element',
+                    'name' => $child->localName,
+                    'message' => 'EPUB OCF metadata.xml should use namespace-qualified metadata elements',
+                ];
+            }
+
+            foreach ($diagnostics as $diagnostic) {
+                $report['diagnostics'][] = ['index' => $index] + $diagnostic;
+            }
+
+            $items[] = [
+                'index' => $index,
+                'name' => $child->localName,
+                'namespace' => $child->namespaceURI,
+                'namespaceQualified' => $namespaceQualified,
+                'id' => self::nullableAttribute($child, 'id'),
+                'href' => $href,
+                'mediaType' => self::nullableAttribute($child, 'media-type'),
+                'text' => self::normalizedText($child),
+                'attributes' => self::elementAttributes($child),
+                'reference' => $reference,
+                'diagnostics' => $diagnostics,
+            ];
+        }
+
+        $report['items'] = $items;
+        $report['itemCount'] = count($items);
+
+        return self::ocfReportWithReferenceCounts($report, self::ocfItemReferences($items));
     }
 
     /**
@@ -1946,7 +2066,7 @@ final class EpubReader
 
         $report['items'] = $items;
         $report['itemCount'] = count($items);
-        $report = self::ocfReportWithReferenceCounts($report, self::rightsReferences($items));
+        $report = self::ocfReportWithReferenceCounts($report, self::ocfItemReferences($items));
         $report['valid'] = $report['valid'] && $report['diagnostics'] === [];
 
         return $report;
@@ -2154,7 +2274,11 @@ final class EpubReader
         }
 
         try {
-            $target = self::ocfPackageReferenceTarget($uri, $context === 'signature' ? '/META-INF/signatures.xml' : '/META-INF/rights.xml');
+            $target = self::ocfPackageReferenceTarget($uri, match ($context) {
+                'metadata' => '/META-INF/metadata.xml',
+                'signature' => '/META-INF/signatures.xml',
+                default => '/META-INF/rights.xml',
+            });
         } catch (\InvalidArgumentException $exception) {
             return [
                 'target' => null,
@@ -2257,7 +2381,7 @@ final class EpubReader
      *
      * @return list<array<string, mixed>>
      */
-    private static function rightsReferences(array $items): array
+    private static function ocfItemReferences(array $items): array
     {
         $references = [];
         foreach ($items as $item) {

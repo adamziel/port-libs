@@ -233,6 +233,13 @@ $rightsXml = <<<'XML'
 </rights>
 XML;
 
+$metadataXml = <<<'XML'
+<metadata xmlns="http://www.idpf.org/2013/metadata" xmlns:review="https://example.invalid/epub-review" xml:lang="en">
+  <review:source id="container-source" href="META-INF/review/container-source.json" media-type="application/ld+json">Container source record</review:source>
+  <review:policy id="remote-policy" href="https://metadata.example.test/container-policy.json">Remote container policy</review:policy>
+</metadata>
+XML;
+
 $signaturesXml = <<<'XML'
 <signatures xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
   <ds:Signature Id="package-signature">
@@ -257,9 +264,11 @@ $packageParts = [
     ['name' => 'mimetype', 'data' => EpubReader::MIMETYPE, 'compressionMethod' => 0],
     ['name' => 'META-INF/container.xml', 'data' => $containerXml],
     ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+    ['name' => 'META-INF/metadata.xml', 'data' => $metadataXml],
     ['name' => 'META-INF/rights.xml', 'data' => $rightsXml],
     ['name' => 'META-INF/signatures.xml', 'data' => $signaturesXml],
     ['name' => 'META-INF/licenses/source-license.xml', 'data' => '<license source="wordpress-import">review required</license>'],
+    ['name' => 'META-INF/review/container-source.json', 'data' => '{"source":"wordpress-import","containerMetadata":true}'],
     ['name' => 'EPUB/package.opf', 'data' => $opfXml],
     ['name' => 'EPUB/fixed/package.opf', 'data' => $alternateOpfXml],
     ['name' => 'EPUB/meta/review-record.json', 'data' => '{"@context":"https://schema.org","name":"WordPress EPUB review record"}'],
@@ -625,8 +634,14 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['encryption']['obfuscatedFonts'][0]['part'] ?? null) !== '/EPUB/fonts/source.otf') {
         throw new RuntimeException('Expected EPUB obfuscated font preflight to identify the package font');
     }
-    if (($result['ocf']['sidecarCount'] ?? null) !== 2 || ($result['ocf']['externalReferenceCount'] ?? null) !== 2) {
-        throw new RuntimeException('Expected EPUB OCF rights/signatures sidecars to report remote references without fetching');
+    if (($result['ocf']['sidecarCount'] ?? null) !== 3 || ($result['ocf']['externalReferenceCount'] ?? null) !== 3) {
+        throw new RuntimeException('Expected EPUB OCF metadata/rights/signatures sidecars to report remote references without fetching');
+    }
+    if (($result['ocf']['metadata']['items'][0]['reference']['target'] ?? null) !== '/META-INF/review/container-source.json') {
+        throw new RuntimeException('Expected EPUB OCF metadata sidecar to resolve local source metadata');
+    }
+    if (($result['ocf']['metadata']['items'][1]['diagnostics'][0]['type'] ?? null) !== 'ocf-metadata-remote-reference') {
+        throw new RuntimeException('Expected EPUB OCF metadata remote policy to remain unfetched');
     }
     if (($result['ocf']['rights']['items'][0]['reference']['target'] ?? null) !== '/META-INF/licenses/source-license.xml') {
         throw new RuntimeException('Expected EPUB OCF rights sidecar to resolve local license reference');
@@ -642,6 +657,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['document']->attr('ocf')['signatures']['signatureCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected WordPress EPUB document handoff to expose OCF signature metadata');
+    }
+    if (($result['document']->attr('ocf')['metadata']['itemCount'] ?? null) !== 2) {
+        throw new RuntimeException('Expected WordPress EPUB document handoff to expose OCF container metadata');
     }
     if (($result['mediaOverlays']['mo-chapter']['items'][0]['audioTarget'] ?? null) !== '/EPUB/audio/chapter.mp3') {
         throw new RuntimeException('Expected EPUB media-overlay audio target to resolve relative to the SMIL part');
@@ -817,6 +835,7 @@ echo 'bindingHandler=' . ($result['bindings']['items'][0]['handlerId'] ?? '') . 
 echo 'bindingDiagnostics=' . count($result['bindings']['diagnostics'] ?? []) . "\n";
 echo 'obfuscatedFonts=' . count($result['encryption']['obfuscatedFonts']) . "\n";
 echo 'ocfSidecars=' . ($result['ocf']['sidecarCount'] ?? 0) . "\n";
+echo 'ocfMetadataItems=' . ($result['ocf']['metadata']['itemCount'] ?? 0) . "\n";
 echo 'ocfRightsItems=' . ($result['ocf']['rights']['itemCount'] ?? 0) . "\n";
 echo 'ocfSignatureReferences=' . ($result['ocf']['signatures']['referenceCount'] ?? 0) . "\n";
 echo 'ocfExternalReferences=' . ($result['ocf']['externalReferenceCount'] ?? 0) . "\n";
