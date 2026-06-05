@@ -3612,9 +3612,12 @@ final class PdfMetadataExtractor
             $row['text_color_hex'] = $this->rgbUnitColorToHex($textColor);
         }
 
+        $metadataStreamValues = $this->dictionaryTopLevelRawValues($dictionary, 'Metadata');
         $metadataStreamReview = $this->documentOutlineItemMetadataStreamReview(
-            $this->dictionaryTopLevelRawValue($dictionary, 'Metadata'),
-            $objects
+            $metadataStreamValues === [] ? null : $metadataStreamValues[array_key_last($metadataStreamValues)],
+            $objects,
+            count($metadataStreamValues),
+            $metadataStreamValues === [] ? null : array_key_last($metadataStreamValues)
         );
         if ($metadataStreamReview !== []) {
             $row['metadata_stream_review'] = $metadataStreamReview;
@@ -3763,7 +3766,12 @@ final class PdfMetadataExtractor
      * @param array<int, string> $objects
      * @return array<string, mixed>
      */
-    private function documentOutlineItemMetadataStreamReview(?string $value, array $objects): array
+    private function documentOutlineItemMetadataStreamReview(
+        ?string $value,
+        array $objects,
+        int $declaredEntryCount = 0,
+        ?int $selectedEntryIndex = null
+    ): array
     {
         if ($value === null || $this->trimPdfWhitespaceAndComments($value) === 'null') {
             return [];
@@ -3776,6 +3784,11 @@ final class PdfMetadataExtractor
             'visible_text_source' => false,
             'accepted_as_document_xmp' => false,
         ];
+        if ($declaredEntryCount > 0) {
+            $base['declared_entry_count'] = $declaredEntryCount;
+            $base['duplicate_entries'] = $declaredEntryCount > 1;
+            $base['selected_entry_index'] = $selectedEntryIndex;
+        }
 
         $objectNumber = $this->objectNumberFromReference($value);
         if ($objectNumber === null) {
