@@ -1,0 +1,94 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\MarkerPDF\PdfTextExtractor;
+
+$xrefObjectStreamCurrentCarrierRepairCurrentBasePdf = static function (): string {
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current repaired carrier page) Tj T* (Type two row selected) Tj ET';
+    $staleFallbackContent = 'BT /F1 12 Tf 72 720 Td (Stale fallback stream leaked) Tj ET';
+
+    $memberBody = '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R /Note (compressed page dictionary text excluded) >>';
+    $header = '4 0';
+    $objectStream = gzcompress($header . "\n" . $memberBody . "\n");
+    if (!is_string($objectStream)) {
+        throw new RuntimeException('Unable to compress current-carrier object stream fixture.');
+    }
+
+    $pdf = "%PDF-1.5\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): int {
+        $offset = strlen($pdf);
+        $offsets[$objectNumber . ':' . $generation] = $offset;
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $row = static fn (int $type, int $fieldTwo, int $fieldThree = 0): string => chr($type) . pack('N', $fieldTwo) . chr($fieldThree);
+
+    $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R >>');
+    $addObject(2, 0, '<< /Type /Pages /Kids [4 0 R] /Count 1 >>');
+    $addObject(3, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $addObject(5, 0, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+    $addObject(6, 0, '<< /Type /ObjStm /N 1 /First ' . (strlen($header) + 1) . ' /Filter /FlateDecode /Length ' . strlen($objectStream) . " >>\nstream\n{$objectStream}\nendstream");
+    $addObject(8, 0, "<< /Length " . strlen($staleFallbackContent) . " >>\nstream\n{$staleFallbackContent}\nendstream");
+
+    $xrefRows = ''
+        . $row(1, $offsets['1:0'], 0)
+        . $row(1, $offsets['2:0'], 0)
+        . $row(1, $offsets['3:0'], 0)
+        . $row(2, 6, 0)
+        . $row(1, $offsets['5:0'], 0)
+        . $row(1, 1, 9);
+    $compressedXref = gzcompress($xrefRows);
+    if (!is_string($compressedXref)) {
+        throw new RuntimeException('Unable to compress current-carrier xref stream fixture.');
+    }
+
+    $xrefOffset = strlen($pdf);
+    $pdf .= "20 0 obj\n"
+        . '<< /Type /XRef /Size 21 /Root 1 0 R /Index [1 6] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedXref) . " >>\n"
+        . "stream\n{$compressedXref}\nendstream\nendobj\n"
+        . "startxref\n{$xrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
+return [
+    'repairs current xref stream carrier rows before expanding type-2 object-stream members' => static function (
+        TestRunner $t
+    ) use ($xrefObjectStreamCurrentCarrierRepairCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $xrefObjectStreamCurrentCarrierRepairCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractXrefObjectStreamIndexReview($pdf);
+        $entries = array_column($review['entries'], null, 'object_number');
+        $entry = $entries[4] ?? [];
+
+        $expected = [
+            'Current repaired carrier page',
+            'Type two row selected',
+        ];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $text);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Stale fallback stream leaked'));
+        $t->true(!str_contains($text, 'compressed page dictionary text excluded'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_xref_object_stream_index_review', $review['source']);
+        $t->same(1, $review['compressed_entry_count']);
+        $t->same(4, $entry['object_number'] ?? null);
+        $t->same(6, $entry['object_stream'] ?? null);
+        $t->same(1, $entry['object_stream_xref_entry_type'] ?? null);
+        $t->same(0, $entry['object_stream_xref_generation'] ?? null);
+        $t->true(($entry['object_stream_xref_offset'] ?? 0) > 0);
+        $t->same('xref_selected_object_stream_carrier', $entry['object_stream_owner_policy'] ?? null);
+        $t->same('explicit_member_index', $entry['selection_policy'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+];

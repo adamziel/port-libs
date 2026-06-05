@@ -15295,6 +15295,7 @@ final class PdfTextExtractor
             }
 
             $previousOffset = $this->previousXrefOffsetForSectionBody($pdfBytes, $trailer, $offset, $definitions, $objects);
+            $entries = $this->repairCurrentObjectStreamCarrierRows($entries, $definitions, $previousOffset, $offset);
             if ($previousOffset !== null && $previousOffset >= 0) {
                 $previousEntries = $this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
                 foreach ($previousEntries as $objectNumber => $entry) {
@@ -15332,14 +15333,15 @@ final class PdfTextExtractor
             return [];
         }
 
-        $entries = $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions);
         $streamObjects = $this->objectsWithDirectStreamDictionaryOperandOwners(
             $objects,
             $streamSection['definition']['body'],
             $definitions,
             $streamSection['definition']['offset']
         );
+        $entries = $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions);
         $previousOffset = $this->previousXrefOffsetForSectionBody($pdfBytes, $streamSection['body'], $offset, $definitions, $streamObjects);
+        $entries = $this->repairCurrentObjectStreamCarrierRows($entries, $definitions, $previousOffset, $offset);
         if ($previousOffset !== null && $previousOffset >= 0) {
             $previousEntries = $this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
             foreach ($previousEntries as $objectNumber => $entry) {
@@ -15367,6 +15369,59 @@ final class PdfTextExtractor
 
                 $entries[$objectNumber] = $this->xrefEntryInheritedFromPreviousSection($entry, $previousOffset);
             }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * If the current xref section has valid type-2 member rows but its direct
+     * carrier row is damaged, recover only a current direct /ObjStm body in
+     * this revision window. This keeps current compressed page objects
+     * available without letting older scanned object streams satisfy the row.
+     *
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
+     */
+    private function repairCurrentObjectStreamCarrierRows(
+        array $entries,
+        array $definitions,
+        ?int $previousOffset,
+        int $currentXrefOffset
+    ): array {
+        $carrierObjectNumbers = [];
+        foreach ($entries as $entry) {
+            if (($entry['type'] ?? null) === 2 && isset($entry['objectStream'])) {
+                $carrierObjectNumbers[(int) $entry['objectStream']] = true;
+            }
+        }
+
+        foreach (array_keys($carrierObjectNumbers) as $objectNumber) {
+            $entry = $entries[$objectNumber] ?? null;
+            if (($entry['type'] ?? null) !== 1) {
+                continue;
+            }
+
+            if ($this->liveDirectObjectDefinition($definitions[$objectNumber] ?? [], $entry) !== null) {
+                continue;
+            }
+
+            $definition = $this->latestDirectObjectStreamDefinitionBetweenOffsets(
+                $definitions[$objectNumber] ?? [],
+                $previousOffset ?? -1,
+                $currentXrefOffset
+            );
+            if ($definition === null) {
+                continue;
+            }
+
+            $entries[$objectNumber] = [
+                'type' => 1,
+                'generation' => $definition['generation'],
+                'offset' => $definition['offset'],
+                'offsetIsExplicit' => true,
+            ];
         }
 
         return $entries;
