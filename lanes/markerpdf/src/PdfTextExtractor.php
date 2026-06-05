@@ -22813,7 +22813,7 @@ final class PdfTextExtractor
      */
     private function decodeCMapStream(string $dict, string $stream, array $objects): ?string
     {
-        return $this->decodeStream($dict, $stream, $objects, true, true);
+        return $this->decodeStream($dict, $stream, $objects, true, true, true);
     }
 
     /**
