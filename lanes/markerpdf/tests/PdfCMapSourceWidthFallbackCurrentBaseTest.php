@@ -991,6 +991,57 @@ $cMapCidNotdefCharSourceWidthCurrentBasePdf = static function (): string {
         . "6 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n%%EOF";
 };
 
+$cMapCidRangeCodespaceSequenceSourceWidthCurrentBasePdf = static function (): string {
+    $encodingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /CodespaceSequenceCIDRange-H def\n"
+        . "1 begincodespacerange\n"
+        . "<3030> <3232>\n"
+        . "endcodespacerange\n"
+        . "1 begincidrange\n"
+        . "<3030> <3232> 100\n"
+        . "endcidrange\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $toUnicode = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "1 begincodespacerange\n"
+        . "<3030> <3232>\n"
+        . "endcodespacerange\n"
+        . "9 beginbfchar\n"
+        . "<3030> <0041>\n"
+        . "<3031> <0042>\n"
+        . "<3032> <0043>\n"
+        . "<3130> <0044>\n"
+        . "<3131> <0045>\n"
+        . "<3132> <0046>\n"
+        . "<3230> <0047>\n"
+        . "<3231> <0048>\n"
+        . "<3232> <0049>\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $content = 'BT /Fcid 12 Tf '
+        . '1 0 0 1 72 720 Tm <303030313032> Tj '
+        . '1 0 0 1 120 720 Tm <323032313232> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /CodespaceSequenceCIDRange /Encoding 3 0 R /DescendantFonts [4 0 R] /ToUnicode 6 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Length " . strlen($encodingCMap) . " >>\nstream\n{$encodingCMap}\nendstream\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /CodespaceSequenceCIDRange /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 1000 /W [100 102 1000 106 108 250] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n%%EOF";
+};
+
 return [
     'uses zero-padded CMap source widths before CID fallback text gaps on current base' => static function (TestRunner $t) use ($cMapSourceWidthFallbackCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -1488,6 +1539,26 @@ return [
         $t->same([48.0, 0.0, 60.0, 12.0], $spans[1]['bbox'] ?? null);
         $t->same([0.0, 0.0, 60.0, 12.0], $line['bbox'] ?? null);
         $t->true(!str_contains($plainText, 'ABCDEFGH'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'uses code-space sequence order for multi-byte CID ranges before source-width fallback on current base' => static function (TestRunner $t) use ($cMapCidRangeCodespaceSequenceSourceWidthCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $cMapCidRangeCodespaceSequenceSourceWidthCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $runs = $extractor->extractTextRuns($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['ABC GHI'], $extractor->extractTextLines($pdf));
+        $t->same(['ABC', 'GHI'], $runs);
+        $t->same('ABC GHI', $plainText);
+        $t->same("ABC GHI\n", $extractor->naiveGetText($pdf));
+        $t->same(['ABC', 'GHI'], array_column($spans, 'text'));
+        $t->same([0.0, 0.0, 36.0, 12.0], $spans[0]['bbox'] ?? null);
+        $t->same([36.0, 0.0, 45.0, 12.0], $spans[1]['bbox'] ?? null);
+        $t->same([0.0, 0.0, 45.0, 12.0], $line['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'ABCGHI'));
         $t->true(!str_contains($plainText, "\0"));
     },
 ];

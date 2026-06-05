@@ -13859,7 +13859,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, cidRanges?: list<array{start: int, end: int, width: int, cid: int, overwrite: bool}>, writingMode?: int}|null
+     * @return array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, cidRanges?: list<array{start: int, end: int, width: int, cid: int, overwrite: bool, codeSpaceRanges?: list<array{start: int, end: int, width: int}>}>, writingMode?: int}|null
      * @param array<int, string> $objects
      * @param array<string, string> $namedCMapBodies
      */
@@ -13904,7 +13904,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, cidRanges?: list<array{start: int, end: int, width: int, cid: int, overwrite: bool}>, writingMode?: int}|null
+     * @return array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, cidRanges?: list<array{start: int, end: int, width: int, cid: int, overwrite: bool, codeSpaceRanges?: list<array{start: int, end: int, width: int}>}>, writingMode?: int}|null
      * @param array<string, string> $namedCMapBodies
      */
     private function cidEncodingMapFromNamedCMap(string $encodingName, array $namedCMapBodies): ?array
@@ -15349,7 +15349,7 @@ final class PdfTextExtractor
 
     /**
      * @param array<string, mixed> $map
-     * @param array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, cidRanges?: list<array{start: int, end: int, width: int, cid: int, overwrite: bool}>, writingMode?: int}|null $cidEncodingMap
+     * @param array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, cidRanges?: list<array{start: int, end: int, width: int, cid: int, overwrite: bool, codeSpaceRanges?: list<array{start: int, end: int, width: int}>}>, writingMode?: int}|null $cidEncodingMap
      * @return array<string, mixed>
      */
     private function withFontCidEncodingMap(array $map, ?array $cidEncodingMap): array
@@ -15393,7 +15393,7 @@ final class PdfTextExtractor
 
     /**
      * @param array<string, mixed> $cmap
-     * @param array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, cidRanges?: list<array{start: int, end: int, width: int, cid: int, overwrite: bool}>, writingMode?: int}|null $cidEncodingMap
+     * @param array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, cidRanges?: list<array{start: int, end: int, width: int, cid: int, overwrite: bool, codeSpaceRanges?: list<array{start: int, end: int, width: int}>}>, writingMode?: int}|null $cidEncodingMap
      */
     private function fontWritingMode(string $fontBody, array $cmap, ?array $cidEncodingMap = null, array $objects = []): int
     {
@@ -23537,7 +23537,10 @@ final class PdfTextExtractor
         $named = [];
         foreach ($objects as $body) {
             $cmap = $this->decodedCMapBodyForParsing($body, $objects);
-            $name = is_string($cmap) ? $this->cMapName($cmap) : null;
+            $rawCMap = $this->decodedCMapBody($body, $objects);
+            $name = is_string($rawCMap)
+                ? $this->cMapName($rawCMap)
+                : (is_string($cmap) ? $this->cMapName($cmap) : null);
             if ($cmap === null || $name === null) {
                 continue;
             }
@@ -24056,6 +24059,12 @@ final class PdfTextExtractor
             }
         }
 
+        $localCodeSpaceRanges = $this->parseCMapCodeSpaceRanges($cmap);
+        $cidRangeCodeSpaceRanges = array_values($codeSpaceRanges);
+        foreach ($localCodeSpaceRanges as $range) {
+            $cidRangeCodeSpaceRanges[$range['start'] . ':' . $range['end'] . ':' . $range['width']] = $range;
+        }
+
         if (preg_match_all('/\/WMode\s+([01])\s+def\b/s', $cmap, $wModeMatches) > 0) {
             $lastMode = end($wModeMatches[1]);
             $writingMode = (int) $lastMode === 1 ? 1 : 0;
@@ -24130,7 +24139,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, cidRanges?: list<array{start: int, end: int, width: int, cid: int, overwrite: bool}>, writingMode?: int}
+     * @return array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, cidRanges?: list<array{start: int, end: int, width: int, cid: int, overwrite: bool, codeSpaceRanges?: list<array{start: int, end: int, width: int}>}>, writingMode?: int}
      * @param array<string, string> $namedCMapBodies
      * @param list<string> $seenCMaps
      */
@@ -24187,11 +24196,12 @@ final class PdfTextExtractor
                 $cidMap,
                 $mappingBlock['declaredCount'],
                 $mappingBlock['overwrite'],
+                $cidRangeCodeSpaceRanges,
                 $cidRanges
             );
         }
 
-        foreach ($this->parseCMapCodeSpaceRanges($cmap) as $range) {
+        foreach ($localCodeSpaceRanges as $range) {
             $codeSpaceRanges[$range['start'] . ':' . $range['end'] . ':' . $range['width']] = $range;
         }
         $codeSpaceRanges = array_values($codeSpaceRanges);
@@ -24629,13 +24639,15 @@ final class PdfTextExtractor
 
     /**
      * @param array<string, int> $cidMap
-     * @param list<array{start: int, end: int, width: int, cid: int, overwrite: bool}>|null $cidRanges
+     * @param list<array{start: int, end: int, width: int}> $codeSpaceRanges
+     * @param list<array{start: int, end: int, width: int, cid: int, overwrite: bool, codeSpaceRanges?: list<array{start: int, end: int, width: int}>}>|null $cidRanges
      */
     private function parseCidRanges(
         string $block,
         array &$cidMap,
         ?int $declaredCount = null,
         bool $overwrite = true,
+        array $codeSpaceRanges = [],
         ?array &$cidRanges = null
     ): void
     {
@@ -24661,33 +24673,115 @@ final class PdfTextExtractor
             if ($cid < 0 || $source < 0 || $last < $source) {
                 continue;
             }
+            $sameWidthCodeSpaceRanges = $this->codeSpaceRangesForHexWidth($codeSpaceRanges, $sourceWidth);
 
             if ($cidRanges !== null) {
-                $cidRanges[] = [
+                $cidRange = [
                     'start' => $source,
                     'end' => $last,
                     'width' => $sourceWidth,
                     'cid' => $cid,
                     'overwrite' => $overwrite,
                 ];
+                if ($sameWidthCodeSpaceRanges !== []) {
+                    $cidRange['codeSpaceRanges'] = $sameWidthCodeSpaceRanges;
+                }
+                $cidRanges[] = $cidRange;
             }
 
-            $count = 0;
-            while ($source <= $last && $count < self::MAX_CMAP_RANGE_ENTRIES) {
-                $currentCid = $cid + $count;
+            $mappedCount = 0;
+            $scannedCount = 0;
+            $maxScan = self::MAX_CMAP_RANGE_ENTRIES * 256;
+            while ($source <= $last && $mappedCount < self::MAX_CMAP_RANGE_ENTRIES && $scannedCount < $maxScan) {
+                $sourceKey = str_pad(strtolower(dechex($source)), $sourceWidth, '0', STR_PAD_LEFT);
+                $scannedCount++;
+                if (
+                    $sameWidthCodeSpaceRanges !== []
+                    && !$this->sourceKeyMatchesAnyCodeSpaceRange($sourceKey, $sameWidthCodeSpaceRanges)
+                ) {
+                    $source++;
+                    continue;
+                }
+
+                $currentCid = $cid + $mappedCount;
                 if ($currentCid >= 0 && $currentCid <= 0xffff) {
-                    $sourceKey = str_pad(strtolower(dechex($source)), $sourceWidth, '0', STR_PAD_LEFT);
                     if (!$overwrite && array_key_exists($sourceKey, $cidMap)) {
                         $source++;
-                        $count++;
+                        $mappedCount++;
                         continue;
                     }
                     $cidMap[$sourceKey] = $currentCid;
                 }
                 $source++;
-                $count++;
+                $mappedCount++;
             }
         }
+    }
+
+    /**
+     * @param list<array{start: int, end: int, width: int}> $codeSpaceRanges
+     * @return list<array{start: int, end: int, width: int}>
+     */
+    private function codeSpaceRangesForHexWidth(array $codeSpaceRanges, int $sourceWidth): array
+    {
+        if ($sourceWidth <= 0) {
+            return [];
+        }
+
+        $ranges = [];
+        foreach ($codeSpaceRanges as $range) {
+            if (($range['width'] ?? null) !== $sourceWidth) {
+                continue;
+            }
+
+            $ranges[] = $range;
+        }
+
+        return $ranges;
+    }
+
+    /**
+     * @param list<array{start: int, end: int, width: int}> $codeSpaceRanges
+     */
+    private function sourceKeyMatchesAnyCodeSpaceRange(string $sourceKey, array $codeSpaceRanges): bool
+    {
+        foreach ($codeSpaceRanges as $range) {
+            if ($this->sourceKeyMatchesCodeSpaceRange($sourceKey, $range)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{start: int, end: int, width: int} $range
+     */
+    private function sourceKeyMatchesCodeSpaceRange(string $sourceKey, array $range): bool
+    {
+        $sourceKey = $this->normalizeHexKey($sourceKey);
+        $width = $range['width'] ?? null;
+        if (!is_int($width) || $width <= 0 || strlen($sourceKey) !== $width) {
+            return false;
+        }
+
+        $startKey = str_pad(strtolower(dechex($range['start'])), $width, '0', STR_PAD_LEFT);
+        $endKey = str_pad(strtolower(dechex($range['end'])), $width, '0', STR_PAD_LEFT);
+        $sourceBytes = str_split($sourceKey, 2);
+        $startBytes = str_split($startKey, 2);
+        $endBytes = str_split($endKey, 2);
+        if (count($sourceBytes) !== count($startBytes) || count($sourceBytes) !== count($endBytes)) {
+            return false;
+        }
+
+        foreach ($sourceBytes as $index => $byte) {
+            $value = hexdec($byte);
+            if ($value < hexdec($startBytes[$index]) || $value > hexdec($endBytes[$index])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -30013,13 +30107,59 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $candidate = $rangeCid + ($source - $rangeStart);
+            $rangeCodeSpaceRanges = $range['codeSpaceRanges'] ?? [];
+            if (is_array($rangeCodeSpaceRanges) && $rangeCodeSpaceRanges !== []) {
+                if (!$this->sourceKeyMatchesAnyCodeSpaceRange($sourceKey, $rangeCodeSpaceRanges)) {
+                    continue;
+                }
+
+                $offset = $this->codeSpaceSequenceOffsetInCidRange($rangeStart, $source, $rangeWidth, $rangeCodeSpaceRanges);
+                if ($offset === null) {
+                    continue;
+                }
+
+                $candidate = $rangeCid + $offset;
+            } else {
+                $candidate = $rangeCid + ($source - $rangeStart);
+            }
             if ($candidate >= 0 && $candidate <= 0xffff) {
                 $cid = $candidate;
             }
         }
 
         return $cid;
+    }
+
+    /**
+     * @param list<array{start: int, end: int, width: int}> $codeSpaceRanges
+     */
+    private function codeSpaceSequenceOffsetInCidRange(
+        int $rangeStart,
+        int $source,
+        int $sourceWidth,
+        array $codeSpaceRanges
+    ): ?int {
+        if ($rangeStart < 0 || $source < $rangeStart || $sourceWidth <= 0) {
+            return null;
+        }
+
+        $offset = 0;
+        $scanned = 0;
+        $maxScan = self::MAX_CMAP_RANGE_ENTRIES * 256;
+        for ($candidate = $rangeStart; $candidate <= $source && $scanned < $maxScan; $candidate++, $scanned++) {
+            $sourceKey = str_pad(strtolower(dechex($candidate)), $sourceWidth, '0', STR_PAD_LEFT);
+            if (!$this->sourceKeyMatchesAnyCodeSpaceRange($sourceKey, $codeSpaceRanges)) {
+                continue;
+            }
+
+            if ($candidate === $source) {
+                return $offset;
+            }
+
+            $offset++;
+        }
+
+        return null;
     }
 
     private function textOperandSourceHex(string $operand): string
