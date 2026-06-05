@@ -23298,7 +23298,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}
+     * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, unicodeRanges?: list<array{start: int, end: int, width: int, target: string}>}
      * @param array<string, string> $namedCMapBodies
      * @param list<string> $seenCMaps
      */
@@ -23307,6 +23307,7 @@ final class PdfTextExtractor
         $cmap = $this->boundedCMapProgram($this->stripPdfLineComments($cmap));
         $map = [];
         $codeSpaceRanges = [];
+        $unicodeRanges = [];
         $writingMode = null;
 
         foreach ($this->cMapUseCMapNames($cmap) as $name) {
@@ -23327,6 +23328,9 @@ final class PdfTextExtractor
             }
             foreach ($base['codeSpaceRanges'] as $range) {
                 $codeSpaceRanges[$range['start'] . ':' . $range['end'] . ':' . $range['width']] = $range;
+            }
+            foreach ($base['unicodeRanges'] ?? [] as $range) {
+                $unicodeRanges[] = $range;
             }
         }
 
@@ -23356,7 +23360,8 @@ final class PdfTextExtractor
             $this->parseToUnicodeRanges(
                 $this->cMapOperatorBlockData($rangeBlock['body']),
                 $map,
-                $rangeBlock['declaredCount']
+                $rangeBlock['declaredCount'],
+                $unicodeRanges
             );
         }
 
@@ -23374,6 +23379,9 @@ final class PdfTextExtractor
         ];
         if ($writingMode !== null) {
             $result['writingMode'] = $writingMode;
+        }
+        if ($unicodeRanges !== []) {
+            $result['unicodeRanges'] = $unicodeRanges;
         }
 
         return $result;
@@ -23728,8 +23736,14 @@ final class PdfTextExtractor
 
     /**
      * @param array<string, string> $map
+     * @param list<array{start: int, end: int, width: int, target: string}>|null $unicodeRanges
      */
-    private function parseToUnicodeRanges(string $block, array &$map, ?int $declaredCount = null): void
+    private function parseToUnicodeRanges(
+        string $block,
+        array &$map,
+        ?int $declaredCount = null,
+        ?array &$unicodeRanges = null
+    ): void
     {
         if (!preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>\s*(?:\[(.*?)\]|<([\da-fA-F\s]+)>)/s', $block, $ranges, PREG_SET_ORDER)) {
             return;
@@ -23749,6 +23763,10 @@ final class PdfTextExtractor
             $source = hexdec($start);
             $last = hexdec($end);
             $sourceWidth = strlen($start);
+            if ($last < $source) {
+                continue;
+            }
+
             $arrayTargets = $range[3] ?? '';
             if ($arrayTargets !== '') {
                 foreach ($this->cMapTopLevelHexTokens($arrayTargets) as $target) {
@@ -23766,6 +23784,15 @@ final class PdfTextExtractor
             $target = $this->normalizeHexKey($range[4] ?? '');
             if ($target === '') {
                 continue;
+            }
+
+            if ($unicodeRanges !== null) {
+                $unicodeRanges[] = [
+                    'start' => $source,
+                    'end' => $last,
+                    'width' => $sourceWidth,
+                    'target' => $target,
+                ];
             }
 
             $count = 0;
@@ -23794,6 +23821,28 @@ final class PdfTextExtractor
             $digits[$index] = dechex($value);
             $carry = 0;
             break;
+        }
+
+        return implode('', $digits);
+    }
+
+    private function incrementFixedWidthHexByOffset(string $hex, int $offset): string
+    {
+        $digits = str_split(strtolower($hex));
+        if ($digits === [] || $offset <= 0) {
+            return implode('', $digits);
+        }
+
+        $carry = $offset;
+        for ($index = count($digits) - 1; $index >= 0 && $carry > 0; $index--) {
+            $value = hexdec($digits[$index]) + ($carry % 16);
+            $carry = intdiv($carry, 16);
+            if ($value >= 16) {
+                $value -= 16;
+                $carry++;
+            }
+
+            $digits[$index] = dechex($value);
         }
 
         return implode('', $digits);
@@ -28912,7 +28961,7 @@ final class PdfTextExtractor
 
     private function hasSourceBoundaryDataForGlyphAdvance(array $toUnicodeMap): bool
     {
-        foreach (['map', 'codeSpaceRanges', 'cidMap', 'cidCodeSpaceRanges', 'cidRanges'] as $key) {
+        foreach (['map', 'codeSpaceRanges', 'unicodeRanges', 'cidMap', 'cidCodeSpaceRanges', 'cidRanges'] as $key) {
             $value = $toUnicodeMap[$key] ?? null;
             if (is_array($value) && $value !== []) {
                 return true;
@@ -29477,12 +29526,14 @@ final class PdfTextExtractor
     private function sourceKeysAreMapped(array $sourceKeys, array $toUnicodeMap): bool
     {
         $mappings = $toUnicodeMap['map'] ?? [];
-        if (!is_array($mappings) || $mappings === []) {
+        $rangeKeyLengths = $this->toUnicodeRangeKeyLengths($toUnicodeMap);
+        if ((!is_array($mappings) || $mappings === []) && $rangeKeyLengths === []) {
             return false;
         }
+        $mappings = is_array($mappings) ? $mappings : [];
 
         foreach ($sourceKeys as $sourceKey) {
-            if (!array_key_exists($sourceKey, $mappings)) {
+            if (!$this->toUnicodeSourceKeyIsMapped($sourceKey, $toUnicodeMap, $mappings)) {
                 return false;
             }
         }
@@ -29570,6 +29621,8 @@ final class PdfTextExtractor
         $keyLengths = is_array($mappings)
             ? array_values(array_unique(array_map('strlen', array_keys($mappings))))
             : [];
+        array_push($keyLengths, ...$this->toUnicodeRangeKeyLengths($toUnicodeMap));
+        $keyLengths = array_values(array_unique($keyLengths));
         rsort($keyLengths, SORT_NUMERIC);
 
         $keys = [];
@@ -29582,7 +29635,10 @@ final class PdfTextExtractor
                 $toUnicodeMap['codeSpaceRanges'] ?? [],
                 is_array($mappings) ? $mappings : [],
                 $normalized,
-                $offset
+                $offset,
+                false,
+                false,
+                $toUnicodeMap
             );
             $keys[] = substr($normalized, $offset, $sourceLength);
             $offset += $sourceLength;
@@ -29856,7 +29912,10 @@ final class PdfTextExtractor
         }
 
         $mappings = $toUnicodeMap['map'] ?? [];
+        $mappings = is_array($mappings) ? $mappings : [];
         $keyLengths = array_values(array_unique(array_map('strlen', array_keys($mappings))));
+        array_push($keyLengths, ...$this->toUnicodeRangeKeyLengths($toUnicodeMap));
+        $keyLengths = array_values(array_unique($keyLengths));
         rsort($keyLengths, SORT_NUMERIC);
         if ($keyLengths === [] && ($toUnicodeMap['codeSpaceRanges'] ?? []) === []) {
             return $this->decodeHexString($normalized);
@@ -29866,7 +29925,7 @@ final class PdfTextExtractor
         $offset = 0;
         $length = strlen($normalized);
         while ($offset < $length) {
-            $preferMappedLength = $this->mappedSourceRemainderCanCover($normalized, $offset, $mappings);
+            $preferMappedLength = $this->mappedSourceRemainderCanCover($normalized, $offset, $toUnicodeMap);
             $sourceLength = $this->toUnicodeSourceLength(
                 $keyLengths,
                 $length - $offset,
@@ -29875,12 +29934,18 @@ final class PdfTextExtractor
                 $normalized,
                 $offset,
                 $preferMappedLength,
-                true
+                true,
+                $toUnicodeMap
             );
             $key = substr($normalized, $offset, $sourceLength);
-            $text .= array_key_exists($key, $mappings)
-                ? $mappings[$key]
-                : $this->decodeUnmappedToUnicodeSource($key);
+            if (array_key_exists($key, $mappings)) {
+                $text .= $mappings[$key];
+                $offset += $sourceLength;
+                continue;
+            }
+
+            $text .= $this->toUnicodeRangeTextForSourceKey($key, $toUnicodeMap)
+                ?? $this->decodeUnmappedToUnicodeSource($key);
             $offset += $sourceLength;
         }
 
@@ -29888,11 +29953,14 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param array<string, string> $mappings
      */
-    private function mappedSourceRemainderCanCover(string $normalized, int $offset, array $mappings): bool
+    private function mappedSourceRemainderCanCover(string $normalized, int $offset, array $toUnicodeMap): bool
     {
+        $mappings = $toUnicodeMap['map'] ?? [];
+        $mappings = is_array($mappings) ? $mappings : [];
         $keyLengths = array_values(array_unique(array_map('strlen', array_keys($mappings))));
+        array_push($keyLengths, ...$this->toUnicodeRangeKeyLengths($toUnicodeMap));
+        $keyLengths = array_values(array_unique($keyLengths));
         rsort($keyLengths, SORT_NUMERIC);
         if ($keyLengths === []) {
             return false;
@@ -29906,7 +29974,7 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                if (array_key_exists(substr($normalized, $offset, $keyLength), $mappings)) {
+                if ($this->toUnicodeSourceKeyIsMapped(substr($normalized, $offset, $keyLength), $toUnicodeMap, $mappings)) {
                     $offset += $keyLength;
                     $matched = true;
                     break;
@@ -29934,7 +30002,8 @@ final class PdfTextExtractor
         string $normalized,
         int $offset,
         bool $preferMappedLength = false,
-        bool $preferMappedPrefixBeforeUnmappedCodeSpace = false
+        bool $preferMappedPrefixBeforeUnmappedCodeSpace = false,
+        array $toUnicodeMap = []
     ): int {
         $mappedLength = null;
         foreach ($keyLengths as $keyLength) {
@@ -29942,7 +30011,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if (array_key_exists(substr($normalized, $offset, $keyLength), $mappings)) {
+            if ($this->toUnicodeSourceKeyIsMapped(substr($normalized, $offset, $keyLength), $toUnicodeMap, $mappings)) {
                 $mappedLength = $keyLength;
                 break;
             }
@@ -29980,7 +30049,8 @@ final class PdfTextExtractor
                 $offset,
                 $mappedLength,
                 $codeSpaceLength,
-                $mappings
+                $mappings,
+                $toUnicodeMap
             )
         ) {
             return $mappedLength;
@@ -30006,7 +30076,8 @@ final class PdfTextExtractor
         int $offset,
         int $mappedLength,
         int $codeSpaceLength,
-        array $mappings
+        array $mappings,
+        array $toUnicodeMap = []
     ): bool {
         $mappedSource = substr($normalized, $offset, $mappedLength);
         if ($mappedSource === '' || preg_match('/^(?:00)+$/', $mappedSource) === 1) {
@@ -30014,11 +30085,90 @@ final class PdfTextExtractor
         }
 
         $codeSpaceSource = substr($normalized, $offset, $codeSpaceLength);
-        if ($codeSpaceSource === '' || array_key_exists($codeSpaceSource, $mappings)) {
+        if ($codeSpaceSource === '' || $this->toUnicodeSourceKeyIsMapped($codeSpaceSource, $toUnicodeMap, $mappings)) {
             return false;
         }
 
         return true;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function toUnicodeRangeKeyLengths(array $toUnicodeMap): array
+    {
+        $ranges = $toUnicodeMap['unicodeRanges'] ?? [];
+        if (!is_array($ranges) || $ranges === []) {
+            return [];
+        }
+
+        $lengths = [];
+        foreach ($ranges as $range) {
+            if (!is_array($range) || !is_int($range['width'] ?? null) || $range['width'] <= 0) {
+                continue;
+            }
+
+            $lengths[] = $range['width'];
+        }
+
+        $lengths = array_values(array_unique($lengths));
+        rsort($lengths, SORT_NUMERIC);
+
+        return $lengths;
+    }
+
+    /**
+     * @param array<string, string>|null $mappings
+     */
+    private function toUnicodeSourceKeyIsMapped(string $sourceKey, array $toUnicodeMap, ?array $mappings = null): bool
+    {
+        $mappings ??= $toUnicodeMap['map'] ?? [];
+        $mappings = is_array($mappings) ? $mappings : [];
+
+        return array_key_exists($sourceKey, $mappings)
+            || $this->toUnicodeRangeTextForSourceKey($sourceKey, $toUnicodeMap) !== null;
+    }
+
+    private function toUnicodeRangeTextForSourceKey(string $sourceKey, array $toUnicodeMap): ?string
+    {
+        if ($sourceKey === '' || preg_match('/^[\da-f]+$/', $sourceKey) !== 1) {
+            return null;
+        }
+
+        $ranges = $toUnicodeMap['unicodeRanges'] ?? [];
+        if (!is_array($ranges) || $ranges === []) {
+            return null;
+        }
+
+        $source = hexdec($sourceKey);
+        $sourceWidth = strlen($sourceKey);
+        $text = null;
+        foreach ($ranges as $range) {
+            if (!is_array($range)) {
+                continue;
+            }
+
+            $rangeStart = $range['start'] ?? null;
+            $rangeEnd = $range['end'] ?? null;
+            $rangeWidth = $range['width'] ?? null;
+            $rangeTarget = $range['target'] ?? null;
+            if (
+                !is_int($rangeStart)
+                || !is_int($rangeEnd)
+                || !is_int($rangeWidth)
+                || !is_string($rangeTarget)
+                || $sourceWidth !== $rangeWidth
+                || $source < $rangeStart
+                || $source > $rangeEnd
+            ) {
+                continue;
+            }
+
+            $targetHex = $this->incrementFixedWidthHexByOffset($rangeTarget, $source - $rangeStart);
+            $text = $this->decodeCMapUnicodeHex($targetHex);
+        }
+
+        return $text;
     }
 
     private function decodeUnmappedToUnicodeSource(string $hex): string
