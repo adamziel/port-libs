@@ -57,6 +57,10 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "abc EI BT /F1 12 Tf 72 636 Td (Named ColorSpace Inline Payload Noise) Tj ET rawtail\n"
     . "EI\n"
     . "BT /F1 12 Tf 72 638 Td (After Named ColorSpace Boundary) Tj ET\n"
+    . "BI /W 1 /H 1 /CS /G /BPC 8 ID\n"
+    . "x\n"
+    . "EI/Decorative Do\n"
+    . "BT /F1 12 Tf 72 637 Td (After Slash EI Boundary) Tj ET\n"
     . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
     . "\x00\x01\x02 EI BT /F1 12 Tf 72 636 Td (Preview Payload EI Noise) Tj ET rawtail\n"
     . "EI\n"
@@ -66,9 +70,10 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
 $pdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
-    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> /ColorSpace << /CSWordPress /DeviceRGB >> >> /Contents 4 0 R >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> /ColorSpace << /CSWordPress /DeviceRGB >> /XObject << /Decorative 6 0 R >> >> /Contents 4 0 R >>\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
     . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+    . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length 1 >>\nstream\ny\nendstream\nendobj\n"
     . "%%EOF";
 
 $ccittContent = "BT /F1 12 Tf 72 720 Td (Before CCITT Boundary) Tj ET\n"
@@ -138,6 +143,8 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
     'named_colorspace_inline_payload_excluded_until_safe_boundary' => !str_contains($plainText, 'Named ColorSpace Inline Payload Noise')
         && !str_contains($plainText, 'CSWordPress')
         && str_contains($plainText, 'After Named ColorSpace Boundary'),
+    'slash_after_inline_ei_closes_before_name_operand' => str_contains($plainText, 'After Slash EI Boundary')
+        && !str_contains($plainText, 'Decorative'),
     'preview_only_visible_ei_text_preserved_after_safe_boundary' => str_contains($plainText, 'Visible EI Marker Text')
         && !str_contains($plainText, 'Preview Payload EI Noise')
         && !str_contains($plainText, 'rawtail'),

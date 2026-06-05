@@ -21020,7 +21020,7 @@ final class PdfTextExtractor
         }
 
         $after = $offset + 2;
-        return $after >= strlen($stream) || $this->isDelimiter($stream[$after]);
+        return $after >= strlen($stream) || $this->isBareTokenDelimiter($stream[$after]);
     }
 
     private function readLiteralToken(string $stream, int &$index): string
