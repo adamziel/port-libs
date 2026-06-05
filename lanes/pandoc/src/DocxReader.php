@@ -14,6 +14,7 @@ final class DocxReader
     public const OFFICE_MATH_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
     public const MARKUP_COMPATIBILITY_NS = 'http://schemas.openxmlformats.org/markup-compatibility/2006';
     public const VML_NS = 'urn:schemas-microsoft-com:vml';
+    public const OFFICE_VML_NS = 'urn:schemas-microsoft-com:office:office';
     public const CORE_PROPERTIES_NS = 'http://schemas.openxmlformats.org/package/2006/metadata/core-properties';
     public const DC_NS = 'http://purl.org/dc/elements/1.1/';
     public const DCTERMS_NS = 'http://purl.org/dc/terms/';
@@ -1942,6 +1943,11 @@ final class DocxReader
 
             if ($this->isWordElement($child, 'drawing')) {
                 array_push($nodes, ...$this->drawingNodes($child, $package, $relationships));
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'pict')) {
+                array_push($nodes, ...$this->vmlImageNodes($child, $package, $relationships));
             }
         }
 
@@ -2451,40 +2457,96 @@ final class DocxReader
             $docPr = $this->drawingPropertiesForBlip($blip, $drawing);
             $alt = $docPr instanceof \DOMElement ? (string) ($docPr->getAttribute('descr') ?: $docPr->getAttribute('name')) : '';
             $title = $docPr instanceof \DOMElement ? $docPr->getAttribute('title') : '';
-            $attrs = $this->drawingImageBaseAttrs($relationshipId, $alt, $title);
-
-            if ($relationship->isExternal()) {
-                $externalTarget = $relationship->externalTargetPreflight();
-                if (!$externalTarget['allowed']) {
-                    continue;
-                }
-
-                $attrs += [
-                    'url' => $relationships->resolveTarget($relationship),
-                    'external' => true,
-                    'externalTargetKind' => $externalTarget['kind'],
-                    'externalTargetScheme' => $externalTarget['scheme'],
-                ];
-                $nodes[] = new AstNode('image', $attrs, $alt === '' ? [] : [new AstNode('text', ['text' => $alt])]);
-                continue;
+            $image = $this->relationshipImageNode($relationshipId, $relationship, $package, $relationships, $alt, $title);
+            if ($image instanceof AstNode) {
+                $nodes[] = $image;
             }
-
-            $target = OpcPackagePath::stripQueryAndFragment($relationships->resolveTarget($relationship));
-            if (!$package->has($target)) {
-                continue;
-            }
-
-            $attrs += [
-                'url' => ltrim($target, '/'),
-                'alt' => $alt,
-                'sourcePart' => $target,
-                'external' => false,
-                'bytes' => strlen($package->read($target)),
-            ];
-            $nodes[] = new AstNode('image', $attrs, $alt === '' ? [] : [new AstNode('text', ['text' => $alt])]);
         }
 
         return $nodes;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function vmlImageNodes(\DOMElement $pict, ZipPackage $package, ?OpcRelationships $relationships): array
+    {
+        if (!$relationships instanceof OpcRelationships) {
+            return [];
+        }
+
+        $nodes = [];
+        foreach ($pict->getElementsByTagNameNS(self::VML_NS, 'imagedata') as $imageData) {
+            if (!$imageData instanceof \DOMElement) {
+                continue;
+            }
+
+            $relationshipId = $this->relationshipAttr($imageData, 'id');
+            if ($relationshipId === null || $relationshipId === '') {
+                continue;
+            }
+
+            $relationship = $relationships->byId($relationshipId);
+            if (!$relationship instanceof OpcRelationship || $relationship->type !== self::REL_TYPE_IMAGE) {
+                continue;
+            }
+
+            $shape = $this->vmlShapeForImageData($imageData, $pict);
+            $alt = $shape instanceof \DOMElement ? (string) $shape->getAttribute('alt') : '';
+            $title = $this->namespacedAttr($imageData, self::OFFICE_VML_NS, 'title') ?? '';
+            if ($alt === '' && $title !== '') {
+                $alt = $title;
+            }
+
+            $image = $this->relationshipImageNode($relationshipId, $relationship, $package, $relationships, $alt, $title);
+            if ($image instanceof AstNode) {
+                $nodes[] = $image;
+            }
+        }
+
+        return $nodes;
+    }
+
+    private function relationshipImageNode(
+        string $relationshipId,
+        OpcRelationship $relationship,
+        ZipPackage $package,
+        OpcRelationships $relationships,
+        string $alt,
+        string $title
+    ): ?AstNode {
+        $attrs = $this->drawingImageBaseAttrs($relationshipId, $alt, $title);
+
+        if ($relationship->isExternal()) {
+            $externalTarget = $relationship->externalTargetPreflight();
+            if (!$externalTarget['allowed']) {
+                return null;
+            }
+
+            $attrs += [
+                'url' => $relationships->resolveTarget($relationship),
+                'external' => true,
+                'externalTargetKind' => $externalTarget['kind'],
+                'externalTargetScheme' => $externalTarget['scheme'],
+            ];
+
+            return new AstNode('image', $attrs, $alt === '' ? [] : [new AstNode('text', ['text' => $alt])]);
+        }
+
+        $target = OpcPackagePath::stripQueryAndFragment($relationships->resolveTarget($relationship));
+        if (!$package->has($target)) {
+            return null;
+        }
+
+        $attrs += [
+            'url' => ltrim($target, '/'),
+            'alt' => $alt,
+            'sourcePart' => $target,
+            'external' => false,
+            'bytes' => strlen($package->read($target)),
+        ];
+
+        return new AstNode('image', $attrs, $alt === '' ? [] : [new AstNode('text', ['text' => $alt])]);
     }
 
     /**
@@ -2523,6 +2585,27 @@ final class DocxReader
         }
 
         return $this->firstDescendantElement($drawing, self::WORDPROCESSING_DRAWING_NS, 'docPr');
+    }
+
+    private function vmlShapeForImageData(\DOMElement $imageData, \DOMElement $pict): ?\DOMElement
+    {
+        $node = $imageData->parentNode;
+        while ($node instanceof \DOMElement) {
+            if (
+                $node->namespaceURI === self::VML_NS
+                && in_array($node->localName, ['shape', 'rect', 'oval', 'roundrect', 'group'], true)
+            ) {
+                return $node;
+            }
+
+            if ($node === $pict) {
+                break;
+            }
+
+            $node = $node->parentNode;
+        }
+
+        return null;
     }
 
     /**

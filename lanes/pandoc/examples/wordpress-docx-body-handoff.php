@@ -38,6 +38,7 @@ XML],
   <Relationship Id="rIdSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source-packet?post=42" TargetMode="External"/>
   <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
   <Relationship Id="rIdExternalChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://cdn.example.test/docx-review-chart.png" TargetMode="External"/>
+  <Relationship Id="rIdVmlBadge" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/vml-badge.png"/>
   <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
   <Relationship Id="rIdEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="endnotes.xml"/>
   <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
@@ -54,6 +55,7 @@ XML],
   xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
   xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
   xmlns:v="urn:schemas-microsoft-com:vml"
+  xmlns:o="urn:schemas-microsoft-com:office:office"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
   xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
   xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
@@ -233,6 +235,7 @@ XML],
       </w:sdtContent>
     </w:sdt>
     <w:p><w:r><w:drawing><wp:inline><wp:docPr id="9" name="Hero" descr="Source hero alt" title="Source hero"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdHero"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline><wp:anchor><wp:docPr id="10" name="Review chart" descr="Linked review chart alt" title="Linked review chart"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:link="rIdExternalChart"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>
+    <w:p><w:r><w:pict><v:shape id="_x0000_i42" alt="VML badge alt"><v:imagedata r:id="rIdVmlBadge" o:title="VML badge title"/></v:shape></w:pict></w:r></w:p>
     <w:tbl>
       <w:tr>
         <w:tc>
@@ -331,6 +334,7 @@ XML],
 </w:ftr>
 XML],
     ['name' => 'word/media/hero.png', 'data' => 'PNGDATA'],
+    ['name' => 'word/media/vml-badge.png', 'data' => 'VMLPNGDATA'],
     ['name' => 'docProps/core.xml', 'data' => <<<'XML'
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
   xmlns:dc="http://purl.org/dc/elements/1.1/">
@@ -357,7 +361,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['metadata']['title'] ?? '') !== 'WordPress DOCX handoff') {
         throw new RuntimeException('DOCX body handoff self-test missing metadata title');
     }
-    if (($summary['importReport']['media']['embeddedCount'] ?? 0) !== 1) {
+    if (($summary['importReport']['media']['embeddedCount'] ?? 0) !== 2) {
         throw new RuntimeException('DOCX body handoff self-test missing media import report');
     }
     if (($summary['importReport']['media']['items'][0]['bytes'] ?? 0) !== 7) {
@@ -365,6 +369,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['importReport']['media']['items'][1]['external'] ?? null) !== true || ($summary['importReport']['media']['items'][1]['usedCount'] ?? 0) !== 1) {
         throw new RuntimeException('DOCX body handoff self-test missing linked external media handoff');
+    }
+    if (($summary['importReport']['media']['items'][2]['id'] ?? '') !== 'rIdVmlBadge' || ($summary['importReport']['media']['items'][2]['usedCount'] ?? 0) !== 1) {
+        throw new RuntimeException('DOCX body handoff self-test missing VML image media handoff');
     }
     if (($summary['importReport']['revisions']['insertionCount'] ?? 0) !== 2 || ($summary['importReport']['revisions']['deletionCount'] ?? 0) !== 2) {
         throw new RuntimeException('DOCX body handoff self-test missing tracked-change report');
@@ -446,6 +453,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Content-control checklist for reviewer handoff.</p>',
         '<img src="word/media/hero.png" alt="Source hero alt" title="Source hero"/>',
         '<img src="https://cdn.example.test/docx-review-chart.png" alt="Linked review chart alt" title="Linked review chart"/>',
+        '<img src="word/media/vml-badge.png" alt="VML badge alt" title="VML badge title"/>',
         '<td colspan="2" rowspan="2"><p>Review scope</p></td><td><p>Status</p></td>',
         '<td><p>Owner</p></td><td colspan="2"><p>Migration desk</p></td>',
         'DOCX footnote import note.',

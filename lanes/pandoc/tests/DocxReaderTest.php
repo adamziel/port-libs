@@ -141,6 +141,56 @@ $linkedMediaDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$vmlImageContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+$vmlImageDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdVmlLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/vml-logo.png"/>
+  <Relationship Id="rIdVmlExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://cdn.example.test/vml-review-chart.png" TargetMode="External"/>
+  <Relationship Id="rIdVmlUnsafe" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="javascript:alert(1)" TargetMode="External"/>
+</Relationships>
+XML;
+
+$vmlImageDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:v="urn:schemas-microsoft-com:vml"
+  xmlns:o="urn:schemas-microsoft-com:office:office">
+  <w:body>
+    <w:p>
+      <w:r>
+        <w:pict>
+          <v:shape id="_x0000_i1025" alt="VML logo alt">
+            <v:imagedata r:id="rIdVmlLogo" o:title="VML logo title"/>
+          </v:shape>
+        </w:pict>
+      </w:r>
+      <w:r>
+        <w:pict>
+          <v:shape id="_x0000_i1026" alt="VML linked alt">
+            <v:imagedata r:id="rIdVmlExternal" o:title="VML linked title"/>
+          </v:shape>
+        </w:pict>
+      </w:r>
+      <w:r>
+        <w:pict>
+          <v:shape id="_x0000_i1027" alt="Unsafe VML alt">
+            <v:imagedata r:id="rIdVmlUnsafe"/>
+          </v:shape>
+        </w:pict>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $corePropertiesXml = <<<'XML'
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
   xmlns:dc="http://purl.org/dc/elements/1.1/"
@@ -820,6 +870,16 @@ $buildLinkedMediaPackage = static function () use ($linkedMediaContentTypesXml, 
     ]);
 };
 
+$buildVmlImagePackage = static function () use ($vmlImageContentTypesXml, $packageRelationshipsXml, $vmlImageDocumentRelationshipsXml, $vmlImageDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $vmlImageContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $vmlImageDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $vmlImageDocumentRelationshipsXml],
+        ['name' => 'word/media/vml-logo.png', 'data' => 'VMLPNGDATA'],
+    ]);
+};
+
 $buildStylesNumberingPackage = static function () use (
     $stylesNumberingContentTypesXml,
     $stylesNumberingRelationshipsXml,
@@ -1153,6 +1213,61 @@ return [
         $t->same(true, $media['items'][3]['external']);
         $t->same(0, $media['items'][3]['usedCount']);
         $t->same(['external-target-unsafe-scheme'], $media['items'][3]['issues']);
+    },
+    'maps DOCX VML picture image data into media AST nodes' => static function (TestRunner $t) use ($buildVmlImagePackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildVmlImagePackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(2, count($paragraph->children));
+
+        $embedded = $paragraph->children[0];
+        $t->same('image', $embedded->type);
+        $t->same('word/media/vml-logo.png', $embedded->attr('url'));
+        $t->same('/word/media/vml-logo.png', $embedded->attr('sourcePart'));
+        $t->same(false, $embedded->attr('external'));
+        $t->same('rIdVmlLogo', $embedded->attr('relationshipId'));
+        $t->same('VML logo alt', $embedded->attr('alt'));
+        $t->same('VML logo title', $embedded->attr('title'));
+        $t->same(10, $embedded->attr('bytes'));
+        $t->same('VML logo alt', $embedded->children[0]->attr('text'));
+
+        $linked = $paragraph->children[1];
+        $t->same('image', $linked->type);
+        $t->same('https://cdn.example.test/vml-review-chart.png', $linked->attr('url'));
+        $t->same(true, $linked->attr('external'));
+        $t->same('rIdVmlExternal', $linked->attr('relationshipId'));
+        $t->same('VML linked alt', $linked->attr('alt'));
+        $t->same('VML linked title', $linked->attr('title'));
+        $t->same('absolute-uri', $linked->attr('externalTargetKind'));
+        $t->same('https', $linked->attr('externalTargetScheme'));
+
+        $t->contains('![VML logo alt](word/media/vml-logo.png "VML logo title")', $markdown);
+        $t->contains('![VML linked alt](https://cdn.example.test/vml-review-chart.png "VML linked title")', $markdown);
+        $t->true(!str_contains($markdown, 'javascript:alert'), 'Unsafe VML image target should not render to Markdown');
+
+        $t->contains('<img src="word/media/vml-logo.png" alt="VML logo alt" title="VML logo title"/>', $blocks);
+        $t->contains('<img src="https://cdn.example.test/vml-review-chart.png" alt="VML linked alt" title="VML linked title"/>', $blocks);
+        $t->true(!str_contains($blocks, 'javascript:alert'), 'Unsafe VML image target should not render to WordPress blocks');
+
+        $media = $result['importReport']['media'];
+        $t->same(3, $media['count']);
+        $t->same(1, $media['embeddedCount']);
+        $t->same(0, $media['missingCount']);
+        $t->same(1, $media['items'][0]['usedCount']);
+        $t->same(['VML logo alt'], $media['items'][0]['altTexts']);
+        $t->same(['VML logo title'], $media['items'][0]['titles']);
+        $t->same(1, $media['items'][1]['usedCount']);
+        $t->same(true, $media['items'][1]['external']);
+        $t->same(['VML linked alt'], $media['items'][1]['altTexts']);
+        $t->same(['VML linked title'], $media['items'][1]['titles']);
+        $t->same(true, $media['items'][2]['external']);
+        $t->same(0, $media['items'][2]['usedCount']);
+        $t->same(['external-target-unsafe-scheme'], $media['items'][2]['issues']);
     },
     'reports DOCX media import inventory and missing media relationships' => static function (TestRunner $t) use ($buildDocxPackage): void {
         $result = (new DocxReader())->readPackage($buildDocxPackage());
