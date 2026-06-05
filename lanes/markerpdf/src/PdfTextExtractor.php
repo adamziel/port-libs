@@ -24341,6 +24341,12 @@ final class PdfTextExtractor
             }
         }
 
+        $localCodeSpaceRanges = $this->parseCMapCodeSpaceRanges($cmap);
+        $cidRangeCodeSpaceRanges = array_values($codeSpaceRanges);
+        foreach ($localCodeSpaceRanges as $range) {
+            $cidRangeCodeSpaceRanges[$range['start'] . ':' . $range['end'] . ':' . $range['width']] = $range;
+        }
+
         if (preg_match_all('/\/WMode\s+([01])\s+def\b/s', $cmap, $wModeMatches) > 0) {
             $lastMode = end($wModeMatches[1]);
             $writingMode = (int) $lastMode === 1 ? 1 : 0;
