@@ -229,6 +229,28 @@ try {
         null,
         static fn (): string => throw new RuntimeException('runtime model boundary unavailable')
     );
+    $textLengthErrorPath = $blockedOutputRoot . DIRECTORY_SEPARATOR . 'text-length-error.pdf';
+    file_put_contents($textLengthErrorPath, "%PDF-1.4\n% text length error\n%%EOF");
+    $textLengthErrorPreflight = $batch->processFilePreflightPlan(
+        $textLengthErrorPath,
+        $output,
+        ['title' => 'Text Length Error'],
+        80,
+        static fn (): int => throw new RuntimeException('runtime text length boundary unavailable')
+    );
+    $textLengthErrorConverterCalled = false;
+    $textLengthErrorResult = $batch->processFile(
+        $textLengthErrorPath,
+        $output,
+        ['title' => 'Text Length Error'],
+        80,
+        static function () use (&$textLengthErrorConverterCalled): string {
+            $textLengthErrorConverterCalled = true;
+
+            return 'should not run';
+        },
+        static fn (): int => throw new RuntimeException('runtime text length boundary unavailable')
+    );
     $capturePreflightError = static function (callable $callback): string {
         try {
             $callback();
@@ -465,6 +487,18 @@ try {
     ) {
         throw new RuntimeException('Expected converter exceptions to print error review output and return None without writing Markdown.');
     }
+    if (
+        $textLengthErrorPreflight['status'] !== 'error'
+        || $textLengthErrorPreflight['error_stage'] !== 'get_length_of_text'
+        || $textLengthErrorPreflight['error_boundary'] !== 'preflight-exception-print-return-none'
+        || $textLengthErrorPreflight['upstream_return_boundary'] !== 'preflight-exception-print-return-none'
+        || $textLengthErrorResult['status'] !== 'error'
+        || $textLengthErrorResult['upstream_return_boundary'] !== 'preflight-exception-print-return-none'
+        || $textLengthErrorConverterCalled !== false
+        || is_file($output . DIRECTORY_SEPARATOR . 'text-length-error' . DIRECTORY_SEPARATOR . 'text-length-error.md')
+    ) {
+        throw new RuntimeException('Expected get_length_of_text exceptions to be caught before converter invocation or Markdown writes.');
+    }
     if (!str_contains($missingInputError, 'Batch input folder does not exist') || str_contains($missingInputError, 'metadata file')) {
         throw new RuntimeException('Expected missing input folder to be reported before metadata_file loading.');
     }
@@ -619,6 +653,13 @@ try {
         'post_conversion_error_boundary' => $postConversionError['conversion_result']['upstream_return_boundary'],
         'post_conversion_error_class' => $postConversionError['conversion_result']['error_class'],
         'post_conversion_error_traceback_available' => $postConversionError['conversion_result']['traceback_available'],
+        'text_length_error_status' => $textLengthErrorPreflight['status'],
+        'text_length_error_stage' => $textLengthErrorPreflight['error_stage'],
+        'text_length_error_boundary' => $textLengthErrorPreflight['error_boundary'],
+        'text_length_error_class' => $textLengthErrorPreflight['error_class'],
+        'text_length_error_return_boundary' => $textLengthErrorPreflight['upstream_return_boundary'],
+        'text_length_error_converter_called' => $textLengthErrorConverterCalled,
+        'text_length_error_writes_markdown' => is_file($output . DIRECTORY_SEPARATOR . 'text-length-error' . DIRECTORY_SEPARATOR . 'text-length-error.md'),
         'missing_input_error_precedes_metadata_file' => str_contains($missingInputError, 'Batch input folder does not exist')
             && !str_contains($missingInputError, 'metadata file'),
         'invalid_chunk_error_precedes_metadata_file' => str_contains($invalidChunkError, 'Batch chunk count must be at least one')

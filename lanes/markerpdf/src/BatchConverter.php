@@ -1378,6 +1378,11 @@ final class BatchConverter
             'text_length_checked' => false,
             'text_length' => null,
             'skip_reason' => null,
+            'error_stage' => null,
+            'error_boundary' => null,
+            'error_class' => null,
+            'error_message' => null,
+            'error_output' => null,
             'should_invoke_converter' => false,
             'should_save_markdown_after_nonempty_output' => false,
             'conversion_call' => [
@@ -1419,11 +1424,29 @@ final class BatchConverter
                 ];
             }
 
-            $length = $textLength === null
-                ? $this->embeddedTextLength($filepath)
-                : (int) $textLength($filepath);
             $base['text_length_checked'] = true;
-            $base['text_length'] = $length;
+            try {
+                $length = $textLength === null
+                    ? $this->embeddedTextLength($filepath)
+                    : (int) $textLength($filepath);
+                $base['text_length'] = $length;
+            } catch (Throwable $throwable) {
+                $errorOutput = $this->conversionErrorOutput($filepath, $throwable);
+
+                return [
+                    ...$base,
+                    'status' => 'error',
+                    'skip_reason' => 'preflight-exception',
+                    'error_stage' => 'get_length_of_text',
+                    'error_boundary' => 'preflight-exception-print-return-none',
+                    'error_class' => get_class($throwable),
+                    'error_message' => $throwable->getMessage(),
+                    'error_output' => $errorOutput,
+                    'upstream_return_value' => null,
+                    'upstream_return_type' => 'python-none',
+                    'upstream_return_boundary' => 'preflight-exception-print-return-none',
+                ];
+            }
 
             if ($length < $minLength) {
                 return [
@@ -1459,13 +1482,28 @@ final class BatchConverter
         $preflight = $this->processFilePreflightPlan($filepath, $outputFolder, $metadata, $minLength, $textLength);
 
         if ($preflight['status'] !== 'ready-for-conversion') {
-            return $this->result((string) $preflight['status'], $filepath, [
+            $result = [
                 'filename' => $filename,
                 'filetype' => $preflight['filetype'],
                 'text_length' => $preflight['text_length'],
                 'min_length' => $minLength,
                 'preflight' => $preflight,
-            ]);
+                'upstream_return_value' => $preflight['upstream_return_value'] ?? null,
+                'upstream_return_type' => $preflight['upstream_return_type'] ?? 'python-none',
+                'upstream_return_boundary' => $preflight['upstream_return_boundary'] ?? null,
+                'executes_python_or_models' => false,
+                'executes_external_pdf_tools' => false,
+            ];
+
+            if (($preflight['status'] ?? null) === 'error') {
+                $result += [
+                    'error' => $preflight['error_message'],
+                    'error_output' => $preflight['error_output'],
+                    'writes_markdown' => false,
+                ];
+            }
+
+            return $this->result((string) $preflight['status'], $filepath, $result);
         }
 
         try {

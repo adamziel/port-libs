@@ -1226,6 +1226,65 @@ return [
             $removeTree($output);
         }
     },
+    'records process_single_pdf text-length exceptions before converter launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            $filepath = $input . DIRECTORY_SEPARATOR . 'broken-length.pdf';
+            file_put_contents($filepath, "%PDF-1.4\n% broken length\n%%EOF");
+            $batch = new BatchConverter();
+            $textLength = static fn (): int => throw new RuntimeException('native pdftext length boundary unavailable');
+
+            $preflight = $batch->processFilePreflightPlan(
+                $filepath,
+                $output,
+                ['title' => 'Broken Length'],
+                80,
+                $textLength
+            );
+
+            $converterCalled = false;
+            $result = $batch->processFile(
+                $filepath,
+                $output,
+                ['title' => 'Broken Length'],
+                80,
+                static function () use (&$converterCalled): string {
+                    $converterCalled = true;
+
+                    return 'should not run';
+                },
+                $textLength
+            );
+
+            $t->same('error', $preflight['status']);
+            $t->same('get_length_of_text', $preflight['error_stage']);
+            $t->same('preflight-exception-print-return-none', $preflight['error_boundary']);
+            $t->same(RuntimeException::class, $preflight['error_class']);
+            $t->same('native pdftext length boundary unavailable', $preflight['error_message']);
+            $t->same('preflight-exception-print-return-none', $preflight['upstream_return_boundary']);
+            $t->same(null, $preflight['upstream_return_value']);
+            $t->same('python-none', $preflight['upstream_return_type']);
+            $t->same(true, $preflight['filetype_checked']);
+            $t->same('pdf', $preflight['filetype']);
+            $t->same(true, $preflight['text_length_checked']);
+            $t->same(null, $preflight['text_length']);
+            $t->same(false, $preflight['should_invoke_converter']);
+            $t->contains('Error converting ' . $filepath . ': native pdftext length boundary unavailable', $preflight['error_output']['message_line']);
+            $t->same(true, $preflight['error_output']['traceback_available']);
+
+            $t->same('error', $result['status']);
+            $t->same(false, $converterCalled);
+            $t->same('preflight-exception-print-return-none', $result['upstream_return_boundary']);
+            $t->same('preflight-exception-print-return-none', $result['preflight']['error_boundary']);
+            $t->same(false, is_file($output . DIRECTORY_SEPARATOR . 'broken-length' . DIRECTORY_SEPARATOR . 'broken-length.md'));
+            $t->same(false, $result['executes_python_or_models']);
+            $t->same(false, $result['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'records process_single_pdf post-conversion empty and error return boundaries' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
