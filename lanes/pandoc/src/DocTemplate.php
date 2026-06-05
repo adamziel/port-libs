@@ -1008,7 +1008,14 @@ final class DocTemplate
             return $value;
         }
 
-        return chr(ord('a') + (($number - 1) % 26));
+        $label = '';
+        while ($number > 0) {
+            $number--;
+            $label = chr(ord('a') + ($number % 26)) . $label;
+            $number = intdiv($number, 26);
+        }
+
+        return $label;
     }
 
     private function pipeRomanText(string $value): string

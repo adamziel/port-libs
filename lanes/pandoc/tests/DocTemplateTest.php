@@ -307,6 +307,20 @@ TPL;
         ]), $output);
     },
 
+    'renders pandoc doctemplate alphabetic pipe overflow markers' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $t->same('[y][z][aa][ab][az][ba][zz][aaa]', $renderer->render('$for(numbers)$[$it/alpha$]$endfor$', [
+            'numbers' => [25, 26, 27, 28, 52, 53, 702, 703],
+        ]));
+        $t->same('Y Z AA AB AZ BA ZZ AAA', $renderer->render('$for(numbers)$$it/alpha/uppercase$$sep$ $endfor$', [
+            'numbers' => [25, 26, 27, 28, 52, 53, 702, 703],
+        ]));
+        $t->same('0 draft', $renderer->render('$for(values)$$it/alpha$$sep$ $endfor$', [
+            'values' => [0, 'draft'],
+        ]));
+    },
+
     'pads pandoc doctemplate block pipes by unicode display width' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 CJK: <$cjk/left 6 "|" "|"$>
