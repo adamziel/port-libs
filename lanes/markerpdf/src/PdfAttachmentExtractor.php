@@ -19,6 +19,26 @@ final class PdfAttachmentExtractor
         'Unspecified' => 'unspecified',
     ];
 
+    private const ANNOTATION_FLAGS = [
+        1 => 'invisible',
+        2 => 'hidden',
+        3 => 'print',
+        4 => 'no_zoom',
+        5 => 'no_rotate',
+        6 => 'no_view',
+        7 => 'read_only',
+        8 => 'locked',
+        9 => 'toggle_no_view',
+        10 => 'locked_contents',
+    ];
+
+    private const FILE_ATTACHMENT_ICONS = [
+        'Graph' => 'graph',
+        'Paperclip' => 'paperclip',
+        'PushPin' => 'push_pin',
+        'Tag' => 'tag',
+    ];
+
     /**
      * Native PDF attachment preflight for embedded file streams referenced by
      * document EmbeddedFiles name trees or page FileAttachment annotations.
@@ -112,17 +132,35 @@ final class PdfAttachmentExtractor
         }
 
         foreach ($this->fileAttachmentAnnotationEntries($objects, $catalogObjectIds) as $entry) {
+            $context = [
+                'page_number' => $entry['pageNumber'],
+                'page_object_id' => $entry['pageObjectId'],
+                'annotation_object_id' => $entry['annotationObjectId'],
+                'annotation_contents' => $entry['contents'],
+                'annotation_rect' => $entry['rect'],
+            ];
+            foreach ([
+                'annotation_flags',
+                'annotation_flag_names',
+                'annotation_visibility',
+                'annotation_visible',
+                'annotation_hidden',
+                'annotation_printable',
+                'annotation_no_view',
+                'annotation_icon',
+                'annotation_icon_label',
+                'annotation_icon_status',
+            ] as $annotationReviewKey) {
+                if (array_key_exists($annotationReviewKey, $entry)) {
+                    $context[$annotationReviewKey] = $entry[$annotationReviewKey];
+                }
+            }
+
             $attachment = $this->attachmentFromFileSpecValue(
                 $entry['fileSpec'],
                 $objects,
                 'file-attachment-annotation',
-                [
-                    'page_number' => $entry['pageNumber'],
-                    'page_object_id' => $entry['pageObjectId'],
-                    'annotation_object_id' => $entry['annotationObjectId'],
-                    'annotation_contents' => $entry['contents'],
-                    'annotation_rect' => $entry['rect'],
-                ],
+                $context,
                 $encryptionPolicy
             );
             if ($attachment !== null) {
@@ -157,6 +195,16 @@ final class PdfAttachmentExtractor
             'annotation_object_id',
             'annotation_contents',
             'annotation_rect',
+            'annotation_flags',
+            'annotation_flag_names',
+            'annotation_visibility',
+            'annotation_visible',
+            'annotation_hidden',
+            'annotation_printable',
+            'annotation_no_view',
+            'annotation_icon',
+            'annotation_icon_label',
+            'annotation_icon_status',
         ] as $key) {
             if (array_key_exists($key, $annotationAttachment)) {
                 $target[$key] = $annotationAttachment[$key];
@@ -605,11 +653,90 @@ final class PdfAttachmentExtractor
                     'contents' => $this->stringValue($dict['Contents'] ?? null),
                     'rect' => $this->numberArray($dict['Rect'] ?? null),
                     'fileSpec' => $dict['FS'] ?? null,
-                ];
+                ] + $this->fileAttachmentAnnotationReview($dict, $objects);
             }
         }
 
         return $entries;
+    }
+
+    /**
+     * FileAttachment annotations can carry review presentation state. Keep it
+     * with the attachment summary so WordPress import can distinguish visible
+     * attachment icons from hidden/no-view review packets without executing
+     * annotation actions or embedded payloads.
+     *
+     * @param array<string, mixed> $annotation
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return array<string, mixed>
+     */
+    private function fileAttachmentAnnotationReview(array $annotation, array $objects): array
+    {
+        $flags = $this->intValue($this->resolveValue($annotation['F'] ?? null, $objects)) ?? 0;
+        $review = [
+            'annotation_flags' => $flags,
+            'annotation_flag_names' => $this->annotationFlagNames($flags),
+            'annotation_visibility' => $this->annotationVisibility($flags),
+            'annotation_visible' => !$this->annotationFlagsHide($flags),
+            'annotation_hidden' => $this->annotationFlagsHide($flags),
+            'annotation_printable' => $this->hasFlagBit($flags, 3),
+            'annotation_no_view' => $this->hasFlagBit($flags, 6),
+        ];
+
+        $icon = $this->nameOrStringValue($annotation['Name'] ?? null, $objects);
+        if ($icon !== null && $icon !== '') {
+            $review['annotation_icon'] = $icon;
+            $review['annotation_icon_label'] = self::FILE_ATTACHMENT_ICONS[$icon] ?? 'custom';
+            $review['annotation_icon_status'] = array_key_exists($icon, self::FILE_ATTACHMENT_ICONS)
+                ? 'standard_file_attachment_icon'
+                : 'custom_file_attachment_icon';
+        }
+
+        return $review;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function annotationFlagNames(int $flags): array
+    {
+        $names = [];
+        foreach (self::ANNOTATION_FLAGS as $bit => $name) {
+            if ($this->hasFlagBit($flags, $bit)) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
+    }
+
+    private function annotationFlagsHide(int $flags): bool
+    {
+        return $this->hasFlagBit($flags, 1)
+            || $this->hasFlagBit($flags, 2)
+            || $this->hasFlagBit($flags, 6);
+    }
+
+    private function annotationVisibility(int $flags): string
+    {
+        if ($this->hasFlagBit($flags, 2)) {
+            return 'hidden';
+        }
+
+        if ($this->hasFlagBit($flags, 1)) {
+            return 'invisible';
+        }
+
+        if ($this->hasFlagBit($flags, 6)) {
+            return 'no_view';
+        }
+
+        return 'visible';
+    }
+
+    private function hasFlagBit(int $flags, int $bit): bool
+    {
+        return ($flags & (1 << ($bit - 1))) !== 0;
     }
 
     /**
