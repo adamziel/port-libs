@@ -9136,12 +9136,26 @@ final class PdfMetadataExtractor
             }
 
             $first ??= $value;
-            if (strcasecmp(trim($item->getAttributeNS(self::NS_XML, 'lang')), 'x-default') === 0) {
+            if (strcasecmp($this->xmpInheritedXmlLang($item), 'x-default') === 0) {
                 return $value;
             }
         }
 
         return $first ?? $this->xmpQualifiedTextValue($element);
+    }
+
+    private function xmpInheritedXmlLang(DOMElement $element): string
+    {
+        $node = $element;
+        while ($node instanceof DOMElement) {
+            if ($node->hasAttributeNS(self::NS_XML, 'lang')) {
+                return trim($node->getAttributeNS(self::NS_XML, 'lang'));
+            }
+
+            $node = $node->parentNode;
+        }
+
+        return '';
     }
 
     /**
