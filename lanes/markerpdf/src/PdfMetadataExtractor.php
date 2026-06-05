@@ -7314,10 +7314,7 @@ final class PdfMetadataExtractor
                 }
 
                 $instruction = substr($xml, $tagStart, $end - $tagStart);
-                if (
-                    preg_match('/^<\?\s*xpacket\b/si', $instruction) === 1
-                    && preg_match('/\b' . preg_quote($kind, '/') . '\s*=/si', $instruction) === 1
-                ) {
+                if ($this->xmpPacketInstructionMatchesKind($instruction, $kind)) {
                     return $tagStart;
                 }
 
@@ -7335,6 +7332,22 @@ final class PdfMetadataExtractor
         }
 
         return null;
+    }
+
+    private function xmpPacketInstructionMatchesKind(string $instruction, string $kind): bool
+    {
+        if (preg_match('/^<\?\s*xpacket\b/si', $instruction) !== 1) {
+            return false;
+        }
+
+        $hasBegin = preg_match('/\bbegin\s*=/si', $instruction) === 1;
+        $hasTerminalEnd = preg_match('/\bend\s*=\s*([\'"])[rw]\1/si', $instruction) === 1;
+
+        return match ($kind) {
+            'begin' => $hasBegin && !$hasTerminalEnd,
+            'end' => $hasTerminalEnd && !$hasBegin,
+            default => false,
+        };
     }
 
     private function xmpmetaRootDeclaresAdobeNamespace(string $xml): bool
