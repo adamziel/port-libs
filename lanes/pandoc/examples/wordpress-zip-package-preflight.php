@@ -1926,6 +1926,60 @@ try {
 } catch (RuntimeException $exception) {
     $tarGlobalPaxPerEntryRejected = str_contains($exception->getMessage(), 'global PAX header path');
 }
+$tarDuplicatePaxKeywordRejected = false;
+$tarDuplicatePaxPathRejected = false;
+try {
+    TarArchive::fromString(
+        $buildRawTarRecord(
+            'PaxHeaders/duplicate-path',
+            'x',
+            $buildPaxPayload(['path' => 'packet/first.xml'])
+                . $buildPaxPayload(['path' => 'packet/second.xml']),
+            $documentModifiedAt
+        )
+        . $buildRawTarRecord('placeholder.xml', '0', '<w:document/>', $documentModifiedAt)
+        . str_repeat("\0", 1024)
+    );
+} catch (RuntimeException $exception) {
+    $tarDuplicatePaxPathRejected = str_contains($exception->getMessage(), 'duplicate keyword path');
+}
+$tarDuplicatePaxSizeRejected = false;
+try {
+    TarArchive::fromString(
+        $buildRawTarRecord(
+            'PaxHeaders/duplicate-size',
+            'x',
+            $buildPaxPayload([
+                'path' => 'packet/duplicate-size.xml',
+                'size' => '13',
+            ]) . $buildPaxPayload(['size' => '13']),
+            $documentModifiedAt
+        )
+        . $buildRawTarRecord('placeholder-size.xml', '0', '<w:document/>', $documentModifiedAt)
+        . str_repeat("\0", 1024)
+    );
+} catch (RuntimeException $exception) {
+    $tarDuplicatePaxSizeRejected = str_contains($exception->getMessage(), 'duplicate keyword size');
+}
+$tarDuplicatePaxGlobalRejected = false;
+try {
+    TarArchive::fromString(
+        $buildRawTarRecord(
+            'GlobalHead/duplicate-comment',
+            'g',
+            $buildPaxPayload(['comment' => 'first review note'])
+                . $buildPaxPayload(['comment' => 'second review note']),
+            $documentModifiedAt
+        )
+        . $buildRawTarRecord('packet/document.xml', '0', '<w:document/>', $documentModifiedAt)
+        . str_repeat("\0", 1024)
+    );
+} catch (RuntimeException $exception) {
+    $tarDuplicatePaxGlobalRejected = str_contains($exception->getMessage(), 'duplicate keyword comment');
+}
+$tarDuplicatePaxKeywordRejected = $tarDuplicatePaxPathRejected
+    && $tarDuplicatePaxSizeRejected
+    && $tarDuplicatePaxGlobalRejected;
 $tarPaxLinkpathRejected = false;
 try {
     TarArchive::fromString(
@@ -2773,6 +2827,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected TAR global PAX per-entry metadata to be rejected before import');
     }
 
+    if (!$tarDuplicatePaxKeywordRejected) {
+        throw new RuntimeException('Expected TAR duplicate PAX keyword metadata to be rejected before import');
+    }
+
     if (!$tarPaxLinkpathRejected) {
         throw new RuntimeException('Expected TAR PAX linkpath metadata to be rejected before import');
     }
@@ -2917,6 +2975,7 @@ echo 'tarDriveLetterPolicy=' . ($tarDriveLetterRejected ? 'rejected' : 'not-reje
 echo 'tarSparsePolicy=' . ($tarSparseRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarUstarVersionPolicy=' . ($tarUstarVersionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarGlobalPaxPerEntryPolicy=' . ($tarGlobalPaxPerEntryRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'tarDuplicatePaxKeywordPolicy=' . ($tarDuplicatePaxKeywordRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarPaxLinkpathPolicy=' . ($tarPaxLinkpathRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarGnuLongLinkPolicy=' . ($tarGnuLongLinkRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarPaxUtf8PathPolicy=' . ($tarPaxUtf8PathRejected ? 'rejected' : 'not-rejected') . "\n";

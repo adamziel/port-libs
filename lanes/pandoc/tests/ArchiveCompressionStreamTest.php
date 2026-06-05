@@ -288,6 +288,45 @@ return [
         ]));
     },
 
+    'rejects duplicate pax keyword metadata before package bytes are exposed' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $duplicatePath = $rawTarHeader(
+            'PaxHeaders/duplicate-path',
+            'x',
+            $paxPayload(['path' => 'packet/first.xml'])
+                . $paxPayload(['path' => 'packet/second.xml']),
+            0,
+            false
+        )
+            . $rawTarHeader('placeholder.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+        $duplicateSize = $rawTarHeader(
+            'PaxHeaders/duplicate-size',
+            'x',
+            $paxPayload([
+                'path' => 'packet/duplicate-size.xml',
+                'size' => '13',
+            ]) . $paxPayload(['size' => '13']),
+            0,
+            false
+        )
+            . $rawTarHeader('placeholder-size.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+        $duplicateGlobalComment = $rawTarHeader(
+            'GlobalHead/duplicate-comment',
+            'g',
+            $paxPayload(['comment' => 'first review note'])
+                . $paxPayload(['comment' => 'second review note']),
+            0,
+            false
+        )
+            . $rawTarHeader('packet/document.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($duplicatePath));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($duplicateSize));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($duplicateGlobalComment));
+    },
+
     'builds and reads global pax metadata for tar review packets' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [

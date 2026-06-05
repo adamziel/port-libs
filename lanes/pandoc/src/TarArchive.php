@@ -637,6 +637,10 @@ final class TarArchive
             self::assertUtf8($key, 'TAR PAX header key metadata');
             self::assertUtf8($value, "TAR PAX {$key} metadata");
 
+            if (array_key_exists($key, $headers)) {
+                throw new \RuntimeException("TAR PAX header record contains duplicate keyword {$key}");
+            }
+
             $headers[$key] = $value;
             $cursor += $recordLength;
         }
