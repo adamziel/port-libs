@@ -566,6 +566,32 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$infiniteFontSize], maxPages: 1));
         $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$nanReferenceCoordinate], maxPages: 1));
     },
+    'preserves fractional pdftext span rotation metadata before WordPress rendering' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $page = $pdftextLinkedPage();
+        $page['page'] = 77;
+        $page['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Skewed ';
+        $page['blocks'][0]['lines'][0]['spans'][0]['rotation'] = 12.5;
+        $page['blocks'][0]['lines'][0]['spans'][1]['text'] = 'glyph angle';
+        $page['blocks'][0]['lines'][0]['spans'][1]['url'] = 'https://example.com/skewed';
+        $page['blocks'][0]['lines'][0]['spans'][1]['rotation'] = 270.0;
+        $page['blocks'][0]['lines'][0]['spans'][2]['text'] = ' review';
+        unset($page['blocks'][0]['lines'][0]['spans'][2]['url']);
+        $page['blocks'][0]['lines'][0]['spans'][2]['rotation'] = 0.0;
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1);
+        $spans = $document['pages'][0]['blocks'][0]['lines'][0]['spans'];
+        $charSpans = $document['pages'][0]['char_blocks'][0]['lines'][0]['spans'];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+
+        $t->same(77, $document['pages'][0]['pnum']);
+        $t->same(12.5, $spans[0]['rotation']);
+        $t->same(270, $spans[1]['rotation']);
+        $t->same(0, $spans[2]['rotation']);
+        $t->same(12.5, $charSpans[0]['rotation']);
+        $t->same(270.0, $charSpans[1]['rotation']);
+        $t->same('Skewed [glyph angle](https://example.com/skewed) review', $blocks[0]['text']);
+        $t->same('https://example.com/skewed', $spans[1]['url']);
+    },
     'preserves pdftext character angles while rejecting malformed page rotations' => static function (TestRunner $t) use ($pdftextCharsPage, $pdftextLinkedPage): void {
         $characterAnglePage = $pdftextCharsPage();
         $characterAnglePage['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['rotation'] = 12.5;

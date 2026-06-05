@@ -53,7 +53,7 @@ final class PdfTextBlockConverter
                         }
                     }
                     if (array_key_exists('rotation', $span) && (is_int($span['rotation']) || is_float($span['rotation']))) {
-                        $spanObj['rotation'] = (int) $span['rotation'];
+                        $spanObj['rotation'] = $this->numericMetadata($span['rotation']);
                     }
                     foreach (['char_start_idx', 'char_end_idx'] as $metadataKey) {
                         if (array_key_exists($metadataKey, $span)) {
@@ -351,6 +351,16 @@ final class PdfTextBlockConverter
         }
 
         return (int) $value;
+    }
+
+    private function numericMetadata(mixed $value): int|float
+    {
+        $floatValue = (float) $value;
+        if (floor($floatValue) === $floatValue) {
+            return (int) $value;
+        }
+
+        return $floatValue;
     }
 
     private function pageRotation(mixed $value): int
