@@ -21420,11 +21420,6 @@ final class PdfTextExtractor
      */
     private function zeroPaddedSourceKeysForFontWidths(string $hex, array $widthMap, array $toUnicodeMap): array
     {
-        $codeSpaceRanges = $widthMap['codeSpaceRanges'] ?? [];
-        if (is_array($codeSpaceRanges) && $codeSpaceRanges !== []) {
-            return [];
-        }
-
         $mappings = $widthMap['map'] ?? [];
         if (!is_array($mappings) || $mappings === []) {
             return [];
