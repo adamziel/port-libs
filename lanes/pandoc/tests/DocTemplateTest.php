@@ -1026,14 +1026,16 @@ HTML,
 
         $t->contains('<!DOCTYPE html>', $output);
         $t->contains('<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en" dir="ltr">', $output);
-        $t->contains('<meta name="generator" content="pandoc 3.7.0">', $output);
-        $t->contains('<meta name="author" content="Migration bot">', $output);
-        $t->contains('<meta name="author" content="Content editor">', $output);
-        $t->contains('<meta name="dcterms.date" content="2026-06-05">', $output);
-        $t->contains('<meta name="keywords" content="migration, wordpress, review">', $output);
-        $t->contains('<meta name="description" content="Native doctemplate handoff">', $output);
+        $t->contains('<meta charset="utf-8" />', $output);
+        $t->contains('<meta name="generator" content="pandoc 3.7.0" />', $output);
+        $t->contains('<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />', $output);
+        $t->contains('<meta name="author" content="Migration bot" />', $output);
+        $t->contains('<meta name="author" content="Content editor" />', $output);
+        $t->contains('<meta name="dcterms.date" content="2026-06-05" />', $output);
+        $t->contains('<meta name="keywords" content="migration, wordpress, review" />', $output);
+        $t->contains('<meta name="description" content="Native doctemplate handoff" />', $output);
         $t->contains('<title>WordPress Import &ndash; Batch 42 Review Packet</title>', $output);
-        $t->contains('<link rel="stylesheet" href="review.css">', $output);
+        $t->contains('<link rel="stylesheet" href="review.css" />', $output);
         $t->contains('<meta name="robots" content="noindex">', $output);
         $t->contains('<script type="math/tex">queued</script>', $output);
         $t->contains('<h1 class="title">Batch 42 Review</h1>', $output);
@@ -1118,6 +1120,31 @@ HTML,
         $t->contains('/* Custom WordPress review styles */', $custom);
         $t->contains('.wp-review { color: rebeccapurple; }', $custom);
         $t->same(false, str_contains($custom, '/* Default styles provided by pandoc.'));
+    },
+
+    'renders pandoc default html5 void metadata tags like upstream' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->renderResource('templates/default', [], [
+            'pandoc-version' => '3.7.0',
+            'pagetitle' => 'Void Tag Review',
+            'author-meta' => ['Migration bot'],
+            'date-meta' => '2026-06-05',
+            'keywords' => ['migration', 'wordpress'],
+            'description-meta' => 'Native default-template tag review',
+            'css' => ['review.css'],
+            'header-includes' => ['<meta name="robots" content="noindex">'],
+            'body' => '<p>Review body.</p>',
+        ], null, 'html');
+
+        $t->contains('<meta charset="utf-8" />', $output);
+        $t->contains('<meta name="generator" content="pandoc 3.7.0" />', $output);
+        $t->contains('<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />', $output);
+        $t->contains('<meta name="author" content="Migration bot" />', $output);
+        $t->contains('<meta name="dcterms.date" content="2026-06-05" />', $output);
+        $t->contains('<meta name="keywords" content="migration, wordpress" />', $output);
+        $t->contains('<meta name="description" content="Native default-template tag review" />', $output);
+        $t->contains('<link rel="stylesheet" href="review.css" />', $output);
+        $t->contains('<meta name="robots" content="noindex">', $output);
+        $t->same(false, str_contains($output, '<meta name="robots" content="noindex" />'));
     },
 
     'renders pandoc doctemplate path partials and piped variables applied to partials' => static function (TestRunner $t): void {

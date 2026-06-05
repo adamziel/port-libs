@@ -214,18 +214,18 @@ final class DocTemplate
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml"$if(lang)$ lang="$lang$" xml:lang="$lang$"$endif$$if(dir)$ dir="$dir$"$endif$>
 <head>
-<meta charset="utf-8">
-<meta name="generator" content="pandoc $pandoc-version$">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-$for(author-meta)$<meta name="author" content="$it$">
-$endfor$$if(date-meta)$<meta name="dcterms.date" content="$date-meta$">
-$endif$$if(keywords)$<meta name="keywords" content="$for(keywords)$$keywords$$sep$, $endfor$">
-$endif$$if(description-meta)$<meta name="description" content="$description-meta$">
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc $pandoc-version$" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+$for(author-meta)$<meta name="author" content="$it$" />
+$endfor$$if(date-meta)$<meta name="dcterms.date" content="$date-meta$" />
+$endif$$if(keywords)$<meta name="keywords" content="$for(keywords)$$keywords$$sep$, $endfor$" />
+$endif$$if(description-meta)$<meta name="description" content="$description-meta$" />
 $endif$<title>$if(title-prefix)$$title-prefix$ &ndash; $endif$$if(pagetitle)$$pagetitle$$elseif(title)$$title$$endif$</title>
 <style>
     $styles.html()$
 </style>
-$for(css)$<link rel="stylesheet" href="$it$">
+$for(css)$<link rel="stylesheet" href="$it$" />
 $endfor$$for(header-includes)$$it$
 $endfor$$if(math)$$math$
 $endif$</head>
