@@ -14,17 +14,19 @@ $contentClose = "/Logo#20Form Do Q\n"
     . 'BT /F1 12 Tf 72 668 Td (Current Image Boundary Outro) Tj ET';
 $formContent = 'q 4 2 8 4 re W n 16 0 0 8 2 2 cm /Hero#20Image Do Q';
 $imagePayload = 'BT /F1 12 Tf 72 720 Td (WordPress Image XObject Payload Noise) Tj ET';
+$maskPayload = 'BT /F1 12 Tf 72 720 Td (WordPress Image Mask Payload Noise) Tj ET';
 $metadataPayload = '<x:xmpmeta>WordPress Image XObject Metadata Noise</x:xmpmeta>';
 $printAlternatePayload = 'BT /F1 12 Tf 72 720 Td (WordPress Print Alternate Image Noise) Tj ET';
 $screenAlternatePayload = "\xff\x4fBT /F1 12 Tf 72 720 Td (WordPress Screen Alternate Image Noise) Tj ET\xff\xd9";
 $hiddenMarkedPayload = 'BT /F1 12 Tf 72 720 Td (WordPress Hidden Marked Image Noise) Tj ET';
 $hiddenObjectPayload = 'BT /F1 12 Tf 72 720 Td (WordPress Hidden Object Image Noise) Tj ET';
 $compressedImagePayload = gzcompress($imagePayload);
+$compressedMaskPayload = gzcompress($maskPayload);
 $compressedMetadataPayload = gzcompress($metadataPayload);
 $compressedPrintAlternatePayload = gzcompress($printAlternatePayload);
 $compressedHiddenMarkedPayload = gzcompress($hiddenMarkedPayload);
 $compressedHiddenObjectPayload = gzcompress($hiddenObjectPayload);
-if (!is_string($compressedImagePayload) || !is_string($compressedMetadataPayload) || !is_string($compressedPrintAlternatePayload) || !is_string($compressedHiddenMarkedPayload) || !is_string($compressedHiddenObjectPayload)) {
+if (!is_string($compressedImagePayload) || !is_string($compressedMaskPayload) || !is_string($compressedMetadataPayload) || !is_string($compressedPrintAlternatePayload) || !is_string($compressedHiddenMarkedPayload) || !is_string($compressedHiddenObjectPayload)) {
     throw new RuntimeException('Unable to compress image XObject smoke payload.');
 }
 $encodedImagePayload = strtoupper(bin2hex($compressedImagePayload)) . '>';
@@ -35,14 +37,15 @@ $pdf = "%PDF-1.4\n"
     . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 14 0 R] >>\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($contentOpen) . " >>\nstream\n{$contentOpen}\nendstream\nendobj\n"
     . "5 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 32 16] /Length " . strlen($formContent) . " >>\nstream\n{$formContent}\nendstream\nendobj\n"
-    . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/ASCIIHexDecode /FlateDecode] /Interpolate true /Intent /RelativeColorimetric /Name /Hero#20Image /StructParent 8 /StructParents 9 /Metadata 11 0 R /Alternates [<< /Image 12 0 R /DefaultForPrinting true >> << /Image 13 0 R /DefaultForPrinting false >>] /Length " . strlen($encodedImagePayload) . " >>\nstream\n{$encodedImagePayload}\nendstream\nendobj\n"
-    . "7 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($compressedHiddenMarkedPayload) . " >>\nstream\n{$compressedHiddenMarkedPayload}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/ASCIIHexDecode /FlateDecode] /Interpolate true /Intent /RelativeColorimetric /Name /Hero#20Image /StructParent 8 /StructParents 9 /Mask 15 0 R /Metadata 11 0 R /Alternates [<< /Image 12 0 R /DefaultForPrinting true >> << /Image 13 0 R /DefaultForPrinting false >>] /Length " . strlen($encodedImagePayload) . " >>\nstream\n{$encodedImagePayload}\nendstream\nendobj\n"
+    . "7 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Mask [0 255] /Length " . strlen($compressedHiddenMarkedPayload) . " >>\nstream\n{$compressedHiddenMarkedPayload}\nendstream\nendobj\n"
     . "8 0 obj\n<< /Type /XObject /Subtype /Image /OC 21 0 R /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($compressedHiddenObjectPayload) . " >>\nstream\n{$compressedHiddenObjectPayload}\nendstream\nendobj\n"
     . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
     . "11 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($compressedMetadataPayload) . " >>\nstream\n{$compressedMetadataPayload}\nendstream\nendobj\n"
     . "12 0 obj\n<< /Type /XObject /Subtype /Image /Width 4 /Height 2 /ColorSpace /DeviceCMYK /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($compressedPrintAlternatePayload) . " >>\nstream\n{$compressedPrintAlternatePayload}\nendstream\nendobj\n"
     . "13 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /JPXDecode /Length " . strlen($screenAlternatePayload) . " >>\nstream\n{$screenAlternatePayload}\nendstream\nendobj\n"
     . "14 0 obj\n<< /Length " . strlen($contentClose) . " >>\nstream\n{$contentClose}\nendstream\nendobj\n"
+    . "15 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /FlateDecode /Decode [1 0] /Length " . strlen($compressedMaskPayload) . " >>\nstream\n{$compressedMaskPayload}\nendstream\nendobj\n"
     . "20 0 obj\n<< /Type /OCG /Name (Visible WordPress Image Layer) >>\nendobj\n"
     . "21 0 obj\n<< /Type /OCG /Name (Hidden WordPress Image Layer) >>\nendobj\n%%EOF";
 
@@ -60,11 +63,15 @@ if (
     || ($review['entries'][0]['rendering_intent'] ?? null) !== 'RelativeColorimetric'
     || ($review['entries'][0]['image_name'] ?? null) !== 'Hero Image'
     || ($review['entries'][0]['struct_parent'] ?? null) !== 8
+    || ($review['entries'][0]['mask_object'] ?? null) !== 15
+    || ($review['entries'][0]['mask_review']['type'] ?? null) !== 'image_mask_stream'
+    || ($review['entries'][0]['mask_review']['decoded_sha256'] ?? null) !== hash('sha256', $maskPayload)
     || ($review['entries'][0]['metadata_stream']['decoded_sha256'] ?? null) !== hash('sha256', $metadataPayload)
     || ($review['entries'][0]['alternate_image_count'] ?? 0) !== 2
     || ($review['entries'][0]['alternate_images'][0]['decoded_sha256'] ?? null) !== hash('sha256', $printAlternatePayload)
     || ($review['entries'][0]['alternate_images'][1]['preview_only_filters'] ?? null) !== ['JPXDecode']
     || str_contains($plainText, 'WordPress Image XObject Payload Noise')
+    || str_contains($plainText, 'WordPress Image Mask Payload Noise')
     || str_contains($plainText, 'WordPress Image XObject Metadata Noise')
     || str_contains($plainText, 'WordPress Print Alternate Image Noise')
     || str_contains($plainText, 'WordPress Screen Alternate Image Noise')
@@ -107,6 +114,10 @@ $metadata = [
     'first_image_name' => $review['entries'][0]['image_name'] ?? null,
     'first_struct_parent' => $review['entries'][0]['struct_parent'] ?? null,
     'first_struct_parents' => $review['entries'][0]['struct_parents'] ?? null,
+    'first_mask_object' => $review['entries'][0]['mask_object'] ?? null,
+    'first_mask_type' => $review['entries'][0]['mask_review']['type'] ?? null,
+    'first_mask_decoded_with_current_filters' => $review['entries'][0]['mask_review']['decoded_with_current_filters'] ?? false,
+    'first_mask_decode_inverted' => ($review['entries'][0]['mask_review']['decode']['inverted_components'] ?? []) === [0],
     'first_metadata_object' => $review['entries'][0]['metadata_stream']['object_number'] ?? null,
     'first_metadata_subtype' => $review['entries'][0]['metadata_stream']['subtype'] ?? null,
     'first_metadata_filters' => $review['entries'][0]['metadata_stream']['filters'] ?? [],
@@ -122,6 +133,8 @@ $metadata = [
     'first_image_filters' => $review['entries'][0]['filters'] ?? [],
     'first_image_decoded_with_current_filters' => $review['entries'][0]['decoded_with_current_filters'] ?? false,
     'hidden_marked_invoked' => $entriesByName['HiddenMarked']['invoked'] ?? true,
+    'hidden_marked_mask_type' => $entriesByName['HiddenMarked']['mask_review']['type'] ?? null,
+    'hidden_marked_color_key_valid' => $entriesByName['HiddenMarked']['mask_review']['valid_for_components'] ?? false,
     'hidden_object_optional_content_visible' => $entriesByName['HiddenObject']['optional_content_visible'] ?? true,
     'hidden_object_invoked' => $entriesByName['HiddenObject']['invoked'] ?? true,
     'payload_in_visible_text' => $review['entries'][0]['payload_in_visible_text'] ?? true,

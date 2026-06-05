@@ -3817,6 +3817,13 @@ final class PdfTextExtractor
         $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
         $metadataStream = $this->imageXObjectMetadataStreamReview($stream['dict'], $objects);
         $alternateImages = $this->imageXObjectAlternateImageReviews($stream['dict'], $objects);
+        $softMaskObject = $this->objectReferenceValueAfterName($stream['dict'], 'SMask');
+        $maskReview = $this->imageXObjectMaskReview(
+            $stream['dict'],
+            $objects,
+            $colorSpace,
+            $softMaskObject !== null
+        );
         $invocationMatrices = [];
         $invocationBboxes = [];
         $invocationClipBboxes = [];
@@ -3897,7 +3904,13 @@ final class PdfTextExtractor
             'alternate_image_count' => count($alternateImages),
             'alternate_images' => $alternateImages,
             'alternates_review_only' => $alternateImages !== [],
-            'soft_mask_object' => $this->objectReferenceValueAfterName($stream['dict'], 'SMask'),
+            'soft_mask_object' => $softMaskObject,
+            'mask_object' => is_array($maskReview) && isset($maskReview['object_number']) && is_int($maskReview['object_number'])
+                ? $maskReview['object_number']
+                : null,
+            'mask_review' => $maskReview,
+            'mask_payload_in_visible_text' => false,
+            'mask_review_only' => $maskReview !== null,
             'filters_resolved' => $filters !== null,
             'filters' => $resolvedFilters,
             'preview_only_filters' => $previewOnlyFilters,
@@ -3911,6 +3924,199 @@ final class PdfTextExtractor
             'rgb_preview_boundary' => 'marker.pdf.images.render_image',
             'review_only' => true,
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function imageXObjectMaskReview(
+        string $imageDictionary,
+        array $objects,
+        ?string $parentColorSpace,
+        bool $softMaskPresent
+    ): ?array {
+        $value = $this->topLevelPdfValueAfterNameInDictionaryBody($imageDictionary, 'Mask');
+        if ($value === null) {
+            return null;
+        }
+
+        $arrayBody = $this->pdfArrayFromValue($value, $objects);
+        if ($arrayBody !== null) {
+            return $this->imageXObjectColorKeyMaskReview($arrayBody, $parentColorSpace, $softMaskPresent);
+        }
+
+        $objectNumber = $this->firstObjectReference($value);
+        if ($objectNumber === null) {
+            return null;
+        }
+
+        return $this->imageXObjectMaskStreamReview($objectNumber, $objects);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function imageXObjectColorKeyMaskReview(string $arrayBody, ?string $parentColorSpace, bool $softMaskPresent): array
+    {
+        $numbers = $this->numbersFromPdfArray($arrayBody);
+        $ranges = [];
+        for ($index = 0; $index + 1 < count($numbers); $index += 2) {
+            $ranges[] = [
+                'min' => (float) $numbers[$index],
+                'max' => (float) $numbers[$index + 1],
+            ];
+        }
+
+        $componentCount = count($ranges);
+        $expectedComponents = $this->imageXObjectColorSpaceComponentCount($parentColorSpace);
+
+        return [
+            'type' => 'color_key_mask_array',
+            'ranges' => $ranges,
+            'component_count' => $componentCount,
+            'expected_components' => $expectedComponents,
+            'valid_for_components' => $expectedComponents === null || $expectedComponents === $componentCount,
+            'compares_before_decode' => true,
+            'transparent_when_all_components_match' => true,
+            'suppressed_by_soft_mask' => $softMaskPresent,
+            'review_only' => true,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function imageXObjectMaskStreamReview(int $objectNumber, array $objects): ?array
+    {
+        if (!isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        $stream = $this->streamDictionaryAndPayload($objects[$objectNumber], $objects);
+        if ($stream === null || !$this->isImageStreamDictionary($stream['dict'], $objects)) {
+            return null;
+        }
+
+        $filters = $this->streamFilters($stream['dict'], $objects);
+        $resolvedFilters = $filters === null
+            ? []
+            : array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+        $previewOnlyFilters = $this->previewOnlyImageXObjectFilters($resolvedFilters);
+        $decoded = $filters === null ? null : $this->decodeStream($stream['dict'], $stream['stream'], $objects);
+        $bitsPerComponent = $this->pdfIntegerValueAfterNameResolvingObjects(
+            $stream['dict'],
+            'BitsPerComponent',
+            $objects
+        );
+        $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
+        $effectiveBits = $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent;
+        $colorSpace = $this->imageColorSpaceFamily($stream['dict'], $objects);
+        $decode = $this->imageXObjectDecodeReview($stream['dict'], $objects, $imageMask ? 1 : $this->imageXObjectColorSpaceComponentCount($colorSpace), $imageMask);
+
+        return [
+            'type' => $imageMask ? 'image_mask_stream' : 'explicit_mask_stream',
+            'object_number' => $objectNumber,
+            'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
+            'width' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
+            'height' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects),
+            'color_space' => $colorSpace,
+            'bits_per_component' => $effectiveBits,
+            'image_mask' => $imageMask,
+            'decode' => $decode,
+            'opacity_for_zero' => $imageMask && $decode !== null ? $this->imageXObjectDecodedSampleValue(0, $decode, $effectiveBits ?? 1) : null,
+            'opacity_for_one' => $imageMask && $decode !== null ? $this->imageXObjectDecodedSampleValue((2 ** min($effectiveBits ?? 1, 30)) - 1, $decode, $effectiveBits ?? 1) : null,
+            'filters' => $resolvedFilters,
+            'preview_only_filters' => $previewOnlyFilters,
+            'native_raster_decode' => $previewOnlyFilters === [],
+            'raw_length' => strlen($stream['stream']),
+            'decoded_with_current_filters' => $decoded !== null,
+            'decoded_length' => $decoded === null ? null : strlen($decoded),
+            'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
+            'payload_in_visible_text' => false,
+            'review_only' => true,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null
+     */
+    private function imageXObjectDecodeReview(
+        string $dictionary,
+        array $objects,
+        ?int $expectedComponents,
+        bool $defaultIfMissing = false
+    ): ?array {
+        $arrayBody = $this->pdfArrayValueAfterNameResolvingObjects($dictionary, 'Decode', $objects);
+        $source = 'explicit';
+        if ($arrayBody === null) {
+            if (!$defaultIfMissing) {
+                return null;
+            }
+
+            $arrayBody = '[0 1]';
+            $source = 'default';
+        }
+
+        $numbers = $this->numbersFromPdfArrayResolvingObjects($arrayBody, $objects);
+        $ranges = [];
+        for ($index = 0; $index + 1 < count($numbers); $index += 2) {
+            $ranges[] = [
+                'min' => (float) $numbers[$index],
+                'max' => (float) $numbers[$index + 1],
+            ];
+        }
+
+        $inverted = [];
+        $identity = $ranges !== [];
+        foreach ($ranges as $index => $range) {
+            if ($range['min'] > $range['max']) {
+                $inverted[] = $index;
+            }
+            if (abs($range['min']) > 0.000001 || abs($range['max'] - 1.0) > 0.000001) {
+                $identity = false;
+            }
+        }
+
+        $componentCount = count($ranges);
+
+        return [
+            'ranges' => $ranges,
+            'component_count' => $componentCount,
+            'expected_components' => $expectedComponents,
+            'valid_for_components' => $expectedComponents === null || $componentCount === $expectedComponents,
+            'identity' => $identity,
+            'inverted_components' => $inverted,
+            'source' => $source,
+        ];
+    }
+
+    /**
+     * @param array{ranges: list<array{min: float, max: float}>, valid_for_components: bool} $decode
+     */
+    private function imageXObjectDecodedSampleValue(int|float $sample, array $decode, int $bitsPerComponent): ?float
+    {
+        if (($decode['valid_for_components'] ?? false) !== true || !isset($decode['ranges'][0])) {
+            return null;
+        }
+
+        $maxSample = (2 ** min(max(1, $bitsPerComponent), 30)) - 1;
+        $ratio = max(0.0, min(1.0, (float) $sample / $maxSample));
+        $range = $decode['ranges'][0];
+
+        return $range['min'] + (($range['max'] - $range['min']) * $ratio);
+    }
+
+    private function imageXObjectColorSpaceComponentCount(?string $colorSpace): ?int
+    {
+        return match ($colorSpace) {
+            'DeviceGray', 'G', 'Indexed', 'I' => 1,
+            'DeviceRGB', 'RGB' => 3,
+            'DeviceCMYK', 'CMYK' => 4,
+            default => null,
+        };
     }
 
     /**

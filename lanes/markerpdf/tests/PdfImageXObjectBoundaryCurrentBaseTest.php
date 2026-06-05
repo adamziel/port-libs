@@ -617,6 +617,112 @@ return [
         $t->true(!str_contains($encoded, $printPayload));
         $t->true(!str_contains($encoded, $screenPayload));
     },
+    'records image XObject Mask streams and ColorKey arrays as review-only alpha metadata' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before masked images) Tj ET\n"
+            . "q 24 0 0 12 72 690 cm /Masked#20Logo Do Q\n"
+            . "q 24 0 0 12 108 690 cm /ColorKey#20Logo Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After masked images) Tj ET';
+        $maskedPayload = 'BT /F1 12 Tf 72 720 Td (Masked Image Payload Noise) Tj ET';
+        $maskPayload = 'BT /F1 12 Tf 72 720 Td (Explicit Mask Payload Noise) Tj ET';
+        $colorKeyPayload = 'BT /F1 12 Tf 72 720 Td (ColorKey Image Payload Noise) Tj ET';
+        $maskedCompressed = gzcompress($maskedPayload);
+        $maskCompressed = gzcompress($maskPayload);
+        $colorKeyCompressed = gzcompress($colorKeyPayload);
+        if (!is_string($maskedCompressed) || !is_string($maskCompressed) || !is_string($colorKeyCompressed)) {
+            throw new RuntimeException('Unable to compress mask fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Masked#20Logo 5 0 R /ColorKey#20Logo 7 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Mask 6 0 R /Length " . strlen($maskedCompressed) . " >>\nstream\n{$maskedCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /FlateDecode /Decode [1 0] /Length " . strlen($maskCompressed) . " >>\nstream\n{$maskCompressed}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Decode [1 0 0 1 0 1] /Mask [0 0 120 140 200 255] /Length " . strlen($colorKeyCompressed) . " >>\nstream\n{$colorKeyCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(2, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+
+        $masked = $entriesByName['Masked Logo'];
+        $t->same(6, $masked['mask_object']);
+        $t->same([
+            'type' => 'image_mask_stream',
+            'object_number' => 6,
+            'subtype' => 'Image',
+            'width' => 2,
+            'height' => 1,
+            'color_space' => null,
+            'bits_per_component' => 1,
+            'image_mask' => true,
+            'decode' => [
+                'ranges' => [
+                    ['min' => 1.0, 'max' => 0.0],
+                ],
+                'component_count' => 1,
+                'expected_components' => 1,
+                'valid_for_components' => true,
+                'identity' => false,
+                'inverted_components' => [0],
+                'source' => 'explicit',
+            ],
+            'opacity_for_zero' => 1.0,
+            'opacity_for_one' => 0.0,
+            'filters' => ['FlateDecode'],
+            'preview_only_filters' => [],
+            'native_raster_decode' => true,
+            'raw_length' => strlen($maskCompressed),
+            'decoded_with_current_filters' => true,
+            'decoded_length' => strlen($maskPayload),
+            'decoded_sha256' => hash('sha256', $maskPayload),
+            'payload_in_visible_text' => false,
+            'review_only' => true,
+        ], $masked['mask_review']);
+        $t->same(false, $masked['mask_payload_in_visible_text']);
+        $t->same(true, $masked['mask_review_only']);
+
+        $colorKey = $entriesByName['ColorKey Logo'];
+        $t->same(null, $colorKey['mask_object']);
+        $t->same([
+            'type' => 'color_key_mask_array',
+            'ranges' => [
+                ['min' => 0.0, 'max' => 0.0],
+                ['min' => 120.0, 'max' => 140.0],
+                ['min' => 200.0, 'max' => 255.0],
+            ],
+            'component_count' => 3,
+            'expected_components' => 3,
+            'valid_for_components' => true,
+            'compares_before_decode' => true,
+            'transparent_when_all_components_match' => true,
+            'suppressed_by_soft_mask' => false,
+            'review_only' => true,
+        ], $colorKey['mask_review']);
+        $t->same(false, $colorKey['mask_payload_in_visible_text']);
+        $t->same(true, $colorKey['mask_review_only']);
+
+        $t->same(['Before masked images', 'After masked images'], $extractor->extractTextLines($pdf));
+        $t->same("Before masked images\nAfter masked images", $plainText);
+        $t->true(!str_contains($plainText, 'Masked Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Explicit Mask Payload Noise'));
+        $t->true(!str_contains($plainText, 'ColorKey Image Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $maskedPayload));
+        $t->true(!str_contains($encoded, $maskPayload));
+        $t->true(!str_contains($encoded, $colorKeyPayload));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
