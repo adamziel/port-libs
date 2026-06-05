@@ -33580,6 +33580,16 @@ final class PdfTextExtractor
             return $rankedOffset;
         }
 
+        $rankedOffset = $this->multiCodeSpaceSequenceOffsetInCidRange(
+            $rangeStart,
+            $source,
+            $sourceWidth,
+            $codeSpaceRanges
+        );
+        if ($rankedOffset !== null) {
+            return $rankedOffset;
+        }
+
         $offset = 0;
         $scanned = 0;
         $maxScan = self::MAX_CMAP_RANGE_ENTRIES * 256;
@@ -33636,6 +33646,113 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param list<array{start: int, end: int, width: int}> $codeSpaceRanges
+     */
+    private function multiCodeSpaceSequenceOffsetInCidRange(
+        int $rangeStart,
+        int $source,
+        int $sourceWidth,
+        array $codeSpaceRanges
+    ): ?int {
+        if (count($codeSpaceRanges) <= 1 || $sourceWidth % 2 !== 0) {
+            return null;
+        }
+
+        $rankedRanges = [];
+        foreach ($codeSpaceRanges as $range) {
+            if (($range['width'] ?? null) !== $sourceWidth) {
+                continue;
+            }
+
+            $start = $range['start'] ?? null;
+            $end = $range['end'] ?? null;
+            if (!is_int($start) || !is_int($end) || $start > $end) {
+                continue;
+            }
+
+            $startKey = str_pad(strtolower(dechex($start)), $sourceWidth, '0', STR_PAD_LEFT);
+            $endKey = str_pad(strtolower(dechex($end)), $sourceWidth, '0', STR_PAD_LEFT);
+            if (
+                !$this->sourceKeyMatchesCodeSpaceRange($startKey, $range)
+                || !$this->sourceKeyMatchesCodeSpaceRange($endKey, $range)
+            ) {
+                return null;
+            }
+
+            $cardinality = $this->codeSpaceRangeCardinality($range);
+            if ($cardinality === null) {
+                return null;
+            }
+
+            $rankedRanges[] = [
+                'range' => $range,
+                'start' => $start,
+                'end' => $end,
+                'cardinality' => $cardinality,
+            ];
+        }
+
+        if (count($rankedRanges) <= 1) {
+            return null;
+        }
+
+        usort($rankedRanges, static function (array $left, array $right): int {
+            return $left['start'] <=> $right['start'] ?: $left['end'] <=> $right['end'];
+        });
+
+        $previousEnd = null;
+        foreach ($rankedRanges as $rankedRange) {
+            if ($previousEnd !== null && $rankedRange['start'] <= $previousEnd) {
+                return null;
+            }
+            $previousEnd = $rankedRange['end'];
+        }
+
+        $rangeStartKey = str_pad(strtolower(dechex($rangeStart)), $sourceWidth, '0', STR_PAD_LEFT);
+        $sourceKey = str_pad(strtolower(dechex($source)), $sourceWidth, '0', STR_PAD_LEFT);
+        $offset = 0;
+        $started = false;
+
+        foreach ($rankedRanges as $rankedRange) {
+            $range = $rankedRange['range'];
+            if (!$started) {
+                if (!$this->sourceKeyMatchesCodeSpaceRange($rangeStartKey, $range)) {
+                    continue;
+                }
+
+                $startRank = $this->codeSpaceRangeSourceRank($rangeStartKey, $range);
+                if ($startRank === null) {
+                    return null;
+                }
+
+                if ($this->sourceKeyMatchesCodeSpaceRange($sourceKey, $range)) {
+                    $sourceRank = $this->codeSpaceRangeSourceRank($sourceKey, $range);
+
+                    return $sourceRank === null || $sourceRank < $startRank ? null : $sourceRank - $startRank;
+                }
+
+                $offset += $rankedRange['cardinality'] - $startRank;
+                $started = true;
+                continue;
+            }
+
+            if ($rankedRange['start'] > $source) {
+                return null;
+            }
+
+            if ($this->sourceKeyMatchesCodeSpaceRange($sourceKey, $range)) {
+                $sourceRank = $this->codeSpaceRangeSourceRank($sourceKey, $range);
+
+                return $sourceRank === null ? null : $offset + $sourceRank;
+            }
+
+            $offset += $rankedRange['cardinality'];
+        }
+
+        return null;
+    }
+
+    /**
      * @param array{start: int, end: int, width: int} $range
      */
     private function codeSpaceRangeSourceRank(string $sourceKey, array $range): ?int
@@ -33671,6 +33788,37 @@ final class PdfTextExtractor
         }
 
         return $rank;
+    }
+
+    /**
+     * @param array{start: int, end: int, width: int} $range
+     */
+    private function codeSpaceRangeCardinality(array $range): ?int
+    {
+        $width = $range['width'] ?? null;
+        if (!is_int($width) || $width <= 0 || $width % 2 !== 0) {
+            return null;
+        }
+
+        $startKey = str_pad(strtolower(dechex($range['start'])), $width, '0', STR_PAD_LEFT);
+        $endKey = str_pad(strtolower(dechex($range['end'])), $width, '0', STR_PAD_LEFT);
+        $startBytes = array_map('hexdec', str_split($startKey, 2));
+        $endBytes = array_map('hexdec', str_split($endKey, 2));
+        if ($startBytes === [] || count($startBytes) !== count($endBytes)) {
+            return null;
+        }
+
+        $product = 1;
+        foreach ($startBytes as $index => $startByte) {
+            $span = ($endBytes[$index] ?? -1) - $startByte + 1;
+            if ($span <= 0) {
+                return null;
+            }
+
+            $product *= $span;
+        }
+
+        return $product;
     }
 
     /**
