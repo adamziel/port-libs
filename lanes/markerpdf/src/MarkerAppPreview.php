@@ -914,7 +914,7 @@ final class MarkerAppPreview
      */
     private function latestStartxrefTokenOffset(string $pdfBytes, array $bodyRanges): ?int
     {
-        if (preg_match_all('/\bstartxref\s+\d+/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+        if (preg_match_all('/\bstartxref\s+[+-]?\d+/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
             return null;
         }
 

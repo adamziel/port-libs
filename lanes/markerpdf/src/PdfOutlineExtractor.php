@@ -2283,7 +2283,7 @@ final class PdfOutlineExtractor
      */
     private function currentTrailerRootReference(string $pdfBytes): ?array
     {
-        if (preg_match_all('/\bstartxref\s+(\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER) < 1) {
+        if (preg_match_all('/\bstartxref\s+([+-]?\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER) < 1) {
             return null;
         }
 
@@ -2437,7 +2437,7 @@ final class PdfOutlineExtractor
      */
     private function currentClassicXrefEntries(string $pdfBytes): array
     {
-        if (preg_match_all('/\bstartxref\s+(\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER) < 1) {
+        if (preg_match_all('/\bstartxref\s+([+-]?\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER) < 1) {
             return [];
         }
 
@@ -2523,7 +2523,7 @@ final class PdfOutlineExtractor
 
     private function bytesThroughCurrentEof(string $pdfBytes): string
     {
-        if (preg_match_all('/\bstartxref\s+\d+/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) >= 1) {
+        if (preg_match_all('/\bstartxref\s+[+-]?\d+/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) >= 1) {
             $latest = end($matches[0]);
             if (is_array($latest)) {
                 $eofOffset = strpos($pdfBytes, '%%EOF', $latest[1]);

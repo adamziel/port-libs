@@ -3769,7 +3769,7 @@ final class PdfEmbeddedFileExtractor
      */
     private function latestStartxrefEntry(string $pdfBytes, ?array $definitions = null): ?array
     {
-        if (preg_match_all('/\bstartxref\s+(\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) < 1) {
+        if (preg_match_all('/\bstartxref\s+([+-]?\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) < 1) {
             return null;
         }
 

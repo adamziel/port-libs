@@ -10102,7 +10102,7 @@ final class PdfTextExtractor
             return false;
         }
 
-        return preg_match('/\bstartxref\s+\d+\b/s', substr($value, $gapStart, $recoveredTerminator - $gapStart)) === 1;
+        return preg_match('/\bstartxref\s+[+-]?\d+\b/s', substr($value, $gapStart, $recoveredTerminator - $gapStart)) === 1;
     }
 
     /**
@@ -19548,7 +19548,7 @@ final class PdfTextExtractor
      */
     private function latestStartxrefEntry(string $pdfBytes, ?array $definitions = null): ?array
     {
-        if (preg_match_all('/\bstartxref\s+(\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) < 1) {
+        if (preg_match_all('/\bstartxref\s+([+-]?\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) < 1) {
             return null;
         }
 

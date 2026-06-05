@@ -10505,7 +10505,7 @@ final class PdfAcroFormExtractor
      */
     private function currentTrailerRootReference(string $pdfBytes): ?array
     {
-        if (preg_match_all('/\bstartxref\s+(\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER) < 1) {
+        if (preg_match_all('/\bstartxref\s+([+-]?\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER) < 1) {
             return null;
         }
 

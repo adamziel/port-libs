@@ -778,7 +778,7 @@ final class PdfNamedDestinationExtractor
 
     private function bytesThroughCurrentEof(string $pdfBytes): string
     {
-        if (preg_match_all('/\bstartxref\s+\d+/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) >= 1) {
+        if (preg_match_all('/\bstartxref\s+[+-]?\d+/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) >= 1) {
             $latest = end($matches[0]);
             if (is_array($latest)) {
                 $eofOffset = strpos($pdfBytes, '%%EOF', $latest[1]);
@@ -849,7 +849,7 @@ final class PdfNamedDestinationExtractor
 
     private function latestStartxrefOffset(string $pdfBytes): ?int
     {
-        if (preg_match_all('/\bstartxref\s+(\d+)/s', $pdfBytes, $matches) < 1) {
+        if (preg_match_all('/\bstartxref\s+([+-]?\d+)/s', $pdfBytes, $matches) < 1) {
             return null;
         }
 
