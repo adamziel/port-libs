@@ -139,6 +139,72 @@ return [
         $t->contains('pdf-resource-paths:2', implode(',', $plan['diagnostics']));
     },
 
+    'plans and validates pdf resource dependency manifest without fetching media' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(<<<'MARKDOWN'
+---
+title: PDF Resource Packet
+---
+
+Cover image ![Cover frame](media/cover.png "Cover source").
+Remote media ![Remote chart](https://example.test/media/chart.png).
+MARKDOWN);
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document, [
+            'engine' => 'xelatex',
+            'outputPath' => 'handoff/resources.pdf',
+            'resourcePaths' => ['media', 'refs'],
+            'resourceFiles' => ['refs/migration-log.bib', 'media/cover.png'],
+        ]);
+
+        $t->same(['media/cover.png', 'refs/migration-log.bib'], $plan['resourceFiles']);
+        $t->same([
+            [
+                'path' => 'media/cover.png',
+                'kind' => 'image',
+                'sources' => ['explicit', 'document-image'],
+                'title' => 'Cover source',
+                'alt' => 'Cover frame',
+            ],
+            [
+                'path' => 'refs/migration-log.bib',
+                'kind' => 'resource',
+                'sources' => ['explicit'],
+                'title' => null,
+                'alt' => null,
+            ],
+        ], $plan['resourceFileManifest']);
+        $t->same(['https://example.test/media/chart.png'], $plan['remoteResourceReferences']);
+        $t->same([], $plan['skippedResourceReferences']);
+        $t->contains('pdf-resource-files:2', implode(',', $plan['diagnostics']));
+        $t->contains('pdf-remote-resources:1', implode(',', $plan['diagnostics']));
+
+        $pdfBytes = "%PDF-1.7\n% fake bounded handoff\n%%EOF\n";
+        $missing = $handoff->fakeRun($plan, [
+            'files' => [
+                'handoff/resources.pdf' => $pdfBytes,
+            ],
+        ]);
+        $ok = $handoff->fakeRun($plan, [
+            'files' => [
+                'media/cover.png' => 'fake cover bytes',
+                'refs/migration-log.bib' => '@book{migration-log,title={Migration Log}}',
+                'handoff/resources.pdf' => $pdfBytes,
+            ],
+        ]);
+
+        $t->same(false, $missing['ok']);
+        $t->same('missing-resource-file', $missing['reason']);
+        $t->same(['media/cover.png', 'refs/migration-log.bib'], $missing['missingResourceFiles']);
+        $t->contains('missing-resource-file:media/cover.png', implode(',', $missing['diagnostics']));
+        $t->same(true, $ok['ok']);
+        $t->same([
+            'media/cover.png' => hash('sha256', 'fake cover bytes'),
+            'refs/migration-log.bib' => hash('sha256', '@book{migration-log,title={Migration Log}}'),
+        ], $ok['resourceArtifactsSha256']);
+        $t->same([], $ok['missingResourceFiles']);
+        $t->contains('resource-files-validated:2', implode(',', $ok['diagnostics']));
+    },
+
     'plans latex engine log and sidecar artifact paths without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
@@ -517,6 +583,8 @@ return [
         $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan($document(), ['templatePath' => '../templates/review.tex']));
         $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan($document(), ['includeInHeader' => ['/tmp/header.tex']]));
         $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan($document(), ['resourcePaths' => ['../media']]));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan($document(), ['resourceFiles' => ['../media/cover.png']]));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan($document(), ['resourceFiles' => ['https://example.test/cover.png']]));
         $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan($document(), ['variables' => ['bad variable' => 'value']]));
         $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan($document(), ['variables' => ['mainfont' => "bad\0font"]]));
         $t->throws(InvalidArgumentException::class, static fn (): array => $handoff->plan(new AstNode('paragraph')));

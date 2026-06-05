@@ -35,6 +35,7 @@ final class PdfEngineHandoff
      *     templatePath?: string,
      *     includeInHeader?: list<string>|string,
      *     resourcePaths?: list<string>|string,
+     *     resourceFiles?: list<string>|string,
      *     variables?: array<string, mixed>
      * } $options
      * @return array{
@@ -54,6 +55,10 @@ final class PdfEngineHandoff
      *     templateFile: string|null,
      *     includeInHeaderFiles: list<string>,
      *     resourcePaths: list<string>,
+     *     resourceFiles: list<string>,
+     *     resourceFileManifest: list<array{path:string, kind:string, sources:list<string>, title:string|null, alt:string|null}>,
+     *     remoteResourceReferences: list<string>,
+     *     skippedResourceReferences: list<string>,
      *     templateVariables: array<string, mixed>,
      *     writerArguments: list<string>,
      *     sourceArtifacts: list<string>,
@@ -93,6 +98,7 @@ final class PdfEngineHandoff
             : null;
         $includeInHeaderFiles = $this->normalizeRelativePathList($options['includeInHeader'] ?? [], 'PDF include-in-header path');
         $resourcePaths = $this->normalizeRelativePathList($options['resourcePaths'] ?? [], 'PDF resource path');
+        $resourceInventory = $this->resourceInventoryFor($document, $options['resourceFiles'] ?? []);
         $metadata = $this->metadataSummary($document);
         $variables = array_key_exists('variables', $options)
             ? $this->normalizeVariables($options['variables'])
@@ -123,6 +129,15 @@ final class PdfEngineHandoff
         if ($resourcePaths !== []) {
             $diagnostics[] = 'pdf-resource-paths:' . count($resourcePaths);
         }
+        if ($resourceInventory['files'] !== []) {
+            $diagnostics[] = 'pdf-resource-files:' . count($resourceInventory['files']);
+        }
+        if ($resourceInventory['remote'] !== []) {
+            $diagnostics[] = 'pdf-remote-resources:' . count($resourceInventory['remote']);
+        }
+        if ($resourceInventory['skipped'] !== []) {
+            $diagnostics[] = 'pdf-skipped-resources:' . count($resourceInventory['skipped']);
+        }
         if ($variables !== []) {
             $diagnostics[] = 'pdf-template-variables:' . count($this->flattenVariableArguments($variables));
         }
@@ -150,6 +165,10 @@ final class PdfEngineHandoff
             'templateFile' => $templateFile,
             'includeInHeaderFiles' => $includeInHeaderFiles,
             'resourcePaths' => $resourcePaths,
+            'resourceFiles' => $resourceInventory['files'],
+            'resourceFileManifest' => $resourceInventory['manifest'],
+            'remoteResourceReferences' => $resourceInventory['remote'],
+            'skippedResourceReferences' => $resourceInventory['skipped'],
             'templateVariables' => $templateVariables,
             'writerArguments' => $writerArguments,
             'sourceArtifacts' => $sourceArtifacts,
@@ -173,6 +192,8 @@ final class PdfEngineHandoff
      *     bytes: int,
      *     sourceSha256: string|null,
      *     sourceArtifactsSha256: array<string, string>,
+     *     resourceArtifactsSha256: array<string, string>,
+     *     missingResourceFiles: list<string>,
      *     producedArtifactsSha256: array<string, string>,
      *     bibliographyArtifactsSha256: array<string, string>,
      *     bibliographyLogFiles: list<string>,
@@ -213,6 +234,8 @@ final class PdfEngineHandoff
         $sourceBytes = $plan['sourceBytes'] ?? null;
         $sourceSha256 = null;
         $sourceArtifactsSha256 = [];
+        $resourceArtifactsSha256 = [];
+        $missingResourceFiles = [];
         $producedArtifactsSha256 = [];
         $bibliographyArtifactsSha256 = [];
         $bibliographyLogFiles = [];
@@ -252,8 +275,26 @@ final class PdfEngineHandoff
             $diagnostics[] = 'source-artifacts-validated:' . count($sourceArtifactsSha256);
         }
 
+        $resourceFiles = $this->normalizeResourceFileList($plan['resourceFiles'] ?? [], 'PDF resource file');
+        foreach ($resourceFiles as $resourcePath) {
+            if (!array_key_exists($resourcePath, $files)) {
+                $missingResourceFiles[] = $resourcePath;
+                if ($reason === null) {
+                    $status = 'failed';
+                    $reason = 'missing-resource-file';
+                }
+                $diagnostics[] = 'missing-resource-file:' . $resourcePath;
+                continue;
+            }
+
+            $resourceArtifactsSha256[$resourcePath] = hash('sha256', $files[$resourcePath]);
+        }
+        if ($resourceArtifactsSha256 !== [] && $reason === null) {
+            $diagnostics[] = 'resource-files-validated:' . count($resourceArtifactsSha256);
+        }
+
         $expectedEngineArtifacts = $this->normalizePlanStringList($plan['expectedEngineArtifacts'] ?? [], 'PDF expected engine artifact');
-        $reservedFiles = array_fill_keys(array_merge([$sourceFile, $outputFile], array_keys($sourceArtifactsSha256)), true);
+        $reservedFiles = array_fill_keys(array_merge([$sourceFile, $outputFile], array_keys($sourceArtifactsSha256), $resourceFiles), true);
         foreach ($files as $path => $bytes) {
             if (isset($reservedFiles[$path])) {
                 continue;
@@ -397,6 +438,8 @@ final class PdfEngineHandoff
             'bytes' => is_string($pdfBytes) ? strlen($pdfBytes) : 0,
             'sourceSha256' => $sourceSha256,
             'sourceArtifactsSha256' => $sourceArtifactsSha256,
+            'resourceArtifactsSha256' => $resourceArtifactsSha256,
+            'missingResourceFiles' => $missingResourceFiles,
             'producedArtifactsSha256' => $producedArtifactsSha256,
             'bibliographyArtifactsSha256' => $bibliographyArtifactsSha256,
             'bibliographyLogFiles' => $bibliographyLogFiles,
@@ -438,7 +481,9 @@ final class PdfEngineHandoff
      *     finalDeclaredOutputPages: int|null,
      *     finalDeclaredOutputBytes: int|null,
      *     sourceSha256: string|null,
+     *     finalResourceArtifactsSha256: array<string, string>,
      *     finalBibliographyArtifactsSha256: array<string, string>,
+     *     missingResourceFiles: list<string>,
      *     engineWarnings: list<string>,
      *     engineErrors: list<string>,
      *     bibliographyWarnings: list<string>,
@@ -560,7 +605,9 @@ final class PdfEngineHandoff
             'finalDeclaredOutputPages' => is_array($finalRun) && is_int($finalRun['declaredOutputPages'] ?? null) ? $finalRun['declaredOutputPages'] : null,
             'finalDeclaredOutputBytes' => is_array($finalRun) && is_int($finalRun['declaredOutputBytes'] ?? null) ? $finalRun['declaredOutputBytes'] : null,
             'sourceSha256' => is_array($finalRun) && is_string($finalRun['sourceSha256'] ?? null) ? $finalRun['sourceSha256'] : null,
+            'finalResourceArtifactsSha256' => is_array($finalRun) && is_array($finalRun['resourceArtifactsSha256'] ?? null) ? $finalRun['resourceArtifactsSha256'] : [],
             'finalBibliographyArtifactsSha256' => is_array($finalRun) && is_array($finalRun['bibliographyArtifactsSha256'] ?? null) ? $finalRun['bibliographyArtifactsSha256'] : [],
+            'missingResourceFiles' => is_array($finalRun) && is_array($finalRun['missingResourceFiles'] ?? null) ? $finalRun['missingResourceFiles'] : [],
             'engineWarnings' => array_values(array_unique($warnings)),
             'engineErrors' => array_values(array_unique($errors)),
             'bibliographyWarnings' => array_values(array_unique($bibliographyWarnings)),
@@ -724,6 +771,142 @@ final class PdfEngineHandoff
         }
 
         return (string) $value;
+    }
+
+    /**
+     * @return array{
+     *     files:list<string>,
+     *     manifest:list<array{path:string, kind:string, sources:list<string>, title:string|null, alt:string|null}>,
+     *     remote:list<string>,
+     *     skipped:list<string>
+     * }
+     */
+    private function resourceInventoryFor(AstNode $document, mixed $explicitResourceFiles): array
+    {
+        $entries = [];
+        $remote = [];
+        $skipped = [];
+
+        foreach ($this->normalizeResourceFileList($explicitResourceFiles, 'PDF resource file') as $path) {
+            $this->addResourceEntry($entries, $path, 'resource', 'explicit');
+        }
+
+        $this->collectDocumentResources($document, $entries, $remote, $skipped);
+        ksort($entries);
+        sort($remote);
+        sort($skipped);
+
+        return [
+            'files' => array_keys($entries),
+            'manifest' => array_values($entries),
+            'remote' => array_values(array_unique($remote)),
+            'skipped' => array_values(array_unique($skipped)),
+        ];
+    }
+
+    /**
+     * @param array<string, array{path:string, kind:string, sources:list<string>, title:string|null, alt:string|null}> $entries
+     * @param list<string> $remote
+     * @param list<string> $skipped
+     */
+    private function collectDocumentResources(AstNode $node, array &$entries, array &$remote, array &$skipped): void
+    {
+        if ($node->type === 'image') {
+            $url = $node->attr('url', '');
+            if (is_string($url)) {
+                $classified = $this->classifyResourceReference($url);
+                if ($classified['type'] === 'local') {
+                    $this->addResourceEntry(
+                        $entries,
+                        $classified['value'],
+                        'image',
+                        'document-image',
+                        $this->nullableString($node->attr('title', null)),
+                        $this->nullableString($node->attr('alt', null))
+                    );
+                } elseif ($classified['type'] === 'remote') {
+                    $remote[] = $classified['value'];
+                } else {
+                    $skipped[] = $classified['value'];
+                }
+            }
+        }
+
+        foreach ($node->children as $child) {
+            $this->collectDocumentResources($child, $entries, $remote, $skipped);
+        }
+    }
+
+    /**
+     * @param array<string, array{path:string, kind:string, sources:list<string>, title:string|null, alt:string|null}> $entries
+     */
+    private function addResourceEntry(
+        array &$entries,
+        string $path,
+        string $kind,
+        string $source,
+        ?string $title = null,
+        ?string $alt = null
+    ): void {
+        if (!isset($entries[$path])) {
+            $entries[$path] = [
+                'path' => $path,
+                'kind' => $kind,
+                'sources' => [],
+                'title' => null,
+                'alt' => null,
+            ];
+        }
+
+        if (!in_array($source, $entries[$path]['sources'], true)) {
+            $entries[$path]['sources'][] = $source;
+        }
+        if ($kind === 'image') {
+            $entries[$path]['kind'] = 'image';
+        }
+        if ($entries[$path]['title'] === null && $title !== null && $title !== '') {
+            $entries[$path]['title'] = $title;
+        }
+        if ($entries[$path]['alt'] === null && $alt !== null && $alt !== '') {
+            $entries[$path]['alt'] = $alt;
+        }
+    }
+
+    /**
+     * @return array{type:string, value:string}
+     */
+    private function classifyResourceReference(string $reference): array
+    {
+        $reference = str_replace('\\', '/', trim($reference));
+        if ($reference === '') {
+            return ['type' => 'skipped', 'value' => 'empty-resource-reference'];
+        }
+        if (str_contains($reference, "\0")) {
+            return ['type' => 'skipped', 'value' => 'resource-reference-contains-nul'];
+        }
+        if ($this->isUriResourceReference($reference)) {
+            return ['type' => 'remote', 'value' => $reference];
+        }
+        if (str_starts_with($reference, '#') || str_contains($reference, '?') || str_contains($reference, '#')) {
+            return ['type' => 'skipped', 'value' => $reference];
+        }
+
+        try {
+            return ['type' => 'local', 'value' => $this->normalizeRelativePath($reference, 'PDF document resource path')];
+        } catch (\InvalidArgumentException) {
+            return ['type' => 'skipped', 'value' => $reference];
+        }
+    }
+
+    private function isUriResourceReference(string $reference): bool
+    {
+        return str_starts_with($reference, '//')
+            || preg_match('/\A[A-Za-z][A-Za-z0-9+.-]*:/', $reference) === 1;
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
     }
 
     private function deriveSourcePath(string $outputFile, string $extension): string
@@ -1043,6 +1226,39 @@ final class PdfEngineHandoff
         foreach ($value as $path) {
             $paths[] = $this->normalizeRelativePath($this->requireString($path, $label), $label);
         }
+
+        return $paths;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizeResourceFileList(mixed $value, string $label): array
+    {
+        if ($value === null || $value === []) {
+            return [];
+        }
+        if (is_string($value)) {
+            $value = [$value];
+        }
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException($label . ' list must contain strings');
+        }
+
+        $paths = [];
+        foreach ($value as $path) {
+            $path = str_replace('\\', '/', trim($this->requireString($path, $label)));
+            if ($this->isUriResourceReference($path)) {
+                throw new \InvalidArgumentException($label . ' must be a relative file path, not a URI');
+            }
+            if (str_starts_with($path, '#') || str_contains($path, '?') || str_contains($path, '#')) {
+                throw new \InvalidArgumentException($label . ' must be a direct relative file path without query or fragment');
+            }
+            $paths[] = $this->normalizeRelativePath($path, $label);
+        }
+
+        $paths = array_values(array_unique($paths));
+        sort($paths);
 
         return $paths;
     }

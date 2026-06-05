@@ -15,6 +15,10 @@ date: 2026-06-04
 ---
 
 Reviewer formula $E = mc^2$ and source cite \cite{migration-log}.
+
+![Review chart](media/review-chart.png "Review chart")
+
+![Remote reviewer media](https://example.test/media/remote-chart.png)
 MARKDOWN;
 
 $document = (new MarkdownReader())->read($markdown);
@@ -25,6 +29,7 @@ $plan = $handoff->plan($document, [
     'templatePath' => 'templates/review-packet.tex',
     'includeInHeader' => 'templates/review-header.tex',
     'resourcePaths' => ['media', 'review assets'],
+    'resourceFiles' => ['refs/migration-log.bib', 'media/review-chart.png'],
     'variables' => [
         'documentclass' => 'scrartcl',
         'geometry' => ['margin=1in', 'includeheadfoot'],
@@ -53,6 +58,8 @@ $fakeFirstRun = [
         $plan['sourceFile'] => (string) $plan['sourceBytes'],
         'templates/review-packet.tex' => '\documentclass{$documentclass$}' . "\n" . '$for(include-in-header)$$include-in-header$$endfor$' . "\n" . '\begin{document}$body$\end{document}',
         'templates/review-header.tex' => '\usepackage{fontspec}',
+        'media/review-chart.png' => 'fake review chart bytes',
+        'refs/migration-log.bib' => '@book{migration-log,title={Migration Log}}',
         'handoff/pdf-review-packet.aux' => "\\relax\n",
         'handoff/pdf-review-packet.bcf' => '<bcf:controlfile />',
         'handoff/pdf-review-packet.run.xml' => '<requests />',
@@ -77,6 +84,8 @@ $fakeSequence = $handoff->fakeRunSequence($plan, [
             $plan['sourceFile'] => (string) $plan['sourceBytes'],
             'templates/review-packet.tex' => '\documentclass{$documentclass$}' . "\n" . '$for(include-in-header)$$include-in-header$$endfor$' . "\n" . '\begin{document}$body$\end{document}',
             'templates/review-header.tex' => '\usepackage{fontspec}',
+            'media/review-chart.png' => 'fake review chart bytes',
+            'refs/migration-log.bib' => '@book{migration-log,title={Migration Log}}',
             'handoff/pdf-review-packet.aux' => "\\relax\n\\citation{migration-log}\n",
             'handoff/pdf-review-packet.bbl' => "\\begin{thebibliography}{1}\n\\end{thebibliography}\n",
             'handoff/pdf-review-packet.blg' => "This is Biber 2.19\n",
@@ -97,6 +106,10 @@ $summary = [
     'templateFile' => $plan['templateFile'],
     'includeInHeaderFiles' => $plan['includeInHeaderFiles'],
     'resourcePaths' => $plan['resourcePaths'],
+    'resourceFiles' => $plan['resourceFiles'],
+    'resourceFileManifest' => $plan['resourceFileManifest'],
+    'remoteResourceReferences' => $plan['remoteResourceReferences'],
+    'skippedResourceReferences' => $plan['skippedResourceReferences'],
     'sourceArtifacts' => $plan['sourceArtifacts'],
     'engineLogFile' => $plan['engineLogFile'],
     'expectedEngineArtifacts' => $plan['expectedEngineArtifacts'],
@@ -108,6 +121,8 @@ $summary = [
         'reason' => $fakeResult['reason'],
         'bytes' => $fakeResult['bytes'],
         'sourceArtifactsSha256' => $fakeResult['sourceArtifactsSha256'],
+        'resourceArtifactsSha256' => $fakeResult['resourceArtifactsSha256'],
+        'missingResourceFiles' => $fakeResult['missingResourceFiles'],
         'producedArtifactsSha256' => $fakeResult['producedArtifactsSha256'],
         'bibliographyArtifactsSha256' => $fakeResult['bibliographyArtifactsSha256'],
         'bibliographyLogFiles' => $fakeResult['bibliographyLogFiles'],
@@ -132,7 +147,9 @@ $summary = [
         'finalRunIndex' => $fakeSequence['finalRunIndex'],
         'finalBytes' => $fakeSequence['finalBytes'],
         'finalPdfSha256' => $fakeSequence['finalPdfSha256'],
+        'finalResourceArtifactsSha256' => $fakeSequence['finalResourceArtifactsSha256'],
         'finalBibliographyArtifactsSha256' => $fakeSequence['finalBibliographyArtifactsSha256'],
+        'missingResourceFiles' => $fakeSequence['missingResourceFiles'],
         'finalDeclaredOutputPages' => $fakeSequence['finalDeclaredOutputPages'],
         'bibliographyWarnings' => $fakeSequence['bibliographyWarnings'],
         'bibliographyErrors' => $fakeSequence['bibliographyErrors'],
@@ -152,6 +169,9 @@ if (in_array('--self-test', $argv, true)) {
         'PDF Review Packet',
         'templates/review-packet.tex',
         'templates/review-header.tex',
+        'media/review-chart.png',
+        'refs/migration-log.bib',
+        'https://example.test/media/remote-chart.png',
         'handoff/pdf-review-packet.log',
         'handoff/pdf-review-packet.aux',
         'handoff/pdf-review-packet.bcf',
@@ -161,7 +181,12 @@ if (in_array('--self-test', $argv, true)) {
         'documentclass=scrartcl',
         '--resource-path=media:review assets',
         'Source Serif 4',
+        'resourceFileManifest',
+        'pdf-resource-files:2',
+        'pdf-remote-resources:1',
         'source-artifacts-validated:2',
+        'resource-files-validated:2',
+        'resourceArtifactsSha256',
         'produced-engine-artifacts:6',
         'bibliography-sidecars:3',
         'bibliography-log-files:1',
@@ -180,6 +205,7 @@ if (in_array('--self-test', $argv, true)) {
         'fake-runner-attempt-bibliography-needed:1',
         'fake-runner-final-rerun-cleared',
         'fake-runner-final-bibliography-cleared',
+        'finalResourceArtifactsSha256',
         'finalBibliographyArtifactsSha256',
         'bibliographyWarnings',
         '"successfulAttempts":2',
