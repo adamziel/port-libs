@@ -346,11 +346,14 @@ final class TableGeometry
                         (int) ($slot['sourceCell'] ?? 0),
                         (int) ($slot['sourceColumn'] ?? 0)
                     );
-                    $sourceId = self::cellSourceHtmlId($slot['node'] ?? null);
+                    $node = $slot['node'] ?? null;
+                    $sourceId = self::cellSourceHtmlId($node);
                     $id = $sourceId !== '' ? $sourceId : $idPrefix . '-' . self::normalizeHtmlId($section)
                         . '-r' . ((int) $rowIndex + 1)
                         . 'c' . ((int) ($slot['anchorColumn'] ?? $slot['column'] ?? 0) + 1);
-                    $scope = self::headerScope($slot);
+                    $sourceScope = self::cellSourceHtmlScope($node);
+                    $scope = $sourceScope === '' ? self::headerScope($slot) : $sourceScope;
+                    $sourceHeaders = self::cellSourceHtmlHeaders($node);
                     $columns = [];
                     $startColumn = (int) ($slot['anchorColumn'] ?? $slot['column'] ?? 0);
                     $colspan = max(1, (int) ($slot['colspan'] ?? 1));
@@ -371,7 +374,7 @@ final class TableGeometry
                     $attributes[$key] = [
                         'id' => $id,
                         'scope' => $scope,
-                        'headers' => [],
+                        'headers' => $sourceHeaders,
                     ];
                 }
             }
@@ -399,7 +402,9 @@ final class TableGeometry
                         if (($scope === 'col' || $scope === 'colgroup') && self::columnsOverlap($columns, $header['columns'])) {
                             $applies = $header['section'] === 'head'
                                 || ($header['section'] === $section && (int) $header['row'] <= (int) $rowIndex);
-                        } elseif (($scope === 'row' || $scope === 'rowgroup') && $header['section'] === $section) {
+                        } elseif ($scope === 'row' && $header['section'] === $section) {
+                            $applies = (int) $rowIndex === (int) $header['row'];
+                        } elseif ($scope === 'rowgroup' && $header['section'] === $section) {
                             $headerRow = (int) $header['row'];
                             $applies = (int) $rowIndex >= $headerRow && (int) $rowIndex < $headerRow + (int) $header['rowspan'];
                         }
@@ -415,8 +420,9 @@ final class TableGeometry
                         (int) ($slot['sourceCell'] ?? 0),
                         (int) ($slot['sourceColumn'] ?? 0)
                     );
+                    $sourceHeaders = self::cellSourceHtmlHeaders($slot['node'] ?? null);
                     $attributes[$key] = [
-                        'headers' => array_values(array_unique($headerIds)),
+                        'headers' => $sourceHeaders === [] ? array_values(array_unique($headerIds)) : $sourceHeaders,
                     ];
                 }
             }
@@ -735,6 +741,47 @@ final class TableGeometry
         }
 
         return trim((string) $node->attr('id', ''));
+    }
+
+    private static function cellSourceHtmlScope(mixed $node): string
+    {
+        $scope = strtolower(self::sourceHtmlAttribute($node, 'scope'));
+
+        return in_array($scope, ['col', 'row', 'colgroup', 'rowgroup'], true) ? $scope : '';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function cellSourceHtmlHeaders(mixed $node): array
+    {
+        $headers = preg_split('/\s+/', self::sourceHtmlAttribute($node, 'headers'), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        return array_values(array_unique(array_map(
+            static fn (string $header): string => trim($header),
+            $headers
+        )));
+    }
+
+    private static function sourceHtmlAttribute(mixed $node, string $name): string
+    {
+        if (!$node instanceof AstNode) {
+            return '';
+        }
+
+        foreach (['htmlAttributes', 'attributes'] as $attributeName) {
+            $attributes = $node->attr($attributeName, []);
+            if (!is_array($attributes)) {
+                continue;
+            }
+
+            $attributes = array_change_key_case($attributes, CASE_LOWER);
+            if (isset($attributes[$name]) && is_scalar($attributes[$name])) {
+                return trim((string) $attributes[$name]);
+            }
+        }
+
+        return '';
     }
 
     /**

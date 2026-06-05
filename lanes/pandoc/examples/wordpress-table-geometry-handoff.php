@@ -208,6 +208,62 @@ $document = new AstNode('document', [], [
             ]),
         ]),
     ]),
+    new AstNode('table', [
+        'caption' => 'Source scoped accessibility grid',
+        'alignments' => ['left', 'right', 'center'],
+        'accessibilityHeaders' => true,
+        'accessibilityIdPrefix' => 'Source Scope Grid',
+    ], [
+        new AstNode('table_head', [], [
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', [
+                    'text' => 'Document',
+                    'htmlAttributes' => [
+                        'id' => 'source-document',
+                        'scope' => 'col',
+                    ],
+                ], [new AstNode('text', ['text' => 'Document'])]),
+                new AstNode('table_cell', [
+                    'text' => 'Count',
+                    'htmlAttributes' => [
+                        'id' => 'source-count',
+                        'scope' => 'col',
+                    ],
+                ], [new AstNode('text', ['text' => 'Count'])]),
+                new AstNode('table_cell', [
+                    'text' => 'State',
+                    'htmlAttributes' => [
+                        'id' => 'source-state',
+                        'scope' => 'col',
+                        'headers' => 'source-document',
+                    ],
+                ], [new AstNode('text', ['text' => 'State'])]),
+            ]),
+        ]),
+        new AstNode('table_body', ['rowHeadColumns' => 1], [
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', [
+                    'text' => 'Posts',
+                    'rowspan' => 2,
+                    'htmlAttributes' => [
+                        'id' => 'source-posts',
+                        'scope' => 'row',
+                    ],
+                ], [new AstNode('text', ['text' => 'Posts'])]),
+                new AstNode('table_cell', [
+                    'text' => '42',
+                    'htmlAttributes' => [
+                        'headers' => 'legacy-count source-posts',
+                    ],
+                ], [new AstNode('text', ['text' => '42'])]),
+                new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+            ]),
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
+                new AstNode('table_cell', ['text' => 'Review'], [new AstNode('text', ['text' => 'Review'])]),
+            ]),
+        ]),
+    ]),
     ...$readerHandoffTables,
 ]);
 
@@ -368,6 +424,23 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td headers="legacy-status" data-origin="docx" style="text-align:right">Ready</td>')) {
         throw new RuntimeException('Table geometry self-test missing source headers override preservation');
+    }
+
+    $sourceScopeAccessibility = TableGeometry::accessibilityAttributes($document->children[7], 'Source Scope Grid');
+    if (($sourceScopeAccessibility['body:0:0:0']['scope'] ?? null) !== 'row') {
+        throw new RuntimeException('Table geometry self-test missing source scope override in accessibility handoff');
+    }
+    if (($sourceScopeAccessibility['body:0:1:1']['headers'] ?? null) !== ['legacy-count', 'source-posts']) {
+        throw new RuntimeException('Table geometry self-test missing source headers override in accessibility handoff');
+    }
+    if (in_array('source-posts', $sourceScopeAccessibility['body:1:0:0']['headers'] ?? [], true)) {
+        throw new RuntimeException('Table geometry self-test treated source scope=row as rowgroup across rowspan');
+    }
+    if (!str_contains($blocks, '<th id="source-posts" scope="row" rowspan="2" style="text-align:left">Posts</th><td headers="legacy-count source-posts" style="text-align:right">42</td><td headers="source-state source-posts" style="text-align:center">Ready</td>')) {
+        throw new RuntimeException('Table geometry self-test missing source scope and headers WordPress output');
+    }
+    if (!str_contains($blocks, '<tr><td headers="source-count" style="text-align:right">7</td><td headers="source-state" style="text-align:center">Review</td></tr>')) {
+        throw new RuntimeException('Table geometry self-test missing source scoped second-row headers output');
     }
 
     $readerTable = null;

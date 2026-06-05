@@ -362,6 +362,67 @@ $buildAttributedCellDocument = static function (): AstNode {
     ]);
 };
 
+$buildSourceScopedHeaderDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Source scoped accessibility grid',
+            'alignments' => ['left', 'right', 'center'],
+            'accessibilityHeaders' => true,
+            'accessibilityIdPrefix' => 'Source Scope Grid',
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [
+                        'text' => 'Document',
+                        'htmlAttributes' => [
+                            'id' => 'source-document',
+                            'scope' => 'col',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Document'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'Count',
+                        'htmlAttributes' => [
+                            'id' => 'source-count',
+                            'scope' => 'col',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Count'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'State',
+                        'htmlAttributes' => [
+                            'id' => 'source-state',
+                            'scope' => 'col',
+                            'headers' => 'source-document',
+                        ],
+                    ], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', ['rowHeadColumns' => 1], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [
+                        'text' => 'Posts',
+                        'rowspan' => 2,
+                        'htmlAttributes' => [
+                            'id' => 'source-posts',
+                            'scope' => 'row',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', [
+                        'text' => '42',
+                        'htmlAttributes' => [
+                            'headers' => 'legacy-count source-posts',
+                        ],
+                    ], [new AstNode('text', ['text' => '42'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
+                    new AstNode('table_cell', ['text' => 'Review'], [new AstNode('text', ['text' => 'Review'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 $buildRowspanOverlapDocument = static function (): AstNode {
     return new AstNode('document', [], [
         new AstNode('table', [
@@ -749,7 +810,7 @@ return [
         $t->same('col', $accessibility['head:0:0:0']['scope'] ?? null);
         $t->same('ast-status-source', $accessibility['head:0:1:1']['id'] ?? null);
         $t->same(['docx-source-scope'], $accessibility['body:0:0:0']['headers'] ?? null);
-        $t->same(['ast-status-source'], $accessibility['body:0:1:1']['headers'] ?? null);
+        $t->same(['legacy-status'], $accessibility['body:0:1:1']['headers'] ?? null);
         $t->same('docx-source-scope', $packet['accessibility']['head:0:0:0']['id'] ?? null);
         $t->same('ast-status-source', $packet['accessibility']['head:0:1:1']['id'] ?? null);
         $t->same(['docx-source-scope'], $packet['accessibility']['body:0:0:0']['headers'] ?? null);
@@ -759,6 +820,26 @@ return [
         $t->contains('<td headers="docx-source-scope" class="body-source" data-origin="docx" style="text-align:left">Posts</td>', $blocks);
         $t->contains('<td headers="legacy-status" data-origin="docx" style="text-align:right">Ready</td>', $blocks);
         $t->true(!str_contains($blocks, 'headers="source-grid-head-r1c2" data-origin="docx" headers="legacy-status"'), 'Source headers attribute must not be duplicated by computed accessibility headers');
+    },
+    'honors source scope and headers attributes in table accessibility packets' => static function (TestRunner $t) use ($buildSourceScopedHeaderDocument): void {
+        $document = $buildSourceScopedHeaderDocument();
+        $table = $document->children[0];
+        $accessibility = TableGeometry::accessibilityAttributes($table, 'Source Scope Grid');
+        $packet = TableGeometry::reviewPacket($table, ['idPrefix' => 'Source Scope Grid']);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('row', $accessibility['body:0:0:0']['scope'] ?? null);
+        $t->same(['legacy-count', 'source-posts'], $accessibility['body:0:1:1']['headers'] ?? null);
+        $t->same(['source-state', 'source-posts'], $accessibility['body:0:2:2']['headers'] ?? null);
+        $t->same(['source-count'], $accessibility['body:1:0:0']['headers'] ?? null);
+        $t->same(['source-state'], $accessibility['body:1:1:1']['headers'] ?? null);
+        $t->true(!in_array('source-posts', $accessibility['body:1:0:0']['headers'] ?? [], true), 'Source scope=row must not behave like computed rowgroup on rowspans');
+        $t->same(['source-document'], $accessibility['head:0:2:2']['headers'] ?? null);
+        $t->same(['legacy-count', 'source-posts'], $packet['accessibility']['body:0:1:1']['headers'] ?? null);
+        $t->same('row', $packet['accessibility']['body:0:0:0']['scope'] ?? null);
+        $t->contains('<th id="source-posts" scope="row" rowspan="2" style="text-align:left">Posts</th><td headers="legacy-count source-posts" style="text-align:right">42</td><td headers="source-state source-posts" style="text-align:center">Ready</td>', $blocks);
+        $t->contains('<tr><td headers="source-count" style="text-align:right">7</td><td headers="source-state" style="text-align:center">Review</td></tr>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'attaches serializable review packets to table ast nodes for reader handoff' => static function (TestRunner $t) use ($buildAccessibleHeaderDocument): void {
         $table = $buildAccessibleHeaderDocument()->children[0];
