@@ -976,6 +976,49 @@ return [
         $t->same('Flow body.', $document->children[0]->attr('text'));
         $t->contains('<p>Flow body.</p>', $blocks);
     },
+    'maps pandoc yaml plain mapping keys with spaces in metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Plain key **Packet**',
+            'source label: Migration review',
+            'review:',
+            '  source owner: Import Desk',
+            '  source status: needs review',
+            '  owner role: content steward',
+            'references:',
+            '  - id: plain-key-ref',
+            '    source title: Plain metadata title',
+            '    source url: https://example.test/import#plain-key',
+            'plain-key-items:',
+            '  - review label: Compact reviewer label',
+            '  - source url: https://example.test/compact#plain-key',
+            'flow-review: {source owner: Flow Desk, source label: "Flow metadata"}',
+            '...',
+            '',
+            '# Plain key YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Plain key **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same('Migration review', $meta['source label']);
+        $t->same('Import Desk', $meta['review']['source owner']);
+        $t->same('needs review', $meta['review']['source status']);
+        $t->same('content steward', $meta['review']['owner role']);
+        $t->same('plain-key-ref', $meta['references'][0]['id']);
+        $t->same('Plain metadata title', $meta['references'][0]['source title']);
+        $t->same('https://example.test/import#plain-key', $meta['references'][0]['source url']);
+        $t->same('Compact reviewer label', $meta['plain-key-items'][0]['review label']);
+        $t->same('https://example.test/compact#plain-key', $meta['plain-key-items'][1]['source url']);
+        $t->same('Flow Desk', $meta['flow-review']['source owner']);
+        $t->same('Flow metadata', $meta['flow-review']['source label']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('plain-key-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="plain-key-yaml-body">Plain key YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml multiline flow collections in metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

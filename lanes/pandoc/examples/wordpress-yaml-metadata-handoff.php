@@ -169,6 +169,14 @@ flow-explicit-review: {? [source, uri]: https://example.test/exports/packet#flow
 flow-explicit-reference:
   id: flow-explicit-key-ref
   metadata: {? [source, key]: metadata value, ? {type: review}: kept}
+source label: Migration review
+plain-key-review:
+  source owner: Import Desk
+  owner role: content steward
+plain-key-items:
+  - review label: Compact reviewer label
+  - source url: https://example.test/exports/packet#plain-key
+flow-plain-key-review: {source owner: Flow Desk, source label: Flow metadata}
 source-uri: /exports/packet#front-matter
 escaped-source-title: "Escaped \u201cmetadata\u201d \U0001F4DD"
 escaped-source-uri: "https:\/\/example.test\/exports\/packet\x23front-matter"
@@ -421,6 +429,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['flow-explicit-reference']['metadata']['{type: review}'] ?? '') !== 'kept') {
         throw new RuntimeException('YAML metadata self-test missing nested flow explicit map key metadata');
     }
+    if (($meta['source label'] ?? '') !== 'Migration review') {
+        throw new RuntimeException('YAML metadata self-test missing plain spaced source label');
+    }
+    if (($meta['plain-key-review']['source owner'] ?? '') !== 'Import Desk') {
+        throw new RuntimeException('YAML metadata self-test missing nested plain spaced key metadata');
+    }
+    if (($meta['plain-key-items'][0]['review label'] ?? '') !== 'Compact reviewer label') {
+        throw new RuntimeException('YAML metadata self-test missing compact plain spaced key metadata');
+    }
+    if (($meta['flow-plain-key-review']['source owner'] ?? '') !== 'Flow Desk') {
+        throw new RuntimeException('YAML metadata self-test missing flow plain spaced key metadata');
+    }
     if (($meta['references'][0]['issued']['date-parts'][0] ?? []) !== [2026, 6, 3]) {
         throw new RuntimeException('YAML metadata self-test missing block-style date-parts');
     }
@@ -482,6 +502,7 @@ echo 'Explicit key review: ' . ($meta['explicit-review']['status'] ?? '') . ' / 
 echo 'Sequence key review: ' . ($meta['sequence-key-review']['[owner, desk]'] ?? '') . ' / ' . ($meta['[sequence, source-uri]'] ?? '') . "\n";
 echo 'Map key review: ' . ($meta['map-key-review']['{owner: desk, ticket: 7}'] ?? '') . ' / ' . ($meta['{source: uri, type: review}'] ?? '') . "\n";
 echo 'Flow explicit key review: ' . ($meta['flow-explicit-review']['[source, uri]'] ?? '') . ' / ' . ($meta['flow-explicit-review']['{owner: desk, ticket: 7}'] ?? '') . "\n";
+echo 'Plain key review: ' . ($meta['plain-key-review']['source owner'] ?? '') . ' / ' . ($meta['source label'] ?? '') . "\n";
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
 echo 'Typed review revision: ' . ($meta['typed-review']['typed-revision'] ?? '') . ' / confidence ' . ($meta['typed-review']['confidence'] ?? '') . "\n";

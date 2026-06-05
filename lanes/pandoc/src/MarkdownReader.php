@@ -943,52 +943,7 @@ final class MarkdownReader
             return false;
         }
 
-        if (preg_match('/^(<<):(?:$|[ \t].*)/', $sourceValue) === 1) {
-            return true;
-        }
-
-        if ($sourceValue[0] === '"' || $sourceValue[0] === "'") {
-            $quote = $sourceValue[0];
-            $length = strlen($sourceValue);
-            for ($offset = 1; $offset < $length; $offset++) {
-                $char = $sourceValue[$offset];
-                if ($quote === "'" && $char === "'" && ($sourceValue[$offset + 1] ?? '') === "'") {
-                    $offset++;
-                    continue;
-                }
-
-                if ($char !== $quote || ($quote === '"' && $sourceValue[$offset - 1] === '\\')) {
-                    continue;
-                }
-
-                $afterKey = substr($sourceValue, $offset + 1);
-                if (!str_starts_with($afterKey, ':')) {
-                    return false;
-                }
-
-                $afterColon = substr($afterKey, 1);
-                return $afterColon === '' || preg_match('/^[ \t]/', $afterColon) === 1;
-            }
-
-            return false;
-        }
-
-        $length = strlen($sourceValue);
-        for ($offset = 0; $offset < $length; $offset++) {
-            if ($sourceValue[$offset] !== ':') {
-                continue;
-            }
-
-            $afterColon = substr($sourceValue, $offset + 1);
-            if ($afterColon !== '' && preg_match('/^[ \t]/', $afterColon) !== 1) {
-                continue;
-            }
-
-            $key = substr($sourceValue, 0, $offset);
-            return preg_match('/^[A-Za-z0-9_.:-]+$/', $key) === 1;
-        }
-
-        return false;
+        return $this->parseYamlMappingLine($sourceValue) !== null;
     }
 
     /**
@@ -1071,11 +1026,80 @@ final class MarkdownReader
             return null;
         }
 
-        if (preg_match('/^([A-Za-z0-9_.:-]+):(?:[ \t]*(.*))?$/', $line, $m) !== 1) {
+        return $this->splitYamlPlainMappingLine($line);
+    }
+
+    /**
+     * @return array{0:string, 1:string}|null
+     */
+    private function splitYamlPlainMappingLine(string $line): ?array
+    {
+        $line = trim($line);
+        if ($line === '' || $line[0] === '?' || $line[0] === '-' || $line[0] === '[' || $line[0] === '{') {
             return null;
         }
 
-        return [$m[1], rtrim($m[2] ?? '')];
+        $quote = null;
+        $squareDepth = 0;
+        $curlyDepth = 0;
+        $length = strlen($line);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $line[$offset];
+            if ($quote !== null) {
+                if ($quote === "'" && $char === "'" && ($line[$offset + 1] ?? '') === "'") {
+                    $offset++;
+                    continue;
+                }
+
+                if ($char === $quote && ($quote === "'" || $line[$offset - 1] !== '\\')) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '[') {
+                $squareDepth++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $squareDepth = max(0, $squareDepth - 1);
+                continue;
+            }
+
+            if ($char === '{') {
+                $curlyDepth++;
+                continue;
+            }
+
+            if ($char === '}') {
+                $curlyDepth = max(0, $curlyDepth - 1);
+                continue;
+            }
+
+            if ($char !== ':' || $squareDepth !== 0 || $curlyDepth !== 0) {
+                continue;
+            }
+
+            $afterColon = substr($line, $offset + 1);
+            if ($afterColon !== '' && preg_match('/^[ \t]/', $afterColon) !== 1) {
+                continue;
+            }
+
+            $key = rtrim(substr($line, 0, $offset));
+            if ($key === '') {
+                return null;
+            }
+
+            return [$key, rtrim(ltrim($afterColon))];
+        }
+
+        return null;
     }
 
     /**
