@@ -128,6 +128,46 @@ $luaCabal = static function (array $without = [], ?string $mainIs = null, ?strin
     ]));
 };
 
+$testPandocEntryPoint = static function (): string {
+    return implode("\n", [
+        'module Main (main) where',
+        'import GHC.IO.Encoding',
+        'import Test.Tasty',
+        'import Text.Pandoc.App (convertWithOpts)',
+        'import Text.Pandoc.Scripting (noEngine)',
+        'import Text.Pandoc.Shared (inDirectory)',
+        'import System.Environment (getArgs, getExecutablePath)',
+        'import qualified Tests.Command',
+        'import qualified Tests.Readers.Markdown',
+        'import qualified Tests.Writers.Markdown',
+        'import qualified Tests.Writers.Native',
+        'main = do',
+        '  setLocaleEncoding utf8',
+        '  args <- getArgs',
+        '  case args of',
+        '    "--emulate":args\' -> convertWithOpts noEngine undefined',
+        '    _ -> inDirectory "test" $ do',
+        '      fp <- getExecutablePath',
+        '      defaultMain $ tests fp',
+        'tests fp = testGroup "pandoc tests" [Tests.Command.tests, Tests.Readers.Markdown.tests, Tests.Writers.Native.tests, Tests.Writers.Markdown.tests]',
+    ]);
+};
+
+$luaEntryPoint = static function (): string {
+    return implode("\n", [
+        'module Main (main) where',
+        'import Test.Tasty (TestTree, defaultMain, testGroup)',
+        'import System.Directory (withCurrentDirectory)',
+        'import qualified Tests.Lua',
+        'import qualified Tests.Lua.Module',
+        'import qualified Tests.Lua.Reader',
+        'import qualified Tests.Lua.Writer',
+        'main = withCurrentDirectory "test" $ defaultMain tests',
+        'tests :: TestTree',
+        'tests = testGroup "pandoc Lua engine" [ testGroup "Lua filters" Tests.Lua.tests, testGroup "Lua modules" Tests.Lua.Module.tests, testGroup "Custom writers" Tests.Lua.Writer.tests, testGroup "Custom readers" Tests.Lua.Reader.tests ]',
+    ]);
+};
+
 $runnerArtifacts = static function (): array {
     $files = [];
     foreach (UpstreamRunnerDependencyAudit::expectedRunnerArtifacts() as $relativePath => $kind) {
@@ -141,13 +181,13 @@ $runnerArtifacts = static function (): array {
     return $files;
 };
 
-$requiredFiles = static function (string $project, ?string $pandocPackage = null, ?string $luaPackage = null, bool $includeRunnerArtifacts = true) use ($pandocCabal, $luaCabal, $runnerArtifacts): array {
+$requiredFiles = static function (string $project, ?string $pandocPackage = null, ?string $luaPackage = null, bool $includeRunnerArtifacts = true) use ($pandocCabal, $luaCabal, $runnerArtifacts, $testPandocEntryPoint, $luaEntryPoint): array {
     $files = [
         'cabal.project' => $project,
         'pandoc.cabal' => $pandocPackage ?? $pandocCabal(),
         'pandoc-lua-engine/pandoc-lua-engine.cabal' => $luaPackage ?? $luaCabal(),
-        'test/test-pandoc.hs' => 'main = pure ()',
-        'pandoc-lua-engine/test/test-pandoc-lua-engine.hs' => 'main = pure ()',
+        'test/test-pandoc.hs' => $testPandocEntryPoint(),
+        'pandoc-lua-engine/test/test-pandoc-lua-engine.hs' => $luaEntryPoint(),
     ];
 
     if ($includeRunnerArtifacts) {
@@ -251,11 +291,22 @@ return [
         $t->same(true, in_array('zip-archive', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['buildDepends'], true));
         $t->same(true, in_array('tasty-lua', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['buildDepends'], true));
         $t->same(UpstreamRunnerDependencyAudit::expectedRunnerExecutableOptions()['test:test-pandoc'], $audit['runnerDependencyClosure']['present']['test:test-pandoc']['ghcOptions']);
+        $t->same([], $audit['runnerEntrySourceClosure']['missingTargets']);
+        $t->same([], $audit['runnerEntrySourceClosure']['missingSemantics']);
+        $t->same(
+            array_keys(UpstreamRunnerDependencyAudit::expectedRunnerEntrySourceSemantics()['test:test-pandoc']['requiredSnippets']),
+            $audit['runnerEntrySourceClosure']['present']['test:test-pandoc']['matchedSnippets']
+        );
+        $t->same(
+            array_keys(UpstreamRunnerDependencyAudit::expectedRunnerEntrySourceSemantics()['test:test-pandoc-lua-engine']['requiredSnippets']),
+            $audit['runnerEntrySourceClosure']['present']['test:test-pandoc-lua-engine']['matchedSnippets']
+        );
         $t->same(array_keys(UpstreamRunnerDependencyAudit::expectedRunnerArtifacts()), $audit['runnerArtifactClosure']['present']);
         $t->same([], $audit['runnerArtifactClosure']['missing']);
         $t->same([], $audit['runnerArtifactClosure']['wrongType']);
         $t->contains('non-mutating solver/build plan', $audit['activationGate']);
         $t->contains('record cabal.project package/flag closure', $audit['nonMutatingPlan'][0]);
+        $t->contains('runner entry-point semantics', $audit['nonMutatingPlan'][0]);
         $t->contains('solver constraints and runner executable options', $audit['nonMutatingPlan'][1]);
         $t->contains('test-suite type, buildable state, entry point, and direct build-depends closure', $audit['nonMutatingPlan'][2]);
     },
@@ -621,6 +672,52 @@ return [
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('missing upstream runner source/golden fixture artifacts', $blocked);
         $t->contains('runner source/golden fixtures', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks runner entry point source semantic drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['test/test-pandoc.hs'] = implode("\n", [
+            'module Main (main) where',
+            'import Test.Tasty (defaultMain)',
+            'main = defaultMain tests',
+        ]);
+        $files['pandoc-lua-engine/test/test-pandoc-lua-engine.hs'] = implode("\n", [
+            'module Main (main) where',
+            'import Test.Tasty (defaultMain)',
+            'main = defaultMain tests',
+        ]);
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['projectSourceRepositoryPins']['missing']);
+        $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['runnerEntrySourceClosure']['missingTargets']);
+        $t->contains('sets locale encoding to utf8', implode("\n", $audit['runnerEntrySourceClosure']['missingSemantics']['test:test-pandoc']));
+        $t->contains('offers --emulate command runner path', implode("\n", $audit['runnerEntrySourceClosure']['missingSemantics']['test:test-pandoc']));
+        $t->contains('loads markdown writer tests', implode("\n", $audit['runnerEntrySourceClosure']['missingSemantics']['test:test-pandoc']));
+        $t->contains('runs from lua engine test directory', implode("\n", $audit['runnerEntrySourceClosure']['missingSemantics']['test:test-pandoc-lua-engine']));
+        $t->contains('names lua engine tasty group', implode("\n", $audit['runnerEntrySourceClosure']['missingSemantics']['test:test-pandoc-lua-engine']));
+        $t->contains('loads custom reader tests', implode("\n", $audit['runnerEntrySourceClosure']['missingSemantics']['test:test-pandoc-lua-engine']));
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing runner entry point source semantics', $blocked);
+        $t->contains('runner entry-point source semantics', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
 ];
