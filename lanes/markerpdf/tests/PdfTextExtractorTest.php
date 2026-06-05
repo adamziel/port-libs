@@ -1090,7 +1090,7 @@ return [
         $validLengthPdf = "%PDF-1.4\n1 0 obj\n<< /Length " . strlen($validLengthContent) . " >>\nstream\n{$validLengthContent}\nendstream\nendobj\n%%EOF";
 
         $unsupportedNoise = 'BT /F1 12 Tf 72 720 Td (Unsupported stale Length leak) Tj ET';
-        $unsupportedPdf = "%PDF-1.4\n1 0 obj\n<< /Filter /Crypt /Length " . (strlen($unsupportedNoise) - 5) . " >>\nstream\n{$unsupportedNoise}\nendstream\nendobj\n%%EOF";
+        $unsupportedPdf = "%PDF-1.4\n1 0 obj\n<< /Filter /NoSuchDecode /Length " . (strlen($unsupportedNoise) - 5) . " >>\nstream\n{$unsupportedNoise}\nendstream\nendobj\n%%EOF";
 
         $extractor = new PdfTextExtractor();
         $t->same("Recovered Length Stream\nEndstream Fallback", $extractor->extractPlainText($shortPdf));
@@ -1326,9 +1326,9 @@ return [
             . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
             . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 5 0 R 6 0 R 7 0 R 8 0 R] >>\nendobj\n"
             . "4 0 obj\n<< /Length " . strlen($visibleBefore) . " >>\nstream\n{$visibleBefore}\nendstream\nendobj\n"
-            . "5 0 obj\n<< /Filter /Crypt /Length " . strlen($cryptNoise) . " >>\nstream\n{$cryptNoise}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Filter /Crypt /DecodeParms << /Name /PrivateCF >> /Length " . strlen($cryptNoise) . " >>\nstream\n{$cryptNoise}\nendstream\nendobj\n"
             . "6 0 obj\n<< /Filter /FlateDecode /Length " . strlen($corruptFlateNoise) . " >>\nstream\n{$corruptFlateNoise}\nendstream\nendobj\n"
-            . "7 0 obj\n<< /Filter [ /ASCIIHexDecode /Crypt ] /Length " . strlen($stackedEncodedNoise) . " >>\nstream\n{$stackedEncodedNoise}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Filter [ /ASCIIHexDecode /Crypt ] /DecodeParms [ null << /Name /PrivateCF >> ] /Length " . strlen($stackedEncodedNoise) . " >>\nstream\n{$stackedEncodedNoise}\nendstream\nendobj\n"
             . "8 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
             . "%%EOF";
 

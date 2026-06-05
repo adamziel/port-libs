@@ -446,6 +446,33 @@ $defaultCryptPdf = "%PDF-1.4\n"
     . "9 0 obj\n<< /Length " . strlen($defaultCryptVisibleAfter) . " >>\nstream\n{$defaultCryptVisibleAfter}\nendstream\nendobj\n"
     . "%%EOF";
 
+$commentSplitRowOne = 'BT /F1 12 Tf 72 720 Td (Comment Split Filter Array) Tj T* ';
+$commentSplitRowTwo = str_pad('(Comment Split DecodeParms Applies) Tj ET', strlen($commentSplitRowOne));
+$commentSplitRows = $pngSubPredictorEncode($commentSplitRowOne . $commentSplitRowTwo, strlen($commentSplitRowOne));
+$commentSplitEncoded = $ascii85Encode($zlibStored($commentSplitRows)) . '~>';
+
+$topSplitRowOne = 'BT /F1 12 Tf 72 684 Td (Top Split Filter Reference) Tj T* ';
+$topSplitRowTwo = str_pad('(Top Split DecodeParms Reference) Tj ET', strlen($topSplitRowOne));
+$topSplitRows = $pngSubPredictorEncode($topSplitRowOne . $topSplitRowTwo, strlen($topSplitRowOne));
+$topSplitEncoded = $ascii85Encode($zlibStored($topSplitRows)) . '~>';
+
+$commentSplitVisibleAfter = 'BT /F1 12 Tf 72 648 Td (Visible After Split References) Tj ET';
+$commentSplitStaleLeak = 'BT /F1 12 Tf 72 612 Td (Comment Split Helper Leak) Tj ET';
+$commentSplitPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 8 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Filter [ 10 % split filter object number from generation\n 0 R null /FlateDecode ] /DecodeParms [ null null 11 % split decodeparms object number from generation\n 0 R ] /Length " . strlen($commentSplitEncoded) . " >>\nstream\n{$commentSplitEncoded}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "6 0 obj\n<< /Filter 12 % split top-level filter reference\n 0 R /DecodeParms 13 % split top-level decodeparms reference\n 0 R /Length " . strlen($topSplitEncoded) . " >>\nstream\n{$topSplitEncoded}\nendstream\nendobj\n"
+    . "8 0 obj\n<< /Length " . strlen($commentSplitVisibleAfter) . " >>\nstream\n{$commentSplitVisibleAfter}\nendstream\nendobj\n"
+    . "10 0 obj\n/ASCII85Decode\nendobj\n"
+    . "11 0 obj\n<< /Predictor 12 /Columns " . strlen($commentSplitRowOne) . " >>\nendobj\n"
+    . "12 0 obj\n[ /ASCII85Decode /FlateDecode ]\nendobj\n"
+    . "13 0 obj\n[ null << /Predictor 12 /Columns " . strlen($topSplitRowOne) . " >> ]\nendobj\n"
+    . "99 0 obj\n{$commentSplitStaleLeak}\nendobj\n"
+    . "%%EOF";
+
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
 $stackLines = $extractor->extractTextLines($stackPdf);
@@ -465,6 +492,7 @@ $lzwShortLengthLines = $extractor->extractTextLines($lzwShortLengthPdf);
 $cryptIdentityLines = $extractor->extractTextLines($cryptIdentityPdf);
 $indirectCryptNameLines = $extractor->extractTextLines($indirectCryptNamePdf);
 $defaultCryptLines = $extractor->extractTextLines($defaultCryptPdf);
+$commentSplitLines = $extractor->extractTextLines($commentSplitPdf);
 $allLines = [
     ...$lines,
     ...$stackLines,
@@ -484,6 +512,7 @@ $allLines = [
     ...$cryptIdentityLines,
     ...$indirectCryptNameLines,
     ...$defaultCryptLines,
+    ...$commentSplitLines,
 ];
 $joined = implode("\n", $allLines);
 
@@ -515,6 +544,8 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         ['Crypt', 'FlateDecode'],
         ['FlateDecode', 'Crypt'],
         ['Crypt', 'FlateDecode'],
+        ['ASCII85Decode', null, 'FlateDecode'],
+        ['ASCII85Decode', 'FlateDecode'],
     ],
     'singleton_decodeparms_after_null_filter_stack_entry' => true,
     'unresolved_decodeparms_on_null_filter_slot_ignored' => $nullSlotDecodeParmsLines === [
@@ -571,6 +602,18 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         'Visible After Default Crypt',
     ],
     'default_crypt_private_filter_fail_closed' => !str_contains($joined, 'Default Crypt Private Leak'),
+    'parser_comment_split_filter_references_resolved' => $commentSplitLines === [
+        'Comment Split Filter Array',
+        'Comment Split DecodeParms Applies',
+        'Top Split Filter Reference',
+        'Top Split DecodeParms Reference',
+        'Visible After Split References',
+    ],
+    'parser_comment_split_decodeparms_references_resolved' => str_contains($joined, 'Comment Split DecodeParms Applies')
+        && str_contains($joined, 'Top Split DecodeParms Reference'),
+    'parser_comment_split_helper_excluded' => !str_contains($joined, 'Comment Split Helper Leak')
+        && !str_contains($joined, '10 0 obj')
+        && !str_contains($joined, '13 0 obj'),
     'missing_length_stream_payload' => true,
     'declared_length_points_at_encoded_fake_endstream' => true,
     'short_declared_length_before_encoded_fake_endstream' => true,

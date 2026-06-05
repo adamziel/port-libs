@@ -621,6 +621,44 @@ $parserStreamFilterStackBoundaryCurrentBaseFallbackTrailingNullDecodeParmsPdf = 
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseCommentSplitReferencePdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBaseAscii85,
+    $parserStreamFilterStackBoundaryCurrentBasePngSubPredictor,
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $rowOne = 'BT /F1 12 Tf 72 720 Td (Comment Split Filter Array) Tj T* ';
+    $rowTwo = str_pad('(Comment Split DecodeParms Applies) Tj ET', strlen($rowOne));
+    $encodedRows = $parserStreamFilterStackBoundaryCurrentBasePngSubPredictor($rowOne . $rowTwo, strlen($rowOne));
+    $encoded = $parserStreamFilterStackBoundaryCurrentBaseAscii85(
+        $parserStreamFilterStackBoundaryCurrentBaseZlibStored($encodedRows)
+    ) . '~>';
+
+    $topRowOne = 'BT /F1 12 Tf 72 684 Td (Top Split Filter Reference) Tj T* ';
+    $topRowTwo = str_pad('(Top Split DecodeParms Reference) Tj ET', strlen($topRowOne));
+    $topEncodedRows = $parserStreamFilterStackBoundaryCurrentBasePngSubPredictor($topRowOne . $topRowTwo, strlen($topRowOne));
+    $topEncoded = $parserStreamFilterStackBoundaryCurrentBaseAscii85(
+        $parserStreamFilterStackBoundaryCurrentBaseZlibStored($topEncodedRows)
+    ) . '~>';
+
+    $visibleAfter = 'BT /F1 12 Tf 72 648 Td (Visible After Split References) Tj ET';
+    $staleLeak = 'BT /F1 12 Tf 72 612 Td (Comment Split Helper Leak) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 8 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Filter [ 10 % split filter object number from generation\n 0 R null /FlateDecode ] /DecodeParms [ null null 11 % split decodeparms object number from generation\n 0 R ] /Length " . strlen($encoded) . " >>\nstream\n{$encoded}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "6 0 obj\n<< /Filter 12 % split top-level filter reference\n 0 R /DecodeParms 13 % split top-level decodeparms reference\n 0 R /Length " . strlen($topEncoded) . " >>\nstream\n{$topEncoded}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "10 0 obj\n/ASCII85Decode\nendobj\n"
+        . "11 0 obj\n<< /Predictor 12 /Columns " . strlen($rowOne) . " >>\nendobj\n"
+        . "12 0 obj\n[ /ASCII85Decode /FlateDecode ]\nendobj\n"
+        . "13 0 obj\n[ null << /Predictor 12 /Columns " . strlen($topRowOne) . " >> ]\nendobj\n"
+        . "99 0 obj\n{$staleLeak}\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses ASCII85 EOD markers before accepting missing-Length filter-stack endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -963,6 +1001,32 @@ return [
         $t->true(!str_contains($text, 'Trailing Null DecodeParms Leak'));
         $t->true(!str_contains($text, '99 0 R'));
         $t->true(!str_contains($text, 'FlateDecode'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'resolves parser-comment split indirect references inside stream filter stacks' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseCommentSplitReferencePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseCommentSplitReferencePdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Comment Split Filter Array',
+            'Comment Split DecodeParms Applies',
+            'Top Split Filter Reference',
+            'Top Split DecodeParms Reference',
+            'Visible After Split References',
+        ];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $text);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Comment Split Helper Leak'));
+        $t->true(!str_contains($text, 'ASCII85Decode'));
+        $t->true(!str_contains($text, 'FlateDecode'));
+        $t->true(!str_contains($text, 'Predictor'));
+        $t->true(!str_contains($text, '10 0 obj'));
+        $t->true(!str_contains($text, '13 0 obj'));
         $t->true(!str_contains($text, "\0"));
     },
 ];
