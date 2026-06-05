@@ -52,6 +52,18 @@ $fontWidthScaledTdAdvanceBoundaryCurrentBasePdf = static function (): string {
         . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
 };
 
+$fontWidthTextMatrixVerticalScaleBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /Fmatrix 12 Tf '
+        . '1 0 0 0.5 72 720 Tm <4142> Tj '
+        . '1 0 0 2 96 720 Tm <4344> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fmatrix 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+TextMatrixScale /Encoding 6 0 R /FirstChar 65 /LastChar 68 /Widths [1000 1000 1000 1000] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
+};
+
 $fontWidthUnresolvedSlotBoundaryCurrentBasePdf = static function (): string {
     $content = 'BT /Fsparse 12 Tf 1 0 0 1 72 720 Tm <43> Tj 1 0 0 1 87 720 Tm <44> Tj ET';
 
@@ -193,6 +205,26 @@ return [
         $t->true(str_contains($plainText, 'AB CD'));
         $t->true(!str_contains($plainText, 'ScaledTdAdvance'));
         $t->true(!str_contains($plainText, 'Fscale'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'uses text matrix vertical scale before native styled span bboxes on current base' => static function (TestRunner $t) use ($fontWidthTextMatrixVerticalScaleBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthTextMatrixVerticalScaleBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['ABCD'], $extractor->extractTextLines($pdf));
+        $t->same(['AB', 'CD'], $extractor->extractTextRuns($pdf));
+        $t->same('ABCD', $plainText);
+        $t->same("ABCD\n", $extractor->naiveGetText($pdf));
+        $t->same(['AB', 'CD'], array_column($spans, 'text'));
+        $t->same([[0.0, 0.0, 24.0, 6.0], [24.0, 0.0, 48.0, 24.0]], array_column($spans, 'bbox'));
+        $t->same([0.0, 0.0, 48.0, 24.0], $line['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'AB CD'));
+        $t->true(!str_contains($plainText, 'TextMatrixScale'));
+        $t->true(!str_contains($plainText, 'Fmatrix'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'preserves unresolved simple-font width slots before current advance gap decisions' => static function (TestRunner $t) use ($fontWidthUnresolvedSlotBoundaryCurrentBasePdf): void {

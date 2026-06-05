@@ -16614,6 +16614,7 @@ final class PdfTextExtractor
         $wordSpacing = 0.0;
         $horizontalScale = 100.0;
         $currentTextMatrixHorizontalScale = 1.0;
+        $currentTextMatrixVerticalScale = 1.0;
         $spanId = 0;
         $textRenderingMode = 0;
         $textStateStack = [];
@@ -16678,7 +16679,8 @@ final class PdfTextExtractor
                         $toUnicodeMap,
                         $characterSpacing,
                         $wordSpacing,
-                        $horizontalScale * $currentTextMatrixHorizontalScale
+                        $horizontalScale * $currentTextMatrixHorizontalScale,
+                        $currentTextMatrixVerticalScale
                     );
                 }
                 $operands = [];
@@ -16718,7 +16720,13 @@ final class PdfTextExtractor
                         $currentFontSize,
                         $fontToUnicodeMaps,
                         $pageIndex,
-                        $spanId
+                        $spanId,
+                        null,
+                        null,
+                        0.0,
+                        0.0,
+                        100.0,
+                        $currentTextMatrixVerticalScale
                     );
                 }
                 $operands = [];
@@ -16836,6 +16844,7 @@ final class PdfTextExtractor
                 $currentTextX = $this->textMatrixX($operands);
                 $currentTextY = $matrixY;
                 $currentTextMatrixHorizontalScale = $this->textMatrixHorizontalScale($operands) ?? 1.0;
+                $currentTextMatrixVerticalScale = $this->textMatrixVerticalScale($operands) ?? 1.0;
                 $operands = [];
                 continue;
             }
@@ -16847,6 +16856,7 @@ final class PdfTextExtractor
                 } else {
                     $currentTextX = null;
                     $currentTextY = null;
+                    $currentTextMatrixVerticalScale = 1.0;
                 }
                 $operands = [];
                 continue;
@@ -16855,6 +16865,7 @@ final class PdfTextExtractor
             if ($token === 'BT') {
                 $currentTextX = 0.0;
                 $currentTextY = null;
+                $currentTextMatrixVerticalScale = 1.0;
                 $operands = [];
                 continue;
             }
@@ -16899,7 +16910,8 @@ final class PdfTextExtractor
         ?array $toUnicodeMap = null,
         float $characterSpacing = 0.0,
         float $wordSpacing = 0.0,
-        float $horizontalScale = 100.0
+        float $horizontalScale = 100.0,
+        float $verticalScale = 1.0
     ): void {
         if ($text === '') {
             return;
@@ -16925,7 +16937,8 @@ final class PdfTextExtractor
             $fontSize,
             $characterSpacing,
             $wordSpacing,
-            $horizontalScale
+            $horizontalScale,
+            $verticalScale
         );
 
         $span = [
@@ -16955,9 +16968,11 @@ final class PdfTextExtractor
         float $fontSize,
         float $characterSpacing,
         float $wordSpacing,
-        float $horizontalScale
+        float $horizontalScale,
+        float $verticalScale = 1.0
     ): array {
-        $height = max(1.0, $fontSize);
+        $heightScale = is_finite($verticalScale) ? abs($verticalScale) : 1.0;
+        $height = max(1.0, $fontSize * $heightScale);
         if ($sourceOperand !== null && $this->mapWritingMode($toUnicodeMap) === 1) {
             $endY = $this->advanceTextEndYForOperand(
                 0.0,
@@ -18876,6 +18891,24 @@ final class PdfTextExtractor
         }
 
         return $this->numericOperand($operands[count($operands) - 6]);
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function textMatrixVerticalScale(array $operands): ?float
+    {
+        if (count($operands) < 6) {
+            return null;
+        }
+
+        $c = $this->numericOperand($operands[count($operands) - 4]);
+        $d = $this->numericOperand($operands[count($operands) - 3]);
+        if ($c === null || $d === null) {
+            return null;
+        }
+
+        return sqrt(($c * $c) + ($d * $d));
     }
 
     private function advanceTextYByLeading(?float $currentTextY, ?float $currentTextLeading): ?float
