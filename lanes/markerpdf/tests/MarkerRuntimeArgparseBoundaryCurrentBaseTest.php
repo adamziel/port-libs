@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\BatchConverter;
+use PortLibs\MarkerPDF\SingleDocumentConverter;
 
 return [
     'records convert.py argparse defaults and failures before runtime side effects' => static function (TestRunner $t): void {
@@ -153,5 +154,143 @@ return [
         $t->same('--gpu', $unknownOption['parse_args']['error_argument']);
         $t->contains('unrecognized arguments: --gpu', $unknownOption['parse_args']['error_message']);
         $t->same(false, $unknownOption['executes_multiprocessing']);
+    },
+    'records convert_single.py argparse defaults and failures before model loading' => static function (TestRunner $t): void {
+        $single = new SingleDocumentConverter();
+
+        $defaults = $single->runtimeArgumentPreflightPlan([
+            '/wp/uploads/editorial-checklist.pdf',
+            '/wp/marker-output',
+        ]);
+
+        $t->same('markerpdf.convert_single_argparse_preflight.v1', $defaults['schema']);
+        $t->contains('convert_single.py::main argparse', $defaults['source']);
+        $t->same(true, $defaults['parse_args']['parse_args_reached']);
+        $t->same(true, $defaults['parse_args']['parse_args_success']);
+        $t->same(0, $defaults['parse_args']['exit_code']);
+        $t->same('/wp/uploads/editorial-checklist.pdf', $defaults['arguments']['filename']);
+        $t->same('/wp/marker-output', $defaults['arguments']['output']);
+        $t->same([
+            'max_pages' => null,
+            'start_page' => null,
+            'langs' => null,
+            'batch_multiplier' => 2,
+        ], $defaults['arguments']['options']);
+        $t->same([
+            'max_pages' => true,
+            'start_page' => true,
+            'langs' => true,
+            'batch_multiplier' => true,
+        ], $defaults['arguments']['defaults_applied']);
+        $t->same(null, $defaults['language_parse']['parsed_langs']);
+        $t->same(false, $defaults['language_parse']['empty_langs_string_becomes_none']);
+        $t->same('load_all_models', $defaults['next_stage']);
+        $t->same(false, $defaults['semantic_boundaries']['filename_exists_checked_by_argparse']);
+        $t->same(false, $defaults['semantic_boundaries']['output_folder_exists_checked_by_argparse']);
+        $t->same(false, $defaults['executes_python_or_models']);
+        $t->same(false, $defaults['executes_external_pdf_tools']);
+
+        $custom = $single->runtimeArgumentPreflightPlan([
+            '--max_pages',
+            '0',
+            '--start_page',
+            '-2',
+            '--langs',
+            'English, Spanish,de',
+            '--batch_multiplier=0',
+            '/wp/uploads/editorial-checklist.pdf',
+            '/wp/marker-output',
+        ]);
+
+        $t->same(true, $custom['parse_args']['parse_args_success']);
+        $t->same([
+            'max_pages' => 0,
+            'start_page' => -2,
+            'langs' => 'English, Spanish,de',
+            'batch_multiplier' => 0,
+        ], $custom['arguments']['options']);
+        $t->same([
+            'max_pages' => false,
+            'start_page' => false,
+            'langs' => false,
+            'batch_multiplier' => false,
+        ], $custom['arguments']['defaults_applied']);
+        $t->same(['English', ' Spanish', 'de'], $custom['language_parse']['parsed_langs']);
+        $t->same(true, $custom['language_parse']['whitespace_preserved']);
+        $t->same(true, $custom['semantic_boundaries']['max_pages_less_than_one_deferred_to_convert_single_pdf']);
+        $t->same(true, $custom['semantic_boundaries']['negative_start_page_allowed_by_argparse']);
+        $t->same(true, $custom['semantic_boundaries']['batch_multiplier_less_than_one_deferred_to_convert_single_pdf']);
+
+        $emptyLangs = $single->runtimeArgumentPreflightPlan([
+            '--langs=',
+            '/wp/uploads/editorial-checklist.pdf',
+            '/wp/marker-output',
+        ]);
+        $t->same('', $emptyLangs['arguments']['options']['langs']);
+        $t->same(null, $emptyLangs['language_parse']['parsed_langs']);
+        $t->same(true, $emptyLangs['language_parse']['empty_langs_string_becomes_none']);
+
+        $abbreviated = $single->runtimeArgumentPreflightPlan([
+            '--batch',
+            '4',
+            '/wp/uploads/editorial-checklist.pdf',
+            '/wp/marker-output',
+        ]);
+        $t->same(4, $abbreviated['arguments']['options']['batch_multiplier']);
+        $t->same(false, $abbreviated['arguments']['defaults_applied']['batch_multiplier']);
+
+        $invalidInteger = $single->runtimeArgumentPreflightPlan([
+            '/wp/uploads/editorial-checklist.pdf',
+            '/wp/marker-output',
+            '--max_pages',
+            'many',
+        ]);
+        $t->same(false, $invalidInteger['parse_args']['parse_args_success']);
+        $t->same('argparse-system-exit', $invalidInteger['parse_args']['error_boundary']);
+        $t->same('SystemExit', $invalidInteger['parse_args']['error_class']);
+        $t->same(2, $invalidInteger['parse_args']['exit_code']);
+        $t->same('--max_pages', $invalidInteger['parse_args']['error_argument']);
+        $t->contains("invalid int value: 'many'", $invalidInteger['parse_args']['error_message']);
+        $t->same(null, $invalidInteger['arguments']);
+        $t->same('parse_args', $invalidInteger['blocked_by']);
+        $t->same([
+            'parse_langs',
+            'load_all_models',
+            'convert_single_pdf',
+            'save_markdown',
+            'print_saved_folder',
+            'print_total_time',
+        ], $invalidInteger['blocked_stages']);
+        $t->same(false, $invalidInteger['executes_python_or_models']);
+
+        $missingOutput = $single->runtimeArgumentPreflightPlan([
+            '--langs',
+            'English',
+            '/wp/uploads/editorial-checklist.pdf',
+        ]);
+        $t->same(false, $missingOutput['parse_args']['parse_args_success']);
+        $t->same('output', $missingOutput['parse_args']['missing_required_arguments'][0]);
+        $t->contains('the following arguments are required: output', $missingOutput['parse_args']['error_message']);
+        $t->same(false, $missingOutput['parse_args']['filesystem_touched_before_error']);
+
+        $missingLangValue = $single->runtimeArgumentPreflightPlan([
+            '/wp/uploads/editorial-checklist.pdf',
+            '/wp/marker-output',
+            '--langs',
+        ]);
+        $t->same(false, $missingLangValue['parse_args']['parse_args_success']);
+        $t->same('--langs', $missingLangValue['parse_args']['error_argument']);
+        $t->contains('expected one argument', $missingLangValue['parse_args']['error_message']);
+
+        $unknownOption = $single->runtimeArgumentPreflightPlan([
+            '/wp/uploads/editorial-checklist.pdf',
+            '/wp/marker-output',
+            '--workers',
+            '3',
+        ]);
+        $t->same(false, $unknownOption['parse_args']['parse_args_success']);
+        $t->same('--workers', $unknownOption['parse_args']['error_argument']);
+        $t->contains('unrecognized arguments: --workers', $unknownOption['parse_args']['error_message']);
+        $t->same(false, $unknownOption['executes_python_or_models']);
     },
 ];
