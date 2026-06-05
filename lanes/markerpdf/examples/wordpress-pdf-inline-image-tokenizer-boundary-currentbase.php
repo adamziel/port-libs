@@ -92,6 +92,12 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "EI\n"
     . "% comment EI BT /F1 12 Tf 72 632 Td (Comment After Inline Noise) Tj ET\n"
     . "BT /F1 12 Tf 72 631 Td (After Comment EI Boundary) Tj ET\n"
+    . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
+    . "\x00\x01\x02 EI BT /F1 12 Tf 72 630 Td (Stray Operator Payload Noise) Tj ET rawtail\n"
+    . "EI\n"
+    . "BT /F1 12 Tf 72 629 Td (Visible Before Stray Operator) Tj ET\n"
+    . "EI\n"
+    . "BT /F1 12 Tf 72 628 Td (Visible After Stray Operator) Tj ET\n"
     . "BT /F1 12 Tf 72 672 Td (After Real Inline Image) Tj ET";
 
 $pdf = "%PDF-1.4\n"
@@ -144,7 +150,7 @@ $multipleCcittPlainText = $extractor->extractPlainText($multipleCcittPdf);
 echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, immediate PDF comments after ID, tight EI sample terminators, nested modifier-dictionary decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, and post-terminator comment EI inline image boundaries before Gutenberg paragraphs',
+    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, immediate PDF comments after ID, tight EI sample terminators, nested modifier-dictionary decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, post-terminator comment EI, and later stray EI operator inline image boundaries before Gutenberg paragraphs',
     'stray_bi_text_preserved' => str_contains($plainText, 'Stray BI Text Survives')
         && str_contains($plainText, 'After Tokenizer Boundary'),
     'real_inline_image_payload_excluded' => !str_contains($plainText, 'Inline Image Payload Noise'),
@@ -198,6 +204,10 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
         && str_contains($plainText, 'After Comment EI Boundary')
         && !str_contains($plainText, 'Comment EI Payload Noise')
         && !str_contains($plainText, 'Comment After Inline Noise')
+        && !str_contains($plainText, 'rawtail'),
+    'preview_only_stray_ei_operator_text_preserved_after_safe_boundary' => str_contains($plainText, 'Visible Before Stray Operator')
+        && str_contains($plainText, 'Visible After Stray Operator')
+        && !str_contains($plainText, 'Stray Operator Payload Noise')
         && !str_contains($plainText, 'rawtail'),
     'preview_only_ccitt_payload_excluded_until_safe_boundary' => !str_contains($ccittPlainText, 'CCITT Inline Payload Noise')
         && !str_contains($ccittPlainText, 'rawtail')

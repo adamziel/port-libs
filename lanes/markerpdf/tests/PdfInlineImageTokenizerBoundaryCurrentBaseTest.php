@@ -374,6 +374,24 @@ $inlineImageTokenizerSlashDelimiterAfterEiPdf = static function (): string {
         . "%%EOF";
 };
 
+$inlineImageTokenizerStrayEiAfterTextPdf = static function (): string {
+    $content = "BT /F1 12 Tf 72 720 Td (Before Stray Operator) Tj ET\n"
+        . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . "\x00\x01\x02 EI BT /F1 12 Tf 72 660 Td (Payload Noise Token) Tj ET rawtail\n"
+        . "EI\n"
+        . "BT /F1 12 Tf 72 704 Td (Visible Before Stray Operator) Tj ET\n"
+        . "EI\n"
+        . "BT /F1 12 Tf 72 688 Td (Visible After Stray Operator) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'keeps malformed BI tokenizer boundary from swallowing later WordPress text' => static function (TestRunner $t) use ($inlineImageTokenizerBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
@@ -798,5 +816,26 @@ return [
         $t->true(str_contains($plainText, 'After Slash EI Boundary'));
         $t->true(!str_contains($plainText, 'Decorative'));
         $t->true(!str_contains($plainText, "\0"));
+    },
+    'closes preview-only fallback before line-separated text followed by stray EI operator' => static function (TestRunner $t) use ($inlineImageTokenizerStrayEiAfterTextPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerStrayEiAfterTextPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Stray Operator',
+            'Visible Before Stray Operator',
+            'Visible After Stray Operator',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(str_contains($plainText, 'Visible Before Stray Operator'));
+        $t->true(str_contains($plainText, 'Visible After Stray Operator'));
+        $t->true(!str_contains($plainText, 'Payload Noise Token'));
+        $t->true(!str_contains($plainText, 'rawtail'));
     },
 ];

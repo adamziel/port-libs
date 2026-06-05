@@ -23777,7 +23777,8 @@ final class PdfTextExtractor
                     }
 
                     if (
-                        $this->contentSegmentContainsInlineImagePreamble($segmentAfterFallback)
+                        $this->contentSegmentIsLineSeparatedClosedTextObject($segmentAfterFallback)
+                        || $this->contentSegmentContainsInlineImagePreamble($segmentAfterFallback)
                         || $this->contentSegmentContainsUnterminatedTextLiteralAfterTextObject($segmentAfterFallback)
                         || $this->contentSegmentContainsUnterminatedMarkedContentReplacementLiteral($segmentAfterFallback)
                     ) {
@@ -23814,6 +23815,108 @@ final class PdfTextExtractor
         }
 
         return true;
+    }
+
+    private function contentSegmentIsLineSeparatedClosedTextObject(string $segment): bool
+    {
+        $index = 0;
+        $length = strlen($segment);
+        $lineSeparated = false;
+        $insideTextObject = false;
+        $textObjectHasText = false;
+        $closedTextObject = false;
+
+        while ($index < $length) {
+            $char = $segment[$index];
+            if (ctype_space($char)) {
+                if ($char === "\n" || $char === "\r") {
+                    $lineSeparated = true;
+                }
+                $index++;
+                continue;
+            }
+
+            if ($char === '%') {
+                $this->skipPdfComment($segment, $index);
+                $lineSeparated = true;
+                continue;
+            }
+
+            if (!$lineSeparated) {
+                return false;
+            }
+
+            if ($char === '(') {
+                if (!$insideTextObject) {
+                    return false;
+                }
+                $this->readLiteralToken($segment, $index);
+                continue;
+            }
+
+            if ($char === '<') {
+                if (!$insideTextObject) {
+                    return false;
+                }
+                if (($segment[$index + 1] ?? '') === '<') {
+                    $this->readDictionaryToken($segment, $index);
+                    continue;
+                }
+
+                $this->readHexToken($segment, $index);
+                continue;
+            }
+
+            if ($char === '[') {
+                if (!$insideTextObject) {
+                    return false;
+                }
+                $this->readArrayToken($segment, $index);
+                continue;
+            }
+
+            if ($char === '/') {
+                if (!$insideTextObject) {
+                    return false;
+                }
+                $this->readNameToken($segment, $index);
+                continue;
+            }
+
+            $start = $index;
+            while ($index < $length && !$this->isBareTokenDelimiter($segment[$index])) {
+                $index++;
+            }
+            if ($index === $start) {
+                $index++;
+                continue;
+            }
+
+            $token = substr($segment, $start, $index - $start);
+            if (!$insideTextObject) {
+                if ($token !== 'BT') {
+                    return false;
+                }
+
+                $insideTextObject = true;
+                $textObjectHasText = false;
+                continue;
+            }
+
+            if ($token === 'ET') {
+                if ($textObjectHasText) {
+                    $closedTextObject = true;
+                }
+                $insideTextObject = false;
+                continue;
+            }
+
+            if (in_array($token, ['Tj', 'TJ', "'", '"'], true)) {
+                $textObjectHasText = true;
+            }
+        }
+
+        return $closedTextObject && !$insideTextObject;
     }
 
     private function contentSegmentContainsInlineImagePreamble(string $segment): bool
