@@ -4197,8 +4197,15 @@ final class PdfTextExtractor
             ? []
             : array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
         $previewOnlyFilters = $this->previewOnlyImageXObjectFilters($resolvedFilters);
+        $decodeParmsPresent = $this->topLevelNameValueOffset($stream['dict'], 'DecodeParms') !== null;
         $decodeParms = $filters === null ? null : $this->streamDecodeParms($stream['dict'], $objects);
-        $filterDetails = $filters === null ? [] : $this->imageXObjectFilterDetails($filters, $decodeParms, $objects);
+        $filterDetails = $filters === null ? [] : $this->imageXObjectFilterDetails(
+            $filters,
+            $decodeParms,
+            $objects,
+            $decodeParmsPresent,
+            $stream['dict']
+        );
         $decoded = $filters === null ? null : $this->decodeStream($stream['dict'], $stream['stream'], $objects);
         $colorSpaceReview = $this->imageColorSpaceReview($stream['dict'], $objects, $resourceOwnerBody);
         $colorSpace = $colorSpaceReview['family'];
@@ -4879,7 +4886,13 @@ final class PdfTextExtractor
         }
 
         $decodeParms = $this->streamDecodeParms($dictionary, $objects);
-        $filterDetails = $this->imageXObjectFilterDetails($filters, $decodeParms, $objects);
+        $filterDetails = $this->imageXObjectFilterDetails(
+            $filters,
+            $decodeParms,
+            $objects,
+            $this->topLevelNameValueOffset($dictionary, 'DecodeParms') !== null,
+            $dictionary
+        );
         $boundary = $this->ccittFaxDecodeBoundaryReview($filterDetails, $width, $height);
         if ($boundary === null) {
             return [];
@@ -4898,9 +4911,18 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @return list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null|list<string>>|null}>
      */
-    private function imageXObjectFilterDetails(array $filters, ?array $decodeParms, array $objects): array
+    private function imageXObjectFilterDetails(
+        array $filters,
+        ?array $decodeParms,
+        array $objects,
+        bool $decodeParmsPresent = false,
+        ?string $dictionary = null
+    ): array
     {
         $details = [];
+        $decodeParmsOperandFailure = $decodeParms === null && $decodeParmsPresent
+            ? $this->imageXObjectDecodeParmsOperandFailureReview($dictionary ?? '')
+            : null;
 
         foreach ($filters as $index => $filter) {
             if (!is_string($filter)) {
@@ -4914,11 +4936,47 @@ final class PdfTextExtractor
             $details[] = [
                 'filter' => $filter,
                 'preview_only' => in_array($filter, ['DCTDecode', 'DCT', 'CCITTFaxDecode', 'CCF', 'JPXDecode', 'JBIG2Decode'], true),
-                'decode_parms' => $this->imageXObjectFilterDecodeParms($filter, $decodeParmsValue, $objects),
+                'decode_parms' => ($decodeParmsValue === null && $decodeParmsOperandFailure !== null && ($filter === 'CCITTFaxDecode' || $filter === 'CCF'))
+                    ? $decodeParmsOperandFailure
+                    : $this->imageXObjectFilterDecodeParms($filter, $decodeParmsValue, $objects),
             ];
         }
 
         return $details;
+    }
+
+    /**
+     * @return array<string, int|bool|string|null|list<string>>|null
+     */
+    private function imageXObjectDecodeParmsOperandFailureReview(string $dictionary): ?array
+    {
+        $offset = $this->topLevelNameValueOffset($dictionary, 'DecodeParms');
+        $value = $offset === null ? null : $this->pdfValueAtOffset($dictionary, $offset);
+        if (!is_string($value) || strtolower(trim($value)) === 'null') {
+            return null;
+        }
+
+        $operand = is_string($value) && preg_match('/^\s*\d+\s+\d+\s+R\s*$/', $value) === 1
+            ? 'unresolved_reference'
+            : 'malformed_operand';
+
+        return [
+            'type' => 'CCITTFaxDecode',
+            'k' => null,
+            'columns' => null,
+            'rows' => null,
+            'black_is_1' => null,
+            'encoded_byte_align' => null,
+            'end_of_line' => null,
+            'end_of_block' => null,
+            'damaged_rows_before_error' => null,
+            'valid_decode_parms' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_operand'],
+            'decode_parms_review' => $operand === 'unresolved_reference'
+                ? 'unresolved_ccitt_decodeparms_fail_closed'
+                : 'malformed_ccitt_decodeparms_fail_closed',
+            'decode_parms_operand' => $operand,
+        ];
     }
 
     /**

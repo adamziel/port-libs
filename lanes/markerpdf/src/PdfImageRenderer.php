@@ -4292,12 +4292,20 @@ final class PdfImageRenderer
         }
 
         $resolved = trim($this->resolvePdfValue($value, $objects));
-        if ($resolved === 'null' || !str_starts_with($resolved, '<<')) {
+        if ($resolved === 'null') {
             return null;
         }
 
         if ($filter === 'CCITTFaxDecode' || $filter === 'CCF') {
+            if (!str_starts_with($resolved, '<<')) {
+                return $this->ccittFaxDecodeParmsOperandFailureReview($resolved);
+            }
+
             return $this->ccittFaxDecodeParmsReview($resolved, $objects);
+        }
+
+        if (!str_starts_with($resolved, '<<')) {
+            return null;
         }
 
         if ($filter === 'JBIG2Decode') {
@@ -4325,6 +4333,34 @@ final class PdfImageRenderer
         }
 
         return ['type' => $filter];
+    }
+
+    /**
+     * @return array<string, int|bool|string|null|list<string>>
+     */
+    private function ccittFaxDecodeParmsOperandFailureReview(string $resolvedOperand): array
+    {
+        $operand = preg_match('/^\d+\s+\d+\s+R$/', trim($resolvedOperand)) === 1
+            ? 'unresolved_reference'
+            : 'malformed_operand';
+
+        return [
+            'type' => 'CCITTFaxDecode',
+            'k' => null,
+            'columns' => null,
+            'rows' => null,
+            'black_is_1' => null,
+            'encoded_byte_align' => null,
+            'end_of_line' => null,
+            'end_of_block' => null,
+            'damaged_rows_before_error' => null,
+            'valid_decode_parms' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_operand'],
+            'decode_parms_review' => $operand === 'unresolved_reference'
+                ? 'unresolved_ccitt_decodeparms_fail_closed'
+                : 'malformed_ccitt_decodeparms_fail_closed',
+            'decode_parms_operand' => $operand,
+        ];
     }
 
     /**
