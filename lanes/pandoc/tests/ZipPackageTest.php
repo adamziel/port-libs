@@ -40,6 +40,7 @@ $buildNtfsExtra = static function (int $modifiedAt, int $accessedAt, int $create
  *     centralFlags?:int,
  *     descriptor?:bool,
  *     descriptorSignature?:bool,
+ *     localSlack?:string,
  *     centralCrc?:int,
  *     centralCompressedSize?:int,
  *     centralUncompressedSize?:int,
@@ -131,6 +132,7 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
                 $entry['descriptorUncompressedSize'] ?? $uncompressedSize
             );
         }
+        $body .= $entry['localSlack'] ?? '';
 
         $entryComment = $entry['comment'] ?? '';
         $centralRecord = pack(
@@ -173,6 +175,55 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, count($entries), count($entries), $centralSize, $centralOffset, strlen($comment))
         . $comment;
+};
+
+$buildPrefixedPackage = static function () use ($crc32): string {
+    $prefix = "MZhidden-review-stub\n";
+    $name = 'word/document.xml';
+    $data = '<w:document><w:p>prefixed package</w:p></w:document>';
+    $crc = $crc32($data);
+    $localHeaderOffset = strlen($prefix);
+    $body = $prefix . pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $data;
+    $centralOffset = strlen($body);
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        $localHeaderOffset
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), $centralOffset, 0);
 };
 
 $buildDuplicateLocalOffsetPackage = static function () use ($crc32, $buildUnicodeExtra): string {
@@ -634,6 +685,43 @@ return [
         ], $package->names());
         $t->same('<w:document><w:p>ordinary layout</w:p></w:document>', $package->read('/word/document.xml'));
         $t->same('<w:comments/>', $package->read('/word/comments.xml'));
+    },
+
+    'rejects zip local entry slack and package prefixes before import preflight' => static function (TestRunner $t) use ($buildZipPackage, $buildPrefixedPackage): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildPrefixedPackage()));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>hidden local slack</w:p></w:document>',
+                'method' => 0,
+                'localSlack' => 'hidden-bytes-before-next-header',
+            ],
+            [
+                'name' => 'word/settings.xml',
+                'data' => '<w:settings/>',
+                'method' => 0,
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>hidden central slack</w:p></w:document>',
+                'method' => 0,
+                'localSlack' => 'hidden-bytes-before-central-directory',
+            ],
+        ])));
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/comments.xml',
+                'data' => '<w:comments><w:comment>descriptor remains valid</w:comment></w:comments>',
+                'method' => 8,
+                'descriptor' => true,
+            ],
+        ]));
+
+        $t->same(['word/comments.xml'], $package->localNames());
+        $t->same('<w:comments><w:comment>descriptor remains valid</w:comment></w:comments>', $package->read('/word/comments.xml'));
     },
 
     'rejects duplicate zip local header offsets before package import preflight' => static function (TestRunner $t) use ($buildDuplicateLocalOffsetPackage): void {
@@ -1418,10 +1506,12 @@ return [
         $zeroCompressed = ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/media/zero-compressed.bin',
-                'data' => 'central metadata without compressed bytes',
-                'method' => 0,
+                'data' => '',
+                'method' => 12,
                 'centralCompressedSize' => 0,
+                'centralUncompressedSize' => 37,
                 'localCompressedSize' => 0,
+                'localUncompressedSize' => 37,
             ],
         ]));
         $t->same(null, $zeroCompressed->sizePreflight()['expansionRatio']);

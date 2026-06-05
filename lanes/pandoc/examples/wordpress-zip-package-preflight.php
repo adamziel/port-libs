@@ -890,6 +890,53 @@ $buildLocalHeaderNameMismatchBackedPackage = static function () use ($crc32): st
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildLocalEntrySlackBackedPackage = static function () use ($crc32): string {
+    $name = 'word/document.xml';
+    $data = '<w:document><w:body><w:p>Hidden local bytes should stay blocked</w:p></w:body></w:document>';
+    $crc = $crc32($data);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $data . 'hidden-review-slack-before-central-directory';
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 
 $package = ZipPackage::fromParts([
     [
@@ -1207,6 +1254,12 @@ try {
     ZipPackage::fromString($buildLocalHeaderNameMismatchBackedPackage());
 } catch (RuntimeException $exception) {
     $localHeaderNameMismatchRejected = str_contains($exception->getMessage(), 'local header name');
+}
+$localEntrySlackRejected = false;
+try {
+    ZipPackage::fromString($buildLocalEntrySlackBackedPackage());
+} catch (RuntimeException $exception) {
+    $localEntrySlackRejected = str_contains($exception->getMessage(), 'unexpected trailing bytes');
 }
 $missingTarEndMarkerRejected = false;
 try {
@@ -1660,6 +1713,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP local header name mismatches to be rejected before media import');
     }
 
+    if (!$localEntrySlackRejected) {
+        throw new RuntimeException('Expected hidden ZIP local entry bytes to be rejected before media import');
+    }
+
     if (!$missingTarEndMarkerRejected) {
         throw new RuntimeException('Expected TAR packets without two zero end blocks to be rejected before import');
     }
@@ -1755,6 +1812,7 @@ echo 'strongEncryptionPolicy=' . ($strongEncryptionRejected ? 'rejected' : 'not-
 echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipVersionNeededMismatchPolicy=' . ($versionNeededMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalHeaderNameMismatchPolicy=' . ($localHeaderNameMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipLocalEntrySlackPolicy=' . ($localEntrySlackRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'boundedReadPolicy=' . ($oversizedMediaRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarEndMarkerPolicy=' . ($missingTarEndMarkerRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarDanglingPaxPolicy=' . ($danglingPaxMetadataRejected ? 'rejected' : 'not-rejected') . "\n";

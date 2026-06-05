@@ -192,6 +192,7 @@ final class ZipPackage
         $packageComment = substr($bytes, $eocdOffset + 22, $packageCommentLength);
 
         $package = new self($bytes, $entriesByName, $entries, $centralDirectoryOffset, $packageComment);
+        $package->validateLocalEntryPrefix();
         foreach ($entries as $entry) {
             $package->validateEntryLocalLayout($entry);
             if ($entry->isDirectory()) {
@@ -753,6 +754,29 @@ final class ZipPackage
         $nextOffset = $this->nextEntryOrCentralDirectoryOffset($entry);
         if ($recordEnd > $nextOffset) {
             throw new \RuntimeException("ZIP local entry data for {$entry->name} overlaps the next local header");
+        }
+
+        if ($recordEnd < $nextOffset) {
+            $nextLabel = $nextOffset === $this->centralDirectoryOffset ? 'central directory' : 'next local header';
+            throw new \RuntimeException(
+                "ZIP local entry {$entry->name} contains unexpected trailing bytes before the {$nextLabel}"
+            );
+        }
+    }
+
+    private function validateLocalEntryPrefix(): void
+    {
+        if ($this->entries === []) {
+            if ($this->centralDirectoryOffset !== 0) {
+                throw new \RuntimeException('ZIP package contains unexpected bytes before the central directory');
+            }
+
+            return;
+        }
+
+        $localEntries = $this->localEntries();
+        if ($localEntries[0]->localHeaderOffset !== 0) {
+            throw new \RuntimeException('ZIP package contains unexpected bytes before the first local header');
         }
     }
 
