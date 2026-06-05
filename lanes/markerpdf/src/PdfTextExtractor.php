@@ -14567,6 +14567,7 @@ final class PdfTextExtractor
         }
         $operands = [];
         $compatibilityDepth = 0;
+        $graphicsStateDepth = 0;
 
         foreach ($this->contentTokens($charProc, true) as $token) {
             if ($token === 'BX') {
@@ -14609,6 +14610,16 @@ final class PdfTextExtractor
             if ($this->isOperator($token)) {
                 if (!$this->type3CharProcAllowsPreMetricSetupOperator($token, $operands)) {
                     return null;
+                }
+
+                if ($token === 'q') {
+                    $graphicsStateDepth++;
+                } elseif ($token === 'Q') {
+                    if ($graphicsStateDepth === 0) {
+                        return null;
+                    }
+
+                    $graphicsStateDepth--;
                 }
 
                 $operands = [];
