@@ -11,6 +11,7 @@ final class PdfEngineHandoff
     private const MAX_PDF_OUTPUT_INSPECTION_BYTES = 1048576;
     private const MAX_XMP_METADATA_BYTES = 262144;
     private const MAX_OUTPUT_INTENT_PROFILE_BYTES = 262144;
+    private const MAX_EMBEDDED_FILE_STREAM_BYTES = 262144;
     private const MAX_TRANSCRIPT_BYTES = 1048576;
 
     /**
@@ -269,6 +270,7 @@ final class PdfEngineHandoff
      *     pdfAnnotationTypes: array<string, int>,
      *     pdfLinkTargets: list<string>,
      *     pdfEmbeddedFileNames: list<string>,
+     *     pdfEmbeddedFiles: list<array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, source:string}>,
      *     pdfFormFields: list<array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}>,
      *     pdfFormFieldTypes: array<string, int>,
      *     pdfEncrypted: bool,
@@ -650,6 +652,7 @@ final class PdfEngineHandoff
         $pdfAnnotationTypes = [];
         $pdfLinkTargets = [];
         $pdfEmbeddedFileNames = [];
+        $pdfEmbeddedFiles = [];
         $pdfFormFields = [];
         $pdfFormFieldTypes = [];
         $pdfEncrypted = false;
@@ -689,6 +692,7 @@ final class PdfEngineHandoff
                 $pdfAnnotationTypes = $pdfInspection['annotationTypes'];
                 $pdfLinkTargets = $pdfInspection['linkTargets'];
                 $pdfEmbeddedFileNames = $pdfInspection['embeddedFileNames'];
+                $pdfEmbeddedFiles = $pdfInspection['embeddedFiles'];
                 $pdfFormFields = $pdfInspection['formFields'];
                 $pdfFormFieldTypes = $pdfInspection['formFieldTypes'];
                 $pdfEncryption = $pdfInspection['encryption'];
@@ -816,6 +820,25 @@ final class PdfEngineHandoff
                 }
                 if ($pdfEmbeddedFileNames !== []) {
                     $diagnostics[] = 'pdf-byte-embedded-files:' . count($pdfEmbeddedFileNames);
+                }
+                if ($pdfEmbeddedFiles !== []) {
+                    $diagnostics[] = 'pdf-byte-embedded-file-metadata:' . count($pdfEmbeddedFiles);
+                    $embeddedStreams = 0;
+                    $embeddedStreamSkips = [];
+                    foreach ($pdfEmbeddedFiles as $embeddedFile) {
+                        if (($embeddedFile['streamBytes'] ?? null) !== null) {
+                            $embeddedStreams++;
+                        }
+                        if (is_string($embeddedFile['streamSkipped'] ?? null) && $embeddedFile['streamSkipped'] !== '') {
+                            $embeddedStreamSkips[$embeddedFile['streamSkipped']] = true;
+                        }
+                    }
+                    if ($embeddedStreams > 0) {
+                        $diagnostics[] = 'pdf-byte-embedded-file-streams:' . $embeddedStreams;
+                    }
+                    foreach (array_keys($embeddedStreamSkips) as $skipReason) {
+                        $diagnostics[] = 'pdf-byte-embedded-file-stream-skipped:' . $skipReason;
+                    }
                 }
                 if ($pdfFormFields !== []) {
                     $diagnostics[] = 'pdf-byte-form-fields:' . count($pdfFormFields);
@@ -985,6 +1008,7 @@ final class PdfEngineHandoff
             'pdfAnnotationTypes' => $pdfAnnotationTypes,
             'pdfLinkTargets' => $pdfLinkTargets,
             'pdfEmbeddedFileNames' => $pdfEmbeddedFileNames,
+            'pdfEmbeddedFiles' => $pdfEmbeddedFiles,
             'pdfFormFields' => $pdfFormFields,
             'pdfFormFieldTypes' => $pdfFormFieldTypes,
             'pdfEncrypted' => $pdfEncrypted,
@@ -1045,6 +1069,7 @@ final class PdfEngineHandoff
      *     finalPdfAnnotationTypes: array<string, int>,
      *     finalPdfLinkTargets: list<string>,
      *     finalPdfEmbeddedFileNames: list<string>,
+     *     finalPdfEmbeddedFiles: list<array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, source:string}>,
      *     finalPdfFormFields: list<array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}>,
      *     finalPdfFormFieldTypes: array<string, int>,
      *     finalPdfEncrypted: bool,
@@ -1219,6 +1244,7 @@ final class PdfEngineHandoff
             'finalPdfAnnotationTypes' => is_array($finalRun) && is_array($finalRun['pdfAnnotationTypes'] ?? null) ? $finalRun['pdfAnnotationTypes'] : [],
             'finalPdfLinkTargets' => is_array($finalRun) && is_array($finalRun['pdfLinkTargets'] ?? null) ? $finalRun['pdfLinkTargets'] : [],
             'finalPdfEmbeddedFileNames' => is_array($finalRun) && is_array($finalRun['pdfEmbeddedFileNames'] ?? null) ? $finalRun['pdfEmbeddedFileNames'] : [],
+            'finalPdfEmbeddedFiles' => is_array($finalRun) && is_array($finalRun['pdfEmbeddedFiles'] ?? null) ? $finalRun['pdfEmbeddedFiles'] : [],
             'finalPdfFormFields' => is_array($finalRun) && is_array($finalRun['pdfFormFields'] ?? null) ? $finalRun['pdfFormFields'] : [],
             'finalPdfFormFieldTypes' => is_array($finalRun) && is_array($finalRun['pdfFormFieldTypes'] ?? null) ? $finalRun['pdfFormFieldTypes'] : [],
             'finalPdfEncrypted' => is_array($finalRun) && ($finalRun['pdfEncrypted'] ?? false) === true,
@@ -2285,6 +2311,7 @@ final class PdfEngineHandoff
      *     annotationTypes:array<string, int>,
      *     linkTargets:list<string>,
      *     embeddedFileNames:list<string>,
+     *     embeddedFiles:list<array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, source:string}>,
      *     formFields:list<array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}>,
      *     formFieldTypes:array<string, int>,
      *     encryption:array{
@@ -2306,6 +2333,18 @@ final class PdfEngineHandoff
         $trailerRevisions = $this->extractPdfTrailerRevisions($pdfBytes);
         $pageBoxes = $this->extractPdfPageBoxes($pdfBytes, $catalog);
         $activeActions = $this->extractPdfActiveActions($pdfBytes, $catalog);
+        $embeddedFiles = $this->extractPdfEmbeddedFiles($pdfBytes, $catalog);
+        $embeddedFileNames = $this->extractPdfEmbeddedFileNames($pdfBytes);
+        foreach ($embeddedFiles as $embeddedFile) {
+            if (($embeddedFile['name'] ?? '') !== '') {
+                $embeddedFileNames[] = $embeddedFile['name'];
+            }
+            if (is_string($embeddedFile['unicodeName'] ?? null) && $embeddedFile['unicodeName'] !== '') {
+                $embeddedFileNames[] = $embeddedFile['unicodeName'];
+            }
+        }
+        $embeddedFileNames = array_values(array_unique($embeddedFileNames));
+        sort($embeddedFileNames);
 
         return [
             'trailerCount' => count($trailerRevisions),
@@ -2331,7 +2370,8 @@ final class PdfEngineHandoff
             'activeActionTypes' => $this->summarizePdfActiveActionTypes($activeActions),
             'annotationTypes' => $this->extractPdfAnnotationTypes($pdfBytes),
             'linkTargets' => $this->extractPdfLinkTargets($pdfBytes),
-            'embeddedFileNames' => $this->extractPdfEmbeddedFileNames($pdfBytes),
+            'embeddedFileNames' => $embeddedFileNames,
+            'embeddedFiles' => $embeddedFiles,
             'formFields' => $formFields,
             'formFieldTypes' => $this->summarizePdfFormFieldTypes($formFields),
             'encryption' => $this->extractPdfEncryptionInfo($pdfBytes),
@@ -4979,6 +5019,340 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @return list<array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, source:string}>
+     */
+    private function extractPdfEmbeddedFiles(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $files = [];
+        $visited = [];
+
+        if ($catalog !== null) {
+            $names = $this->extractPdfDictionaryOrReferenceValue($catalog, 'Names', $objects);
+            if ($names !== null) {
+                $embeddedFiles = $this->extractPdfDictionaryOrReferenceValue($names, 'EmbeddedFiles', $objects);
+                if ($embeddedFiles !== null) {
+                    $this->collectPdfEmbeddedFileNameTree(
+                        $files,
+                        'catalog.Names.EmbeddedFiles',
+                        $embeddedFiles,
+                        $objects,
+                        $visited,
+                        0
+                    );
+                }
+            }
+
+            foreach ($this->extractPdfReferenceArray($catalog, 'AF') as $reference) {
+                if (!isset($objects[$reference])) {
+                    continue;
+                }
+                $this->addPdfEmbeddedFileEntry(
+                    $files,
+                    $this->summarizePdfFileSpec($objects[$reference], $objects, 'catalog.AF', $reference . ' R', null)
+                );
+            }
+        }
+
+        foreach ($objects as $reference => $body) {
+            if (preg_match('/\/Subtype\s*\/FileAttachment\b/s', $body) === 1) {
+                $value = $this->extractPdfValueForName($body, 'FS');
+                if ($value !== null) {
+                    $this->addPdfEmbeddedFileFromValue(
+                        $files,
+                        'annotation:' . $reference . ' R.FS',
+                        $value,
+                        $objects,
+                        null
+                    );
+                }
+            }
+
+            if (preg_match('/\/Type\s*\/Filespec\b/s', $body) === 1 || (str_contains($body, '/EF') && preg_match('/\/(?:UF|F)\b/s', $body) === 1)) {
+                $this->addPdfEmbeddedFileEntry(
+                    $files,
+                    $this->summarizePdfFileSpec($body, $objects, 'filespec:' . $reference . ' R', $reference . ' R', null)
+                );
+            }
+        }
+
+        $files = array_values($files);
+        usort(
+            $files,
+            static fn (array $a, array $b): int => [
+                $a['name'],
+                $a['source'],
+                $a['filespec'] ?? '',
+                $a['embeddedFile'] ?? '',
+            ] <=> [
+                $b['name'],
+                $b['source'],
+                $b['filespec'] ?? '',
+                $b['embeddedFile'] ?? '',
+            ]
+        );
+
+        return $files;
+    }
+
+    /**
+     * @param array<string, array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, source:string}> $files
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     */
+    private function collectPdfEmbeddedFileNameTree(
+        array &$files,
+        string $source,
+        string $dictionary,
+        array $objects,
+        array &$visited,
+        int $depth
+    ): void {
+        if ($depth > 16) {
+            return;
+        }
+
+        $array = $this->extractPdfArrayValue($dictionary, 'Names');
+        if ($array !== null) {
+            $cursor = str_starts_with($array, '[') ? 1 : 0;
+            $length = strlen($array);
+            if (str_ends_with($array, ']')) {
+                $length--;
+            }
+
+            while ($cursor < $length) {
+                $name = $this->parsePdfValueAt($array, $cursor);
+                if ($name === null) {
+                    $cursor++;
+                    continue;
+                }
+                $cursor = $name['next'];
+
+                $value = $this->parsePdfValueAt($array, $cursor);
+                if ($value === null) {
+                    break;
+                }
+                $cursor = $value['next'];
+
+                if (!in_array($name['kind'], ['literal', 'hex', 'name'], true)) {
+                    continue;
+                }
+
+                $nameHint = trim($name['value']);
+                if ($nameHint === '') {
+                    $nameHint = null;
+                }
+
+                $this->addPdfEmbeddedFileFromValue($files, $source, $value, $objects, $nameHint);
+            }
+        }
+
+        foreach ($this->extractPdfReferenceArray($dictionary, 'Kids') as $kidReference) {
+            if (isset($visited[$kidReference]) || !isset($objects[$kidReference])) {
+                continue;
+            }
+
+            $visited[$kidReference] = true;
+            $this->collectPdfEmbeddedFileNameTree(
+                $files,
+                $source . '.Kids.' . $kidReference . ' R',
+                $objects[$kidReference],
+                $objects,
+                $visited,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, source:string}> $files
+     * @param array{kind:string, value:string} $value
+     * @param array<string, string> $objects
+     */
+    private function addPdfEmbeddedFileFromValue(array &$files, string $source, array $value, array $objects, ?string $nameHint): void
+    {
+        if ($value['kind'] === 'reference') {
+            $reference = $this->pdfReferenceKey($value['value']);
+            $body = $objects[$reference] ?? null;
+            if ($body === null) {
+                return;
+            }
+
+            $this->addPdfEmbeddedFileEntry(
+                $files,
+                $this->summarizePdfFileSpec($body, $objects, $source, $reference . ' R', $nameHint)
+            );
+            return;
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            $this->addPdfEmbeddedFileEntry(
+                $files,
+                $this->summarizePdfFileSpec($value['value'], $objects, $source, null, $nameHint)
+            );
+            return;
+        }
+
+        if (in_array($value['kind'], ['literal', 'hex', 'name'], true)) {
+            $name = trim($value['value']);
+            if ($name === '') {
+                return;
+            }
+
+            $this->addPdfEmbeddedFileEntry($files, [
+                'name' => $name,
+                'unicodeName' => null,
+                'description' => null,
+                'afRelationship' => null,
+                'filespec' => null,
+                'embeddedFile' => null,
+                'subtype' => null,
+                'size' => null,
+                'modDate' => null,
+                'checksum' => null,
+                'streamBytes' => null,
+                'streamSha256' => null,
+                'streamSkipped' => null,
+                'source' => $source,
+            ]);
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, source:string}|null
+     */
+    private function summarizePdfFileSpec(string $dictionary, array $objects, string $source, ?string $filespecReference, ?string $nameHint): ?array
+    {
+        $unicodeName = $this->extractPdfStringOrNameValue($dictionary, 'UF');
+        $fallbackName = $this->extractPdfStringOrNameValue($dictionary, 'F');
+        $name = $unicodeName ?? $fallbackName ?? $nameHint;
+        if ($name === null || trim($name) === '') {
+            return null;
+        }
+
+        $embedded = $this->extractPdfEmbeddedFileStreamForFileSpec($dictionary, $objects);
+
+        return [
+            'name' => trim($name),
+            'unicodeName' => $unicodeName,
+            'description' => $this->extractPdfStringOrNameValue($dictionary, 'Desc'),
+            'afRelationship' => $this->extractPdfNameToken($dictionary, 'AFRelationship'),
+            'filespec' => $filespecReference,
+            'embeddedFile' => $embedded['reference'],
+            'subtype' => $embedded['subtype'],
+            'size' => $embedded['size'],
+            'modDate' => $embedded['modDate'],
+            'checksum' => $embedded['checksum'],
+            'streamBytes' => $embedded['streamBytes'],
+            'streamSha256' => $embedded['streamSha256'],
+            'streamSkipped' => $embedded['streamSkipped'],
+            'source' => $source,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{reference:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}
+     */
+    private function extractPdfEmbeddedFileStreamForFileSpec(string $dictionary, array $objects): array
+    {
+        $summary = [
+            'reference' => null,
+            'subtype' => null,
+            'size' => null,
+            'modDate' => null,
+            'checksum' => null,
+            'streamBytes' => null,
+            'streamSha256' => null,
+            'streamSkipped' => null,
+        ];
+
+        $ef = $this->extractPdfDictionaryOrReferenceValue($dictionary, 'EF', $objects);
+        $streamObject = null;
+        if ($ef !== null) {
+            foreach (['UF', 'F'] as $key) {
+                $value = $this->extractPdfValueForName($ef, $key);
+                if ($value === null) {
+                    continue;
+                }
+                if ($value['kind'] === 'reference') {
+                    $reference = $this->pdfReferenceKey($value['value']);
+                    $streamObject = $objects[$reference] ?? null;
+                    if ($streamObject !== null) {
+                        $summary['reference'] = $reference . ' R';
+                        break;
+                    }
+                } elseif ($value['kind'] === 'dictionary') {
+                    $streamObject = $value['value'];
+                    $summary['reference'] = 'inline';
+                    break;
+                }
+            }
+        } elseif (str_contains($dictionary, 'stream') && preg_match('/\/Type\s*\/EmbeddedFile\b/s', $dictionary) === 1) {
+            $streamObject = $dictionary;
+            $summary['reference'] = 'inline';
+        }
+
+        if ($streamObject === null) {
+            return $summary;
+        }
+
+        $summary['subtype'] = $this->extractPdfNameToken($streamObject, 'Subtype');
+        $params = $this->extractPdfDictionaryOrReferenceValue($streamObject, 'Params', $objects);
+        if ($params !== null) {
+            $summary['size'] = $this->extractPdfIntegerToken($params, 'Size');
+            $summary['modDate'] = $this->extractPdfStringOrNameValue($params, 'ModDate');
+            $summary['checksum'] = $this->extractPdfByteStringHexValue($params, 'CheckSum');
+        }
+
+        $streamBytes = $this->extractPdfStreamBytes($streamObject);
+        if ($streamBytes === null) {
+            return $summary;
+        }
+
+        $summary['streamBytes'] = strlen($streamBytes);
+        if (preg_match('/\/Filter\b/s', $streamObject) === 1) {
+            $summary['streamSkipped'] = 'filtered';
+
+            return $summary;
+        }
+        if (strlen($streamBytes) > self::MAX_EMBEDDED_FILE_STREAM_BYTES) {
+            $summary['streamSkipped'] = 'too-large';
+
+            return $summary;
+        }
+
+        $summary['streamSha256'] = hash('sha256', $streamBytes);
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, source:string}> $files
+     * @param array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, source:string}|null $entry
+     */
+    private function addPdfEmbeddedFileEntry(array &$files, ?array $entry): void
+    {
+        if ($entry === null) {
+            return;
+        }
+
+        $key = $entry['filespec'] ?? null;
+        if ($key === null || $key === '') {
+            $key = implode("\0", [
+                $entry['name'],
+                $entry['source'],
+                $entry['embeddedFile'] ?? '',
+            ]);
+        }
+
+        if (!isset($files[$key])) {
+            $files[$key] = $entry;
+        }
+    }
+
+    /**
      * @return list<array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}>
      */
     private function extractPdfFormFields(string $pdfBytes, ?string $catalog): array
@@ -5143,6 +5517,47 @@ final class PdfEngineHandoff
         $value = $this->extractPdfNameToken($dictionary, $name);
 
         return $value === null || $value === '' ? null : $value;
+    }
+
+    private function extractPdfByteStringHexValue(string $dictionary, string $name): ?string
+    {
+        $needle = '/' . $name;
+        $offset = 0;
+        $length = strlen($dictionary);
+        while (($position = strpos($dictionary, $needle, $offset)) !== false) {
+            $cursor = $position + strlen($needle);
+            if ($cursor < $length && preg_match('/[A-Za-z0-9_.-]/', $dictionary[$cursor]) === 1) {
+                $offset = $cursor;
+                continue;
+            }
+            while ($cursor < $length && ctype_space($dictionary[$cursor])) {
+                $cursor++;
+            }
+            if ($cursor >= $length) {
+                return null;
+            }
+            if ($dictionary[$cursor] === '<' && ($cursor + 1 >= $length || $dictionary[$cursor + 1] !== '<')) {
+                $end = strpos($dictionary, '>', $cursor + 1);
+                if ($end === false) {
+                    return null;
+                }
+
+                $hex = strtoupper(preg_replace('/\s+/', '', substr($dictionary, $cursor + 1, $end - $cursor - 1)) ?? '');
+
+                return $hex === '' ? null : $hex;
+            }
+
+            if ($dictionary[$cursor] === '(') {
+                $parsed = $this->parsePdfLiteralString($dictionary, $cursor);
+                if ($parsed !== null && $parsed['value'] !== '') {
+                    return strtoupper(bin2hex($parsed['value']));
+                }
+            }
+
+            $offset = $cursor + 1;
+        }
+
+        return null;
     }
 
     /**

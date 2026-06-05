@@ -1455,6 +1455,108 @@ MARKDOWN);
         $t->same(['review-assets.zip'], $sequence['finalPdfEmbeddedFileNames']);
     },
 
+    'fake runner extracts bounded pdf embedded file metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/embedded-files.pdf']);
+        $attachmentBytes = "fake embedded review assets\n";
+        $filteredBytes = "compressed review summary";
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles << /Names [(review-assets.zip) 6 0 R] >> >> /AF [8 0 R] >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [5 0 R] >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Annot /Subtype /FileAttachment /FS 6 0 R >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Type /Filespec /F (review-assets.zip) /UF <FEFF007200650076006900650077002D006100730073006500740073002E007A00690070> /Desc (Review attachment package) /AFRelationship /Data /EF << /F 7 0 R >> >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Type /EmbeddedFile /Subtype /application#2Fzip /Params << /Size ' . strlen($attachmentBytes) . ' /ModDate (D:20260605120000Z) /CheckSum <00112233445566778899aabbccddeeff> >> /Length ' . strlen($attachmentBytes) . ' >>',
+            'stream',
+            $attachmentBytes,
+            'endstream',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /Filespec /F (review-summary.txt) /Desc (Plain summary copy) /AFRelationship /Source /EF << /F 9 0 R >> >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /EmbeddedFile /Subtype /text#2Fplain /Filter /FlateDecode /Params << /Size 14 >> /Length ' . strlen($filteredBytes) . ' >>',
+            'stream',
+            $filteredBytes,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/embedded-files.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/embedded-files.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'name' => 'review-assets.zip',
+                'unicodeName' => 'review-assets.zip',
+                'description' => 'Review attachment package',
+                'afRelationship' => 'Data',
+                'filespec' => '6 0 R',
+                'embeddedFile' => '7 0 R',
+                'subtype' => 'application/zip',
+                'size' => strlen($attachmentBytes),
+                'modDate' => 'D:20260605120000Z',
+                'checksum' => '00112233445566778899AABBCCDDEEFF',
+                'streamBytes' => strlen($attachmentBytes),
+                'streamSha256' => hash('sha256', $attachmentBytes),
+                'streamSkipped' => null,
+                'source' => 'catalog.Names.EmbeddedFiles',
+            ],
+            [
+                'name' => 'review-summary.txt',
+                'unicodeName' => null,
+                'description' => 'Plain summary copy',
+                'afRelationship' => 'Source',
+                'filespec' => '8 0 R',
+                'embeddedFile' => '9 0 R',
+                'subtype' => 'text/plain',
+                'size' => 14,
+                'modDate' => null,
+                'checksum' => null,
+                'streamBytes' => strlen($filteredBytes),
+                'streamSha256' => null,
+                'streamSkipped' => 'filtered',
+                'source' => 'catalog.AF',
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same(['review-assets.zip', 'review-summary.txt'], $result['pdfEmbeddedFileNames']);
+        $t->same($expected, $result['pdfEmbeddedFiles']);
+        $t->contains('pdf-byte-embedded-files:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-embedded-file-metadata:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-embedded-file-streams:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-embedded-file-stream-skipped:filtered', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfEmbeddedFiles']);
+    },
+
     'fake runner extracts bounded pdf acroform field metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/forms.pdf']);
