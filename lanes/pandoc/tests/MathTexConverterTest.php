@@ -446,6 +446,22 @@ return [
         $t->contains('<menclose notation="downdiagonalstrike"><msub><mi>y</mi><mi>i</mi></msub></menclose>', $cancelMathml);
         $t->contains('<menclose notation="updiagonalstrike downdiagonalstrike"><msub><mi>z</mi><mi>i</mi></msub></menclose>', $cancelMathml);
     },
+    'converts bounded tex smash and overlap boxes to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $smashMathml = $converter->texToMathMl('\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i}', true);
+        $overlapMathml = $converter->texToMathMl('\\mathllap{p_i} + \\mathrlap{m_i} + \\mathclap{x+y} + \\llap{L} + \\rlap{R} + \\clap{C}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $smashMathml);
+        $t->contains('<mpadded height="0" depth="0"><mfrac><mi>a</mi><mi>b</mi></mfrac></mpadded>', $smashMathml);
+        $t->contains('<mpadded height="0"><msub><mi>p</mi><mi>i</mi></msub></mpadded>', $smashMathml);
+        $t->contains('<mpadded depth="0"><msub><mi>m</mi><mi>i</mi></msub></mpadded>', $smashMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i}</annotation>', $smashMathml);
+        $t->contains('<mpadded width="0" lspace="-1width"><msub><mi>p</mi><mi>i</mi></msub></mpadded>', $overlapMathml);
+        $t->contains('<mpadded width="0"><msub><mi>m</mi><mi>i</mi></msub></mpadded>', $overlapMathml);
+        $t->contains('<mpadded width="0" lspace="-0.5width"><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow></mpadded>', $overlapMathml);
+        $t->contains('<mpadded width="0" lspace="-1width"><mi>L</mi></mpadded><mo>+</mo><mpadded width="0"><mi>R</mi></mpadded><mo>+</mo><mpadded width="0" lspace="-0.5width"><mi>C</mi></mpadded>', $overlapMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\mathllap{p_i} + \\mathrlap{m_i} + \\mathclap{x+y} + \\llap{L} + \\rlap{R} + \\clap{C}</annotation>', $overlapMathml);
+    },
     'converts bounded tex cancelto target annotations to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $cancelToMathml = $converter->texToMathMl('\\cancelto{0}{x_i} + \\cancelto{\\text{draft}}{\\frac{a}{b}}', true);
@@ -484,6 +500,13 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\phantom'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\phantom{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hphantom_1'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\smash'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\smash{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\smash[]{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\smash[x]{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mathllap'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mathrlap{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mathclap_1'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\cancel'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\xcancel{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\cancelto'));

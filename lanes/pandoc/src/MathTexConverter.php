@@ -149,6 +149,16 @@ final class MathTexConverter
         'xcancel' => 'updiagonalstrike downdiagonalstrike',
     ];
 
+    /** @var array<string, array{width: string, lspace?: string}> */
+    private const OVERLAP_BOX_COMMANDS = [
+        'clap' => ['width' => '0', 'lspace' => '-0.5width'],
+        'llap' => ['width' => '0', 'lspace' => '-1width'],
+        'mathclap' => ['width' => '0', 'lspace' => '-0.5width'],
+        'mathllap' => ['width' => '0', 'lspace' => '-1width'],
+        'mathrlap' => ['width' => '0'],
+        'rlap' => ['width' => '0'],
+    ];
+
     /** @var array<string, string> */
     private const MATH_VARIANT_COMMANDS = [
         'boldsymbol' => 'bold',
@@ -961,6 +971,14 @@ final class MathTexConverter
             return $this->parsePhantomCommand($source, $offset, $command);
         }
 
+        if ($command === 'smash') {
+            return $this->parseSmashCommand($source, $offset);
+        }
+
+        if (isset(self::OVERLAP_BOX_COMMANDS[$command])) {
+            return $this->parseOverlapBoxCommand($source, $offset, $command);
+        }
+
         if ($command === 'cancelto') {
             return $this->parseCancelToCommand($source, $offset);
         }
@@ -1319,6 +1337,58 @@ final class MathTexConverter
         }
 
         return $content;
+    }
+
+    private function parseSmashCommand(string $source, int &$offset): string
+    {
+        $attributes = $this->smashPaddingAttributes($this->readOptionalSmashPosition($source, $offset));
+
+        return '<mpadded' . $attributes . '>'
+            . $this->parseRequiredNonEmptyGroup($source, $offset, 'smash content')
+            . '</mpadded>';
+    }
+
+    private function readOptionalSmashPosition(string $source, int &$offset): ?string
+    {
+        $this->skipWhitespace($source, $offset);
+        $argument = $this->readTexBracketArgument($source, $offset);
+        if ($argument === null) {
+            return null;
+        }
+
+        $position = trim($argument['value']);
+        if ($position !== 't' && $position !== 'b') {
+            throw new \InvalidArgumentException('Unsupported TeX \\smash position ' . $position);
+        }
+
+        $offset = $argument['next'];
+
+        return $position;
+    }
+
+    private function smashPaddingAttributes(?string $position): string
+    {
+        if ($position === 't') {
+            return ' height="0"';
+        }
+
+        if ($position === 'b') {
+            return ' depth="0"';
+        }
+
+        return ' height="0" depth="0"';
+    }
+
+    private function parseOverlapBoxCommand(string $source, int &$offset, string $command): string
+    {
+        $attributes = '';
+        foreach (self::OVERLAP_BOX_COMMANDS[$command] as $name => $value) {
+            $attributes .= ' ' . $name . '="' . $this->esc($value) . '"';
+        }
+
+        return '<mpadded' . $attributes . '>'
+            . $this->parseRequiredNonEmptyGroup($source, $offset, $command . ' content')
+            . '</mpadded>';
     }
 
     private function parseCancelCommand(string $source, int &$offset, string $command): string
