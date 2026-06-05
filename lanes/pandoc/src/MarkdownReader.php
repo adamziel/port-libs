@@ -564,6 +564,59 @@ final class MarkdownReader
             return $key ? 'true' : 'false';
         }
 
+        if (is_array($key)) {
+            return $this->normalizeYamlExplicitSequenceMappingKey($key);
+        }
+
+        return null;
+    }
+
+    private function normalizeYamlExplicitSequenceMappingKey(array $key): ?string
+    {
+        if (!array_is_list($key)) {
+            return null;
+        }
+
+        $items = [];
+        foreach ($key as $item) {
+            $normalized = $this->formatYamlExplicitSequenceMappingKeyItem($item);
+            if ($normalized === null) {
+                return null;
+            }
+
+            $items[] = $normalized;
+        }
+
+        return '[' . implode(', ', $items) . ']';
+    }
+
+    private function formatYamlExplicitSequenceMappingKeyItem(mixed $item): ?string
+    {
+        if (is_string($item)) {
+            if (preg_match('/^[A-Za-z0-9_.:-]+$/', $item) === 1) {
+                return $item;
+            }
+
+            $encoded = json_encode($item, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            return is_string($encoded) ? $encoded : null;
+        }
+
+        if (is_int($item) || is_float($item)) {
+            return (string) $item;
+        }
+
+        if (is_bool($item)) {
+            return $item ? 'true' : 'false';
+        }
+
+        if ($item === null) {
+            return 'null';
+        }
+
+        if (is_array($item)) {
+            return $this->normalizeYamlExplicitSequenceMappingKey($item);
+        }
+
         return null;
     }
 

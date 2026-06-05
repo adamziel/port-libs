@@ -1752,6 +1752,55 @@ return [
         $t->same('explicit-key-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="explicit-key-yaml-body">Explicit key YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml explicit sequence keys in metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Sequence key **Packet**',
+            '? [source, uri]',
+            ': https://example.test/import#sequence-key',
+            '?',
+            '  - review',
+            '  - owner',
+            ': Import Desk',
+            'review:',
+            '  ? [owner, desk]',
+            '  : Import Desk',
+            '  ? [labels, import]',
+            '  :',
+            '    - migration',
+            '    - wordpress',
+            '  ? [ticket, 7, true]',
+            '  : queued',
+            'sequence-labels: !!set',
+            '  ? [source, uri]',
+            '  ? [qa, true]',
+            'references:',
+            '  - id: sequence-key-ref',
+            '    ? [source, key]',
+            '    : metadata value',
+            '...',
+            '',
+            '# Sequence key YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Sequence key **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same('https://example.test/import#sequence-key', $meta['[source, uri]']);
+        $t->same('Import Desk', $meta['[review, owner]']);
+        $t->same('Import Desk', $meta['review']['[owner, desk]']);
+        $t->same(['migration', 'wordpress'], $meta['review']['[labels, import]']);
+        $t->same('queued', $meta['review']['[ticket, 7, true]']);
+        $t->true(array_key_exists('[source, uri]', $meta['sequence-labels']) && $meta['sequence-labels']['[source, uri]'] === null);
+        $t->true(array_key_exists('[qa, true]', $meta['sequence-labels']) && $meta['sequence-labels']['[qa, true]'] === null);
+        $t->same('metadata value', $meta['references'][0]['[source, key]']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('sequence-key-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="sequence-key-yaml-body">Sequence key YAML body</h1>', $blocks);
+    },
     'keeps blank-led yaml-looking fences as markdown body' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
