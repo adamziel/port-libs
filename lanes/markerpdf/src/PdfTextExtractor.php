@@ -14813,6 +14813,7 @@ final class PdfTextExtractor
             'xref_entry_type' => $xrefEntry['type'] ?? null,
             'xref_offset' => $xrefEntry['offset'] ?? null,
             'definition_offset' => $definition['offset'] ?? null,
+            'selected_generation' => $selected['generation'] ?? null,
             'selected_offset' => $selected['offset'] ?? null,
             'owner_policy' => $ownerPolicy,
             'value_preview' => $body === null ? null : $this->xrefStreamOperandValuePreview($body),
@@ -14901,6 +14902,10 @@ final class PdfTextExtractor
     ): ?string {
         if (($xrefEntry['type'] ?? null) === 2) {
             return $objects[$objectNumber] ?? null;
+        }
+
+        if (($xrefEntry['type'] ?? null) === 1 && $selected !== null) {
+            return $selected['body'];
         }
 
         if ($definition !== null) {
