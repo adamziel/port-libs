@@ -3852,6 +3852,104 @@ XML
 XML
         ));
     },
+    'applies bounded csl et al subsequent thresholds for repeated citations' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'team-source',
+                'type' => 'report',
+                'title' => 'Repeated Team Source Packet',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la'],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                    ['family' => 'Okafor', 'given' => 'Ola'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/repeated-team-source',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Subsequent Et Al Review Style</title>
+    <id>https://example.test/styles/bounded-subsequent-et-al-review</id>
+    <updated>2026-06-05T15:01:44+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author" delimiter=", " et-al-min="4" et-al-use-first="3" et-al-subsequent-min="3" et-al-subsequent-use-first="1">
+          <name/>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author" delimiter="; ">
+        <name initialize-with=". " name-as-sort-order="first"/>
+      </names>
+      <text variable="title"/>
+      <text variable="URL"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $citationNames = $summary['citationRendering'][0]['children'][0]['nameRendering'] ?? [];
+        $t->same('Bounded Subsequent Et Al Review Style', $summary['title'] ?? null);
+        $t->same(4, $summary['nameRendering']['citation']['etAlMin'] ?? null);
+        $t->same(3, $summary['nameRendering']['citation']['etAlUseFirst'] ?? null);
+        $t->same(3, $summary['nameRendering']['citation']['etAlSubsequentMin'] ?? null);
+        $t->same(1, $summary['nameRendering']['citation']['etAlSubsequentUseFirst'] ?? null);
+        $t->same(3, $citationNames['etAlSubsequentMin'] ?? null);
+        $t->same(1, $citationNames['etAlSubsequentUseFirst'] ?? null);
+
+        $first = new AstNode('citation', [
+            'id' => 'team-source',
+            'text' => '[@team-source]',
+            'cslPosition' => 'first',
+            'cslPositionTests' => ['first'],
+        ]);
+        $subsequent = new AstNode('citation', [
+            'id' => 'team-source',
+            'text' => '[@team-source]',
+            'cslPosition' => 'subsequent',
+            'cslPositionTests' => ['subsequent'],
+        ]);
+        $t->same('(de la Cruz, Ng, and Okafor 2026)', $processor->renderCitationCluster([$first]));
+        $t->same('(de la Cruz et al. 2026)', $processor->renderCitationCluster([$subsequent]));
+
+        $document = (new MarkdownReader())->read('Repeated source @team-source returns as [@team-source] for reviewer follow-up.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Repeated source de la Cruz, Ng, and Okafor (2026) returns as (de la Cruz et al. 2026) for reviewer follow-up.', $markdown);
+        $t->contains('de la Cruz, Ng, and Okafor 2026' . "\n" . ':   de la Cruz, A. M.; N. Ng; O. Okafor. Repeated Team Source Packet. https://example.test/repeated-team-source.', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Repeated source de la Cruz, Ng, and Okafor (2026) returns as (de la Cruz et al. 2026) for reviewer follow-up.</p>', $blocks);
+        $t->contains('<dt>de la Cruz, Ng, and Okafor 2026</dt><dd>de la Cruz, A. M.; N. Ng; O. Okafor. Repeated Team Source Packet. https://example.test/repeated-team-source.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><names variable="author" et-al-subsequent-min="0"><name/></names></layout></citation>
+</style>
+XML
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><names variable="author" et-al-subsequent-use-first="many"><name/></names></layout></citation>
+</style>
+XML
+        ));
+    },
     'applies bounded csl layout text date group and names rendering elements' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

@@ -88,6 +88,8 @@ final class CslStyle
             'and' => 'text',
             'etAlMin' => 3,
             'etAlUseFirst' => 1,
+            'etAlSubsequentMin' => null,
+            'etAlSubsequentUseFirst' => null,
             'delimiterPrecedesEtAl' => 'contextual',
             'etAl' => [
                 'term' => 'et-al',
@@ -108,6 +110,8 @@ final class CslStyle
             'and' => 'text',
             'etAlMin' => null,
             'etAlUseFirst' => 1,
+            'etAlSubsequentMin' => null,
+            'etAlSubsequentUseFirst' => null,
             'delimiterPrecedesEtAl' => 'contextual',
             'etAl' => [
                 'term' => 'et-al',
@@ -734,6 +738,8 @@ final class CslStyle
             'and' => is_string($overrides['and'] ?? null) ? $overrides['and'] : $defaults['and'],
             'etAlMin' => is_int($overrides['etAlMin'] ?? null) ? $overrides['etAlMin'] : $defaults['etAlMin'],
             'etAlUseFirst' => is_int($overrides['etAlUseFirst'] ?? null) ? $overrides['etAlUseFirst'] : $defaults['etAlUseFirst'],
+            'etAlSubsequentMin' => is_int($overrides['etAlSubsequentMin'] ?? null) ? $overrides['etAlSubsequentMin'] : ($defaults['etAlSubsequentMin'] ?? null),
+            'etAlSubsequentUseFirst' => is_int($overrides['etAlSubsequentUseFirst'] ?? null) ? $overrides['etAlSubsequentUseFirst'] : ($defaults['etAlSubsequentUseFirst'] ?? null),
             'delimiterPrecedesEtAl' => is_string($overrides['delimiterPrecedesEtAl'] ?? null) ? $overrides['delimiterPrecedesEtAl'] : $defaults['delimiterPrecedesEtAl'],
             'etAl' => self::mergeEtAlRenderingOptions(
                 is_array($defaults['etAl'] ?? null) ? $defaults['etAl'] : [],
@@ -805,11 +811,19 @@ final class CslStyle
 
         $etAlMin = self::positiveIntegerNameAttribute($names, $name, 'et-al-min', $scope);
         $etAlUseFirst = self::positiveIntegerNameAttribute($names, $name, 'et-al-use-first', $scope);
+        $etAlSubsequentMin = self::positiveIntegerNameAttribute($names, $name, 'et-al-subsequent-min', $scope);
+        $etAlSubsequentUseFirst = self::positiveIntegerNameAttribute($names, $name, 'et-al-subsequent-use-first', $scope);
         if ($etAlMin !== null) {
             $overrides['etAlMin'] = $etAlMin;
         }
         if ($etAlUseFirst !== null) {
             $overrides['etAlUseFirst'] = $etAlUseFirst;
+        }
+        if ($etAlSubsequentMin !== null) {
+            $overrides['etAlSubsequentMin'] = $etAlSubsequentMin;
+        }
+        if ($etAlSubsequentUseFirst !== null) {
+            $overrides['etAlSubsequentUseFirst'] = $etAlSubsequentUseFirst;
         }
 
         $delimiterPrecedesEtAl = self::optionalNameAttribute($name, $names, 'delimiter-precedes-et-al');

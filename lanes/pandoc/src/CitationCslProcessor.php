@@ -195,7 +195,7 @@ final class CitationCslProcessor
             [
                 ...$citation->attrs,
                 'rendered' => $this->renderCitationCluster([$citation]),
-                'cslLabel' => $this->citationAuthorLabel($item),
+                'cslLabel' => $this->citationAuthorLabel($item, $citation),
                 'cslYear' => $this->citationYear($item),
                 'cslItem' => $item,
             ],
@@ -2765,7 +2765,7 @@ final class CitationCslProcessor
 
         $mode = (string) $citation->attr('mode', 'normal');
         $year = $this->citationYear($item);
-        $author = $this->citationAuthorLabel($item);
+        $author = $this->citationAuthorLabel($item, $citation);
         $suffix = $this->citationSuffix($citation);
         $prefix = $this->citationPrefix($citation);
         $citationLabel = $this->standaloneCitationLabel($item);
@@ -2936,7 +2936,7 @@ final class CitationCslProcessor
     /**
      * @param array<string, mixed> $item
      */
-    private function citationAuthorLabel(array $item): string
+    private function citationAuthorLabel(array $item, ?AstNode $citation = null): string
     {
         $names = $item['shortAuthors'];
         if ($names === []) {
@@ -2958,7 +2958,7 @@ final class CitationCslProcessor
             return $title === '' ? (string) $item['id'] : $title;
         }
 
-        return $this->renderNameList($names, $this->style->citationNameRendering(), false);
+        return $this->renderNameList($names, $this->style->citationNameRendering(), false, $citation);
     }
 
     /**
@@ -3554,7 +3554,7 @@ final class CitationCslProcessor
             'text' => $this->renderTextElement($element, $item, $scope, $macroStack, $citation, $bibliographyState),
             'date' => $this->renderDateElement($element, $item, $scope),
             'number' => $this->renderNumberElement($element, $item, $scope, $citation),
-            'names' => $this->renderNamesElement($element, $item, $scope, $bibliographyState),
+            'names' => $this->renderNamesElement($element, $item, $scope, $bibliographyState, $citation),
             'label' => $this->renderLabelElement($element, $item, $scope, $citation),
             'choose' => $this->renderChooseElement($element, $item, $scope, $macroStack, $citation, $bibliographyState),
             default => '',
@@ -3905,16 +3905,16 @@ final class CitationCslProcessor
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
      */
-    private function renderNamesElement(array $element, array $item, string $scope, ?array &$bibliographyState = null): string
+    private function renderNamesElement(array $element, array $item, string $scope, ?array &$bibliographyState = null, ?AstNode $citation = null): string
     {
-        return $this->renderNamesElementValue($element, $item, $scope, true, $bibliographyState);
+        return $this->renderNamesElementValue($element, $item, $scope, true, $bibliographyState, $citation);
     }
 
     /**
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
      */
-    private function renderNamesElementValue(array $element, array $item, string $scope, bool $allowImplicitTitleFallback, ?array &$bibliographyState = null): string
+    private function renderNamesElementValue(array $element, array $item, string $scope, bool $allowImplicitTitleFallback, ?array &$bibliographyState = null, ?AstNode $citation = null): string
     {
         $variable = (string) ($element['variable'] ?? 'author editor');
         $names = $this->namesForRenderingVariable($item, $variable);
@@ -3927,8 +3927,8 @@ final class CitationCslProcessor
                     }
 
                     $value = ((string) ($substituteElement['type'] ?? '')) === 'names'
-                        ? $this->renderNamesElementValue($substituteElement, $item, $scope, false, $bibliographyState)
-                        : $this->renderRenderingElement($substituteElement, $item, $scope, [], null, $bibliographyState);
+                        ? $this->renderNamesElementValue($substituteElement, $item, $scope, false, $bibliographyState, $citation)
+                        : $this->renderRenderingElement($substituteElement, $item, $scope, [], $citation, $bibliographyState);
                     if ($value !== '') {
                         return $value;
                     }
@@ -3952,7 +3952,8 @@ final class CitationCslProcessor
         $rendered = $this->renderNameList(
             $names,
             $options,
-            $scope === 'bibliography'
+            $scope === 'bibliography',
+            $citation
         );
 
         if ($scope === 'bibliography' && is_array($bibliographyState)) {
@@ -4179,6 +4180,8 @@ final class CitationCslProcessor
             'and' => is_string($options['and'] ?? null) ? $options['and'] : $defaults['and'],
             'etAlMin' => is_int($options['etAlMin'] ?? null) ? $options['etAlMin'] : $defaults['etAlMin'],
             'etAlUseFirst' => is_int($options['etAlUseFirst'] ?? null) ? $options['etAlUseFirst'] : $defaults['etAlUseFirst'],
+            'etAlSubsequentMin' => is_int($options['etAlSubsequentMin'] ?? null) ? $options['etAlSubsequentMin'] : ($defaults['etAlSubsequentMin'] ?? null),
+            'etAlSubsequentUseFirst' => is_int($options['etAlSubsequentUseFirst'] ?? null) ? $options['etAlSubsequentUseFirst'] : ($defaults['etAlSubsequentUseFirst'] ?? null),
             'delimiterPrecedesEtAl' => is_string($options['delimiterPrecedesEtAl'] ?? null) ? $options['delimiterPrecedesEtAl'] : $defaults['delimiterPrecedesEtAl'],
             'etAl' => $this->normalizedEtAlRenderingOptions(
                 is_array($defaults['etAl'] ?? null) ? $defaults['etAl'] : [],
@@ -5030,7 +5033,7 @@ final class CitationCslProcessor
      * @param list<array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}> $names
      * @param array<string, mixed> $options
      */
-    private function renderNameList(array $names, array $options, bool $bibliography): string
+    private function renderNameList(array $names, array $options, bool $bibliography, ?AstNode $citation = null): string
     {
         $forceEtAl = false;
         $renderableNames = [];
@@ -5049,10 +5052,19 @@ final class CitationCslProcessor
 
         $count = count($renderableNames);
         $etAlMin = $options['etAlMin'];
+        $etAlUseFirst = $options['etAlUseFirst'];
+        if (!$bibliography && $this->citationUsesSubsequentNameOptions($citation)) {
+            if (is_int($options['etAlSubsequentMin'] ?? null)) {
+                $etAlMin = $options['etAlSubsequentMin'];
+            }
+            if (is_int($options['etAlSubsequentUseFirst'] ?? null)) {
+                $etAlUseFirst = $options['etAlSubsequentUseFirst'];
+            }
+        }
         $useEtAl = $forceEtAl || (is_int($etAlMin) && $count >= $etAlMin);
         $visibleCount = $forceEtAl
             ? $count
-            : ($useEtAl ? max(1, min((int) $options['etAlUseFirst'], $count)) : $count);
+            : ($useEtAl ? max(1, min((int) $etAlUseFirst, $count)) : $count);
         $visible = array_slice($renderableNames, 0, $visibleCount);
 
         $rendered = [];
@@ -5074,6 +5086,28 @@ final class CitationCslProcessor
         return $bibliography
             ? implode($options['delimiter'], $rendered)
             : $this->joinCitationNames($rendered, $options);
+    }
+
+    private function citationUsesSubsequentNameOptions(?AstNode $citation): bool
+    {
+        if (!$citation instanceof AstNode) {
+            return false;
+        }
+
+        $tests = $citation->attr('cslPositionTests', []);
+        if (is_array($tests)) {
+            foreach ($tests as $test) {
+                if (strtolower(trim((string) $test)) === 'subsequent') {
+                    return true;
+                }
+            }
+        }
+
+        return in_array(
+            strtolower(trim((string) $citation->attr('cslPosition', ''))),
+            ['subsequent', 'ibid', 'ibid-with-locator', 'near-note'],
+            true
+        );
     }
 
     /**
