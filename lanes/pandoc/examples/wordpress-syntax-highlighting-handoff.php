@@ -114,6 +114,12 @@ if (!$jsxCodeBlock instanceof PortLibs\Pandoc\AstNode || $jsxCodeBlock->type !==
 }
 $jsx = $highlighter->highlightCodeBlock($jsxCodeBlock, 'breezedark');
 $jsxWordpressBlock = $highlighter->wordpressHtmlBlock($jsxCodeBlock, 'breezedark');
+$rCodeBlock = $document->children[13] ?? null;
+if (!$rCodeBlock instanceof PortLibs\Pandoc\AstNode || $rCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include an R code block');
+}
+$rScript = $highlighter->highlightCodeBlock($rCodeBlock, 'espresso');
+$rWordpressBlock = $highlighter->wordpressHtmlBlock($rCodeBlock, 'espresso');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -409,6 +415,33 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($jsxWordpressBlock, '<span class="fu">&lt;InnerBlocks</span>')) {
         throw new RuntimeException('Expected JSX WordPress component token handoff');
     }
+    if (($rScript['language'] ?? '') !== 'r') {
+        throw new RuntimeException('Expected R alias to normalize to R highlighting');
+    }
+    if (($rScript['lineNumbering']['start'] ?? null) !== 27) {
+        throw new RuntimeException('Expected R source startFrom line-number handoff');
+    }
+    if (!str_contains($rScript['html'], '<span class="fu">library</span><span class="op">(</span><span class="va">dplyr</span><span class="op">)</span>')) {
+        throw new RuntimeException('Expected R function-call token handoff');
+    }
+    if (!str_contains($rScript['html'], '<span class="va">scores</span> <span class="ot">&lt;-</span> <span class="fu">data.frame</span>')) {
+        throw new RuntimeException('Expected R assignment and data.frame token handoff');
+    }
+    if (!str_contains($rScript['html'], '<span class="va">scores</span> <span class="op">|&gt;</span>')) {
+        throw new RuntimeException('Expected R native pipe token handoff');
+    }
+    if (!str_contains($rScript['html'], '<span class="cn">NA_integer_</span>')) {
+        throw new RuntimeException('Expected R typed NA constant handoff');
+    }
+    if (!str_contains($rScript['html'], '<span class="kw">if</span> <span class="op">(</span><span class="fu">any</span>')) {
+        throw new RuntimeException('Expected R control-flow token handoff');
+    }
+    if (!str_contains($rWordpressBlock, '<style data-pandoc-highlight-style="espresso">')) {
+        throw new RuntimeException('Expected R WordPress style metadata');
+    }
+    if (!str_contains($rWordpressBlock, '<span class="fu">mutate</span><span class="op">(</span><span class="ot">slug</span>')) {
+        throw new RuntimeException('Expected R WordPress mutate named-argument handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -445,6 +478,7 @@ echo "cppHighlightedHtml:\n" . $cpp['html'] . "\n";
 echo "dockerfileHighlightedHtml:\n" . $dockerfile['html'] . "\n";
 echo "makefileHighlightedHtml:\n" . $makefile['html'] . "\n";
 echo "jsxHighlightedHtml:\n" . $jsx['html'] . "\n";
+echo "rHighlightedHtml:\n" . $rScript['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -453,4 +487,5 @@ echo "cppWordpressBlock:\n" . $cppWordpressBlock . "\n";
 echo "dockerfileWordpressBlock:\n" . $dockerfileWordpressBlock . "\n";
 echo "makefileWordpressBlock:\n" . $makefileWordpressBlock . "\n";
 echo "jsxWordpressBlock:\n" . $jsxWordpressBlock . "\n";
+echo "rWordpressBlock:\n" . $rWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

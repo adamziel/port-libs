@@ -155,3 +155,15 @@ export default function ImportPreview(props) {
   </section>;
 }
 ```
+
+``` {.r #r-review .numberLines startFrom=27}
+## WordPress import analysis
+library(dplyr)
+scores <- data.frame(title = c("Draft", "Published"), views = c(10L, NA_integer_))
+scores <- scores |>
+  dplyr::filter(!is.na(title), views >= 10) |>
+  mutate(slug = tolower(gsub("[^a-z0-9]+", "-", title)))
+if (any(scores$views > 100)) {
+  print("popular import")
+}
+```

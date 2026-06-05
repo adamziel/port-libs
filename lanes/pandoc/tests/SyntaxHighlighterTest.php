@@ -62,6 +62,10 @@ return [
         $t->same('python', SyntaxHighlighter::normalizeLanguage('py'));
         $t->same('python', SyntaxHighlighter::normalizeLanguage('py3'));
         $t->same('python', SyntaxHighlighter::normalizeLanguage('python3'));
+        $t->same('r', SyntaxHighlighter::normalizeLanguage('r'));
+        $t->same('r', SyntaxHighlighter::normalizeLanguage('Rscript'));
+        $t->same('r', SyntaxHighlighter::normalizeLanguage('S'));
+        $t->same('r', SyntaxHighlighter::normalizeLanguage('language-q'));
         $t->same('typescript', SyntaxHighlighter::normalizeLanguage('ts'));
         $t->same('typescript', SyntaxHighlighter::normalizeLanguage('typescript'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('sourceCode'));
@@ -509,6 +513,44 @@ return [
         $t->contains('<span class="fu">&lt;InnerBlocks</span>', $wordpressBlock);
         $t->same('jsx', $directJsx['language']);
         $t->contains('<span class="kw">return</span> <span class="fu">&lt;ReviewCard</span> <span class="ot">title</span><span class="op">={</span><span class="va">post</span><span class="op">.</span><span class="va">title</span><span class="op">}</span> <span class="op">/&gt;;</span>', $directJsx['html']);
+    },
+    'highlights r script review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[13] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include an R code block');
+        }
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'espresso');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'espresso');
+        $directR = (new SyntaxHighlighter())->highlight('`post title` <- c("Draft", NA)', 'Rscript');
+
+        $t->same('r', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('r', $highlighted['language']);
+        $t->same('r', $highlighted['requestedLanguage']);
+        $t->same('espresso', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(27, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource r numberLines"><code class="sourceCode r" style="counter-reset: source-line 26;">', $highlighted['html']);
+        $t->contains('<span id="r-review-27"><a href="#r-review-27"></a><span class="co">## WordPress import analysis</span></span>', $highlighted['html']);
+        $t->contains('<span class="fu">library</span><span class="op">(</span><span class="va">dplyr</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="va">scores</span> <span class="ot">&lt;-</span> <span class="fu">data.frame</span>', $highlighted['html']);
+        $t->contains('<span class="ot">title</span> <span class="ot">=</span> <span class="fu">c</span><span class="op">(</span><span class="st">&quot;Draft&quot;</span><span class="op">,</span> <span class="st">&quot;Published&quot;</span><span class="op">),</span>', $highlighted['html']);
+        $t->contains('<span class="ot">views</span> <span class="ot">=</span> <span class="fu">c</span><span class="op">(</span><span class="dv">10L</span><span class="op">,</span> <span class="cn">NA_integer_</span><span class="op">))</span>', $highlighted['html']);
+        $t->contains('<span class="va">scores</span> <span class="op">|&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="va">dplyr</span><span class="op">::</span><span class="fu">filter</span><span class="op">(!</span><span class="fu">is.na</span><span class="op">(</span><span class="va">title</span><span class="op">),</span> <span class="va">views</span> <span class="op">&gt;=</span> <span class="dv">10</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="fu">mutate</span><span class="op">(</span><span class="ot">slug</span> <span class="ot">=</span> <span class="fu">tolower</span><span class="op">(</span><span class="fu">gsub</span><span class="op">(</span><span class="st">&quot;[^a-z0-9]+&quot;</span><span class="op">,</span> <span class="st">&quot;-&quot;</span><span class="op">,</span> <span class="va">title</span><span class="op">)))</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="op">(</span><span class="fu">any</span><span class="op">(</span><span class="va">scores</span><span class="op">$</span><span class="va">views</span> <span class="op">&gt;</span> <span class="dv">100</span><span class="op">))</span>', $highlighted['html']);
+        $t->contains('<span class="fu">print</span><span class="op">(</span><span class="st">&quot;popular import&quot;</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="espresso">', $wordpressBlock);
+        $t->contains('<span class="va">scores</span> <span class="op">|&gt;</span>', $wordpressBlock);
+        $t->same('r', $directR['language']);
+        $t->contains('<span class="ot">`post title`</span> <span class="ot">&lt;-</span> <span class="fu">c</span><span class="op">(</span><span class="st">&quot;Draft&quot;</span><span class="op">,</span> <span class="cn">NA</span><span class="op">)</span>', $directR['html']);
     },
     'highlights python3 review snippets with pandoc aliases' => static function (TestRunner $t): void {
         $codeBlock = new AstNode('code_block', [

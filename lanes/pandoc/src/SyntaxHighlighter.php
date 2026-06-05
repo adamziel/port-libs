@@ -76,9 +76,14 @@ final class SyntaxHighlighter
         'py3' => 'python',
         'python' => 'python',
         'python3' => 'python',
+        'q' => 'r',
+        'r' => 'r',
+        'r-script' => 'r',
+        'rscript' => 'r',
         'rake' => 'ruby',
         'rb' => 'ruby',
         'ruby' => 'ruby',
+        's' => 'r',
         'sh' => 'bash',
         'shell' => 'bash',
         'sql' => 'sql',
@@ -510,6 +515,7 @@ final class SyntaxHighlighter
             'markdown' => $this->tokenizeMarkdown($code),
             'php' => $this->tokenizePhp($code),
             'python' => $this->tokenizePython($code),
+            'r' => $this->tokenizeR($code),
             'ruby' => $this->tokenizeRuby($code),
             'sql' => $this->tokenizeSql($code),
             'tex' => $this->tokenizeTex($code),
@@ -716,6 +722,27 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:->|:=|\\*\\*|\\/\\/|==|!=|<=|>=|[{}()[\\];,.+*\\/%=!<>:|-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeR(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^#[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['attribute', '/^`(?:\\\\.|[^`\\\\])+`/s'],
+            ['keyword', '/^\\b(?:break|else|for|function|if|in|next|repeat|switch|while)\\b/'],
+            ['constant', '/^\\b(?:FALSE|Inf|NA|NA_character_|NA_complex_|NA_integer_|NA_real_|NULL|NaN|TRUE)\\b/'],
+            ['number', '/^-?(?:0[xX][0-9A-Fa-f]+|(?:\\d+\\.\\d*|\\.\\d+|\\d+)(?:[eE][+-]?\\d+)?)(?:[Li])?\\b/'],
+            ['attribute', '/^[A-Za-z_.][A-Za-z0-9_.]*(?=\\s*:?\\s*=(?!=))/'],
+            ['function', '/^[A-Za-z_.][A-Za-z0-9_.]*(?=\\s*\\()/'],
+            ['variable', '/^[A-Za-z_.][A-Za-z0-9_.]*/'],
+            ['attribute', '/^(?:<<-|<-|->>|->|=(?!(?:=|>))|:=)/'],
+            ['operator', '/^(?:\\*\\*|<=|>=|==|=>|!=|\\|>|\\|\\||&&|:::|::|%[^%\\s]+%|[{}()[\\],;+*\\/<>!|&:^@$~.-])/'],
         ]);
     }
 
