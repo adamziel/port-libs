@@ -2044,6 +2044,152 @@ XML;
         $t->same($overlay, $result['importReport']['mediaOverlays']['mo-chapter-1']);
         $t->same(2, count($result['document']->children));
     },
+    'preserves EPUB CFI fragment targets across package handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $cfi = 'epubcfi(/6/2[chapter1]!/4/2/1:12)';
+        $pageCfi = 'epubcfi(/6/2[chapter1]!/4/2/3:1)';
+        $href = 'text/chapter1.xhtml#' . $cfi;
+        $target = '/OEBPS/text/chapter1.xhtml#' . $cfi;
+
+        $opfWithCfi = str_replace(
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" media-overlay="mo-cfi"/><item id="mo-cfi" href="overlays/cfi.smil" media-type="application/smil+xml"/><item id="audio-cfi" href="audio/cfi.mp3" media-type="audio/mpeg"/>',
+            $opfXml
+        );
+        $opfWithCfi = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/><item id="cfi-content" href="text/cfi-content.xhtml" media-type="application/xhtml+xml"/>',
+            $opfWithCfi
+        );
+        $opfWithCfi = str_replace(
+            '</spine>',
+            '<itemref idref="cfi-content"/></spine>',
+            $opfWithCfi
+        );
+        $opfWithCfi = str_replace(
+            '</metadata>',
+            '<link id="cfi-review-target" rel="record" href="' . $href . '" media-type="application/xhtml+xml" properties="epub-cfi-review"/></metadata>',
+            $opfWithCfi
+        );
+        $opfWithCfi = str_replace(
+            '<reference type="text" title="Start reading" href="text/chapter1.xhtml#intro"/>',
+            '<reference type="text" title="Start reading by CFI" href="' . $href . '"/>',
+            $opfWithCfi
+        );
+        $opfWithCfi = str_replace(
+            '<link rel="first" href="text/chapter1.xhtml#intro" media-type="application/xhtml+xml" properties="preview"/>',
+            '<link rel="first" href="' . $href . '" media-type="application/xhtml+xml" properties="preview"/>',
+            $opfWithCfi
+        );
+
+        $navWithCfi = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="text/chapter1.xhtml#epubcfi(/6/2[chapter1]!/4/2/1:12)">CFI chapter position</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="page-list">
+      <ol>
+        <li><a epub:type="pagebreak" href="text/chapter1.xhtml#epubcfi(/6/2[chapter1]!/4/2/3:1)">CFI page</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $ncxWithCfi = <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>
+    <navPoint id="navpoint-cfi" playOrder="1">
+      <navLabel><text>CFI chapter position</text></navLabel>
+      <content src="text/chapter1.xhtml#epubcfi(/6/2[chapter1]!/4/2/1:12)"/>
+    </navPoint>
+  </navMap>
+</ncx>
+XML;
+
+        $smilWithCfi = <<<'XML'
+<smil xmlns="http://www.w3.org/ns/SMIL" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <seq id="cfi-overlay" epub:textref="../text/chapter1.xhtml#epubcfi(/6/2[chapter1]!/4/2/1:12)">
+      <par id="cfi-audio">
+        <text src="../text/chapter1.xhtml#epubcfi(/6/2[chapter1]!/4/2/1:12)"/>
+        <audio src="../audio/cfi.mp3" clipBegin="0:00:00.000" clipEnd="0:00:02.000"/>
+      </par>
+    </seq>
+  </body>
+</smil>
+XML;
+
+        $cfiContentXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body><p><a href="chapter1.xhtml#epubcfi(/6/2[chapter1]!/4/2/1:12)">CFI self link</a></p></body>
+</html>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithCfi,
+            null,
+            [
+                ['name' => 'OEBPS/overlays/cfi.smil', 'data' => $smilWithCfi],
+                ['name' => 'OEBPS/audio/cfi.mp3', 'data' => 'CFI-AUDIO'],
+                ['name' => 'OEBPS/text/cfi-content.xhtml', 'data' => $cfiContentXhtml],
+            ],
+            $navWithCfi,
+            $ncxWithCfi
+        ));
+
+        $t->same($target, $result['nav']['items'][0]['target']);
+        $t->same($cfi, $result['nav']['items'][0]['fragment']);
+        $t->same('epub-cfi', $result['nav']['items'][0]['fragmentKind']);
+        $t->same(true, $result['nav']['items'][0]['epubCfi']['present']);
+        $t->same('/6/2[chapter1]!/4/2/1:12', $result['nav']['items'][0]['epubCfi']['path']);
+        $t->same(true, $result['nav']['items'][0]['epubCfi']['valid']);
+        $t->same([], $result['nav']['items'][0]['epubCfi']['diagnostics']);
+
+        $t->same($cfi, $result['ncx']['items'][0]['fragment']);
+        $t->same('epub-cfi', $result['ncx']['items'][0]['fragmentKind']);
+        $t->same($target, $result['navigation']['items'][0]['target']);
+        $t->same('epub-cfi', $result['navigation']['items'][0]['fragmentKind']);
+        $t->same(2, $result['navigation']['cfiTargetCount']);
+        $t->same(2, count($result['navigation']['cfiTargets']));
+        $t->same(2, $result['navigation']['spineCoverage'][0]['targetCount']);
+        $t->same($result['navigation'], $result['document']->attr('navigation'));
+
+        $pageBreak = $result['pageBreaks']['items'][0];
+        $t->same($pageCfi, $pageBreak['fragment']);
+        $t->same('epub-cfi', $pageBreak['fragmentKind']);
+        $t->same('/6/2[chapter1]!/4/2/3:1', $pageBreak['epubCfi']['path']);
+        $t->same(1, $result['pageBreaks']['cfiPageBreakCount']);
+        $t->same($result['pageBreaks'], $result['document']->attr('pageBreaks'));
+
+        $t->same($cfi, $result['guide']['items'][1]['fragment']);
+        $t->same('epub-cfi', $result['guide']['items'][1]['fragmentKind']);
+        $t->same($cfi, $result['collections'][0]['links'][0]['fragment']);
+        $t->same('epub-cfi', $result['metadata']['links'][0]['fragmentKind']);
+        $t->same('/6/2[chapter1]!/4/2/1:12', $result['metadata']['links'][0]['epubCfi']['path']);
+
+        $overlay = $result['mediaOverlays']['mo-cfi'];
+        $t->same($cfi, $overlay['textRefFragment']);
+        $t->same('epub-cfi', $overlay['textRefFragmentKind']);
+        $t->same('/6/2[chapter1]!/4/2/1:12', $overlay['textRefEpubCfi']['path']);
+        $t->same($cfi, $overlay['items'][0]['textFragment']);
+        $t->same('epub-cfi', $overlay['items'][0]['textFragmentKind']);
+        $t->same(2.0, $overlay['items'][0]['clipDurationSeconds']);
+
+        $chapterResources = $result['xhtmlResourceReport']['itemsByPart']['/OEBPS/text/cfi-content.xhtml'];
+        $cfiReferences = array_values(array_filter(
+            $chapterResources['references'],
+            static fn (array $reference): bool => ($reference['fragmentKind'] ?? null) === 'epub-cfi',
+        ));
+        $t->same(1, count($cfiReferences));
+        $t->same('chapter1.xhtml#' . $cfi, $cfiReferences[0]['href']);
+        $t->same('/OEBPS/text/chapter1.xhtml#' . $cfi, $cfiReferences[0]['target']);
+        $t->same('/6/2[chapter1]!/4/2/1:12', $cfiReferences[0]['epubCfi']['path']);
+        $t->same(3, $result['xhtmlResourceReport']['cfiReferenceCount']);
+        $t->same($chapterResources['references'], $result['document']->children[2]->attr('contentReferences'));
+    },
     'checks EPUB mimetype placement by local ZIP header order' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $containerXml, $opfXml, $navXhtml, $chapter1Xhtml, $chapter2Xhtml, $ncxXml): void {
         $parts = [
             ['name' => 'mimetype', 'data' => EpubReader::MIMETYPE, 'compressionMethod' => 0],
