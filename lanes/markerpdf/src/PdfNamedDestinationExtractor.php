@@ -1234,22 +1234,8 @@ final class PdfNamedDestinationExtractor
             return null;
         }
 
-        $pageOperand = $destination[0] ?? null;
-        $pageObjectId = $this->validRefObjectId($pageOperand, $objects);
-        $pageIndex = null;
-        if ($pageObjectId !== null) {
-            $pageIndex = $pageIndexes[$this->objectGenerationKey($pageObjectId, $this->refGeneration($pageOperand))] ?? null;
-            if ($pageIndex === null) {
-                return null;
-            }
-        } elseif ($this->isRefValue($pageOperand)) {
-            return null;
-        } elseif (is_int($pageOperand)) {
-            if ($pageOperand < 0 || $pageOperand >= count($pageIndexes)) {
-                return null;
-            }
-            $pageIndex = $pageOperand;
-        } else {
+        $pageDetails = $this->pageOnlyDestinationDetails($destination[0] ?? null, $pageIndexes, $objects, $cache);
+        if ($pageDetails === null) {
             return null;
         }
 
@@ -1260,8 +1246,8 @@ final class PdfNamedDestinationExtractor
 
         return [
             'name' => $name,
-            'page' => $pageIndex,
-            'page_object_id' => $pageObjectId,
+            'page' => $pageDetails['page'],
+            'page_object_id' => $pageDetails['page_object_id'],
             'fit' => $fit,
             'coordinates' => $this->destinationCoordinates($fit, $destination, $objects, $cache),
             'source' => $source,
