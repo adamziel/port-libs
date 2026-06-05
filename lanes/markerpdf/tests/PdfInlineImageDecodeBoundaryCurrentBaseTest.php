@@ -507,6 +507,49 @@ return [
         $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
         $t->same([90.0], $preview['pixels'][0]['raw_sample']);
     },
+    'keeps Flate predictor short-row surplus closed until the real EI terminator' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $inflatedShortRow = "\0AB";
+        $compressedImage = gzcompress($inflatedShortRow, 0);
+        if (!is_string($compressedImage)) {
+            throw new RuntimeException('Unable to build Flate predictor short-row inline image fixture.');
+        }
+
+        $postStreamSurplus = 'ZZ EI BT /F1 12 Tf 72 690 Td (Predictor Short Row Inline Noise) Tj ET rawtail';
+        $payload = $compressedImage . $postStreamSurplus;
+        $dictionary = '/W 3 /H 1 /CS /G /BPC 8 /F /Fl /DP << /Predictor 12 /Columns 3 /Colors 1 /BitsPerComponent 8 >> /D [0 1]';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Predictor Short Row Inline) Tj ET\n"
+            . "BI {$dictionary} ID "
+            . $payload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Predictor Short Row Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Before Predictor Short Row Inline',
+            'After Predictor Short Row Inline',
+        ];
+        $t->true(str_contains($postStreamSurplus, ' EI '));
+        $t->true(!str_contains($compressedImage, ' EI '));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Predictor Short Row Inline Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, 'ZZ EI'));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows($dictionary, $compressedImage, [], 3)
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows($dictionary, $payload, [], 3)
+        );
+    },
     'keeps stacked native filter surplus closed after first EOD until the real EI terminator' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $renderer = new PdfImageRenderer();

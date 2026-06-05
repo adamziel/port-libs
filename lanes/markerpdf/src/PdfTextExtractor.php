@@ -28064,8 +28064,33 @@ final class PdfTextExtractor
             return false;
         }
 
-        $decoded = $this->decodeFlateStream(substr($candidate, 0, $endOffset), $filterDecodeParms, []);
-        return $decoded !== null && strlen($decoded) >= $expectedLength;
+        $boundedStream = substr($candidate, 0, $endOffset);
+        $decoded = $this->decodeFlateStream($boundedStream, $filterDecodeParms, []);
+        if ($decoded !== null) {
+            return strlen($decoded) >= $expectedLength;
+        }
+
+        // Ownership boundary only: RGB preview still rejects malformed predictor rows.
+        $inflated = $this->inflateFlateStreamWithoutDecodeParms($boundedStream);
+        return $inflated !== null && $this->decodeParmsUsesPredictor($filterDecodeParms) && $inflated !== '';
+    }
+
+    private function inflateFlateStreamWithoutDecodeParms(string $stream): ?string
+    {
+        $inflated = @gzuncompress($stream);
+        if ($inflated === false) {
+            $inflated = @gzinflate($stream);
+        }
+        if ($inflated === false) {
+            $inflated = @gzdecode($stream);
+        }
+
+        return $inflated === false ? null : $inflated;
+    }
+
+    private function decodeParmsUsesPredictor(?string $decodeParms): bool
+    {
+        return ($this->decodeParmsInt($decodeParms, 'Predictor', []) ?? 1) !== 1;
     }
 
     /**
