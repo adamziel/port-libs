@@ -212,6 +212,11 @@ $relationshipSelectorSummary = [
     'issues' => $relationshipSelector['issues'],
     'relationships' => $relationshipSelectorRelationships,
 ];
+$relationshipTransform = $graph->materializeRelationshipTransform(
+    $documentPart,
+    ['rIdHero', 'rIdReviewer'],
+    [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE],
+);
 
 $reachableTargets = [];
 foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
@@ -362,6 +367,20 @@ $summary = [
     'relationshipSources' => $graph->sourcePartNames(),
     'relationships' => $relationshipSummaries,
     'relationshipSelector' => $relationshipSelectorSummary,
+    'relationshipTransform' => [
+        'source' => $relationshipTransform['source'],
+        'relationshipPartName' => $relationshipTransform['relationshipPartName'],
+        'transformAlgorithm' => $relationshipTransform['transformAlgorithm'],
+        'sourceIds' => $relationshipTransform['sourceIds'],
+        'sourceTypes' => $relationshipTransform['sourceTypes'],
+        'relationshipIds' => $relationshipTransform['relationshipIds'],
+        'relationshipCount' => $relationshipTransform['relationshipCount'],
+        'selectorValid' => $relationshipTransform['selectorValid'],
+        'relationshipTargetsValid' => $relationshipTransform['relationshipTargetsValid'],
+        'valid' => $relationshipTransform['valid'],
+        'issues' => $relationshipTransform['issues'],
+        'relationshipXml' => $relationshipTransform['relationshipXml'],
+    ],
     'reachableRelationships' => $reachableTargets,
     'integrity' => [
         'packagePartsValid' => array_reduce(
@@ -557,6 +576,20 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipSelector']['relationships']['rIdEmbeddedWorkbook']['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.package'
         || ($summary['relationshipSelector']['relationships']['rIdReviewer']['external'] ?? null) !== true
         || ($summary['relationshipSelector']['relationships']['rIdReviewer']['selectedBySourceId'] ?? null) !== true
+        || ($summary['relationshipTransform']['source'] ?? null) !== '/word/document.xml'
+        || ($summary['relationshipTransform']['relationshipPartName'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['relationshipTransform']['transformAlgorithm'] ?? null) !== OpcRelationshipGraph::RELATIONSHIP_TRANSFORM_ALGORITHM
+        || ($summary['relationshipTransform']['sourceIds'] ?? null) !== ['rIdHero', 'rIdReviewer']
+        || ($summary['relationshipTransform']['sourceTypes'] ?? null) !== [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]
+        || ($summary['relationshipTransform']['relationshipIds'] ?? null) !== ['rIdEmbeddedWorkbook', 'rIdHero', 'rIdReviewer']
+        || ($summary['relationshipTransform']['relationshipCount'] ?? null) !== 3
+        || ($summary['relationshipTransform']['selectorValid'] ?? null) !== true
+        || ($summary['relationshipTransform']['relationshipTargetsValid'] ?? null) !== true
+        || ($summary['relationshipTransform']['valid'] ?? null) !== true
+        || ($summary['relationshipTransform']['issues'] ?? null) !== []
+        || !str_contains((string) ($summary['relationshipTransform']['relationshipXml'] ?? ''), 'TargetMode="Internal"')
+        || !str_contains((string) ($summary['relationshipTransform']['relationshipXml'] ?? ''), 'TargetMode="External"')
+        || str_contains((string) ($summary['relationshipTransform']['relationshipXml'] ?? ''), 'rIdDraftReview')
         || $summary['integrity']['documentRelationshipsValid'] !== false
         || $summary['integrity']['reachableRelationshipsValid'] !== false
         || ($summary['wordpressImport']['externalTargets'][0]['scheme'] ?? null) !== 'https'

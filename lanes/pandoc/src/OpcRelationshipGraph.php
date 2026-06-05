@@ -9,6 +9,7 @@ final class OpcRelationshipGraph
     public const OFFICE_DOCUMENT_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
     public const DIGITAL_SIGNATURE_ORIGIN_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
     public const DIGITAL_SIGNATURE_SIGNATURE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
+    public const RELATIONSHIP_TRANSFORM_ALGORITHM = 'http://schemas.openxmlformats.org/package/2006/RelationshipTransform';
     public const EMBEDDED_PACKAGE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
     public const EMBEDDED_OBJECT_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
     public const WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES = [
@@ -767,6 +768,66 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @param list<string> $sourceIds
+     * @param list<string> $sourceTypes
+     * @return array{source:string, relationshipPartName:string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, relationshipIds:list<string>, relationshipCount:int, selectorValid:bool, relationshipTargetsValid:bool, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string}
+     */
+    public function materializeRelationshipTransform(string $sourcePartName = '/', array $sourceIds = [], array $sourceTypes = []): array
+    {
+        $sourcePartName = OpcPackagePath::canonicalPartName($sourcePartName, true);
+        $selector = $this->preflightRelationshipSelector($sourcePartName, $sourceIds, $sourceTypes);
+        $relationships = $this->relationshipsBySource[$sourcePartName] ?? null;
+
+        $selectedForTransform = [];
+        if ($relationships instanceof OpcRelationships) {
+            foreach ($relationships->all() as $relationship) {
+                if (
+                    in_array($relationship->id, $selector['sourceIds'], true)
+                    || in_array($relationship->type, $selector['sourceTypes'], true)
+                ) {
+                    $selectedForTransform[] = $relationship;
+                }
+            }
+        }
+
+        usort(
+            $selectedForTransform,
+            static fn (OpcRelationship $left, OpcRelationship $right): int => strcmp($left->id, $right->id),
+        );
+
+        $relationshipTargetsValid = array_reduce(
+            $selector['relationships'],
+            static fn (bool $valid, array $relationship): bool => $valid && $relationship['valid'],
+            true,
+        );
+        $issues = $selector['issues'];
+        if (!$relationshipTargetsValid) {
+            $issues[] = 'selected-relationship-target-issues';
+        }
+
+        return [
+            'source' => $sourcePartName,
+            'relationshipPartName' => OpcRelationships::relationshipPartNameForSource($sourcePartName),
+            'transformAlgorithm' => self::RELATIONSHIP_TRANSFORM_ALGORITHM,
+            'sourceIds' => $selector['sourceIds'],
+            'sourceTypes' => $selector['sourceTypes'],
+            'relationshipIds' => array_map(
+                static fn (OpcRelationship $relationship): string => $relationship->id,
+                $selectedForTransform,
+            ),
+            'relationshipCount' => count($selectedForTransform),
+            'selectorValid' => $selector['valid'],
+            'relationshipTargetsValid' => $relationshipTargetsValid,
+            'valid' => $issues === [],
+            'issues' => array_values(array_unique($issues)),
+            'relationships' => $selector['relationships'],
+            'relationshipXml' => $relationships instanceof OpcRelationships
+                ? self::relationshipTransformXml($selectedForTransform)
+                : null,
+        ];
+    }
+
+    /**
      * @return list<array{source:string, depth:int, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
      */
     public function reachableTargetsForSource(string $sourcePartName = '/', ?string $relationshipType = null): array
@@ -867,6 +928,29 @@ final class OpcRelationshipGraph
         if (preg_match('/^[A-Za-z_][A-Za-z0-9._-]*$/D', $sourceId) !== 1) {
             throw new \InvalidArgumentException('OPC relationship selector SourceId must be an XML NCName-style identifier');
         }
+    }
+
+    /**
+     * @param list<OpcRelationship> $relationships
+     */
+    private static function relationshipTransformXml(array $relationships): string
+    {
+        $xml = '<Relationships xmlns="' . self::escapeXmlAttribute(OpcRelationships::NAMESPACE_URI) . '">';
+        foreach ($relationships as $relationship) {
+            $xml .= '<Relationship'
+                . ' Id="' . self::escapeXmlAttribute($relationship->id) . '"'
+                . ' Target="' . self::escapeXmlAttribute($relationship->target) . '"'
+                . ' TargetMode="' . self::escapeXmlAttribute($relationship->targetMode) . '"'
+                . ' Type="' . self::escapeXmlAttribute($relationship->type) . '"'
+                . '></Relationship>';
+        }
+
+        return $xml . '</Relationships>';
+    }
+
+    private static function escapeXmlAttribute(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES | ENT_XML1, 'UTF-8');
     }
 
     private static function isRelationshipPartName(string $name): bool

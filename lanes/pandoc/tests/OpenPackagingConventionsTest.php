@@ -1171,6 +1171,80 @@ XML;
         $t->throws(\InvalidArgumentException::class, static fn (): array => $graph->preflightRelationshipSelector('/word/document.xml', ['1bad'], []));
         $t->throws(\InvalidArgumentException::class, static fn (): array => $graph->preflightRelationshipSelector('/word/document.xml', ['rIdHero'], ['']));
     },
+    'materializes OPC relationship transform payloads for selected relationships' => static function (TestRunner $t): void {
+        $selectorContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/embeddings/source-workbook.xlsx" ContentType="application/vnd.openxmlformats-officedocument.package"/>
+</Types>
+XML;
+
+        $selectorPackageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $selectorDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/wp-admin/post.php?post=42&amp;action=edit" TargetMode="External"/>
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+  <Relationship Id="rIdEmbeddedWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/source-workbook.xlsx"/>
+  <Relationship Id="rIdDraft" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="draft.xml"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $selectorContentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $selectorPackageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $selectorDocumentRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => 'word/embeddings/source-workbook.xlsx', 'data' => 'PK' . "\x03\x04"],
+        ]));
+
+        $transform = $graph->materializeRelationshipTransform(
+            '/word/document.xml',
+            ['rIdReviewer', 'rIdHero', 'rIdHero'],
+            [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE],
+        );
+
+        $t->same('/word/document.xml', $transform['source']);
+        $t->same('/word/_rels/document.xml.rels', $transform['relationshipPartName']);
+        $t->same('http://schemas.openxmlformats.org/package/2006/RelationshipTransform', $transform['transformAlgorithm']);
+        $t->same(['rIdReviewer', 'rIdHero'], $transform['sourceIds']);
+        $t->same([OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE], $transform['sourceTypes']);
+        $t->same(['rIdEmbeddedWorkbook', 'rIdHero', 'rIdReviewer'], $transform['relationshipIds']);
+        $t->same(3, $transform['relationshipCount']);
+        $t->same(true, $transform['selectorValid']);
+        $t->same(true, $transform['relationshipTargetsValid']);
+        $t->same(true, $transform['valid']);
+        $t->same([], $transform['issues']);
+        $t->same([
+            'rIdReviewer',
+            'rIdHero',
+            'rIdEmbeddedWorkbook',
+        ], array_column($transform['relationships'], 'id'));
+        $t->same('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdEmbeddedWorkbook" Target="embeddings/source-workbook.xlsx" TargetMode="Internal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"></Relationship><Relationship Id="rIdHero" Target="media/hero.png" TargetMode="Internal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"></Relationship><Relationship Id="rIdReviewer" Target="https://example.test/wp-admin/post.php?post=42&amp;action=edit" TargetMode="External" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"></Relationship></Relationships>', $transform['relationshipXml']);
+        $t->same(false, str_contains($transform['relationshipXml'], 'rIdDraft'));
+        $t->same(false, str_contains($transform['relationshipXml'], '/word/media/hero.png'));
+
+        $invalid = $graph->materializeRelationshipTransform('/word/document.xml', ['rIdMissing'], []);
+        $t->same(false, $invalid['valid']);
+        $t->same(false, $invalid['selectorValid']);
+        $t->same(['unmatched-source-id'], $invalid['issues']);
+        $t->same([], $invalid['relationshipIds']);
+        $t->same('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>', $invalid['relationshipXml']);
+
+        $missingSource = $graph->materializeRelationshipTransform('/word/missing.xml', ['rIdHero'], []);
+        $t->same('/word/_rels/missing.xml.rels', $missingSource['relationshipPartName']);
+        $t->same(false, $missingSource['valid']);
+        $t->same(['relationship-source-not-loaded', 'unmatched-source-id'], $missingSource['issues']);
+        $t->same(null, $missingSource['relationshipXml']);
+    },
     'preflights OPC package parts for content type and orphan relationship issues' => static function (TestRunner $t) use ($packageRelationshipsXml, $documentRelationshipsXml): void {
         $badContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
