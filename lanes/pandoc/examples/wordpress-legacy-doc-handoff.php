@@ -1292,6 +1292,7 @@ if (($argv[1] ?? '') === '--self-test') {
         'red CFB sibling-tree root' => substr_replace($docBytes, "\0", $directoryFieldOffset((int) ($childIds[0] ?? $wordDocumentDirectoryId), 67), 1),
         'duplicate CFB FAT sector' => substr_replace(substr_replace($docBytes, $u32(2), 44, 4), $u32(0), 80, 4),
         'misclassified CFB FAT sector' => substr_replace($docBytes, $u32($end), 512, 4),
+        'CFB root mini stream reuses directory sector' => substr_replace($docBytes, $u32(1), $directoryFieldOffset(0, 116), 4),
         'invalid CFB root storage name' => substr_replace($docBytes, "X\0", 1024, 2),
     ] as $label => $corruptDocBytes) {
         try {

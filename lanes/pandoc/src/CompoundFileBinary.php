@@ -196,7 +196,7 @@ final class CompoundFileBinary
         $directoryBytes = $reader->readRegularSectorChain($firstDirectorySector, null, 'directory');
         [$entries, $entriesByName] = self::parseDirectory($directoryBytes);
 
-        return new self(
+        $reader = new self(
             $bytes,
             $sectorSize,
             $miniSectorSize,
@@ -209,6 +209,9 @@ final class CompoundFileBinary
             $entriesByName,
             $maxStreamBytes
         );
+        $reader->validateSectorAllocation($fatSectorIds, array_map('intval', array_keys($seenDifat)));
+
+        return $reader;
     }
 
     /**
@@ -295,31 +298,10 @@ final class CompoundFileBinary
 
     private function readRegularSectorChain(int $startSector, ?int $expectedSize, string $label): string
     {
-        if (!self::isRegularSector($startSector)) {
-            if ($expectedSize === 0) {
-                return '';
-            }
-            throw new \RuntimeException('CFB sector chain is missing for ' . $label);
-        }
-
-        $sectorCount = self::sectorCount($this->bytes, $this->sectorSize);
-        $seen = [];
+        $sectorIds = $this->regularSectorChainIds($startSector, $expectedSize, $label);
         $data = '';
-        $sector = $startSector;
-        while (self::isRegularSector($sector)) {
-            if ($sector >= $sectorCount || isset($seen[$sector])) {
-                throw new \RuntimeException('CFB sector chain is invalid for ' . $label);
-            }
-            $seen[$sector] = true;
+        foreach ($sectorIds as $sector) {
             $data .= self::sectorBytes($this->bytes, $this->sectorSize, $sector);
-            if (strlen($data) > $this->maxStreamBytes + $this->sectorSize) {
-                throw new \RuntimeException('CFB sector chain exceeds the configured size limit for ' . $label);
-            }
-            $sector = $this->fat[$sector] ?? self::FREESECT;
-        }
-
-        if ($sector !== self::ENDOFCHAIN) {
-            throw new \RuntimeException('CFB sector chain is not terminated for ' . $label);
         }
 
         if ($expectedSize !== null) {
@@ -333,16 +315,79 @@ final class CompoundFileBinary
         return $data;
     }
 
+    /**
+     * @return list<int>
+     */
+    private function regularSectorChainIds(int $startSector, ?int $expectedSize, string $label): array
+    {
+        if (!self::isRegularSector($startSector)) {
+            if ($expectedSize === 0) {
+                return [];
+            }
+            throw new \RuntimeException('CFB sector chain is missing for ' . $label);
+        }
+
+        $sectorCount = self::sectorCount($this->bytes, $this->sectorSize);
+        $seen = [];
+        $sectorIds = [];
+        $bytes = 0;
+        $sector = $startSector;
+        while (self::isRegularSector($sector)) {
+            if ($sector >= $sectorCount || isset($seen[$sector])) {
+                throw new \RuntimeException('CFB sector chain is invalid for ' . $label);
+            }
+            $seen[$sector] = true;
+            $sectorIds[] = $sector;
+            $bytes += $this->sectorSize;
+            if ($bytes > $this->maxStreamBytes + $this->sectorSize) {
+                throw new \RuntimeException('CFB sector chain exceeds the configured size limit for ' . $label);
+            }
+            $sector = $this->fat[$sector] ?? self::FREESECT;
+        }
+
+        if ($sector !== self::ENDOFCHAIN) {
+            throw new \RuntimeException('CFB sector chain is not terminated for ' . $label);
+        }
+        if ($expectedSize !== null && $bytes < $expectedSize) {
+            throw new \RuntimeException('CFB sector chain is shorter than declared for ' . $label);
+        }
+
+        return $sectorIds;
+    }
+
     private function readMiniSectorChain(int $startMiniSector, int $expectedSize, string $label): string
     {
+        $miniSectorIds = $this->miniSectorChainIds($startMiniSector, $expectedSize, $label);
+        $miniStream = $this->loadMiniStream();
+        $data = '';
+        foreach ($miniSectorIds as $sector) {
+            $offset = $sector * $this->miniSectorSize;
+            $data .= substr($miniStream, $offset, $this->miniSectorSize);
+        }
+        if (strlen($data) < $expectedSize) {
+            throw new \RuntimeException('CFB mini-sector chain is shorter than declared for ' . $label);
+        }
+
+        return substr($data, 0, $expectedSize);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function miniSectorChainIds(int $startMiniSector, int $expectedSize, string $label): array
+    {
         if (!self::isRegularSector($startMiniSector)) {
+            if ($expectedSize === 0) {
+                return [];
+            }
             throw new \RuntimeException('CFB mini-sector chain is missing for ' . $label);
         }
 
         $miniFat = $this->loadMiniFat();
         $miniStream = $this->loadMiniStream();
         $seen = [];
-        $data = '';
+        $sectorIds = [];
+        $bytes = 0;
         $sector = $startMiniSector;
         while (self::isRegularSector($sector)) {
             $offset = $sector * $this->miniSectorSize;
@@ -350,8 +395,9 @@ final class CompoundFileBinary
                 throw new \RuntimeException('CFB mini-sector chain is invalid for ' . $label);
             }
             $seen[$sector] = true;
-            $data .= substr($miniStream, $offset, $this->miniSectorSize);
-            if (strlen($data) > $this->maxStreamBytes + $this->miniSectorSize) {
+            $sectorIds[] = $sector;
+            $bytes += $this->miniSectorSize;
+            if ($bytes > $this->maxStreamBytes + $this->miniSectorSize) {
                 throw new \RuntimeException('CFB mini-sector chain exceeds the configured size limit for ' . $label);
             }
             $sector = $miniFat[$sector] ?? self::FREESECT;
@@ -360,11 +406,93 @@ final class CompoundFileBinary
         if ($sector !== self::ENDOFCHAIN) {
             throw new \RuntimeException('CFB mini-sector chain is not terminated for ' . $label);
         }
-        if (strlen($data) < $expectedSize) {
+        if ($bytes < $expectedSize) {
             throw new \RuntimeException('CFB mini-sector chain is shorter than declared for ' . $label);
         }
 
-        return substr($data, 0, $expectedSize);
+        return $sectorIds;
+    }
+
+    /**
+     * @param list<int> $fatSectorIds
+     * @param list<int> $difatSectorIds
+     */
+    private function validateSectorAllocation(array $fatSectorIds, array $difatSectorIds): void
+    {
+        $reserved = [];
+        $markReserved = static function (array $sectorIds, string $role) use (&$reserved): void {
+            foreach ($sectorIds as $sectorId) {
+                if (isset($reserved[$sectorId])) {
+                    throw new \RuntimeException('CFB sector is assigned to multiple metadata chains: ' . $role);
+                }
+                $reserved[$sectorId] = $role;
+            }
+        };
+
+        $markReserved($fatSectorIds, 'FAT');
+        $markReserved($difatSectorIds, 'DIFAT');
+        $markReserved($this->regularSectorChainIds($this->firstDirectorySector, null, 'directory'), 'directory');
+        if (self::isRegularSector($this->firstMiniFatSector) && $this->miniFatSectorCount > 0) {
+            $markReserved(
+                $this->regularSectorChainIds(
+                    $this->firstMiniFatSector,
+                    $this->miniFatSectorCount * $this->sectorSize,
+                    'MiniFAT'
+                ),
+                'MiniFAT'
+            );
+        }
+
+        $root = null;
+        foreach ($this->entries as $entry) {
+            if (($entry['type'] ?? null) === 5) {
+                $root = $entry;
+                break;
+            }
+        }
+        if ($root !== null && (int) ($root['size'] ?? 0) > 0) {
+            $markReserved(
+                $this->regularSectorChainIds((int) $root['startSector'], (int) $root['size'], 'Root Entry mini stream'),
+                'root mini stream'
+            );
+        }
+
+        $regularStreamSectors = [];
+        $miniStreamSectors = [];
+        foreach ($this->entries as $entry) {
+            if (($entry['type'] ?? null) !== 2) {
+                continue;
+            }
+
+            $name = (string) ($entry['path'] ?? $entry['name'] ?? 'stream');
+            $size = (int) ($entry['size'] ?? 0);
+            if ($size === 0) {
+                continue;
+            }
+
+            $usesMiniStream = $size < $this->miniStreamCutoff
+                && self::isRegularSector($this->firstMiniFatSector)
+                && $this->miniFatSectorCount > 0;
+            if ($usesMiniStream) {
+                foreach ($this->miniSectorChainIds((int) $entry['startSector'], $size, $name) as $miniSectorId) {
+                    if (isset($miniStreamSectors[$miniSectorId])) {
+                        throw new \RuntimeException('CFB mini-sector is shared by multiple streams: ' . $name);
+                    }
+                    $miniStreamSectors[$miniSectorId] = $name;
+                }
+                continue;
+            }
+
+            foreach ($this->regularSectorChainIds((int) $entry['startSector'], $size, $name) as $sectorId) {
+                if (isset($reserved[$sectorId])) {
+                    throw new \RuntimeException('CFB stream sector overlaps ' . $reserved[$sectorId] . ': ' . $name);
+                }
+                if (isset($regularStreamSectors[$sectorId])) {
+                    throw new \RuntimeException('CFB stream sector is shared by multiple streams: ' . $name);
+                }
+                $regularStreamSectors[$sectorId] = $name;
+            }
+        }
     }
 
     /**

@@ -1360,6 +1360,17 @@ return [
         $fatSectorNotMarked = substr_replace($bytes, $u32(0xfffffffe), 512, 4);
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($fatSectorNotMarked));
     },
+    'rejects CFB regular stream chains that reuse directory sectors before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32): void {
+        $bytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Overlapping sector payload should stay opaque\r"),
+            'Preview' => str_repeat('P', 600),
+        ], false);
+        $directorySectorOffset = 512 + 512;
+        $wordDocumentStartSectorOffset = $directorySectorOffset + 128 + 116;
+        $overlappingStream = substr_replace($bytes, $u32(1), $wordDocumentStartSectorOffset, 4);
+
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($overlappingStream));
+    },
     'extracts non-complex legacy DOC text and OLE SummaryInformation metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $propertySet): void {
         $docBytes = $buildCfb([
             'WordDocument' => $buildSimpleWordDocument("Legacy import title\rReviewer notes keep hard\vbreaks.\r"),
