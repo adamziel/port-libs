@@ -1493,7 +1493,7 @@ final class PdfNamedDestinationExtractor
             $dictionary = $value;
         }
 
-        $streamOffset = strpos($body, 'stream');
+        $streamOffset = $this->streamKeywordOffsetAfterDictionary($body);
         if ($streamOffset === false) {
             return null;
         }
@@ -1518,6 +1518,152 @@ final class PdfNamedDestinationExtractor
         }
 
         return preg_replace("/\r\n$|\n$|\r$/", '', $stream) ?? $stream;
+    }
+
+    private function streamKeywordOffsetAfterDictionary(string $body): int|false
+    {
+        $dictionaryEnd = $this->topLevelDictionaryEndOffset($body);
+        if ($dictionaryEnd === null) {
+            return strpos($body, 'stream');
+        }
+
+        $offset = $this->skipPdfWhitespaceAndComments($body, $dictionaryEnd);
+        if ($this->pdfKeywordAt($body, $offset, 'stream')) {
+            return $offset;
+        }
+
+        while (($candidate = strpos($body, 'stream', $offset)) !== false) {
+            if ($this->pdfKeywordAt($body, $candidate, 'stream')) {
+                return $candidate;
+            }
+
+            $offset = $candidate + strlen('stream');
+        }
+
+        return false;
+    }
+
+    private function topLevelDictionaryEndOffset(string $body): ?int
+    {
+        $length = strlen($body);
+        $offset = $this->skipPdfWhitespaceAndComments($body, 0);
+        if (substr($body, $offset, 2) !== '<<') {
+            return null;
+        }
+
+        $depth = 0;
+        while ($offset < $length) {
+            $char = $body[$offset];
+
+            if ($char === '%') {
+                $offset = $this->skipPdfComment($body, $offset);
+                continue;
+            }
+
+            if ($char === '(') {
+                $offset = $this->literalStringEndOffset($body, $offset + 1);
+                continue;
+            }
+
+            if ($char === '<' && substr($body, $offset, 2) !== '<<') {
+                $end = strpos($body, '>', $offset + 1);
+                $offset = $end === false ? $length : $end + 1;
+                continue;
+            }
+
+            if (substr($body, $offset, 2) === '<<') {
+                $depth++;
+                $offset += 2;
+                continue;
+            }
+
+            if (substr($body, $offset, 2) === '>>') {
+                $depth--;
+                $offset += 2;
+                if ($depth <= 0) {
+                    return $offset;
+                }
+                continue;
+            }
+
+            $offset++;
+        }
+
+        return null;
+    }
+
+    private function literalStringEndOffset(string $body, int $offset): int
+    {
+        $depth = 1;
+        $length = strlen($body);
+
+        while ($offset < $length && $depth > 0) {
+            $char = $body[$offset];
+            if ($char === '\\') {
+                $offset += 2;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                $offset++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $depth--;
+                $offset++;
+                continue;
+            }
+
+            $offset++;
+        }
+
+        return $offset;
+    }
+
+    private function skipPdfWhitespaceAndComments(string $body, int $offset): int
+    {
+        $length = strlen($body);
+        while ($offset < $length) {
+            $char = $body[$offset];
+            if (ctype_space($char)) {
+                $offset++;
+                continue;
+            }
+
+            if ($char === '%') {
+                $offset = $this->skipPdfComment($body, $offset);
+                continue;
+            }
+
+            break;
+        }
+
+        return $offset;
+    }
+
+    private function skipPdfComment(string $body, int $offset): int
+    {
+        $length = strlen($body);
+        while ($offset < $length && !in_array($body[$offset], ["\r", "\n"], true)) {
+            $offset++;
+        }
+
+        return $offset;
+    }
+
+    private function pdfKeywordAt(string $body, int $offset, string $keyword): bool
+    {
+        if (substr($body, $offset, strlen($keyword)) !== $keyword) {
+            return false;
+        }
+
+        $before = $offset === 0 ? '' : $body[$offset - 1];
+        $after = $body[$offset + strlen($keyword)] ?? '';
+
+        return ($before === '' || $this->isDelimiter($before))
+            && ($after === '' || $this->isDelimiter($after));
     }
 
     /**
