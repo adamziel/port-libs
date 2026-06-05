@@ -109,11 +109,14 @@ final class PdfOutlineExtractor
             return [];
         }
 
+        $destinations = $this->destinationMap($catalog, $objects, $pageIndexes);
+        $actionDestinations = $this->destinationActionReviewMap($catalog, $objects) + $destinations;
+
         return $this->outlineItems(
             $outlineRoot['First'] ?? null,
             $objects,
             $pageIndexes,
-            $this->destinationMap($catalog, $objects, $pageIndexes),
+            $actionDestinations,
             $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects),
             $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
             max(1, $maxDepth)
@@ -258,11 +261,14 @@ final class PdfOutlineExtractor
             return [];
         }
 
+        $destinations = $this->destinationMap($catalog, $objects, $pageIndexes);
+        $actionDestinations = $this->destinationActionReviewMap($catalog, $objects) + $destinations;
+
         return $this->outlineItemsWithDestinationViews(
             $outlineRoot['First'] ?? null,
             $objects,
             $pageIndexes,
-            $this->destinationMap($catalog, $objects, $pageIndexes),
+            $actionDestinations,
             $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects),
             $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
             max(1, $maxDepth)
@@ -376,11 +382,13 @@ final class PdfOutlineExtractor
 
         $destination = $this->catalogOpenActionDestination($catalog, $objects);
         if ($destination !== null) {
+            $destinations = $this->destinationMap($catalog, $objects, $pageIndexes);
+            $actionDestinations = $this->destinationActionReviewMap($catalog, $objects) + $destinations;
             $details = $this->destinationViewDetails(
                 $destination['value'],
                 $objects,
                 $pageIndexes,
-                $this->destinationMap($catalog, $objects, $pageIndexes),
+                $actionDestinations,
                 $destination['name']
             );
             if ($details !== null) {
@@ -617,7 +625,7 @@ final class PdfOutlineExtractor
                 $openActionDestination['value'],
                 $objects,
                 $pageIndexes,
-                $destinations,
+                $actionDestinations,
                 $openActionDestination['name']
             );
             if ($details !== null) {
@@ -3209,7 +3217,7 @@ final class PdfOutlineExtractor
                 $destination['value'],
                 $objects,
                 $pageIndexes,
-                $destinations,
+                $actionDestinations,
                 $destination['name']
             );
             if ($details !== null) {
@@ -3232,6 +3240,7 @@ final class PdfOutlineExtractor
                 ];
                 $row += $this->outlineStructureState($dict, $objects);
                 $row += $this->outlineStyleMetadata($dict, $objects);
+                $row += $this->destinationAliasReview($destination['value'], $objects, $destinations);
                 $row = $this->withNavigationTargetMetadata(
                     $row,
                     $pageLabels,
@@ -3287,6 +3296,77 @@ final class PdfOutlineExtractor
         }
 
         return $items;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @param array<string, mixed> $destinations
+     * @return array<string, mixed>
+     */
+    private function destinationAliasReview(mixed $value, array $objects, array $destinations): array
+    {
+        $firstName = $this->stringOrNameValue($this->resolveValue($value, $objects));
+        if ($firstName === null) {
+            return [];
+        }
+
+        $chain = [];
+        $seen = [];
+        $currentName = $firstName;
+        for ($depth = 0; $depth < 32; $depth++) {
+            if (isset($seen[$currentName])) {
+                $chain[] = $currentName;
+
+                return [
+                    'declared_destination' => $firstName,
+                    'destination_alias_chain' => $chain,
+                    'destination_alias_resolved' => false,
+                    'destination_alias_cycle' => true,
+                    'destination_unresolved_reason' => 'destination_alias_cycle',
+                ];
+            }
+
+            $chain[] = $currentName;
+            $seen[$currentName] = true;
+            if (!array_key_exists($currentName, $destinations)) {
+                if (count($chain) < 2) {
+                    return [];
+                }
+
+                return [
+                    'declared_destination' => $firstName,
+                    'destination_alias_chain' => $chain,
+                    'destination_alias_resolved' => false,
+                    'destination_alias_cycle' => false,
+                    'destination_unresolved_reason' => 'destination_alias_missing_target',
+                ];
+            }
+
+            $nextName = $this->stringOrNameValue($this->resolveValue($destinations[$currentName], $objects));
+            if ($nextName === null) {
+                if (count($chain) < 2) {
+                    return [];
+                }
+
+                return [
+                    'declared_destination' => $firstName,
+                    'destination_alias_chain' => $chain,
+                    'destination_target' => $currentName,
+                    'destination_alias_resolved' => true,
+                    'destination_alias_cycle' => false,
+                ];
+            }
+
+            $currentName = $nextName;
+        }
+
+        return [
+            'declared_destination' => $firstName,
+            'destination_alias_chain' => $chain,
+            'destination_alias_resolved' => false,
+            'destination_alias_cycle' => false,
+            'destination_unresolved_reason' => 'destination_alias_depth_limit',
+        ];
     }
 
     /**

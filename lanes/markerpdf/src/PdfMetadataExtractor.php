@@ -3528,6 +3528,9 @@ final class PdfMetadataExtractor
         foreach ($this->documentOutlineDestinationActionChainMetadata($destination['value'], $objects, $destinationsByName, $destination['name']) as $key => $value) {
             $row[$key] = $value;
         }
+        foreach ($this->documentDestinationAliasReview($destination['value'], $objects, $destinationsByName) as $key => $value) {
+            $row[$key] = $value;
+        }
 
         $structureElement = $this->documentOutlineItemStructureElementMetadata(
             $this->dictionaryTopLevelRawValue($dictionary, 'SE'),
@@ -3573,6 +3576,85 @@ final class PdfMetadataExtractor
         }
 
         return $row;
+    }
+
+    /**
+     * Named destinations may alias another name before reaching an explicit
+     * page target. Keep the original outline operand and bounded alias chain
+     * reviewable without turning cyclic names into TOC targets.
+     *
+     * @param array<int, string> $objects
+     * @param array<string, string> $destinationsByName
+     * @return array<string, mixed>
+     */
+    private function documentDestinationAliasReview(?string $value, array $objects, array $destinationsByName): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        $firstName = $this->destinationNameFromRaw($value, $objects);
+        if ($firstName === null) {
+            return [];
+        }
+
+        $chain = [];
+        $seen = [];
+        $currentName = $firstName;
+        for ($depth = 0; $depth < 32; $depth++) {
+            if (isset($seen[$currentName])) {
+                $chain[] = $currentName;
+
+                return [
+                    'declared_destination' => $firstName,
+                    'destination_alias_chain' => $chain,
+                    'destination_alias_resolved' => false,
+                    'destination_alias_cycle' => true,
+                    'destination_unresolved_reason' => 'destination_alias_cycle',
+                ];
+            }
+
+            $chain[] = $currentName;
+            $seen[$currentName] = true;
+            if (!array_key_exists($currentName, $destinationsByName)) {
+                if (count($chain) < 2) {
+                    return [];
+                }
+
+                return [
+                    'declared_destination' => $firstName,
+                    'destination_alias_chain' => $chain,
+                    'destination_alias_resolved' => false,
+                    'destination_alias_cycle' => false,
+                    'destination_unresolved_reason' => 'destination_alias_missing_target',
+                ];
+            }
+
+            $nextName = $this->destinationNameFromRaw($destinationsByName[$currentName], $objects);
+            if ($nextName === null) {
+                if (count($chain) < 2) {
+                    return [];
+                }
+
+                return [
+                    'declared_destination' => $firstName,
+                    'destination_alias_chain' => $chain,
+                    'destination_target' => $currentName,
+                    'destination_alias_resolved' => true,
+                    'destination_alias_cycle' => false,
+                ];
+            }
+
+            $currentName = $nextName;
+        }
+
+        return [
+            'declared_destination' => $firstName,
+            'destination_alias_chain' => $chain,
+            'destination_alias_resolved' => false,
+            'destination_alias_cycle' => false,
+            'destination_unresolved_reason' => 'destination_alias_depth_limit',
+        ];
     }
 
     /**
