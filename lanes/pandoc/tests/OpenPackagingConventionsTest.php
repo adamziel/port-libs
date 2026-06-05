@@ -1405,6 +1405,112 @@ XML;
         $t->same(5, count($consistency['contentTypeOverrides']));
         $t->same(5, count($consistency['relationshipTargets']));
     },
+    'summarizes package-wide OPC relationship type inventory for import review' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+  <Relationship Id="rIdMissingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing.png"/>
+  <Relationship Id="rIdUnsafeLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
+  <Relationship Id="rIdMalformedType" Type="officeDocument/relationships/hyperlink" Target="https://example.test/source" TargetMode="External"/>
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+</Relationships>
+XML;
+
+        $commentsRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCommentImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/comment.png"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => 'word/media/comment.png', 'data' => 'PNG'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $inventory = [];
+        foreach ($graph->relationshipTypeInventory() as $type) {
+            $inventory[$type['type']] = $type;
+        }
+
+        $imageType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $hyperlinkType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+
+        $t->same([
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments',
+            $hyperlinkType,
+            $imageType,
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles',
+            'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties',
+            'officeDocument/relationships/hyperlink',
+        ], array_keys($inventory));
+
+        $t->same(3, $inventory[$imageType]['relationshipCount']);
+        $t->same(2, $inventory[$imageType]['sourceCount']);
+        $t->same(['/word/comments.xml', '/word/document.xml'], $inventory[$imageType]['sources']);
+        $t->same(['rIdCommentImage'], $inventory[$imageType]['idsBySource']['/word/comments.xml']);
+        $t->same(['rIdHero', 'rIdMissingImage'], $inventory[$imageType]['idsBySource']['/word/document.xml']);
+        $t->same(3, $inventory[$imageType]['internalCount']);
+        $t->same(0, $inventory[$imageType]['externalCount']);
+        $t->same(2, $inventory[$imageType]['validCount']);
+        $t->same(1, $inventory[$imageType]['invalidCount']);
+        $t->same(['/word/media/comment.png', '/word/media/hero.png', '/word/media/missing.png'], $inventory[$imageType]['targetParts']);
+        $t->same(['image/png'], $inventory[$imageType]['contentTypes']);
+        $t->same(['missing-in-package'], $inventory[$imageType]['issues']);
+
+        $t->same(1, $inventory[$hyperlinkType]['relationshipCount']);
+        $t->same(0, $inventory[$hyperlinkType]['internalCount']);
+        $t->same(1, $inventory[$hyperlinkType]['externalCount']);
+        $t->same(0, $inventory[$hyperlinkType]['validCount']);
+        $t->same(1, $inventory[$hyperlinkType]['invalidCount']);
+        $t->same(['external-target-unsafe-scheme'], $inventory[$hyperlinkType]['issues']);
+
+        $t->same(1, $inventory['officeDocument/relationships/hyperlink']['relationshipCount']);
+        $t->same(false, $inventory['officeDocument/relationships/hyperlink']['relationshipTypeValid']);
+        $t->same(['relationship-type-not-absolute-uri'], $inventory['officeDocument/relationships/hyperlink']['relationshipTypeIssues']);
+        $t->same(['relationship-type-not-absolute-uri'], $inventory['officeDocument/relationships/hyperlink']['issues']);
+
+        $documentInventory = [];
+        foreach ($graph->relationshipTypeInventory('/word/document.xml') as $type) {
+            $documentInventory[$type['type']] = $type;
+        }
+
+        $t->same([
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments',
+            $hyperlinkType,
+            $imageType,
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles',
+            'officeDocument/relationships/hyperlink',
+        ], array_keys($documentInventory));
+        $t->same(2, $documentInventory[$imageType]['relationshipCount']);
+        $t->same([], $graph->relationshipTypeInventory('/word/missing.xml'));
+    },
     'preflights DOCX officeDocument relationship cardinality and content type' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $validGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
             ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],

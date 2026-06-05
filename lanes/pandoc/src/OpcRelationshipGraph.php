@@ -505,6 +505,95 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return list<array{type:string, relationshipCount:int, sourceCount:int, sources:list<string>, idsBySource:array<string, list<string>>, internalCount:int, externalCount:int, validCount:int, invalidCount:int, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, targetParts:list<string>, contentTypes:list<string>, issues:list<string>}>
+     */
+    public function relationshipTypeInventory(?string $sourcePartName = null): array
+    {
+        $sourcePartNames = $sourcePartName === null
+            ? $this->sourcePartNames()
+            : [OpcPackagePath::canonicalPartName($sourcePartName, true)];
+
+        $byType = [];
+        foreach ($sourcePartNames as $source) {
+            foreach ($this->preflightTargetsForSource($source) as $target) {
+                $type = $target['type'];
+                if (!isset($byType[$type])) {
+                    $byType[$type] = [
+                        'type' => $type,
+                        'relationshipCount' => 0,
+                        'sourceCount' => 0,
+                        'sources' => [],
+                        'idsBySource' => [],
+                        'internalCount' => 0,
+                        'externalCount' => 0,
+                        'validCount' => 0,
+                        'invalidCount' => 0,
+                        'relationshipTypeValid' => true,
+                        'relationshipTypeIssues' => [],
+                        'targetParts' => [],
+                        'contentTypes' => [],
+                        'issues' => [],
+                    ];
+                }
+
+                if (!isset($byType[$type]['idsBySource'][$source])) {
+                    $byType[$type]['idsBySource'][$source] = [];
+                    $byType[$type]['sources'][] = $source;
+                    $byType[$type]['sourceCount']++;
+                }
+
+                $byType[$type]['relationshipCount']++;
+                $byType[$type]['idsBySource'][$source][] = $target['id'];
+                if ($target['external']) {
+                    $byType[$type]['externalCount']++;
+                } else {
+                    $byType[$type]['internalCount']++;
+                }
+
+                if ($target['valid']) {
+                    $byType[$type]['validCount']++;
+                } else {
+                    $byType[$type]['invalidCount']++;
+                }
+
+                if (!$target['relationshipTypeValid']) {
+                    $byType[$type]['relationshipTypeValid'] = false;
+                }
+
+                foreach ($target['relationshipTypeIssues'] as $issue) {
+                    self::appendUniqueString($byType[$type]['relationshipTypeIssues'], $issue);
+                }
+
+                $targetPart = self::targetPartFromPreflightTarget($target);
+                if ($targetPart !== null) {
+                    self::appendUniqueString($byType[$type]['targetParts'], $targetPart);
+                }
+
+                if ($target['contentType'] !== null) {
+                    self::appendUniqueString($byType[$type]['contentTypes'], $target['contentType']);
+                }
+
+                foreach ($target['issues'] as $issue) {
+                    self::appendUniqueString($byType[$type]['issues'], $issue);
+                }
+            }
+        }
+
+        ksort($byType, SORT_STRING);
+        foreach ($byType as &$entry) {
+            sort($entry['sources'], SORT_STRING);
+            ksort($entry['idsBySource'], SORT_STRING);
+            sort($entry['targetParts'], SORT_STRING);
+            sort($entry['contentTypes'], SORT_STRING);
+            sort($entry['relationshipTypeIssues'], SORT_STRING);
+            sort($entry['issues'], SORT_STRING);
+        }
+        unset($entry);
+
+        return array_values($byType);
+    }
+
+    /**
      * @return array{valid:bool, packagePartsValid:bool, contentTypeOverridesValid:bool, relationshipTargetsValid:bool, packageParts:list<array{partName:string, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>, contentTypeOverrides:list<array{partName:string, contentType:string, exists:bool, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>, relationshipTargets:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
      */
     public function preflightPackageConsistency(): array
@@ -1049,6 +1138,16 @@ final class OpcRelationshipGraph
         }
 
         return true;
+    }
+
+    /**
+     * @param list<string> $values
+     */
+    private static function appendUniqueString(array &$values, string $value): void
+    {
+        if (!in_array($value, $values, true)) {
+            $values[] = $value;
+        }
     }
 
     /**

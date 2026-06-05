@@ -172,6 +172,11 @@ foreach ($graph->summarizeTargetsForSource($documentPart) as $relationship) {
     ];
 }
 
+$relationshipTypeInventory = [];
+foreach ($graph->relationshipTypeInventory() as $type) {
+    $relationshipTypeInventory[$type['type']] = $type;
+}
+
 $relationshipPreflight = [];
 foreach ($graph->preflightTargetsForSource($documentPart) as $target) {
     $relationshipPreflight[$target['id']] = [
@@ -382,6 +387,7 @@ $summary = [
     'relationshipPartLoads' => $relationshipPartLoads,
     'packageParts' => $packagePartPreflight,
     'relationshipSources' => $graph->sourcePartNames(),
+    'relationshipTypeInventory' => $relationshipTypeInventory,
     'relationships' => $relationshipSummaries,
     'relationshipSelector' => $relationshipSelectorSummary,
     'relationshipTransform' => [
@@ -593,6 +599,22 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['mediaParts'][3] ?? null) !== '/word/media/review source.png'
         || ($summary['relationships']['rIdReviewSource']['target'] ?? null) !== '/word/review source.xml'
         || isset($summary['relationships']['rIdDraftImage'])
+        || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/image']['relationshipCount'] ?? null) !== 4
+        || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/image']['sourceCount'] ?? null) !== 3
+        || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/image']['targetParts'] ?? null) !== [
+            '/word/media/footnote-source.png',
+            '/word/media/hero image.PNG',
+            '/word/media/review source.png',
+            '/word/media/source diagram.svg',
+        ]
+        || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/image']['contentTypes'] ?? null) !== ['image/png', 'image/svg+xml; charset=UTF-8']
+        || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink']['relationshipCount'] ?? null) !== 4
+        || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink']['externalCount'] ?? null) !== 3
+        || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink']['internalCount'] ?? null) !== 1
+        || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink']['issues'] ?? null) !== ['external-target-unsafe-scheme']
+        || ($summary['relationshipTypeInventory']['officeDocument/relationships/hyperlink']['relationshipTypeValid'] ?? null) !== false
+        || ($summary['relationshipTypeInventory']['officeDocument/relationships/hyperlink']['relationshipTypeIssues'] ?? null) !== ['relationship-type-not-absolute-uri']
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]['targetParts'] ?? null) !== ['/word/embeddings/source workbook.xlsx']
         || ($summary['relationshipSelector']['source'] ?? null) !== '/word/document.xml'
         || ($summary['relationshipSelector']['sourceIds'] ?? null) !== ['rIdHero', 'rIdReviewer', 'rIdMissingSelector']
         || ($summary['relationshipSelector']['sourceTypes'] ?? null) !== [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]
