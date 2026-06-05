@@ -1015,6 +1015,124 @@ MARKDOWN);
         $t->same(['TrueType' => 1, 'Type0' => 1, 'Type1' => 1], $sequence['finalPdfFontSubtypes']);
     },
 
+    'fake runner extracts bounded pdf image xobject metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/images.pdf']);
+        $heroBytes = 'fake compressed hero image bytes';
+        $logoBytes = 'fake filtered logo image bytes';
+        $ignoredFormBytes = 'form xobject bytes';
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] /Resources << /XObject << /ImHero 8 0 R >> >> >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Resources << /XObject << /ImLogo 9 0 R /IgnoredForm 11 0 R >> >> >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /XObject /Subtype /Image /Width 640 /Height 360 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Filter /DCTDecode /Interpolate true /SMask 10 0 R /Length ' . strlen($heroBytes) . ' >>',
+            'stream',
+            $heroBytes,
+            'endstream',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /XObject /Subtype /Image /Width 120 /Height 80 /BitsPerComponent 8 /ColorSpace [/ICCBased 12 0 R] /Filter [/FlateDecode /DCTDecode] /ImageMask false /Length ' . strlen($logoBytes) . ' >>',
+            'stream',
+            $logoBytes,
+            'endstream',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /XObject /Subtype /Image /Width 640 /Height 360 /BitsPerComponent 8 /ColorSpace /DeviceGray /Length 0 >>',
+            'stream',
+            '',
+            'endstream',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /XObject /Subtype /Form /BBox [0 0 10 10] /Length ' . strlen($ignoredFormBytes) . ' >>',
+            'stream',
+            $ignoredFormBytes,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/images.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/images.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'resourceName' => 'ImHero',
+                'imageObject' => '8 0 R',
+                'inherited' => true,
+                'width' => 640,
+                'height' => 360,
+                'bitsPerComponent' => 8,
+                'colorSpace' => 'DeviceRGB',
+                'filters' => ['DCTDecode'],
+                'interpolate' => true,
+                'imageMask' => null,
+                'softMask' => '10 0 R',
+                'streamBytes' => strlen($heroBytes),
+                'streamSha256' => hash('sha256', $heroBytes),
+                'streamSkipped' => null,
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'resourceName' => 'ImLogo',
+                'imageObject' => '9 0 R',
+                'inherited' => false,
+                'width' => 120,
+                'height' => 80,
+                'bitsPerComponent' => 8,
+                'colorSpace' => 'ICCBased',
+                'filters' => ['DCTDecode', 'FlateDecode'],
+                'interpolate' => null,
+                'imageMask' => false,
+                'softMask' => null,
+                'streamBytes' => strlen($logoBytes),
+                'streamSha256' => hash('sha256', $logoBytes),
+                'streamSkipped' => null,
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfImages']);
+        $t->same(['DeviceRGB' => 1, 'ICCBased' => 1], $result['pdfImageColorSpaces']);
+        $t->same(['DCTDecode' => 2, 'FlateDecode' => 1], $result['pdfImageFilters']);
+        $t->contains('pdf-byte-image-xobjects:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-image-streams:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-image-color-spaces:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-image-filters:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-image-filter:DCTDecode:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-image-filter:FlateDecode:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfImages']);
+        $t->same(['DeviceRGB' => 1, 'ICCBased' => 1], $sequence['finalPdfImageColorSpaces']);
+        $t->same(['DCTDecode' => 2, 'FlateDecode' => 1], $sequence['finalPdfImageFilters']);
+    },
+
     'fake runner extracts bounded pdf page label ranges from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/page-labels.pdf']);
