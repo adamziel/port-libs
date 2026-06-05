@@ -421,6 +421,73 @@ XML;
         $t->contains('<span class="odf-sequence" data-odf-sequence-name="Illustration" data-odf-sequence-formula="ooow:Illustration+1" data-odf-sequence-ref-name="seq-hero">Figure 1</span>', $blocksHtml);
         $t->contains('<h2>Appendix <span class="odf-sequence" data-odf-sequence-name="Chapter" data-odf-sequence-formula="ooow:Chapter+1">A</span></h2>', $blocksHtml);
     },
+    'maps ODT linked and protected sections into review div metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithLinkedSections = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:body>
+    <office:text>
+      <text:section text:name="Imported Appendix" text:style-name="LinkedSection" text:protected="true" text:protection-key="sha1-key" text:protection-key-digest-algorithm="http://www.w3.org/2000/09/xmldsig#sha1">
+        <text:section-source xlink:href="Sections/appendix.odt" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad" text:section-name="Appendix Source" text:filter-name="writer8"/>
+        <text:p>Linked appendix fallback.</text:p>
+      </text:section>
+      <text:section text:name="Local Sidebar">
+        <text:p>Local sidebar text.</text:p>
+      </text:section>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithLinkedSections));
+        $blocks = $result['document']->children;
+
+        $t->same(2, count($blocks));
+        $linked = $blocks[0];
+        $local = $blocks[1];
+        $t->same('div', $linked->type);
+        $t->same('imported-appendix', $linked->attr('id'));
+        $t->same(['odf-section', 'odf-linked-section', 'odf-protected-section'], $linked->attr('classes'));
+        $t->same('LinkedSection', $linked->attr('styleName'));
+        $t->same(true, $linked->attr('protected'));
+        $t->same(true, $linked->attr('protectionKeyPresent'));
+        $t->same('Sections/appendix.odt', $linked->attr('sectionSource')['href']);
+        $t->same('Appendix Source', $linked->attr('sectionSource')['sectionName']);
+        $t->same('writer8', $linked->attr('sectionSource')['filterName']);
+        $t->same('simple', $linked->attr('sectionSource')['type']);
+        $t->same('embed', $linked->attr('sectionSource')['show']);
+        $t->same('onLoad', $linked->attr('sectionSource')['actuate']);
+        $t->same('Linked appendix fallback.', $linked->children[0]->attr('text'));
+        $t->same('Imported Appendix', $linked->attr('attributes')['data-odf-section-name']);
+        $t->same('LinkedSection', $linked->attr('attributes')['data-odf-section-style-name']);
+        $t->same('true', $linked->attr('attributes')['data-odf-section-protected']);
+        $t->same('true', $linked->attr('attributes')['data-odf-section-protection-key-present']);
+        $t->same('http://www.w3.org/2000/09/xmldsig#sha1', $linked->attr('attributes')['data-odf-section-protection-key-digest-algorithm']);
+        $t->same('Sections/appendix.odt', $linked->attr('attributes')['data-odf-section-source-href']);
+        $t->same('Appendix Source', $linked->attr('attributes')['data-odf-section-source-name']);
+        $t->same('writer8', $linked->attr('attributes')['data-odf-section-source-filter-name']);
+        $t->same('simple', $linked->attr('attributes')['data-odf-section-source-type']);
+        $t->same('embed', $linked->attr('attributes')['data-odf-section-source-show']);
+        $t->same('onLoad', $linked->attr('attributes')['data-odf-section-source-actuate']);
+        $t->same('div', $local->type);
+        $t->same(['odf-section'], $local->attr('classes'));
+        $t->same('Local sidebar text.', $local->children[0]->attr('text'));
+        $t->same(2, $result['importReport']['content']['sectionCount']);
+        $t->same(1, $result['importReport']['content']['linkedSectionCount']);
+        $t->same(1, $result['importReport']['content']['protectedSectionCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('::: {#imported-appendix .odf-section .odf-linked-section .odf-protected-section data-odf-section-name="Imported Appendix"', $markdown);
+        $t->contains('data-odf-section-source-href="Sections/appendix.odt"', $markdown);
+        $t->contains('data-odf-section-protection-key-present="true"', $markdown);
+        $t->contains('<div id="imported-appendix" class="odf-section odf-linked-section odf-protected-section" data-odf-section-name="Imported Appendix"', $blocksHtml);
+        $t->contains('data-odf-section-source-href="Sections/appendix.odt"', $blocksHtml);
+        $t->contains('data-odf-section-protection-key-present="true"', $blocksHtml);
+        $t->contains('<p>Linked appendix fallback.</p>', $blocksHtml);
+    },
     'maps ODT tracked changes into review spans and import report metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithTrackedChanges = <<<'XML'
 <office:document-content

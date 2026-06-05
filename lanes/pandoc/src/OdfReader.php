@@ -130,6 +130,9 @@ final class OdfReader
                     'sequenceCount' => $contentStats['sequenceCount'],
                     'trackedChangeCount' => $contentStats['trackedChangeCount'],
                     'mathCount' => $contentStats['mathCount'],
+                    'sectionCount' => $contentStats['sectionCount'],
+                    'linkedSectionCount' => $contentStats['linkedSectionCount'],
+                    'protectedSectionCount' => $contentStats['protectedSectionCount'],
                 ],
             ],
         ];
@@ -654,17 +657,75 @@ final class OdfReader
     private function sectionNode(\DOMElement $section, ZipPackage $package, array $catalog): AstNode
     {
         $name = self::attr($section, self::TEXT_NS, 'name');
+        $styleName = self::attr($section, self::TEXT_NS, 'style-name');
+        $classes = ['odf-section'];
+        $attributes = [];
         $attrs = [
             'sourceFormat' => 'odt',
-            'classes' => ['odf-section'],
-            'attributes' => [],
+            'classes' => $classes,
+            'attributes' => $attributes,
         ];
         if ($name !== '') {
             $attrs['id'] = self::slug($name);
             $attrs['attributes']['data-odf-section-name'] = $name;
         }
+        if ($styleName !== '') {
+            $attrs['styleName'] = $styleName;
+            $attrs['attributes']['data-odf-section-style-name'] = $styleName;
+        }
+
+        $protectedValue = strtolower(self::attr($section, self::TEXT_NS, 'protected'));
+        if ($protectedValue !== '') {
+            $protected = in_array($protectedValue, ['true', '1'], true);
+            $attrs['protected'] = $protected;
+            $attrs['attributes']['data-odf-section-protected'] = $protected ? 'true' : 'false';
+        }
+
+        $protectionKey = self::attr($section, self::TEXT_NS, 'protection-key');
+        if ($protectionKey !== '') {
+            $attrs['protectionKeyPresent'] = true;
+            $attrs['attributes']['data-odf-section-protection-key-present'] = 'true';
+        }
+        $digestAlgorithm = self::attr($section, self::TEXT_NS, 'protection-key-digest-algorithm');
+        if ($digestAlgorithm !== '') {
+            $attrs['protectionKeyDigestAlgorithm'] = $digestAlgorithm;
+            $attrs['attributes']['data-odf-section-protection-key-digest-algorithm'] = $digestAlgorithm;
+        }
+
+        $sectionSource = self::firstChildElement($section, 'section-source', self::TEXT_NS);
+        if ($sectionSource instanceof \DOMElement) {
+            $source = $this->sectionSourceMetadata($sectionSource);
+            if ($source !== []) {
+                $attrs['sectionSource'] = $source;
+                $attrs['classes'][] = 'odf-linked-section';
+                foreach ($source as $name => $value) {
+                    $attributeName = $name === 'sectionName' ? 'name' : self::kebabCase($name);
+                    $attrs['attributes']['data-odf-section-source-' . $attributeName] = $value;
+                }
+            }
+        }
+        if (($attrs['protected'] ?? false) === true) {
+            $attrs['classes'][] = 'odf-protected-section';
+        }
 
         return new AstNode('div', $attrs, $this->blockNodes($section, $package, $catalog));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function sectionSourceMetadata(\DOMElement $sectionSource): array
+    {
+        $source = self::withoutEmpty([
+            'href' => self::nullable(self::attr($sectionSource, self::XLINK_NS, 'href')),
+            'sectionName' => self::nullable(self::attr($sectionSource, self::TEXT_NS, 'section-name')),
+            'filterName' => self::nullable(self::attr($sectionSource, self::TEXT_NS, 'filter-name')),
+            'type' => self::nullable(self::attr($sectionSource, self::XLINK_NS, 'type')),
+            'show' => self::nullable(self::attr($sectionSource, self::XLINK_NS, 'show')),
+            'actuate' => self::nullable(self::attr($sectionSource, self::XLINK_NS, 'actuate')),
+        ]);
+
+        return array_map(static fn (mixed $value): string => (string) $value, $source);
     }
 
     /**
@@ -1811,7 +1872,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, trackedChangeCount:int, mathCount:int}
+     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, trackedChangeCount:int, mathCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -1824,10 +1885,22 @@ final class OdfReader
             'sequenceCount' => 0,
             'trackedChangeCount' => 0,
             'mathCount' => 0,
+            'sectionCount' => 0,
+            'linkedSectionCount' => 0,
+            'protectedSectionCount' => 0,
         ];
         foreach ($nodes as $node) {
             if ($node->type === 'note') {
                 $stats['noteCount']++;
+            }
+            if ($node->type === 'div' && $this->nodeHasClass($node, 'odf-section')) {
+                $stats['sectionCount']++;
+            }
+            if ($node->type === 'div' && $this->nodeHasClass($node, 'odf-linked-section')) {
+                $stats['linkedSectionCount']++;
+            }
+            if ($node->type === 'div' && $this->nodeHasClass($node, 'odf-protected-section')) {
+                $stats['protectedSectionCount']++;
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-bookmark')) {
                 $stats['bookmarkCount']++;
@@ -2078,6 +2151,13 @@ final class OdfReader
             static fn (array $match): string => strtoupper($match[1]),
             $name
         ) ?? $name;
+    }
+
+    private static function kebabCase(string $name): string
+    {
+        $name = preg_replace('/(?<!^)[A-Z]/', '-$0', $name) ?? $name;
+
+        return strtolower($name);
     }
 
     private static function slug(string $value): string

@@ -76,6 +76,10 @@ $contentXml = <<<'XML'
         </text:changed-region>
       </text:tracked-changes>
       <text:h text:outline-level="1" text:style-name="ImportHeading">ODT source packet</text:h>
+      <text:section text:name="Linked Policy Appendix" text:protected="true" text:protection-key="review-key" text:protection-key-digest-algorithm="http://www.w3.org/2000/09/xmldsig#sha1">
+        <text:section-source xlink:href="Sections/policy-appendix.odt" xlink:type="simple" text:section-name="Policy Appendix" text:filter-name="writer8"/>
+        <text:p>Linked appendix fallback text.</text:p>
+      </text:section>
       <text:p>Reviewer <text:span text:style-name="StrongSource">summary</text:span> keeps <text:change-start text:change-id="chg-add-source-note"/>tracked source note<text:change-end text:change-id="chg-add-source-note"/> and <text:change text:change-id="chg-delete-draft-claim"/>, <text:bookmark-start text:name="Review Anchor"/>review anchor<text:bookmark-end text:name="Review Anchor"/>, <text:bookmark-ref text:ref-name="Review Anchor" text:reference-format="text">internal reference</text:bookmark-ref>, <text:reference-mark-start text:name="Source Claim"/>source claim<text:reference-mark-end text:name="Source Claim"/> with <text:reference-ref text:ref-name="Source Claim" text:reference-format="text">source claim reference</text:reference-ref>, caption <text:sequence text:name="Illustration" text:formula="ooow:Illustration+1" text:ref-name="source-hero-seq">Figure 1</text:sequence>, <text:a xlink:href="https://example.test/odt-source">source URL</text:a>, formula <draw:frame draw:name="Migration formula"><draw:object xlink:href="./Object 1"/></draw:frame>, and annotations<text:note text:id="ftn-review" text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>ODT footnote reviewer context.</text:p></text:note-body></text:note><office:annotation><dc:creator>Migration Desk</dc:creator><dc:date>2026-06-04T23:20:00Z</dc:date><text:p>Check imported captions before publishing.</text:p></office:annotation>.</text:p>
       <text:list text:style-name="ReviewSteps">
         <text:list-item><text:p>Match ODT media to WordPress attachments</text:p></text:list-item>
@@ -165,6 +169,21 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<a href="https://example.test/odt-source">source URL</a>')) {
         throw new RuntimeException('Expected ODT source link to render in WordPress blocks');
+    }
+    if (($result['importReport']['content']['linkedSectionCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT linked section to be counted in the import report');
+    }
+    if (($result['importReport']['content']['protectedSectionCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT protected section to be counted in the import report');
+    }
+    if (!str_contains($blocks, '<div id="linked-policy-appendix" class="odf-section odf-linked-section odf-protected-section" data-odf-section-name="Linked Policy Appendix"')) {
+        throw new RuntimeException('Expected ODT linked section metadata to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, 'data-odf-section-source-href="Sections/policy-appendix.odt"')) {
+        throw new RuntimeException('Expected ODT linked section source href to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, 'data-odf-section-protection-key-present="true"')) {
+        throw new RuntimeException('Expected ODT protected section key-presence metadata to render in WordPress blocks');
     }
     if (!str_contains($blocks, '<span id="review-anchor" class="anchor odf-bookmark" data-odf-bookmark-name="Review Anchor"></span>')) {
         throw new RuntimeException('Expected ODT bookmark anchor to render in WordPress blocks');
