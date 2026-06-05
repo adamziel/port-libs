@@ -6998,7 +6998,11 @@ final class PdfMetadataExtractor
 
             $candidates[] = $entry['xml'];
             $offset = max($entry['end_offset'], $entry['start_offset'] + 1);
-            if (!$entry['self_closing'] && $this->xmlRootStartForLocalName($entry['xml'], 'RDF') !== null) {
+            if (
+                !$entry['self_closing']
+                && $this->xmpmetaRootDeclaresAdobeNamespace($entry['xml'])
+                && $this->xmlRootStartForLocalName($entry['xml'], 'RDF') !== null
+            ) {
                 return $candidates;
             }
         }
@@ -7009,6 +7013,29 @@ final class PdfMetadataExtractor
         }
 
         return $candidates;
+    }
+
+    private function xmpmetaRootDeclaresAdobeNamespace(string $xml): bool
+    {
+        $root = $this->xmlRootStartForLocalName($xml, 'xmpmeta');
+        if ($root === null || $root['offset'] !== 0) {
+            return false;
+        }
+
+        $openEnd = $this->xmlTagEndOffset($xml, 0);
+        if ($openEnd === null) {
+            return false;
+        }
+
+        $openTag = substr($xml, 0, $openEnd);
+        $tagName = $root['tag_name'];
+        $colon = strpos($tagName, ':');
+        if ($colon === false) {
+            return preg_match('/\sxmlns\s*=\s*([\'"])adobe:ns:meta\/\1/i', $openTag) === 1;
+        }
+
+        $prefix = preg_quote(substr($tagName, 0, $colon), '/');
+        return preg_match('/\sxmlns:' . $prefix . '\s*=\s*([\'"])adobe:ns:meta\/\1/i', $openTag) === 1;
     }
 
     private function boundedXmlRootCandidate(string $xml, string $localName, int $offset = 0): ?string
