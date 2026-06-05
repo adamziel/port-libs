@@ -8966,6 +8966,10 @@ final class PdfAcroFormExtractor
                 $candidate = $widgetObject;
             }
 
+            if ($candidate !== null && !$this->fieldCandidateAllowsPageWidgetRepair($candidate, $objects)) {
+                $candidate = null;
+            }
+
             if ($candidate === null || isset($reachable[$candidate]) || in_array($candidate, $refs, true) || !isset($objects[$candidate])) {
                 continue;
             }
@@ -9024,6 +9028,28 @@ final class PdfAcroFormExtractor
 
         $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
         return $this->isFieldDictionaryCandidate($body) ? $objectNumber : null;
+    }
+
+    /**
+     * Page annotation repair is inferred, so an explicit field /Parent must still
+     * point at a parent whose /Kids tree owns the inferred branch.
+     *
+     * @param array<int, string> $objects
+     */
+    private function fieldCandidateAllowsPageWidgetRepair(int $objectNumber, array $objects): bool
+    {
+        if (!isset($objects[$objectNumber])) {
+            return false;
+        }
+
+        $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
+        $parentValue = $this->valueAfterName($body, 'Parent');
+        if ($parentValue === null) {
+            return true;
+        }
+
+        $parentObject = $this->validObjectReferenceFromValue($parentValue, $objects);
+        return $parentObject !== null && $this->fieldParentOwnsChild($parentObject, $objectNumber, $objects);
     }
 
     /**
