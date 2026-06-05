@@ -1132,7 +1132,13 @@ final class PdfActionReviewExtractor
         $values = [];
         $this->objectsByGeneration = [];
 
-        foreach ($this->rawObjectDefinitions($pdfBytes) as $definition) {
+        $definitions = $this->rawObjectDefinitions($pdfBytes);
+        $selectedDefinitions = $this->selectedObjectDefinitionsFromXrefStream($pdfBytes, $definitions);
+        if ($selectedDefinitions !== []) {
+            $definitions = $selectedDefinitions;
+        }
+
+        foreach ($definitions as $definition) {
             $tokens = $this->tokens($this->firstObjectValue(trim($definition['body'])));
             if ($tokens === []) {
                 continue;
@@ -1150,24 +1156,530 @@ final class PdfActionReviewExtractor
     }
 
     /**
-     * @return list<array{object: int, generation: int, body: string}>
+     * @return list<array{object: int, generation: int, body: string, offset: int}>
      */
     private function rawObjectDefinitions(string $pdfBytes): array
     {
         $objects = [];
-        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
+        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
             return $objects;
         }
 
         foreach ($matches as $match) {
             $objects[] = [
-                'object' => (int) $match[1],
-                'generation' => (int) $match[2],
-                'body' => $match[3],
+                'object' => (int) $match[1][0],
+                'generation' => (int) $match[2][0],
+                'body' => $match[3][0],
+                'offset' => (int) $match[0][1],
             ];
         }
 
         return $objects;
+    }
+
+    /**
+     * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
+     * @return list<array{object: int, generation: int, body: string, offset: int}>
+     */
+    private function selectedObjectDefinitionsFromXrefStream(string $pdfBytes, array $definitions): array
+    {
+        $xrefEntries = $this->xrefStreamEntriesFromLatestStartxref($pdfBytes, $definitions);
+        if ($xrefEntries === []) {
+            return [];
+        }
+
+        $definitionsByOffset = [];
+        foreach ($definitions as $definition) {
+            $definitionsByOffset[$definition['offset']] = $definition;
+        }
+
+        $selected = [];
+        foreach ($xrefEntries as $objectNumber => $entry) {
+            if (($entry['type'] ?? null) !== 1 || !isset($entry['offset'])) {
+                continue;
+            }
+
+            $definition = $definitionsByOffset[$entry['offset']] ?? null;
+            if (
+                $definition === null
+                || $definition['object'] !== $objectNumber
+                || $definition['generation'] !== ($entry['generation'] ?? 0)
+            ) {
+                continue;
+            }
+
+            $selected[(int) $objectNumber] = $definition;
+        }
+
+        if ($selected === []) {
+            return [];
+        }
+
+        for ($pass = 0; $pass < 4; $pass++) {
+            $added = false;
+            foreach ($xrefEntries as $objectNumber => $entry) {
+                if (($entry['type'] ?? null) !== 2 || isset($selected[(int) $objectNumber])) {
+                    continue;
+                }
+
+                $body = $this->objectStreamMemberBody($selected, $entry, (int) $objectNumber);
+                if ($body === null) {
+                    continue;
+                }
+
+                $selected[(int) $objectNumber] = [
+                    'object' => (int) $objectNumber,
+                    'generation' => 0,
+                    'body' => $body,
+                    'offset' => -1,
+                ];
+                $added = true;
+            }
+
+            if (!$added) {
+                break;
+            }
+        }
+
+        foreach ($definitions as $definition) {
+            if (array_key_exists($definition['object'], $xrefEntries)) {
+                continue;
+            }
+
+            $selected[$definition['object']] = $definition;
+        }
+        ksort($selected, SORT_NUMERIC);
+
+        return array_values($selected);
+    }
+
+    /**
+     * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
+     * @return array<int, array{type: int, generation?: int, offset?: int, object_stream?: int, index?: int, index_is_explicit?: bool}>
+     */
+    private function xrefStreamEntriesFromLatestStartxref(string $pdfBytes, array $definitions): array
+    {
+        $offset = $this->latestStartxrefOffset($pdfBytes);
+        if ($offset === null) {
+            return [];
+        }
+
+        $section = $this->xrefStreamSectionAtOffset($offset, $definitions);
+        return $section === null ? [] : $this->xrefStreamEntriesFromSection($section);
+    }
+
+    /**
+     * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
+     * @return array{dictionary: array<string, mixed>, body: string}|null
+     */
+    private function xrefStreamSectionAtOffset(int $offset, array $definitions): ?array
+    {
+        foreach ($definitions as $definition) {
+            if ($definition['offset'] !== $offset) {
+                continue;
+            }
+
+            $dictionary = $this->dictionaryItems($this->parseFirstObjectValue($definition['body']));
+            if ($dictionary === null || $this->nameValue($dictionary['Type'] ?? null) !== 'XRef') {
+                return null;
+            }
+
+            return [
+                'dictionary' => $dictionary,
+                'body' => $definition['body'],
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{dictionary: array<string, mixed>, body: string} $section
+     * @return array<int, array{type: int, generation?: int, offset?: int, object_stream?: int, index?: int, index_is_explicit?: bool}>
+     */
+    private function xrefStreamEntriesFromSection(array $section): array
+    {
+        $decoded = $this->decodedStreamBytesFromDictionary($section['body'], $section['dictionary']);
+        if ($decoded === null) {
+            return [];
+        }
+
+        $widths = $this->xrefStreamFieldWidths($section['dictionary']['W'] ?? null);
+        if ($widths === null) {
+            return [];
+        }
+
+        $entryWidth = array_sum($widths);
+        if ($entryWidth <= 0) {
+            return [];
+        }
+
+        $decodedEntryCount = intdiv(strlen($decoded), $entryWidth);
+        $entries = [];
+        $fieldOffset = 0;
+        foreach ($this->xrefStreamIndexRanges($section['dictionary'], $decodedEntryCount) as $range) {
+            for ($row = 0; $row < $range['count'] && $fieldOffset + $entryWidth <= strlen($decoded); $row++) {
+                $objectNumber = $range['first'] + $row;
+                $type = $widths[0] === 0 ? 1 : $this->xrefStreamFieldValue($decoded, $fieldOffset, $widths[0]);
+                $fieldTwo = $this->xrefStreamFieldValue($decoded, $fieldOffset, $widths[1]);
+                $fieldThree = $this->xrefStreamFieldValue($decoded, $fieldOffset, $widths[2]);
+
+                if ($type === 1) {
+                    $entries[$objectNumber] = [
+                        'type' => 1,
+                        'offset' => $fieldTwo,
+                        'generation' => $fieldThree,
+                    ];
+                    continue;
+                }
+
+                if ($type === 2 && $fieldTwo > 0) {
+                    $entries[$objectNumber] = [
+                        'type' => 2,
+                        'object_stream' => $fieldTwo,
+                        'index' => $fieldThree,
+                        'index_is_explicit' => $widths[2] > 0,
+                    ];
+                    continue;
+                }
+
+                $entries[$objectNumber] = [
+                    'type' => $type,
+                    'generation' => $fieldThree,
+                    'offset' => $fieldTwo,
+                ];
+            }
+        }
+        ksort($entries, SORT_NUMERIC);
+
+        return $entries;
+    }
+
+    /**
+     * @return array{0: int, 1: int, 2: int}|null
+     */
+    private function xrefStreamFieldWidths(mixed $value): ?array
+    {
+        $items = $this->arrayItems($value);
+        if ($items === null || count($items) < 3) {
+            return null;
+        }
+
+        $widths = [];
+        foreach (array_slice($items, 0, 3) as $item) {
+            $integer = $this->directIntegerValue($item);
+            if ($integer === null || $integer < 0) {
+                return null;
+            }
+            $widths[] = $integer;
+        }
+
+        return [$widths[0], $widths[1], $widths[2]];
+    }
+
+    /**
+     * @param array<string, mixed> $dictionary
+     * @return list<array{first: int, count: int}>
+     */
+    private function xrefStreamIndexRanges(array $dictionary, int $decodedEntryCount): array
+    {
+        $index = $this->arrayItems($dictionary['Index'] ?? null);
+        if ($index === null || $index === []) {
+            $size = $this->directIntegerValue($dictionary['Size'] ?? null);
+
+            return [[
+                'first' => 0,
+                'count' => $size === null ? $decodedEntryCount : min($size, $decodedEntryCount),
+            ]];
+        }
+
+        $ranges = [];
+        $consumed = 0;
+        for ($offset = 0, $count = count($index); $offset + 1 < $count; $offset += 2) {
+            $first = $this->directIntegerValue($index[$offset]);
+            $rowCount = $this->directIntegerValue($index[$offset + 1]);
+            if ($first === null || $rowCount === null || $rowCount < 0) {
+                continue;
+            }
+
+            $boundedCount = min($rowCount, max(0, $decodedEntryCount - $consumed));
+            $ranges[] = [
+                'first' => $first,
+                'count' => $boundedCount,
+            ];
+            $consumed += $boundedCount;
+        }
+
+        return $ranges;
+    }
+
+    private function xrefStreamFieldValue(string $bytes, int &$offset, int $width): int
+    {
+        $value = 0;
+        for ($index = 0; $index < $width; $index++) {
+            $value = ($value << 8) + ord($bytes[$offset] ?? "\0");
+            $offset++;
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<int, array{object: int, generation: int, body: string, offset: int}> $objects
+     * @param array{type: int, object_stream?: int, index?: int, index_is_explicit?: bool} $xrefEntry
+     */
+    private function objectStreamMemberBody(array $objects, array $xrefEntry, int $requestedObjectNumber): ?string
+    {
+        $objectStreamNumber = $xrefEntry['object_stream'] ?? null;
+        if (!is_int($objectStreamNumber) || !isset($objects[$objectStreamNumber])) {
+            return null;
+        }
+
+        $objectStreamBody = $objects[$objectStreamNumber]['body'];
+        $dictionary = $this->dictionaryItems($this->parseFirstObjectValue($objectStreamBody));
+        if ($dictionary === null || $this->nameValue($dictionary['Type'] ?? null) !== 'ObjStm') {
+            return null;
+        }
+
+        $declaredCount = $this->directIntegerValue($dictionary['N'] ?? null);
+        $firstOffset = $this->directIntegerValue($dictionary['First'] ?? null);
+        if ($declaredCount === null || $declaredCount < 1 || $firstOffset === null || $firstOffset < 0) {
+            return null;
+        }
+
+        $decoded = $this->decodedStreamBytesFromDictionary($objectStreamBody, $dictionary);
+        if ($decoded === null || $firstOffset > strlen($decoded)) {
+            return null;
+        }
+
+        $members = $this->objectStreamHeaderMembers(substr($decoded, 0, $firstOffset), $declaredCount);
+        if ($members === []) {
+            return null;
+        }
+
+        $memberIndex = $this->objectStreamSelectedMemberIndex($members, $xrefEntry, $requestedObjectNumber);
+        if ($memberIndex === null) {
+            return null;
+        }
+
+        $data = substr($decoded, $firstOffset);
+        $start = $members[$memberIndex]['offset'];
+        if ($start < 0 || $start >= strlen($data)) {
+            return null;
+        }
+
+        $end = strlen($data);
+        foreach ($members as $index => $member) {
+            if ($index === $memberIndex || $member['offset'] <= $start) {
+                continue;
+            }
+            $end = min($end, $member['offset']);
+        }
+
+        return $end <= $start ? null : trim(substr($data, $start, $end - $start));
+    }
+
+    /**
+     * @return list<array{object_id: int, offset: int}>
+     */
+    private function objectStreamHeaderMembers(string $header, int $declaredCount): array
+    {
+        if (preg_match_all('/\d+/', $header, $matches) < 1) {
+            return [];
+        }
+
+        $members = [];
+        $tokens = $matches[0];
+        for ($index = 0, $count = count($tokens); $index + 1 < $count && count($members) < $declaredCount; $index += 2) {
+            $members[] = [
+                'object_id' => (int) $tokens[$index],
+                'offset' => (int) $tokens[$index + 1],
+            ];
+        }
+
+        return $members;
+    }
+
+    /**
+     * @param list<array{object_id: int, offset: int}> $members
+     * @param array{type: int, index?: int, index_is_explicit?: bool} $xrefEntry
+     */
+    private function objectStreamSelectedMemberIndex(array $members, array $xrefEntry, int $requestedObjectNumber): ?int
+    {
+        $requestedIndex = $xrefEntry['index'] ?? null;
+        if (is_int($requestedIndex) && ($xrefEntry['index_is_explicit'] ?? true) === true) {
+            if (!isset($members[$requestedIndex]) || $members[$requestedIndex]['object_id'] !== $requestedObjectNumber) {
+                return null;
+            }
+
+            return $requestedIndex;
+        }
+
+        foreach ($members as $index => $member) {
+            if ($member['object_id'] === $requestedObjectNumber) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $dictionary
+     */
+    private function decodedStreamBytesFromDictionary(string $body, array $dictionary): ?string
+    {
+        $decoded = $this->streamBytesFromBodyAndDictionary($body, $dictionary);
+        if ($decoded === null) {
+            return null;
+        }
+
+        foreach ($this->filterNamesFromValue($dictionary['Filter'] ?? null) as $filter) {
+            $next = match ($filter) {
+                'FlateDecode', 'Fl' => $this->decodeFlateStream($decoded),
+                'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($decoded),
+                default => null,
+            };
+            if ($next === null) {
+                return null;
+            }
+            $decoded = $next;
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * @param array<string, mixed> $dictionary
+     */
+    private function streamBytesFromBodyAndDictionary(string $body, array $dictionary): ?string
+    {
+        $body = trim($body);
+        if (!str_starts_with($body, '<<')) {
+            return null;
+        }
+
+        $dictionaryEnd = $this->dictionaryEndOffset($body, 0);
+        if ($dictionaryEnd === null) {
+            return null;
+        }
+
+        $offset = $dictionaryEnd;
+        while ($offset < strlen($body) && ctype_space($body[$offset])) {
+            $offset++;
+        }
+        if (substr($body, $offset, strlen('stream')) !== 'stream') {
+            return null;
+        }
+
+        $start = $offset + strlen('stream');
+        if (substr($body, $start, 2) === "\r\n") {
+            $start += 2;
+        } elseif (($body[$start] ?? '') === "\n" || ($body[$start] ?? '') === "\r") {
+            $start++;
+        }
+
+        $end = strpos($body, 'endstream', $start);
+        if ($end === false || $end < $start) {
+            return null;
+        }
+
+        $stream = substr($body, $start, $end - $start);
+        $length = $this->directIntegerValue($dictionary['Length'] ?? null);
+        if ($length !== null && $length >= 0 && $length <= strlen($stream)) {
+            return substr($stream, 0, $length);
+        }
+
+        return preg_replace("/\r\n$|\n$|\r$/", '', $stream) ?? $stream;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function filterNamesFromValue(mixed $value): array
+    {
+        $name = $this->nameValue($value);
+        if ($name !== null) {
+            return [$name];
+        }
+
+        $filters = [];
+        foreach ($this->arrayItems($value) ?? [] as $filter) {
+            $filterName = $this->nameValue($filter);
+            if ($filterName !== null) {
+                $filters[] = $filterName;
+            }
+        }
+
+        return $filters;
+    }
+
+    private function decodeFlateStream(string $bytes): ?string
+    {
+        $decoded = @gzuncompress($bytes);
+        if ($decoded === false) {
+            $decoded = @gzinflate($bytes);
+        }
+        if ($decoded === false) {
+            $decoded = @gzdecode($bytes);
+        }
+
+        return $decoded === false ? null : $decoded;
+    }
+
+    private function decodeAsciiHexStream(string $bytes): ?string
+    {
+        $body = strstr($bytes, '>', true);
+        if ($body === false) {
+            $body = $bytes;
+        }
+
+        $hex = preg_replace('/\s+/', '', $body);
+        if ($hex === null || preg_match('/^[\da-fA-F]*$/', $hex) !== 1) {
+            return null;
+        }
+        if (strlen($hex) % 2 === 1) {
+            $hex .= '0';
+        }
+
+        $decoded = hex2bin($hex);
+
+        return $decoded === false ? null : $decoded;
+    }
+
+    private function latestStartxrefOffset(string $pdfBytes): ?int
+    {
+        if (preg_match_all('/\bstartxref\s+([+-]?\d+)/s', $pdfBytes, $matches) < 1) {
+            return null;
+        }
+
+        $offset = (int) end($matches[1]);
+
+        return $offset >= 0 && $offset < strlen($pdfBytes) ? $offset : null;
+    }
+
+    private function parseFirstObjectValue(string $body): mixed
+    {
+        $tokens = $this->tokens($this->firstObjectValue(trim($body)));
+        if ($tokens === []) {
+            return null;
+        }
+
+        $index = 0;
+        return $this->parseValue($tokens, $index);
+    }
+
+    private function directIntegerValue(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_float($value) && abs($value - round($value)) <= 0.000001) {
+            return (int) round($value);
+        }
+
+        return null;
     }
 
     private function firstObjectValue(string $body): string
