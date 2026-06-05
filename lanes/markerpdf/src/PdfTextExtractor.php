@@ -7598,7 +7598,7 @@ final class PdfTextExtractor
             }
 
             $start = $index;
-            while ($index < $length && !$this->isDelimiter($value[$index])) {
+            while ($index < $length && !$this->isBareTokenDelimiter($value[$index])) {
                 $index++;
             }
 
@@ -18056,7 +18056,7 @@ final class PdfTextExtractor
             }
 
             $start = $index;
-            while ($index < $length && !$this->isDelimiter($stream[$index])) {
+            while ($index < $length && !$this->isBareTokenDelimiter($stream[$index])) {
                 $index++;
             }
             if ($index === $start) {
@@ -18177,7 +18177,7 @@ final class PdfTextExtractor
             }
 
             $start = $index;
-            while ($index < $length && !$this->isDelimiter($segment[$index])) {
+            while ($index < $length && !$this->isBareTokenDelimiter($segment[$index])) {
                 $index++;
             }
 
@@ -18217,7 +18217,9 @@ final class PdfTextExtractor
             }
 
             if ($keyToken === 'ID') {
-                return implode(' ', $entries);
+                return $this->inlineImageDataSeparatorFollowsId($stream, $index)
+                    ? implode(' ', $entries)
+                    : null;
             }
 
             if (!str_starts_with($keyToken, '/')) {
@@ -18275,7 +18277,7 @@ final class PdfTextExtractor
         }
 
         $start = $index;
-        while ($index < strlen($stream) && !$this->isDelimiter($stream[$index])) {
+        while ($index < strlen($stream) && !$this->isBareTokenDelimiter($stream[$index])) {
             $index++;
         }
 
@@ -18851,6 +18853,11 @@ final class PdfTextExtractor
         $index++;
     }
 
+    private function inlineImageDataSeparatorFollowsId(string $stream, int $index): bool
+    {
+        return $index < strlen($stream) && ctype_space($stream[$index]);
+    }
+
     private function inlineImageEndMarkerAt(string $stream, int $offset): bool
     {
         if ($offset <= 0 || !ctype_space($stream[$offset - 1])) {
@@ -18974,6 +18981,11 @@ final class PdfTextExtractor
     private function isDelimiter(string $char): bool
     {
         return ctype_space($char) || str_contains('[]()<>{}%', $char);
+    }
+
+    private function isBareTokenDelimiter(string $char): bool
+    {
+        return $this->isDelimiter($char) || $char === '/';
     }
 
     private function isPdfNameDelimiter(string $char): bool
