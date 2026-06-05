@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 06:16:49 UTC",
-    "sourceCommit": "199da2107510d0186121ba29c9d61db58f886d6e",
-    "sourceCommitShort": "199da2107510",
+    "generated": "2026-06-05 06:17:05 UTC",
+    "sourceCommit": "f57859726e3893b4b3f78a97a8e5c976574901ab",
+    "sourceCommitShort": "f57859726e38",
     "sourceBranch": "unknown",
-    "dashboardCommit": "199da2107510d0186121ba29c9d61db58f886d6e",
-    "dashboardCommitShort": "199da2107510",
+    "dashboardCommit": "f57859726e3893b4b3f78a97a8e5c976574901ab",
+    "dashboardCommitShort": "f57859726e38",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -139,9 +139,9 @@
             "unmapped": "1,115",
             "php": "683 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-05 UTC upstream-runner dependency audit slice on accepted bas...",
+            "audit": "2026-06-05 UTC upstream-runner dependency audit on accepted base 7149...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For EPUB3 follow-up, keep richer XHTML-to-AST conversion, CSS...",
+            "nextTarget": "For upstream-runner dependency closure, hydrate a local Pando...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },
