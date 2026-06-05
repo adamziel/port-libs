@@ -1449,6 +1449,100 @@ XML;
         $t->contains('<annotation encoding="application/x-tex">x=1</annotation>', $blocksHtml);
         $t->contains('<span class="math display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $blocksHtml);
     },
+    'maps ODT chart draw objects into embedded object review placeholders' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $manifestWithChartObjects = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Object%20Chart/" manifest:media-type="application/vnd.oasis.opendocument.chart"/>
+  <manifest:file-entry manifest:full-path="Object%20Chart/content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Object%20Missing/" manifest:media-type="application/vnd.oasis.opendocument.chart"/>
+</manifest:manifest>
+XML;
+        $contentWithChartObjects = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Inline chart <draw:frame draw:name="Inline chart"><svg:desc>Revenue chart placeholder</svg:desc><draw:object xlink:href="./Object%20Chart"/></draw:frame> queued for review.</text:p>
+      <draw:frame draw:name="Missing chart">
+        <svg:title>Missing chart placeholder</svg:title>
+        <draw:object xlink:href="Object%20Missing"/>
+      </draw:frame>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+        $chartObjectXml = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:chart="urn:oasis:names:tc:opendocument:xmlns:chart:1.0">
+  <office:body>
+    <office:chart>
+      <chart:chart chart:class="chart:bar"/>
+    </office:chart>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(
+            $contentWithChartObjects,
+            $manifestWithChartObjects,
+            null,
+            null,
+            [
+                ['name' => 'Object Chart/content.xml', 'data' => $chartObjectXml],
+            ]
+        ));
+
+        $blocks = $result['document']->children;
+        $paragraph = $blocks[0];
+        $inlineChart = $paragraph->children[1];
+        $missingChart = $blocks[1];
+
+        $t->same(2, count($blocks));
+        $t->same('Inline chart Revenue chart placeholder queued for review.', $paragraph->attr('text'));
+        $t->same('span', $inlineChart->type);
+        $t->same(['odf-embedded-object', 'odf-object-chart'], $inlineChart->attr('classes'));
+        $t->same('chart', $inlineChart->attr('objectType'));
+        $t->same('./Object%20Chart', $inlineChart->attr('href'));
+        $t->same('Object Chart', $inlineChart->attr('objectPath'));
+        $t->same('Object Chart/', $inlineChart->attr('sourcePart'));
+        $t->same('application/vnd.oasis.opendocument.chart', $inlineChart->attr('mediaType'));
+        $t->same(true, $inlineChart->attr('exists'));
+        $t->same(false, $inlineChart->attr('canExposeBytes'));
+        $t->same(['Object Chart/content.xml'], $inlineChart->attr('containedParts'));
+        $t->same(1, $inlineChart->attr('containedPartCount'));
+        $t->same(strlen($chartObjectXml), $inlineChart->attr('containedByteLength'));
+        $t->same('Revenue chart placeholder', $inlineChart->children[0]->attr('text'));
+
+        $t->same('div', $missingChart->type);
+        $t->same(['odf-embedded-object', 'odf-object-chart'], $missingChart->attr('classes'));
+        $t->same('chart', $missingChart->attr('objectType'));
+        $t->same('Object Missing', $missingChart->attr('objectPath'));
+        $t->same('Object Missing/', $missingChart->attr('sourcePart'));
+        $t->same(false, $missingChart->attr('exists'));
+        $t->same(0, $missingChart->attr('containedPartCount'));
+        $t->same('Missing chart placeholder', $missingChart->children[0]->children[0]->attr('text'));
+
+        $t->same(2, $result['importReport']['content']['embeddedObjectCount']);
+        $t->same(1, $result['importReport']['content']['missingEmbeddedObjectCount']);
+        $t->same(0, count($result['media']));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Revenue chart placeholder]{.odf-embedded-object .odf-object-chart data-odf-object-type="chart" data-odf-object-href="./Object%20Chart" data-odf-object-path="Object Chart" data-odf-object-source-part="Object Chart/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="true" data-odf-object-contained-part-count="1" data-odf-object-contained-byte-length="' . strlen($chartObjectXml) . '" data-odf-object-can-expose-bytes="false"}', $markdown);
+        $t->contains('::: {.odf-embedded-object .odf-object-chart data-odf-object-type="chart" data-odf-object-href="Object%20Missing" data-odf-object-path="Object Missing" data-odf-object-source-part="Object Missing/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="false" data-odf-object-contained-part-count="0" data-odf-object-can-expose-bytes="false"}', $markdown);
+        $t->contains('<span class="odf-embedded-object odf-object-chart" data-odf-object-type="chart" data-odf-object-href="./Object%20Chart" data-odf-object-path="Object Chart" data-odf-object-source-part="Object Chart/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="true" data-odf-object-contained-part-count="1" data-odf-object-contained-byte-length="' . strlen($chartObjectXml) . '" data-odf-object-can-expose-bytes="false">Revenue chart placeholder</span>', $blocksHtml);
+        $t->contains('<div class="odf-embedded-object odf-object-chart" data-odf-object-type="chart" data-odf-object-href="Object%20Missing" data-odf-object-path="Object Missing" data-odf-object-source-part="Object Missing/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="false" data-odf-object-contained-part-count="0" data-odf-object-can-expose-bytes="false"><p>Missing chart placeholder</p></div>', $blocksHtml);
+        $t->true(!str_contains($blocksHtml, 'chart:bar'), 'Opaque chart object XML must not render in WordPress output');
+    },
     'maps ODT object-ole frames into embedded object review placeholders' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $manifestWithOleObjects = <<<'XML'
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">

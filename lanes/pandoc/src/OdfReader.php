@@ -1062,6 +1062,11 @@ final class OdfReader
             ], [$math]);
         }
 
+        $object = $this->frameObjectNode($frame, $package, false);
+        if ($object instanceof AstNode) {
+            return $object;
+        }
+
         $image = $this->frameImageNode($frame, $package);
         if (!$image instanceof AstNode) {
             return null;
@@ -1469,6 +1474,11 @@ final class OdfReader
                 $objectOle = $this->frameObjectOleNode($child, $package, true);
                 if ($objectOle instanceof AstNode) {
                     $nodes[] = $objectOle;
+                    continue;
+                }
+                $object = $this->frameObjectNode($child, $package, true);
+                if ($object instanceof AstNode) {
+                    $nodes[] = $object;
                 }
                 continue;
             }
@@ -2382,6 +2392,113 @@ final class OdfReader
                 'text' => $label,
             ], [$text]),
         ]);
+    }
+
+    private function frameObjectNode(\DOMElement $frame, ?ZipPackage $package, bool $inline): ?AstNode
+    {
+        $object = self::firstChildElement($frame, 'object', self::DRAW_NS);
+        if (!$object instanceof \DOMElement) {
+            return null;
+        }
+
+        $href = self::attr($object, self::XLINK_NS, 'href');
+        if ($href === '') {
+            return null;
+        }
+
+        $part = $this->manifestPackagePart($href);
+        $objectPath = rtrim($part, '/');
+        if ($objectPath === '') {
+            return null;
+        }
+
+        $manifestItem = $this->objectManifestItem($part, $objectPath);
+        $sourcePart = is_array($manifestItem) && is_string($manifestItem['part'] ?? null)
+            ? (string) $manifestItem['part']
+            : $part;
+        $containedParts = $package instanceof ZipPackage ? $this->objectContainedParts($package, $objectPath) : [];
+        $encrypted = is_array($manifestItem) && ($manifestItem['encrypted'] ?? false) === true;
+        $mediaType = is_array($manifestItem) ? (string) ($manifestItem['mediaType'] ?? '') : '';
+        $objectType = $this->objectTypeForMediaType($mediaType);
+        $containedByteLength = $encrypted ? null : $this->containedPartsByteLength($package, $containedParts);
+        $exists = $containedParts !== [] || ($package instanceof ZipPackage && $package->has($sourcePart) && !str_ends_with($sourcePart, '/'));
+        $label = $this->objectLabel($frame, $object, $objectPath);
+
+        $attributes = [
+            'data-odf-object-type' => $objectType,
+            'data-odf-object-href' => $href,
+            'data-odf-object-path' => $objectPath,
+            'data-odf-object-source-part' => $sourcePart,
+        ];
+        if ($mediaType !== '') {
+            $attributes['data-odf-object-media-type'] = $mediaType;
+        }
+        $attributes['data-odf-object-exists'] = $exists ? 'true' : 'false';
+        $attributes['data-odf-object-contained-part-count'] = (string) count($containedParts);
+        if ($containedByteLength !== null && $containedByteLength > 0) {
+            $attributes['data-odf-object-contained-byte-length'] = (string) $containedByteLength;
+        }
+        $attributes['data-odf-object-can-expose-bytes'] = 'false';
+        if ($encrypted) {
+            $attributes['data-odf-object-encrypted'] = 'true';
+        }
+
+        $attrs = [
+            'sourceFormat' => $objectType === 'object' ? 'odt-object' : 'odt-object-' . $objectType,
+            'objectType' => $objectType,
+            'href' => $href,
+            'objectPath' => $objectPath,
+            'sourcePart' => $sourcePart,
+            'mediaType' => $mediaType === '' ? null : $mediaType,
+            'exists' => $exists,
+            'encrypted' => $encrypted,
+            'canExposeBytes' => false,
+            'containedParts' => $containedParts,
+            'containedPartCount' => count($containedParts),
+            'containedByteLength' => $containedByteLength,
+            'classes' => ['odf-embedded-object', 'odf-object-' . self::objectClassSuffix($objectType)],
+            'attributes' => $attributes,
+        ];
+        if (is_array($manifestItem)) {
+            $attrs['manifestFullPath'] = $manifestItem['fullPath'] ?? null;
+            $attrs['declaredSize'] = $manifestItem['declaredSize'] ?? null;
+            $attrs['manifestExists'] = $manifestItem['exists'] ?? null;
+            $attrs['encryption'] = $manifestItem['encryption'] ?? null;
+        }
+
+        $text = new AstNode('text', ['text' => $label]);
+        if ($inline) {
+            return new AstNode('span', $attrs, [$text]);
+        }
+
+        return new AstNode('div', $attrs, [
+            new AstNode('paragraph', [
+                'sourceFormat' => 'odt',
+                'text' => $label,
+            ], [$text]),
+        ]);
+    }
+
+    private function objectTypeForMediaType(string $mediaType): string
+    {
+        $base = strtolower(trim(explode(';', $mediaType, 2)[0]));
+
+        return match ($base) {
+            'application/vnd.oasis.opendocument.chart' => 'chart',
+            'application/vnd.oasis.opendocument.graphics' => 'graphics',
+            'application/vnd.oasis.opendocument.presentation' => 'presentation',
+            'application/vnd.oasis.opendocument.spreadsheet' => 'spreadsheet',
+            'application/vnd.oasis.opendocument.text' => 'text',
+            default => 'object',
+        };
+    }
+
+    private static function objectClassSuffix(string $type): string
+    {
+        $suffix = strtolower(preg_replace('/[^A-Za-z0-9]+/', '-', $type) ?? '');
+        $suffix = trim($suffix, '-');
+
+        return $suffix === '' ? 'object' : $suffix;
     }
 
     /**
