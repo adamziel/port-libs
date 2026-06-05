@@ -18908,6 +18908,25 @@ final class PdfTextExtractor
 
         foreach (array_keys($carrierObjectNumbers) as $objectNumber) {
             $entry = $entries[$objectNumber] ?? null;
+            if ($entry === null) {
+                $definition = $this->latestDirectObjectStreamDefinitionBetweenOffsets(
+                    $definitions[$objectNumber] ?? [],
+                    $previousOffset ?? -1,
+                    $currentXrefOffset
+                );
+                if ($definition === null) {
+                    continue;
+                }
+
+                $entries[$objectNumber] = [
+                    'type' => 1,
+                    'generation' => $definition['generation'],
+                    'offset' => $definition['offset'],
+                    'offsetIsExplicit' => true,
+                ];
+                continue;
+            }
+
             if (($entry['type'] ?? null) !== 1) {
                 continue;
             }
