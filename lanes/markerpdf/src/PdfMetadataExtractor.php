@@ -12415,7 +12415,7 @@ final class PdfMetadataExtractor
             }
 
             if ($body[$offset] !== '/') {
-                $offset++;
+                $offset = $this->skipNonDictionaryKeyToken($body, $offset);
                 continue;
             }
 
@@ -12456,7 +12456,7 @@ final class PdfMetadataExtractor
             }
 
             if ($body[$offset] !== '/') {
-                $offset++;
+                $offset = $this->skipNonDictionaryKeyToken($body, $offset);
                 continue;
             }
 
@@ -12484,10 +12484,56 @@ final class PdfMetadataExtractor
     {
         $trimmed = $this->trimPdfWhitespaceAndComments($dictionary);
         if (str_starts_with($trimmed, '<<')) {
-            return $this->readPdfDictionaryAt($trimmed, 0) ?? $dictionary;
+            $body = $this->readPdfDictionaryAt($trimmed, 0);
+            $after = $body === null ? null : $this->skipPdfWhitespace($trimmed, strlen($body) + 4);
+            if (
+                $body !== null
+                && is_int($after)
+                && ($after >= strlen($trimmed) || $this->pdfKeywordAt($trimmed, $after, 'stream'))
+            ) {
+                return $body;
+            }
         }
 
         return $dictionary;
+    }
+
+    private function skipNonDictionaryKeyToken(string $body, int $offset): int
+    {
+        $length = strlen($body);
+        if ($offset >= $length) {
+            return $offset;
+        }
+
+        $char = $body[$offset];
+        if ($char === '%') {
+            return $this->lineCommentEndOffset($body, $offset);
+        }
+
+        if ($char === '(') {
+            return $this->literalTokenEndOffset($body, $offset);
+        }
+
+        if ($char === '[') {
+            $array = $this->readPdfArrayAt($body, $offset);
+            return $array === null ? $length : $offset + strlen($array);
+        }
+
+        if (substr($body, $offset, 2) === '<<') {
+            $dictionary = $this->readPdfDictionaryAt($body, $offset);
+            return $dictionary === null ? $length : $offset + strlen($dictionary) + 4;
+        }
+
+        if ($char === '<') {
+            $end = strpos($body, '>', $offset + 1);
+            return $end === false ? $length : $end + 1;
+        }
+
+        if (preg_match('/[^\s\[\]()<>{}\/%]+/A', substr($body, $offset), $match) === 1) {
+            return $offset + strlen($match[0]);
+        }
+
+        return $offset + 1;
     }
 
     /**
