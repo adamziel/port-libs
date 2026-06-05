@@ -16544,7 +16544,7 @@ final class PdfTextExtractor
             }
 
             if ($token === 'd1') {
-                if (count($operands) !== 6) {
+                if (!$this->type3CharProcHasNumericOperands($operands, 6)) {
                     return null;
                 }
 
