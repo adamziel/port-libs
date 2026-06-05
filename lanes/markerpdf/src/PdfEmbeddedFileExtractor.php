@@ -2088,8 +2088,8 @@ final class PdfEmbeddedFileExtractor
         }
 
         $sectionBodyOffset = $offset + 4;
-        $trailerOffset = strpos($pdfBytes, 'trailer', $sectionBodyOffset);
-        if ($trailerOffset === false) {
+        $trailerOffset = $this->xrefTableTrailerKeywordOffset($pdfBytes, $sectionBodyOffset);
+        if ($trailerOffset === null) {
             return null;
         }
 
@@ -2764,12 +2764,39 @@ final class PdfEmbeddedFileExtractor
     private function xrefTableKeywordOffsets(string $pdfBytes): array
     {
         $offsets = [];
+        $length = strlen($pdfBytes);
         $offset = 0;
-        while (($position = strpos($pdfBytes, 'xref', $offset)) !== false) {
-            if ($this->pdfKeywordAt($pdfBytes, $position, 'xref')) {
-                $offsets[] = $position;
+        while ($offset < $length) {
+            $char = $pdfBytes[$offset];
+
+            if ($char === '%') {
+                $offset = $this->pdfCommentEndOffset($pdfBytes, $offset);
+                continue;
             }
-            $offset = $position + 4;
+
+            if ($char === '(') {
+                $literal = $this->readLiteralStringAt($pdfBytes, $offset);
+                if ($literal !== null) {
+                    $offset = $literal['end'];
+                    continue;
+                }
+            }
+
+            if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
+                $end = $this->skipHexString($pdfBytes, $offset);
+                if ($end !== null) {
+                    $offset = $end;
+                    continue;
+                }
+            }
+
+            if ($this->pdfKeywordAt($pdfBytes, $offset, 'xref')) {
+                $offsets[] = $offset;
+                $offset += strlen('xref');
+                continue;
+            }
+
+            $offset++;
         }
 
         return $offsets;
@@ -2787,8 +2814,8 @@ final class PdfEmbeddedFileExtractor
 
     private function xrefTableTrailerDictionaryAtOffset(string $pdfBytes, int $offset): ?string
     {
-        $trailerOffset = strpos($pdfBytes, 'trailer', $offset + 4);
-        if ($trailerOffset === false) {
+        $trailerOffset = $this->xrefTableTrailerKeywordOffset($pdfBytes, $offset + 4);
+        if ($trailerOffset === null) {
             return null;
         }
 
@@ -2799,6 +2826,46 @@ final class PdfEmbeddedFileExtractor
 
         $dictionary = $this->readPdfDictionaryAt($pdfBytes, $dictionaryOffset);
         return $dictionary === null ? null : $dictionary['body'];
+    }
+
+    private function xrefTableTrailerKeywordOffset(string $pdfBytes, int $offset): ?int
+    {
+        $length = strlen($pdfBytes);
+        while ($offset < $length) {
+            $char = $pdfBytes[$offset];
+
+            if ($char === '%') {
+                $offset = $this->pdfCommentEndOffset($pdfBytes, $offset);
+                continue;
+            }
+
+            if ($char === '(') {
+                $literal = $this->readLiteralStringAt($pdfBytes, $offset);
+                if ($literal !== null) {
+                    $offset = $literal['end'];
+                    continue;
+                }
+            }
+
+            if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
+                $end = $this->skipHexString($pdfBytes, $offset);
+                if ($end !== null) {
+                    $offset = $end;
+                    continue;
+                }
+            }
+
+            if ($this->pdfKeywordAt($pdfBytes, $offset, 'trailer')) {
+                $dictionaryOffset = $this->skipWhitespace($pdfBytes, $offset + strlen('trailer'));
+                if (substr($pdfBytes, $dictionaryOffset, 2) === '<<') {
+                    return $offset;
+                }
+            }
+
+            $offset++;
+        }
+
+        return null;
     }
 
     private function xrefStreamDictionaryAtObjectOffset(string $pdfBytes, int $offset): ?string
@@ -3377,6 +3444,16 @@ final class PdfEmbeddedFileExtractor
     {
         $end = strpos($value, '>', $offset + 1);
         return $end === false ? null : $end + 1;
+    }
+
+    private function pdfCommentEndOffset(string $value, int $offset): int
+    {
+        $length = strlen($value);
+        while ($offset < $length && $value[$offset] !== "\n" && $value[$offset] !== "\r") {
+            $offset++;
+        }
+
+        return $offset;
     }
 
     private function skipWhitespace(string $value, int $offset): int
