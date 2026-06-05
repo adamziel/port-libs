@@ -13,8 +13,8 @@ $source = <<<'HTML'
 <article id="legacy-post-42" data-source="html-export">
   <h1>Imported source packet</h1>
   <!--review--->
-  <p>AT&amp;T &lt;review&gt; text<br>keeps its line break with a <a href="../media/source.html#note">source note</a>.</p>
-  <figure><img src="cover.png" srcset="cover.png 1x, ../media/cover@2x.png 2x, javascript:alert(1) 3x" alt="Cover"><figcaption>Cover image</figcaption></figure>
+  <p>AT&amp;T &lt;review&gt; text<br>keeps its line break with a <a href=" ../media/source.html#note&#10;">source note</a>.</p>
+  <figure><img src=" cover.png&#13;" srcset=" cover.png 1x, ../media/cover@2x.png 2x, javascript:alert(1) 3x" alt="Cover"><figcaption>Cover image</figcaption></figure>
 </article>
 HTML;
 
@@ -47,6 +47,13 @@ if (($argv[1] ?? '') === '--self-test') {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM fragment self-test retained blocked content: ' . $blocked);
         }
+    }
+    $normalizedUrlDiagnostics = array_values(array_filter(
+        $fragment->diagnosticCodes(),
+        static fn (string $code): bool => $code === 'normalized-url'
+    ));
+    if (count($normalizedUrlDiagnostics) !== 2) {
+        throw new RuntimeException('HTML5 DOM fragment self-test expected two normalized URL diagnostics');
     }
 
     echo "html5 dom fragment handoff self-test ok\n";

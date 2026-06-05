@@ -690,23 +690,50 @@ final class Html5DomFragment
                 continue;
             }
 
-            if (self::isUrlAttribute($name) && !self::isSafeUrlAttributeValue($name, $value)) {
-                $diagnostics[] = [
-                    'code' => 'unsafe-url',
-                    'tag' => $tagName,
-                    'attribute' => $name,
-                ];
-                continue;
-            }
+            if (self::isUrlAttribute($name)) {
+                if (!self::isSafeUrlAttributeValue($name, $value)) {
+                    $diagnostics[] = [
+                        'code' => 'unsafe-url',
+                        'tag' => $tagName,
+                        'attribute' => $name,
+                    ];
+                    continue;
+                }
 
-            if ($mode === 'html' && $baseUrl !== null && self::isUrlAttribute($name)) {
-                $value = self::resolveRelativeUrl($baseUrl, $value);
+                $normalizedUrl = self::normalizeUrlAttributeValue($value);
+                if ($normalizedUrl !== $value) {
+                    $diagnostics[] = [
+                        'code' => 'normalized-url',
+                        'tag' => $tagName,
+                        'attribute' => $name,
+                    ];
+                }
+
+                $value = $mode === 'html' && $baseUrl !== null
+                    ? self::resolveRelativeUrl($baseUrl, $normalizedUrl)
+                    : $normalizedUrl;
             }
 
             $attrs[$name] = $value;
         }
 
         return $attrs;
+    }
+
+    private static function normalizeUrlAttributeValue(string $value): string
+    {
+        $withoutControls = preg_replace('/[\x00-\x1F\x7F]+/', '', $value) ?? $value;
+        $trimmed = trim($withoutControls);
+        $compact = preg_replace('/[\x00-\x20]+/', '', $value) ?? $value;
+
+        if (
+            preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $compact) === 1
+            && preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $trimmed) !== 1
+        ) {
+            return $compact;
+        }
+
+        return $trimmed;
     }
 
     private static function assertSafeHtmlSource(string $html, string $label): void

@@ -133,6 +133,42 @@ return [
         $t->true(!str_contains($html, 'javascript:'), 'Expected javascript URLs to be stripped from extended attributes');
         $t->true(!str_contains($html, 'background="mailto:'), 'Expected mailto image-fetch URL to be stripped');
     },
+    'normalizes control-separated URL attributes before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href=" https://source.example.test/import/posts/post.html ">'
+            . '<p>'
+            . '<a href=" h&#9;ttps://example.test/review ">Absolute source</a>'
+            . '<a href=" ../media/source.html#note&#10;">Relative source</a>'
+            . '<img src=" ./cover.png&#13;" srcset=" ./cover.png 1x, ../media/cover@2x.png 2x " alt="Cover">'
+            . '</p>'
+            . '<blockquote cite=" ?review=1&#10;">Quoted source</blockquote>'
+            . '<a href="java&#10;script:alert(1)">Bad source</a>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/url-normalization-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $html = $fragment->serialize();
+
+        $expected = '<p><a href="https://example.test/review">Absolute source</a><a href="https://source.example.test/import/media/source.html#note">Relative source</a><img src="https://source.example.test/import/posts/cover.png" srcset="https://source.example.test/import/posts/cover.png 1x, https://source.example.test/import/media/cover@2x.png 2x" alt="Cover"></p><blockquote cite="https://source.example.test/import/posts/post.html?review=1">Quoted source</blockquote><a>Bad source</a>';
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same(['base'], $summary['blockedTags']);
+        $t->same(['href'], $summary['filteredAttributes']);
+        $t->same(6, $summary['diagnostics']);
+        $t->same(['blocked-tag', 'normalized-url', 'normalized-url', 'normalized-url', 'normalized-url', 'unsafe-url'], $fragment->diagnosticCodes());
+        $t->same('https://example.test/review', $nodes[0]['children'][0]['attrs']['href']);
+        $t->same('https://source.example.test/import/media/source.html#note', $nodes[0]['children'][1]['attrs']['href']);
+        $t->same('https://source.example.test/import/posts/cover.png', $nodes[0]['children'][2]['attrs']['src']);
+        $t->same('https://source.example.test/import/posts/post.html?review=1', $nodes[1]['attrs']['cite']);
+        $t->same('/migration/url-normalization-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, "h\t"), 'Expected control-separated safe schemes to be canonicalized');
+        $t->true(!str_contains($html, "\n"), 'Expected newline-containing URL attributes to be canonicalized');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected control-separated unsafe schemes to be stripped');
+    },
     'unwraps visible form content while dropping active controls before review handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<form action="/submit" onsubmit="alert(1)">'
