@@ -3943,12 +3943,12 @@ final class PdfTextExtractor
      */
     private function contentMatrixOperand(array $operands): ?array
     {
-        if (count($operands) < 6) {
+        if (count($operands) !== 6) {
             return null;
         }
 
         $matrix = [];
-        foreach (array_slice($operands, -6) as $operand) {
+        foreach ($operands as $operand) {
             $number = $this->numericOperand($operand);
             if ($number === null) {
                 return null;
