@@ -126,7 +126,9 @@ final class PdfLinkAnnotationExtractor
                             continue;
                         }
 
-                        $candidate = $this->linkForSpan($span, $links, $page);
+                        $matchingPage = $page;
+                        $matchingPage['pnum'] = $pnum;
+                        $candidate = $this->linkForSpan($span, $links, $matchingPage);
                         if ($candidate === null) {
                             continue;
                         }
@@ -1466,6 +1468,10 @@ final class PdfLinkAnnotationExtractor
      */
     private function linkRectCandidatesForPage(array $link, array $page): array
     {
+        if ($this->selfDestinationWithoutExplicitPosition($link, $page)) {
+            return [];
+        }
+
         $usesPdftextGeometry = $this->pageLooksLikePdftextGeometry($link, $page);
         if (array_key_exists('quad_points', $link)) {
             $quadRects = $usesPdftextGeometry
@@ -1509,6 +1515,49 @@ final class PdfLinkAnnotationExtractor
             'rect' => $rect,
             'coordinate_space' => 'pdf_page_user_space',
         ]];
+    }
+
+    /**
+     * pdftext/PDFium skips same-page destination refs when the destination has
+     * no concrete position. Keep the annotation row reviewable, but avoid
+     * attaching a no-op self jump to WordPress spans.
+     *
+     * @param array<string, mixed> $link
+     * @param array<string, mixed> $page
+     */
+    private function selfDestinationWithoutExplicitPosition(array $link, array $page): bool
+    {
+        if (($link['safety'] ?? null) !== 'local-destination') {
+            return false;
+        }
+
+        $destinationPage = $link['destination_page'] ?? null;
+        $pageNumber = $page['pnum'] ?? null;
+        if (!is_int($destinationPage) || (!is_int($pageNumber) && !is_float($pageNumber))) {
+            return false;
+        }
+
+        return $destinationPage === (int) $pageNumber
+            && !$this->localDestinationHasExplicitPosition($link);
+    }
+
+    /**
+     * @param array<string, mixed> $link
+     */
+    private function localDestinationHasExplicitPosition(array $link): bool
+    {
+        $position = $link['view_position'] ?? [];
+        if (!is_array($position)) {
+            return false;
+        }
+
+        foreach ($position as $value) {
+            if (is_int($value) || is_float($value)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
