@@ -573,6 +573,19 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Legacy DOC handoff self-test missing FIB preflight flags');
     }
 
+    foreach ([
+        'unsupported CFB major version' => substr_replace($docBytes, $u16(5), 26, 2),
+        'version 3 CFB directory-sector count' => substr_replace($docBytes, $u32(1), 40, 4),
+    ] as $label => $corruptDocBytes) {
+        try {
+            (new LegacyDocReader())->readBytes($corruptDocBytes);
+        } catch (InvalidArgumentException | RuntimeException) {
+            continue;
+        }
+
+        throw new RuntimeException('Legacy DOC handoff self-test accepted corrupt header: ' . $label);
+    }
+
     echo "legacy doc handoff self-test ok\n";
     return;
 }

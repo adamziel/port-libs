@@ -63,6 +63,9 @@ final class CompoundFileBinary
         if ($byteOrder !== 0xfffe) {
             throw new \InvalidArgumentException('CFB file must use little-endian byte order');
         }
+        if (!in_array($majorVersion, [3, 4], true)) {
+            throw new \InvalidArgumentException('CFB file uses an unsupported major version');
+        }
         if (!in_array($sectorShift, [9, 12], true)) {
             throw new \InvalidArgumentException('CFB file uses an unsupported sector size');
         }
@@ -78,6 +81,7 @@ final class CompoundFileBinary
 
         $sectorSize = 1 << $sectorShift;
         $miniSectorSize = 1 << $miniSectorShift;
+        $directorySectorCount = self::u32($bytes, 40);
         $fatSectorCount = self::u32($bytes, 44);
         $firstDirectorySector = self::u32($bytes, 48);
         $miniStreamCutoff = self::u32($bytes, 56);
@@ -85,6 +89,9 @@ final class CompoundFileBinary
         $miniFatSectorCount = self::u32($bytes, 64);
         $firstDifatSector = self::u32($bytes, 68);
         $difatSectorCount = self::u32($bytes, 72);
+        if ($majorVersion === 3 && $directorySectorCount !== 0) {
+            throw new \RuntimeException('CFB version 3 files must not declare directory sectors in the header');
+        }
 
         $difat = [];
         for ($index = 0; $index < 109; $index++) {

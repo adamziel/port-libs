@@ -539,6 +539,17 @@ return [
 
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($invalidColor));
     },
+    'rejects invalid CFB header versions and directory-sector counts before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u16, $u32): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+        ]);
+
+        $unsupportedMajor = substr_replace($bytes, $u16(5), 26, 2);
+        $t->throws(\InvalidArgumentException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($unsupportedMajor));
+
+        $versionThreeWithDirectoryCount = substr_replace($bytes, $u32(1), 40, 4);
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($versionThreeWithDirectoryCount));
+    },
     'extracts non-complex legacy DOC text and OLE SummaryInformation metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $propertySet): void {
         $docBytes = $buildCfb([
             'WordDocument' => $buildSimpleWordDocument("Legacy import title\rReviewer notes keep hard\vbreaks.\r"),
