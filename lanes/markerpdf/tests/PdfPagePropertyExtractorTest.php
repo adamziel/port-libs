@@ -21,6 +21,85 @@ $pagePropertyPdf = static function (): string {
         . "trailer\n<< /Root 1 0 R >>\n%%EOF";
 };
 
+$pagePropertyXrefPrevChainCurrentBasePdf = static function (): string {
+    $packXrefRows = static function (array $ranges, array $entries): string {
+        $rows = '';
+        foreach ($ranges as $range) {
+            [$first, $count] = $range;
+            for ($index = 0; $index < $count; $index++) {
+                $objectNumber = $first + $index;
+                $entry = $entries[$objectNumber] ?? ['type' => 0, 'field2' => 0, 'field3' => 255];
+                $rows .= chr((int) $entry['type'])
+                    . pack('N', (int) $entry['field2'])
+                    . chr((int) $entry['field3']);
+            }
+        }
+
+        return $rows;
+    };
+
+    $pdf = "%PDF-1.7\n";
+    $previousOffsets = [];
+    $addPreviousObject = static function (int $objectNumber, string $body) use (&$pdf, &$previousOffsets): void {
+        $previousOffsets[$objectNumber] = strlen($pdf);
+        $pdf .= "{$objectNumber} 0 obj\n{$body}\nendobj\n";
+    };
+
+    $previousText = 'BT /F1 12 Tf 72 720 Td (Stale previous page review text) Tj ET';
+    $addPreviousObject(1, '<< /Type /Catalog /Pages 2 0 R >>');
+    $addPreviousObject(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addPreviousObject(3, '<< /Type /Page /Parent 2 0 R /Contents 4 0 R /PieceInfo << /WPImport << /LastModified (D:20260604090000Z) /Private << /Template (stale-prev-page) /NeedsReview false >> >> >> >>');
+    $addPreviousObject(4, "<< /Length " . strlen($previousText) . " >>\nstream\n{$previousText}\nendstream");
+
+    $previousXrefOffset = strlen($pdf);
+    $pdf .= "xref\n0 5\n"
+        . "0000000000 65535 f \n"
+        . sprintf("%010d 00000 n \n", $previousOffsets[1])
+        . sprintf("%010d 00000 n \n", $previousOffsets[2])
+        . sprintf("%010d 00000 n \n", $previousOffsets[3])
+        . sprintf("%010d 00000 n \n", $previousOffsets[4])
+        . "trailer\n<< /Size 21 /Root 1 0 R >>\n"
+        . "startxref\n{$previousXrefOffset}\n%%EOF\n";
+
+    $currentOffsets = [];
+    $addCurrentObject = static function (int $objectNumber, string $body) use (&$pdf, &$currentOffsets): void {
+        $currentOffsets[$objectNumber] = strlen($pdf);
+        $pdf .= "{$objectNumber} 0 obj\n{$body}\nendobj\n";
+    };
+
+    $currentText = 'BT /F1 12 Tf 72 720 Td (Current page property review text) Tj ET';
+    $sourcePayload = '<wp-export><post id="xref-current-page"/></wp-export>';
+    $decoyPayload = '<wp-export><post id="post-xref-decoy"/></wp-export>';
+    $addCurrentObject(3, '<< /Type /Page /Parent 2 0 R /Contents 4 0 R /PieceInfo << /WPImport << /LastModified (D:20260605130334Z) /Private << /Template (current-xref-page) /NeedsReview true /BatchId (xref-prev-current) >> >> >> /AF [10 0 R] >>');
+    $addCurrentObject(4, "<< /Length " . strlen($currentText) . " >>\nstream\n{$currentText}\nendstream");
+    $addCurrentObject(10, '<< /Type /Filespec /F (current-source.xml) /Desc (Current source export) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+    $addCurrentObject(11, "<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourcePayload) . " >> /Length " . strlen($sourcePayload) . " >>\nstream\n{$sourcePayload}\nendstream");
+
+    $currentXrefOffset = strlen($pdf);
+    $currentXrefRows = $packXrefRows([[3, 2], [10, 2]], [
+        3 => ['type' => 1, 'field2' => $currentOffsets[3], 'field3' => 0],
+        4 => ['type' => 1, 'field2' => $currentOffsets[4], 'field3' => 0],
+        10 => ['type' => 1, 'field2' => $currentOffsets[10], 'field3' => 0],
+        11 => ['type' => 1, 'field2' => $currentOffsets[11], 'field3' => 0],
+    ]);
+    $currentCompressed = gzcompress($currentXrefRows);
+    if (!is_string($currentCompressed)) {
+        throw new RuntimeException('Unable to compress current page-property xref stream.');
+    }
+    $pdf .= "21 0 obj\n"
+        . '<< /Type /XRef /Size 22 /Root 1 0 R /Prev ' . $previousXrefOffset . ' /Index [3 2 10 2] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($currentCompressed) . " >>\n"
+        . "stream\n{$currentCompressed}\nendstream\nendobj\n";
+
+    $pdf .= "3 0 obj\n"
+        . "<< /Type /Page /Parent 2 0 R /Contents 4 0 R /PieceInfo << /WPImport << /LastModified (D:20260605000000Z) /Private << /Template (post-xref-decoy-page) /NeedsReview false >> >> >> /AF [10 0 R] >>\n"
+        . "endobj\n"
+        . "10 0 obj\n<< /Type /Filespec /F (decoy-source.xml) /Desc (Post-xref decoy source) /AFRelationship /Source /EF << /F 11 0 R >> >>\nendobj\n"
+        . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($decoyPayload) . " >> /Length " . strlen($decoyPayload) . " >>\nstream\n{$decoyPayload}\nendstream\nendobj\n"
+        . "startxref\n{$currentXrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
 return [
     'extracts page PieceInfo and tagged PDF UserProperties for WordPress review metadata' => static function (TestRunner $t) use ($pagePropertyPdf): void {
         $pages = (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pagePropertyPdf());
@@ -145,6 +224,39 @@ return [
         $t->contains('Page Associated Review', $plainText);
         $t->same(false, str_contains($plainText, 'wp-export'));
         $t->same(false, str_contains($plainText, 'Page AF Payload Leak'));
+    },
+    'selects current page review objects from xref stream Prev chains before post-xref decoys' => static function (TestRunner $t) use ($pagePropertyXrefPrevChainCurrentBasePdf): void {
+        $pdf = $pagePropertyXrefPrevChainCurrentBasePdf();
+
+        $pages = (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+
+        $t->same(1, count($pages));
+        $page = $pages[0];
+        $t->same(0, $page['pnum']);
+        $t->same(3, $page['page_object']);
+        $t->same('D:20260605130334Z', $page['piece_info']['WPImport']['last_modified']);
+        $t->same('current-xref-page', $page['piece_info']['WPImport']['private']['Template']);
+        $t->same(true, $page['piece_info']['WPImport']['private']['NeedsReview']);
+        $t->same('xref-prev-current', $page['piece_info']['WPImport']['private']['BatchId']);
+
+        $associated = $page['page_associated_files'];
+        $t->same(1, count($associated));
+        $t->same('current-source.xml', $associated[0]['filename']);
+        $t->same('Current source export', $associated[0]['description']);
+        $t->same('Source', $associated[0]['relationship']);
+        $t->same(10, $associated[0]['file_spec_object']);
+        $t->same(11, $associated[0]['embedded_file_object']);
+        $t->same(hash('sha256', '<wp-export><post id="xref-current-page"/></wp-export>'), $associated[0]['content_sha256']);
+        $t->same(false, array_key_exists('content', $associated[0]));
+
+        $encoded = json_encode($pages, JSON_UNESCAPED_SLASHES);
+        $t->contains('Current page property review text', $plainText);
+        $t->same(false, str_contains($plainText, 'Stale previous page review text'));
+        $t->same(false, is_string($encoded) && str_contains($encoded, 'stale-prev-page'));
+        $t->same(false, is_string($encoded) && str_contains($encoded, 'post-xref-decoy-page'));
+        $t->same(false, is_string($encoded) && str_contains($encoded, 'decoy-source.xml'));
+        $t->same(false, is_string($encoded) && str_contains($encoded, 'post-xref-decoy'));
     },
     'combines page associated Filespecs with transition and action review metadata' => static function (TestRunner $t): void {
         $sourcePayload = '<wp-export><post id="44"/></wp-export>';
