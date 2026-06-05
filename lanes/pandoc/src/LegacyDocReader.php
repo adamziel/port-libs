@@ -502,6 +502,11 @@ final class LegacyDocReader
             if ($pieceTextResult !== null) {
                 return ['source' => 'piece-table'] + $pieceTextResult;
             }
+            if (($fib['complex'] ?? false) === true) {
+                throw new \RuntimeException('Legacy DOC complex FIB does not contain a CLX piece table');
+            }
+        } elseif (($fib['complex'] ?? false) === true) {
+            throw new \RuntimeException('Legacy DOC complex FIB requires a table stream with a CLX piece table');
         }
 
         $fcMin = (int) $fib['fcMin'];

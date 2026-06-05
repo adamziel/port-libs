@@ -2023,6 +2023,17 @@ return [
             $buildPieceTableDocStreams(0x0004)
         )));
     },
+    'rejects complex legacy DOC FIBs without CLX piece-table data before direct text fallback' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $buildPieceTableDocStreams, $u32): void {
+        $reader = new LegacyDocReader();
+
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Complex direct range should stay opaque\r", 0x0004),
+        ])));
+
+        $missingClx = $buildPieceTableDocStreams();
+        $missingClx['WordDocument'] = substr_replace($missingClx['WordDocument'], $u32(0), 0x01a6, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($missingClx)));
+    },
     'rejects no-paragraph-last legacy DOC pieces containing paragraph marks' => static function (TestRunner $t) use ($buildCfb, $buildPieceTableDocStreams): void {
         $reader = new LegacyDocReader();
 

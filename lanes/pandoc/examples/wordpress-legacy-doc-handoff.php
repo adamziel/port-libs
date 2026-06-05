@@ -1277,6 +1277,9 @@ if (($argv[1] ?? '') === '--self-test') {
     $directoryFieldOffset = static fn (int $directoryId, int $fieldOffset): int => $directorySectorOffset + ($directoryId * 128) + $fieldOffset;
     $wordDocumentDirectoryId = (int) $nodeByPath['WordDocument'];
     $objectPoolDirectoryId = (int) $nodeByPath['ObjectPool'];
+    $wordDocumentMiniStreamOffset = 512
+        + ($rootMiniStart * $sectorSize)
+        + ((int) $locations['WordDocument']['startSector'] * $miniSectorSize);
     foreach ([
         'unsupported CFB major version' => substr_replace($docBytes, $u16(5), 26, 2),
         'version 3 CFB directory-sector count' => substr_replace($docBytes, $u32(1), 40, 4),
@@ -1294,6 +1297,7 @@ if (($argv[1] ?? '') === '--self-test') {
         'misclassified CFB FAT sector' => substr_replace($docBytes, $u32($end), 512, 4),
         'CFB root mini stream reuses directory sector' => substr_replace($docBytes, $u32(1), $directoryFieldOffset(0, 116), 4),
         'invalid CFB root storage name' => substr_replace($docBytes, "X\0", 1024, 2),
+        'complex DOC missing CLX piece table' => substr_replace($docBytes, $u32(0), $wordDocumentMiniStreamOffset + 0x01a6, 4),
     ] as $label => $corruptDocBytes) {
         try {
             (new LegacyDocReader())->readBytes($corruptDocBytes);
