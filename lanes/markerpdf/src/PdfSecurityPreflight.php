@@ -185,6 +185,7 @@ final class PdfSecurityPreflight
         $permissionsDecoded = $permissions !== [];
         $declared = $permissionsDecoded || $permissionWordDeclared;
         $handlerReview = $this->permissionHandlerReview($encryption, $permissions, $declared);
+        $standardHandler = ($handlerReview['standard_handler'] ?? false) === true;
         $handlerSupported = ($handlerReview['handler_supported_for_native_permission_review'] ?? false) === true;
         $permissionWellFormed = $handlerReview['permission_word_well_formed'] ?? null;
         $permissionWordDuplicateEntries = ($permissionWordReview['duplicate_permission_entries'] ?? false) === true;
@@ -225,6 +226,10 @@ final class PdfSecurityPreflight
             $policy = 'public_key_recipient_permissions_blocked_without_private_key';
             $boundary = 'blocked_encrypted_public_key_recipient_permissions';
             $source = 'public_key_recipient_permissions';
+        } elseif ($standardHandler && $standardParametersMalformed) {
+            $policy = 'permissions_malformed_blocked_without_decryption';
+            $boundary = 'blocked_encrypted_permissions_malformed';
+            $source = 'standard_security_handler_malformed_parameters';
         } elseif (!$declared) {
             $policy = 'permissions_unknown_blocked_without_decryption';
             $boundary = 'blocked_encrypted_permissions_unknown';
@@ -233,10 +238,6 @@ final class PdfSecurityPreflight
             $policy = 'permissions_unsupported_handler_blocked_without_decryption';
             $boundary = 'blocked_encrypted_permissions_unsupported_handler';
             $source = 'unsupported_security_handler_permissions';
-        } elseif ($standardParametersMalformed) {
-            $policy = 'permissions_malformed_blocked_without_decryption';
-            $boundary = 'blocked_encrypted_permissions_malformed';
-            $source = 'standard_security_handler_malformed_parameters';
         } elseif ($permissionWellFormed !== true) {
             $policy = 'permissions_malformed_blocked_without_decryption';
             $boundary = 'blocked_encrypted_permissions_malformed';
@@ -1144,15 +1145,15 @@ final class PdfSecurityPreflight
         if (!$declared && $recipientPermissionsDeclared) {
             $status = 'public_key_recipient_permissions_undecoded_review';
             $reviewWellFormed = null;
+        } elseif ($standardHandler && $standardParametersMalformed) {
+            $status = 'malformed_standard_security_handler_parameters_review';
+            $reviewWellFormed = false;
         } elseif (!$declared) {
             $status = 'permissions_unavailable_review';
             $reviewWellFormed = null;
         } elseif (!$standardHandler) {
             $status = 'unsupported_security_handler_permissions_review';
             $reviewWellFormed = null;
-        } elseif ($standardParametersMalformed) {
-            $status = 'malformed_standard_security_handler_parameters_review';
-            $reviewWellFormed = false;
         } elseif ($permissionWordDuplicateEntries) {
             $status = 'duplicate_standard_permission_entries_review';
             $reviewWellFormed = false;

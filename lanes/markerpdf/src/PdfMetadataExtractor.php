@@ -4707,6 +4707,12 @@ final class PdfMetadataExtractor
             ? $this->standardSecurityHandlerVersionRevisionCompatible($version, $revision)
             : null;
         $keyLength = $this->standardSecurityHandlerKeyLengthReview($version, $keyLengthBits);
+        $permissionWordReview = is_array($metadata['standard_permission_word_review'] ?? null)
+            ? $metadata['standard_permission_word_review']
+            : [];
+        $permissionWordDeclaredEntryCount = (int) ($permissionWordReview['declared_entry_count'] ?? 0);
+        $permissionWordPresent = $permissionWordDeclaredEntryCount > 0
+            || is_array($metadata['standard_permissions'] ?? null);
 
         $violations = [];
         if ($version === null) {
@@ -4725,6 +4731,9 @@ final class PdfMetadataExtractor
         if (($keyLength['valid'] ?? null) === false) {
             $violations[] = 'invalid_standard_security_handler_key_length';
         }
+        if (!$permissionWordPresent) {
+            $violations[] = 'missing_standard_permission_word';
+        }
 
         return [
             'source' => 'standard_security_handler_parameter_review',
@@ -4736,6 +4745,8 @@ final class PdfMetadataExtractor
             'version_present' => $version !== null,
             'revision_present' => $revision !== null,
             'key_length_present' => array_key_exists('key_length_bits', $metadata),
+            'permission_word_present' => $permissionWordPresent,
+            'permission_word_declared_entry_count' => $permissionWordDeclaredEntryCount,
             'version_supported' => $versionSupported,
             'revision_supported' => $revisionSupported,
             'version_revision_compatible' => $compatible,
