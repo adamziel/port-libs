@@ -115,6 +115,16 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "Q\n"
     . "EI\n"
     . "BT /F1 12 Tf 72 624 Td (Visible After Q Wrapped Stray) Tj ET\n"
+    . "BT /F1 12 Tf 72 623 Td (Before CM Wrapped Stray) Tj ET\n"
+    . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
+    . "\x00\x01\x02 EI BT /F1 12 Tf 72 622 Td (CM Wrapped Payload Noise) Tj ET rawtail\n"
+    . "EI\n"
+    . "q\n"
+    . "1 0 0 1 24 0 cm\n"
+    . "BT /F1 12 Tf 48 621 Td (Visible CM Wrapped Before Stray) Tj ET\n"
+    . "Q\n"
+    . "EI\n"
+    . "BT /F1 12 Tf 72 620 Td (Visible After CM Wrapped Stray) Tj ET\n"
     . "BT /F1 12 Tf 72 672 Td (After Real Inline Image) Tj ET";
 
 $pdf = "%PDF-1.4\n"
@@ -238,6 +248,11 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
         && str_contains($plainText, 'Visible Q Wrapped Before Stray')
         && str_contains($plainText, 'Visible After Q Wrapped Stray')
         && !str_contains($plainText, 'Q Wrapped Payload Noise')
+        && !str_contains($plainText, 'rawtail'),
+    'preview_only_cm_wrapped_stray_ei_text_preserved_after_safe_boundary' => str_contains($plainText, 'Before CM Wrapped Stray')
+        && str_contains($plainText, 'Visible CM Wrapped Before Stray')
+        && str_contains($plainText, 'Visible After CM Wrapped Stray')
+        && !str_contains($plainText, 'CM Wrapped Payload Noise')
         && !str_contains($plainText, 'rawtail'),
     'preview_only_ccitt_payload_excluded_until_safe_boundary' => !str_contains($ccittPlainText, 'CCITT Inline Payload Noise')
         && !str_contains($ccittPlainText, 'rawtail')

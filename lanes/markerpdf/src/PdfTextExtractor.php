@@ -25409,6 +25409,24 @@ final class PdfTextExtractor
 
             $token = substr($segment, $start, $index - $start);
             if (!$insideTextObject) {
+                if ($token === 'cm') {
+                    if (!$this->contentSegmentGraphicsMatrixOperands($outsideTextOperands)) {
+                        return false;
+                    }
+
+                    $outsideTextOperands = [];
+                    continue;
+                }
+
+                if ($this->numericOperand($token) !== null) {
+                    if (count($outsideTextOperands) >= 6) {
+                        return false;
+                    }
+
+                    $outsideTextOperands[] = $token;
+                    continue;
+                }
+
                 if ($token === 'BMC') {
                     if (
                         count($outsideTextOperands) !== 1
@@ -25582,6 +25600,24 @@ final class PdfTextExtractor
         }
 
         return false;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function contentSegmentGraphicsMatrixOperands(array $operands): bool
+    {
+        if (count($operands) !== 6) {
+            return false;
+        }
+
+        foreach ($operands as $operand) {
+            if ($this->numericOperand($operand) === null) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function contentSegmentEndsInsidePdfComment(string $segment): bool
