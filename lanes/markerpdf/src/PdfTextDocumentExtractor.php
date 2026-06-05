@@ -275,9 +275,14 @@ final class PdfTextDocumentExtractor
         foreach ($spans as $span) {
             if (is_array($span)) {
                 $sanitizedSpan = [];
-                foreach (['text', 'bbox', 'font', 'rotation', 'char_start_idx', 'char_end_idx', 'url'] as $key) {
+                foreach (['text', 'bbox', 'font', 'rotation', 'char_start_idx', 'char_end_idx', 'url', 'superscript', 'subscript'] as $key) {
                     if (array_key_exists($key, $span)) {
                         $sanitizedSpan[$key] = $span[$key];
+                    }
+                }
+                foreach (['superscript', 'subscript'] as $scriptKey) {
+                    if (array_key_exists($scriptKey, $sanitizedSpan) && !is_bool($sanitizedSpan[$scriptKey])) {
+                        throw new InvalidArgumentException("pdftext span {$scriptKey} must be boolean when supplied.");
                     }
                 }
                 if (array_key_exists('bbox', $sanitizedSpan)) {

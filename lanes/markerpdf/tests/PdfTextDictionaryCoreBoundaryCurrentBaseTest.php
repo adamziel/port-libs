@@ -94,6 +94,55 @@ $pdftextCharsPage = static function (): array {
     ];
 };
 
+$pdftextScriptPage = static function (): array {
+    $font = ['name' => 'Helvetica', 'flags' => 0, 'weight' => 400, 'size' => 11.0];
+
+    return [
+        'page' => 31,
+        'bbox' => [0.0, 0.0, 612.0, 792.0],
+        'width' => 612.0,
+        'height' => 792.0,
+        'rotation' => 0,
+        'blocks' => [[
+            'bbox' => [72.0, 104.0, 190.0, 118.0],
+            'lines' => [[
+                'bbox' => [72.0, 104.0, 190.0, 118.0],
+                'spans' => [
+                    [
+                        'text' => 'H',
+                        'bbox' => [72.0, 104.0, 80.0, 118.0],
+                        'font' => $font,
+                    ],
+                    [
+                        'text' => " 2 \n",
+                        'bbox' => [80.0, 100.0, 88.0, 110.0],
+                        'font' => $font,
+                        'superscript' => true,
+                        'chars' => [['char' => '2', 'bbox' => [80.0, 100.0, 88.0, 110.0]]],
+                    ],
+                    [
+                        'text' => 'O',
+                        'bbox' => [88.0, 104.0, 98.0, 118.0],
+                        'font' => $font,
+                    ],
+                    [
+                        'text' => " i \n",
+                        'bbox' => [110.0, 112.0, 118.0, 122.0],
+                        'font' => $font,
+                        'subscript' => true,
+                        'raw_script_payload' => 'script payload should not cross dictionary_output',
+                    ],
+                    [
+                        'text' => ' marker',
+                        'bbox' => [118.0, 104.0, 190.0, 118.0],
+                        'font' => $font,
+                    ],
+                ],
+            ]],
+        ]],
+    ];
+};
+
 return [
     'preserves pdftext dictionary links and refs at the core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $document = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextLinkedPage()], maxPages: 1);
@@ -210,5 +259,29 @@ return [
         $t->true(!str_contains($encoded, 'embedded_font_program'));
         $t->true(!str_contains($encoded, 'raw_font_stream'));
         $t->true(!str_contains($encoded, 'debug_payload'));
+    },
+    'preserves pdftext superscript and subscript flags at the core boundary' => static function (TestRunner $t) use ($pdftextScriptPage): void {
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextScriptPage()], maxPages: 1);
+        $spans = $document['pages'][0]['blocks'][0]['lines'][0]['spans'];
+        $charSpans = $document['pages'][0]['char_blocks'][0]['lines'][0]['spans'];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same(true, $spans[1]['has_superscript']);
+        $t->same(true, $spans[3]['has_subscript']);
+        $t->true(!array_key_exists('has_superscript', $spans[0]), 'Plain spans should not gain script metadata.');
+        $t->true(!array_key_exists('has_subscript', $spans[4]), 'Plain spans should not gain script metadata.');
+        $t->same(true, $charSpans[1]['superscript']);
+        $t->same(true, $charSpans[3]['subscript']);
+        $t->same('2', $spans[1]['text']);
+        $t->same('i', $spans[3]['text']);
+        $t->same('H2Oi marker', $blocks[0]['text']);
+        $t->true(!str_contains($encoded, 'script payload should not cross dictionary_output'));
+    },
+    'rejects non boolean pdftext script flags before WordPress rendering' => static function (TestRunner $t) use ($pdftextScriptPage): void {
+        $page = $pdftextScriptPage();
+        $page['blocks'][0]['lines'][0]['spans'][1]['superscript'] = 'yes';
+
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1));
     },
 ];

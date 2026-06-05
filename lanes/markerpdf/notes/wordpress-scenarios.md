@@ -146,6 +146,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdftext-dictionary-core-import.php` maps a stricter `marker/pdf/extract_text.py` dictionary-output boundary into the WordPress import path. It validates supplied pdftext page dictionaries, preserves font metadata, `char_start_idx`, `char_end_idx`, rotation, and selected-range `pdftext_options`, strips raw per-character `chars` plus non-core block/line keys from the document `keep_chars=false` handoff, then emits a Gutenberg paragraph without loading Python pdftext, pypdfium, or model workers.
 
+`examples/wordpress-pdftext-dictionary-script-style-currentbase.php` maps current pdftext/Marker span script flags into the WordPress import path. It preserves boolean `superscript` and `subscript` metadata as review-only script flags, trims script span text before paragraph composition, rejects non-boolean adapter values, and excludes private span payloads without loading Python pdftext, pypdfium, models, or external PDF tools.
+
 `examples/wordpress-text-length-preflight.php` maps Marker's upstream `get_length_of_text` boundary into a WordPress import queue preflight. It records the native naive text, trimmed text length, min-length threshold, and whether the PDF should enter the heavier conversion queue.
 
 `examples/wordpress-page-inspection-preflight.php` maps Marker's upstream Page helper properties into a WordPress review preflight. It records nonblank line/span counts, font-size and line-height distributions, and the upstream `prelim_text` page view as block metadata before content is sent to editorial review.

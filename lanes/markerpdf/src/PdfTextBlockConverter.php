@@ -29,6 +29,9 @@ final class PdfTextBlockConverter
                         $text = substr($text, 0, -1);
                     }
                     $text = str_replace("-\n", '', $text);
+                    if (($span['superscript'] ?? false) === true || ($span['subscript'] ?? false) === true) {
+                        $text = trim($text);
+                    }
 
                     $font = $span['font'];
                     $fontName = $this->fontName($font['name']);
@@ -56,6 +59,12 @@ final class PdfTextBlockConverter
                     }
                     if (array_key_exists('chars', $span) && is_array($span['chars'])) {
                         $spanObj['chars'] = array_values($span['chars']);
+                    }
+                    if (($span['superscript'] ?? false) === true) {
+                        $spanObj['has_superscript'] = true;
+                    }
+                    if (($span['subscript'] ?? false) === true) {
+                        $spanObj['has_subscript'] = true;
                     }
 
                     $spans[] = $spanObj;
@@ -197,6 +206,11 @@ final class PdfTextBlockConverter
                     foreach (['rotation', 'char_start_idx', 'char_end_idx'] as $metadataKey) {
                         if (array_key_exists($metadataKey, $span) && !is_int($span[$metadataKey]) && !is_float($span[$metadataKey])) {
                             throw new InvalidArgumentException("pdftext span {$metadataKey} must be numeric when supplied.");
+                        }
+                    }
+                    foreach (['superscript', 'subscript'] as $scriptKey) {
+                        if (array_key_exists($scriptKey, $span) && !is_bool($span[$scriptKey])) {
+                            throw new InvalidArgumentException("pdftext span {$blockIndex}.{$lineIndex}.{$spanIndex} {$scriptKey} must be boolean when supplied.");
                         }
                     }
                     if (array_key_exists('url', $span) && $span['url'] !== null && !is_string($span['url'])) {
