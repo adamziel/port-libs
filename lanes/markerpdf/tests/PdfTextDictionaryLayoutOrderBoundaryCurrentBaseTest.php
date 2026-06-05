@@ -1308,6 +1308,195 @@ return [
         $t->true(!str_contains($encoded, 'cover pdftext_source order payload'));
         $t->true(!str_contains($encoded, 'selected pdftext_source order payload'));
     },
+    'uses page_idx adapter aliases before selected pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(3000, [
+                    ['text' => 'Page idx alias cover should stay skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(3001, [
+                    ['text' => 'Second page idx alias column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First page idx alias column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'page_idx' => 0,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                    ],
+                    'raw_payload' => 'stale page_idx order payload must stay hidden',
+                ],
+            ],
+            orderImages: [
+                ['page_idx' => 0, 'image' => 'page-idx-cover-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([1], $result['page_range']);
+        $t->same(3001, $result['pages'][0]['pnum']);
+        $t->same(['Second page idx alias column', 'First page idx alias column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('Second page idx alias column First page idx alias column', $blocks[0]['text']);
+        $t->same(null, $result['pages'][0]['order'] ?? null);
+        $t->true(!str_contains($encoded, 'stale page_idx order payload'));
+        $t->same(0, $result['metadata']['order_plan']['image_count']);
+        $t->same(0, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(0, $result['metadata']['order_plan']['assigned_pages']);
+
+        $selected = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(3010, [
+                    ['text' => 'Selected page_idx cover should stay skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(3011, [
+                    ['text' => 'Second selected page_idx column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First selected page_idx column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'page_idx' => 0,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                        ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                    ],
+                ],
+                [
+                    'page_idx' => 1,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['page_idx' => 0, 'image' => 'selected-page-idx-cover-order-render'],
+                ['page_idx' => 1, 'image' => 'selected-page-idx-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $t->same(['First selected page_idx column', 'Second selected page_idx column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $selected['pages'][0]['blocks']
+        ));
+        $t->same(1, $selected['pages'][0]['order']['page_idx'] ?? null);
+        $t->same(1, $selected['metadata']['order_plan']['image_count']);
+        $t->same(1, $selected['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $selected['metadata']['order_plan']['assigned_pages']);
+    },
+    'uses selected page_idx aliases for WordPress supplied layout and order artifacts' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-page-idx-layout-order-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% page_idx pdftext layout order boundary\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [
+                    $pdftextLinesPage(3100, [
+                        ['text' => 'Page idx converter cover should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                    $pdftextLinesPage(3101, [
+                        ['text' => 'Second converter page idx column.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                        ['text' => 'First converter page idx column.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+                    ]),
+                    $pdftextLinesPage(3102, [
+                        ['text' => 'Page idx converter appendix should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                ],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['page_idx' => 0, 'image' => 'page-idx-cover-layout-render'],
+                        ['page_idx' => 1, 'image' => 'page-idx-selected-layout-render'],
+                    ],
+                    'layout_results' => [
+                        [
+                            'page_idx' => 0,
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['label' => 'Picture', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                                ['label' => 'Picture', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                            ],
+                            'raw_payload' => 'cover page_idx layout payload must stay hidden',
+                        ],
+                        [
+                            'page_idx' => 1,
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                                ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                            ],
+                            'raw_payload' => 'selected page_idx layout payload must stay hidden',
+                        ],
+                    ],
+                    'order_images' => [
+                        ['page_idx' => 0, 'image' => 'page-idx-cover-order-render'],
+                        ['page_idx' => 1, 'image' => 'page-idx-selected-order-render'],
+                    ],
+                    'order_results' => [
+                        [
+                            'page_idx' => 0,
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                                ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                            ],
+                            'raw_payload' => 'cover page_idx order payload must stay hidden',
+                        ],
+                        [
+                            'page_idx' => 1,
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                            ],
+                            'raw_payload' => 'selected page_idx order payload must stay hidden',
+                        ],
+                    ],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+        } finally {
+            unlink($path);
+        }
+
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $text = $result['text'];
+
+        $t->same([1], $result['metadata']['page_range'] ?? null);
+        $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['layout_result_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['assigned_pages'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages'] ?? null);
+        $t->contains('First converter page idx column.', $text);
+        $t->contains('Second converter page idx column.', $text);
+        $t->true(strpos($text, 'First converter page idx column.') < strpos($text, 'Second converter page idx column.'));
+        $t->true(!str_contains($text, 'Page idx converter cover should stay skipped.'));
+        $t->true(!str_contains($text, 'Page idx converter appendix should stay skipped.'));
+        $t->true(!str_contains($encoded, 'cover page_idx layout payload'));
+        $t->true(!str_contains($encoded, 'selected page_idx layout payload'));
+        $t->true(!str_contains($encoded, 'cover page_idx order payload'));
+        $t->true(!str_contains($encoded, 'selected page_idx order payload'));
+    },
     'rejects mixed wrapper-list payload dictionaries before selected pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
         $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
             [
