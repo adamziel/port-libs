@@ -6912,7 +6912,15 @@ final class PdfTextExtractor
         }
 
         if ($firstFilter !== 'DCTDecode' && $firstFilter !== 'DCT') {
-            return $this->dctPrefixFilterEndstreamTerminatorOffset($value, $streamStart, $firstFilter, $filters, $firstFilterIndex);
+            return $this->dctPrefixFilterEndstreamTerminatorOffset(
+                $value,
+                $streamStart,
+                $firstFilter,
+                $filters,
+                $firstFilterIndex,
+                $dict,
+                $objects
+            );
         }
 
         $jpegStart = $streamStart;
@@ -6942,18 +6950,20 @@ final class PdfTextExtractor
         int $streamStart,
         string $firstFilter,
         array $filters,
-        int $firstFilterIndex
+        int $firstFilterIndex,
+        string $dict,
+        array $objects
     ): ?int {
-        $hasLaterDct = false;
+        $dctFilterIndex = null;
         for ($index = $firstFilterIndex + 1; $index < count($filters); $index++) {
             $filter = $filters[$index];
             if ($filter === 'DCTDecode' || $filter === 'DCT') {
-                $hasLaterDct = true;
+                $dctFilterIndex = $index;
                 break;
             }
         }
 
-        if (!$hasLaterDct) {
+        if ($dctFilterIndex === null) {
             return null;
         }
 
@@ -6964,18 +6974,101 @@ final class PdfTextExtractor
             default => null,
         };
 
-        if ($payloadEnd === null) {
-            return null;
+        if ($payloadEnd !== null) {
+            $terminator = $this->skipPdfWhitespace($value, $payloadEnd);
+            if ($this->endstreamKeywordAt($value, $terminator)) {
+                return $terminator;
+            }
         }
 
-        $terminator = $this->skipPdfWhitespace($value, $payloadEnd);
-        return $this->endstreamKeywordAt($value, $terminator) ? $terminator : null;
+        $offset = $streamStart;
+        while (($candidate = strpos($value, 'endstream', $offset)) !== false) {
+            $offset = $candidate + strlen('endstream');
+            if (!$this->endstreamTerminatorAt($value, $candidate, $streamStart)) {
+                continue;
+            }
+
+            $payload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $candidate - $streamStart));
+            $jpegBytes = $this->decodeStreamBeforeFilter($dict, $payload, $objects, $filters, $dctFilterIndex);
+            if ($jpegBytes !== null && $this->dctPreviewBytesAreCompleteJpeg($jpegBytes)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function firstFilterEndMarkerOffset(string $value, int $streamStart, string $marker): ?int
     {
         $offset = strpos($value, $marker, $streamStart);
         return $offset === false ? null : $offset + strlen($marker);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string|null> $filters
+     */
+    private function decodeStreamBeforeFilter(
+        string $dict,
+        string $stream,
+        array $objects,
+        array $filters,
+        int $stopBeforeIndex
+    ): ?string {
+        $decodeParms = $this->streamDecodeParms($dict, $objects);
+        if ($decodeParms === null) {
+            return null;
+        }
+
+        for ($index = 0; $index < $stopBeforeIndex; $index++) {
+            $filter = $filters[$index] ?? null;
+            if ($filter === null) {
+                continue;
+            }
+
+            $filterDecodeParms = $decodeParms[$index] ?? null;
+            if (!$this->canApplyDecodeParms($filter, $filterDecodeParms, $objects)) {
+                return null;
+            }
+
+            if (!$this->streamFilterInputHasExplicitEndMarker($filter, $stream)) {
+                return null;
+            }
+
+            $decoded = match ($filter) {
+                'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
+                'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
+                'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
+                'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $filterDecodeParms, $objects),
+                'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $filterDecodeParms, $objects),
+                default => null,
+            };
+
+            if ($decoded === null) {
+                return null;
+            }
+
+            $stream = $decoded;
+        }
+
+        return $stream;
+    }
+
+    private function dctPreviewBytesAreCompleteJpeg(string $bytes): bool
+    {
+        $length = strlen($bytes);
+        $start = 0;
+        while ($start < $length && str_contains("\t\n\f\r ", $bytes[$start])) {
+            $start++;
+        }
+
+        $bytes = rtrim(substr($bytes, $start), "\x00\t\n\f\r ");
+        if (!str_starts_with($bytes, "\xff\xd8")) {
+            return false;
+        }
+
+        $eoi = strrpos($bytes, "\xff\xd9");
+        return $eoi !== false && $eoi + 2 === strlen($bytes);
     }
 
     private function contentStreamEndstreamTerminatorOffset(string $value, int $streamStart, string $dict): ?int
