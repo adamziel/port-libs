@@ -92,6 +92,13 @@ $assignedTexts = array_column($metadata['table_assigned_cells'][0] ?? [], 'text'
 $gridReview = $metadata['table_spanning_grid_review'][0] ?? [];
 $geometryBoundary = $gridReview['geometry_boundary_review'] ?? [];
 $cellBoundary = $gridReview['cell_geometry_boundary_review'] ?? [];
+$assignedCropBoundary = $metadata['table_assigned_crop_boundary_reviews'][0] ?? [];
+$assignedCropRowsByText = [];
+foreach (($assignedCropBoundary['cells'] ?? []) as $row) {
+    if (is_array($row)) {
+        $assignedCropRowsByText[(string) ($row['text'] ?? '')] = $row;
+    }
+}
 
 if (in_array('Offcrop assigned', $assignedTexts, true) || in_array('Offcrop row assigned', $assignedTexts, true)) {
     throw new RuntimeException('Expected off-crop already assigned supplied cells to be filtered before table output.');
@@ -123,6 +130,13 @@ echo json_encode([
     'active_cell_count' => $cellBoundary['active_cell_count'] ?? null,
     'clipped_cell_count' => $cellBoundary['clipped_cell_count'] ?? null,
     'excluded_cell_count_after_filter' => $cellBoundary['excluded_cell_count'] ?? null,
+    'assigned_crop_review_target' => $assignedCropBoundary['review_target'] ?? null,
+    'assigned_crop_cell_count' => $assignedCropBoundary['cell_count'] ?? null,
+    'assigned_crop_excluded_cell_count' => $assignedCropBoundary['excluded_cell_count'] ?? null,
+    'offcrop_assigned_crop_status' => $assignedCropRowsByText['Offcrop assigned']['status'] ?? null,
+    'offcrop_row_crop_status' => $assignedCropRowsByText['Offcrop row assigned']['status'] ?? null,
+    'offcrop_assignment_excluded_before_markdown' => ($assignedCropRowsByText['Offcrop assigned']['assignment_excluded_before_markdown'] ?? null) === true
+        && ($assignedCropRowsByText['Offcrop row assigned']['assignment_excluded_before_markdown'] ?? null) === true,
     'assigned_table_texts' => $assignedTexts,
     'offcrop_assigned_cells_filtered_from_assignment' => !in_array('Offcrop assigned', $assignedTexts, true)
         && !in_array('Offcrop row assigned', $assignedTexts, true),

@@ -72,6 +72,13 @@ return [
 
         $assigned = $formatted['assigned_cells'][0];
         $assignedTexts = array_column($assigned, 'text');
+        $cropBoundary = $formatted['assigned_crop_boundary_reviews'][0] ?? [];
+        $cropRowsByText = [];
+        foreach (($cropBoundary['cells'] ?? []) as $row) {
+            if (is_array($row)) {
+                $cropRowsByText[(string) ($row['text'] ?? '')] = $row;
+            }
+        }
         $gridReview = $recognizer->spanningGridReview(
             $assigned,
             $formatted['recognized_tables'][0]['rows'],
@@ -93,6 +100,19 @@ return [
         $t->same(2, $geometryBoundary['excluded_band_count'] ?? null);
         $t->same('excluded_outside_table_image', $geometryBoundary['row_bands'][2]['status'] ?? null);
         $t->same('excluded_outside_table_image', $geometryBoundary['col_bands'][2]['status'] ?? null);
+        $t->same('table_assigned_cell_crop_boundary', $cropBoundary['review_target'] ?? null);
+        $t->same('tabled.assignment.SpanTableCell.bbox_after_marker_table_crop', $cropBoundary['upstream_boundary'] ?? null);
+        $t->same(6, $cropBoundary['cell_count'] ?? null);
+        $t->same(4, $cropBoundary['active_cell_count'] ?? null);
+        $t->same(1, $cropBoundary['clipped_cell_count'] ?? null);
+        $t->same(2, $cropBoundary['excluded_cell_count'] ?? null);
+        $t->same('clipped_to_table_image', $cropRowsByText['Ready']['status'] ?? null);
+        $t->same([130.0, 45.0, 240.0, 65.0], $cropRowsByText['Ready']['bounded_bbox'] ?? null);
+        $t->same('excluded_outside_table_image', $cropRowsByText['Offcrop assigned']['status'] ?? null);
+        $t->same([240.0, 45.0, 240.0, 65.0], $cropRowsByText['Offcrop assigned']['clipped_bbox'] ?? null);
+        $t->same(true, $cropRowsByText['Offcrop assigned']['assignment_excluded_before_markdown'] ?? null);
+        $t->same('excluded_outside_table_image', $cropRowsByText['Offcrop row assigned']['status'] ?? null);
+        $t->same([10.0, 80.0, 90.0, 80.0], $cropRowsByText['Offcrop row assigned']['clipped_bbox'] ?? null);
         $t->same(4, $cellBoundary['cell_count'] ?? null);
         $t->same(4, $cellBoundary['active_cell_count'] ?? null);
         $t->same(1, $cellBoundary['clipped_cell_count'] ?? null);
@@ -134,6 +154,13 @@ return [
             $gridReview = $document['metadata']['table_spanning_grid_review'][0] ?? [];
             $boundary = $gridReview['geometry_boundary_review'] ?? [];
             $cellBoundary = $gridReview['cell_geometry_boundary_review'] ?? [];
+            $assignedCropBoundary = $document['metadata']['table_assigned_crop_boundary_reviews'][0] ?? [];
+            $assignedCropRowsByText = [];
+            foreach (($assignedCropBoundary['cells'] ?? []) as $row) {
+                if (is_array($row)) {
+                    $assignedCropRowsByText[(string) ($row['text'] ?? '')] = $row;
+                }
+            }
 
             $t->contains('# Assigned Crop Table Boundary', $document['text']);
             $t->contains('| Header | Status |', $document['text']);
@@ -150,6 +177,13 @@ return [
             $t->same(4, $cellBoundary['active_cell_count'] ?? null);
             $t->same(1, $cellBoundary['clipped_cell_count'] ?? null);
             $t->same(0, $cellBoundary['excluded_cell_count'] ?? null);
+            $t->same('table_assigned_cell_crop_boundary', $assignedCropBoundary['review_target'] ?? null);
+            $t->same(6, $assignedCropBoundary['cell_count'] ?? null);
+            $t->same(4, $assignedCropBoundary['active_cell_count'] ?? null);
+            $t->same(2, $assignedCropBoundary['excluded_cell_count'] ?? null);
+            $t->same('excluded_outside_table_image', $assignedCropRowsByText['Offcrop assigned']['status'] ?? null);
+            $t->same(true, $assignedCropRowsByText['Offcrop assigned']['assignment_excluded_before_markdown'] ?? null);
+            $t->same([10.0, 80.0, 90.0, 80.0], $assignedCropRowsByText['Offcrop row assigned']['clipped_bbox'] ?? null);
             $t->same(1, $document['metadata']['inserted_tables'] ?? null);
         } finally {
             if (is_file($path)) {

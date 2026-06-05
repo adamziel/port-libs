@@ -1026,7 +1026,7 @@ final class TableRecognizer
     /**
      * @param list<array<string, mixed>> $recognizedTables
      * @param list<array{width?: int|float, height?: int|float}|list<int|float>> $imageSizes
-     * @return array{assigned_cells: list<list<array<string, mixed>>>, markdown_tables: list<string>, recognized_tables: list<array<string, mixed>>, coordinate_space_reviews: list<array<string, mixed>|null>, assigned_band_boundary_reviews: list<array<string, mixed>|null>}
+     * @return array{assigned_cells: list<list<array<string, mixed>>>, markdown_tables: list<string>, recognized_tables: list<array<string, mixed>>, coordinate_space_reviews: list<array<string, mixed>|null>, assigned_crop_boundary_reviews: list<array<string, mixed>|null>, assigned_band_boundary_reviews: list<array<string, mixed>|null>}
      */
     public function formatRecognizedTables(array $recognizedTables, array $imageSizes): array
     {
@@ -1047,12 +1047,18 @@ final class TableRecognizer
 
         $assigned = [];
         $markdown = [];
+        $assignedCropBoundaryReviews = [];
         $assignedBandBoundaryReviews = [];
         foreach ($recognizedTables as $idx => $table) {
             $assignedCells = $this->assignedCellsFromRecognizedTable($table);
             if ($assignedCells !== null) {
+                $assignedCropBoundaryReview = $this->assignedCellCropBoundaryReview(
+                    $assignedCells,
+                    $imageSizes[$idx]
+                );
+                $assignedCropBoundaryReviews[] = $assignedCropBoundaryReview;
                 $bounded = $this->boundedAssignedCellsWithActiveBands(
-                    $this->boundedAssignmentCells($assignedCells, $this->imageSize($imageSizes[$idx])),
+                    $this->activeAssignedCellsFromCropBoundary($assignedCells, $assignedCropBoundaryReview),
                     $table,
                     $imageSizes[$idx]
                 );
@@ -1060,6 +1066,7 @@ final class TableRecognizer
                 $assignedBandBoundaryReviews[] = $bounded['review'];
             } else {
                 $tableCells = $this->assignRowsColumns($table, $imageSizes[$idx]);
+                $assignedCropBoundaryReviews[] = null;
                 $assignedBandBoundaryReviews[] = null;
             }
             $assigned[] = $tableCells;
@@ -1071,8 +1078,131 @@ final class TableRecognizer
             'markdown_tables' => $markdown,
             'recognized_tables' => $recognizedTables,
             'coordinate_space_reviews' => $coordinateSpaceReviews,
+            'assigned_crop_boundary_reviews' => $assignedCropBoundaryReviews,
             'assigned_band_boundary_reviews' => $assignedBandBoundaryReviews,
         ];
+    }
+
+    /**
+     * Saved tabled assignments may include complete SpanTableCell row/column
+     * ids while the cell bbox itself sits outside the current table crop. Keep
+     * the existing fail-closed filter, but expose the exclusion before the
+     * active-band pass so WordPress review metadata can explain why the saved
+     * cell never reached Markdown.
+     *
+     * @param list<array{bbox: list<float>, text: string, row_ids: list<int|null>, col_ids: list<int|null>, order?: int}> $cells
+     * @param array{width?: int|float, height?: int|float}|list<int|float> $imageSize
+     * @return array<string, mixed>|null
+     */
+    private function assignedCellCropBoundaryReview(array $cells, array $imageSize): ?array
+    {
+        if ($cells === []) {
+            return null;
+        }
+
+        $size = $this->imageSize($imageSize);
+        $reviewRows = [];
+
+        foreach ($cells as $index => $cell) {
+            $bbox = $cell['bbox'];
+            $clippedBbox = $this->clipBboxToImage($bbox, $size);
+            $originalPositive = $this->positiveArea($bbox) > 0.0;
+            $clippedPositive = $this->positiveArea($clippedBbox) > 0.0;
+            $active = $originalPositive && $clippedPositive;
+            $status = 'within_table_image';
+
+            if (!$originalPositive) {
+                $status = 'excluded_non_positive_area';
+            } elseif (!$clippedPositive) {
+                $status = 'excluded_outside_table_image';
+            } elseif ($clippedBbox !== $bbox) {
+                $status = 'clipped_to_table_image';
+            }
+
+            $reviewRow = [
+                'cell_index' => $index,
+                'text' => (string) $cell['text'],
+                'row_ids' => $this->nonNullOrderedIds($cell['row_ids']),
+                'col_ids' => $this->nonNullOrderedIds($cell['col_ids']),
+                'original_bbox' => $bbox,
+                'bounded_bbox' => $active ? $clippedBbox : null,
+                'clipped_bbox' => $clippedBbox,
+                'status' => $status,
+                'active' => $active,
+                'assignment_retained_after_crop_boundary' => $active,
+                'assignment_excluded_before_markdown' => !$active,
+            ];
+            foreach (['source_bbox', 'source_coordinate_space'] as $field) {
+                if (array_key_exists($field, $cell)) {
+                    $reviewRow[$field] = $cell[$field];
+                }
+            }
+            if ($reviewRow['row_ids'] !== [] && $reviewRow['col_ids'] !== []) {
+                $reviewRow['anchor'] = [
+                    'row_id' => $reviewRow['row_ids'][0],
+                    'col_id' => $reviewRow['col_ids'][0],
+                ];
+            }
+
+            $reviewRows[] = $reviewRow;
+        }
+
+        return [
+            'review_target' => 'table_assigned_cell_crop_boundary',
+            'upstream_boundary' => 'tabled.assignment.SpanTableCell.bbox_after_marker_table_crop',
+            'image_size' => $size,
+            'cell_count' => count($reviewRows),
+            'active_cell_count' => count(array_filter(
+                $reviewRows,
+                static fn (array $row): bool => ($row['active'] ?? null) === true
+            )),
+            'within_cell_count' => count(array_filter(
+                $reviewRows,
+                static fn (array $row): bool => ($row['status'] ?? null) === 'within_table_image'
+            )),
+            'clipped_cell_count' => count(array_filter(
+                $reviewRows,
+                static fn (array $row): bool => ($row['status'] ?? null) === 'clipped_to_table_image'
+            )),
+            'excluded_cell_count' => count(array_filter(
+                $reviewRows,
+                static fn (array $row): bool => isset($row['status']) && str_starts_with((string) $row['status'], 'excluded_')
+            )),
+            'cells' => $reviewRows,
+        ];
+    }
+
+    /**
+     * @param list<array{bbox: list<float>, text: string, row_ids: list<int|null>, col_ids: list<int|null>, order?: int}> $cells
+     * @param array<string, mixed>|null $review
+     * @return list<array{bbox: list<float>, text: string, row_ids: list<int|null>, col_ids: list<int|null>, order?: int}>
+     */
+    private function activeAssignedCellsFromCropBoundary(array $cells, ?array $review): array
+    {
+        if ($review === null || !isset($review['cells']) || !is_array($review['cells'])) {
+            return $cells;
+        }
+
+        $activeByIndex = [];
+        foreach ($review['cells'] as $row) {
+            if (!is_array($row) || ($row['active'] ?? null) !== true) {
+                continue;
+            }
+
+            $cellIndex = $this->nullableInteger($row['cell_index'] ?? null);
+            if ($cellIndex !== null) {
+                $activeByIndex[$cellIndex] = true;
+            }
+        }
+
+        $active = [];
+        foreach ($cells as $index => $cell) {
+            if (isset($activeByIndex[$index])) {
+                $active[] = $cell;
+            }
+        }
+
+        return $active;
     }
 
     /**
