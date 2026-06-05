@@ -1820,6 +1820,59 @@ return [
         json_encode($diagnostics, JSON_THROW_ON_ERROR);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'reports latex longtable footer requirements for table foot handoff' => static function (TestRunner $t): void {
+        $table = new AstNode('table', [
+            'caption' => 'LaTeX footer audit',
+            'alignments' => ['left', 'right'],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+            new AstNode('table_foot', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Total'], [new AstNode('text', ['text' => 'Total'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]);
+
+        $diagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'lualatex');
+        $packet = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['latex'],
+        ]);
+
+        $t->same(['latex-longtable-footer-required'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $diagnostics));
+        $t->same('latex', $diagnostics[0]['writer'] ?? null);
+        $t->same('table-foot', $diagnostics[0]['reason'] ?? null);
+        $t->same('longtable-footer', $diagnostics[0]['requiredFeature'] ?? null);
+        $t->same('LaTeX footer audit', $diagnostics[0]['caption'] ?? null);
+        $t->same(2, $diagnostics[0]['columnCount'] ?? null);
+        $t->same(3, $diagnostics[0]['sectionCount'] ?? null);
+        $t->same(3, $diagnostics[0]['rowCount'] ?? null);
+        $t->same(1, $diagnostics[0]['bodyCount'] ?? null);
+        $t->same(1, $diagnostics[0]['headRowCount'] ?? null);
+        $t->same(1, $diagnostics[0]['bodyRowCount'] ?? null);
+        $t->same(1, $diagnostics[0]['footRowCount'] ?? null);
+        $t->same(['head', 'body', 'foot'], array_map(static fn (array $section): string => (string) ($section['section'] ?? ''), $diagnostics[0]['sections'] ?? []));
+        $t->same([1, 1, 1], array_map(static fn (array $section): int => (int) ($section['rowCount'] ?? 0), $diagnostics[0]['sections'] ?? []));
+        $t->same($diagnostics, TableGeometry::writerDowngradeDiagnostics($table, 'tex'));
+        $t->same($diagnostics, $packet['writerDowngrades']['latex'] ?? null);
+        $t->same(1, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same(['latex-longtable-footer-required'], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same(['latex'], $packet['summary']['writerDowngradeWriters'] ?? null);
+        json_encode($diagnostics, JSON_THROW_ON_ERROR);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'reports asciidoc nested table passthrough requirements for writer handoff' => static function (TestRunner $t): void {
         $innerTable = new AstNode('table', [
             'caption' => 'Nested source audit',

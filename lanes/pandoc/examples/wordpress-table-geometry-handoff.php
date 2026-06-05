@@ -346,6 +346,30 @@ $latexRequirementTable = new AstNode('table', [
     ]),
 ]);
 
+$latexFooterTable = new AstNode('table', [
+    'caption' => 'LaTeX footer audit',
+    'alignments' => ['left', 'right'],
+], [
+    new AstNode('table_head', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+            new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+        ]),
+    ]),
+    new AstNode('table_body', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+            new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+        ]),
+    ]),
+    new AstNode('table_foot', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Total'], [new AstNode('text', ['text' => 'Total'])]),
+            new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+        ]),
+    ]),
+]);
+
 $document = new AstNode('document', [], [
     new AstNode('table', [
         'caption' => 'Migration review grid',
@@ -676,6 +700,7 @@ $document = new AstNode('document', [], [
     $invalidWidthTable,
     $blockContentTable,
     $latexRequirementTable,
+    $latexFooterTable,
 ]);
 
 $blocks = (new WordPressBlockWriter())->write($document);
@@ -1364,6 +1389,27 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing LaTeX requirement review table output');
     }
     json_encode($latexRequirementPacket, JSON_THROW_ON_ERROR);
+
+    $latexFooterPacket = TableGeometry::reviewPacket($latexFooterTable, [
+        'accessibility' => false,
+        'writers' => ['latex'],
+    ]);
+    if (
+        ($latexFooterPacket['summary']['writerDowngradeCodes'] ?? null) !== ['latex-longtable-footer-required']
+        || ($latexFooterPacket['writerDowngrades']['latex'][0]['requiredFeature'] ?? null) !== 'longtable-footer'
+        || ($latexFooterPacket['writerDowngrades']['latex'][0]['footRowCount'] ?? null) !== 1
+        || ($latexFooterPacket['writerDowngrades']['latex'][0]['sections'] ?? null) !== [
+            ['section' => 'head', 'rowCount' => 1, 'rowRole' => 'head'],
+            ['section' => 'body', 'rowCount' => 1, 'rowRole' => 'body'],
+            ['section' => 'foot', 'rowCount' => 1, 'rowRole' => 'foot'],
+        ]
+    ) {
+        throw new RuntimeException('Table geometry self-test missing LaTeX longtable footer writer requirement diagnostics');
+    }
+    if (!str_contains($blocks, '<tfoot><tr><td style="text-align:left">Total</td><td style="text-align:right">Ready</td></tr></tfoot></table><figcaption class="wp-element-caption">LaTeX footer audit</figcaption>')) {
+        throw new RuntimeException('Table geometry self-test missing LaTeX footer review table output');
+    }
+    json_encode($latexFooterPacket, JSON_THROW_ON_ERROR);
 
     echo "table geometry handoff self-test ok\n";
     return;

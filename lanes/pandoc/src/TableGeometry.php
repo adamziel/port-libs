@@ -1039,7 +1039,7 @@ final class TableGeometry
         $columnGroups = self::columnGroups($table, $columnCount);
         $writerDowngrades = [];
         foreach (self::reviewPacketWriters($options['writers'] ?? ['markdown']) as $writer) {
-            $writerDowngrades[$writer] = self::writerDowngradeDiagnosticsFromCoverage($coverageRecords, $writer);
+            $writerDowngrades[$writer] = self::writerDowngradeDiagnosticsFromCoverage($coverageRecords, $writer, $table);
         }
         $includeAccessibility = ($options['accessibility'] ?? true) !== false;
         $accessibility = $includeAccessibility
@@ -1098,7 +1098,7 @@ final class TableGeometry
      */
     public static function writerDowngradeDiagnostics(AstNode $table, string $writer): array
     {
-        return self::writerDowngradeDiagnosticsFromCoverage(self::cellCoverage($table), $writer);
+        return self::writerDowngradeDiagnosticsFromCoverage(self::cellCoverage($table), $writer, $table);
     }
 
     private static function normalizeAlignment(string $alignment): string
@@ -1962,12 +1962,12 @@ final class TableGeometry
      * @param list<array<string, mixed>> $coverage
      * @return list<array<string, mixed>>
      */
-    private static function writerDowngradeDiagnosticsFromCoverage(array $coverage, string $writer): array
+    private static function writerDowngradeDiagnosticsFromCoverage(array $coverage, string $writer, ?AstNode $table = null): array
     {
         $writer = self::normalizeWriterName($writer);
         if ($writer !== 'markdown') {
             if ($writer === 'latex') {
-                $diagnostics = [];
+                $diagnostics = $table instanceof AstNode ? self::latexLongtableFooterRequirements($table, $writer) : [];
                 foreach ($coverage as $record) {
                     $rawColspan = max(1, (int) ($record['rawColspan'] ?? 1));
                     $rawRowspan = max(1, (int) ($record['rawRowspan'] ?? 1));
@@ -2124,6 +2124,90 @@ final class TableGeometry
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function latexLongtableFooterRequirements(AstNode $table, string $writer): array
+    {
+        $sectionSummary = self::latexTableSectionSummary($table);
+        if (($sectionSummary['footRowCount'] ?? 0) <= 0) {
+            return [];
+        }
+
+        return [[
+            'code' => 'latex-longtable-footer-required',
+            'writer' => $writer,
+            'reason' => 'table-foot',
+            'requiredFeature' => 'longtable-footer',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'columnCount' => self::columnCount($table),
+            'sectionCount' => $sectionSummary['sectionCount'],
+            'rowCount' => $sectionSummary['rowCount'],
+            'bodyCount' => $sectionSummary['bodyCount'],
+            'headRowCount' => $sectionSummary['headRowCount'],
+            'bodyRowCount' => $sectionSummary['bodyRowCount'],
+            'footRowCount' => $sectionSummary['footRowCount'],
+            'sections' => $sectionSummary['sections'],
+        ]];
+    }
+
+    /**
+     * @return array{
+     *     sectionCount:int,
+     *     rowCount:int,
+     *     bodyCount:int,
+     *     headRowCount:int,
+     *     bodyRowCount:int,
+     *     footRowCount:int,
+     *     sections:list<array{section:string,rowCount:int,rowRole:string}>
+     * }
+     */
+    private static function latexTableSectionSummary(AstNode $table): array
+    {
+        $sections = [];
+        $rowCount = 0;
+        $bodyCount = 0;
+        $headRowCount = 0;
+        $bodyRowCount = 0;
+        $footRowCount = 0;
+
+        foreach (self::sectionRowGroups($table, self::columnCount($table)) as $group) {
+            $section = (string) $group['section'];
+            $rowsInSection = count($group['rowEntries']);
+            if ($rowsInSection === 0) {
+                continue;
+            }
+
+            $rowRole = str_starts_with($section, 'body') ? 'body' : $section;
+            if ($rowRole === 'head') {
+                $headRowCount += $rowsInSection;
+            } elseif ($rowRole === 'body') {
+                $bodyCount++;
+                $bodyRowCount += $rowsInSection;
+            } elseif ($rowRole === 'foot') {
+                $footRowCount += $rowsInSection;
+            }
+
+            $rowCount += $rowsInSection;
+            $sections[] = [
+                'section' => $section,
+                'rowCount' => $rowsInSection,
+                'rowRole' => $rowRole,
+            ];
+        }
+
+        return [
+            'sectionCount' => count($sections),
+            'rowCount' => $rowCount,
+            'bodyCount' => $bodyCount,
+            'headRowCount' => $headRowCount,
+            'bodyRowCount' => $bodyRowCount,
+            'footRowCount' => $footRowCount,
+            'sections' => $sections,
+        ];
     }
 
     private static function normalizeWriterName(string $writer): string
