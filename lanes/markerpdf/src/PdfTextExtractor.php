@@ -903,6 +903,7 @@ final class PdfTextExtractor
             'invalid_filter_operand_count' => 0,
             'dictionary_filter_operand_count' => 0,
             'malformed_filter_operand_count' => 0,
+            'duplicate_filter_declaration_count' => 0,
             'escaped_filter_name_operand_count' => 0,
             'unsupported_filter_count' => 0,
             'filter_end_marker_problem_count' => 0,
@@ -962,6 +963,7 @@ final class PdfTextExtractor
 
             $filterIndirectCount = $this->xrefStreamIndirectOperandCount($operandGroups['Filter']);
             $lengthIndirectCount = $this->xrefStreamIndirectOperandCount($operandGroups['Length']);
+            $duplicateFilterDeclarationCount = $this->duplicateTopLevelPdfNameDeclarationCount($dict, 'Filter');
             $filters = $this->streamFilters($dict, $objects);
             $decodeParms = $filters === null
                 ? $this->streamDecodeParms($dict, $objects)
@@ -1026,6 +1028,7 @@ final class PdfTextExtractor
             $review['invalid_filter_operand_count'] += $invalidFilterOperandCount;
             $review['dictionary_filter_operand_count'] += $dictionaryFilterOperandCount;
             $review['malformed_filter_operand_count'] += $malformedFilterOperandCount;
+            $review['duplicate_filter_declaration_count'] += $duplicateFilterDeclarationCount;
             $review['escaped_filter_name_operand_count'] += $escapedFilterNameOperandCount;
             $review['unsupported_filter_count'] += $unsupportedFilterCount;
             $review['filter_end_marker_problem_count'] += $filterEndMarkerProblemCount;
@@ -1049,6 +1052,7 @@ final class PdfTextExtractor
                 'invalid_filter_operand_count' => $invalidFilterOperandCount,
                 'dictionary_filter_operand_count' => $dictionaryFilterOperandCount,
                 'malformed_filter_operand_count' => $malformedFilterOperandCount,
+                'duplicate_filter_declaration_count' => $duplicateFilterDeclarationCount,
                 'escaped_filter_name_operand_count' => $escapedFilterNameOperandCount,
                 'unsupported_filter_count' => $unsupportedFilterCount,
                 'filter_end_marker_problem_count' => $filterEndMarkerProblemCount,
@@ -1061,12 +1065,14 @@ final class PdfTextExtractor
                     $invalidFilterOperandCount,
                     $dictionaryFilterOperandCount,
                     $malformedFilterOperandCount,
-                    $unsupportedFilterCount
+                    $unsupportedFilterCount,
+                    $duplicateFilterDeclarationCount
                 ),
                 'filter_end_marker_policy' => $this->cMapStreamFilterEndMarkerPolicy(
                     $filters,
                     $decodeParms,
-                    $filterEndMarkerProblems
+                    $filterEndMarkerProblems,
+                    $duplicateFilterDeclarationCount
                 ),
                 'filter_decode_policy' => $this->cMapStreamFilterDecodePolicy(
                     $filters,
@@ -1074,7 +1080,8 @@ final class PdfTextExtractor
                     $filterEndMarkerProblems,
                     $unsupportedFilterCount,
                     $invalidDecodeParmsParameterCount,
-                    $filterDecodeErrors
+                    $filterDecodeErrors,
+                    $duplicateFilterDeclarationCount
                 ),
                 'decodeparms_operand_policy' => $this->streamDecodeParmsOperandPolicy(
                     $decodeParms,
@@ -17887,6 +17894,11 @@ final class PdfTextExtractor
         return $values;
     }
 
+    private function duplicateTopLevelPdfNameDeclarationCount(string $dictionary, string $name): int
+    {
+        return max(0, count($this->topLevelPdfValuesAfterNameInDictionaryBody($dictionary, $name)) - 1);
+    }
+
     private function skipPdfValueAt(string $body, int $offset): int
     {
         $length = strlen($body);
@@ -24284,9 +24296,14 @@ final class PdfTextExtractor
         int $invalidCount,
         int $dictionaryCount,
         int $malformedCount = 0,
-        int $unsupportedCount = 0
+        int $unsupportedCount = 0,
+        int $duplicateDeclarationCount = 0
     ): string
     {
+        if ($duplicateDeclarationCount > 0) {
+            return 'reject_duplicate_filter_declarations';
+        }
+
         if ($dictionaryCount > 0) {
             return 'reject_dictionary_filter_operands';
         }
@@ -25532,6 +25549,10 @@ final class PdfTextExtractor
      */
     private function decodeCMapStream(string $dict, string $stream, array $objects): ?string
     {
+        if ($this->duplicateTopLevelPdfNameDeclarationCount($dict, 'Filter') > 0) {
+            return null;
+        }
+
         return $this->decodeStream($dict, $stream, $objects, true, true, true);
     }
 
@@ -25681,8 +25702,13 @@ final class PdfTextExtractor
     private function cMapStreamFilterEndMarkerPolicy(
         ?array $filters,
         ?array $decodeParms,
-        array $filterEndMarkerProblems
+        array $filterEndMarkerProblems,
+        int $duplicateFilterDeclarationCount = 0
     ): string {
+        if ($duplicateFilterDeclarationCount > 0) {
+            return 'reject_duplicate_filter_declarations';
+        }
+
         if ($filters === null) {
             return 'filter_resolution_failed';
         }
@@ -25710,8 +25736,13 @@ final class PdfTextExtractor
         array $filterEndMarkerProblems,
         int $unsupportedFilterCount,
         int $invalidDecodeParmsParameterCount,
-        array $filterDecodeErrors
+        array $filterDecodeErrors,
+        int $duplicateFilterDeclarationCount = 0
     ): string {
+        if ($duplicateFilterDeclarationCount > 0) {
+            return 'reject_duplicate_filter_declarations';
+        }
+
         if ($filters === null) {
             return 'filter_resolution_failed';
         }
