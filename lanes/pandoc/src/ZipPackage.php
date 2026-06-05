@@ -874,7 +874,12 @@ final class ZipPackage
             throw new \RuntimeException('ZIP package entry names must not be empty');
         }
 
-        if (str_contains($name, "\0") || str_starts_with($name, '/') || str_contains($name, '\\')) {
+        if (
+            str_contains($name, "\0")
+            || str_starts_with($name, '/')
+            || str_contains($name, '\\')
+            || preg_match('/^[A-Za-z]:/', $name) === 1
+        ) {
             throw new \RuntimeException("Unsafe ZIP package entry name: {$name}");
         }
 

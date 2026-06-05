@@ -792,9 +792,12 @@ return [
         ]));
     },
 
-    'rejects unsafe package part names before exposing entries' => static function (TestRunner $t) use ($buildZipPackage): void {
+    'rejects unsafe package part names before exposing entries' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             ['name' => '/word/document.xml', 'data' => 'absolute'],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            ['name' => 'C:word/document.xml', 'data' => 'drive letter'],
         ])));
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             ['name' => 'word/../document.xml', 'data' => 'traversal'],
@@ -805,6 +808,20 @@ return [
         $t->throws(\RuntimeException::class, static fn (): bool => ZipPackage::fromString($buildZipPackage([
             ['name' => 'word/document.xml', 'data' => 'ok'],
         ]))->has('../word/document.xml'));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => 'C:word/document.xml', 'data' => 'drive letter'],
+        ]));
+
+        $rawName = 'word/media/review-image.bin';
+        $unsafeUnicodePathExtra = $buildUnicodeExtra(0x7075, $rawName, 'C:word/media/review.png');
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => $rawName,
+                'data' => 'unicode path drive letter',
+                'flags' => 0,
+                'centralExtra' => $unsafeUnicodePathExtra,
+            ],
+        ])));
     },
 
     'rejects duplicate encrypted and split zip package entries' => static function (TestRunner $t) use ($buildZipPackage): void {
