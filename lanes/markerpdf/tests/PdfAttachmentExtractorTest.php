@@ -167,6 +167,60 @@ return [
         $t->true($encodedSummary !== false && !str_contains($encodedSummary, 'Stacked Attachment,Ready'));
         $t->true($encodedSummary !== false && !str_contains($encodedSummary, $payload));
     },
+    'fails closed on unsupported attachment DecodeParms before checksum review' => static function (TestRunner $t): void {
+        $safePayload = "Title,Status\nDefault Predictor,Ready\n";
+        $safeCompressed = gzcompress($safePayload);
+        if (!is_string($safeCompressed)) {
+            throw new RuntimeException('Unable to compress safe attachment DecodeParms fixture.');
+        }
+
+        $unsafePayload = 'RAW_ATTACHMENT_DECODEPARMS_SHOULD_NOT_COUNT';
+        $unsafeCompressed = gzcompress($unsafePayload);
+        if (!is_string($unsafeCompressed)) {
+            throw new RuntimeException('Unable to compress unsafe attachment DecodeParms fixture.');
+        }
+
+        $safeHex = strtoupper(bin2hex($safeCompressed)) . '>';
+        $unsafeHex = strtoupper(bin2hex($unsafeCompressed)) . '>';
+        $safeChecksum = md5($safePayload);
+        $unsafeChecksum = md5($unsafePayload);
+
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Names << /EmbeddedFiles 2 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Names [(safe-default.csv) 4 0 R (unsafe-predictor.bin) 6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Filespec /F (safe-default.csv) /Desc (Default DecodeParms attachment) /AFRelationship /Data /EF << /F 5 0 R >> >>\nendobj\n"
+            . "5 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCIIHexDecode /FlateDecode ] /DecodeParms [ null << /Predictor 1 >> ] /Params << /Size " . strlen($safePayload) . " /CheckSum <{$safeChecksum}> >> /Length " . strlen($safeHex) . " >>\n"
+            . "stream\n{$safeHex}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /Filespec /F (unsafe-predictor.bin) /Desc (Unsupported DecodeParms attachment) /AFRelationship /Data /EF << /F 7 0 R >> >>\nendobj\n"
+            . "7 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Foctet-stream /Filter [ /ASCIIHexDecode /FlateDecode ] /DecodeParms [ null << /Predictor 12 /Columns 8 >> ] /Params << /Size " . strlen($unsafePayload) . " /CheckSum <{$unsafeChecksum}> >> /Length " . strlen($unsafeHex) . " >>\n"
+            . "stream\n{$unsafeHex}\nendstream\nendobj\n"
+            . "%%EOF\n";
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(strlen($safePayload), $summary['total_bytes']);
+        $t->same(['safe-default.csv'], $summary['filenames']);
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+
+        $attachment = $summary['attachments'][0];
+        $t->same('embedded-files-name-tree', $attachment['source']);
+        $t->same('safe-default.csv', $attachment['filename']);
+        $t->same('Default DecodeParms attachment', $attachment['description']);
+        $t->same(['ASCIIHexDecode', 'FlateDecode'], $attachment['filters']);
+        $t->same(strlen($safePayload), $attachment['declared_size']);
+        $t->same(true, $attachment['declared_size_matches']);
+        $t->same(strlen($safePayload), $attachment['byte_length']);
+        $t->same($safeChecksum, $attachment['checksum_hex']);
+        $t->same($safeChecksum, $attachment['computed_checksum_hex']);
+        $t->same(true, $attachment['checksum_matches']);
+        $t->same(false, array_key_exists('bytes', $attachment));
+        $t->true($encodedSummary !== false && !str_contains($encodedSummary, 'unsafe-predictor.bin'));
+        $t->true($encodedSummary !== false && !str_contains($encodedSummary, 'RAW_ATTACHMENT_DECODEPARMS'));
+        $t->true($encodedSummary !== false && !str_contains($encodedSummary, $unsafeChecksum));
+    },
     'prunes out-of-limits EmbeddedFiles name-tree attachments in WordPress preflight' => static function (TestRunner $t): void {
         $currentPayload = "Title,Status\nCurrent,Ready\n";
         $stalePayload = "Title,Status\nStale,Ignore\n";

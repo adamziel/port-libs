@@ -1804,7 +1804,23 @@ final class PdfAttachmentExtractor
 
         $bytes = $streamObject['stream'];
         $dict = $this->dict($streamObject['value']) ?? [];
-        foreach ($this->filterNames($dict['Filter'] ?? null, $objects) as $filter) {
+        $filters = $this->filterSlots($dict['Filter'] ?? null, $objects);
+        if ($filters === null) {
+            return null;
+        }
+
+        if (
+            array_key_exists('DecodeParms', $dict)
+            && !$this->decodeParmsSupportedForFilters($dict['DecodeParms'], $objects, $filters)
+        ) {
+            return null;
+        }
+
+        foreach ($filters as $filter) {
+            if ($filter === null) {
+                continue;
+            }
+
             $decoded = match ($filter) {
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($bytes),
                 'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($bytes),
@@ -1824,9 +1840,9 @@ final class PdfAttachmentExtractor
 
     /**
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
-     * @return list<string>
+     * @return list<string|null>|null
      */
-    private function filterNames(mixed $filterValue, array $objects): array
+    private function filterSlots(mixed $filterValue, array $objects): ?array
     {
         $filterValue = $this->resolveValue($filterValue, $objects);
         $name = $this->nameValue($filterValue);
@@ -1841,13 +1857,146 @@ final class PdfAttachmentExtractor
 
         $filters = [];
         foreach ($array as $value) {
-            $filter = $this->nameValue($this->resolveValue($value, $objects));
-            if ($filter !== null) {
+            $resolved = $this->resolveValue($value, $objects);
+            if ($resolved === null) {
+                $filters[] = null;
+                continue;
+            }
+
+            $filter = $this->nameValue($resolved);
+            if ($filter === null) {
+                return null;
+            }
+
+            $filters[] = $filter;
+        }
+
+        return $filters;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return list<string>
+     */
+    private function filterNames(mixed $filterValue, array $objects): array
+    {
+        $slots = $this->filterSlots($filterValue, $objects);
+        if ($slots === null) {
+            return [];
+        }
+
+        $filters = [];
+        foreach ($slots as $filter) {
+            if (is_string($filter)) {
                 $filters[] = $filter;
             }
         }
 
         return $filters;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param list<string|null> $filters
+     */
+    private function decodeParmsSupportedForFilters(mixed $decodeParmsValue, array $objects, array $filters): bool
+    {
+        $nonNullFilterIndexes = [];
+        foreach ($filters as $filterIndex => $filter) {
+            if (is_string($filter)) {
+                $nonNullFilterIndexes[] = $filterIndex;
+            }
+        }
+
+        if ($nonNullFilterIndexes === []) {
+            return true;
+        }
+
+        $resolved = $this->resolveValue($decodeParmsValue, $objects);
+        $array = $this->arrayValue($resolved);
+        if ($array === null) {
+            return $this->decodeParmsValueIsDefault($resolved, $objects);
+        }
+
+        $compactArray = count($array) === count($nonNullFilterIndexes) && count($array) !== count($filters);
+        $appliedParameterIndexes = [];
+        foreach ($filters as $filterIndex => $filter) {
+            if (!is_string($filter)) {
+                continue;
+            }
+
+            $parameterIndex = $filterIndex;
+            if ($compactArray) {
+                $position = array_search($filterIndex, $nonNullFilterIndexes, true);
+                if ($position === false) {
+                    continue;
+                }
+
+                $parameterIndex = $position;
+            }
+
+            if (!array_key_exists($parameterIndex, $array)) {
+                continue;
+            }
+
+            $appliedParameterIndexes[$parameterIndex] = true;
+            if (!$this->decodeParmsValueIsDefault($array[$parameterIndex], $objects)) {
+                return false;
+            }
+        }
+
+        foreach ($array as $parameterIndex => $value) {
+            if (isset($appliedParameterIndexes[$parameterIndex])) {
+                continue;
+            }
+            if ($this->decodeParmsValueIsDefault($value, $objects)) {
+                continue;
+            }
+            if (!$compactArray && array_key_exists($parameterIndex, $filters) && $filters[$parameterIndex] === null) {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     */
+    private function decodeParmsValueIsDefault(mixed $value, array $objects): bool
+    {
+        $resolved = $this->resolveValue($value, $objects);
+        if ($resolved === null) {
+            return true;
+        }
+
+        $dict = $this->dict($resolved);
+        if ($dict === null) {
+            return false;
+        }
+
+        $defaults = [
+            'Predictor' => 1,
+            'Columns' => 1,
+            'Colors' => 1,
+            'BitsPerComponent' => 8,
+            'EarlyChange' => 1,
+        ];
+
+        foreach ($dict as $name => $parameterValue) {
+            if (!array_key_exists($name, $defaults)) {
+                return false;
+            }
+
+            $resolvedParameter = $this->resolveValue($parameterValue, $objects);
+            if (!is_int($resolvedParameter) || $resolvedParameter !== $defaults[$name]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function decodeFlateStream(string $bytes): ?string
