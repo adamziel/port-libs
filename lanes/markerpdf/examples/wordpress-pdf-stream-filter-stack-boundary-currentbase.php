@@ -252,6 +252,27 @@ $compactDecodeParmsPdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
     . "%%EOF";
 
+$aliasCompactDecodeParmsBefore = "BT /F1 12 Tf 72 720 Td (Alias Params Stack Before) Tj ET\n";
+while ((7 + 1 + strlen($aliasCompactDecodeParmsBefore)) % 4 !== 0) {
+    $aliasCompactDecodeParmsBefore .= ' ';
+}
+$aliasCompactDecodeParmsAfter = "\nBT /F1 12 Tf 72 704 Td (Alias Params Stack After) Tj ET";
+$aliasPredictorRow = "\0" . $aliasCompactDecodeParmsBefore . $fakeEndstreamBytes . $aliasCompactDecodeParmsAfter;
+$aliasColumns = strlen($aliasCompactDecodeParmsBefore . $fakeEndstreamBytes . $aliasCompactDecodeParmsAfter);
+$aliasCompactDecodeParmsEncoded = $ascii85Encode($zlibStored($aliasPredictorRow));
+if (!str_contains($aliasCompactDecodeParmsEncoded, 'endstream!')) {
+    throw new RuntimeException('Focused alias DecodeParms stack smoke fixture must contain the fake endstream marker.');
+}
+$aliasCompactDecodeParmsEncoded = str_replace('endstream!', "\nendstream\n!", $aliasCompactDecodeParmsEncoded) . '~>';
+
+$aliasCompactDecodeParmsPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Filter [ /A85 null /Fl ] /DecodeParms [ null << /Predictor 12 /Columns {$aliasColumns} >> ] >>\nstream\n{$aliasCompactDecodeParmsEncoded}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "%%EOF";
+
 $strayDecodeParmsContent = 'BT /F1 12 Tf 72 720 Td (Stray DecodeParms Visible) Tj T* (Unfiltered Stream Preserved) Tj ET';
 $strayDecodeParmsObject = 'BT /F1 12 Tf 72 680 Td (Stray DecodeParms Helper Leak) Tj ET';
 $strayDecodeParmsPdf = "%PDF-1.4\n"
@@ -273,6 +294,7 @@ $runLengthLines = $extractor->extractTextLines($runLengthPdf);
 $runLengthDeclaredLines = $extractor->extractTextLines($runLengthDeclaredPdf);
 $nullFilterDecodeParmsLines = $extractor->extractTextLines($nullFilterDecodeParmsPdf);
 $compactDecodeParmsLines = $extractor->extractTextLines($compactDecodeParmsPdf);
+$aliasCompactDecodeParmsLines = $extractor->extractTextLines($aliasCompactDecodeParmsPdf);
 $strayDecodeParmsLines = $extractor->extractTextLines($strayDecodeParmsPdf);
 $allLines = [
     ...$lines,
@@ -284,6 +306,7 @@ $allLines = [
     ...$runLengthDeclaredLines,
     ...$nullFilterDecodeParmsLines,
     ...$compactDecodeParmsLines,
+    ...$aliasCompactDecodeParmsLines,
     ...$strayDecodeParmsLines,
 ];
 $joined = implode("\n", $allLines);
@@ -300,12 +323,17 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         ['RunLengthDecode', 'FlateDecode'],
         [null, 'FlateDecode'],
         [null, 'ASCII85Decode', 'FlateDecode'],
+        ['A85', null, 'Fl'],
         [],
     ],
     'singleton_decodeparms_after_null_filter_stack_entry' => true,
     'compact_decodeparms_ignore_null_filter_placeholders' => $compactDecodeParmsLines === [
         'Compact Params Stack Before',
         'Compact Params Stack After',
+    ],
+    'abbreviated_filter_compact_decodeparms_middle_null' => $aliasCompactDecodeParmsLines === [
+        'Alias Params Stack Before',
+        'Alias Params Stack After',
     ],
     'stray_decodeparms_without_filter_ignored' => $strayDecodeParmsLines === [
         'Stray DecodeParms Visible',

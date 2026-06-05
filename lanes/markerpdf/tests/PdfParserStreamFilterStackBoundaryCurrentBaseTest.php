@@ -153,6 +153,40 @@ $parserStreamFilterStackBoundaryCurrentBaseCompactDecodeParmsPdf = static functi
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseAliasCompactDecodeParmsPdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBaseAscii85,
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $fakeEndstreamBytes = hex2bin('d66c4ac5fe8a5a71');
+    if ($fakeEndstreamBytes === false) {
+        throw new RuntimeException('Unable to build focused alias DecodeParms fake endstream byte sequence.');
+    }
+
+    $before = "BT /F1 12 Tf 72 720 Td (Alias Params Stack Before) Tj ET\n";
+    while ((7 + 1 + strlen($before)) % 4 !== 0) {
+        $before .= ' ';
+    }
+
+    $after = "\nBT /F1 12 Tf 72 704 Td (Alias Params Stack After) Tj ET";
+    $predictorRow = "\0" . $before . $fakeEndstreamBytes . $after;
+    $columns = strlen($before . $fakeEndstreamBytes . $after);
+    $encoded = $parserStreamFilterStackBoundaryCurrentBaseAscii85(
+        $parserStreamFilterStackBoundaryCurrentBaseZlibStored($predictorRow)
+    );
+    if (!str_contains($encoded, 'endstream!')) {
+        throw new RuntimeException('Focused alias DecodeParms stack fixture must contain the fake endstream marker.');
+    }
+    $encoded = str_replace('endstream!', "\nendstream\n!", $encoded) . '~>';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Filter [ /A85 null /Fl ] /DecodeParms [ null << /Predictor 12 /Columns {$columns} >> ] >>\nstream\n{$encoded}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "%%EOF";
+};
+
 $parserStreamFilterStackBoundaryCurrentBaseStrayDecodeParmsPdf = static function (): string {
     $content = 'BT /F1 12 Tf 72 720 Td (Stray DecodeParms Visible) Tj T* (Unfiltered Stream Preserved) Tj ET';
     $staleDecodeParmsObject = 'BT /F1 12 Tf 72 680 Td (Stray DecodeParms Helper Leak) Tj ET';
@@ -389,6 +423,25 @@ return [
         $t->true(!str_contains($text, 'ASCII85Decode'));
         $t->true(!str_contains($text, 'FlateDecode'));
         $t->true(!str_contains($text, 'Predictor'));
+        $t->true(!str_contains($text, "\xd6\x6c\x4a\xc5"));
+    },
+    'aligns compact DecodeParms arrays to abbreviated filters around middle null placeholders' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseAliasCompactDecodeParmsPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseAliasCompactDecodeParmsPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = ['Alias Params Stack Before', 'Alias Params Stack After'];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same("Alias Params Stack Before\nAlias Params Stack After", $text);
+        $t->same("Alias Params Stack Before\nAlias Params Stack After\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'endstream'));
+        $t->true(!str_contains($text, 'A85'));
+        $t->true(!str_contains($text, 'Fl'));
+        $t->true(!str_contains($text, 'Predictor'));
+        $t->true(!str_contains($text, "\0"));
         $t->true(!str_contains($text, "\xd6\x6c\x4a\xc5"));
     },
     'ignores stray DecodeParms when no stream filters are declared before WordPress text extraction' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseStrayDecodeParmsPdf): void {
