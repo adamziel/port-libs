@@ -1142,6 +1142,42 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('block-metadata-body', $document->children[0]->attr('id'));
     },
+    'maps pandoc yaml compact sequence map items without child lines' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Compact sequence **Packet**',
+            'review-items:',
+            '  - label: Migration review',
+            '  - "source:key": "metadata: value"',
+            '  - <<: {status: queued, priority: 4}',
+            '  - source-uri: https://example.test/exports/packet#compact',
+            'references:',
+            '  - id: compact-ref',
+            '  - title: "Title with: colon"',
+            'urls:',
+            '  - https://example.test/export:443/path',
+            '  - mailto:review@example.test',
+            '...',
+            '',
+            '# Compact sequence YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Compact sequence **Packet**', $meta['title']);
+        $t->same('Migration review', $meta['review-items'][0]['label']);
+        $t->same('metadata: value', $meta['review-items'][1]['source:key']);
+        $t->same('queued', $meta['review-items'][2]['status']);
+        $t->same(4, $meta['review-items'][2]['priority']);
+        $t->same('https://example.test/exports/packet#compact', $meta['review-items'][3]['source-uri']);
+        $t->same('compact-ref', $meta['references'][0]['id']);
+        $t->same('Title with: colon', $meta['references'][1]['title']);
+        $t->same('https://example.test/export:443/path', $meta['urls'][0]);
+        $t->same('mailto:review@example.test', $meta['urls'][1]);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('compact-sequence-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="compact-sequence-yaml-body">Compact sequence YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml anchors aliases merge keys and explicit tags' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

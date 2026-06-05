@@ -799,7 +799,7 @@ final class MarkdownReader
                 continue;
             }
 
-            if ($childLines !== [] && $this->parseYamlMappingLine($sourceValue) !== null) {
+            if ($this->isYamlCompactSequenceMappingSource($sourceValue)) {
                 $value = $this->parseYamlMetadataLines(array_merge([$sourceValue], $childLines));
                 $this->rememberYamlAnchor($anchorName, $value);
                 $items[] = $value;
@@ -812,6 +812,61 @@ final class MarkdownReader
         }
 
         return $items;
+    }
+
+    private function isYamlCompactSequenceMappingSource(string $sourceValue): bool
+    {
+        $sourceValue = trim($sourceValue);
+        if ($sourceValue === '') {
+            return false;
+        }
+
+        if (preg_match('/^(<<):(?:$|[ \t].*)/', $sourceValue) === 1) {
+            return true;
+        }
+
+        if ($sourceValue[0] === '"' || $sourceValue[0] === "'") {
+            $quote = $sourceValue[0];
+            $length = strlen($sourceValue);
+            for ($offset = 1; $offset < $length; $offset++) {
+                $char = $sourceValue[$offset];
+                if ($quote === "'" && $char === "'" && ($sourceValue[$offset + 1] ?? '') === "'") {
+                    $offset++;
+                    continue;
+                }
+
+                if ($char !== $quote || ($quote === '"' && $sourceValue[$offset - 1] === '\\')) {
+                    continue;
+                }
+
+                $afterKey = substr($sourceValue, $offset + 1);
+                if (!str_starts_with($afterKey, ':')) {
+                    return false;
+                }
+
+                $afterColon = substr($afterKey, 1);
+                return $afterColon === '' || preg_match('/^[ \t]/', $afterColon) === 1;
+            }
+
+            return false;
+        }
+
+        $length = strlen($sourceValue);
+        for ($offset = 0; $offset < $length; $offset++) {
+            if ($sourceValue[$offset] !== ':') {
+                continue;
+            }
+
+            $afterColon = substr($sourceValue, $offset + 1);
+            if ($afterColon !== '' && preg_match('/^[ \t]/', $afterColon) !== 1) {
+                continue;
+            }
+
+            $key = substr($sourceValue, 0, $offset);
+            return preg_match('/^[A-Za-z0-9_.:-]+$/', $key) === 1;
+        }
+
+        return false;
     }
 
     /**

@@ -79,6 +79,14 @@ handoff-gaps:
   -
   - status: queued
     reason:
+compact-review-items:
+  - label: Migration review
+  - "source:key": "metadata: value"
+  - <<: {status: queued, priority: 4}
+  - source-uri: https://example.test/exports/packet#compact
+compact-review-urls:
+  - https://example.test/export:443/path
+  - mailto:review@example.test
 merge-sequence-review:
   <<: [*merge_review_override, *merge_review_base]
   priority: 1
@@ -230,6 +238,21 @@ if (($argv[1] ?? '') === '--self-test') {
     ) {
         throw new RuntimeException('YAML metadata self-test missing sequence map empty scalar null');
     }
+    if (($meta['compact-review-items'][0]['label'] ?? '') !== 'Migration review') {
+        throw new RuntimeException('YAML metadata self-test missing compact sequence map label');
+    }
+    if (($meta['compact-review-items'][1]['source:key'] ?? '') !== 'metadata: value') {
+        throw new RuntimeException('YAML metadata self-test missing compact sequence quoted key');
+    }
+    if (($meta['compact-review-items'][2]['status'] ?? '') !== 'queued' || ($meta['compact-review-items'][2]['priority'] ?? null) !== 4) {
+        throw new RuntimeException('YAML metadata self-test missing compact sequence merge map');
+    }
+    if (($meta['compact-review-items'][3]['source-uri'] ?? '') !== 'https://example.test/exports/packet#compact') {
+        throw new RuntimeException('YAML metadata self-test missing compact sequence source URI');
+    }
+    if (($meta['compact-review-urls'] ?? []) !== ['https://example.test/export:443/path', 'mailto:review@example.test']) {
+        throw new RuntimeException('YAML metadata self-test misparsed compact sequence scalar URLs');
+    }
     if (($meta['merge-sequence-review']['status'] ?? '') !== 'approved') {
         throw new RuntimeException('YAML metadata self-test missing earlier merge-sequence precedence');
     }
@@ -318,6 +341,7 @@ echo 'Keywords: ' . implode(', ', $meta['keywords'] ?? []) . "\n\n";
 echo 'Review optional deadline is null: ' . ((array_key_exists('optional-deadline', $meta) && $meta['optional-deadline'] === null) ? 'yes' : 'no') . "\n";
 echo 'Merge sequence review: ' . ($meta['merge-sequence-review']['status'] ?? '') . ' / priority ' . ($meta['merge-sequence-review']['priority'] ?? '') . "\n";
 echo 'Explicit key review: ' . ($meta['explicit-review']['status'] ?? '') . ' / ' . ($meta['explicit-review']['source:key'] ?? '') . "\n";
+echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
 echo 'Typed review revision: ' . ($meta['typed-review']['typed-revision'] ?? '') . ' / confidence ' . ($meta['typed-review']['confidence'] ?? '') . "\n";
 echo 'Multiline flow labels: ' . implode(', ', $meta['multiline-flow-labels'] ?? []) . "\n";
