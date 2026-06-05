@@ -43,6 +43,19 @@ blank-note: # intentionally blank in source packet
 explicit-empty: ""
 flow-empty-review: {migration-ticket:, quoted-empty: ""}
 typed-flow-review: {priority: !!int "4", enabled: !!bool "false", ticket: !!str 009}
+multiline-flow-labels: [
+  migration,
+  "Data Liberation",
+  wordpress
+]
+multiline-flow-review: {
+  status: queued,
+  labels: *review_labels,
+  owners: [
+    Import Desk,
+    "QA #2"
+  ]
+}
 review-notes:
   - |-
     Preserve original front matter.
@@ -156,6 +169,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['typed-flow-review']['ticket'] ?? null) !== '009') {
         throw new RuntimeException('YAML metadata self-test missing flow explicit string tag preservation');
     }
+    if (($meta['multiline-flow-labels'] ?? []) !== ['migration', 'Data Liberation', 'wordpress']) {
+        throw new RuntimeException('YAML metadata self-test missing multiline flow sequence metadata');
+    }
+    if (($meta['multiline-flow-review']['labels'] ?? []) !== ['front-matter', 'wordpress']) {
+        throw new RuntimeException('YAML metadata self-test missing multiline flow alias metadata');
+    }
+    if (($meta['multiline-flow-review']['owners'] ?? []) !== ['Import Desk', 'QA #2']) {
+        throw new RuntimeException('YAML metadata self-test missing nested multiline flow sequence metadata');
+    }
     if (($meta['review-notes'][0] ?? '') !== "Preserve original front matter.\nKeep reviewer line breaks.") {
         throw new RuntimeException('YAML metadata self-test missing literal sequence block scalar note');
     }
@@ -245,6 +267,7 @@ echo 'Review optional deadline is null: ' . ((array_key_exists('optional-deadlin
 echo 'Merge sequence review: ' . ($meta['merge-sequence-review']['status'] ?? '') . ' / priority ' . ($meta['merge-sequence-review']['priority'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
 echo 'Typed review revision: ' . ($meta['typed-review']['typed-revision'] ?? '') . ' / confidence ' . ($meta['typed-review']['confidence'] ?? '') . "\n";
+echo 'Multiline flow labels: ' . implode(', ', $meta['multiline-flow-labels'] ?? []) . "\n";
 echo 'Escaped source title: ' . ($meta['escaped-source-title'] ?? '') . "\n";
 echo 'Multiline source title: ' . ($meta['multiline-source-title'] ?? '') . "\n";
 echo 'Single quoted source note: ' . ($meta['single-quoted-source-note'] ?? '') . "\n";

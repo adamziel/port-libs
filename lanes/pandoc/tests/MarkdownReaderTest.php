@@ -976,6 +976,68 @@ return [
         $t->same('Flow body.', $document->children[0]->attr('text'));
         $t->contains('<p>Flow body.</p>', $blocks);
     },
+    'maps pandoc yaml multiline flow collections in metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Multiline flow **Packet**',
+            'keywords: [',
+            '  migration,',
+            '  "Data Liberation",',
+            '  wordpress',
+            ']',
+            'review-labels_: &review_labels [',
+            '  front-matter,',
+            '  wordpress',
+            ']',
+            'review: {',
+            '  status: queued,',
+            '  labels: *review_labels,',
+            '  flags: {draft: false, score: 4}',
+            '}',
+            'references:',
+            '  - id: multiline-flow-ref',
+            '    keywords: [',
+            '      source,',
+            '      metadata',
+            '    ]',
+            '    issued: {date-parts: [',
+            '      [2026, 6, 5]',
+            '    ]}',
+            'review-steps:',
+            '  - [',
+            '      collect,',
+            '      normalize',
+            '    ]',
+            '  - {owners: [',
+            '      Import Desk,',
+            '      "QA #2"',
+            '    ], done: false}',
+            '...',
+            '',
+            '# Multiline flow YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Multiline flow **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same(['migration', 'Data Liberation', 'wordpress'], $meta['keywords']);
+        $t->same(null, $meta['review-labels_'] ?? null);
+        $t->same('queued', $meta['review']['status']);
+        $t->same(['front-matter', 'wordpress'], $meta['review']['labels']);
+        $t->same(false, $meta['review']['flags']['draft']);
+        $t->same(4, $meta['review']['flags']['score']);
+        $t->same('multiline-flow-ref', $meta['references'][0]['id']);
+        $t->same(['source', 'metadata'], $meta['references'][0]['keywords']);
+        $t->same([[2026, 6, 5]], $meta['references'][0]['issued']['date-parts']);
+        $t->same(['collect', 'normalize'], $meta['review-steps'][0]);
+        $t->same(['Import Desk', 'QA #2'], $meta['review-steps'][1]['owners']);
+        $t->same(false, $meta['review-steps'][1]['done']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('multiline-flow-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="multiline-flow-yaml-body">Multiline flow YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml block sequences of maps and nested date parts' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

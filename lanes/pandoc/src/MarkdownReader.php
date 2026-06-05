@@ -450,8 +450,11 @@ final class MarkdownReader
             [$sourceValue, $anchorName, $tags] = $this->parseYamlValueDirectives($sourceValue);
             [$children, $nextIndex] = $this->collectYamlChildLines($lines, $index + 1);
             $blockScalarHeader = $this->parseYamlBlockScalarHeader($sourceValue);
+            $multilineFlow = $this->parseYamlMultilineFlowCollection($sourceValue, $children);
 
-            if ($blockScalarHeader !== null) {
+            if ($multilineFlow !== null) {
+                $value = $multilineFlow;
+            } elseif ($blockScalarHeader !== null) {
                 $value = $this->parseYamlBlockScalar(
                     $children,
                     $blockScalarHeader['style'],
@@ -634,6 +637,13 @@ final class MarkdownReader
             }
 
             $blockScalarHeader = $this->parseYamlBlockScalarHeader($sourceValue);
+            $multilineFlow = $this->parseYamlMultilineFlowCollection($sourceValue, $children);
+            if ($multilineFlow !== null) {
+                $this->rememberYamlAnchor($anchorName, $multilineFlow);
+                $items[] = $multilineFlow;
+                continue;
+            }
+
             if ($blockScalarHeader !== null) {
                 $value = $this->parseYamlBlockScalar(
                     $children,
@@ -943,6 +953,86 @@ final class MarkdownReader
     private function splitYamlInlineList(string $source): array
     {
         return $this->splitYamlFlowItems($source);
+    }
+
+    /**
+     * @param list<string> $continuationLines
+     */
+    private function parseYamlMultilineFlowCollection(string $sourceValue, array $continuationLines): mixed
+    {
+        $sourceValue = ltrim($sourceValue);
+        if (
+            $continuationLines === []
+            || $sourceValue === ''
+            || ($sourceValue[0] !== '[' && $sourceValue[0] !== '{')
+        ) {
+            return null;
+        }
+
+        $candidate = $this->stripYamlTrailingComment(trim($sourceValue . "\n" . implode("\n", $continuationLines)));
+        if ($candidate === '') {
+            return null;
+        }
+
+        $closing = $sourceValue[0] === '[' ? ']' : '}';
+        if (!str_ends_with(rtrim($candidate), $closing) || !$this->isBalancedYamlFlowCollection($candidate)) {
+            return null;
+        }
+
+        return $this->parseYamlScalarValue($candidate);
+    }
+
+    private function isBalancedYamlFlowCollection(string $source): bool
+    {
+        $quote = null;
+        $squareDepth = 0;
+        $curlyDepth = 0;
+        $length = strlen($source);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $source[$offset];
+            if ($quote !== null) {
+                if ($quote === "'" && $char === "'" && ($source[$offset + 1] ?? '') === "'") {
+                    $offset++;
+                    continue;
+                }
+                if ($char === $quote && ($quote === "'" || $source[$offset - 1] !== '\\')) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '[') {
+                $squareDepth++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $squareDepth--;
+                if ($squareDepth < 0) {
+                    return false;
+                }
+                continue;
+            }
+
+            if ($char === '{') {
+                $curlyDepth++;
+                continue;
+            }
+
+            if ($char === '}') {
+                $curlyDepth--;
+                if ($curlyDepth < 0) {
+                    return false;
+                }
+            }
+        }
+
+        return $quote === null && $squareDepth === 0 && $curlyDepth === 0;
     }
 
     /**
