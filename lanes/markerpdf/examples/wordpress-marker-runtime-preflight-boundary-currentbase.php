@@ -82,6 +82,18 @@ try {
         torchDevice: 'cpu',
         torchDeviceModel: 'mps'
     );
+    $spawnCollisionPlan = $batch->runtimeMainPreflightPlan(
+        $input,
+        $output,
+        metadataByFilename: [
+            'ready-for-marker.pdf' => ['title' => 'Ready for Marker'],
+        ],
+        minLength: 80,
+        workers: 8,
+        torchDevice: 'cuda',
+        torchDeviceModel: 'cpu',
+        spawnStartMethodAlreadySet: true
+    );
     $negativeMaxPlan = $batch->runtimeMainPreflightPlan(
         $input,
         $output,
@@ -202,6 +214,16 @@ try {
         throw new RuntimeException('Expected MPS runtime preflight to keep model loading in workers and avoid shared-memory handoff.');
     }
     if (
+        $spawnCollisionPlan['spawn_start_method']['start_method_success'] !== false
+        || $spawnCollisionPlan['spawn_start_method']['error_boundary'] !== 'spawn-start-method-failed'
+        || $spawnCollisionPlan['metadata']['metadata_load_success'] !== true
+        || $spawnCollisionPlan['model_handoff']['blocked_by'] !== 'spawn-start-method-failed'
+        || $spawnCollisionPlan['worker_pool']['task_args_count'] !== 0
+        || $spawnCollisionPlan['console_summary']['summary_reached'] !== false
+    ) {
+        throw new RuntimeException('Expected repeated spawn start-method failures to block before model handoff, task args, summary, and pool launch.');
+    }
+    if (
         $runtimePlan['console_summary']['summary_reached'] !== true
         || $runtimePlan['console_summary']['message_line'] !== 'Converting 5 pdfs in chunk 1/1 with 5 processes, and storing in ' . $output
         || $runtimePlan['console_summary']['emission_order'] !== 'after_model_handoff_before_task_args'
@@ -293,6 +315,14 @@ try {
         'mps_runtime_uses_worker_model_loading' => $mpsRuntimePlan['model_handoff']['worker_loads_models_when_init_arg_null'],
         'mps_runtime_parent_loads_models' => $mpsRuntimePlan['model_handoff']['main_load_all_models'],
         'mps_runtime_warning_recorded' => str_contains((string) $mpsRuntimePlan['model_handoff']['warning'], 'Cannot use MPS with torch multiprocessing share_memory'),
+        'spawn_start_method_reached' => $spawnCollisionPlan['spawn_start_method']['start_method_reached'],
+        'spawn_start_method_success' => $spawnCollisionPlan['spawn_start_method']['start_method_success'],
+        'spawn_start_method_error_boundary' => $spawnCollisionPlan['spawn_start_method']['error_boundary'],
+        'spawn_start_method_blocks_model_handoff' => $spawnCollisionPlan['spawn_start_method']['blocks_model_handoff'],
+        'spawn_start_method_blocks_task_args' => $spawnCollisionPlan['spawn_start_method']['blocks_task_args'],
+        'spawn_collision_metadata_loaded' => $spawnCollisionPlan['metadata']['metadata_load_success'],
+        'spawn_collision_task_args_count' => $spawnCollisionPlan['worker_pool']['task_args_count'],
+        'spawn_collision_conversion_summary_reached' => $spawnCollisionPlan['console_summary']['summary_reached'],
         'runtime_conversion_summary_reached' => $runtimePlan['console_summary']['summary_reached'],
         'runtime_conversion_summary_line' => $runtimePlan['console_summary']['message_line'],
         'runtime_conversion_summary_order' => $runtimePlan['console_summary']['emission_order'],

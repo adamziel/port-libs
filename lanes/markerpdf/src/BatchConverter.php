@@ -231,7 +231,8 @@ final class BatchConverter
         int $workers = 5,
         ?string $metadataFile = null,
         ?string $torchDevice = null,
-        ?string $torchDeviceModel = null
+        ?string $torchDeviceModel = null,
+        bool $spawnStartMethodAlreadySet = false
     ): array {
         $absoluteInputFolder = $this->absolutePath($inputFolder);
         $absoluteOutputFolder = $this->absolutePath($outputFolder);
@@ -311,6 +312,10 @@ final class BatchConverter
                     'selected_metadata_filenames' => [],
                     'missing_metadata_filenames' => [],
                 ],
+                'spawn_start_method' => $this->convertMainSpawnStartMethodPlan(
+                    'output-folder-create-failed',
+                    $spawnStartMethodAlreadySet
+                ),
                 'model_handoff' => $this->convertMainModelHandoffPlan(
                     $torchDevice,
                     $torchDeviceModel,
@@ -441,6 +446,15 @@ final class BatchConverter
                     'selected_metadata_filenames' => [],
                     'missing_metadata_filenames' => [],
                 ],
+                'spawn_start_method' => $this->convertMainSpawnStartMethodPlan(
+                    'metadata-file-json-load-failed',
+                    $spawnStartMethodAlreadySet
+                ),
+                'model_handoff' => $this->convertMainModelHandoffPlan(
+                    $torchDevice,
+                    $torchDeviceModel,
+                    'metadata-file-json-load-failed'
+                ),
                 'worker_pool' => [
                     'requested_workers' => $workers,
                     'total_processes' => 0,
@@ -474,14 +488,6 @@ final class BatchConverter
             ];
         }
 
-        $tasks = $this->tasksForFiles($selectedFiles, $absoluteOutputFolder, $runtimeMetadata, $minLength);
-
-        $taskArgs = [];
-        foreach ($tasks as $task) {
-            $taskArgs[] = $this->taskArg($task);
-        }
-
-        $selectedFilenames = array_map(static fn (array $task): string => basename((string) $task['filepath']), $tasks);
         $metadataFilenames = array_values(array_filter(array_keys($runtimeMetadata), 'is_string'));
         sort($metadataFilenames, SORT_STRING);
         $selectedMetadataFilenames = array_values(array_filter(
@@ -501,7 +507,127 @@ final class BatchConverter
             $endIndex,
             count($inputFiles)
         );
-        $totalProcesses = $workers < 1 ? 0 : min(count($taskArgs), $workers);
+        $totalProcesses = $workers < 1 ? 0 : min(count($selectedFiles), $workers);
+        $spawnStartMethod = $this->convertMainSpawnStartMethodPlan(null, $spawnStartMethodAlreadySet, $totalProcesses);
+        if (!$spawnStartMethod['start_method_success']) {
+            return [
+                'schema' => 'markerpdf.convert_main_runtime_preflight.v1',
+                'source' => 'sddai/markerPDF convert.py::main + os.path.abspath + os.makedirs(exist_ok=True) + task_args + torch.multiprocessing.Pool',
+                'environment' => [
+                    'PYTORCH_ENABLE_MPS_FALLBACK' => '1',
+                    'IN_STREAMLIT' => 'true',
+                    'PDFTEXT_CPU_WORKERS' => '1',
+                ],
+                'preflight_order' => [
+                    'configure_logging',
+                    'parse_args',
+                    'abspath_input_output',
+                    'list_input_files',
+                    'makedirs_output_exist_ok',
+                    'chunk_files',
+                    'load_metadata_file',
+                    'set_spawn_start_method',
+                    'prepare_model_handoff',
+                    'print_conversion_summary',
+                    'build_task_args',
+                    'pool_imap_process_single_pdf',
+                ],
+                'paths' => [
+                    'input_folder' => $inputFolder,
+                    'output_folder' => $outputFolder,
+                    'absolute_input_folder' => $absoluteInputFolder,
+                    'absolute_output_folder' => $absoluteOutputFolder,
+                    ...$outputCreation,
+                ],
+                'input_listing' => [
+                    'source' => 'os.listdir + os.path.isfile',
+                    'entry_count' => count($inputListing['entry_basenames']),
+                    'entry_basenames' => $inputListing['entry_basenames'],
+                    'file_count' => count($inputListing['file_basenames']),
+                    'file_basenames' => $inputListing['file_basenames'],
+                    'skipped_non_file_count' => count($inputListing['skipped_non_file_basenames']),
+                    'skipped_non_file_basenames' => $inputListing['skipped_non_file_basenames'],
+                    'file_filter' => 'os.path.isfile',
+                    'extension_filter_active' => false,
+                    'non_pdf_files_are_task_candidates' => $inputListing['non_pdf_file_basenames'] !== [],
+                    'non_pdf_file_basenames' => $inputListing['non_pdf_file_basenames'],
+                    'selected_non_pdf_filenames' => $this->nonPdfBasenames($selectedFilenames),
+                ],
+                'chunking' => [
+                    'chunk_index' => $chunkIndex,
+                    'num_chunks' => $numChunks,
+                    'chunk_size' => $chunkSize,
+                    'start_index' => $startIndex,
+                    'end_index' => $endIndex,
+                    'python_slice_start_index' => $pythonSliceStartIndex,
+                    'python_slice_end_index' => $pythonSliceEndIndex,
+                    'negative_chunk_index_active' => $chunkIndex < 0,
+                    'max_files' => $maxFiles,
+                    'max_files_limit_active' => $this->pythonTruthyInteger($maxFiles),
+                    'input_file_count' => count($inputFiles),
+                    'selected_count' => count($selectedFiles),
+                    'selected_filenames' => $selectedFilenames,
+                    'chunking_reached' => true,
+                    'chunk_error_boundary' => null,
+                ],
+                'metadata' => [
+                    'source' => $absoluteMetadataFile === null ? 'metadataByFilename argument' : 'metadata_file json.load keyed by basename',
+                    'metadata_file' => $absoluteMetadataFile,
+                    'metadata_load_reached' => true,
+                    'metadata_load_success' => true,
+                    'metadata_error_boundary' => null,
+                    'metadata_error_class' => null,
+                    'metadata_error_message' => null,
+                    'metadata_filenames' => $metadataFilenames,
+                    'selected_metadata_filenames' => $selectedMetadataFilenames,
+                    'missing_metadata_filenames' => $missingMetadataFilenames,
+                ],
+                'spawn_start_method' => $spawnStartMethod,
+                'model_handoff' => $this->convertMainModelHandoffPlan(
+                    $torchDevice,
+                    $torchDeviceModel,
+                    'spawn-start-method-failed'
+                ),
+                'worker_pool' => [
+                    'requested_workers' => $workers,
+                    'total_processes' => 0,
+                    'pool_launchable' => false,
+                    'pool_error_boundary' => 'spawn-start-method-failed',
+                    'start_method' => 'spawn',
+                    'process_function' => 'process_single_pdf',
+                    'task_args_count' => 0,
+                    'task_args' => [],
+                    'progress_iterator' => $this->progressIterator(),
+                ],
+                'console_summary' => $this->conversionSummaryPlan(
+                    0,
+                    $chunkIndex,
+                    $numChunks,
+                    0,
+                    $absoluteOutputFolder,
+                    'spawn-start-method-failed'
+                ),
+                'conversion_boundary' => [
+                    'min_length' => $minLength,
+                    'per_file_preflight_function' => 'process_single_pdf',
+                    'converter_function' => 'convert_single_pdf',
+                    'metadata_lookup' => 'metadata.get(os.path.basename(f))',
+                    'empty_output_policy' => 'print_empty_file_without_save_markdown',
+                ],
+                'review_only' => true,
+                'executes_python_or_models' => false,
+                'executes_multiprocessing' => false,
+                'executes_external_pdf_tools' => false,
+            ];
+        }
+
+        $tasks = $this->tasksForFiles($selectedFiles, $absoluteOutputFolder, $runtimeMetadata, $minLength);
+
+        $taskArgs = [];
+        foreach ($tasks as $task) {
+            $taskArgs[] = $this->taskArg($task);
+        }
+
         $poolErrorBoundary = null;
         if ($workers < 1) {
             $poolErrorBoundary = 'invalid-worker-count';
@@ -582,6 +708,7 @@ final class BatchConverter
                 'selected_metadata_filenames' => $selectedMetadataFilenames,
                 'missing_metadata_filenames' => $missingMetadataFilenames,
             ],
+            'spawn_start_method' => $spawnStartMethod,
             'model_handoff' => $modelHandoff,
             'worker_pool' => [
                 'requested_workers' => $workers,
@@ -1092,6 +1219,56 @@ final class BatchConverter
     private function isJsonMetadataLoadFailure(InvalidArgumentException $exception): bool
     {
         return $exception->getPrevious() instanceof JsonException;
+    }
+
+    /**
+     * @return array{
+     *     source: string,
+     *     order: string,
+     *     requested_start_method: string,
+     *     start_method_reached: bool,
+     *     start_method_success: bool,
+     *     start_method_already_set: bool,
+     *     total_processes_computed_before_spawn: int,
+     *     error_boundary: string|null,
+     *     error_class: string|null,
+     *     error_message: string|null,
+     *     blocks_model_handoff: bool,
+     *     blocks_conversion_summary: bool,
+     *     blocks_task_args: bool,
+     *     blocks_pool_launch: bool,
+     *     blocked_by: string|null,
+     *     executes_multiprocessing: false
+     * }
+     */
+    private function convertMainSpawnStartMethodPlan(
+        ?string $blockedBy = null,
+        bool $alreadySet = false,
+        int $totalProcesses = 0
+    ): array {
+        $reached = $blockedBy === null;
+        $failed = $reached && $alreadySet;
+
+        return [
+            'source' => 'convert.py torch.multiprocessing set_start_method boundary',
+            'order' => 'after_metadata_before_model_handoff',
+            'requested_start_method' => 'spawn',
+            'start_method_reached' => $reached,
+            'start_method_success' => $reached && !$failed,
+            'start_method_already_set' => $reached && $alreadySet,
+            'total_processes_computed_before_spawn' => $reached ? $totalProcesses : 0,
+            'error_boundary' => $failed ? 'spawn-start-method-failed' : null,
+            'error_class' => $failed ? 'RuntimeError' : null,
+            'error_message' => $failed
+                ? 'Set start method to spawn twice. This may be a temporary issue with the script. Please try running it again.'
+                : null,
+            'blocks_model_handoff' => $failed,
+            'blocks_conversion_summary' => $failed,
+            'blocks_task_args' => $failed,
+            'blocks_pool_launch' => $failed,
+            'blocked_by' => $blockedBy,
+            'executes_multiprocessing' => false,
+        ];
     }
 
     /**

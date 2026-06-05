@@ -317,6 +317,72 @@ return [
             $removeTree($blockedRoot);
         }
     },
+    'records repeated spawn start method failure after metadata and before model handoff' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['first.pdf', 'second.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata.json';
+            file_put_contents($metadataFile, json_encode([
+                'first.pdf' => ['title' => 'First Import'],
+            ], JSON_THROW_ON_ERROR));
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 5,
+                metadataFile: $metadataFile,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu',
+                spawnStartMethodAlreadySet: true
+            );
+
+            $t->same(['first.pdf', 'second.pdf'], $plan['chunking']['selected_filenames']);
+            $t->same(true, $plan['metadata']['metadata_load_reached']);
+            $t->same(true, $plan['metadata']['metadata_load_success']);
+            $t->same(['first.pdf'], $plan['metadata']['metadata_filenames']);
+            $t->same(['first.pdf'], $plan['metadata']['selected_metadata_filenames']);
+            $t->same(['second.pdf'], $plan['metadata']['missing_metadata_filenames']);
+
+            $spawn = $plan['spawn_start_method'];
+            $t->same('convert.py torch.multiprocessing set_start_method boundary', $spawn['source']);
+            $t->same('after_metadata_before_model_handoff', $spawn['order']);
+            $t->same('spawn', $spawn['requested_start_method']);
+            $t->same(true, $spawn['start_method_reached']);
+            $t->same(false, $spawn['start_method_success']);
+            $t->same(true, $spawn['start_method_already_set']);
+            $t->same(2, $spawn['total_processes_computed_before_spawn']);
+            $t->same('spawn-start-method-failed', $spawn['error_boundary']);
+            $t->same('RuntimeError', $spawn['error_class']);
+            $t->contains('Set start method to spawn twice', (string) $spawn['error_message']);
+            $t->same(true, $spawn['blocks_model_handoff']);
+            $t->same(true, $spawn['blocks_conversion_summary']);
+            $t->same(true, $spawn['blocks_task_args']);
+            $t->same(true, $spawn['blocks_pool_launch']);
+            $t->same(false, $spawn['executes_multiprocessing']);
+
+            $t->same(false, $plan['model_handoff']['model_handoff_reached']);
+            $t->same('spawn-start-method-failed', $plan['model_handoff']['blocked_by']);
+            $t->same(false, $plan['model_handoff']['main_load_all_models']);
+            $t->same(false, $plan['model_handoff']['upstream_model_execution_required']);
+            $t->same(false, $plan['model_handoff']['executes_python_or_models']);
+            $t->same(0, $plan['worker_pool']['task_args_count']);
+            $t->same([], $plan['worker_pool']['task_args']);
+            $t->same(0, $plan['worker_pool']['total_processes']);
+            $t->same(false, $plan['worker_pool']['pool_launchable']);
+            $t->same('spawn-start-method-failed', $plan['worker_pool']['pool_error_boundary']);
+            $t->same(false, $plan['console_summary']['summary_reached']);
+            $t->same('spawn-start-method-failed', $plan['console_summary']['blocked_by']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'keeps convert.py input and chunk boundary errors ahead of metadata file loading' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
