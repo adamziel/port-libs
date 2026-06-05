@@ -49,6 +49,10 @@ final class OpcRelationshipGraph
             }
 
             $relationshipPartName = OpcPackagePath::canonicalPartName($name);
+            if ($contentTypes->contentTypeForPart($relationshipPartName) !== self::RELATIONSHIP_PART_CONTENT_TYPE) {
+                continue;
+            }
+
             $sourcePartName = OpcRelationships::sourcePartNameForRelationshipPart($relationshipPartName);
             if ($sourcePartName !== '/' && OpcRelationships::isRelationshipPartName($sourcePartName)) {
                 continue;
@@ -257,7 +261,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{partName:string, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>
+     * @return list<array{partName:string, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>
      */
     public function preflightPackageParts(): array
     {
@@ -272,6 +276,7 @@ final class OpcRelationshipGraph
             $relationshipPart = self::isRelationshipPartName($partName);
             $relationshipSource = null;
             $relationshipSourceIsRelationshipPart = null;
+            $relationshipSourceLoaded = null;
             $sourceExists = null;
             $issues = [];
 
@@ -284,6 +289,7 @@ final class OpcRelationshipGraph
                 $relationshipSourceIsRelationshipPart = $relationshipSource !== '/'
                     && OpcRelationships::isRelationshipPartName($relationshipSource);
                 $sourceExists = $relationshipSource === '/' || $this->package->has($relationshipSource);
+                $relationshipSourceLoaded = isset($this->relationshipsBySource[$relationshipSource]);
 
                 if ($contentType !== null && $contentType !== self::RELATIONSHIP_PART_CONTENT_TYPE) {
                     $issues[] = 'invalid-relationship-content-type';
@@ -304,6 +310,7 @@ final class OpcRelationshipGraph
                 'relationshipPart' => $relationshipPart,
                 'relationshipSource' => $relationshipSource,
                 'relationshipSourceIsRelationshipPart' => $relationshipSourceIsRelationshipPart,
+                'relationshipSourceLoaded' => $relationshipSourceLoaded,
                 'sourceExists' => $sourceExists,
                 'valid' => $issues === [],
                 'issues' => $issues,

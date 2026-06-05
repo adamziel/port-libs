@@ -236,6 +236,7 @@ XML;
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:review="urn:wordpress-review" mc:Ignorable="review" review:source="import-preflight">
   <review:Audit packet="docx"/>
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml" review:origin="fixture">
     <review:Note value="ignored"/>
   </Default>
@@ -1077,6 +1078,70 @@ XML;
         $documentTargets = $graph->preflightTargetsForSource('/word/document.xml');
         $t->same(['rIdImage'], array_column($documentTargets, 'id'));
         $t->same('/word/media/review-image.PNG', $documentTargets[0]['target']);
+    },
+    'does not load OPC relationship parts with invalid content type as sources' => static function (TestRunner $t) use ($packageRelationshipsXml): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/_rels/comments.xml.rels" ContentType="application/xml"/>
+</Types>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+</Relationships>
+XML;
+
+        $commentsRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCommentImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/comment.png"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
+            ['name' => 'word/media/comment.png', 'data' => 'PNG'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $t->same(['/', '/word/document.xml'], $graph->sourcePartNames());
+        $t->same(false, $graph->hasRelationshipsForSource('/word/comments.xml'));
+        $t->same(null, $graph->relationshipsForSource('/word/comments.xml'));
+        $t->same([], $graph->preflightTargetsForSource('/word/comments.xml'));
+
+        $parts = [];
+        foreach ($graph->preflightPackageParts() as $part) {
+            $parts[$part['partName']] = $part;
+        }
+
+        $commentsRels = $parts['/word/_rels/comments.xml.rels'];
+        $t->same(true, $commentsRels['relationshipPart']);
+        $t->same('/word/comments.xml', $commentsRels['relationshipSource']);
+        $t->same(false, $commentsRels['relationshipSourceIsRelationshipPart']);
+        $t->same(true, $commentsRels['sourceExists']);
+        $t->same(false, $commentsRels['relationshipSourceLoaded']);
+        $t->same('application/xml', $commentsRels['contentType']);
+        $t->same(['invalid-relationship-content-type'], $commentsRels['issues']);
+        $t->same(false, $commentsRels['valid']);
+
+        $closureById = [];
+        foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
+            $closureById[$target['id']] = $target;
+        }
+
+        $t->same(['rIdDocument', 'rIdComments'], array_keys($closureById));
+        $t->same('/word/comments.xml', $closureById['rIdComments']['targetPart']);
+        $t->same(true, $closureById['rIdComments']['valid']);
+        $t->same(false, isset($closureById['rIdCommentImage']));
     },
     'walks reachable OPC relationship closure from office document root' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $footnotesRelationshipsXml): void {
         $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([

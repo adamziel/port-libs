@@ -18,6 +18,7 @@ $contentTypesXml = <<<'XML'
   <Default Extension="xml" ContentType="application/xml"/>
   <Default Extension="png" ContentType="image/png"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/_rels/draft.xml.rels" ContentType="application/xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
   <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
   <Override PartName="/word/media/source%20diagram.svg" ContentType="image/svg+xml; charset=UTF-8"/>
@@ -51,6 +52,7 @@ $documentRelationshipsXml = <<<'XML'
   <Relationship Id="rIdReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/wp-admin/post.php?post=42&amp;action=edit" TargetMode="External"/>
   <Relationship Id="rIdUnsafeReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
   <Relationship Id="rIdMalformedType" Type="officeDocument/relationships/hyperlink" Target="https://example.test/source-with-bad-type" TargetMode="External"/>
+  <Relationship Id="rIdDraftReview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="draft.xml"/>
 </Relationships>
 XML;
 
@@ -66,6 +68,12 @@ $signatureOriginRelationshipsXml = <<<'XML'
 </Relationships>
 XML;
 
+$draftRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDraftImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/draft-hidden.png"/>
+</Relationships>
+XML;
+
 $package = ZipPackage::fromParts([
     ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
     ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
@@ -74,6 +82,9 @@ $package = ZipPackage::fromParts([
     ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
     ['name' => 'word/footnotes.xml', 'data' => '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
     ['name' => 'word/_rels/footnotes.xml.rels', 'data' => $footnotesRelationshipsXml],
+    ['name' => 'word/draft.xml', 'data' => '<draft/>'],
+    ['name' => 'word/_rels/draft.xml.rels', 'data' => $draftRelationshipsXml],
+    ['name' => 'word/media/draft-hidden.png', 'data' => 'PNG'],
     ['name' => 'word/media/hero image.PNG', 'data' => 'PNG'],
     ['name' => 'word/media/source diagram.svg', 'data' => '<svg xmlns="http://www.w3.org/2000/svg"/>'],
     ['name' => 'word/media/footnote-source.png', 'data' => 'PNG'],
@@ -98,10 +109,12 @@ $documentRelationships = $graph->requireRelationshipsForSource($documentPart);
 $packagePartPreflight = [];
 foreach ($graph->preflightPackageParts() as $part) {
     $packagePartPreflight[$part['partName']] = [
+        'partName' => $part['partName'],
         'contentType' => $part['contentType'],
         'relationshipPart' => $part['relationshipPart'],
         'relationshipSource' => $part['relationshipSource'],
         'relationshipSourceIsRelationshipPart' => $part['relationshipSourceIsRelationshipPart'],
+        'relationshipSourceLoaded' => $part['relationshipSourceLoaded'],
         'sourceExists' => $part['sourceExists'],
         'valid' => $part['valid'],
         'issues' => $part['issues'],
@@ -254,6 +267,7 @@ $summary = [
     'digitalSignatures' => $digitalSignatures,
     'embeddedPackages' => $embeddedPackages,
     'packageParts' => $packagePartPreflight,
+    'relationshipSources' => $graph->sourcePartNames(),
     'relationships' => $relationshipSummaries,
     'reachableRelationships' => $reachableTargets,
     'integrity' => [
@@ -272,6 +286,10 @@ $summary = [
             static fn (bool $valid, array $target): bool => $valid && $target['valid'],
             true
         ),
+        'invalidRelationshipParts' => array_values(array_filter(
+            $packagePartPreflight,
+            static fn (array $part): bool => $part['relationshipPart'] === true && $part['issues'] !== []
+        )),
         'issues' => array_values(array_filter(
             $reachableTargets,
             static fn (array $target): bool => $target['issues'] !== []
@@ -360,7 +378,13 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['digitalSignatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-origin'
         || ($summary['digitalSignatures'][0]['signatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml'
         || ($summary['digitalSignatures'][0]['valid'] ?? null) !== true
-        || $summary['integrity']['packagePartsValid'] !== true
+        || $summary['integrity']['packagePartsValid'] !== false
+        || $summary['relationshipSources'] !== ['/', '/_xmlsignatures/origin.sigs', '/word/document.xml', '/word/footnotes.xml']
+        || ($summary['packageParts']['/word/_rels/draft.xml.rels']['relationshipSource'] ?? null) !== '/word/draft.xml'
+        || ($summary['packageParts']['/word/_rels/draft.xml.rels']['relationshipSourceLoaded'] ?? null) !== false
+        || ($summary['packageParts']['/word/_rels/draft.xml.rels']['issues'] ?? null) !== ['invalid-relationship-content-type']
+        || ($summary['integrity']['invalidRelationshipParts'][0]['partName'] ?? null) !== '/word/_rels/draft.xml.rels'
+        || ($summary['integrity']['invalidRelationshipParts'][0]['relationshipSourceLoaded'] ?? null) !== false
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeUnexpectedAttributeRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeRootAttributeRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['relationshipChildContentRejected'] ?? null) !== true
@@ -372,9 +396,12 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['markupCompatibilityGuards']['unsupportedMarkupCompatibilityAttributeRejected'] ?? null) !== true
         || $summary['packageParts']['/_rels/.rels']['relationshipSource'] !== '/'
         || $summary['packageParts']['/_rels/.rels']['relationshipSourceIsRelationshipPart'] !== false
+        || $summary['packageParts']['/_rels/.rels']['relationshipSourceLoaded'] !== true
         || $summary['packageParts']['/word/_rels/document.xml.rels']['relationshipSource'] !== '/word/document.xml'
         || $summary['packageParts']['/word/_rels/document.xml.rels']['relationshipSourceIsRelationshipPart'] !== false
+        || $summary['packageParts']['/word/_rels/document.xml.rels']['relationshipSourceLoaded'] !== true
         || $summary['packageParts']['/word/media/hero image.PNG']['contentType'] !== 'image/png'
+        || isset($summary['relationships']['rIdDraftImage'])
         || $summary['integrity']['documentRelationshipsValid'] !== false
         || $summary['integrity']['reachableRelationshipsValid'] !== false
         || ($summary['wordpressImport']['externalTargets'][0]['scheme'] ?? null) !== 'https'
