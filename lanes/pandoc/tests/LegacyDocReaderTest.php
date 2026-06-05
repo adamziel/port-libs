@@ -236,7 +236,19 @@ $buildCfb = static function (array $streams, bool $useMiniStreams = true) use ($
             $childIds[$nodeIndex] ?? $free
         );
     }
-    $sectors[$directorySector] = $padTo($directory, $sectorSize);
+    $directoryChunks = str_split($padTo($directory, $sectorSize), $sectorSize);
+    $previousDirectorySector = $directorySector;
+    foreach ($directoryChunks as $index => $chunk) {
+        if ($index === 0) {
+            $sectors[$directorySector] = $chunk;
+            continue;
+        }
+
+        $sector = $allocateSector($chunk);
+        $fat[$previousDirectorySector] = $sector;
+        $previousDirectorySector = $sector;
+    }
+    $fat[$previousDirectorySector] = $end;
 
     if ($miniFat !== []) {
         $miniFatBytes = '';
@@ -326,6 +338,7 @@ $typedVectorVariant = static function (array $variants): string {
 
     return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
 };
+$objectInfo = static fn (int $clipboardFormat): string => "\0\0" . pack('v', $clipboardFormat);
 $typedDictionary = static function (array $names): string {
     $raw = pack('V', count($names));
     foreach ($names as $propertyId => $name) {
@@ -763,6 +776,48 @@ return [
             'Review Timestamp' => '2024-03-04T05:06:07Z',
         ], $metadata['customProperties']);
         $t->same($metadata['customProperties'], $result['document']->attr('meta')['customProperties']);
+    },
+    'reports legacy DOC ObjectPool embedded OLE object streams without exposing bytes' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $objectInfo): void {
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Embedded object review packet\r"),
+            'ObjectPool/_42/' . "\x03" . 'ObjInfo' => $objectInfo(0x0014),
+            'ObjectPool/_42/' . "\x01" . 'CompObj' => "compound display metadata",
+            'ObjectPool/_42/' . "\x01" . 'Ole10Native' => "native spreadsheet bytes",
+            'ObjectPool/_42/' . "\x02" . 'OlePres000' => "presentation preview bytes",
+            'ObjectPool/_43/' . "\x03" . 'ObjInfo' => $objectInfo(0x000a),
+            'ObjectPool/_43/Workbook' => "private workbook bytes",
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $objects = $result['embeddedObjects'];
+        $document = $result['document'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($objects));
+        $t->same(2, $result['metadata']['embeddedObjectCount']);
+        $t->same($objects, $document->attr('embeddedObjects'));
+        $t->same('_42', $objects[0]['objectId']);
+        $t->same('ObjectPool/_42', $objects[0]['storagePath']);
+        $t->same(4, $objects[0]['streamCount']);
+        $t->same(true, $objects[0]['hasNativeData']);
+        $t->same(true, $objects[0]['hasPresentationData']);
+        $t->same(false, $objects[0]['canExposeBytes']);
+        $t->same(['code' => 0x0014, 'name' => 'unicode-text'], $objects[0]['transmissionFormat']);
+        $t->same([
+            'compound-object',
+            'native-data',
+            'presentation-data',
+            'object-info',
+        ], array_map(static fn (array $stream): string => $stream['role'], $objects[0]['streams']));
+        $t->same(false, $objects[0]['streams'][1]['canExposeBytes']);
+        $t->same(strlen('native spreadsheet bytes'), $objects[0]['streams'][1]['bytes']);
+
+        $t->same('_43', $objects[1]['objectId']);
+        $t->same(['code' => 0x000a, 'name' => 'html'], $objects[1]['transmissionFormat']);
+        $t->same(['object-info', 'private-data'], array_map(static fn (array $stream): string => $stream['role'], $objects[1]['streams']));
+        $t->contains('<p>Embedded object review packet</p>', $blocks);
+        $t->true(!str_contains($blocks, 'native spreadsheet bytes'), 'Embedded OLE native bytes should not render to WordPress blocks');
+        $t->true(!str_contains($blocks, 'presentation preview bytes'), 'Embedded OLE presentation bytes should not render to WordPress blocks');
     },
     'extracts complex legacy DOC piece-table text from the selected 1Table stream' => static function (TestRunner $t) use ($buildCfb, $buildPieceTableDocStreams): void {
         $streams = $buildPieceTableDocStreams();

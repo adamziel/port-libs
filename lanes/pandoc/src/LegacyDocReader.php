@@ -11,7 +11,7 @@ final class LegacyDocReader
     private const FMTID_USER_DEFINED_PROPERTIES = '05d5cdd59c2e1b10939708002b2cf9ae';
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, fib:array<string,mixed>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, fib:array<string,mixed>, embeddedObjects:list<array<string,mixed>>}
      */
     public function readBytes(string $bytes): array
     {
@@ -19,7 +19,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, fib:array<string,mixed>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, fib:array<string,mixed>, embeddedObjects:list<array<string,mixed>>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -47,12 +47,18 @@ final class LegacyDocReader
 
         $textResult = $this->extractText($wordDocument, $tableStream);
         $metadata = $this->readMetadata($compoundFile);
+        $embeddedObjects = $this->embeddedObjectReport($compoundFile);
+        if ($embeddedObjects !== []) {
+            $metadata['embeddedObjectCount'] = count($embeddedObjects);
+        }
+
         $attrs = [
             'sourceFormat' => 'doc',
             'cfbStreams' => $compoundFile->streamNames(),
             'textSource' => $textResult['source'],
             'tableStream' => $tableStreamName,
             'meta' => $metadata,
+            'embeddedObjects' => $embeddedObjects,
         ];
 
         return [
@@ -60,6 +66,7 @@ final class LegacyDocReader
             'metadata' => $metadata,
             'streams' => $compoundFile->streamNames(),
             'fib' => $fib + ['textSource' => $textResult['source']],
+            'embeddedObjects' => $embeddedObjects,
         ];
     }
 
@@ -590,6 +597,117 @@ final class LegacyDocReader
         }
 
         return $metadata;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function embeddedObjectReport(CompoundFileBinary $compoundFile): array
+    {
+        $objects = [];
+        foreach ($compoundFile->entries() as $entry) {
+            if ($entry['type'] !== 2) {
+                continue;
+            }
+
+            $path = (string) $entry['path'];
+            $segments = explode('/', $path);
+            if (count($segments) < 3 || strtolower($segments[0]) !== 'objectpool') {
+                continue;
+            }
+
+            $objectId = $segments[1];
+            if ($objectId === '') {
+                continue;
+            }
+
+            $storagePath = $segments[0] . '/' . $objectId;
+            $streamName = implode('/', array_slice($segments, 2));
+            $role = $this->embeddedObjectStreamRole($streamName);
+            $stream = [
+                'path' => $path,
+                'name' => $streamName,
+                'role' => $role,
+                'bytes' => (int) $entry['size'],
+                'canExposeBytes' => false,
+            ];
+
+            $objects[$storagePath] ??= [
+                'storagePath' => $storagePath,
+                'objectId' => $objectId,
+                'streamCount' => 0,
+                'totalBytes' => 0,
+                'hasNativeData' => false,
+                'hasPresentationData' => false,
+                'canExposeBytes' => false,
+                'streams' => [],
+            ];
+            $objects[$storagePath]['streamCount']++;
+            $objects[$storagePath]['totalBytes'] += (int) $entry['size'];
+            $objects[$storagePath]['hasNativeData'] = $objects[$storagePath]['hasNativeData'] || $role === 'native-data';
+            $objects[$storagePath]['hasPresentationData'] = $objects[$storagePath]['hasPresentationData'] || $role === 'presentation-data';
+            $objects[$storagePath]['streams'][] = $stream;
+
+            if ($role === 'object-info') {
+                $format = $this->embeddedObjectInfoFormat($compoundFile->readStream($path));
+                if ($format !== null) {
+                    $objects[$storagePath]['transmissionFormat'] = $format;
+                }
+            }
+        }
+
+        $result = array_values($objects);
+        foreach ($result as &$object) {
+            usort(
+                $object['streams'],
+                static fn (array $left, array $right): int => strcmp((string) $left['path'], (string) $right['path'])
+            );
+        }
+        unset($object);
+        usort(
+            $result,
+            static fn (array $left, array $right): int => strcmp((string) $left['storagePath'], (string) $right['storagePath'])
+        );
+
+        return $result;
+    }
+
+    private function embeddedObjectStreamRole(string $streamName): string
+    {
+        return match (true) {
+            $streamName === "\x01Ole10Native" => 'native-data',
+            $streamName === "\x01CompObj" => 'compound-object',
+            $streamName === "\x03ObjInfo" => 'object-info',
+            $streamName === "\x03EPRINT" => 'print-presentation',
+            str_starts_with($streamName, "\x02OlePres") => 'presentation-data',
+            default => 'private-data',
+        };
+    }
+
+    /**
+     * @return array{code:int,name:string}|null
+     */
+    private function embeddedObjectInfoFormat(string $bytes): ?array
+    {
+        if (strlen($bytes) < 4) {
+            return null;
+        }
+
+        $code = self::u16($bytes, 2);
+
+        return [
+            'code' => $code,
+            'name' => match ($code) {
+                0x0001 => 'rtf',
+                0x0002 => 'text',
+                0x0003 => 'metafile',
+                0x0004 => 'bitmap',
+                0x0005 => 'dib',
+                0x000a => 'html',
+                0x0014 => 'unicode-text',
+                default => 'unknown',
+            },
+        ];
     }
 
     /**

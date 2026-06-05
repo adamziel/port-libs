@@ -274,6 +274,9 @@ $streams = [
             ],
         ],
     ]),
+    'ObjectPool/_42/' . "\x03" . 'ObjInfo' => "\0\0" . $u16(0x0014),
+    'ObjectPool/_42/' . "\x01" . 'Ole10Native' => 'opaque legacy embedded spreadsheet bytes',
+    'ObjectPool/_42/' . "\x02" . 'OlePres000' => 'opaque embedded object presentation preview',
 ];
 
 $miniSectorSize = 64;
@@ -285,16 +288,45 @@ $fatSector = 0xfffffffd;
 $nodes = [
     [
         'name' => 'Root Entry',
-        'children' => range(1, count($streams)),
+        'type' => 5,
+        'children' => [],
     ],
 ];
-$streamIndex = 0;
+$nodeByPath = ['' => 0];
 foreach ($streams as $name => $_data) {
+    $path = trim(str_replace('\\', '/', (string) $name), '/');
+    $segments = array_values(array_filter(explode('/', $path), static fn (string $segment): bool => $segment !== ''));
+    if ($segments === []) {
+        throw new RuntimeException('CFB fixture stream path is empty');
+    }
+
+    $parentIndex = 0;
+    $parentPath = '';
+    for ($index = 0, $last = count($segments) - 1; $index < $last; $index++) {
+        $storagePath = $parentPath === '' ? $segments[$index] : $parentPath . '/' . $segments[$index];
+        if (!isset($nodeByPath[$storagePath])) {
+            $nodeByPath[$storagePath] = count($nodes);
+            $nodes[] = [
+                'name' => $segments[$index],
+                'type' => 1,
+                'children' => [],
+            ];
+            $nodes[$parentIndex]['children'][] = $nodeByPath[$storagePath];
+        }
+        $parentIndex = $nodeByPath[$storagePath];
+        $parentPath = $storagePath;
+    }
+
+    $leafName = $segments[count($segments) - 1];
+    $streamPath = $parentPath === '' ? $leafName : $parentPath . '/' . $leafName;
+    $nodeByPath[$streamPath] = count($nodes);
     $nodes[] = [
-        'name' => (string) $name,
+        'name' => $leafName,
+        'type' => 2,
+        'streamPath' => $streamPath,
         'children' => [],
     ];
-    $streamIndex++;
+    $nodes[$parentIndex]['children'][] = count($nodes) - 1;
 }
 
 $leftSiblings = [];
@@ -362,20 +394,23 @@ $directory = $directoryEntry(
     $free,
     $childIds[0] ?? $free
 );
-$streamIndex = 0;
-foreach ($streams as $name => $data) {
-    $location = $locations[$name];
-    $directoryId = $streamIndex + 1;
+foreach ($nodes as $nodeIndex => $node) {
+    if ($nodeIndex === 0) {
+        continue;
+    }
+
+    $type = (int) $node['type'];
+    $streamPath = (string) ($node['streamPath'] ?? '');
+    $location = $type === 2 ? $locations[$streamPath] : ['startSector' => $end, 'size' => 0];
     $directory .= $directoryEntry(
-        (string) $name,
-        2,
+        (string) $node['name'],
+        $type,
         $location['startSector'],
         $location['size'],
-        $leftSiblings[$directoryId] ?? $free,
-        $rightSiblings[$directoryId] ?? $free,
-        $free
+        $leftSiblings[$nodeIndex] ?? $free,
+        $rightSiblings[$nodeIndex] ?? $free,
+        $childIds[$nodeIndex] ?? $free
     );
-    $streamIndex++;
 }
 $directoryChunks = str_split($padTo($directory, $sectorSize), $sectorSize);
 $previousDirectorySector = 1;
@@ -434,6 +469,7 @@ $summary = [
     'streams' => $result['streams'],
     'textSource' => $result['document']->attr('textSource'),
     'fib' => $result['fib'],
+    'embeddedObjects' => $result['embeddedObjects'],
     'blockCount' => count($result['document']->children),
     'wordpressBlocks' => $blocks,
 ];
@@ -470,6 +506,21 @@ if (($argv[1] ?? '') === '--self-test') {
     ]) {
         throw new RuntimeException('Legacy DOC handoff self-test missing user-defined custom properties');
     }
+    if (($summary['metadata']['embeddedObjectCount'] ?? null) !== 1) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing embedded object count');
+    }
+    if (($summary['embeddedObjects'][0]['storagePath'] ?? '') !== 'ObjectPool/_42') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing ObjectPool storage report');
+    }
+    if (($summary['embeddedObjects'][0]['transmissionFormat'] ?? []) !== ['code' => 0x0014, 'name' => 'unicode-text']) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing ObjInfo transmission format');
+    }
+    if (($summary['embeddedObjects'][0]['hasNativeData'] ?? null) !== true || ($summary['embeddedObjects'][0]['hasPresentationData'] ?? null) !== true) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing embedded object stream roles');
+    }
+    if (($summary['embeddedObjects'][0]['canExposeBytes'] ?? null) !== false) {
+        throw new RuntimeException('Legacy DOC handoff self-test exposed embedded object bytes');
+    }
     if (($summary['textSource'] ?? '') !== 'piece-table' || ($summary['fib']['complex'] ?? null) !== true || ($summary['fib']['tableStream'] ?? '') !== '1Table') {
         throw new RuntimeException('Legacy DOC handoff self-test missing CLX piece-table preflight');
     }
@@ -483,6 +534,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (str_contains($blocks, 'HYPERLINK')) {
         throw new RuntimeException('Legacy DOC handoff self-test rendered hidden field instructions');
+    }
+    if (str_contains($blocks, 'opaque legacy embedded spreadsheet bytes') || str_contains($blocks, 'opaque embedded object presentation preview')) {
+        throw new RuntimeException('Legacy DOC handoff self-test rendered embedded object payload bytes');
     }
     if (($summary['fib']['extendedCharacters'] ?? null) !== true || ($summary['fib']['encrypted'] ?? null) !== false) {
         throw new RuntimeException('Legacy DOC handoff self-test missing FIB preflight flags');
