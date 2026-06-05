@@ -241,6 +241,33 @@ $ole10NativeStream = static function (
 
     return $u32(strlen($payload)) . $payload;
 };
+$compObjStream = static function (
+    string $ansiUserType,
+    string $ansiClipboardFormat,
+    string $unicodeUserType,
+    string $unicodeClipboardFormat
+) use ($u32, $utf16le): string {
+    $ansiString = static fn (string $value): string => $u32(strlen($value) + 1) . $value . "\0";
+    $unicodeString = static function (string $value) use ($u32, $utf16le): string {
+        $bytes = $utf16le($value . "\0");
+
+        return $u32(strlen($bytes)) . $bytes;
+    };
+    $unicodeClipboard = static function (string $value) use ($u32, $utf16le): string {
+        $bytes = $utf16le($value . "\0");
+
+        return $u32(intdiv(strlen($bytes), 2)) . $bytes;
+    };
+
+    return str_repeat("\0", 28)
+        . $ansiString($ansiUserType)
+        . $ansiString($ansiClipboardFormat)
+        . $ansiString('')
+        . $u32(0x71b239f4)
+        . $unicodeString($unicodeUserType)
+        . $unicodeClipboard($unicodeClipboardFormat)
+        . $unicodeString('');
+};
 
 $fieldBegin = "\x13";
 $fieldSeparator = "\x14";
@@ -405,6 +432,12 @@ $streams = [
         ],
     ]),
     'ObjectPool/_42/' . "\x03" . 'ObjInfo' => "\0\0" . $u16(0x0014),
+    'ObjectPool/_42/' . "\x01" . 'CompObj' => $compObjStream(
+        'Package',
+        'Native',
+        'Legacy Package Ω',
+        'Excel.Sheet.12'
+    ),
     'ObjectPool/_42/' . "\x01" . 'Ole10Native' => $ole10NativeStream(
         'legacy-data.xlsx',
         'C:\legacy\legacy-data.xlsx',
@@ -662,7 +695,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['metadata']['documentSecurityFlags'] ?? []) !== ['readOnlyRecommended']) {
         throw new RuntimeException('Legacy DOC handoff self-test missing document security flags');
     }
-    if (($summary['metadata']['cfbStreamCount'] ?? null) !== 13 || ($summary['metadata']['cfbTimestampedDirectoryEntryCount'] ?? null) !== 2) {
+    if (($summary['metadata']['cfbStreamCount'] ?? null) !== 14 || ($summary['metadata']['cfbTimestampedDirectoryEntryCount'] ?? null) !== 2) {
         throw new RuntimeException('Legacy DOC handoff self-test missing CFB directory counts');
     }
     $directoryByPath = [];
@@ -745,6 +778,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['embeddedObjects'][0]['transmissionFormat'] ?? []) !== ['code' => 0x0014, 'name' => 'unicode-text']) {
         throw new RuntimeException('Legacy DOC handoff self-test missing ObjInfo transmission format');
     }
+    if (($summary['embeddedObjects'][0]['compoundObjectDisplayNames'] ?? []) !== ['Legacy Package Ω']) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing CompObj display-name metadata');
+    }
+    if (($summary['embeddedObjects'][0]['compoundObjectClipboardFormats'] ?? []) !== ['Excel.Sheet.12']) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing CompObj clipboard-format metadata');
+    }
     if (($summary['embeddedObjects'][0]['hasNativeData'] ?? null) !== true || ($summary['embeddedObjects'][0]['hasPresentationData'] ?? null) !== true) {
         throw new RuntimeException('Legacy DOC handoff self-test missing embedded object stream roles');
     }
@@ -760,12 +799,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['embeddedObjects'][0]['nativeTemporaryPaths'] ?? []) !== ['C:\Temp\legacy-data.tmp']) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Ole10Native temporary path');
     }
+    $compoundStream = null;
     $nativeStream = null;
     foreach (($summary['embeddedObjects'][0]['streams'] ?? []) as $stream) {
+        if (($stream['role'] ?? '') === 'compound-object') {
+            $compoundStream = $stream;
+        }
         if (($stream['role'] ?? '') === 'native-data') {
             $nativeStream = $stream;
-            break;
         }
+    }
+    if (($compoundStream['compoundObject']['displayName'] ?? '') !== 'Legacy Package Ω') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing CompObj stream display name');
+    }
+    if (($compoundStream['compoundObject']['clipboardFormat'] ?? []) !== ['kind' => 'registered', 'name' => 'Excel.Sheet.12']) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing CompObj stream clipboard format');
     }
     if (($nativeStream['oleNative']['nativeDataBytes'] ?? null) !== strlen($embeddedNativeData)) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Ole10Native stream metadata');

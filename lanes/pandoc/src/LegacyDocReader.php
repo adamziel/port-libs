@@ -1024,6 +1024,27 @@ final class LegacyDocReader
                     $objects[$storagePath]['transmissionFormat'] = $format;
                 }
             }
+            if ($role === 'compound-object') {
+                $compoundObject = $this->embeddedCompoundObjectMetadata($compoundFile->readStream($path));
+                $stream['compoundObject'] = $compoundObject;
+                if (($compoundObject['displayName'] ?? '') !== '') {
+                    $objects[$storagePath]['compoundObjectDisplayNames'][] = (string) $compoundObject['displayName'];
+                }
+                if (is_array($compoundObject['clipboardFormat'] ?? null)) {
+                    $clipboardFormat = $compoundObject['clipboardFormat'];
+                    if (($clipboardFormat['name'] ?? '') !== '') {
+                        $objects[$storagePath]['compoundObjectClipboardFormats'][] = (string) $clipboardFormat['name'];
+                    } elseif (isset($clipboardFormat['code'])) {
+                        $objects[$storagePath]['compoundObjectClipboardFormats'][] = 'standard:' . (string) $clipboardFormat['code'];
+                    }
+                }
+                foreach (($compoundObject['diagnostics'] ?? []) as $diagnostic) {
+                    if (!is_array($diagnostic)) {
+                        continue;
+                    }
+                    $objects[$storagePath]['diagnostics'][] = ['stream' => $path] + $diagnostic;
+                }
+            }
             if ($role === 'native-data') {
                 $oleNative = $this->embeddedOleNativeMetadata($compoundFile->readStream($path));
                 $stream['oleNative'] = $oleNative;
@@ -1053,7 +1074,7 @@ final class LegacyDocReader
 
         $result = array_values($objects);
         foreach ($result as &$object) {
-            foreach (['nativeLabels', 'nativeSourcePaths', 'nativeTemporaryPaths'] as $field) {
+            foreach (['compoundObjectDisplayNames', 'compoundObjectClipboardFormats', 'nativeLabels', 'nativeSourcePaths', 'nativeTemporaryPaths'] as $field) {
                 if (!isset($object[$field]) || !is_array($object[$field])) {
                     continue;
                 }
@@ -1110,6 +1131,334 @@ final class LegacyDocReader
                 0x000a => 'html',
                 0x0014 => 'unicode-text',
                 default => 'unknown',
+            },
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function embeddedCompoundObjectMetadata(string $bytes): array
+    {
+        $metadata = ['canExposeBytes' => false];
+        $diagnostics = [];
+        $length = strlen($bytes);
+        if ($length < 28) {
+            $metadata['diagnostics'] = [[
+                'code' => 'truncated-compobj-header',
+                'message' => 'CompObj stream is too short to contain the 28-byte header',
+            ]];
+
+            return $metadata;
+        }
+
+        $cursor = 28;
+        $ansiUserType = $this->readLengthPrefixedAnsiString($bytes, $cursor);
+        if ($ansiUserType === null) {
+            $metadata['diagnostics'] = [[
+                'code' => 'truncated-compobj-ansi-user-type',
+                'message' => 'CompObj stream is missing the ANSI display name',
+            ]];
+
+            return $metadata;
+        }
+        if ($ansiUserType !== '') {
+            $metadata['ansiUserType'] = $ansiUserType;
+            $metadata['displayName'] = $ansiUserType;
+        }
+
+        $ansiClipboard = $this->readClipboardFormatOrAnsiString($bytes, $cursor, $diagnostics);
+        if ($ansiClipboard !== null) {
+            $metadata['ansiClipboardFormat'] = $ansiClipboard;
+            $metadata['clipboardFormat'] = $ansiClipboard;
+        } elseif ($diagnostics !== []) {
+            $metadata['diagnostics'] = $diagnostics;
+
+            return $metadata;
+        }
+
+        if ($cursor >= $length) {
+            if ($diagnostics !== []) {
+                $metadata['diagnostics'] = $diagnostics;
+            }
+
+            return $metadata;
+        }
+
+        $reserved = $this->readLengthPrefixedAnsiStringWithSize($bytes, $cursor);
+        if ($reserved === null) {
+            $diagnostics[] = [
+                'code' => 'truncated-compobj-reserved-ansi',
+                'message' => 'CompObj stream has a truncated reserved ANSI string',
+            ];
+            $metadata['diagnostics'] = $diagnostics;
+
+            return $metadata;
+        }
+        $cursor += $reserved['bytes'];
+        if ($reserved['declaredCharacters'] === 0 || $reserved['declaredCharacters'] > 0x28 || $cursor + 4 > $length) {
+            if ($diagnostics !== []) {
+                $metadata['diagnostics'] = $diagnostics;
+            }
+
+            return $metadata;
+        }
+
+        $unicodeMarker = self::u32($bytes, $cursor);
+        $cursor += 4;
+        if ($unicodeMarker !== 0x71b239f4) {
+            $metadata['unicodeMarker'] = $unicodeMarker;
+            if ($diagnostics !== []) {
+                $metadata['diagnostics'] = $diagnostics;
+            }
+
+            return $metadata;
+        }
+        $metadata['unicodeMarker'] = $unicodeMarker;
+
+        $unicodeUserType = $this->readLengthPrefixedUnicodeString($bytes, $cursor);
+        if ($unicodeUserType === null) {
+            $diagnostics[] = [
+                'code' => 'truncated-compobj-unicode-user-type',
+                'message' => 'CompObj stream has a truncated Unicode display name',
+            ];
+            $metadata['diagnostics'] = $diagnostics;
+
+            return $metadata;
+        }
+        if ($unicodeUserType !== '') {
+            $metadata['unicodeUserType'] = $unicodeUserType;
+            $metadata['displayName'] = $unicodeUserType;
+        }
+
+        $unicodeClipboard = $this->readClipboardFormatOrUnicodeString($bytes, $cursor, $diagnostics);
+        if ($unicodeClipboard !== null) {
+            $metadata['unicodeClipboardFormat'] = $unicodeClipboard;
+            $metadata['clipboardFormat'] = $unicodeClipboard;
+        }
+
+        if ($diagnostics !== []) {
+            $metadata['diagnostics'] = $diagnostics;
+        }
+
+        return $metadata;
+    }
+
+    private function readLengthPrefixedAnsiString(string $bytes, int &$cursor): ?string
+    {
+        $value = $this->readLengthPrefixedAnsiStringWithSize($bytes, $cursor);
+        if ($value === null) {
+            return null;
+        }
+
+        $cursor += $value['bytes'];
+
+        return $value['value'];
+    }
+
+    /**
+     * @return array{value:string,bytes:int,declaredCharacters:int}|null
+     */
+    private function readLengthPrefixedAnsiStringWithSize(string $bytes, int $offset): ?array
+    {
+        if ($offset + 4 > strlen($bytes)) {
+            return null;
+        }
+
+        $characters = self::u32($bytes, $offset);
+        if ($characters === 0) {
+            return [
+                'value' => '',
+                'bytes' => 4,
+                'declaredCharacters' => 0,
+            ];
+        }
+        if ($characters > 0x100000 || $offset + 4 + $characters > strlen($bytes)) {
+            return null;
+        }
+
+        $raw = substr($bytes, $offset + 4, $characters);
+        $value = $this->decodeCodePageString($raw, 1252);
+        $clean = preg_replace('/[\x00-\x08\x0e-\x1f]/u', '', $value);
+
+        return [
+            'value' => is_string($clean) ? $clean : $value,
+            'bytes' => 4 + $characters,
+            'declaredCharacters' => $characters,
+        ];
+    }
+
+    private function readLengthPrefixedUnicodeString(string $bytes, int &$cursor): ?string
+    {
+        if ($cursor + 4 > strlen($bytes)) {
+            return null;
+        }
+
+        $byteLength = self::u32($bytes, $cursor);
+        $cursor += 4;
+        if ($byteLength === 0) {
+            return '';
+        }
+        if (($byteLength % 2) !== 0 || $byteLength > 0x200000 || $cursor + $byteLength > strlen($bytes)) {
+            return null;
+        }
+
+        $value = rtrim($this->decodeUtf16Le(substr($bytes, $cursor, $byteLength)), "\0");
+        $cursor += $byteLength;
+
+        return $value;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $diagnostics
+     * @return array<string,mixed>|null
+     */
+    private function readClipboardFormatOrAnsiString(string $bytes, int &$cursor, array &$diagnostics): ?array
+    {
+        if ($cursor + 4 > strlen($bytes)) {
+            $diagnostics[] = [
+                'code' => 'truncated-compobj-ansi-clipboard-format',
+                'message' => 'CompObj stream is missing the ANSI clipboard format marker',
+            ];
+
+            return null;
+        }
+
+        $marker = self::u32($bytes, $cursor);
+        $cursor += 4;
+        if ($marker === 0) {
+            return [
+                'kind' => 'none',
+            ];
+        }
+        if ($marker === 0xffffffff || $marker === 0xfffffffe) {
+            if ($cursor + 4 > strlen($bytes)) {
+                $diagnostics[] = [
+                    'code' => 'truncated-compobj-ansi-standard-clipboard-format',
+                    'message' => 'CompObj stream has a truncated ANSI standard clipboard format identifier',
+                ];
+
+                return null;
+            }
+
+            $code = self::u32($bytes, $cursor);
+            $cursor += 4;
+
+            return $this->standardClipboardFormat($code);
+        }
+        if ($marker > 0x190 || $cursor + $marker > strlen($bytes)) {
+            $diagnostics[] = [
+                'code' => 'invalid-compobj-ansi-clipboard-format',
+                'message' => 'CompObj ANSI registered clipboard format length is invalid',
+                'declaredCharacters' => $marker,
+            ];
+
+            return null;
+        }
+
+        $value = $this->decodeCodePageString(substr($bytes, $cursor, $marker), 1252);
+        $cursor += $marker;
+
+        return [
+            'kind' => 'registered',
+            'name' => $value,
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $diagnostics
+     * @return array<string,mixed>|null
+     */
+    private function readClipboardFormatOrUnicodeString(string $bytes, int &$cursor, array &$diagnostics): ?array
+    {
+        if ($cursor + 4 > strlen($bytes)) {
+            $diagnostics[] = [
+                'code' => 'truncated-compobj-unicode-clipboard-format',
+                'message' => 'CompObj stream is missing the Unicode clipboard format marker',
+            ];
+
+            return null;
+        }
+
+        $marker = self::u32($bytes, $cursor);
+        $cursor += 4;
+        if ($marker === 0) {
+            return [
+                'kind' => 'none',
+            ];
+        }
+        if ($marker === 0xffffffff || $marker === 0xfffffffe) {
+            if ($cursor + 4 > strlen($bytes)) {
+                $diagnostics[] = [
+                    'code' => 'truncated-compobj-unicode-standard-clipboard-format',
+                    'message' => 'CompObj stream has a truncated Unicode standard clipboard format identifier',
+                ];
+
+                return null;
+            }
+
+            $code = self::u32($bytes, $cursor);
+            $cursor += 4;
+
+            return $this->standardClipboardFormat($code);
+        }
+        if ($marker > 0x190) {
+            $diagnostics[] = [
+                'code' => 'invalid-compobj-unicode-clipboard-format',
+                'message' => 'CompObj Unicode registered clipboard format length is invalid',
+                'declaredCharacters' => $marker,
+            ];
+
+            return null;
+        }
+
+        $byteLength = $marker * 2;
+        if ($cursor + $byteLength > strlen($bytes)) {
+            $diagnostics[] = [
+                'code' => 'truncated-compobj-unicode-clipboard-format-name',
+                'message' => 'CompObj Unicode registered clipboard format name is truncated',
+                'declaredCharacters' => $marker,
+            ];
+
+            return null;
+        }
+
+        $value = rtrim($this->decodeUtf16Le(substr($bytes, $cursor, $byteLength)), "\0");
+        $cursor += $byteLength;
+
+        return [
+            'kind' => 'registered',
+            'name' => $value,
+        ];
+    }
+
+    /**
+     * @return array{kind:string,code:int,name:string}
+     */
+    private function standardClipboardFormat(int $code): array
+    {
+        return [
+            'kind' => 'standard',
+            'code' => $code,
+            'name' => match ($code) {
+                1 => 'CF_TEXT',
+                2 => 'CF_BITMAP',
+                3 => 'CF_METAFILEPICT',
+                4 => 'CF_SYLK',
+                5 => 'CF_DIF',
+                6 => 'CF_TIFF',
+                7 => 'CF_OEMTEXT',
+                8 => 'CF_DIB',
+                9 => 'CF_PALETTE',
+                10 => 'CF_PENDATA',
+                11 => 'CF_RIFF',
+                12 => 'CF_WAVE',
+                13 => 'CF_UNICODETEXT',
+                14 => 'CF_ENHMETAFILE',
+                15 => 'CF_HDROP',
+                16 => 'CF_LOCALE',
+                17 => 'CF_DIBV5',
+                default => 'standard:' . (string) $code,
             },
         ];
     }

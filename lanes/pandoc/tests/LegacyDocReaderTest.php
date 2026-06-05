@@ -427,6 +427,34 @@ $ole10NativeStream = static function (
 
     return $u32(strlen($payload)) . $payload;
 };
+$compObjStream = static function (
+    string $ansiUserType,
+    string $ansiClipboardFormat,
+    string $unicodeUserType,
+    string $unicodeClipboardFormat
+) use ($u32, $utf16le): string {
+    $ansiString = static fn (string $value): string => $u32(strlen($value) + 1) . $value . "\0";
+    $ansiClipboard = static fn (string $value): string => $u32(strlen($value) + 1) . $value . "\0";
+    $unicodeString = static function (string $value) use ($u32, $utf16le): string {
+        $bytes = $utf16le($value . "\0");
+
+        return $u32(strlen($bytes)) . $bytes;
+    };
+    $unicodeClipboard = static function (string $value) use ($u32, $utf16le): string {
+        $bytes = $utf16le($value . "\0");
+
+        return $u32(intdiv(strlen($bytes), 2)) . $bytes;
+    };
+
+    return str_repeat("\0", 28)
+        . $ansiString($ansiUserType)
+        . $ansiClipboard($ansiClipboardFormat)
+        . $ansiString('')
+        . $u32(0x71b239f4)
+        . $unicodeString($unicodeUserType)
+        . $unicodeClipboard($unicodeClipboardFormat)
+        . $unicodeString('');
+};
 $typedDictionary = static function (array $names): string {
     $raw = pack('V', count($names));
     foreach ($names as $propertyId => $name) {
@@ -1085,7 +1113,7 @@ return [
         ], $metadata['customProperties']);
         $t->same($metadata['customProperties'], $result['document']->attr('meta')['customProperties']);
     },
-    'reports legacy DOC ObjectPool embedded OLE object streams without exposing bytes' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $objectInfo, $ole10NativeStream): void {
+    'reports legacy DOC ObjectPool embedded OLE object streams without exposing bytes' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $objectInfo, $ole10NativeStream, $compObjStream): void {
         $nativeData = 'embedded spreadsheet bytes';
         $nativeStreamBytes = $ole10NativeStream(
             'legacy-sheet.xlsx',
@@ -1096,7 +1124,12 @@ return [
         $docBytes = $buildCfb([
             'WordDocument' => $buildSimpleWordDocument("Embedded object review packet\r"),
             'ObjectPool/_42/' . "\x03" . 'ObjInfo' => $objectInfo(0x0014),
-            'ObjectPool/_42/' . "\x01" . 'CompObj' => "compound display metadata",
+            'ObjectPool/_42/' . "\x01" . 'CompObj' => $compObjStream(
+                'Package',
+                'Native',
+                'Legacy Package Ω',
+                'Excel.Sheet.12'
+            ),
             'ObjectPool/_42/' . "\x01" . 'Ole10Native' => $nativeStreamBytes,
             'ObjectPool/_42/' . "\x02" . 'OlePres000' => "presentation preview bytes",
             'ObjectPool/_43/' . "\x03" . 'ObjInfo' => $objectInfo(0x000a),
@@ -1117,6 +1150,8 @@ return [
         $t->same(true, $objects[0]['hasNativeData']);
         $t->same(true, $objects[0]['hasPresentationData']);
         $t->same(false, $objects[0]['canExposeBytes']);
+        $t->same(['Legacy Package Ω'], $objects[0]['compoundObjectDisplayNames']);
+        $t->same(['Excel.Sheet.12'], $objects[0]['compoundObjectClipboardFormats']);
         $t->same(strlen($nativeData), $objects[0]['nativeDataBytes']);
         $t->same(['legacy-sheet.xlsx'], $objects[0]['nativeLabels']);
         $t->same(['C:\legacy\legacy-sheet.xlsx'], $objects[0]['nativeSourcePaths']);
@@ -1127,6 +1162,13 @@ return [
             'presentation-data',
             'object-info',
         ], array_map(static fn (array $stream): string => $stream['role'], $objects[0]['streams']));
+        $t->same(false, $objects[0]['streams'][0]['compoundObject']['canExposeBytes']);
+        $t->same('Package', $objects[0]['streams'][0]['compoundObject']['ansiUserType']);
+        $t->same(['kind' => 'registered', 'name' => 'Native'], $objects[0]['streams'][0]['compoundObject']['ansiClipboardFormat']);
+        $t->same('Legacy Package Ω', $objects[0]['streams'][0]['compoundObject']['unicodeUserType']);
+        $t->same(['kind' => 'registered', 'name' => 'Excel.Sheet.12'], $objects[0]['streams'][0]['compoundObject']['unicodeClipboardFormat']);
+        $t->same('Legacy Package Ω', $objects[0]['streams'][0]['compoundObject']['displayName']);
+        $t->same(['kind' => 'registered', 'name' => 'Excel.Sheet.12'], $objects[0]['streams'][0]['compoundObject']['clipboardFormat']);
         $t->same(false, $objects[0]['streams'][1]['canExposeBytes']);
         $t->same(strlen($nativeStreamBytes), $objects[0]['streams'][1]['bytes']);
         $t->same([
@@ -1145,6 +1187,23 @@ return [
         $t->contains('<p>Embedded object review packet</p>', $blocks);
         $t->true(!str_contains($blocks, $nativeData), 'Embedded OLE native bytes should not render to WordPress blocks');
         $t->true(!str_contains($blocks, 'presentation preview bytes'), 'Embedded OLE presentation bytes should not render to WordPress blocks');
+    },
+    'reports malformed legacy DOC CompObj streams without exposing object bytes' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Malformed compound object packet\r"),
+            'ObjectPool/_77/' . "\x01" . 'CompObj' => str_repeat("\0", 20),
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $object = $result['embeddedObjects'][0];
+        $compoundStream = $object['streams'][0];
+
+        $t->same('ObjectPool/_77', $object['storagePath']);
+        $t->same(false, $object['canExposeBytes']);
+        $t->same('compound-object', $compoundStream['role']);
+        $t->same(false, $compoundStream['compoundObject']['canExposeBytes']);
+        $t->same('truncated-compobj-header', $compoundStream['compoundObject']['diagnostics'][0]['code']);
+        $t->same('truncated-compobj-header', $object['diagnostics'][0]['code']);
     },
     'reports malformed legacy DOC Ole10Native stream sizes without exposing bytes' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u16, $u32): void {
         $payload = $u16(0x0002)
