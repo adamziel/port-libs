@@ -177,6 +177,8 @@ return [
             'test/test-pandoc.hs',
             'pandoc-lua-engine/test/test-pandoc-lua-engine.hs',
         ], $audit['missingFiles']);
+        $t->same([], $audit['requiredFileProvenance']['present']);
+        $t->same($audit['missingFiles'], $audit['requiredFileProvenance']['missing']);
         $t->same(['cabal'], $audit['missingTools']);
         $t->same([], $audit['projectSourceRepositoryPins']['present']);
         $t->same([
@@ -256,6 +258,33 @@ return [
         $t->contains('record cabal.project package/flag closure', $audit['nonMutatingPlan'][0]);
         $t->contains('solver constraints and runner executable options', $audit['nonMutatingPlan'][1]);
         $t->contains('test-suite type, buildable state, entry point, and direct build-depends closure', $audit['nonMutatingPlan'][2]);
+    },
+    'records required runner file provenance before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => ['available' => true, 'version' => '9.10.3'],
+                'cabal' => ['available' => true, 'version' => '3.12.1.0'],
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(true, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([
+            'cabal.project',
+            'pandoc.cabal',
+            'pandoc-lua-engine/pandoc-lua-engine.cabal',
+            'test/test-pandoc.hs',
+            'pandoc-lua-engine/test/test-pandoc-lua-engine.hs',
+        ], $audit['requiredFileProvenance']['expected']);
+        $t->same([], $audit['requiredFileProvenance']['missing']);
+        foreach ($audit['requiredFileProvenance']['expected'] as $relativePath) {
+            $t->same(hash('sha256', $files[$relativePath]), $audit['requiredFileProvenance']['present'][$relativePath]['sha256']);
+            $t->same(strlen($files[$relativePath]), $audit['requiredFileProvenance']['present'][$relativePath]['bytes']);
+        }
+        $t->contains('package-file hashes', $audit['nonMutatingPlan'][0]);
     },
     'flags missing and mismatched cabal project git pins' => static function (TestRunner $t) use ($makeTree, $removeTree, $requiredFiles): void {
         $project = implode("\n", [

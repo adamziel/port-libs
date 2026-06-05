@@ -165,6 +165,7 @@ final class UpstreamRunnerDependencyAudit
      *   requiredFiles:list<string>,
      *   presentFiles:list<string>,
      *   missingFiles:list<string>,
+     *   requiredFileProvenance:array{expected:list<string>, present:array<string, array{sha256:string, bytes:int}>, missing:list<string>},
      *   tools:array<string, array{available:bool, version:string|null}>,
      *   missingTools:list<string>,
      *   runnerTargets:list<string>,
@@ -188,15 +189,9 @@ final class UpstreamRunnerDependencyAudit
             $root = '.';
         }
 
-        $presentFiles = [];
-        $missingFiles = [];
-        foreach (self::REQUIRED_FILES as $relativePath) {
-            if (is_file($root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath))) {
-                $presentFiles[] = $relativePath;
-            } else {
-                $missingFiles[] = $relativePath;
-            }
-        }
+        $requiredFileProvenance = self::auditRequiredFileProvenance($root);
+        $presentFiles = array_keys($requiredFileProvenance['present']);
+        $missingFiles = $requiredFileProvenance['missing'];
 
         $normalizedTools = self::normalizeTools($tools);
         $missingTools = [];
@@ -276,6 +271,7 @@ final class UpstreamRunnerDependencyAudit
             'requiredFiles' => self::REQUIRED_FILES,
             'presentFiles' => $presentFiles,
             'missingFiles' => $missingFiles,
+            'requiredFileProvenance' => $requiredFileProvenance,
             'tools' => $normalizedTools,
             'missingTools' => $missingTools,
             'runnerTargets' => array_keys(self::RUNNER_ENTRY_POINTS),
@@ -913,6 +909,40 @@ final class UpstreamRunnerDependencyAudit
             'present' => $present,
             'missing' => $missing,
             'wrongType' => $wrongType,
+        ];
+    }
+
+    /**
+     * @return array{expected:list<string>, present:array<string, array{sha256:string, bytes:int}>, missing:list<string>}
+     */
+    private static function auditRequiredFileProvenance(string $root): array
+    {
+        $present = [];
+        $missing = [];
+
+        foreach (self::REQUIRED_FILES as $relativePath) {
+            $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+            if (!is_file($path)) {
+                $missing[] = $relativePath;
+                continue;
+            }
+
+            $contents = file_get_contents($path);
+            if ($contents === false) {
+                $missing[] = $relativePath;
+                continue;
+            }
+
+            $present[$relativePath] = [
+                'sha256' => hash('sha256', $contents),
+                'bytes' => strlen($contents),
+            ];
+        }
+
+        return [
+            'expected' => self::REQUIRED_FILES,
+            'present' => $present,
+            'missing' => $missing,
         ];
     }
 
