@@ -1572,6 +1572,96 @@ XML);
             ],
         ]]));
     },
+    'maps bounded biblatex software dataset version and pubstate metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@software{import-tool,
+  author   = {{Migration Desk}},
+  title    = {Block Import Verifier},
+  date     = {2026-06-05},
+  version  = {2.1.0-beta},
+  pubstate = {preprint},
+  url      = {https://example.test/import-verifier}
+}
+
+@dataset{source-dataset,
+  author   = {Ng, Nia},
+  title    = {Source Packet Dataset},
+  date     = {2025},
+  version  = {2025.4},
+  pubstate = {revised},
+  doi      = {10.5555/dataset}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('software', $items[0]['type']);
+        $t->same('2.1.0-beta', $items[0]['version']);
+        $t->same('preprint', $items[0]['status']);
+        $t->same('preprint', $items[0]['rawBibtex']['fields']['pubstate'] ?? null);
+        $t->same('dataset', $items[1]['type']);
+        $t->same('2025.4', $items[1]['version']);
+        $t->same('revised', $items[1]['status']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $software = $processor->item('import-tool');
+        $dataset = $processor->item('source-dataset');
+        $t->same('2.1.0-beta', $software['version'] ?? null);
+        $t->same('preprint', $software['status'] ?? null);
+        $t->same('2025.4', $dataset['version'] ?? null);
+        $t->same('revised', $dataset['status'] ?? null);
+        $t->same('(Migration Desk 2026; Ng 2025)', $processor->renderCitationCluster([
+            $citation('import-tool', '[@import-tool]'),
+            $citation('source-dataset', '[@source-dataset]'),
+        ]));
+        $t->same('Migration Desk. Block Import Verifier. 2026. Version: 2.1.0-beta. Status: preprint. https://example.test/import-verifier.', $processor->renderBibliographyEntry('import-tool'));
+        $t->same('Ng, Nia. Source Packet Dataset. 2025. Version: 2025.4. Status: revised. DOI 10.5555/dataset.', $processor->renderBibliographyEntry('source-dataset'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" ">
+        <text variable="title"/>
+        <text variable="version" prefix="v"/>
+        <text variable="status" prefix="(" suffix=")"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="version" prefix="version "/>
+      <text variable="status" prefix="state "/>
+      <text variable="DOI"/>
+      <text variable="URL"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Block Import Verifier v2.1.0-beta (preprint); Source Packet Dataset v2025.4 (revised)]', $styled->renderCitationCluster([
+            $citation('import-tool', '[@import-tool]'),
+            $citation('source-dataset', '[@source-dataset]'),
+        ]));
+        $t->same('Block Import Verifier :: version 2.1.0-beta :: state preprint :: https://example.test/import-verifier', $styled->renderBibliographyEntry('import-tool'));
+        $t->same('Source Packet Dataset :: version 2025.4 :: state revised :: 10.5555/dataset', $styled->renderBibliographyEntry('source-dataset'));
+
+        $document = (new MarkdownReader())->read('Software @import-tool and dataset [@source-dataset] preserve release state.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Software Migration Desk (2026) and dataset (Ng 2025) preserve release state.</p>', $blocks);
+        $t->contains('<dt>Migration Desk 2026</dt><dd>Migration Desk. Block Import Verifier. 2026. Version: 2.1.0-beta. Status: preprint. https://example.test/import-verifier.</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Source Packet Dataset. 2025. Version: 2025.4. Status: revised. DOI 10.5555/dataset.</dd>', $blocks);
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-version',
+            'title' => 'Manual Version Source',
+            'version' => '3.0',
+            'status' => 'forthcoming',
+        ]])->item('manual-version');
+        $t->same('3.0', $manual['version'] ?? null);
+        $t->same('forthcoming', $manual['status'] ?? null);
+    },
     'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
         $document = (new MarkdownReader())->read(

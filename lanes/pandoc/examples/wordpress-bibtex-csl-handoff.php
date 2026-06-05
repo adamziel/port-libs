@@ -45,6 +45,8 @@ Secondary editor source @secondary-editor-review preserves compiler, editorial d
 
 Annotated name source @name-annotation-review keeps reviewer name annotations attached.
 
+Software source @import-tool and dataset [@source-dataset] preserve version and publication state metadata.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -336,6 +338,24 @@ $bibtex = <<<'BIB'
   publisher  = {Review Press},
   nameaddon  = {Imported source names verified by review desk}
 }
+
+@software{import-tool,
+  author   = {{Migration Desk}},
+  title    = {Block Import Verifier},
+  date     = {2026-06-05},
+  version  = {2.1.0-beta},
+  pubstate = {preprint},
+  url      = {https://example.test/import-verifier}
+}
+
+@dataset{source-dataset,
+  author   = {Ng, Nia},
+  title    = {Source Packet Dataset},
+  date     = {2025},
+  version  = {2025.4},
+  pubstate = {revised},
+  doi      = {10.5555/dataset}
+}
 BIB;
 
 $processor = CitationCslProcessor::fromBibtex($bibtex);
@@ -526,6 +546,20 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($nameAnnotationReview['editors'][0]['annotations'][0]['value'] ?? null) !== 'review editor') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve editor name annotation metadata');
     }
+    $importTool = $processor->item('import-tool');
+    if (($importTool['version'] ?? null) !== '2.1.0-beta') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve software version metadata');
+    }
+    if (($importTool['status'] ?? null) !== 'preprint') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not map software pubstate metadata');
+    }
+    $sourceDataset = $processor->item('source-dataset');
+    if (($sourceDataset['version'] ?? null) !== '2025.4') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve dataset version metadata');
+    }
+    if (($sourceDataset['status'] ?? null) !== 'revised') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not map dataset pubstate metadata');
+    }
 
     foreach ([
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
@@ -567,6 +601,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<dt>Smith 2026</dt><dd>Smith, Ada. Migration Source Dossier. Review Press, 2026. Compiled by Roe, Pat; Migration Desk. Editorial direction by Ng, Nia. Reviewer: de la Cruz, Ana Maria.</dd>',
         '<p>Annotated name source Smith and Ng (2026) keeps reviewer name annotations attached.</p>',
         '<dt>Smith and Ng 2026</dt><dd>Smith, Ada; Ng, Nia. Annotated Source Names. Review Press, 2026. Name addendum: Imported source names verified by review desk. Name annotations: Author 1: primary source author; Author 2 family: family name verified; Editor 1: review editor.</dd>',
+        '<p>Software source Migration Desk (2026) and dataset (Ng 2025) preserve version and publication state metadata.</p>',
+        '<dt>Migration Desk 2026</dt><dd>Migration Desk. Block Import Verifier. 2026. Version: 2.1.0-beta. Status: preprint. https://example.test/import-verifier.</dd>',
+        '<dt>Ng 2025</dt><dd>Ng, Nia. Source Packet Dataset. 2025. Version: 2025.4. Status: revised. DOI 10.5555/dataset.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {

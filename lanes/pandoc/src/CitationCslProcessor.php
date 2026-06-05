@@ -491,6 +491,7 @@ final class CitationCslProcessor
             'authority' => self::stringField($item, 'authority'),
             'jurisdiction' => self::stringField($item, 'jurisdiction'),
             'status' => self::stringField($item, 'status'),
+            'version' => self::stringField($item, 'version'),
             'doi' => self::firstStringField($item, ['DOI', 'doi']),
             'url' => self::firstStringField($item, ['URL', 'url']),
             'isbn' => self::firstStringField($item, ['ISBN', 'isbn']),
@@ -2056,10 +2057,16 @@ final class CitationCslProcessor
     {
         $parts = [];
         foreach ([
+            ['version', 'Version'],
             ['medium', 'Medium'],
+            ['status', 'Status'],
             ['note', 'Note'],
             ['addendum', 'Addendum'],
         ] as [$key, $label]) {
+            if ($key === 'status' && in_array((string) ($item['type'] ?? ''), ['patent', 'legislation', 'legal_case'], true)) {
+                continue;
+            }
+
             $value = trim((string) ($item[$key] ?? ''));
             if ($value === '') {
                 continue;
@@ -3070,6 +3077,7 @@ final class CitationCslProcessor
             'authority' => (string) $item['authority'],
             'jurisdiction' => (string) $item['jurisdiction'],
             'status' => (string) $item['status'],
+            'version' => (string) $item['version'],
             'doi' => (string) $item['doi'],
             'url' => (string) $item['url'],
             'isbn' => (string) $item['isbn'],
