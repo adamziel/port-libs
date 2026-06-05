@@ -2300,6 +2300,76 @@ return [
         $t->true(!str_contains($encoded, $compatibilityPayload));
         $t->true(!str_contains($encoded, $paintedPayload));
     },
+    'fails closed on malformed indirect XObject resource dictionary object tails' => static function (TestRunner $t): void {
+        $malformedContent = "BT /F1 12 Tf 72 720 Td (Before malformed XObject resource tail) Tj ET\n"
+            . "q 16 0 0 8 72 690 cm /Bad#20Tail#20Image Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After malformed XObject resource tail) Tj ET';
+        $commentContent = "BT /F1 12 Tf 72 720 Td (Before comment XObject resource tail) Tj ET\n"
+            . "q 12 0 0 6 72 690 cm /Comment#20Only#20Image Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After comment XObject resource tail) Tj ET';
+        $badPayload = 'BT /F1 12 Tf 72 720 Td (Bad Resource Tail Image Payload Noise) Tj ET';
+        $commentPayload = 'BT /F1 12 Tf 72 720 Td (Comment Resource Tail Image Payload Noise) Tj ET';
+        $badCompressed = gzcompress($badPayload);
+        $commentCompressed = gzcompress($commentPayload);
+        if (!is_string($badCompressed) || !is_string($commentCompressed)) {
+            throw new RuntimeException('Unable to compress XObject resource-tail fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 10 0 R >> /XObject 20 0 R >> /Contents 11 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 10 0 R >> /XObject 21 0 R >> /Contents 12 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($badCompressed) . " >>\nstream\n{$badCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($commentCompressed) . " >>\nstream\n{$commentCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "11 0 obj\n<< /Length " . strlen($malformedContent) . " >>\nstream\n{$malformedContent}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Length " . strlen($commentContent) . " >>\nstream\n{$commentContent}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Bad#20Tail#20Image 5 0 R >> /PrivateTail 99 0 R\nendobj\n"
+            . "21 0 obj\n<< /Comment#20Only#20Image 6 0 R >> % comment-only tail remains PDF whitespace\nendobj\n"
+            . "99 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /Length 0 >>\nstream\n\nendstream\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(1, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+        $t->same(false, isset($entriesByName['Bad Tail Image']));
+
+        $comment = $entriesByName['Comment Only Image'];
+        $t->same(6, $comment['object_number']);
+        $t->same(true, $comment['invoked']);
+        $t->same(1, $comment['invocation_count']);
+        $t->same([[12.0, 0.0, 0.0, 6.0, 72.0, 690.0]], $comment['invocation_matrices']);
+        $t->same([72.0, 690.0, 84.0, 696.0], $comment['image_unit_bbox']);
+        $t->same(true, $comment['decoded_with_current_filters']);
+        $t->same(hash('sha256', $commentPayload), $comment['decoded_sha256']);
+        $t->same(false, $comment['payload_in_visible_text']);
+
+        $expectedLines = [
+            'Before malformed XObject resource tail',
+            'After malformed XObject resource tail',
+            'Before comment XObject resource tail',
+            'After comment XObject resource tail',
+        ];
+        $t->same($expectedLines, $extractor->extractTextLines($pdf));
+        $t->same(implode("\n", $expectedLines), $plainText);
+        $t->true(!str_contains($plainText, 'Bad Resource Tail Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Comment Resource Tail Image Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, 'Bad Tail Image'));
+        $t->true(!str_contains($encoded, hash('sha256', $badPayload)));
+        $t->true(!str_contains($encoded, $badPayload));
+        $t->true(!str_contains($encoded, $commentPayload));
+    },
     'normalizes empty intersections from consecutive image XObject clipping paths' => static function (TestRunner $t): void {
         $pageContent = "BT /F1 12 Tf 72 720 Td (Before compound clip images) Tj ET\n"
             . "q 0 0 20 20 re W n 40 40 10 10 re W n 50 0 0 40 0 0 cm /Empty#20Compound#20Clip Do Q\n"

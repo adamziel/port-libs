@@ -16762,7 +16762,7 @@ final class PdfTextExtractor
                 return null;
             }
 
-            return $this->dictionaryObjectBody($resolved['body']);
+            return $this->singleDictionaryObjectBody($resolved['body']);
         }
 
         return str_starts_with($value, '<<') ? $this->readPdfDictionaryAt($value, 0) : null;
@@ -16772,6 +16772,19 @@ final class PdfTextExtractor
     {
         $offset = strpos($objectBody, '<<');
         return $offset === false ? null : $this->readPdfDictionaryAt($objectBody, $offset);
+    }
+
+    private function singleDictionaryObjectBody(string $objectBody): ?string
+    {
+        $offset = 0;
+        $this->skipContentWhitespaceAndComments($objectBody, $offset);
+        $dictionary = $this->readPdfDictionaryTokenAt($objectBody, $offset);
+        if ($dictionary === null) {
+            return null;
+        }
+
+        $this->skipContentWhitespaceAndComments($objectBody, $offset);
+        return $offset >= strlen($objectBody) ? $dictionary : null;
     }
 
     private function objectBodyIsStreamObject(string $objectBody): bool
