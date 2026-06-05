@@ -1218,6 +1218,11 @@ final class BibtexCslParser
      */
     private static function dateFromText(string $date, string $field): array
     {
+        $rangeParts = self::dateRangePartsFromText($date, $field);
+        if ($rangeParts !== null) {
+            return ['date-parts' => $rangeParts];
+        }
+
         if (preg_match('/^(-?\d{1,6})(?:[-\/](\d{1,2})(?:[-\/](\d{1,2}))?)?$/', $date, $matches) !== 1) {
             return ['literal' => $date];
         }
@@ -1242,6 +1247,66 @@ final class BibtexCslParser
         }
 
         return ['date-parts' => [$parts]];
+    }
+
+    /**
+     * @return list<list<int>>|null
+     */
+    private static function dateRangePartsFromText(string $date, string $field): ?array
+    {
+        if (substr_count($date, '/') !== 1) {
+            return null;
+        }
+
+        [$start, $end] = array_map('trim', explode('/', $date, 2));
+        if ($start === '' || $end === '') {
+            return null;
+        }
+
+        if (!self::looksLikeDateRangeSide($start) || !self::looksLikeDateRangeSide($end)) {
+            return null;
+        }
+
+        return [
+            self::dateRangeSideParts($start, $field),
+            self::dateRangeSideParts($end, $field),
+        ];
+    }
+
+    private static function looksLikeDateRangeSide(string $value): bool
+    {
+        return preg_match('/^-?\d{3,6}(?:-\d{1,2}(?:-\d{1,2})?)?$/', $value) === 1;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private static function dateRangeSideParts(string $value, string $field): array
+    {
+        if (preg_match('/^(-?\d{1,6})(?:-(\d{1,2})(?:-(\d{1,2}))?)?$/', $value, $matches) !== 1) {
+            throw new \InvalidArgumentException('BibTeX ' . $field . ' date range endpoint is malformed');
+        }
+
+        $parts = [(int) $matches[1]];
+        if (isset($matches[2]) && $matches[2] !== '') {
+            $month = (int) $matches[2];
+            if ($month < 1 || $month > 12) {
+                throw new \InvalidArgumentException('BibTeX ' . $field . ' month must be between 1 and 12');
+            }
+
+            $parts[] = $month;
+        }
+
+        if (isset($matches[3]) && $matches[3] !== '') {
+            $day = (int) $matches[3];
+            if ($day < 1 || $day > 31) {
+                throw new \InvalidArgumentException('BibTeX ' . $field . ' day must be between 1 and 31');
+            }
+
+            $parts[] = $day;
+        }
+
+        return $parts;
     }
 
     private static function monthNumber(string $value, string $field): int

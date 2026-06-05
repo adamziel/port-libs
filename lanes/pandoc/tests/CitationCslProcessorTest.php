@@ -715,6 +715,86 @@ XML);
         $t->contains('<dt>WordPress Import Review Act 2025</dt><dd>WordPress Import Review Act. Oregon Legislature, 2025. Statute HB 42. Authority: Oregon Legislature. Jurisdiction: Oregon. Event date 2025-06-01.</dd>', $blocks);
         $t->contains('<dt>Import Queue v. Source Packet 2024</dt><dd>Import Queue v. Source Packet. 2024. Decision No. 24-100. Authority: Migration Review Court. Jurisdiction: 9th Cir. Event date 2025-01-02.</dd>', $blocks);
     },
+    'maps bounded biblatex date ranges into csl date metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{range-manual,
+  author    = {de la Cruz, Ana Maria},
+  title     = {Migration Release Window},
+  date      = {2020-05/2021-06},
+  origdate  = {2018/2019},
+  publisher = {Review Press},
+  url       = {https://example.test/range-manual},
+  urldate   = {2026-06-04/2026-06-05}
+}
+
+@legislation{range-rule,
+  title        = {Import Review Rule},
+  number       = {Rule 7},
+  type         = {regulation},
+  organization = {Migration Board},
+  date         = {2024/2025},
+  eventdate    = {2025-01-01/2025-01-31}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(['date-parts' => [[2020, 5], [2021, 6]]], $items[0]['issued']);
+        $t->same(['date-parts' => [[2018], [2019]]], $items[0]['original-date']);
+        $t->same(['date-parts' => [[2026, 6, 4], [2026, 6, 5]]], $items[0]['accessed']);
+        $t->same(['date-parts' => [[2024], [2025]]], $items[1]['issued']);
+        $t->same(['date-parts' => [[2025, 1, 1], [2025, 1, 31]]], $items[1]['event-date']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('range-manual');
+        $rule = $processor->item('range-rule');
+        $t->same([2020, 5], $manual['issuedDate']['parts'] ?? null);
+        $t->same([[2020, 5], [2021, 6]], $manual['issuedDate']['rangeParts'] ?? null);
+        $t->same('2020-05/2021-06', $manual['issuedDate']['display'] ?? null);
+        $t->same([[2018], [2019]], $manual['originalDate']['rangeParts'] ?? null);
+        $t->same('2018/2019', $manual['originalDate']['display'] ?? null);
+        $t->same([[2026, 6, 4], [2026, 6, 5]], $manual['accessedDate']['rangeParts'] ?? null);
+        $t->same('2026-06-04/2026-06-05', $manual['accessedDate']['display'] ?? null);
+        $t->same([[2025, 1, 1], [2025, 1, 31]], $rule['eventDate']['rangeParts'] ?? null);
+        $t->same('(de la Cruz 2020/2021; Import Review Rule 2024/2025)', $processor->renderCitationCluster([
+            $citation('range-manual', '[@range-manual]'),
+            $citation('range-rule', '[@range-rule]'),
+        ]));
+        $t->same('de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.', $processor->renderBibliographyEntry('range-manual'));
+        $t->same('Import Review Rule. Migration Board, 2024/2025. Regulation Rule 7. Authority: Migration Board. Event date 2025-01-01/2025-01-31.', $processor->renderBibliographyEntry('range-rule'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <text variable="title"/>
+        <date variable="issued"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <text variable="title"/>
+      <date variable="issued"/>
+      <date variable="original-date"/>
+      <date variable="event-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('(Migration Release Window 2020-05/2021-06; Import Review Rule 2024/2025)', $styled->renderCitationCluster([
+            $citation('range-manual', '[@range-manual]'),
+            $citation('range-rule', '[@range-rule]'),
+        ]));
+        $t->same('Migration Release Window | 2020-05/2021-06 | 2018/2019', $styled->renderBibliographyEntry('range-manual'));
+        $t->same('Import Review Rule | 2024/2025 | 2025-01-01/2025-01-31', $styled->renderBibliographyEntry('range-rule'));
+
+        $document = (new MarkdownReader())->read('Review cites @range-manual and [@range-rule] for source date range audit.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Review cites de la Cruz (2020/2021) and (Import Review Rule 2024/2025) for source date range audit.</p>', $blocks);
+        $t->contains('<dt>de la Cruz 2020/2021</dt><dd>de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.</dd>', $blocks);
+    },
     'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
         $document = (new MarkdownReader())->read(

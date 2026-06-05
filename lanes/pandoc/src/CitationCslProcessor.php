@@ -759,7 +759,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{year:?int, parts:list<int>, display:string, literal:string}
+     * @return array{year:?int, parts:list<int>, display:string, literal:string, rangeParts?:list<list<int>>}
      */
     private static function dateVariable(mixed $date, string $id, string $field): array
     {
@@ -791,8 +791,37 @@ final class CitationCslProcessor
             throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' date-parts must contain a year');
         }
 
-        $parts = [];
-        foreach (array_slice($dateParts[0], 0, 3) as $partIndex => $part) {
+        $rangeParts = [];
+        foreach (array_slice($dateParts, 0, 2) as $rangeIndex => $rangePart) {
+            if (!is_array($rangePart) || !isset($rangePart[0])) {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' date-parts[' . $rangeIndex . '] must contain a year');
+            }
+
+            $rangeParts[] = self::normalizedDatePartList($rangePart, $id, $field);
+        }
+
+        $parts = $rangeParts[0];
+        $normalized = [
+            'year' => $parts[0],
+            'parts' => $parts,
+            'display' => self::formatDatePartsRange($rangeParts),
+            'literal' => '',
+        ];
+        if (count($rangeParts) > 1) {
+            $normalized['rangeParts'] = $rangeParts;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<mixed> $parts
+     * @return list<int>
+     */
+    private static function normalizedDatePartList(array $parts, string $id, string $field): array
+    {
+        $normalized = [];
+        foreach (array_slice($parts, 0, 3) as $partIndex => $part) {
             if (!is_int($part) && !(is_string($part) && preg_match('/^-?\d+$/', $part) === 1)) {
                 throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' date-parts must be numeric');
             }
@@ -806,15 +835,10 @@ final class CitationCslProcessor
                 throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' day must be between 1 and 31');
             }
 
-            $parts[] = $number;
+            $normalized[] = $number;
         }
 
-        return [
-            'year' => $parts[0],
-            'parts' => $parts,
-            'display' => self::formatDateParts($parts),
-            'literal' => '',
-        ];
+        return $normalized;
     }
 
     /**
@@ -847,6 +871,19 @@ final class CitationCslProcessor
         }
 
         return (string) $parts[0];
+    }
+
+    /**
+     * @param list<list<int>> $rangeParts
+     */
+    private static function formatDatePartsRange(array $rangeParts): string
+    {
+        $formatted = array_map(
+            static fn (array $parts): string => self::formatDateParts($parts),
+            $rangeParts
+        );
+
+        return implode('/', $formatted);
     }
 
     private function mapNode(AstNode $node): AstNode
@@ -1240,16 +1277,38 @@ final class CitationCslProcessor
      */
     private function citationYear(array $item): string
     {
+        $date = $item['issuedDate'] ?? null;
+        if (is_array($date) && isset($date['rangeParts']) && is_array($date['rangeParts'])) {
+            $yearRange = $this->citationYearRange($date['rangeParts']);
+            if ($yearRange !== '') {
+                return $yearRange;
+            }
+        }
+
         if (isset($item['issuedYear']) && $item['issuedYear'] !== null) {
             return (string) $item['issuedYear'];
         }
 
-        $date = $item['issuedDate'] ?? null;
         if (is_array($date) && (string) ($date['literal'] ?? '') !== '') {
             return (string) $date['literal'];
         }
 
         return $this->style->term('no date');
+    }
+
+    /**
+     * @param list<list<int>> $rangeParts
+     */
+    private function citationYearRange(array $rangeParts): string
+    {
+        if (count($rangeParts) < 2 || !isset($rangeParts[0][0], $rangeParts[1][0])) {
+            return '';
+        }
+
+        $start = (int) $rangeParts[0][0];
+        $end = (int) $rangeParts[1][0];
+
+        return $start === $end ? (string) $start : $start . '/' . $end;
     }
 
     /**
@@ -1758,7 +1817,7 @@ final class CitationCslProcessor
             return $this->namesForRenderingVariable($item, $normalized) !== [];
         }
 
-        if (in_array($normalized, ['issued', 'date', 'accessed'], true)) {
+        if (in_array($normalized, ['issued', 'date', 'accessed', 'event-date', 'original-date'], true)) {
             $date = $this->dateVariableForRendering($item, $normalized);
             if (!is_array($date)) {
                 return false;
@@ -1820,7 +1879,7 @@ final class CitationCslProcessor
 
     /**
      * @param array<string, mixed> $item
-     * @return array{year:?int, parts:list<int>, display:string, literal:string}|null
+     * @return array{year:?int, parts:list<int>, display:string, literal:string, rangeParts?:list<list<int>>}|null
      */
     private function dateVariableForRendering(array $item, string $variable): ?array
     {
@@ -1830,12 +1889,13 @@ final class CitationCslProcessor
             'issued', 'date' => is_array($item['issuedDate'] ?? null) ? $item['issuedDate'] : null,
             'accessed' => is_array($item['accessedDate'] ?? null) ? $item['accessedDate'] : null,
             'event-date' => is_array($item['eventDate'] ?? null) ? $item['eventDate'] : null,
+            'original-date' => is_array($item['originalDate'] ?? null) ? $item['originalDate'] : null,
             default => null,
         };
     }
 
     /**
-     * @param array{year:?int, parts:list<int>, display:string, literal:string}|mixed $date
+     * @param array{year:?int, parts:list<int>, display:string, literal:string, rangeParts?:list<list<int>>}|mixed $date
      */
     private function renderDateVariable(mixed $date, string $scope, string $variable): string
     {
@@ -1861,36 +1921,47 @@ final class CitationCslProcessor
     }
 
     /**
-     * @param array{year:?int, parts:list<int>, display:string, literal:string} $date
+     * @param array{year:?int, parts:list<int>, display:string, literal:string, rangeParts?:list<list<int>>} $date
      * @param list<string> $dateParts
      */
     private function renderSelectedDateParts(array $date, array $dateParts, string $scope, string $variable): string
     {
-        $parts = is_array($date['parts'] ?? null) ? $date['parts'] : [];
-        if ($parts === []) {
+        $rangeParts = is_array($date['rangeParts'] ?? null) ? $date['rangeParts'] : [];
+        $singleParts = is_array($date['parts'] ?? null) ? $date['parts'] : [];
+        if ($rangeParts === [] && $singleParts === []) {
             return $this->renderDateVariable($date, $scope, $variable);
         }
 
+        $parts = $rangeParts !== [] ? $rangeParts : [$singleParts];
         $values = [];
-        foreach ($dateParts as $part) {
-            $value = match ($part) {
-                'year' => $parts[0] ?? null,
-                'month' => $parts[1] ?? null,
-                'day' => $parts[2] ?? null,
-                default => null,
-            };
-            if ($value === null) {
-                continue;
+        foreach ($parts as $rangePart) {
+            $rangeValue = [];
+            foreach ($dateParts as $part) {
+                $value = match ($part) {
+                    'year' => $rangePart[0] ?? null,
+                    'month' => $rangePart[1] ?? null,
+                    'day' => $rangePart[2] ?? null,
+                    default => null,
+                };
+                if ($value === null) {
+                    continue;
+                }
+
+                $rangeValue[] = $part === 'year' ? sprintf('%04d', (int) $value) : sprintf('%02d', (int) $value);
             }
 
-            $values[] = $part === 'year' ? sprintf('%04d', (int) $value) : sprintf('%02d', (int) $value);
+            if ($rangeValue !== []) {
+                $values[] = implode('-', $rangeValue);
+            }
         }
 
         if ($values === []) {
             return '';
         }
 
-        return implode('-', $values);
+        $values = array_values(array_unique($values));
+
+        return implode('/', $values);
     }
 
     /**

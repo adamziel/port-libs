@@ -29,6 +29,8 @@ A translated source @translated-manual preserves original publication metadata f
 
 Patent and legal sources @import-patent and @review-act preserve legal review metadata.
 
+Date-range sources @range-manual and @range-rule preserve interval metadata for review.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -181,6 +183,25 @@ $bibtex = <<<'BIB'
   date         = {2025-05-01},
   eventdate    = {2025-06-01}
 }
+
+@book{range-manual,
+  author    = {de la Cruz, Ana Maria},
+  title     = {Migration Release Window},
+  date      = {2020-05/2021-06},
+  origdate  = {2018/2019},
+  publisher = {Review Press},
+  url       = {https://example.test/range-manual},
+  urldate   = {2026-06-04/2026-06-05}
+}
+
+@legislation{range-rule,
+  title        = {Import Review Rule},
+  number       = {Rule 7},
+  type         = {regulation},
+  organization = {Migration Board},
+  date         = {2024/2025},
+  eventdate    = {2025-01-01/2025-01-31}
+}
 BIB;
 
 $processor = CitationCslProcessor::fromBibtex($bibtex);
@@ -248,6 +269,20 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($reviewAct['eventDate']['display'] ?? null) !== '2025-06-01') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve legislation event date');
     }
+    $rangeManual = $processor->item('range-manual');
+    if (($rangeManual['issuedDate']['rangeParts'] ?? null) !== [[2020, 5], [2021, 6]]) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve issued date range metadata');
+    }
+    if (($rangeManual['originalDate']['display'] ?? null) !== '2018/2019') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve original date range metadata');
+    }
+    if (($rangeManual['accessedDate']['display'] ?? null) !== '2026-06-04/2026-06-05') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve accessed date range metadata');
+    }
+    $rangeRule = $processor->item('range-rule');
+    if (($rangeRule['eventDate']['display'] ?? null) !== '2025-01-01/2025-01-31') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve legal event date range metadata');
+    }
 
     foreach ([
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
@@ -259,6 +294,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>The related manual Curator (2024) keeps companion entry metadata attached to the source packet.</p>',
         '<p>A translated source García (2026) preserves original publication metadata for source review.</p>',
         '<p>Patent and legal sources Müller (2026) and WordPress Import Review Act (2025) preserve legal review metadata.</p>',
+        '<p>Date-range sources de la Cruz (2020/2021) and Import Review Rule (2024/2025) preserve interval metadata for review.</p>',
         '<dt>Doe and Roe 2020</dt><dd>Doe, Jane; Roe, Pat. Field Notes. Journal of Imports. 2020. 55-60. https://example.test/field-notes. Accessed 2026-06-04.</dd>',
         '<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria, Jr. Source Packet. 2026. https://example.test/source-packet.</dd>',
         '<dt>Smith 2026</dt><dd>Smith, Ada. Packet Audit Trails. Migration Futures Conference. Review Press, 2026. 12-18.</dd>',
@@ -269,6 +305,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>',
         '<dt>Müller 2026</dt><dd>Müller, Mia. Block Import Review Patent. 2026. Patent US-123456. Jurisdiction: US. Holder: WordPress Foundation. Event date 2024-01-15. Status: granted. https://example.test/patents/us-123456.</dd>',
         '<dt>WordPress Import Review Act 2025</dt><dd>WordPress Import Review Act. Oregon Legislature, 2025. Statute HB 42. Authority: Oregon Legislature. Jurisdiction: Oregon. Event date 2025-06-01.</dd>',
+        '<dt>de la Cruz 2020/2021</dt><dd>de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.</dd>',
+        '<dt>Import Review Rule 2024/2025</dt><dd>Import Review Rule. Migration Board, 2024/2025. Regulation Rule 7. Authority: Migration Board. Event date 2025-01-01/2025-01-31.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {
