@@ -2864,6 +2864,7 @@ return [
                 $decoyBaseEntry = $entry;
             }
         }
+        $realBaseUsage = $realBaseEntry['reference_usages'][0] ?? [];
 
         $t->same(['Literal UseCMap Safe Import'], $extractor->extractTextLines($pdf));
         $t->same(['Literal UseCMap Safe Import'], $extractor->extractTextRuns($pdf));
@@ -2882,6 +2883,7 @@ return [
         $t->same(3, $review['cmap_stream_count']);
         $t->same(1, $review['to_unicode_cmap_stream_count']);
         $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(1, $review['use_cmap_stream_count']);
         $t->same(3, $review['decoded_cmap_count']);
         $t->true(is_array($derivedEntry));
         $t->true(is_array($realBaseEntry));
@@ -2894,7 +2896,11 @@ return [
         $t->same(true, $derivedEntry['decoded_with_current_operands'] ?? null);
         $t->same(7, $realBaseEntry['object_number'] ?? null);
         $t->same('LiteralUseCMapRealBase-H', $realBaseEntry['cmap_name'] ?? null);
-        $t->same([], $realBaseEntry['reference_usages'] ?? null);
+        $t->same('use_cmap', $realBaseUsage['usage'] ?? null);
+        $t->same(6, $realBaseUsage['source_object'] ?? null);
+        $t->same('LiteralUseCMapRealBase-H', $realBaseUsage['name'] ?? null);
+        $t->same('LiteralUseCMapRealBase-H', $realBaseUsage['reference'] ?? null);
+        $t->same('named_usecmap', $realBaseUsage['reference_kind'] ?? null);
         $t->same(['FlateDecode'], $realBaseEntry['filters'] ?? null);
         $t->same(true, $realBaseEntry['decoded_with_current_operands'] ?? null);
         $t->same(8, $decoyBaseEntry['object_number'] ?? null);

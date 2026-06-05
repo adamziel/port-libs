@@ -1227,6 +1227,52 @@ final class PdfTextExtractor
             }
         }
 
+        $namedCMapObjects = [];
+        $namedUseCMapReferences = [];
+        foreach ($objects as $cMapObjectNumber => $body) {
+            $stream = $this->streamDictionaryAndPayload($body, $objects);
+            if ($stream === null || !$this->cMapStreamDictionaryLooksLikeCMap($stream['dict'], $objects)) {
+                continue;
+            }
+
+            $declaredName = $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'CMapName', $objects);
+            $decoded = $this->decodeCMapStream($stream['dict'], $stream['stream'], $objects);
+            $boundedDecoded = $decoded === null ? null : $this->boundedSingleCMapStreamProgram($decoded);
+            $decodedName = $boundedDecoded === null ? null : $this->cMapName($boundedDecoded);
+            $cMapName = $decodedName ?? $declaredName;
+            if ($cMapName !== null && $cMapName !== '') {
+                $namedCMapObjects[$cMapName][$cMapObjectNumber] = true;
+            }
+
+            if ($boundedDecoded === null) {
+                continue;
+            }
+
+            foreach ($this->cMapUseCMapNames($boundedDecoded) as $name) {
+                $namedUseCMapReferences[$cMapObjectNumber][$name] = true;
+            }
+        }
+
+        foreach ($namedUseCMapReferences as $sourceObjectNumber => $names) {
+            foreach (array_keys($names) as $name) {
+                foreach (array_keys($namedCMapObjects[$name] ?? []) as $objectNumber) {
+                    if ($objectNumber === $sourceObjectNumber) {
+                        continue;
+                    }
+
+                    $key = 'use_cmap_named:' . $sourceObjectNumber . ':' . $name . ':' . $objectNumber;
+                    $usages[$objectNumber][$key] = [
+                        'usage' => 'use_cmap',
+                        'source_object' => $sourceObjectNumber,
+                        'generation' => null,
+                        'name' => $name,
+                        'reference' => $name,
+                        'reference_kind' => 'named_usecmap',
+                    ];
+                }
+            }
+        }
+
         foreach ($usages as $objectNumber => $entries) {
             $entries = array_values($entries);
             usort($entries, static fn (array $left, array $right): int => strcmp(
