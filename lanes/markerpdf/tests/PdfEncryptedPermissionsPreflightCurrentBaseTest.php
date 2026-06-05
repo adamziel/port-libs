@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\MarkerPDF\PdfMetadataExtractor;
 use PortLibs\MarkerPDF\PdfSecurityPreflight;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
@@ -117,6 +118,111 @@ $invalidAes256LengthStandardPdf = static function () use ($hex): array {
         . "trailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF";
 
     return [$pdf, $content, $ownerValidation, $userValidation, $ownerEncryptionKey, $userEncryptionKey, $permissionDigest];
+};
+
+$malformedPermissionWordOperandPdf = static function (string $operand, string $label) use ($hex): array {
+    $content = "BT /F1 12 Tf 72 720 Td ({$label} malformed permission encrypted text leak) Tj ET";
+    $ownerValidation = str_repeat(substr($label, 0, 1), 32);
+    $userValidation = str_repeat(substr($label, -1), 32);
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Filter /Standard /V 4 /R 4 /Length 128"
+        . " /O " . $hex($ownerValidation)
+        . " /U " . $hex($userValidation)
+        . " /P {$operand} /EncryptMetadata true >>\nendobj\n"
+        . "trailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF";
+
+    return [$pdf, $content, $ownerValidation, $userValidation];
+};
+
+$assertMalformedPermissionWordOperandPreflight = static function (
+    TestRunner $t,
+    string $pdf,
+    string $content,
+    string $ownerValidation,
+    string $userValidation,
+    string $entryStatus,
+    string $reviewReason,
+    bool $resolved
+): void {
+    $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+    $report = (new PdfSecurityPreflight())->analyze($pdf);
+    $encryption = $metadata['encryption'];
+    $reviewEncryption = $report['encryption'];
+    $permission = $report['permission_preflight'];
+    $handler = $report['permission_handler_review'];
+    $declaration = $permission['standard_permission_word_review'];
+    $entry = $declaration['entries'][0] ?? [];
+    $encoded = json_encode([$metadata, $report], JSON_UNESCAPED_SLASHES);
+
+    $t->same('', (new PdfTextExtractor())->extractPlainText($pdf));
+    $t->same('block_encrypted_content_review_security_metadata', $report['import_decision']);
+    $t->same(['encrypted_document', 'encrypted_text_extraction_blocked', $reviewReason], $report['review_reasons']);
+
+    $t->same('Standard', $encryption['filter']);
+    $t->same(false, isset($encryption['standard_permissions']));
+    $t->same($declaration, $encryption['standard_permission_word_review']);
+    $t->same($declaration, $reviewEncryption['standard_permission_word_review']);
+    $t->same('malformed_standard_permission_word_review', $reviewEncryption['permission_word_status']);
+    $t->same(false, $reviewEncryption['permission_word_well_formed']);
+    $t->same(false, $reviewEncryption['permission_bits_reliable']);
+    $t->same(null, $reviewEncryption['permission_hex']);
+    $t->same(null, $reviewEncryption['copy_or_extract_allowed']);
+    $t->same([], $reviewEncryption['allowed']);
+    $t->same([], $reviewEncryption['permission_bits']);
+
+    $t->same('standard_security_handler_malformed_permissions', $permission['source']);
+    $t->same(true, $permission['permissions_declared']);
+    $t->same(true, $permission['standard_permissions_declared']);
+    $t->same('permissions_malformed_blocked_without_decryption', $permission['policy']);
+    $t->same('blocked_encrypted_permissions_malformed', $permission['content_extraction_boundary']);
+    $t->same(null, $permission['permission_hex']);
+    $t->same(null, $permission['permission_signed']);
+    $t->same(null, $permission['permission_unsigned']);
+    $t->same(false, $permission['permission_word_well_formed']);
+    $t->same(false, $permission['permission_bits_reliable']);
+    $t->same(null, $permission['copy_or_extract_allowed']);
+    $t->same([], $permission['allowed']);
+    $t->same([], $permission['denied']);
+    $t->same([], $permission['permission_bits']);
+    $t->same(0, $permission['permission_bit_review_count']);
+
+    $t->same('permission_handler_review', $handler['source']);
+    $t->same('Standard', $handler['handler']);
+    $t->same(true, $handler['standard_handler']);
+    $t->same(true, $handler['handler_supported_for_native_permission_review']);
+    $t->same(false, $handler['permission_word_well_formed']);
+    $t->same('malformed_standard_permission_word_review', $handler['status']);
+    $t->same(false, $handler['executes_permission_enforcement']);
+
+    $t->same('standard_permission_word_declaration_review', $declaration['source']);
+    $t->same(1, $declaration['declared_entry_count']);
+    $t->same(0, $declaration['integer_entry_count']);
+    $t->same(false, $declaration['duplicate_permission_entries']);
+    $t->same(true, $declaration['permission_word_ambiguous']);
+    $t->same('malformed_standard_permission_word_review', $declaration['status']);
+    $t->same([$entryStatus], $declaration['entry_statuses']);
+    $t->same([], $declaration['unsigned_values']);
+    $t->same([], $declaration['hex_values']);
+    $t->same('standard_permission_word_entry_review', $entry['source'] ?? null);
+    $t->same($entryStatus, $entry['status'] ?? null);
+    $t->same($resolved, $entry['resolved'] ?? null);
+    $t->same(false, $entry['integer'] ?? null);
+
+    $t->same(false, $report['executes_decryption']);
+    $t->same(false, $report['executes_permission_enforcement']);
+    $t->same(false, $report['executes_python_or_models']);
+    $t->same(false, $report['executes_external_pdf_tools']);
+    $t->true(is_string($encoded)
+        && !str_contains($encoded, $content)
+        && !str_contains($encoded, $ownerValidation)
+        && !str_contains($encoded, $userValidation)
+        && !str_contains($encoded, strtoupper(bin2hex($ownerValidation)))
+        && !str_contains($encoded, strtoupper(bin2hex($userValidation))));
 };
 
 return [
@@ -416,5 +522,37 @@ return [
             && !str_contains($encoded, $userEncryptionKey)
             && !str_contains($encoded, $permissionDigest)
             && !str_contains($encoded, strtoupper(bin2hex($permissionDigest))));
+    },
+    'fails closed when Standard permission word is a non-integer token' => static function (
+        TestRunner $t
+    ) use ($malformedPermissionWordOperandPdf, $assertMalformedPermissionWordOperandPreflight): void {
+        [$pdf, $content, $ownerValidation, $userValidation] = $malformedPermissionWordOperandPdf('(copy-ok)', 'TOKEN');
+
+        $assertMalformedPermissionWordOperandPreflight(
+            $t,
+            $pdf,
+            $content,
+            $ownerValidation,
+            $userValidation,
+            'permission_word_non_integer_review',
+            'permission_word_non_integer',
+            true
+        );
+    },
+    'fails closed when Standard permission word points at an unresolved indirect operand' => static function (
+        TestRunner $t
+    ) use ($malformedPermissionWordOperandPdf, $assertMalformedPermissionWordOperandPreflight): void {
+        [$pdf, $content, $ownerValidation, $userValidation] = $malformedPermissionWordOperandPdf('99 0 R', 'REFERENCE');
+
+        $assertMalformedPermissionWordOperandPreflight(
+            $t,
+            $pdf,
+            $content,
+            $ownerValidation,
+            $userValidation,
+            'permission_word_unresolved_reference',
+            'permission_word_unresolved_reference',
+            false
+        );
     },
 ];
