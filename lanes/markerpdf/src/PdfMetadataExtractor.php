@@ -11375,22 +11375,8 @@ final class PdfMetadataExtractor
      */
     private function streamFilters(string $dict, array $objects): array
     {
-        if (!preg_match('/\/Filter\s*(?:\[(.*?)\]|\/([^\s\[\]()<>{}\/%]+)|(\d+)\s+\d+\s+R\b)/s', $dict, $match)) {
-            return [];
-        }
-
-        if (($match[1] ?? '') !== '') {
-            return $this->filterNamesFromValue($match[1], $objects);
-        }
-
-        if (($match[2] ?? '') !== '') {
-            return [$this->decodePdfName($match[2])];
-        }
-
-        $objectNumber = isset($match[3]) ? (int) $match[3] : 0;
-        return $objectNumber > 0 && isset($objects[$objectNumber])
-            ? $this->filterNamesFromValue($objects[$objectNumber], $objects)
-            : [];
+        $value = $this->dictionaryTopLevelRawValue($dict, 'Filter');
+        return $value === null ? [] : $this->filterNamesFromValue($value, $objects);
     }
 
     /**
@@ -11399,23 +11385,38 @@ final class PdfMetadataExtractor
      */
     private function filterNamesFromValue(string $value, array $objects): array
     {
-        preg_match_all('/\/([^\s\[\]()<>{}\/%]+)|(\d+)\s+\d+\s+R\b/', $value, $matches, PREG_SET_ORDER);
-        $filters = [];
-        foreach ($matches as $match) {
-            if (($match[1] ?? '') !== '') {
-                $filters[] = $this->decodePdfName($match[1]);
-                continue;
-            }
+        $value = $this->trimPdfWhitespaceAndComments($this->resolvePdfValue($value, $objects) ?? $value);
+        if ($value === '') {
+            return [];
+        }
 
-            $objectNumber = isset($match[2]) ? (int) $match[2] : 0;
-            if ($objectNumber > 0 && isset($objects[$objectNumber])) {
-                foreach ($this->filterNamesFromValue($objects[$objectNumber], $objects) as $filter) {
+        if (str_starts_with($value, '[')) {
+            $filters = [];
+            foreach ($this->arrayItemsFromValue($value, $objects) as $item) {
+                foreach ($this->filterNamesFromValue($item, $objects) as $filter) {
                     $filters[] = $filter;
                 }
             }
+
+            return $filters;
         }
 
-        return $filters;
+        if (str_starts_with($value, '/')) {
+            $name = $this->nameValueAt($value, 0);
+            return $name === null ? [] : [$name];
+        }
+
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference === null) {
+            return [];
+        }
+
+        $objectBody = $this->objectBodyForReference($objects, $reference['objectNumber'], $reference['generation']);
+        if ($objectBody === null) {
+            return [];
+        }
+
+        return $this->filterNamesFromValue($objectBody, $objects);
     }
 
     /**
