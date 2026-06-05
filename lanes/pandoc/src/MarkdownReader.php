@@ -5639,6 +5639,11 @@ final class MarkdownReader
 
         $captionInlines = $caption instanceof \DOMElement ? $this->parseHtmlInlineChildren($caption) : [];
         $columnMetadata = $this->readHtmlTableColumnMetadata($table, $maxColumns);
+        if ($columnMetadata['verticalAlignments'] !== null) {
+            $headRows = $this->applyHtmlColumnVerticalAlignmentsToRows($headRows, $columnMetadata['verticalAlignments']);
+            $bodyNodes = $this->applyHtmlColumnVerticalAlignmentsToBodies($bodyNodes, $columnMetadata['verticalAlignments']);
+            $footRows = $this->applyHtmlColumnVerticalAlignmentsToRows($footRows, $columnMetadata['verticalAlignments']);
+        }
         $alignments = $columnMetadata['alignments'];
         if ($alignments === null) {
             $alignments = array_fill(0, $maxColumns, 'default');
@@ -5774,19 +5779,21 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{alignments:?list<string>, widths:?list<?float>, sources:?list<array<string, mixed>>, diagnostics:list<array<string, mixed>>}
+     * @return array{alignments:?list<string>, widths:?list<?float>, verticalAlignments:?list<string>, sources:?list<array<string, mixed>>, diagnostics:list<array<string, mixed>>}
      */
     private function readHtmlTableColumnMetadata(\DOMElement $table, int $maxColumns): array
     {
         $colgroups = $this->childElements($table, 'colgroup');
         if ($colgroups === []) {
-            return ['alignments' => null, 'widths' => null, 'sources' => null, 'diagnostics' => []];
+            return ['alignments' => null, 'widths' => null, 'verticalAlignments' => null, 'sources' => null, 'diagnostics' => []];
         }
 
         $widths = [];
         $alignments = [];
+        $verticalAlignments = [];
         $sources = [];
         $hasAlignment = false;
+        $hasVerticalAlignment = false;
         $hasWidth = false;
         $hasCompleteWidths = true;
         foreach ($colgroups as $colgroupIndex => $colgroup) {
@@ -5794,13 +5801,16 @@ final class MarkdownReader
             if ($cols === []) {
                 $span = $this->positiveHtmlSpan($colgroup->getAttribute('span'));
                 $alignment = $this->normalizeHtmlColumnAlignment($colgroup);
+                $verticalAlignment = $this->normalizeHtmlColumnVerticalAlignment($colgroup);
                 $width = $this->htmlColumnWidthPercent($colgroup);
                 for ($index = 0; $index < $span; $index++) {
                     $column = count($alignments);
                     $alignments[] = $alignment;
+                    $verticalAlignments[] = $verticalAlignment;
                     $widths[] = $width;
-                    $sources[] = $this->htmlColumnSourceRecord($colgroup, $colgroupIndex, null, null, $column, $span, $index, $alignment, $width);
+                    $sources[] = $this->htmlColumnSourceRecord($colgroup, $colgroupIndex, null, null, $column, $span, $index, $alignment, $verticalAlignment, $width);
                     $hasAlignment = $hasAlignment || $alignment !== 'default';
+                    $hasVerticalAlignment = $hasVerticalAlignment || $verticalAlignment !== 'default';
                     $hasWidth = $hasWidth || $width !== null;
                     $hasCompleteWidths = $hasCompleteWidths && $width !== null;
                 }
@@ -5810,13 +5820,16 @@ final class MarkdownReader
             foreach ($cols as $colIndex => $col) {
                 $span = $this->positiveHtmlSpan($col->getAttribute('span'));
                 $alignment = $this->normalizeHtmlColumnAlignment($col, $colgroup);
+                $verticalAlignment = $this->normalizeHtmlColumnVerticalAlignment($col, $colgroup);
                 $width = $this->htmlColumnWidthPercent($col);
                 for ($index = 0; $index < $span; $index++) {
                     $column = count($alignments);
                     $alignments[] = $alignment;
+                    $verticalAlignments[] = $verticalAlignment;
                     $widths[] = $width;
-                    $sources[] = $this->htmlColumnSourceRecord($colgroup, $colgroupIndex, $col, $colIndex, $column, $span, $index, $alignment, $width);
+                    $sources[] = $this->htmlColumnSourceRecord($colgroup, $colgroupIndex, $col, $colIndex, $column, $span, $index, $alignment, $verticalAlignment, $width);
                     $hasAlignment = $hasAlignment || $alignment !== 'default';
+                    $hasVerticalAlignment = $hasVerticalAlignment || $verticalAlignment !== 'default';
                     $hasWidth = $hasWidth || $width !== null;
                     $hasCompleteWidths = $hasCompleteWidths && $width !== null;
                 }
@@ -5824,7 +5837,7 @@ final class MarkdownReader
         }
 
         if ($alignments === []) {
-            return ['alignments' => null, 'widths' => null, 'sources' => null, 'diagnostics' => []];
+            return ['alignments' => null, 'widths' => null, 'verticalAlignments' => null, 'sources' => null, 'diagnostics' => []];
         }
 
         $sourceColumnCount = count($alignments);
@@ -5836,15 +5849,113 @@ final class MarkdownReader
         $targetColumnCount = $maxColumns > 0 ? max($maxColumns, $sourceColumnCount) : $sourceColumnCount;
         while (count($alignments) < $targetColumnCount) {
             $alignments[] = 'default';
+            $verticalAlignments[] = 'default';
             $widths[] = null;
         }
 
         return [
             'alignments' => $hasAlignment ? $alignments : null,
             'widths' => $hasWidth && ($hasCompleteWidths || $diagnostics !== []) ? array_values($widths) : null,
+            'verticalAlignments' => $hasVerticalAlignment ? $verticalAlignments : null,
             'sources' => $sources,
             'diagnostics' => $diagnostics,
         ];
+    }
+
+    /**
+     * @param list<AstNode> $bodies
+     * @param list<string> $verticalAlignments
+     * @return list<AstNode>
+     */
+    private function applyHtmlColumnVerticalAlignmentsToBodies(array $bodies, array $verticalAlignments): array
+    {
+        $updated = [];
+        foreach ($bodies as $body) {
+            $headRows = [];
+            $rawHeadRows = $body->attr('headRows', []);
+            if (is_array($rawHeadRows)) {
+                foreach ($rawHeadRows as $row) {
+                    if ($row instanceof AstNode && $row->type === 'table_row') {
+                        $headRows[] = $row;
+                    }
+                }
+            }
+
+            $rows = $this->applyHtmlColumnVerticalAlignmentsToRows(
+                [...$headRows, ...$body->children],
+                $verticalAlignments
+            );
+            $attrs = $body->attrs;
+            if ($headRows !== []) {
+                $attrs['headRows'] = array_slice($rows, 0, count($headRows));
+            }
+
+            $updated[] = new AstNode(
+                $body->type,
+                $attrs,
+                array_slice($rows, count($headRows))
+            );
+        }
+
+        return $updated;
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     * @param list<string> $verticalAlignments
+     * @return list<AstNode>
+     */
+    private function applyHtmlColumnVerticalAlignmentsToRows(array $rows, array $verticalAlignments): array
+    {
+        if ($rows === [] || $verticalAlignments === []) {
+            return $rows;
+        }
+
+        $columnCount = max(count($verticalAlignments), TableGeometry::columnCountForRows($rows));
+        $layoutRows = TableGeometry::layoutRows($rows, $columnCount);
+        $updatedRows = [];
+        foreach ($layoutRows as $rowIndex => $layoutRow) {
+            $updates = [];
+            foreach ($layoutRow['cells'] as $layoutCell) {
+                $verticalAlignment = (string) ($verticalAlignments[(int) $layoutCell['column']] ?? 'default');
+                if ($verticalAlignment === 'default') {
+                    continue;
+                }
+
+                $cell = $layoutCell['node'];
+                if ((string) $cell->attr('valign', '') !== '') {
+                    continue;
+                }
+
+                $updates[(int) $layoutCell['sourceCell']] = new AstNode(
+                    $cell->type,
+                    array_replace($cell->attrs, ['valign' => $verticalAlignment]),
+                    $cell->children
+                );
+            }
+
+            if ($updates === []) {
+                $updatedRows[] = $rows[$rowIndex] ?? $layoutRow['row'];
+                continue;
+            }
+
+            $row = $rows[$rowIndex] ?? $layoutRow['row'];
+            $children = [];
+            $sourceCell = 0;
+            foreach ($row->children as $child) {
+                if ($child->type !== 'table_cell') {
+                    $children[] = $child;
+                    continue;
+                }
+
+                $children[] = $updates[$sourceCell] ?? $child;
+                $sourceCell++;
+            }
+
+            $updatedRows[] = new AstNode($row->type, $row->attrs, $children);
+        }
+
+        return $updatedRows;
     }
 
     /**
@@ -5882,6 +5993,7 @@ final class MarkdownReader
         int $sourceSpan,
         int $spanOffset,
         string $alignment,
+        string $verticalAlignment,
         ?float $width
     ): array {
         $record = [
@@ -5891,6 +6003,7 @@ final class MarkdownReader
             'sourceSpan' => $sourceSpan,
             'spanOffset' => $spanOffset,
             'alignment' => $alignment,
+            'verticalAlignment' => $verticalAlignment,
             'width' => $width,
         ];
 
@@ -6159,6 +6272,16 @@ final class MarkdownReader
         }
 
         return $fallback instanceof \DOMElement ? $this->normalizeHtmlElementAlignment($fallback) : 'default';
+    }
+
+    private function normalizeHtmlColumnVerticalAlignment(\DOMElement $element, ?\DOMElement $fallback = null): string
+    {
+        $alignment = $this->normalizeHtmlElementVerticalAlignment($element);
+        if ($alignment !== 'default') {
+            return $alignment;
+        }
+
+        return $fallback instanceof \DOMElement ? $this->normalizeHtmlElementVerticalAlignment($fallback) : 'default';
     }
 
     private function normalizeHtmlElementAlignment(\DOMElement $element): string

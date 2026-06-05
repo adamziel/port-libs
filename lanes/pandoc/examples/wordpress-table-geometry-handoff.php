@@ -41,8 +41,8 @@ $colgroupAlignmentDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="colgroup-alignment-grid" data-source="html-reader">
 <caption>Colgroup alignment review</caption>
 <colgroup data-source="legacy-doc">
-<col span="2" style="width: 25%; text-align: right" data-origin="col-a" />
-<col width="50%" align="center" data-origin="col-b" />
+<col span="2" style="width: 25%; text-align: right; vertical-align: bottom" data-origin="col-a" />
+<col width="50%" align="center" valign="top" data-origin="col-b" />
 </colgroup>
 <thead>
 <tr><th>Scope</th><th>Items</th><th>State</th></tr>
@@ -1077,17 +1077,25 @@ if (($argv[1] ?? '') === '--self-test') {
         !$colgroupAlignmentTable instanceof AstNode
         || $colgroupAlignmentTable->attr('alignments') !== ['right', 'right', 'center']
         || $colgroupAlignmentTable->attr('widths') !== [0.25, 0.25, 0.5]
+        || ($colgroupAlignmentTable->children[0]->children[0]->children[0]->attr('valign') ?? null) !== 'bottom'
+        || ($colgroupAlignmentTable->children[1]->children[0]->children[1]->attr('valign') ?? null) !== 'bottom'
+        || ($colgroupAlignmentTable->children[1]->children[1]->children[2]->attr('valign') ?? null) !== 'top'
     ) {
-        throw new RuntimeException('Table geometry self-test missing HTML colgroup span alignment and width expansion');
+        throw new RuntimeException('Table geometry self-test missing HTML colgroup span alignment width and vertical alignment expansion');
     }
     $columnSources = $colgroupAlignmentTable->attr('columnSources');
     if (!is_array($columnSources) || ($columnSources[1]['spanOffset'] ?? null) !== 1 || ($columnSources[2]['colIndex'] ?? null) !== 1) {
         throw new RuntimeException('Table geometry self-test missing HTML colgroup span provenance metadata');
     }
-    if (($columnSources[0]['colgroupAttributes']['htmlAttributes']['data-source'] ?? null) !== 'legacy-doc' || ($columnSources[2]['colAttributes']['htmlAttributes']['data-origin'] ?? null) !== 'col-b') {
-        throw new RuntimeException('Table geometry self-test missing source colgroup/col attributes in provenance metadata');
+    if (
+        ($columnSources[0]['colgroupAttributes']['htmlAttributes']['data-source'] ?? null) !== 'legacy-doc'
+        || ($columnSources[0]['verticalAlignment'] ?? null) !== 'bottom'
+        || ($columnSources[2]['verticalAlignment'] ?? null) !== 'top'
+        || ($columnSources[2]['colAttributes']['htmlAttributes']['data-origin'] ?? null) !== 'col-b'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing source colgroup/col attributes or vertical alignment in provenance metadata');
     }
-    if (!is_array($colgroupAlignmentPacket) || ($colgroupAlignmentPacket['coverage'][4]['columnAlignments'] ?? null) !== ['right'] || ($colgroupAlignmentPacket['coverage'][5]['widths'] ?? null) !== [0.5]) {
+    if (!is_array($colgroupAlignmentPacket) || ($colgroupAlignmentPacket['coverage'][4]['columnAlignments'] ?? null) !== ['right'] || ($colgroupAlignmentPacket['coverage'][4]['verticalAlignment'] ?? null) !== 'bottom' || ($colgroupAlignmentPacket['coverage'][5]['widths'] ?? null) !== [0.5] || ($colgroupAlignmentPacket['coverage'][5]['verticalAlignment'] ?? null) !== 'top') {
         throw new RuntimeException('Table geometry self-test missing colgroup metadata in review-packet coverage');
     }
     if (($colgroupAlignmentPacket['columns'][1]['source']['spanOffset'] ?? null) !== 1 || ($colgroupAlignmentPacket['coverage'][5]['columnSources'][0]['colAttributes']['htmlAttributes']['data-origin'] ?? null) !== 'col-b') {
@@ -1097,13 +1105,15 @@ if (($argv[1] ?? '') === '--self-test') {
         count($colgroupAlignmentPacket['columnGroups'] ?? []) !== 2
         || ($colgroupAlignmentPacket['columnGroups'][0]['columns'] ?? null) !== [0, 1]
         || ($colgroupAlignmentPacket['columnGroups'][0]['spanOffsets'] ?? null) !== [0, 1]
+        || ($colgroupAlignmentPacket['columnGroups'][0]['source']['verticalAlignment'] ?? null) !== 'bottom'
         || ($colgroupAlignmentPacket['columnGroups'][0]['source']['colAttributes']['htmlAttributes']['data-origin'] ?? null) !== 'col-a'
         || ($colgroupAlignmentPacket['columnGroups'][1]['columns'] ?? null) !== [2]
+        || ($colgroupAlignmentPacket['columnGroups'][1]['source']['verticalAlignment'] ?? null) !== 'top'
         || ($colgroupAlignmentPacket['summary']['columnGroupCount'] ?? null) !== 2
     ) {
         throw new RuntimeException('Table geometry self-test missing grouped colgroup source-span metadata');
     }
-    if (!str_contains($blocks, '<table id="colgroup-alignment-grid" data-source="html-reader"><colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:50%"/></colgroup><thead><tr><th style="text-align:right">Scope</th><th style="text-align:right">Items</th><th style="text-align:center">State</th></tr></thead>')) {
+    if (!str_contains($blocks, '<table id="colgroup-alignment-grid" data-source="html-reader"><colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:50%"/></colgroup><thead><tr><th style="text-align:right; vertical-align:bottom">Scope</th><th style="text-align:right; vertical-align:bottom">Items</th><th style="text-align:center; vertical-align:top">State</th></tr></thead>')) {
         throw new RuntimeException('Table geometry self-test missing WordPress output for expanded colgroup alignment metadata');
     }
     json_encode($colgroupAlignmentPacket, JSON_THROW_ON_ERROR);

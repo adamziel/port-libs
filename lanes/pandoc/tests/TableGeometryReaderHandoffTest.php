@@ -305,8 +305,8 @@ HTML;
 <table id="colgroup-alignment-grid" data-source="html-reader">
 <caption>Colgroup alignment review</caption>
 <colgroup>
-<col span="2" style="width: 25%; text-align: right" />
-<col width="50%" align="center" />
+<col span="2" style="width: 25%; text-align: right; vertical-align: bottom" />
+<col width="50%" align="center" valign="top" />
 </colgroup>
 <thead>
 <tr><th>Scope</th><th>Items</th><th>State</th></tr>
@@ -329,20 +329,63 @@ HTML;
         $t->same([0.25, 0.25, 0.5], $table->attr('widths'));
         $t->same(['right', 'right', 'center'], TableGeometry::alignments($table, 3));
         $t->same([0.25, 0.25, 0.5], array_map(static fn (array $column): ?float => $column['width'], TableGeometry::columnSpecs($table, 3)));
+        $t->same('bottom', $table->children[0]->children[0]->children[0]->attr('valign'));
+        $t->same('bottom', $table->children[1]->children[0]->children[1]->attr('valign'));
+        $t->same('top', $table->children[1]->children[1]->children[2]->attr('valign'));
         $t->same(true, is_array($packet));
         $packet = is_array($packet) ? $packet : [];
         $t->same(['right', 'right', 'center'], array_map(static fn (array $column): string => $column['alignment'], $packet['columns'] ?? []));
         $t->same([0.25, 0.25, 0.5], array_map(static fn (array $column): ?float => $column['width'], $packet['columns'] ?? []));
+        $t->same('bottom', $packet['columns'][0]['source']['verticalAlignment'] ?? null);
+        $t->same('top', $packet['columns'][2]['source']['verticalAlignment'] ?? null);
         $t->same(['right'], $packet['coverage'][3]['columnAlignments'] ?? null);
         $t->same([0.25], $packet['coverage'][3]['widths'] ?? null);
+        $t->same('bottom', $packet['coverage'][3]['verticalAlignment'] ?? null);
         $t->same(['right'], $packet['coverage'][4]['columnAlignments'] ?? null);
         $t->same([0.25], $packet['coverage'][4]['widths'] ?? null);
+        $t->same('bottom', $packet['coverage'][4]['verticalAlignment'] ?? null);
         $t->same(['center'], $packet['coverage'][5]['columnAlignments'] ?? null);
         $t->same([0.5], $packet['coverage'][5]['widths'] ?? null);
+        $t->same('top', $packet['coverage'][5]['verticalAlignment'] ?? null);
         $t->same([], $packet['summary']['diagnosticCodes'] ?? null);
         $t->contains('<colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:50%"/></colgroup>', $blocks);
-        $t->contains('<thead><tr><th style="text-align:right">Scope</th><th style="text-align:right">Items</th><th style="text-align:center">State</th></tr></thead>', $blocks);
-        $t->contains('<tbody><tr><td style="text-align:right">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td></tr><tr><td style="text-align:right">Media</td><td style="text-align:right">7</td><td style="text-align:center">Review</td></tr></tbody>', $blocks);
+        $t->contains('<thead><tr><th style="text-align:right; vertical-align:bottom">Scope</th><th style="text-align:right; vertical-align:bottom">Items</th><th style="text-align:center; vertical-align:top">State</th></tr></thead>', $blocks);
+        $t->contains('<tbody><tr><td style="text-align:right; vertical-align:bottom">Posts</td><td style="text-align:right; vertical-align:bottom">42</td><td style="text-align:center; vertical-align:top">Ready</td></tr><tr><td style="text-align:right; vertical-align:bottom">Media</td><td style="text-align:right; vertical-align:bottom">7</td><td style="text-align:center; vertical-align:top">Review</td></tr></tbody>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'applies html colgroup vertical alignment without overriding cell or row metadata' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="colgroup-valign-precedence">
+<colgroup>
+<col style="vertical-align: bottom" />
+<col valign="top" />
+</colgroup>
+<tbody>
+<tr valign="middle"><td>Row wins</td><td>Row state</td></tr>
+<tr><td style="vertical-align: middle">Cell wins</td><td>Column wins</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('middle', $table->children[1]->children[0]->children[0]->attr('valign'));
+        $t->same('middle', $table->children[1]->children[0]->children[1]->attr('valign'));
+        $t->same('middle', $table->children[1]->children[1]->children[0]->attr('valign'));
+        $t->same('top', $table->children[1]->children[1]->children[1]->attr('valign'));
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same('bottom', $packet['columns'][0]['source']['verticalAlignment'] ?? null);
+        $t->same('top', $packet['columns'][1]['source']['verticalAlignment'] ?? null);
+        $t->same('middle', $packet['coverage'][0]['verticalAlignment'] ?? null);
+        $t->same('middle', $packet['coverage'][1]['verticalAlignment'] ?? null);
+        $t->same('middle', $packet['coverage'][2]['verticalAlignment'] ?? null);
+        $t->same('top', $packet['coverage'][3]['verticalAlignment'] ?? null);
+        $t->same('vertical-align: middle', $packet['coverage'][2]['sourceAttributes']['htmlAttributes']['style'] ?? null);
+        $t->contains('<tbody><tr valign="middle"><td style="vertical-align:middle">Row wins</td><td style="vertical-align:middle">Row state</td></tr><tr><td style="vertical-align: middle">Cell wins</td><td style="vertical-align:top">Column wins</td></tr></tbody>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'carries html colgroup span provenance into table geometry review packets' => static function (TestRunner $t): void {
