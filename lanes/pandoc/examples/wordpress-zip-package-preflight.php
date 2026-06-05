@@ -871,7 +871,10 @@ $tarPacket = TarArchive::fromEntries([
 ], [
     'globalPaxHeaders' => $tarPacketGlobalPaxHeaders,
 ]);
-$compressedTarPacket = GzipStream::build($tarPacket->bytes(), [
+$tarPacketBytes = $tarPacket->bytes();
+$tarPacketUnpackedBytes = strlen($tarPacket->read('/packet/manifest.json'))
+    + strlen($tarPacket->read('/packet/word/document.xml'));
+$compressedTarPacket = GzipStream::build($tarPacketBytes, [
     'modifiedAt' => $documentModifiedAt,
     'filename' => 'wordpress-import-packet.tar',
     'comment' => 'gzip tar review packet',
@@ -880,19 +883,65 @@ $compressedTarPacket = GzipStream::build($tarPacket->bytes(), [
 $tarPacketRoundTrip = TarArchive::fromString(GzipStream::decode($compressedTarPacket));
 $streamDetectedTarFormat = ArchiveCompressionStream::detectTarFormat(
     $compressedTarPacket,
-    strlen($tarPacket->bytes()),
-    strlen($tarPacket->read('/packet/manifest.json')) + strlen($tarPacket->read('/packet/word/document.xml'))
+    strlen($tarPacketBytes),
+    $tarPacketUnpackedBytes
 );
 $streamDecodedTarBytes = ArchiveCompressionStream::decodeTarBytesAuto(
     $compressedTarPacket,
-    strlen($tarPacket->bytes()),
-    strlen($tarPacket->read('/packet/manifest.json')) + strlen($tarPacket->read('/packet/word/document.xml'))
+    strlen($tarPacketBytes),
+    $tarPacketUnpackedBytes
 );
 $streamDispatchedTarPacket = ArchiveCompressionStream::openTarAuto(
     $compressedTarPacket,
-    strlen($tarPacket->bytes()),
-    strlen($tarPacket->read('/packet/manifest.json')) + strlen($tarPacket->read('/packet/word/document.xml'))
+    strlen($tarPacketBytes),
+    $tarPacketUnpackedBytes
 );
+$tarPacketSplitOffset = 700;
+$splitGzipTarPacket = GzipStream::build(substr($tarPacketBytes, 0, $tarPacketSplitOffset), [
+    'modifiedAt' => $documentModifiedAt,
+    'filename' => 'wordpress-import-packet.part-1.tar',
+    'comment' => 'split gzip tar member one',
+    'headerCrc' => true,
+]) . GzipStream::build(substr($tarPacketBytes, $tarPacketSplitOffset), [
+    'modifiedAt' => $documentModifiedAt,
+    'filename' => 'wordpress-import-packet.part-2.tar',
+    'comment' => 'split gzip tar member two',
+    'headerCrc' => true,
+]);
+$splitGzipTarInspection = ArchiveCompressionStream::inspectTarStreamAuto(
+    $splitGzipTarPacket,
+    strlen($tarPacketBytes),
+    $tarPacketUnpackedBytes
+);
+$splitLz4TarPacket = Lz4Frame::skippableFrame('split wordpress archive metadata', 3)
+    . Lz4Frame::build(substr($tarPacketBytes, 0, $tarPacketSplitOffset), [
+        'contentSize' => true,
+        'contentChecksum' => true,
+    ])
+    . Lz4Frame::build(substr($tarPacketBytes, $tarPacketSplitOffset), [
+        'contentSize' => true,
+        'contentChecksum' => true,
+    ]);
+$splitLz4TarInspection = ArchiveCompressionStream::inspectTarStream(
+    $splitLz4TarPacket,
+    ArchiveCompressionStream::FORMAT_LZ4_TAR,
+    strlen($tarPacketBytes),
+    $tarPacketUnpackedBytes
+);
+$separateCompleteTarPacket = TarArchive::fromEntries([
+    [
+        'name' => 'packet/separate-manifest.json',
+        'data' => '{"source":"separate-complete-tar"}',
+    ],
+]);
+$separateCompleteGzipTarRejected = false;
+try {
+    ArchiveCompressionStream::inspectTarStreamAuto($compressedTarPacket . GzipStream::build($separateCompleteTarPacket->bytes(), [
+        'filename' => 'second-complete.tar',
+    ]));
+} catch (RuntimeException $exception) {
+    $separateCompleteGzipTarRejected = str_contains($exception->getMessage(), 'non-zero bytes after the end marker');
+}
 $gnuLongDocumentName = 'packet/' . str_repeat('migration-review-', 7) . 'word/document.xml';
 $gnuLongNameTar = $buildRawTarRecord('././@LongLink', 'L', $gnuLongDocumentName . "\0", $documentModifiedAt)
     . $buildRawTarRecord(
@@ -1283,6 +1332,46 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected archive stream auto-detection to return the tar packet bytes');
     }
 
+    if (($splitGzipTarInspection['stream']['memberCount'] ?? 0) !== 2) {
+        throw new RuntimeException('Expected split gzip tar packet to expose both gzip members');
+    }
+
+    if (($splitGzipTarInspection['entryNames'] ?? []) !== ['packet/', 'packet/manifest.json', 'packet/word/document.xml']) {
+        throw new RuntimeException('Expected split gzip tar inspection to preserve tar entry order');
+    }
+
+    $splitGzipMemberFilenames = array_map(
+        static fn (array $member): ?string => $member['filename'],
+        $splitGzipTarInspection['stream']['members'] ?? []
+    );
+    if ($splitGzipMemberFilenames !== ['wordpress-import-packet.part-1.tar', 'wordpress-import-packet.part-2.tar']) {
+        throw new RuntimeException('Expected split gzip tar packet member filenames to be inspectable');
+    }
+
+    if ($splitGzipTarInspection['archive']->read('/packet/word/document.xml') !== '<w:document><w:body><w:p>Tar packet WordPress source</w:p></w:body></w:document>') {
+        throw new RuntimeException('Expected split gzip tar packet document bytes to round-trip');
+    }
+
+    if (($splitLz4TarInspection['stream']['frameCount'] ?? 0) !== 3 || ($splitLz4TarInspection['stream']['dataFrameCount'] ?? 0) !== 2) {
+        throw new RuntimeException('Expected split LZ4 tar packet to expose skippable metadata plus two data frames');
+    }
+
+    if (($splitLz4TarInspection['stream']['skippableFrameCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected split LZ4 tar packet to preserve one skippable metadata frame');
+    }
+
+    if (($splitLz4TarInspection['stream']['frames'][0]['data'] ?? '') !== 'split wordpress archive metadata') {
+        throw new RuntimeException('Expected split LZ4 skippable metadata to be inspectable');
+    }
+
+    if ($splitLz4TarInspection['archive']->read('/packet/manifest.json') !== '{"source":"wordpress-import","container":"tar"}') {
+        throw new RuntimeException('Expected split LZ4 tar packet manifest bytes to round-trip');
+    }
+
+    if (!$separateCompleteGzipTarRejected) {
+        throw new RuntimeException('Expected concatenated complete gzip tar archives to be rejected before import');
+    }
+
     if ($gnuLongNamePacket->read('/' . $gnuLongDocumentName) !== '<w:document><w:body><w:p>GNU long-name tar source</w:p></w:body></w:document>') {
         throw new RuntimeException('Expected GNU long-name tar document bytes to be addressable by the metadata path');
     }
@@ -1514,6 +1603,11 @@ echo 'tar.entries=' . implode(',', $tarPacketRoundTrip->names()) . "\n";
 echo 'tar.document.xml=' . $tarPacketRoundTrip->read('/packet/word/document.xml') . "\n";
 echo 'tar.globalPaxComment=' . ($tarPacketRoundTrip->globalPaxHeaders()['comment'] ?? 'none') . "\n";
 echo 'tar.detectedFormat=' . $streamDetectedTarFormat . "\n";
+echo 'tar.splitGzipMembers=' . $splitGzipTarInspection['stream']['memberCount'] . "\n";
+echo 'tar.splitGzipMemberFiles=' . implode(',', array_map(static fn (array $member): ?string => $member['filename'], $splitGzipTarInspection['stream']['members'])) . "\n";
+echo 'tar.splitLz4Frames=' . $splitLz4TarInspection['stream']['frameCount'] . "\n";
+echo 'tar.splitLz4DataFrames=' . $splitLz4TarInspection['stream']['dataFrameCount'] . "\n";
+echo 'tar.completeConcatenationPolicy=' . ($separateCompleteGzipTarRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tar.gnuLongName=' . implode(',', $gnuLongNamePacket->names()) . "\n";
 echo 'tar.paxDocument=' . $paxMetadataPacket->read('/' . $paxDocumentName) . "\n";
 echo 'tar.paxOwner=' . $paxMetadataPacket->entry('/' . $paxDocumentName)->userName . ':' . $paxMetadataPacket->entry('/' . $paxDocumentName)->groupName . "\n";

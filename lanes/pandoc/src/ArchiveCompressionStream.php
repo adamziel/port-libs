@@ -61,6 +61,61 @@ final class ArchiveCompressionStream
         return self::detectTarCandidate($bytes, $maxUncompressedBytes, $maxUnpackedBytes)['tarBytes'];
     }
 
+    /**
+     * @return array{
+     *     format:string,
+     *     tarBytes:string,
+     *     archive:TarArchive,
+     *     entryNames:list<string>,
+     *     entryCount:int,
+     *     uncompressedSize:int,
+     *     unpackedSize:int,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectTarStream(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null,
+        ?int $maxUnpackedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        self::assertLimit($maxUnpackedBytes, 'archive stream max unpacked byte limit');
+
+        $tarBytes = self::decodeTarBytes($bytes, $format, $maxUncompressedBytes);
+        $archive = TarArchive::fromString($tarBytes, $maxUnpackedBytes);
+
+        return self::tarStreamInspection($bytes, $format, $tarBytes, $archive, $maxUncompressedBytes);
+    }
+
+    /**
+     * @return array{
+     *     format:string,
+     *     tarBytes:string,
+     *     archive:TarArchive,
+     *     entryNames:list<string>,
+     *     entryCount:int,
+     *     uncompressedSize:int,
+     *     unpackedSize:int,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectTarStreamAuto(
+        string $bytes,
+        ?int $maxUncompressedBytes = null,
+        ?int $maxUnpackedBytes = null
+    ): array {
+        $candidate = self::detectTarCandidate($bytes, $maxUncompressedBytes, $maxUnpackedBytes);
+
+        return self::tarStreamInspection(
+            $bytes,
+            $candidate['format'],
+            $candidate['tarBytes'],
+            $candidate['archive'],
+            $maxUncompressedBytes
+        );
+    }
+
     public static function decodeTarBytes(
         string $bytes,
         string $format,
@@ -128,6 +183,199 @@ final class ArchiveCompressionStream
 
         $details = self::formatDetectionDetails($errors);
         throw new \RuntimeException('Unable to detect archive compression stream format as TAR' . ($details === '' ? '' : ": {$details}"));
+    }
+
+    /**
+     * @return array{
+     *     format:string,
+     *     tarBytes:string,
+     *     archive:TarArchive,
+     *     entryNames:list<string>,
+     *     entryCount:int,
+     *     uncompressedSize:int,
+     *     unpackedSize:int,
+     *     stream:array<string, mixed>
+     * }
+     */
+    private static function tarStreamInspection(
+        string $bytes,
+        string $format,
+        string $tarBytes,
+        TarArchive $archive,
+        ?int $maxUncompressedBytes
+    ): array {
+        $entryNames = $archive->names();
+
+        return [
+            'format' => $format,
+            'tarBytes' => $tarBytes,
+            'archive' => $archive,
+            'entryNames' => $entryNames,
+            'entryCount' => count($entryNames),
+            'uncompressedSize' => strlen($tarBytes),
+            'unpackedSize' => self::archiveUnpackedSize($archive),
+            'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
+        ];
+    }
+
+    private static function archiveUnpackedSize(TarArchive $archive): int
+    {
+        $size = 0;
+        foreach ($archive->entries() as $entry) {
+            if ($entry->isRegularFile()) {
+                $size += $entry->size;
+            }
+        }
+
+        return $size;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function streamInspection(string $bytes, string $format, ?int $maxUncompressedBytes): array
+    {
+        return match ($format) {
+            self::FORMAT_TAR => [
+                'type' => 'plain-tar',
+                'compressedSize' => strlen($bytes),
+                'memberCount' => 0,
+                'frameCount' => 0,
+            ],
+            self::FORMAT_GZIP_TAR => self::gzipStreamInspection($bytes, $maxUncompressedBytes),
+            self::FORMAT_ZLIB_TAR => self::zlibStreamInspection($bytes, $maxUncompressedBytes),
+            self::FORMAT_RAW_DEFLATE_TAR => [
+                'type' => 'raw-deflate',
+                'compressedSize' => strlen($bytes),
+                'memberCount' => 1,
+            ],
+            self::FORMAT_LZ4_TAR => self::lz4StreamInspection($bytes, $maxUncompressedBytes),
+            default => throw new \RuntimeException("Unsupported archive compression stream format: {$format}"),
+        };
+    }
+
+    /**
+     * @return array{
+     *     type:string,
+     *     memberCount:int,
+     *     compressedSize:int,
+     *     members:list<array{
+     *         filename:?string,
+     *         comment:?string,
+     *         modifiedAt:int,
+     *         uncompressedSize:int,
+     *         compressedSize:int,
+     *         memberSize:int,
+     *         extraFieldCount:int,
+     *         headerCrc16:?int
+     *     }>
+     * }
+     */
+    private static function gzipStreamInspection(string $bytes, ?int $maxUncompressedBytes): array
+    {
+        $members = array_map(
+            static fn (array $member): array => [
+                'filename' => $member['filename'],
+                'comment' => $member['comment'],
+                'modifiedAt' => $member['modifiedAt'],
+                'uncompressedSize' => $member['uncompressedSize'],
+                'compressedSize' => $member['compressedSize'],
+                'memberSize' => $member['memberSize'],
+                'extraFieldCount' => count($member['extraFields']),
+                'headerCrc16' => $member['headerCrc16'],
+            ],
+            GzipStream::members($bytes, $maxUncompressedBytes)
+        );
+
+        return [
+            'type' => 'gzip',
+            'memberCount' => count($members),
+            'compressedSize' => strlen($bytes),
+            'members' => $members,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     type:string,
+     *     memberCount:int,
+     *     compressedSize:int,
+     *     compressionMethod:int,
+     *     windowSize:int,
+     *     compressionLevelHint:string,
+     *     adler32:int
+     * }
+     */
+    private static function zlibStreamInspection(string $bytes, ?int $maxUncompressedBytes): array
+    {
+        $metadata = DeflateStream::inspectZlib($bytes, $maxUncompressedBytes);
+
+        return [
+            'type' => 'zlib-deflate',
+            'memberCount' => 1,
+            'compressedSize' => strlen($bytes),
+            'compressionMethod' => $metadata['compressionMethod'],
+            'windowSize' => $metadata['windowSize'],
+            'compressionLevelHint' => $metadata['compressionLevelHint'],
+            'adler32' => $metadata['adler32'],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     type:string,
+     *     frameCount:int,
+     *     dataFrameCount:int,
+     *     skippableFrameCount:int,
+     *     blockCount:int,
+     *     compressedSize:int,
+     *     frames:list<array<string, mixed>>
+     * }
+     */
+    private static function lz4StreamInspection(string $bytes, ?int $maxUncompressedBytes): array
+    {
+        $frames = [];
+        $dataFrameCount = 0;
+        $skippableFrameCount = 0;
+        $blockCount = 0;
+
+        foreach (Lz4Frame::frames($bytes, $maxUncompressedBytes) as $frame) {
+            if ($frame['type'] === 'skippable') {
+                $skippableFrameCount++;
+                $frames[] = [
+                    'type' => 'skippable',
+                    'id' => $frame['id'],
+                    'data' => $frame['data'],
+                    'frameSize' => $frame['frameSize'],
+                ];
+                continue;
+            }
+
+            $dataFrameCount++;
+            $blockCount += $frame['blockCount'];
+            $frames[] = [
+                'type' => 'frame',
+                'contentSize' => $frame['contentSize'],
+                'blockMaxSize' => $frame['blockMaxSize'],
+                'blockIndependent' => $frame['blockIndependent'],
+                'blockChecksum' => $frame['blockChecksum'],
+                'contentChecksum' => $frame['contentChecksum'],
+                'blockCount' => $frame['blockCount'],
+                'blockTypes' => $frame['blockTypes'],
+                'compressedSize' => $frame['compressedSize'],
+                'frameSize' => $frame['frameSize'],
+            ];
+        }
+
+        return [
+            'type' => 'lz4',
+            'frameCount' => count($frames),
+            'dataFrameCount' => $dataFrameCount,
+            'skippableFrameCount' => $skippableFrameCount,
+            'blockCount' => $blockCount,
+            'compressedSize' => strlen($bytes),
+            'frames' => $frames,
+        ];
     }
 
     /**

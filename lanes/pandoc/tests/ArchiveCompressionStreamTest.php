@@ -681,6 +681,104 @@ return [
         }
     },
 
+    'preflights split gzip members and lz4 frames as one tar review packet' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/',
+                'type' => TarArchiveEntry::TYPE_DIRECTORY,
+                'modifiedAt' => 1780479037,
+            ],
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"split-stream","target":"wordpress"}',
+                'modifiedAt' => 1780479038,
+            ],
+            [
+                'name' => 'packet/word/document.xml',
+                'data' => '<w:document><w:body><w:p>Split stream archive dispatch</w:p></w:body></w:document>',
+                'modifiedAt' => 1780479039,
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $splitOffset = 700;
+        $unpackedBytes = strlen($archive->read('/packet/manifest.json'))
+            + strlen($archive->read('/packet/word/document.xml'));
+
+        $gzipSplit = GzipStream::build(substr($tarBytes, 0, $splitOffset), [
+            'filename' => 'wordpress-import-packet.part-1.tar',
+            'comment' => 'split tar member one',
+            'headerCrc' => true,
+        ]) . GzipStream::build(substr($tarBytes, $splitOffset), [
+            'filename' => 'wordpress-import-packet.part-2.tar',
+            'comment' => 'split tar member two',
+            'headerCrc' => true,
+        ]);
+        $gzipInspection = ArchiveCompressionStream::inspectTarStreamAuto(
+            $gzipSplit,
+            strlen($tarBytes),
+            $unpackedBytes
+        );
+
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $gzipInspection['format']);
+        $t->same($tarBytes, $gzipInspection['tarBytes']);
+        $t->same(['packet/', 'packet/manifest.json', 'packet/word/document.xml'], $gzipInspection['entryNames']);
+        $t->same(3, $gzipInspection['entryCount']);
+        $t->same($unpackedBytes, $gzipInspection['unpackedSize']);
+        $t->same(strlen($tarBytes), $gzipInspection['uncompressedSize']);
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same(2, $gzipInspection['stream']['memberCount']);
+        $t->same([
+            'wordpress-import-packet.part-1.tar',
+            'wordpress-import-packet.part-2.tar',
+        ], array_map(static fn (array $member): ?string => $member['filename'], $gzipInspection['stream']['members']));
+        $t->same([
+            $splitOffset,
+            strlen($tarBytes) - $splitOffset,
+        ], array_map(static fn (array $member): int => $member['uncompressedSize'], $gzipInspection['stream']['members']));
+        $t->same('<w:document><w:body><w:p>Split stream archive dispatch</w:p></w:body></w:document>', $gzipInspection['archive']->read('/packet/word/document.xml'));
+
+        $lz4Split = Lz4Frame::skippableFrame('split tar reviewer metadata', 8)
+            . Lz4Frame::build(substr($tarBytes, 0, $splitOffset), [
+                'contentSize' => true,
+                'contentChecksum' => true,
+            ])
+            . Lz4Frame::build(substr($tarBytes, $splitOffset), [
+                'contentSize' => true,
+                'contentChecksum' => true,
+            ]);
+        $lz4Inspection = ArchiveCompressionStream::inspectTarStream(
+            $lz4Split,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            strlen($tarBytes),
+            $unpackedBytes
+        );
+
+        $t->same(ArchiveCompressionStream::FORMAT_LZ4_TAR, $lz4Inspection['format']);
+        $t->same($tarBytes, $lz4Inspection['tarBytes']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(3, $lz4Inspection['stream']['frameCount']);
+        $t->same(2, $lz4Inspection['stream']['dataFrameCount']);
+        $t->same(1, $lz4Inspection['stream']['skippableFrameCount']);
+        $t->same(2, $lz4Inspection['stream']['blockCount']);
+        $t->same(['skippable', 'frame', 'frame'], array_map(static fn (array $frame): string => $frame['type'], $lz4Inspection['stream']['frames']));
+        $t->same('split tar reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+        $t->same('{"source":"split-stream","target":"wordpress"}', $lz4Inspection['archive']->read('/packet/manifest.json'));
+
+        $separateArchive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/second-manifest.json',
+                'data' => '{"source":"separate-tar"}',
+            ],
+        ]);
+        $separateCompleteGzipMembers = GzipStream::build($tarBytes, [
+            'filename' => 'first-complete.tar',
+        ]) . GzipStream::build($separateArchive->bytes(), [
+            'filename' => 'second-complete.tar',
+        ]);
+
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectTarStreamAuto($separateCompleteGzipMembers));
+    },
+
     'builds and reads bounded raw and zlib deflate package fixture streams' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [
