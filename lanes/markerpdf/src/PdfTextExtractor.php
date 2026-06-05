@@ -326,18 +326,42 @@ final class PdfTextExtractor
                 'matrix' => [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
                 'clip_bbox' => $pageClipReview['bbox'],
             ]];
+            $decodedContentStreams = $this->pageDecodedContentStreams(
+                $objects[$pageObjectNumber],
+                $objects,
+                $optionalContentStates
+            );
             foreach ($this->imageXObjectBoundaryEntriesForResourceOwner(
                 $pageIndex,
                 $pageObjectNumber,
                 $resourceDictionary,
                 $objects,
-                $this->pageDecodedContentStreams($objects[$pageObjectNumber], $objects, $optionalContentStates),
+                $decodedContentStreams,
                 $optionalContentStates,
                 [],
                 [],
                 [],
                 null,
                 true,
+                $baseInvocationStates,
+                $pageClipReview,
+                $pageResourceReview['metadata']
+            ) as $entry) {
+                $review['entries'][] = $entry;
+                $review['image_xobject_count']++;
+                if ($entry['invoked']) {
+                    $review['invoked_image_xobject_count']++;
+                } else {
+                    $review['uninvoked_image_xobject_count']++;
+                }
+            }
+            foreach ($this->type3CharProcImageXObjectBoundaryEntriesForPage(
+                $pageIndex,
+                $pageObjectNumber,
+                $resourceDictionary,
+                $objects,
+                $decodedContentStreams,
+                $optionalContentStates,
                 $baseInvocationStates,
                 $pageClipReview,
                 $pageResourceReview['metadata']
@@ -5748,6 +5772,311 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string> $decodedContents
+     * @param array<int|string, bool> $optionalContentStates
+     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>}> $baseInvocationStates
+     * @return list<array<string, mixed>>
+     */
+    private function type3CharProcImageXObjectBoundaryEntriesForPage(
+        int $pageIndex,
+        int $pageObjectNumber,
+        string $resourceOwnerBody,
+        array $objects,
+        array $decodedContents,
+        array $optionalContentStates,
+        array $baseInvocationStates,
+        ?array $pageBoundaryClipReview,
+        ?array $pageResourceReview
+    ): array {
+        if ($decodedContents === []) {
+            return [];
+        }
+
+        $type3Fonts = $this->type3FontResourceReferencesForResourceOwnerBody($resourceOwnerBody, $objects);
+        if ($type3Fonts === []) {
+            return [];
+        }
+
+        $usedGlyphsByFont = $this->type3UsedGlyphNamesByFontResource($decodedContents, $type3Fonts, $objects);
+        if ($usedGlyphsByFont === []) {
+            return [];
+        }
+
+        $entries = [];
+        foreach ($usedGlyphsByFont as $fontResourceName => $glyphNames) {
+            $font = $type3Fonts[$fontResourceName] ?? null;
+            if (!is_array($font) || !is_string($font['body'] ?? null)) {
+                continue;
+            }
+
+            $charProcReferences = $this->charProcObjectReferences($font['body'], $objects);
+            if ($charProcReferences === []) {
+                continue;
+            }
+
+            foreach ($glyphNames as $glyphName) {
+                $reference = $charProcReferences[$glyphName] ?? null;
+                if ($reference === null) {
+                    continue;
+                }
+
+                $charProcObjectBody = $this->objectBodyForExactReference(
+                    $objects,
+                    $reference['objectNumber'],
+                    $reference['generation']
+                );
+                if ($charProcObjectBody === null) {
+                    continue;
+                }
+
+                $charProcContent = $this->decodedType3CharProcContent($charProcObjectBody, $objects);
+                if ($charProcContent === null || trim($charProcContent) === '') {
+                    continue;
+                }
+
+                $charProcResourceOwnerBody = $this->type3CharProcResourceOwnerBody(
+                    $font['body'],
+                    $charProcObjectBody,
+                    $objects
+                );
+                foreach ($this->imageXObjectBoundaryEntriesForResourceOwner(
+                    $pageIndex,
+                    $pageObjectNumber,
+                    $charProcResourceOwnerBody,
+                    $objects,
+                    [$charProcContent],
+                    $optionalContentStates,
+                    ['Type3 ' . $fontResourceName, $glyphName],
+                    [],
+                    [],
+                    null,
+                    false,
+                    $baseInvocationStates,
+                    $pageBoundaryClipReview,
+                    $pageResourceReview
+                ) as $entry) {
+                    $entries[] = [
+                        ...$entry,
+                        'type3_font_resource' => $fontResourceName,
+                        'type3_font_object' => $font['objectNumber'],
+                        'type3_font_generation' => $font['generation'],
+                        'type3_glyph_name' => $glyphName,
+                        'type3_charproc_object' => $reference['objectNumber'],
+                        'type3_charproc_generation' => $reference['generation'],
+                        'type3_charproc_image_review' => true,
+                    ];
+                }
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, array{objectNumber: int|null, generation: int|null, body: string}>
+     */
+    private function type3FontResourceReferencesForResourceOwnerBody(string $resourceOwnerBody, array $objects): array
+    {
+        $resourceDictionary = $this->resourceDictionaryLookupBody($resourceOwnerBody, $objects);
+        if ($resourceDictionary === null) {
+            return [];
+        }
+
+        $fontDictionary = $this->fontResourceDictionaryBody($resourceDictionary, $objects);
+        if ($fontDictionary === null) {
+            return [];
+        }
+
+        $fonts = [];
+        foreach ($this->topLevelResourceReferenceEntries($fontDictionary) as $resourceName => $resource) {
+            $resolved = $this->resolvedResourceObjectBody(
+                $objects,
+                $resource['objectNumber'],
+                $resource['generation']
+            );
+            if ($resolved === null || $this->objectBodyIsStreamObject($resolved['body'])) {
+                continue;
+            }
+
+            if ($this->isType3FontBody($resolved['body'])) {
+                $fonts[$resourceName] = [
+                    'objectNumber' => $resolved['object'],
+                    'generation' => $resolved['generation'],
+                    'body' => $resolved['body'],
+                ];
+            }
+        }
+
+        foreach ($this->directFontResourceDictionaries($fontDictionary) as $resourceName => $fontBody) {
+            if (!isset($fonts[$resourceName]) && $this->isType3FontBody($fontBody)) {
+                $fonts[$resourceName] = [
+                    'objectNumber' => null,
+                    'generation' => null,
+                    'body' => $fontBody,
+                ];
+            }
+        }
+
+        return $fonts;
+    }
+
+    /**
+     * @param list<string> $decodedContents
+     * @param array<string, array{objectNumber: int|null, generation: int|null, body: string}> $type3Fonts
+     * @param array<int, string> $objects
+     * @return array<string, list<string>>
+     */
+    private function type3UsedGlyphNamesByFontResource(array $decodedContents, array $type3Fonts, array $objects): array
+    {
+        $glyphNamesByFont = [];
+        foreach ($type3Fonts as $fontResourceName => $font) {
+            $glyphNamesByFont[$fontResourceName] = $this->type3EncodingGlyphNamesByCode($font['body'], $objects);
+        }
+
+        $used = [];
+        $insideTextObject = false;
+        $currentFontResource = null;
+        $operands = [];
+        foreach ($this->contentTokens(implode("\n", $decodedContents)) as $token) {
+            if (!$this->isOperator($token)) {
+                $operands[] = $token;
+                continue;
+            }
+
+            if ($token === 'BT') {
+                $insideTextObject = true;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'ET') {
+                $insideTextObject = false;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tf') {
+                $fontResource = $this->fontResourceOperand($operands);
+                $currentFontResource = $fontResource ?? $currentFontResource;
+                $operands = [];
+                continue;
+            }
+
+            if (
+                $insideTextObject
+                && $currentFontResource !== null
+                && isset($type3Fonts[$currentFontResource])
+                && $this->isTextShowingOperator($token)
+            ) {
+                foreach ($this->type3TextShowingOperands($token, $operands) as $operand) {
+                    $bytes = $this->type3TextOperandBytes($operand);
+                    for ($index = 0, $length = strlen($bytes); $index < $length; $index++) {
+                        $glyphName = $glyphNamesByFont[$currentFontResource][ord($bytes[$index])] ?? null;
+                        if ($glyphName !== null && $glyphName !== '') {
+                            $used[$currentFontResource][$glyphName] = true;
+                        }
+                    }
+                }
+            }
+
+            $operands = [];
+        }
+
+        $normalized = [];
+        foreach ($used as $fontResourceName => $glyphLookup) {
+            $normalized[$fontResourceName] = array_keys($glyphLookup);
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<string> $operands
+     * @return list<string>
+     */
+    private function type3TextShowingOperands(string $operator, array $operands): array
+    {
+        $operand = $this->textShowingOperand($operator, $operands);
+        if ($operand === null) {
+            return [];
+        }
+
+        if ($operator !== 'TJ') {
+            return [$operand];
+        }
+
+        $arrayBody = $this->pdfArrayFromValue($operand, []);
+        if ($arrayBody === null) {
+            return [];
+        }
+
+        $textOperands = [];
+        foreach ($this->pdfArrayItems($arrayBody) as $item) {
+            if ($this->isTextOperand($item) && !str_starts_with(ltrim($item), '[')) {
+                $textOperands[] = $item;
+            }
+        }
+
+        return $textOperands;
+    }
+
+    private function type3TextOperandBytes(string $operand): string
+    {
+        $operand = trim($operand);
+        if ($operand === '') {
+            return '';
+        }
+
+        if (str_starts_with($operand, '(')) {
+            return $this->decodeLiteralString(substr($operand, 1, -1));
+        }
+
+        if (preg_match('/^<([\da-fA-F\s]*)>$/s', $operand, $match) !== 1) {
+            return '';
+        }
+
+        $hex = preg_replace('/\s+/', '', $match[1]) ?? '';
+        if ($hex === '') {
+            return '';
+        }
+        if (strlen($hex) % 2 === 1) {
+            $hex .= '0';
+        }
+
+        $bytes = hex2bin($hex);
+        return is_string($bytes) ? $bytes : '';
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodedType3CharProcContent(string $charProcObjectBody, array $objects): ?string
+    {
+        $stream = $this->streamDictionaryAndPayload($charProcObjectBody, $objects);
+        if ($stream === null) {
+            return trim($charProcObjectBody);
+        }
+
+        if ($this->isImageStreamDictionary($stream['dict'], $objects)) {
+            return null;
+        }
+
+        return $this->decodeStream($stream['dict'], $stream['stream'], $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function type3CharProcResourceOwnerBody(string $fontBody, string $charProcObjectBody, array $objects): string
+    {
+        return $this->resourceDictionaryBody($charProcObjectBody, $objects) === null
+            ? $fontBody
+            : $charProcObjectBody;
     }
 
     /**
