@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\PdfNamedDestinationExtractor;
+use PortLibs\MarkerPDF\PdfMetadataExtractor;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -23,15 +24,25 @@ $pdf = "%PDF-1.7\n"
 
 $extractor = new PdfNamedDestinationExtractor();
 $destinations = $extractor->extractNamedDestinations($pdf);
+$metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+$documentDestinations = $metadata['document_destinations'] ?? [];
 $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
 $names = array_column($destinations, 'name');
 $encoded = json_encode($destinations, JSON_UNESCAPED_SLASHES);
+$metadataEncoded = json_encode($documentDestinations, JSON_UNESCAPED_SLASHES);
 
 if ($names !== ["\u{02d8}", 'A', 'LegacyOk']) {
     throw new RuntimeException('Expected byte-string /Limits to bound decoded PDFDocEncoding destination keys.');
 }
 if (!is_string($encoded) || str_contains($encoded, "\u{2022}") || str_contains($encoded, '111')) {
     throw new RuntimeException('Expected out-of-byte-range destination rows to stay out of WordPress metadata.');
+}
+if (($documentDestinations['names'] ?? []) !== ["\u{02d8}", 'A', 'LegacyOk']
+    || !is_string($metadataEncoded)
+    || str_contains($metadataEncoded, "\u{2022}")
+    || str_contains($metadataEncoded, '111')
+) {
+    throw new RuntimeException('Expected document destination metadata to use source-byte /Limits boundaries.');
 }
 if (!str_contains($plainText, 'Byte range destination start page')
     || !str_contains($plainText, 'Byte range destination appendix page')
@@ -46,8 +57,13 @@ $summary = [
     'native_boundary' => 'catalog /Names /Dests name-tree /Limits compare PDF string source bytes before decoded labels',
     'destination_count' => count($destinations),
     'destination_names' => $names,
+    'document_destination_count' => $documentDestinations['count'] ?? null,
+    'document_destination_names' => $documentDestinations['names'] ?? [],
     'byte_string_limits_applied' => true,
     'out_of_byte_range_decoded_key_rejected' => !in_array("\u{2022}", $names, true),
+    'document_metadata_out_of_byte_range_key_rejected' => is_string($metadataEncoded)
+        && !str_contains($metadataEncoded, "\u{2022}")
+        && !str_contains($metadataEncoded, '111'),
     'visible_text_excludes_destination_metadata' => !str_contains($plainText, "\u{2022}")
         && !str_contains($plainText, 'LegacyOk'),
 ];

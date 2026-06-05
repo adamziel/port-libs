@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\PdfNamedDestinationExtractor;
+use PortLibs\MarkerPDF\PdfMetadataExtractor;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
 $namedDestinationByteStringLimitsCurrentBasePdf = static function (): string {
@@ -48,13 +49,19 @@ return [
     ) use ($namedDestinationByteStringLimitsCurrentBasePdf): void {
         $pdf = $namedDestinationByteStringLimitsCurrentBasePdf();
         $destinations = (new PdfNamedDestinationExtractor())->extractNamedDestinations($pdf);
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
         $encoded = json_encode($destinations, JSON_UNESCAPED_SLASHES);
+        $metadataEncoded = json_encode($metadata['document_destinations'] ?? [], JSON_UNESCAPED_SLASHES);
         $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
 
         $t->contains('Byte range destination start page', $plainText);
         $t->contains('Byte range destination appendix page', $plainText);
+        $t->same(["\u{02d8}", 'A', 'LegacyOk'], $metadata['document_destinations']['names'] ?? []);
+        $t->same(3, $metadata['document_destinations']['count'] ?? null);
         $t->true(is_string($encoded) && !str_contains($encoded, "\u{2022}"));
         $t->true(is_string($encoded) && !str_contains($encoded, '111'));
+        $t->true(is_string($metadataEncoded) && !str_contains($metadataEncoded, "\u{2022}"));
+        $t->true(is_string($metadataEncoded) && !str_contains($metadataEncoded, '111'));
         $t->true(!str_contains($plainText, "\u{2022}"));
         $t->true(!str_contains($plainText, 'LegacyOk'));
     },
