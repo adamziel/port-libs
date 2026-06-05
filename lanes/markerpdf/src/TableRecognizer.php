@@ -1756,7 +1756,8 @@ final class TableRecognizer
             if (!is_array($record)) {
                 continue;
             }
-            $space = $this->explicitGeometryRecordCoordinateSpace($record);
+            $space = $this->explicitGeometryRecordCoordinateSpace($record)
+                ?? $this->sourceFallbackCoordinateSpaceFromRecord($record);
             if ($space !== null) {
                 $spaces[] = $space;
             }
@@ -1767,7 +1768,9 @@ final class TableRecognizer
 
     private function geometryRecordCoordinateSpace(array $record, string $fallback): string
     {
-        return $this->explicitGeometryRecordCoordinateSpace($record) ?? $fallback;
+        return $this->explicitGeometryRecordCoordinateSpace($record)
+            ?? $this->sourceFallbackCoordinateSpaceFromRecord($record)
+            ?? $fallback;
     }
 
     private function explicitGeometryRecordCoordinateSpace(array $record): ?string
@@ -1779,6 +1782,32 @@ final class TableRecognizer
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     */
+    private function sourceFallbackCoordinateSpaceFromRecord(array $record): ?string
+    {
+        if (!$this->usesSourceBboxFallback($record)) {
+            return null;
+        }
+        if (isset($record['source_coordinate_space']) && is_scalar($record['source_coordinate_space'])) {
+            return $this->normalizeCoordinateSpace((string) $record['source_coordinate_space']);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     */
+    private function usesSourceBboxFallback(array $record): bool
+    {
+        return $this->bboxFromValue($record['bbox'] ?? null) === null
+            && $this->bboxFromNamedFields($record) === null
+            && $this->polygonBboxFromRecord($record) === null
+            && $this->sourceBboxFromRecord($record) !== null;
     }
 
     /**
@@ -2089,7 +2118,8 @@ final class TableRecognizer
 
         return $this->bboxFromValue($value)
             ?? $this->polygonBboxFromRecord($value)
-            ?? $this->polygonBbox($value);
+            ?? $this->polygonBbox($value)
+            ?? $this->sourceBboxFromRecord($value);
     }
 
     /**
@@ -5965,7 +5995,28 @@ final class TableRecognizer
     {
         return $this->bboxFromValue($record['bbox'] ?? null)
             ?? $this->bboxFromNamedFields($record)
-            ?? $this->polygonBboxFromRecord($record);
+            ?? $this->polygonBboxFromRecord($record)
+            ?? $this->sourceBboxFromRecord($record);
+    }
+
+    /**
+     * Some saved review/sidecar records preserve geometry only as source
+     * coordinates. Treat those as a fallback input shape, while keeping
+     * primary bbox/named/polygon fields authoritative when present.
+     *
+     * @param array<string|int, mixed> $record
+     * @return list<float>|null
+     */
+    private function sourceBboxFromRecord(array $record): ?array
+    {
+        foreach (['source_bbox', 'source_page_image_bbox'] as $key) {
+            $bbox = $this->bboxFromValue($record[$key] ?? null);
+            if ($bbox !== null) {
+                return $bbox;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -6079,7 +6130,22 @@ final class TableRecognizer
 
         return $this->bboxNamedFieldSource($record)
             ?? $this->polygonCoordinateSourceFromRecord($record)
+            ?? $this->sourceBboxCoordinateSourceFromRecord($record)
             ?? 'bbox_array';
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     */
+    private function sourceBboxCoordinateSourceFromRecord(array $record): ?string
+    {
+        foreach (['source_bbox', 'source_page_image_bbox'] as $key) {
+            if ($this->bboxFromValue($record[$key] ?? null) !== null) {
+                return $key;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -6115,12 +6181,29 @@ final class TableRecognizer
     private function bboxEndpointOrderNormalizedFromRecord(array $record): bool
     {
         $raw = $this->rawBboxCoordinatesFromValue($record['bbox'] ?? null)
-            ?? $this->rawBboxCoordinatesFromNamedFields($record);
+            ?? $this->rawBboxCoordinatesFromNamedFields($record)
+            ?? $this->rawSourceBboxCoordinatesFromRecord($record);
         if ($raw === null) {
             return false;
         }
 
         return $raw[2] < $raw[0] || $raw[3] < $raw[1];
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     * @return list<float>|null
+     */
+    private function rawSourceBboxCoordinatesFromRecord(array $record): ?array
+    {
+        foreach (['source_bbox', 'source_page_image_bbox'] as $key) {
+            $raw = $this->rawBboxCoordinatesFromValue($record[$key] ?? null);
+            if ($raw !== null) {
+                return $raw;
+            }
+        }
+
+        return null;
     }
 
     /**
