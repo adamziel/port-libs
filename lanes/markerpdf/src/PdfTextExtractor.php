@@ -33,6 +33,25 @@ final class PdfTextExtractor
         'RGB' => 'DeviceRGB',
         'RL' => 'RunLengthDecode',
     ];
+    private const NON_OUTLINE_ITEM_TYPES = [
+        'Action' => true,
+        'Annot' => true,
+        'Bead' => true,
+        'Catalog' => true,
+        'EmbeddedFile' => true,
+        'Filespec' => true,
+        'Font' => true,
+        'Metadata' => true,
+        'ObjStm' => true,
+        'Outlines' => true,
+        'Page' => true,
+        'Pages' => true,
+        'StructElem' => true,
+        'StructTreeRoot' => true,
+        'Thread' => true,
+        'XObject' => true,
+        'XRef' => true,
+    ];
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
         0x19 => 0x02c7,
@@ -1760,6 +1779,9 @@ final class PdfTextExtractor
         while (isset($objects[$objectNumber]) && !isset($seen[$objectNumber])) {
             $seen[$objectNumber] = true;
             $body = $objects[$objectNumber];
+            if (!$this->lightweightOutlineItemAllowsTraversalByType($body, $objects)) {
+                break;
+            }
             if (!$this->lightweightOutlineItemParentMatches($body, $objects, $expectedParentObject)) {
                 break;
             }
@@ -1871,6 +1893,17 @@ final class PdfTextExtractor
         return $objectNumber !== null
             && isset($objects[$objectNumber])
             && $this->lightweightOutlineRootBodyIsValid($objects[$objectNumber]);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function lightweightOutlineItemAllowsTraversalByType(string $body, array $objects): bool
+    {
+        $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+        $type = $this->pdfNameValueAfterNameResolvingObjects($dictionary, 'Type', $objects);
+
+        return $type === null || !isset(self::NON_OUTLINE_ITEM_TYPES[$type]);
     }
 
     private function lightweightOutlineItemPrevMatches(string $body, ?int $previousSiblingObject): bool

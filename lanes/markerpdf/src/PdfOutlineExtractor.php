@@ -26,6 +26,25 @@ final class PdfOutlineExtractor
         'FitV' => true,
         'XYZ' => true,
     ];
+    private const NON_OUTLINE_ITEM_TYPES = [
+        'Action' => true,
+        'Annot' => true,
+        'Bead' => true,
+        'Catalog' => true,
+        'EmbeddedFile' => true,
+        'Filespec' => true,
+        'Font' => true,
+        'Metadata' => true,
+        'ObjStm' => true,
+        'Outlines' => true,
+        'Page' => true,
+        'Pages' => true,
+        'StructElem' => true,
+        'StructTreeRoot' => true,
+        'Thread' => true,
+        'XObject' => true,
+        'XRef' => true,
+    ];
 
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
@@ -1234,6 +1253,9 @@ final class PdfOutlineExtractor
             if ($dict === null) {
                 break;
             }
+            if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects)) {
+                break;
+            }
             if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject)) {
                 break;
             }
@@ -1524,6 +1546,26 @@ final class PdfOutlineExtractor
                 || array_key_exists('Last', $dict)
                 || array_key_exists('Count', $dict)
             );
+    }
+
+    /**
+     * Outline item dictionaries do not use `/Type` for ordinary item identity.
+     * If a linked row is a typed page, annotation, action, stream carrier, or
+     * other known non-outline object, do not trust its title or sibling
+     * pointers as bookmark metadata.
+     *
+     * @param array<string, mixed> $outline
+     * @param array<int, mixed> $objects
+     */
+    private function outlineItemDictionaryAllowsTraversal(array $outline, array $objects): bool
+    {
+        if (!array_key_exists('Type', $outline)) {
+            return true;
+        }
+
+        $type = $this->nameValue($this->resolveValue($outline['Type'], $objects));
+
+        return $type === null || !isset(self::NON_OUTLINE_ITEM_TYPES[$type]);
     }
 
     /**
@@ -3009,6 +3051,9 @@ final class PdfOutlineExtractor
             if ($dict === null) {
                 break;
             }
+            if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects)) {
+                break;
+            }
             if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject)) {
                 break;
             }
@@ -3092,6 +3137,9 @@ final class PdfOutlineExtractor
             $seen[$current] = true;
             $dict = $this->resolveDictionary($this->refValue($current), $objects);
             if ($dict === null) {
+                break;
+            }
+            if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects)) {
                 break;
             }
             if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject)) {
@@ -3192,6 +3240,9 @@ final class PdfOutlineExtractor
             $seen[$current] = true;
             $dict = $this->resolveDictionary($this->refValue($current), $objects);
             if ($dict === null) {
+                break;
+            }
+            if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects)) {
                 break;
             }
             if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject)) {
@@ -3624,6 +3675,9 @@ final class PdfOutlineExtractor
             $seen[$current] = true;
             $dict = $this->resolveDictionary($this->refValue($current), $objects);
             if ($dict === null) {
+                break;
+            }
+            if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects)) {
                 break;
             }
             if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject)) {

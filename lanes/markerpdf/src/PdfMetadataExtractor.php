@@ -80,6 +80,25 @@ final class PdfMetadataExtractor
         'FitV' => true,
         'XYZ' => true,
     ];
+    private const NON_OUTLINE_ITEM_TYPES = [
+        'Action' => true,
+        'Annot' => true,
+        'Bead' => true,
+        'Catalog' => true,
+        'EmbeddedFile' => true,
+        'Filespec' => true,
+        'Font' => true,
+        'Metadata' => true,
+        'ObjStm' => true,
+        'Outlines' => true,
+        'Page' => true,
+        'Pages' => true,
+        'StructElem' => true,
+        'StructTreeRoot' => true,
+        'Thread' => true,
+        'XObject' => true,
+        'XRef' => true,
+    ];
 
     private const NS_DC = 'http://purl.org/dc/elements/1.1/';
     private const NS_PDF = 'http://ns.adobe.com/pdf/1.3/';
@@ -3301,6 +3320,9 @@ final class PdfMetadataExtractor
             if ($dictionary === null) {
                 break;
             }
+            if (!$this->documentOutlineItemAllowsTraversalByType($dictionary, $objects)) {
+                break;
+            }
             if (!$this->documentOutlineItemParentMatches($dictionary, $objects, $expectedParentObject)) {
                 break;
             }
@@ -3374,6 +3396,16 @@ final class PdfMetadataExtractor
         $parent = $this->validObjectNumberFromReference($parentValue, $objects);
 
         return $parent === $expectedParentObject;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function documentOutlineItemAllowsTraversalByType(string $dictionary, array $objects): bool
+    {
+        $type = $this->dictionaryNameValue($dictionary, 'Type', $objects);
+
+        return $type === null || !isset(self::NON_OUTLINE_ITEM_TYPES[$type]);
     }
 
     /**
