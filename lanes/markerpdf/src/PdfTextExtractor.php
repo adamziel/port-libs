@@ -8843,7 +8843,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $this->collectType3PrivateXObjectResourceGenerations($body, $objects, $references);
+            $this->collectType3PrivateResourceStreamGenerations($body, $objects, $references);
             foreach ($this->charProcObjectReferencesForFallbackExclusion($body, $objects) as $reference) {
                 $charProcBody = $this->objectBodyForExactReference(
                     $objects,
@@ -8854,7 +8854,7 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                $this->collectType3PrivateXObjectResourceGenerations($charProcBody, $objects, $references);
+                $this->collectType3PrivateResourceStreamGenerations($charProcBody, $objects, $references);
             }
         }
 
@@ -8866,7 +8866,7 @@ final class PdfTextExtractor
      * @param array<int, array<int, true>> $references
      * @param array<string, true> $seen
      */
-    private function collectType3PrivateXObjectResourceGenerations(
+    private function collectType3PrivateResourceStreamGenerations(
         string $resourceOwnerBody,
         array $objects,
         array &$references,
@@ -8886,7 +8886,24 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $this->collectType3PrivateXObjectResourceGenerations($body, $objects, $references, $seen);
+            $this->collectType3PrivateResourceStreamGenerations($body, $objects, $references, $seen);
+        }
+
+        foreach ($this->patternResourceReferences($resourceOwnerBody, $objects) as $reference) {
+            $key = $reference['objectNumber'] . ':' . $reference['generation'];
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $references[$reference['objectNumber']][$reference['generation']] = true;
+            $seen[$key] = true;
+
+            $body = $reference['body'];
+            if ($body === null) {
+                continue;
+            }
+
+            $this->collectType3PrivateResourceStreamGenerations($body, $objects, $references, $seen);
         }
     }
 
