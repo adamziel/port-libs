@@ -3730,20 +3730,22 @@ final class PdfMetadataExtractor
         $limits = $this->nameTreeEffectiveLimits($node, $objects, $inheritedLimits);
         $kids = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Kids') ?? '', $objects);
         $names = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Names') ?? '', $objects);
-        $entryLimits = ($kids !== [] || $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $limits))
-            ? $limits
-            : $inheritedLimits;
-        for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
-            $name = $this->destinationNameFromRaw($names[$index], $objects);
-            if ($name === null || $name === '' || !$this->nameTreeNameWithinLimits($name, $entryLimits)) {
-                continue;
-            }
+        if ($kids === []) {
+            $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $limits)
+                ? $limits
+                : $inheritedLimits;
+            for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
+                $name = $this->destinationNameFromRaw($names[$index], $objects);
+                if ($name === null || $name === '' || !$this->nameTreeNameWithinLimits($name, $entryLimits)) {
+                    continue;
+                }
 
-            $entries[] = [
-                'name' => $name,
-                'value' => $names[$index + 1],
-                'source' => 'names_dests',
-            ];
+                $entries[] = [
+                    'name' => $name,
+                    'value' => $names[$index + 1],
+                    'source' => 'names_dests',
+                ];
+            }
         }
 
         foreach ($kids as $kid) {
@@ -3841,28 +3843,30 @@ final class PdfMetadataExtractor
         }
 
         $limits = $this->nameTreeEffectiveLimits($node, $objects, $inheritedLimits);
+        $kids = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Kids') ?? '', $objects);
         $names = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Names') ?? '', $objects);
-        $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $limits)
-            ? $limits
-            : $inheritedLimits;
-        for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
-            $name = $this->destinationNameFromRaw($names[$index], $objects);
-            if ($name === null || $name === '' || !$this->nameTreeNameWithinLimits($name, $entryLimits)) {
-                continue;
-            }
+        if ($kids === []) {
+            $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $limits)
+                ? $limits
+                : $inheritedLimits;
+            for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
+                $name = $this->destinationNameFromRaw($names[$index], $objects);
+                if ($name === null || $name === '' || !$this->nameTreeNameWithinLimits($name, $entryLimits)) {
+                    continue;
+                }
 
-            $entries[] = [
-                'tree' => $treeName,
-                'name' => $name,
-                'index' => count($entries),
-            ] + $this->catalogNameTreeEntryReview($names[$index + 1], $objects);
+                $entries[] = [
+                    'tree' => $treeName,
+                    'name' => $name,
+                    'index' => count($entries),
+                ] + $this->catalogNameTreeEntryReview($names[$index + 1], $objects);
+            }
         }
 
-        $kids = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Kids') ?? '', $objects);
         foreach ($kids as $kid) {
             $child = $this->resolveDictionaryFromValue($kid, $objects);
             if ($child !== null) {
-                $this->collectCatalogNameTreeReviewRows($treeName, $child, $objects, $entries, $seenObjects, $depth + 1, $entryLimits);
+                $this->collectCatalogNameTreeReviewRows($treeName, $child, $objects, $entries, $seenObjects, $depth + 1, $limits);
             }
         }
     }
@@ -10939,37 +10943,39 @@ final class PdfMetadataExtractor
         }
 
         $limits = $this->nameTreeEffectiveLimits($node, $objects, $inheritedLimits);
+        $kids = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Kids') ?? '', $objects);
         $names = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Names') ?? '', $objects);
-        $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $limits)
-            ? $limits
-            : $inheritedLimits;
-        for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
-            $name = $this->destinationNameFromRaw($names[$index], $objects);
-            if ($name === null || $name === '' || !$this->nameTreeNameWithinLimits($name, $entryLimits)) {
-                continue;
-            }
+        if ($kids === []) {
+            $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $limits)
+                ? $limits
+                : $inheritedLimits;
+            for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
+                $name = $this->destinationNameFromRaw($names[$index], $objects);
+                if ($name === null || $name === '' || !$this->nameTreeNameWithinLimits($name, $entryLimits)) {
+                    continue;
+                }
 
-            $file = $this->fileSpecReviewFromValue(
-                $names[$index + 1],
-                count($files),
-                $objects,
-                'catalog_names_embedded_files',
-                false,
-                $collection
-            );
-            if ($file === null) {
-                continue;
-            }
+                $file = $this->fileSpecReviewFromValue(
+                    $names[$index + 1],
+                    count($files),
+                    $objects,
+                    'catalog_names_embedded_files',
+                    false,
+                    $collection
+                );
+                if ($file === null) {
+                    continue;
+                }
 
-            $file['name_tree_name'] = $name;
-            $files[] = $file;
+                $file['name_tree_name'] = $name;
+                $files[] = $file;
+            }
         }
 
-        $kids = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Kids') ?? '', $objects);
         foreach ($kids as $kid) {
             $child = $this->resolveDictionaryFromValue($kid, $objects);
             if ($child !== null) {
-                $this->collectEmbeddedFileNameTreeReviewRows($child, $objects, $files, $seenObjects, $depth + 1, $entryLimits, $collection);
+                $this->collectEmbeddedFileNameTreeReviewRows($child, $objects, $files, $seenObjects, $depth + 1, $limits, $collection);
             }
         }
     }

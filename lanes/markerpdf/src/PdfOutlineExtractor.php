@@ -2625,8 +2625,9 @@ final class PdfOutlineExtractor
             $activeLimits[] = $nodeLimits;
         }
 
+        $kids = $this->resolveArray($node['Kids'] ?? null, $objects);
         $names = $this->resolveArray($node['Names'] ?? null, $objects);
-        if ($names !== null) {
+        if (($kids === null || $kids === []) && $names !== null) {
             for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
                 $name = $this->destinationNameValue($names[$index], $objects);
                 if ($name !== null && $this->nameWithinNameTreeLimits($name, $activeLimits)) {
@@ -2635,7 +2636,6 @@ final class PdfOutlineExtractor
             }
         }
 
-        $kids = $this->resolveArray($node['Kids'] ?? null, $objects);
         if ($kids === null) {
             return;
         }

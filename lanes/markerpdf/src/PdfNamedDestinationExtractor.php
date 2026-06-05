@@ -1067,8 +1067,8 @@ final class PdfNamedDestinationExtractor
         $limits = $this->nameTreeEffectiveLimits($dictionary, $objects, $cache, $inheritedLimits);
         $kids = $this->arrayValues($this->resolve($dictionary['Kids'] ?? null, $objects, $cache));
         $names = $this->resolve($dictionary['Names'] ?? null, $objects, $cache);
-        if (is_array($names) && array_is_list($names)) {
-            $entryLimits = ($kids !== [] || $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $cache, $limits))
+        if ($kids === [] && is_array($names) && array_is_list($names)) {
+            $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $cache, $limits)
                 ? $limits
                 : $inheritedLimits;
 

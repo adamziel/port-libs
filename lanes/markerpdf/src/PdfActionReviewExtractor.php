@@ -1251,8 +1251,8 @@ final class PdfActionReviewExtractor
         $limits = $this->nameTreeEffectiveLimits($node, $inheritedLimits);
         $kids = $this->resolveArray($node['Kids'] ?? null) ?? [];
         $names = $this->resolveArray($node['Names'] ?? null);
-        if ($names !== null) {
-            $entryLimits = ($kids !== [] || $this->nameTreeLimitsMatchAnyPairKey($names, $limits))
+        if ($kids === [] && $names !== null) {
+            $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $limits)
                 ? $limits
                 : $inheritedLimits;
 
