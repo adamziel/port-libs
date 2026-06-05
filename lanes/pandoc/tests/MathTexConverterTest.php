@@ -546,6 +546,43 @@ return [
         $t->contains('<mrow><mo>(</mo><mtext href="#eq:first">1</mtext><mo>)</mo></mrow><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:inline">eq:inline</mtext><mo>)</mo></mrow><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:row-one">2</mtext><mo>)</mo></mrow><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:missing">eq:missing</mtext><mo>)</mo></mrow>', $resolvedMathml);
         $t->contains('<annotation encoding="application/x-tex">\\eqref{eq:first} + \\eqref{eq:inline} + \\eqref{eq:row-one} + \\eqref{eq:missing}</annotation>', $resolvedMathml);
     },
+    'converts bounded tex notag and nonumber row suppression to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $suppressedMathml = $converter->texToMathMl('\\begin{align}p_i &= m_i \\notag \\\\ x_i &= y_i \\nonumber \\\\ u_i &= v_i \\label{eq:counted}\\end{align}', true);
+        $taggedSuppressedMathml = $converter->texToMathMl('\\begin{align}a &= b \\notag \\tag{manual} \\\\ c &= d \\nonumber\\end{align}', true);
+        $document = new AstNode('document', [], [
+            new AstNode('math', [
+                'text' => '\\begin{align}p_i &= m_i \\label{eq:suppressed} \\notag \\\\ x_i &= y_i \\label{eq:counted}\\end{align}',
+                'display' => true,
+            ]),
+        ]);
+        $labels = $converter->equationReferenceLabelsFromDocument($document);
+        $resolvedMathml = $converter->texToMathMl('\\eqref{eq:suppressed} + \\eqref{eq:counted}', false, [], $labels);
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $suppressedMathml);
+        $t->contains('<mtable columnalign="right left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>y</mi><mi>i</mi></msub></mtd></mtr><mtr id="eq:counted"><mtd><msub><mi>u</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>v</mi><mi>i</mi></msub></mtd></mtr></mtable>', $suppressedMathml);
+        $t->true(!str_contains($suppressedMathml, '<mi>\\notag</mi>'), 'Expected \\notag to be stripped from row MathML');
+        $t->true(!str_contains($suppressedMathml, '<mi>\\nonumber</mi>'), 'Expected \\nonumber to be stripped from row MathML');
+        $t->contains('<annotation encoding="application/x-tex">\\begin{align}p_i &amp;= m_i \\notag \\\\ x_i &amp;= y_i \\nonumber \\\\ u_i &amp;= v_i \\label{eq:counted}\\end{align}</annotation>', $suppressedMathml);
+        $t->contains('<mlabeledtr><mtd><mtext>(manual)</mtext></mtd><mtd><mi>a</mi></mtd><mtd><mo>=</mo><mi>b</mi></mtd></mlabeledtr><mtr><mtd><mi>c</mi></mtd><mtd><mo>=</mo><mi>d</mi></mtd></mtr>', $taggedSuppressedMathml);
+        $t->same([
+            'eq:suppressed' => [
+                'label' => 'eq:suppressed',
+                'id' => 'eq:suppressed',
+                'reference' => 'eq:suppressed',
+                'tag' => null,
+                'tagStarred' => false,
+            ],
+            'eq:counted' => [
+                'label' => 'eq:counted',
+                'id' => 'eq:counted',
+                'reference' => '1',
+                'tag' => null,
+                'tagStarred' => false,
+            ],
+        ], $labels);
+        $t->contains('<mrow><mo>(</mo><mtext href="#eq:suppressed">eq:suppressed</mtext><mo>)</mo></mrow><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:counted">1</mtext><mo>)</mo></mrow>', $resolvedMathml);
+    },
     'converts bounded tex relation set logic and arrow commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $setMathml = $converter->texToMathMl('\\forall p_i \\in P \\land m_i \\notin M \\Rightarrow p_i \\subseteq Q \\cup R', true);

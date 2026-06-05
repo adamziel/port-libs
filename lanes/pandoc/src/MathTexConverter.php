@@ -698,7 +698,7 @@ final class MathTexConverter
     }
 
     /**
-     * @return array{tex:string, label:?string, labelId:?string, tag:?string, tagStarred:bool}
+     * @return array{tex:string, label:?string, labelId:?string, tag:?string, tagStarred:bool, suppressNumbering:bool}
      */
     private function extractEquationMetadata(string $source): array
     {
@@ -707,6 +707,7 @@ final class MathTexConverter
         $labelId = null;
         $tag = null;
         $tagStarred = false;
+        $suppressNumbering = false;
         $depth = 0;
         $offset = 0;
         $length = strlen($source);
@@ -722,6 +723,12 @@ final class MathTexConverter
                     $this->readEnvironmentContent($source, $environmentOffset, $environment);
                     $output .= substr($source, $offset, $environmentOffset - $offset);
                     $offset = $environmentOffset;
+                    continue;
+                }
+
+                if ($depth === 0 && ($command === 'notag' || $command === 'nonumber')) {
+                    $suppressNumbering = true;
+                    $offset = $commandOffset;
                     continue;
                 }
 
@@ -803,6 +810,7 @@ final class MathTexConverter
             'labelId' => $labelId,
             'tag' => $tag,
             'tagStarred' => $tagStarred,
+            'suppressNumbering' => $suppressNumbering,
         ];
     }
 
@@ -823,7 +831,7 @@ final class MathTexConverter
 
     /**
      * @param list<string> $children
-     * @param array{tex:string, label:?string, labelId:?string, tag:?string, tagStarred:bool} $equation
+     * @param array{tex:string, label:?string, labelId:?string, tag:?string, tagStarred:bool, suppressNumbering?:bool} $equation
      */
     private function renderEquationBody(array $children, array $equation): string
     {
@@ -1565,6 +1573,7 @@ final class MathTexConverter
             'labelId' => $parsed['label'] !== null ? $this->normalizeEquationLabelId($parsed['label']) : null,
             'tag' => $parsed['tag'],
             'tagStarred' => $parsed['tagStarred'],
+            'suppressNumbering' => $parsed['suppressNumbering'],
         ]);
     }
 
@@ -2426,6 +2435,7 @@ final class MathTexConverter
                 'labelId' => null,
                 'tag' => null,
                 'tagStarred' => false,
+                'suppressNumbering' => false,
             ];
 
             if ($allowRowMetadata) {
@@ -2435,6 +2445,7 @@ final class MathTexConverter
                     'labelId' => $parsed['labelId'],
                     'tag' => $parsed['tag'],
                     'tagStarred' => $parsed['tagStarred'],
+                    'suppressNumbering' => $parsed['suppressNumbering'],
                 ];
             }
 
@@ -2457,7 +2468,7 @@ final class MathTexConverter
 
     /**
      * @param list<string> $row
-     * @return array{cells:list<string>, label:?string, labelId:?string, tag:?string, tagStarred:bool}
+     * @return array{cells:list<string>, label:?string, labelId:?string, tag:?string, tagStarred:bool, suppressNumbering:bool}
      */
     private function extractEnvironmentRowMetadata(array $row, string $environment, int $rowIndex): array
     {
@@ -2465,11 +2476,13 @@ final class MathTexConverter
         $labelId = null;
         $tag = null;
         $tagStarred = false;
+        $suppressNumbering = false;
         $cells = [];
 
         foreach ($row as $cell) {
             $parsed = $this->stripEnvironmentCellRowMetadata($cell, $environment, $rowIndex);
             $cells[] = trim($parsed['cell']);
+            $suppressNumbering = $suppressNumbering || $parsed['suppressNumbering'];
 
             if ($parsed['label'] !== null) {
                 if ($label !== null) {
@@ -2508,11 +2521,12 @@ final class MathTexConverter
             'labelId' => $labelId,
             'tag' => $tag,
             'tagStarred' => $tagStarred,
+            'suppressNumbering' => $suppressNumbering,
         ];
     }
 
     /**
-     * @return array{cell:string, label:?string, tag:?string, tagStarred:bool}
+     * @return array{cell:string, label:?string, tag:?string, tagStarred:bool, suppressNumbering:bool}
      */
     private function stripEnvironmentCellRowMetadata(string $source, string $environment, int $rowIndex): array
     {
@@ -2520,6 +2534,7 @@ final class MathTexConverter
         $label = null;
         $tag = null;
         $tagStarred = false;
+        $suppressNumbering = false;
         $depth = 0;
         $offset = 0;
         $length = strlen($source);
@@ -2535,6 +2550,12 @@ final class MathTexConverter
                     $this->readEnvironmentContent($source, $environmentOffset, $nestedEnvironment);
                     $output .= substr($source, $offset, $environmentOffset - $offset);
                     $offset = $environmentOffset;
+                    continue;
+                }
+
+                if ($depth === 0 && ($command === 'notag' || $command === 'nonumber')) {
+                    $suppressNumbering = true;
+                    $offset = $commandOffset;
                     continue;
                 }
 
@@ -2610,6 +2631,7 @@ final class MathTexConverter
             'label' => $label,
             'tag' => $tag,
             'tagStarred' => $tagStarred,
+            'suppressNumbering' => $suppressNumbering,
         ];
     }
 
@@ -2640,7 +2662,7 @@ final class MathTexConverter
         $equation = $this->extractEquationMetadata($source);
         if ($equation['label'] !== null) {
             $automaticReference = null;
-            if ($numberUntagged && $equation['tag'] === null) {
+            if ($numberUntagged && $equation['tag'] === null && !$equation['suppressNumbering']) {
                 $automaticReference = (string) $nextAutomaticNumber;
                 $nextAutomaticNumber++;
             }
@@ -2732,7 +2754,7 @@ final class MathTexConverter
             $parsed = $this->extractEnvironmentRowMetadata($row, $environment, $rowIndex);
             if ($parsed['label'] !== null) {
                 $automaticReference = null;
-                if ($numberUntagged && $parsed['tag'] === null) {
+                if ($numberUntagged && $parsed['tag'] === null && !$parsed['suppressNumbering']) {
                     $automaticReference = (string) $nextAutomaticNumber;
                     $nextAutomaticNumber++;
                 }

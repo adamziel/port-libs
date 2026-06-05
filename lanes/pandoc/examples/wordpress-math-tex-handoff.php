@@ -64,6 +64,8 @@ Starred equation wrapper audit $\begin{equation*}\operatorname{review}(p_i) + \e
 
 Row-tag audit $\begin{align}p_i &= m_i \tag{WP-1} \\ x_i &= y_i \label{eq:row-review} \tag*{review}\end{align}$ stays semantic.
 
+No-number row audit $\begin{align}p_i &= m_i \notag \\ x_i &= y_i \nonumber \\ u_i &= v_i\end{align}$ keeps suppressed rows unnumbered.
+
 Spacing audit $p_i\,m_i\;n_i\!q_i + a\quad b\qquad c + \operatorname{post}\thinspace\operatorname{media}\negthinspace\operatorname{review} + x\:y\>z$ stays semantic.
 
 Explicit spacing audit $p_i\hspace{1.5em}m_i\mspace{-2mu}q_i + a\hspace*{.25in}b$ stays semantic.
@@ -147,6 +149,7 @@ $summary = [
     'equationWrapperMathml' => $converter->texToMathMl('\\begin{equation}r_i + s_i \\label{eq:wrapped-env} \\tag{WP-3}\\end{equation}', true),
     'starredEquationWrapperMathml' => $converter->texToMathMl('\\begin{equation*}\\operatorname{review}(p_i) + \\eqref{eq:wrapped-env}\\end{equation*}', false, [], $equationReferenceLabels),
     'rowTaggedEnvironmentMathml' => $converter->texToMathMl('\\begin{align}p_i &= m_i \\tag{WP-1} \\\\ x_i &= y_i \\label{eq:row-review} \\tag*{review}\\end{align}', true),
+    'notagNonumberMathml' => $converter->texToMathMl('\\begin{align}p_i &= m_i \\notag \\\\ x_i &= y_i \\nonumber \\\\ u_i &= v_i\\end{align}', true),
     'spacingMathml' => $converter->texToMathMl('p_i\\,m_i\\;n_i\\!q_i + a\\quad b\\qquad c + \\operatorname{post}\\thinspace\\operatorname{media}\\negthinspace\\operatorname{review} + x\\:y\\>z'),
     'explicitSpacingMathml' => $converter->texToMathMl('p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b'),
     'sizedDelimiterMathml' => $converter->texToMathMl('\\bigl( p_i \\bigr) + \\Bigl\\langle m_i \\Bigr\\rangle + \\bigm| x \\in S + \\Bigg/ y \\Bigg/'),
@@ -209,6 +212,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math display">\\[\\begin{equation}r_i + s_i \\label{eq:wrapped-env} \\tag{WP-3}\\end{equation}\\]</span>',
         '<span class="math inline">\\(\\begin{equation*}\\operatorname{review}(p_i) + \\eqref{eq:wrapped-env}\\end{equation*}\\)</span>',
         '<span class="math inline">\\(\\begin{align}p_i &amp;= m_i \\tag{WP-1} \\\\ x_i &amp;= y_i \\label{eq:row-review} \\tag*{review}\\end{align}\\)</span>',
+        '<span class="math inline">\\(\\begin{align}p_i &amp;= m_i \\notag \\\\ x_i &amp;= y_i \\nonumber \\\\ u_i &amp;= v_i\\end{align}\\)</span>',
         '<span class="math inline">\\(p_i\\,m_i\\;n_i\\!q_i + a\\quad b\\qquad c + \\operatorname{post}\\thinspace\\operatorname{media}\\negthinspace\\operatorname{review} + x\\:y\\&gt;z\\)</span>',
         '<span class="math inline">\\(p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b\\)</span>',
         '<span class="math inline">\\(\\bigl( p_i \\bigr) + \\Bigl\\langle m_i \\Bigr\\rangle + \\bigm| x \\in S + \\Bigg/ y \\Bigg/\\)</span>',
@@ -307,6 +311,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<annotation encoding="application/x-tex">\\begin{equation}r_i + s_i \\label{eq:wrapped-env} \\tag{WP-3}\\end{equation}</annotation>',
         '<mi>review</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:wrapped-env">WP-3</mtext><mo>)</mo></mrow>',
         '<mtable columnalign="right left"><mlabeledtr><mtd><mtext>(WP-1)</mtext></mtd><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mlabeledtr><mlabeledtr id="eq:row-review"><mtd><mtext>review</mtext></mtd><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>y</mi><mi>i</mi></msub></mtd></mlabeledtr></mtable>',
+        '<mtable columnalign="right left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>y</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>u</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>v</mi><mi>i</mi></msub></mtd></mtr></mtable>',
+        '<annotation encoding="application/x-tex">\\begin{align}p_i &amp;= m_i \\notag \\\\ x_i &amp;= y_i \\nonumber \\\\ u_i &amp;= v_i\\end{align}</annotation>',
         '<msub><mi>p</mi><mi>i</mi></msub><mspace width="0.1667em"></mspace><msub><mi>m</mi><mi>i</mi></msub><mspace width="0.2778em"></mspace><msub><mi>n</mi><mi>i</mi></msub><mspace width="-0.1667em"></mspace><msub><mi>q</mi><mi>i</mi></msub>',
         '<mi>a</mi><mspace width="1em"></mspace><mi>b</mi><mspace width="2em"></mspace><mi>c</mi>',
         '<mi>post</mi><mspace width="0.1667em"></mspace><mi>media</mi><mspace width="-0.1667em"></mspace><mi>review</mi>',

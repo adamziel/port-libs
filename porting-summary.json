@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 21:25:12 UTC",
-    "sourceCommit": "2cd4ed271ea3c0590d1aeedd5412fc1ff7cb5405",
-    "sourceCommitShort": "2cd4ed271ea3",
+    "generated": "2026-06-05 21:25:22 UTC",
+    "sourceCommit": "238a2bc4b639547b777747060e667da065bcb96b",
+    "sourceCommitShort": "238a2bc4b639",
     "sourceBranch": "unknown",
-    "dashboardCommit": "2cd4ed271ea3c0590d1aeedd5412fc1ff7cb5405",
-    "dashboardCommitShort": "2cd4ed271ea3",
+    "dashboardCommit": "238a2bc4b639547b777747060e667da065bcb96b",
+    "dashboardCommitShort": "238a2bc4b639",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1528",
-            "coverage": "1,528 / 2,276 (67.1%)",
-            "mapPercent": "67.1%",
-            "unmapped": "748",
-            "php": "1,076 pass / 0 fail",
+            "mapped": "1529",
+            "coverage": "1,529 / 2,276 (67.2%)",
+            "mapPercent": "67.2%",
+            "unmapped": "747",
+            "php": "1,077 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-05 UTC DOCX/OpenXML formatting-change slice on accepted base...",
+            "audit": "2026-06-05 UTC Math/TeX slice on accepted base c5e69f53fca004ec586e1d...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For DOCX/OpenXML closure, keep glossary document parts, theme...",
+            "nextTarget": "For Math/TeX closure, keep broader package macro expansion, c...",
             "remainingGate": "No local blocker",
-            "commit": "pending pandoc-..."
+            "commit": "pending fast ac..."
         },
         {
             "lane": "quadrable",
