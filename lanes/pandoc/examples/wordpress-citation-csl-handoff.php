@@ -86,13 +86,14 @@ $cslStyleXml = <<<'XML'
     <terms>
       <term name="et-al">and others</term>
       <term name="no date">undated</term>
+      <term name="accessed">Retrieved</term>
     </terms>
   </locale>
   <citation>
     <layout prefix="(" suffix=")" delimiter="; "/>
   </citation>
-  <bibliography>
-    <layout/>
+  <bibliography hanging-indent="true" entry-spacing="0" line-spacing="1">
+    <layout prefix="[" suffix="]" delimiter=" "/>
   </bibliography>
 </style>
 XML;
@@ -105,8 +106,8 @@ if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         '<p>The reviewer packet cites de la Cruz (2026) for imported source access dates.</p>',
         '<p>The local style renders Adams and others (undated) when source dates are missing.</p>',
-        '<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria, Jr. Source Packet. 2026. https://example.test/source-packet. Accessed 2026-06-05.</dd>',
-        '<dt>Adams and others undated</dt><dd>Adams, Ari; Baker, Bea; Clark, Cy. Undated Committee Packet.</dd>',
+        '<dt>de la Cruz 2026</dt><dd>[de la Cruz, Ana Maria, Jr. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.]</dd>',
+        '<dt>Adams and others undated</dt><dd>[Adams, Ari; Baker, Bea; Clark, Cy. Undated Committee Packet.]</dd>',
         '<p>The source archive keeps (see @missing-source; URL Key Source 2000, p. 33) visible for reviewer follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {

@@ -79,7 +79,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, terms:array{and:string, etAl:string, noDate:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function cslStyleSummary(): array
     {
@@ -311,10 +311,10 @@ final class CitationCslProcessor
 
         $accessedDate = $item['accessedDate'] ?? null;
         if (is_array($accessedDate) && (string) ($accessedDate['display'] ?? '') !== '') {
-            $parts[] = 'Accessed ' . (string) $accessedDate['display'] . '.';
+            $parts[] = $this->style->term('accessed') . ' ' . (string) $accessedDate['display'] . '.';
         }
 
-        return implode(' ', $parts);
+        return $this->style->formatBibliographyEntry(implode($this->style->bibliographyDelimiter(), $parts));
     }
 
     /**
@@ -343,7 +343,24 @@ final class CitationCslProcessor
             ]);
         }
 
-        return new AstNode('definition_list', ['classes' => ['pandoc-csl-bibliography']], $items);
+        $options = $this->style->bibliographyOptions();
+        $attrs = [
+            'classes' => ['pandoc-csl-bibliography'],
+        ];
+        if ($options['hangingIndent']) {
+            $attrs['hangingIndent'] = true;
+        }
+        if ($options['entrySpacing'] !== null) {
+            $attrs['entrySpacing'] = $options['entrySpacing'];
+        }
+        if ($options['lineSpacing'] !== null) {
+            $attrs['lineSpacing'] = $options['lineSpacing'];
+        }
+        if ($options['secondFieldAlign'] !== '') {
+            $attrs['secondFieldAlign'] = $options['secondFieldAlign'];
+        }
+
+        return new AstNode('definition_list', $attrs, $items);
     }
 
     /**

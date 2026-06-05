@@ -511,6 +511,88 @@ XML,
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle('<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text"><info/></style>'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle('<locale xmlns="http://purl.org/net/xbiblio/csl" version="1.0"/>'));
     },
+    'applies bounded csl bibliography layout affixes and accessed locale term' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'source-packet',
+                'type' => 'webpage',
+                'title' => 'Source Packet',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la'],
+                ],
+                'issued' => ['date-parts' => [[2026, 6, 4]]],
+                'accessed' => ['date-parts' => [[2026, 6, 5]]],
+                'URL' => 'https://example.test/source-packet',
+            ],
+            [
+                'id' => 'undated-packet',
+                'type' => 'report',
+                'title' => 'Undated Packet',
+                'author' => [
+                    ['family' => 'Adams', 'given' => 'Ari'],
+                    ['family' => 'Baker', 'given' => 'Bea'],
+                    ['family' => 'Clark', 'given' => 'Cy'],
+                ],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-GB">
+  <info>
+    <title>WordPress Review Bibliography</title>
+    <id>https://example.test/styles/wordpress-review-bibliography</id>
+    <updated>2026-06-05T00:00:00+00:00</updated>
+  </info>
+  <locale xml:lang="en">
+    <terms>
+      <term name="accessed">Retrieved</term>
+      <term name="et-al">and colleagues</term>
+      <term name="no date">no source date</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; "/>
+  </citation>
+  <bibliography hanging-indent="true" entry-spacing="0" line-spacing="1">
+    <layout prefix="[" suffix="]" delimiter=" "/>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('[', $summary['bibliographyLayout']['prefix'] ?? null);
+        $t->same(']', $summary['bibliographyLayout']['suffix'] ?? null);
+        $t->same(' ', $summary['bibliographyLayout']['delimiter'] ?? null);
+        $t->same(true, $summary['bibliographyOptions']['hangingIndent'] ?? null);
+        $t->same(0, $summary['bibliographyOptions']['entrySpacing'] ?? null);
+        $t->same(1, $summary['bibliographyOptions']['lineSpacing'] ?? null);
+        $t->same('Retrieved', $summary['terms']['accessed'] ?? null);
+
+        $t->same('(de la Cruz 2026; Adams and colleagues no source date)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'source-packet', 'text' => '[@source-packet]']),
+            new AstNode('citation', ['id' => 'undated-packet', 'text' => '[@undated-packet]']),
+        ]));
+        $t->same('[de la Cruz, Ana Maria. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.]', $processor->renderBibliographyEntry('source-packet'));
+        $t->same('[Adams, Ari; Baker, Bea; Clark, Cy. Undated Packet.]', $processor->renderBibliographyEntry('undated-packet'));
+
+        $document = (new MarkdownReader())->read('Review cites @source-packet and [@undated-packet].');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $bibliography = $processed->children[2];
+        $t->same('definition_list', $bibliography->type);
+        $t->same(true, $bibliography->attr('hangingIndent'));
+        $t->same(0, $bibliography->attr('entrySpacing'));
+        $t->same(1, $bibliography->attr('lineSpacing'));
+
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Review cites de la Cruz (2026) and (Adams and colleagues no source date).', $markdown);
+        $t->contains('de la Cruz 2026' . "\n" . ':   \[de la Cruz, Ana Maria. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.\]', $markdown);
+        $t->contains('Adams and colleagues no source date' . "\n" . ':   \[Adams, Ari; Baker, Bea; Clark, Cy. Undated Packet.\]', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<dt>de la Cruz 2026</dt><dd>[de la Cruz, Ana Maria. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.]</dd>', $blocks);
+        $t->contains('<dt>Adams and colleagues no source date</dt><dd>[Adams, Ari; Baker, Bea; Clark, Cy. Undated Packet.]</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

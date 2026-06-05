@@ -19,11 +19,15 @@ final class CslStyle
 
     /**
      * @param array{prefix:string, suffix:string, delimiter:string} $citationLayout
+     * @param array{prefix:string, suffix:string, delimiter:string} $bibliographyLayout
+     * @param array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string} $bibliographyOptions
      * @param array<string, array{single:string, multiple:string}> $terms
      * @param array{title:string, id:string, class:string, defaultLocale:string} $metadata
      */
     private function __construct(
         private readonly array $citationLayout,
+        private readonly array $bibliographyLayout,
+        private readonly array $bibliographyOptions,
         private readonly array $terms,
         private readonly array $metadata,
     ) {
@@ -33,6 +37,8 @@ final class CslStyle
     {
         return new self(
             ['prefix' => '(', 'suffix' => ')', 'delimiter' => '; '],
+            ['prefix' => '', 'suffix' => '', 'delimiter' => ' '],
+            ['hangingIndent' => false, 'entrySpacing' => null, 'lineSpacing' => null, 'secondFieldAlign' => ''],
             self::DEFAULT_TERMS,
             ['title' => '', 'id' => '', 'class' => 'in-text', 'defaultLocale' => '']
         );
@@ -83,6 +89,15 @@ final class CslStyle
             throw new \InvalidArgumentException('CSL citation element must contain a layout element');
         }
 
+        $bibliography = self::directChild($root, 'bibliography');
+        $bibliographyLayoutElement = null;
+        if ($bibliography instanceof \DOMElement) {
+            $bibliographyLayoutElement = self::directChild($bibliography, 'layout');
+            if (!$bibliographyLayoutElement instanceof \DOMElement) {
+                throw new \InvalidArgumentException('CSL bibliography element must contain a layout element when present');
+            }
+        }
+
         $info = self::directChild($root, 'info');
         $metadata = [
             'title' => $info instanceof \DOMElement ? self::childText($info, 'title') : '',
@@ -92,11 +107,13 @@ final class CslStyle
         ];
 
         return new self(
-            [
-                'prefix' => $layout->hasAttribute('prefix') ? $layout->getAttribute('prefix') : '',
-                'suffix' => $layout->hasAttribute('suffix') ? $layout->getAttribute('suffix') : '',
-                'delimiter' => $layout->hasAttribute('delimiter') ? $layout->getAttribute('delimiter') : '; ',
-            ],
+            self::layoutAttributes($layout, '; '),
+            $bibliographyLayoutElement instanceof \DOMElement
+                ? self::layoutAttributes($bibliographyLayoutElement, ' ')
+                : ['prefix' => '', 'suffix' => '', 'delimiter' => ' '],
+            $bibliography instanceof \DOMElement
+                ? self::parseBibliographyOptions($bibliography)
+                : ['hangingIndent' => false, 'entrySpacing' => null, 'lineSpacing' => null, 'secondFieldAlign' => ''],
             $terms,
             $metadata
         );
@@ -117,6 +134,28 @@ final class CslStyle
         return $this->citationLayout['delimiter'];
     }
 
+    public function bibliographyDelimiter(): string
+    {
+        return $this->bibliographyLayout['delimiter'];
+    }
+
+    public function formatBibliographyEntry(string $entry): string
+    {
+        if ($entry === '') {
+            return '';
+        }
+
+        return $this->bibliographyLayout['prefix'] . $entry . $this->bibliographyLayout['suffix'];
+    }
+
+    /**
+     * @return array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}
+     */
+    public function bibliographyOptions(): array
+    {
+        return $this->bibliographyOptions;
+    }
+
     public function term(string $name, string $form = 'long', bool $plural = false): string
     {
         $key = self::termKey($name, $form);
@@ -129,19 +168,79 @@ final class CslStyle
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, terms:array{and:string, etAl:string, noDate:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function summary(): array
     {
         return [
             ...$this->metadata,
             'citationLayout' => $this->citationLayout,
+            'bibliographyLayout' => $this->bibliographyLayout,
+            'bibliographyOptions' => $this->bibliographyOptions,
             'terms' => [
                 'and' => $this->term('and'),
                 'etAl' => $this->term('et-al'),
                 'noDate' => $this->term('no date'),
+                'accessed' => $this->term('accessed'),
             ],
         ];
+    }
+
+    /**
+     * @return array{prefix:string, suffix:string, delimiter:string}
+     */
+    private static function layoutAttributes(\DOMElement $layout, string $defaultDelimiter): array
+    {
+        return [
+            'prefix' => $layout->hasAttribute('prefix') ? $layout->getAttribute('prefix') : '',
+            'suffix' => $layout->hasAttribute('suffix') ? $layout->getAttribute('suffix') : '',
+            'delimiter' => $layout->hasAttribute('delimiter') ? $layout->getAttribute('delimiter') : $defaultDelimiter,
+        ];
+    }
+
+    /**
+     * @return array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}
+     */
+    private static function parseBibliographyOptions(\DOMElement $bibliography): array
+    {
+        return [
+            'hangingIndent' => self::booleanAttribute($bibliography, 'hanging-indent', false),
+            'entrySpacing' => self::integerAttribute($bibliography, 'entry-spacing'),
+            'lineSpacing' => self::integerAttribute($bibliography, 'line-spacing'),
+            'secondFieldAlign' => trim($bibliography->getAttribute('second-field-align')),
+        ];
+    }
+
+    private static function booleanAttribute(\DOMElement $element, string $name, bool $default): bool
+    {
+        if (!$element->hasAttribute($name)) {
+            return $default;
+        }
+
+        $value = strtolower(trim($element->getAttribute($name)));
+        if ($value === 'true') {
+            return true;
+        }
+
+        if ($value === 'false') {
+            return false;
+        }
+
+        throw new \InvalidArgumentException('CSL bibliography attribute ' . $name . ' must be true or false');
+    }
+
+    private static function integerAttribute(\DOMElement $element, string $name): ?int
+    {
+        if (!$element->hasAttribute($name)) {
+            return null;
+        }
+
+        $value = trim($element->getAttribute($name));
+        if (preg_match('/^-?\d+$/', $value) !== 1) {
+            throw new \InvalidArgumentException('CSL bibliography attribute ' . $name . ' must be an integer');
+        }
+
+        return (int) $value;
     }
 
     /**
