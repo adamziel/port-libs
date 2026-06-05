@@ -1029,8 +1029,12 @@ final class TableRecognizer
         $assigned = [];
         $markdown = [];
         foreach ($recognizedTables as $idx => $table) {
-            $tableCells = $this->assignedCellsFromRecognizedTable($table)
-                ?? $this->assignRowsColumns($table, $imageSizes[$idx]);
+            $assignedCells = $this->assignedCellsFromRecognizedTable($table);
+            if ($assignedCells !== null) {
+                $tableCells = $this->boundedAssignmentCells($assignedCells, $this->imageSize($imageSizes[$idx]));
+            } else {
+                $tableCells = $this->assignRowsColumns($table, $imageSizes[$idx]);
+            }
             $assigned[] = $tableCells;
             $markdown[] = $this->markdownFormat($tableCells);
         }
@@ -1046,8 +1050,9 @@ final class TableRecognizer
     /**
      * Saved tabled/marker results may already carry the SpanTableCell
      * row/column assignment. Trust that complete upstream assignment instead
-     * of recomputing from geometry; raw detector cells still flow through
-     * assignRowsColumns().
+     * of recomputing from geometry; formatRecognizedTables() still applies
+     * the same table-crop positive-area boundary used by assignRowsColumns().
+     * Raw detector cells still flow through assignRowsColumns().
      *
      * @param array<string, mixed> $table
      * @return list<array<string, mixed>>|null
