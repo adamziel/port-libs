@@ -1286,6 +1286,33 @@ $buildLocalEntrySlackBackedPackage = static function () use ($crc32): string {
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$corruptZipEntryPayload = static function (string $zip, string $entryName): string {
+    $cursor = 0;
+    $length = strlen($zip);
+
+    while ($cursor + 30 <= $length && substr($zip, $cursor, 4) === "PK\x03\x04") {
+        $compressedSize = unpack('Vvalue', substr($zip, $cursor + 18, 4))['value'];
+        $nameLength = unpack('vvalue', substr($zip, $cursor + 26, 2))['value'];
+        $extraLength = unpack('vvalue', substr($zip, $cursor + 28, 2))['value'];
+        $nameStart = $cursor + 30;
+        $dataStart = $nameStart + $nameLength + $extraLength;
+        $name = substr($zip, $nameStart, $nameLength);
+
+        if ($name === $entryName) {
+            if ($compressedSize <= 0) {
+                throw new RuntimeException('Cannot corrupt ZIP fixture payload for ' . $entryName);
+            }
+
+            $zip[$dataStart] = chr(ord($zip[$dataStart]) ^ 0xff);
+
+            return $zip;
+        }
+
+        $cursor = $dataStart + $compressedSize;
+    }
+
+    throw new RuntimeException('ZIP fixture entry not found: ' . $entryName);
+};
 
 $package = ZipPackage::fromParts([
     [
@@ -1313,11 +1340,20 @@ $packagePermissionPreflight = $package->permissionPreflight();
 $packageCreatorHostPreflight = $package->creatorHostSystemPreflight();
 $packageCommentPreflight = $package->commentPreflight();
 $packageExtraFieldPreflight = $package->extraFieldPreflight();
+$packageReadIntegrityPreflight = $package->readIntegrityPreflight(4096);
 $packageCommentPolicyRejected = false;
 try {
     $package->assertNoPackageOrEntryComments();
 } catch (RuntimeException $exception) {
     $packageCommentPolicyRejected = str_contains($exception->getMessage(), 'package or entry comments');
+}
+$corruptPayloadPackage = ZipPackage::fromString($corruptZipEntryPayload($package->bytes(), 'word/document.xml'));
+$corruptPayloadPreflight = $corruptPayloadPackage->readIntegrityPreflight();
+$corruptPayloadRejected = false;
+try {
+    $corruptPayloadPackage->assertReadableEntries();
+} catch (RuntimeException $exception) {
+    $corruptPayloadRejected = str_contains($exception->getMessage(), 'cannot be read by native pandoc package import');
 }
 $packageSizeRejected = false;
 try {
@@ -2029,6 +2065,26 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP compression method preflight to return the accepted summary');
     }
 
+    if (
+        ($packageReadIntegrityPreflight['entryCount'] ?? null) !== 3
+        || ($packageReadIntegrityPreflight['readableEntryCount'] ?? null) !== 3
+        || ($packageReadIntegrityPreflight['failedEntryCount'] ?? null) !== 0
+    ) {
+        throw new RuntimeException('Expected ZIP read-integrity preflight to accept generated package bytes');
+    }
+
+    if ($package->assertReadableEntries(4096) !== $packageReadIntegrityPreflight) {
+        throw new RuntimeException('Expected ZIP read-integrity assertion to return the accepted summary');
+    }
+
+    if (
+        !$corruptPayloadRejected
+        || ($corruptPayloadPreflight['failedEntryCount'] ?? null) !== 1
+        || ($corruptPayloadPreflight['failedEntries'][0]['name'] ?? null) !== 'word/document.xml'
+    ) {
+        throw new RuntimeException('Expected corrupt ZIP payloads to be rejected before package media handoff');
+    }
+
     if (($unsupportedCompressionMethodPreflight['unsupportedEntries'][0]['compressionMethod'] ?? null) !== 12) {
         throw new RuntimeException('Expected ZIP compression method preflight to expose unsupported method 12');
     }
@@ -2738,6 +2794,8 @@ echo 'packageSize.expansionRatio=' . ($packageSizePreflight['expansionRatio'] ==
 echo 'packageSize.largestEntry=' . ($packageSizePreflight['largestEntry']['name'] ?? 'none') . "\n";
 echo 'packageCompression.supportedEntryCount=' . $packageCompressionPreflight['supportedEntryCount'] . "\n";
 echo 'packageCompression.unsupportedMethodCount=' . $packageCompressionPreflight['unsupportedCompressionMethodCount'] . "\n";
+echo 'packageReadIntegrity.readableEntryCount=' . $packageReadIntegrityPreflight['readableEntryCount'] . "\n";
+echo 'packageReadIntegrity.failedEntryCount=' . $packageReadIntegrityPreflight['failedEntryCount'] . "\n";
 echo 'packagePermissions.unixModeEntryCount=' . $packagePermissionPreflight['unixModeEntryCount'] . "\n";
 echo 'packagePermissions.executableFileCount=' . $packagePermissionPreflight['executableFileCount'] . "\n";
 echo 'packageCreatorHosts=' . implode(',', array_map(static fn (array $host): string => $host['name'], $packageCreatorHostPreflight['hostSystems'])) . "\n";
@@ -2785,6 +2843,8 @@ echo 'zipDuplicateExtraFieldPolicy=' . ($duplicateExtraFieldRejected ? 'rejected
 echo 'zipDuplicateExtraFieldEntry=' . ($duplicateExtraFieldPreflight['duplicateEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipDeflateOptionFlagPolicy=' . ($deflateOptionFlagsRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipStoredSizeMismatchPolicy=' . ($storedSizeMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipPayloadIntegrityPolicy=' . ($corruptPayloadRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipPayloadIntegrityFailedEntry=' . ($corruptPayloadPreflight['failedEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipVersionNeededMismatchPolicy=' . ($versionNeededMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnsupportedVersionNeededPolicy=' . ($unsupportedVersionNeededRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalHeaderNameMismatchPolicy=' . ($localHeaderNameMismatchRejected ? 'rejected' : 'not-rejected') . "\n";

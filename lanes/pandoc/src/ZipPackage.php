@@ -1099,6 +1099,99 @@ final class ZipPackage
     /**
      * @return array{
      *     entryCount:int,
+     *     readableEntryCount:int,
+     *     failedEntryCount:int,
+     *     maxEntryUncompressedBytes:?int,
+     *     failedEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, crc32:int, crc32Hex:string, isReadable:bool, bytesRead:?int, error:string}>,
+     *     entries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, crc32:int, crc32Hex:string, isReadable:bool, bytesRead:?int, error:?string}>
+     * }
+     */
+    public function readIntegrityPreflight(?int $maxEntryUncompressedBytes = null): array
+    {
+        self::assertReadLimit($maxEntryUncompressedBytes, 'package integrity preflight');
+
+        $entries = [];
+        $failedEntries = [];
+
+        foreach ($this->entries as $entry) {
+            $summary = [
+                'name' => $entry->name,
+                'compressionMethod' => $entry->compressionMethod,
+                'isDirectory' => $entry->isDirectory(),
+                'compressedSize' => $entry->compressedSize,
+                'uncompressedSize' => $entry->uncompressedSize,
+                'crc32' => $entry->crc32,
+                'crc32Hex' => $entry->crc32Hex(),
+                'isReadable' => true,
+                'bytesRead' => null,
+                'error' => null,
+            ];
+
+            try {
+                $summary['bytesRead'] = strlen($this->read($entry->name, $maxEntryUncompressedBytes));
+            } catch (\RuntimeException $exception) {
+                $summary['isReadable'] = false;
+                $summary['error'] = $exception->getMessage();
+                $failedEntries[] = [
+                    'name' => $summary['name'],
+                    'compressionMethod' => $summary['compressionMethod'],
+                    'isDirectory' => $summary['isDirectory'],
+                    'compressedSize' => $summary['compressedSize'],
+                    'uncompressedSize' => $summary['uncompressedSize'],
+                    'crc32' => $summary['crc32'],
+                    'crc32Hex' => $summary['crc32Hex'],
+                    'isReadable' => false,
+                    'bytesRead' => null,
+                    'error' => $summary['error'],
+                ];
+            }
+
+            $entries[] = $summary;
+        }
+
+        return [
+            'entryCount' => count($this->entries),
+            'readableEntryCount' => count($this->entries) - count($failedEntries),
+            'failedEntryCount' => count($failedEntries),
+            'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
+            'failedEntries' => $failedEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     readableEntryCount:int,
+     *     failedEntryCount:int,
+     *     maxEntryUncompressedBytes:?int,
+     *     failedEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, crc32:int, crc32Hex:string, isReadable:bool, bytesRead:?int, error:string}>,
+     *     entries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, crc32:int, crc32Hex:string, isReadable:bool, bytesRead:?int, error:?string}>
+     * }
+     */
+    public function assertReadableEntries(?int $maxEntryUncompressedBytes = null): array
+    {
+        $summary = $this->readIntegrityPreflight($maxEntryUncompressedBytes);
+        if ($summary['failedEntryCount'] > 0) {
+            $entries = implode(
+                ', ',
+                array_map(
+                    static fn (array $entry): string => $entry['name'] . ' (' . $entry['error'] . ')',
+                    $summary['failedEntries']
+                )
+            );
+
+            throw new \RuntimeException(
+                'ZIP package contains entries that cannot be read by native pandoc package import: ' . $entries
+            );
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
      *     supportedEntryCount:int,
      *     unsupportedCompressionMethodCount:int,
      *     storedEntryCount:int,
@@ -1771,7 +1864,7 @@ final class ZipPackage
             $inflateLimit = $maxUncompressedBytes === PHP_INT_MAX ? 0 : $maxUncompressedBytes + 1;
         }
 
-        $inflated = $inflateLimit > 0 ? gzinflate($compressed, $inflateLimit) : gzinflate($compressed);
+        $inflated = $inflateLimit > 0 ? @gzinflate($compressed, $inflateLimit) : @gzinflate($compressed);
         if ($inflated === false) {
             throw new \RuntimeException("Unable to inflate ZIP entry {$entry->name}");
         }

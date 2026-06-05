@@ -406,6 +406,34 @@ $rewriteEndOfCentralDirectory = static function (string $zip, array $fields): st
 
     return $zip;
 };
+$corruptZipEntryPayload = static function (string $zip, string $entryName, int $byteOffset = 0): string {
+    $cursor = 0;
+    $length = strlen($zip);
+
+    while ($cursor + 30 <= $length && substr($zip, $cursor, 4) === "PK\x03\x04") {
+        $compressedSize = unpack('Vvalue', substr($zip, $cursor + 18, 4))['value'];
+        $nameLength = unpack('vvalue', substr($zip, $cursor + 26, 2))['value'];
+        $extraLength = unpack('vvalue', substr($zip, $cursor + 28, 2))['value'];
+        $nameStart = $cursor + 30;
+        $dataStart = $nameStart + $nameLength + $extraLength;
+        $name = substr($zip, $nameStart, $nameLength);
+
+        if ($name === $entryName) {
+            if ($compressedSize <= 0 || $byteOffset < 0 || $byteOffset >= $compressedSize) {
+                throw new RuntimeException('Cannot corrupt ZIP fixture payload for ' . $entryName);
+            }
+
+            $payloadOffset = $dataStart + $byteOffset;
+            $zip[$payloadOffset] = chr(ord($zip[$payloadOffset]) ^ 0xff);
+
+            return $zip;
+        }
+
+        $cursor = $dataStart + $compressedSize;
+    }
+
+    throw new RuntimeException('ZIP fixture entry not found: ' . $entryName);
+};
 
 return [
     'reads current zip package central directory and stored deflated parts' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
@@ -2211,6 +2239,69 @@ return [
         ]));
         $t->same(null, $zeroCompressed->sizePreflight()['expansionRatio']);
         $t->throws(\RuntimeException::class, static fn (): array => $zeroCompressed->assertSizePreflight(null, 10.0));
+    },
+
+    'preflights readable zip entry payloads before office package media handoff' => static function (TestRunner $t) use ($buildZipPackage, $corruptZipEntryPayload, $crc32): void {
+        $documentXml = '<w:document><w:body><w:p>integrity preflight</w:p></w:body></w:document>';
+        $mediaBytes = "review media payload bytes\n";
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => $mediaBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+        ]));
+        $summary = $package->readIntegrityPreflight(1024);
+
+        $t->same(3, $summary['entryCount']);
+        $t->same(3, $summary['readableEntryCount']);
+        $t->same(0, $summary['failedEntryCount']);
+        $t->same(1024, $summary['maxEntryUncompressedBytes']);
+        $t->same([], $summary['failedEntries']);
+        $t->same('word/document.xml', $summary['entries'][0]['name']);
+        $t->same(true, $summary['entries'][0]['isReadable']);
+        $t->same(strlen($documentXml), $summary['entries'][0]['bytesRead']);
+        $t->same($crc32($documentXml), $summary['entries'][0]['crc32']);
+        $t->same(sprintf('%08x', $crc32($documentXml)), $summary['entries'][0]['crc32Hex']);
+        $t->same('word/media/', $summary['entries'][2]['name']);
+        $t->same(true, $summary['entries'][2]['isDirectory']);
+        $t->same(0, $summary['entries'][2]['bytesRead']);
+        $t->same($summary, $package->assertReadableEntries(1024));
+
+        $corruptPackage = ZipPackage::fromString($corruptZipEntryPayload($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => $mediaBytes,
+                'method' => 0,
+            ],
+        ]), 'word/document.xml'));
+        $corruptSummary = $corruptPackage->readIntegrityPreflight();
+
+        $t->same(2, $corruptSummary['entryCount']);
+        $t->same(1, $corruptSummary['readableEntryCount']);
+        $t->same(1, $corruptSummary['failedEntryCount']);
+        $t->same(null, $corruptSummary['maxEntryUncompressedBytes']);
+        $t->same('word/document.xml', $corruptSummary['failedEntries'][0]['name']);
+        $t->same(false, $corruptSummary['entries'][0]['isReadable']);
+        $t->same(null, $corruptSummary['entries'][0]['bytesRead']);
+        $t->contains('ZIP entry word/document.xml', $corruptSummary['entries'][0]['error']);
+        $t->same(true, $corruptSummary['entries'][1]['isReadable']);
+        $t->throws(\RuntimeException::class, static fn (): array => $corruptPackage->assertReadableEntries());
     },
 
     'builds and reads bounded gzip streams around package fixture bytes' => static function (TestRunner $t) use ($crc32): void {
