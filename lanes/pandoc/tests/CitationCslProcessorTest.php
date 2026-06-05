@@ -262,6 +262,39 @@ BIB;
         $t->same('(Curator forthcoming)', $processor->renderCitationCluster([$citation('edited-manual', '[@edited-manual]')]));
         $t->same('Curator, Eli, III. Edited Migration Manual. Review Press, forthcoming.', $processor->renderBibliographyEntry('edited-manual'));
     },
+    'decodes common tex accents and special letters in bibtex csl handoff' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{accented-source,
+  author       = {M{\"u}ller, Mia and Garc{\'i}a, Gia and {{S{\o}ren Archive Team}}},
+  editor       = {Fran{\c c}ois, Ren{\'e}e},
+  title        = {{\'E}tude of Jalape{\~n}o Source Packets},
+  journaltitle = {Cr{\`e}me Br{\^u}l{\'e}e Review},
+  publisher    = {Rev{\"u} Press},
+  date         = {2026-06-05},
+  pages        = {7--9},
+  url          = {https://example.test/accented}
+}
+BIB;
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('accented-source');
+        $t->same('Étude of Jalapeño Source Packets', $item['title'] ?? null);
+        $t->same('Crème Brûlée Review', $item['containerTitle'] ?? null);
+        $t->same('Revü Press', $item['publisher'] ?? null);
+        $t->same('Müller', $item['authors'][0]['family'] ?? null);
+        $t->same('Mia', $item['authors'][0]['given'] ?? null);
+        $t->same('García', $item['authors'][1]['family'] ?? null);
+        $t->same('Søren Archive Team', $item['authors'][2]['literal'] ?? null);
+        $t->same('François', $item['editors'][0]['family'] ?? null);
+        $t->same('Renée', $item['editors'][0]['given'] ?? null);
+        $t->same('(Müller et al. 2026)', $processor->renderCitationCluster([$citation('accented-source', '[@accented-source]')]));
+        $t->same('Müller, Mia; García, Gia; Søren Archive Team. Étude of Jalapeño Source Packets. Crème Brûlée Review. Revü Press, 2026. 7-9. https://example.test/accented.', $processor->renderBibliographyEntry('accented-source'));
+
+        $document = (new MarkdownReader())->read('Review keeps @accented-source in source notes.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Review keeps Müller et al. (2026) in source notes.</p>', $blocks);
+        $t->contains('<dt>Müller et al. 2026</dt><dd>Müller, Mia; García, Gia; Søren Archive Team. Étude of Jalapeño Source Packets. Crème Brûlée Review. Revü Press, 2026. 7-9. https://example.test/accented.</dd>', $blocks);
+    },
     'inherits bounded bibtex crossref fields into child csl items' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @proceedings{conf2026,

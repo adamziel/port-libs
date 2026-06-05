@@ -17,6 +17,8 @@ The reviewer queue keeps @particle-source attached to imported source access not
 
 A proceedings child entry inherits @source-audit conference metadata for reviewer bibliographies.
 
+Accented .bib names such as @accented-source remain readable in bibliography review.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -63,6 +65,17 @@ $bibtex = <<<'BIB'
   pages    = {12--18},
   crossref = {conf2026}
 }
+
+@article{accented-source,
+  author       = {M{\"u}ller, Mia and Garc{\'i}a, Gia and {{S{\o}ren Archive Team}}},
+  editor       = {Fran{\c c}ois, Ren{\'e}e},
+  title        = {{\'E}tude of Jalape{\~n}o Source Packets},
+  journaltitle = {Cr{\`e}me Br{\^u}l{\'e}e Review},
+  publisher    = {Rev{\"u} Press},
+  date         = {2026-06-05},
+  pages        = {7--9},
+  url          = {https://example.test/accented}
+}
 BIB;
 
 $processor = CitationCslProcessor::fromBibtex($bibtex);
@@ -74,9 +87,11 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
         '<p>The reviewer queue keeps de la Cruz (2026) attached to imported source access notes.</p>',
         '<p>A proceedings child entry inherits Smith (2026) conference metadata for reviewer bibliographies.</p>',
+        '<p>Accented .bib names such as Müller et al. (2026) remain readable in bibliography review.</p>',
         '<dt>Doe and Roe 2020</dt><dd>Doe, Jane; Roe, Pat. Field Notes. Journal of Imports. 2020. 55-60. https://example.test/field-notes. Accessed 2026-06-04.</dd>',
         '<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria, Jr. Source Packet. 2026. https://example.test/source-packet.</dd>',
         '<dt>Smith 2026</dt><dd>Smith, Ada. Packet Audit Trails. Migration Futures Conference. Review Press, 2026. 12-18.</dd>',
+        '<dt>Müller et al. 2026</dt><dd>Müller, Mia; García, Gia; Søren Archive Team. Étude of Jalapeño Source Packets. Crème Brûlée Review. Revü Press, 2026. 7-9. https://example.test/accented.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {

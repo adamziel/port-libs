@@ -885,13 +885,158 @@ final class BibtexCslParser
 
     private static function cleanBibtexText(string $value): string
     {
-        $value = str_replace(["\r\n", "\r", "\n", '~'], ' ', $value);
+        $value = str_replace(["\r\n", "\r", "\n"], ' ', $value);
+        $value = self::decodeLatexText($value);
+        $value = str_replace('~', ' ', $value);
         $value = preg_replace('/\\\\([&%$#_{}])/', '$1', $value) ?? $value;
         $value = preg_replace('/\\\\(?:emph|textit|textbf|enquote)\s*\{([^{}]*)\}/', '$1', $value) ?? $value;
         $value = preg_replace('/\\\\(?:textendash|textminus)\b/', '-', $value) ?? $value;
         $value = preg_replace('/[{}]/', '', $value) ?? $value;
 
         return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
+    }
+
+    private static function decodeLatexText(string $value): string
+    {
+        $value = self::decodeLatexAccentCommands($value);
+
+        return self::decodeLatexSpecialLetters($value);
+    }
+
+    private static function decodeLatexAccentCommands(string $value): string
+    {
+        $patterns = [
+            '/\{\\\\([`\\\'"^~=\.uvHrcbk])\s*\{?\s*([A-Za-z])\s*\}?\}/u',
+            '/\\\\([`\\\'"^~=\.uvHrcbk])\s*\{\s*([A-Za-z])\s*\}/u',
+            '/\\\\([`\\\'"^~=\.])\s*([A-Za-z])/u',
+            '/\\\\([uvHrcbk])\s+([A-Za-z])/u',
+        ];
+
+        foreach ($patterns as $pattern) {
+            $value = preg_replace_callback(
+                $pattern,
+                static fn (array $matches): string => self::accentedLatinLetter($matches[1], $matches[2], $matches[0]),
+                $value
+            ) ?? $value;
+        }
+
+        return $value;
+    }
+
+    private static function accentedLatinLetter(string $accent, string $letter, string $original): string
+    {
+        $map = self::latexAccentMap();
+
+        return $map[$accent][$letter] ?? $original;
+    }
+
+    private static function decodeLatexSpecialLetters(string $value): string
+    {
+        $map = self::latexSpecialLetterMap();
+        $macros = array_keys($map);
+        usort($macros, static fn (string $a, string $b): int => strlen($b) <=> strlen($a));
+        $alternation = implode('|', array_map(static fn (string $macro): string => preg_quote($macro, '/'), $macros));
+        $pattern = '/\{\\\\(' . $alternation . ')\}|\\\\(' . $alternation . ')(?![A-Za-z])/u';
+
+        return preg_replace_callback(
+            $pattern,
+            static function (array $matches) use ($map): string {
+                $macro = ($matches[1] ?? '') !== '' ? $matches[1] : ($matches[2] ?? '');
+
+                return $map[$macro] ?? $matches[0];
+            },
+            $value
+        ) ?? $value;
+    }
+
+    /**
+     * @return array<string, array<string, string>>
+     */
+    private static function latexAccentMap(): array
+    {
+        return [
+            '\'' => [
+                'A' => "\u{00C1}", 'C' => "\u{0106}", 'E' => "\u{00C9}", 'I' => "\u{00CD}", 'L' => "\u{0139}", 'N' => "\u{0143}", 'O' => "\u{00D3}", 'R' => "\u{0154}", 'S' => "\u{015A}", 'U' => "\u{00DA}", 'Y' => "\u{00DD}", 'Z' => "\u{0179}",
+                'a' => "\u{00E1}", 'c' => "\u{0107}", 'e' => "\u{00E9}", 'i' => "\u{00ED}", 'l' => "\u{013A}", 'n' => "\u{0144}", 'o' => "\u{00F3}", 'r' => "\u{0155}", 's' => "\u{015B}", 'u' => "\u{00FA}", 'y' => "\u{00FD}", 'z' => "\u{017A}",
+            ],
+            '`' => [
+                'A' => "\u{00C0}", 'E' => "\u{00C8}", 'I' => "\u{00CC}", 'O' => "\u{00D2}", 'U' => "\u{00D9}",
+                'a' => "\u{00E0}", 'e' => "\u{00E8}", 'i' => "\u{00EC}", 'o' => "\u{00F2}", 'u' => "\u{00F9}",
+            ],
+            '^' => [
+                'A' => "\u{00C2}", 'C' => "\u{0108}", 'E' => "\u{00CA}", 'G' => "\u{011C}", 'H' => "\u{0124}", 'I' => "\u{00CE}", 'J' => "\u{0134}", 'O' => "\u{00D4}", 'S' => "\u{015C}", 'U' => "\u{00DB}", 'W' => "\u{0174}", 'Y' => "\u{0176}",
+                'a' => "\u{00E2}", 'c' => "\u{0109}", 'e' => "\u{00EA}", 'g' => "\u{011D}", 'h' => "\u{0125}", 'i' => "\u{00EE}", 'j' => "\u{0135}", 'o' => "\u{00F4}", 's' => "\u{015D}", 'u' => "\u{00FB}", 'w' => "\u{0175}", 'y' => "\u{0177}",
+            ],
+            '"' => [
+                'A' => "\u{00C4}", 'E' => "\u{00CB}", 'I' => "\u{00CF}", 'O' => "\u{00D6}", 'U' => "\u{00DC}", 'Y' => "\u{0178}",
+                'a' => "\u{00E4}", 'e' => "\u{00EB}", 'i' => "\u{00EF}", 'o' => "\u{00F6}", 'u' => "\u{00FC}", 'y' => "\u{00FF}",
+            ],
+            '~' => [
+                'A' => "\u{00C3}", 'N' => "\u{00D1}", 'O' => "\u{00D5}",
+                'a' => "\u{00E3}", 'n' => "\u{00F1}", 'o' => "\u{00F5}",
+            ],
+            '=' => [
+                'A' => "\u{0100}", 'E' => "\u{0112}", 'I' => "\u{012A}", 'O' => "\u{014C}", 'U' => "\u{016A}",
+                'a' => "\u{0101}", 'e' => "\u{0113}", 'i' => "\u{012B}", 'o' => "\u{014D}", 'u' => "\u{016B}",
+            ],
+            '.' => [
+                'C' => "\u{010A}", 'E' => "\u{0116}", 'G' => "\u{0120}", 'I' => "\u{0130}", 'Z' => "\u{017B}",
+                'c' => "\u{010B}", 'e' => "\u{0117}", 'g' => "\u{0121}", 'z' => "\u{017C}",
+            ],
+            'u' => [
+                'A' => "\u{0102}", 'E' => "\u{0114}", 'G' => "\u{011E}", 'I' => "\u{012C}", 'O' => "\u{014E}", 'U' => "\u{016C}",
+                'a' => "\u{0103}", 'e' => "\u{0115}", 'g' => "\u{011F}", 'i' => "\u{012D}", 'o' => "\u{014F}", 'u' => "\u{016D}",
+            ],
+            'v' => [
+                'C' => "\u{010C}", 'D' => "\u{010E}", 'E' => "\u{011A}", 'L' => "\u{013D}", 'N' => "\u{0147}", 'R' => "\u{0158}", 'S' => "\u{0160}", 'T' => "\u{0164}", 'Z' => "\u{017D}",
+                'c' => "\u{010D}", 'd' => "\u{010F}", 'e' => "\u{011B}", 'l' => "\u{013E}", 'n' => "\u{0148}", 'r' => "\u{0159}", 's' => "\u{0161}", 't' => "\u{0165}", 'z' => "\u{017E}",
+            ],
+            'H' => [
+                'O' => "\u{0150}", 'U' => "\u{0170}",
+                'o' => "\u{0151}", 'u' => "\u{0171}",
+            ],
+            'r' => [
+                'A' => "\u{00C5}", 'U' => "\u{016E}",
+                'a' => "\u{00E5}", 'u' => "\u{016F}",
+            ],
+            'c' => [
+                'C' => "\u{00C7}", 'G' => "\u{0122}", 'K' => "\u{0136}", 'L' => "\u{013B}", 'N' => "\u{0145}", 'R' => "\u{0156}", 'S' => "\u{015E}", 'T' => "\u{0162}",
+                'c' => "\u{00E7}", 'g' => "\u{0123}", 'k' => "\u{0137}", 'l' => "\u{013C}", 'n' => "\u{0146}", 'r' => "\u{0157}", 's' => "\u{015F}", 't' => "\u{0163}",
+            ],
+            'k' => [
+                'A' => "\u{0104}", 'E' => "\u{0118}", 'I' => "\u{012E}", 'U' => "\u{0172}",
+                'a' => "\u{0105}", 'e' => "\u{0119}", 'i' => "\u{012F}", 'u' => "\u{0173}",
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function latexSpecialLetterMap(): array
+    {
+        return [
+            'AE' => "\u{00C6}",
+            'ae' => "\u{00E6}",
+            'OE' => "\u{0152}",
+            'oe' => "\u{0153}",
+            'AA' => "\u{00C5}",
+            'aa' => "\u{00E5}",
+            'O' => "\u{00D8}",
+            'o' => "\u{00F8}",
+            'L' => "\u{0141}",
+            'l' => "\u{0142}",
+            'SS' => 'SS',
+            'ss' => "\u{00DF}",
+            'DH' => "\u{00D0}",
+            'dh' => "\u{00F0}",
+            'TH' => "\u{00DE}",
+            'th' => "\u{00FE}",
+            'NG' => "\u{014A}",
+            'ng' => "\u{014B}",
+            'i' => "\u{0131}",
+            'j' => "\u{0237}",
+        ];
     }
 
     /**
