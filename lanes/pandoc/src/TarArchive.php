@@ -268,6 +268,8 @@ final class TarArchive
             if (!is_string($userName) || !is_string($groupName)) {
                 throw new \RuntimeException("TAR entry {$name} user and group names must be strings");
             }
+            self::assertUtf8($userName, "TAR entry {$name} user name");
+            self::assertUtf8($groupName, "TAR entry {$name} group name");
 
             $typeFlag = $type === TarArchiveEntry::TYPE_DIRECTORY ? self::TYPE_DIRECTORY : self::TYPE_REGULAR;
             $headerName = $name;
@@ -499,7 +501,10 @@ final class TarArchive
      */
     private static function resolvedUserNameFromHeader(string $header, array $headers): string
     {
-        return $headers['uname'] ?? self::trimNullField(substr($header, 265, 32));
+        $userName = $headers['uname'] ?? self::trimNullField(substr($header, 265, 32));
+        self::assertUtf8($userName, isset($headers['uname']) ? 'TAR PAX uname metadata' : 'TAR ustar user name metadata');
+
+        return $userName;
     }
 
     /**
@@ -507,7 +512,10 @@ final class TarArchive
      */
     private static function resolvedGroupNameFromHeader(string $header, array $headers): string
     {
-        return $headers['gname'] ?? self::trimNullField(substr($header, 297, 32));
+        $groupName = $headers['gname'] ?? self::trimNullField(substr($header, 297, 32));
+        self::assertUtf8($groupName, isset($headers['gname']) ? 'TAR PAX gname metadata' : 'TAR ustar group name metadata');
+
+        return $groupName;
     }
 
     private static function validateHeaderChecksum(string $header): void

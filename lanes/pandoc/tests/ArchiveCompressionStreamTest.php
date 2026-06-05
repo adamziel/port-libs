@@ -207,6 +207,44 @@ return [
         $t->same($documentBytes, $roundTrip->read('/' . $documentName));
     },
 
+    'rejects invalid utf8 tar owner metadata before package exposure' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload, $rewriteTarHeaderFields): void {
+        $invalidUserName = $rewriteTarHeaderFields(
+            $rawTarHeader('packet/invalid-user.xml', '0', '<w:document/>'),
+            [
+                265 => str_pad("reviewer-\xC3\x28", 32, "\0"),
+            ]
+        );
+        $invalidGroupName = $rewriteTarHeaderFields(
+            $rawTarHeader('packet/invalid-group.xml', '0', '<w:document/>'),
+            [
+                297 => str_pad("import-\xC3\x28", 32, "\0"),
+            ]
+        );
+        $invalidPaxUserName = $rawTarHeader('PaxHeaders/invalid-uname', 'x', $paxPayload([
+            'path' => 'packet/pax-invalid-user.xml',
+            'uname' => "reviewer-\xC3\x28",
+        ]), 0, false)
+            . $rawTarHeader('placeholder-user.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+        $invalidPaxGroupName = $rawTarHeader('PaxHeaders/invalid-gname', 'x', $paxPayload([
+            'path' => 'packet/pax-invalid-group.xml',
+            'gname' => "import-\xC3\x28",
+        ]), 0, false)
+            . $rawTarHeader('placeholder-group.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($invalidUserName));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($invalidGroupName));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($invalidPaxUserName));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($invalidPaxGroupName));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromEntries([
+            ['name' => 'packet/generated-invalid-user.xml', 'data' => '<w:document/>', 'userName' => "reviewer-\xC3\x28"],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromEntries([
+            ['name' => 'packet/generated-invalid-group.xml', 'data' => '<w:document/>', 'groupName' => "import-\xC3\x28"],
+        ]));
+    },
+
     'builds and reads global pax metadata for tar review packets' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [

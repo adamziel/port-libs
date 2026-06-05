@@ -1471,6 +1471,34 @@ try {
 } catch (RuntimeException $exception) {
     $tarGnuLongNameUtf8Rejected = str_contains($exception->getMessage(), 'GNU long name metadata');
 }
+$tarOwnerUtf8Rejected = false;
+$tarUstarOwnerUtf8Rejected = false;
+try {
+    TarArchive::fromString(
+        $rewriteTarHeaderFields(
+            $buildRawTarRecord('packet/invalid-owner.xml', '0', '<w:document/>', $documentModifiedAt),
+            [
+                265 => str_pad("reviewer-\xC3\x28", 32, "\0"),
+            ]
+        ) . str_repeat("\0", 1024)
+    );
+} catch (RuntimeException $exception) {
+    $tarUstarOwnerUtf8Rejected = str_contains($exception->getMessage(), 'ustar user name metadata');
+}
+$tarPaxOwnerUtf8Rejected = false;
+try {
+    TarArchive::fromString(
+        $buildRawTarRecord('PaxHeaders/invalid-owner', 'x', $buildPaxPayload([
+            'path' => 'packet/invalid-pax-owner.xml',
+            'gname' => "import-\xC3\x28",
+        ]), $documentModifiedAt)
+        . $buildRawTarRecord('placeholder.xml', '0', '<w:document/>', $documentModifiedAt)
+        . str_repeat("\0", 1024)
+    );
+} catch (RuntimeException $exception) {
+    $tarPaxOwnerUtf8Rejected = str_contains($exception->getMessage(), 'PAX gname metadata');
+}
+$tarOwnerUtf8Rejected = $tarUstarOwnerUtf8Rejected && $tarPaxOwnerUtf8Rejected;
 
 if (in_array('--self-test', $argv, true)) {
     if (!$package->has('/word/document.xml')) {
@@ -1973,6 +2001,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected TAR GNU long names with invalid UTF-8 to be rejected before import');
     }
 
+    if (!$tarOwnerUtf8Rejected) {
+        throw new RuntimeException('Expected TAR owner metadata with invalid UTF-8 to be rejected before import');
+    }
+
     $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
     if ($unicodePathEntry->rawName !== $unicodePathRawName) {
         throw new RuntimeException('Expected ZIP Unicode path extra field to preserve raw legacy path bytes');
@@ -2057,6 +2089,7 @@ echo 'tarPaxLinkpathPolicy=' . ($tarPaxLinkpathRejected ? 'rejected' : 'not-reje
 echo 'tarGnuLongLinkPolicy=' . ($tarGnuLongLinkRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarPaxUtf8PathPolicy=' . ($tarPaxUtf8PathRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarGnuLongNameUtf8Policy=' . ($tarGnuLongNameUtf8Rejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'tarOwnerUtf8Policy=' . ($tarOwnerUtf8Rejected ? 'rejected' : 'not-rejected') . "\n";
 $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
 echo 'unicodePath.name=' . $unicodePathEntry->name . "\n";
 echo 'unicodePath.rawName=' . $unicodePathEntry->rawName . "\n";
