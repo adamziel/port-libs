@@ -323,12 +323,20 @@ final class Html5DomFragment
             return null;
         }
 
-        return [[
+        $attrs = self::normalizeAttributes($node, $name, $mode, $diagnostics, $elementForeignContext);
+        $children = self::normalizeChildren($node, $mode, $diagnostics, self::childForeignContext($rawName, $elementForeignContext));
+        $element = [
             'type' => 'element',
             'name' => $name,
-            'attrs' => self::normalizeAttributes($node, $name, $mode, $diagnostics, $elementForeignContext),
-            'children' => self::normalizeChildren($node, $mode, $diagnostics, self::childForeignContext($rawName, $elementForeignContext)),
-        ]];
+            'attrs' => $attrs,
+            'children' => $mode === 'html' && self::isHtmlVoidElement($name) ? [] : $children,
+        ];
+
+        if ($mode === 'html' && self::isHtmlVoidElement($name) && $children !== []) {
+            return [$element, ...$children];
+        }
+
+        return [$element];
     }
 
     private static function rawElementName(\DOMElement $element, string $mode): string
@@ -444,7 +452,7 @@ final class Html5DomFragment
                 continue;
             }
 
-            if (self::isUrlAttribute($name) && !self::isSafeUrl($value)) {
+            if (self::isUrlAttribute($name) && !self::isSafeUrlAttributeValue($name, $value)) {
                 $diagnostics[] = [
                     'code' => 'unsafe-url',
                     'tag' => $tagName,
@@ -516,6 +524,33 @@ final class Html5DomFragment
     private static function isUrlAttribute(string $name): bool
     {
         return in_array(strtolower($name), ['href', 'src', 'cite', 'poster', 'xlink:href', 'srcset'], true);
+    }
+
+    private static function isSafeUrlAttributeValue(string $name, string $value): bool
+    {
+        if (in_array(strtolower($name), ['src', 'poster'], true)) {
+            return self::isSafeFetchUrl($value);
+        }
+
+        return self::isSafeUrl($value);
+    }
+
+    private static function isSafeFetchUrl(string $value): bool
+    {
+        $trimmed = trim(preg_replace('/[\x00-\x20]+/', '', $value) ?? $value);
+        if ($trimmed === '' || str_starts_with($trimmed, '#') || str_starts_with($trimmed, '/')) {
+            return true;
+        }
+        if (str_starts_with($trimmed, './') || str_starts_with($trimmed, '../') || str_starts_with($trimmed, '?')) {
+            return true;
+        }
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $trimmed) !== 1) {
+            return true;
+        }
+
+        $scheme = strtolower(strstr($trimmed, ':', true) ?: '');
+
+        return in_array($scheme, ['http', 'https'], true);
     }
 
     /**
@@ -712,10 +747,10 @@ final class Html5DomFragment
         $name = (string) $node['name'];
         $attrs = $this->serializeAttributes(is_array($node['attrs'] ?? null) ? $node['attrs'] : []);
         $children = is_array($node['children'] ?? null) ? $node['children'] : [];
+        if ($this->mode === 'html' && self::isHtmlVoidElement($name)) {
+            return '<' . $name . $attrs . '>';
+        }
         if ($children === []) {
-            if ($this->mode === 'html' && self::isHtmlVoidElement($name)) {
-                return '<' . $name . $attrs . '>';
-            }
             if ($this->mode === 'xml') {
                 return '<' . $name . $attrs . '/>';
             }

@@ -51,6 +51,32 @@ return [
         $t->same($fragment->serialize(), $ast->attr('html'));
         $t->same(6, count($ast->attr('diagnostics')));
     },
+    'filters non-fetch media URLs while preserving reviewer mail and phone links' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<p>'
+            . '<a href="mailto:review@example.test">Mail reviewer</a>'
+            . '<a href="tel:+15550100">Call reviewer</a>'
+            . '<img src="mailto:cover@example.test" alt="Mail image">'
+            . '<img src="/media/cover.png" alt="Safe image">'
+            . '<video poster="tel:+15550100"><source src="mailto:video@example.test" type="video/mp4"><source src="https://cdn.example.test/video.mp4" type="video/mp4"></video>'
+            . '</p>'
+        );
+        $summary = $fragment->summary();
+        $html = $fragment->serialize();
+
+        $t->contains('<a href="mailto:review@example.test">Mail reviewer</a>', $html);
+        $t->contains('<a href="tel:+15550100">Call reviewer</a>', $html);
+        $t->contains('<img alt="Mail image">', $html);
+        $t->contains('<img src="/media/cover.png" alt="Safe image">', $html);
+        $t->contains('<video><source type="video/mp4"><source src="https://cdn.example.test/video.mp4" type="video/mp4"></video>', $html);
+        $t->same(['poster', 'src'], $summary['filteredAttributes']);
+        $diagnosticCodes = $fragment->diagnosticCodes();
+        $unsafeUrlDiagnostics = array_values(array_filter($diagnosticCodes, static fn (string $code): bool => $code === 'unsafe-url'));
+        $t->same(3, count($unsafeUrlDiagnostics));
+        $t->true(in_array('libxml-repair', $diagnosticCodes, true), 'Expected libxml repair diagnostics for HTML5 media elements');
+        $t->true(!str_contains($html, 'src="mailto:'), 'Expected mailto media src URLs to be removed');
+        $t->true(!str_contains($html, 'poster="tel:'), 'Expected tel poster URLs to be removed');
+    },
     'filters mixed unsafe srcset candidates before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<p>'
