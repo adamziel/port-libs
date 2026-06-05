@@ -5872,12 +5872,15 @@ final class PdfTextExtractor
             return $this->readPdfArrayAt($value, $offset);
         }
 
-        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $value, $match, 0, $offset) !== 1) {
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) !== 1) {
             return null;
         }
 
         $objectNumber = (int) $match[1];
-        return isset($objects[$objectNumber]) ? $this->pdfArrayAtStart(trim($objects[$objectNumber])) : null;
+        $generation = (int) $match[2];
+        $body = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
+
+        return $body === null ? null : $this->pdfArrayAtStart(trim($body));
     }
 
     /**

@@ -1325,6 +1325,7 @@ final class MarkerAppPreview
 
         $nums = $this->valueAfterName($value, 'Nums');
         if ($nums !== null) {
+            $nums = trim($this->resolvePdfValue($nums, $objects, $seen));
             foreach ($this->pageLabelSectionsFromNums($nums, $objects, $seen, $limits) as $section) {
                 $sections[] = $section;
             }
