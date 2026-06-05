@@ -217,6 +217,55 @@ $buildDescriptorBackedPackage = static function () use ($crc32): string {
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildZip64DataDescriptorBackedPackage = static function () use ($crc32): string {
+    $name = 'word/comments.xml';
+    $data = '<w:comments><w:comment>ZIP64 descriptor metadata should stay blocked</w:comment></w:comments>';
+    $compressed = gzdeflate($data);
+    $crc = $crc32($data);
+    $flags = 0x0808;
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        $flags,
+        8,
+        0,
+        0,
+        0,
+        0,
+        0,
+        strlen($name),
+        0
+    );
+    $body .= $name . $compressed . "PK\x07\x08" . pack('VVVVV', $crc, strlen($compressed), 0, strlen($data), 0);
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        $flags,
+        8,
+        0,
+        0,
+        $crc,
+        strlen($compressed),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 
 $buildNtfsBackedPackage = static function () use ($crc32, $buildNtfsExtra, $mediaModifiedAt, $mediaAccessedAt, $mediaCreatedAt): string {
     $name = 'word/media/review.png';
@@ -1525,6 +1574,13 @@ try {
 }
 $gzipReviewExtra = pack('CCv', ord('W'), ord('P'), strlen('review:v1')) . 'review:v1';
 $descriptorPackage = ZipPackage::fromString($buildDescriptorBackedPackage());
+$descriptorDataDescriptorPreflight = $descriptorPackage->dataDescriptorPreflight();
+$zip64DataDescriptorRejected = false;
+try {
+    ZipPackage::fromString($buildZip64DataDescriptorBackedPackage());
+} catch (RuntimeException $exception) {
+    $zip64DataDescriptorRejected = str_contains($exception->getMessage(), 'ZIP64-sized fields');
+}
 $ntfsPackage = ZipPackage::fromString($buildNtfsBackedPackage());
 $extendedTimestampPackage = ZipPackage::fromString($buildExtendedTimestampBackedPackage());
 $unicodePathPackage = ZipPackage::fromString($buildUnicodePathBackedPackage());
@@ -2533,6 +2589,20 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected descriptor-backed comments part bytes to round-trip from the ZIP package');
     }
 
+    if (
+        ($descriptorDataDescriptorPreflight['descriptorEntryCount'] ?? null) !== 1
+        || ($descriptorDataDescriptorPreflight['signedDescriptorEntryCount'] ?? null) !== 1
+        || ($descriptorDataDescriptorPreflight['descriptorEntries'][0]['name'] ?? null) !== 'word/comments.xml'
+        || ($descriptorDataDescriptorPreflight['descriptorEntries'][0]['hasSignature'] ?? null) !== true
+        || ($descriptorDataDescriptorPreflight['descriptorEntries'][0]['descriptorLength'] ?? null) !== 16
+    ) {
+        throw new RuntimeException('Expected ZIP data descriptor metadata to be inspectable before comments import');
+    }
+
+    if (!$zip64DataDescriptorRejected) {
+        throw new RuntimeException('Expected ZIP64-sized data descriptors to stay blocked before package import');
+    }
+
     $mediaEntry = $ntfsPackage->entry('/word/media/review.png');
     if ($mediaEntry->ntfsLastModifiedTimestamp() !== $mediaModifiedAt) {
         throw new RuntimeException('Expected central NTFS modified timestamp metadata to round-trip');
@@ -3097,6 +3167,10 @@ echo 'zip64LocatorPolicy=' . ($zip64LocatorRejected ? 'rejected' : 'not-rejected
 echo 'zip64LocatorDetected=' . ($zip64LocatorPreflight['hasZip64EndOfCentralDirectoryLocator'] ? 'true' : 'false') . "\n";
 echo 'zip64LocatorRecordSize=' . ($zip64LocatorPreflight['zip64EndOfCentralDirectorySize'] ?? 'none') . "\n";
 echo 'descriptor.comments.xml=' . $descriptorPackage->read('/word/comments.xml') . "\n";
+echo 'descriptor.entryCount=' . $descriptorDataDescriptorPreflight['descriptorEntryCount'] . "\n";
+echo 'descriptor.signedEntryCount=' . $descriptorDataDescriptorPreflight['signedDescriptorEntryCount'] . "\n";
+echo 'descriptor.comments.xml.length=' . ($descriptorDataDescriptorPreflight['descriptorEntries'][0]['descriptorLength'] ?? 'none') . "\n";
+echo 'zip64DescriptorPolicy=' . ($zip64DataDescriptorRejected ? 'rejected' : 'not-rejected') . "\n";
 $ntfsTimestamps = $ntfsPackage->entry('/word/media/review.png')->ntfsTimestamps();
 echo 'ntfs.review.png.modifiedAt=' . ($ntfsTimestamps['modifiedAt'] ?? 'none') . "\n";
 echo 'ntfs.review.png.localModifiedAt=' . ($ntfsPackage->localNtfsLastModifiedTimestamp('/word/media/review.png') ?? 'none') . "\n";

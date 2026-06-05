@@ -40,6 +40,7 @@ $buildNtfsExtra = static function (int $modifiedAt, int $accessedAt, int $create
  *     centralFlags?:int,
  *     descriptor?:bool,
  *     descriptorSignature?:bool,
+ *     descriptorZip64?:bool,
  *     localSlack?:string,
  *     centralCrc?:int,
  *     centralCompressedSize?:int,
@@ -125,12 +126,23 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
             if ($entry['descriptorSignature'] ?? true) {
                 $body .= "PK\x07\x08";
             }
-            $body .= pack(
-                'VVV',
-                $entry['descriptorCrc'] ?? $actualCrc,
-                $entry['descriptorCompressedSize'] ?? $compressedSize,
-                $entry['descriptorUncompressedSize'] ?? $uncompressedSize
-            );
+            if ($entry['descriptorZip64'] ?? false) {
+                $body .= pack(
+                    'VVVVV',
+                    $entry['descriptorCrc'] ?? $actualCrc,
+                    $entry['descriptorCompressedSize'] ?? $compressedSize,
+                    0,
+                    $entry['descriptorUncompressedSize'] ?? $uncompressedSize,
+                    0
+                );
+            } else {
+                $body .= pack(
+                    'VVV',
+                    $entry['descriptorCrc'] ?? $actualCrc,
+                    $entry['descriptorCompressedSize'] ?? $compressedSize,
+                    $entry['descriptorUncompressedSize'] ?? $uncompressedSize
+                );
+            }
         }
         $body .= $entry['localSlack'] ?? '';
 
@@ -661,16 +673,18 @@ return [
     },
 
     'reads data descriptors with and without optional signatures' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:p>descriptor signed</w:p></w:document>';
+        $footnotesXml = '<w:footnotes><w:footnote>descriptor unsigned</w:footnote></w:footnotes>';
         $zip = $buildZipPackage([
             [
                 'name' => 'word/document.xml',
-                'data' => '<w:document><w:p>descriptor signed</w:p></w:document>',
+                'data' => $documentXml,
                 'method' => 8,
                 'descriptor' => true,
             ],
             [
                 'name' => 'word/footnotes.xml',
-                'data' => '<w:footnotes><w:footnote>descriptor unsigned</w:footnote></w:footnotes>',
+                'data' => $footnotesXml,
                 'method' => 0,
                 'descriptor' => true,
                 'descriptorSignature' => false,
@@ -678,11 +692,56 @@ return [
         ]);
 
         $package = ZipPackage::fromString($zip);
+        $descriptorPreflight = $package->dataDescriptorPreflight();
 
-        $t->same('<w:document><w:p>descriptor signed</w:p></w:document>', $package->read('word/document.xml'));
-        $t->same('<w:footnotes><w:footnote>descriptor unsigned</w:footnote></w:footnotes>', $package->read('word/footnotes.xml'));
+        $t->same($documentXml, $package->read('word/document.xml'));
+        $t->same($footnotesXml, $package->read('word/footnotes.xml'));
         $t->same(8, $package->entry('word/document.xml')->compressionMethod);
         $t->same(0, $package->entry('word/footnotes.xml')->compressionMethod);
+        $t->same(2, $descriptorPreflight['entryCount']);
+        $t->same(2, $descriptorPreflight['descriptorEntryCount']);
+        $t->same(1, $descriptorPreflight['signedDescriptorEntryCount']);
+        $t->same(1, $descriptorPreflight['unsignedDescriptorEntryCount']);
+        $t->same(0, $descriptorPreflight['zip64SizedDescriptorEntryCount']);
+        $t->same('word/document.xml', $descriptorPreflight['descriptorEntries'][0]['name']);
+        $t->same(true, $descriptorPreflight['descriptorEntries'][0]['usesDataDescriptor']);
+        $t->same(true, $descriptorPreflight['descriptorEntries'][0]['hasSignature']);
+        $t->same(16, $descriptorPreflight['descriptorEntries'][0]['descriptorLength']);
+        $t->same($package->entry('word/document.xml')->crc32Hex(), $descriptorPreflight['descriptorEntries'][0]['crc32Hex']);
+        $t->same(strlen(gzdeflate($documentXml)), $descriptorPreflight['descriptorEntries'][0]['compressedSize']);
+        $t->same(strlen($documentXml), $descriptorPreflight['descriptorEntries'][0]['uncompressedSize']);
+        $t->same(false, $descriptorPreflight['descriptorEntries'][0]['usesZip64SizedDescriptor']);
+        $t->same('word/footnotes.xml', $descriptorPreflight['descriptorEntries'][1]['name']);
+        $t->same(false, $descriptorPreflight['descriptorEntries'][1]['hasSignature']);
+        $t->same(12, $descriptorPreflight['descriptorEntries'][1]['descriptorLength']);
+        $t->same(strlen($footnotesXml), $descriptorPreflight['descriptorEntries'][1]['compressedSize']);
+        $t->same(strlen($footnotesXml), $descriptorPreflight['descriptorEntries'][1]['uncompressedSize']);
+        $t->same(true, $descriptorPreflight['descriptorEntries'][0]['descriptorOffset'] < $descriptorPreflight['descriptorEntries'][1]['descriptorOffset']);
+        $t->same($descriptorPreflight['descriptorEntries'][0]['descriptorOffset'] + 4, $descriptorPreflight['descriptorEntries'][0]['valueOffset']);
+        $t->same($descriptorPreflight['descriptorEntries'][1]['descriptorOffset'], $descriptorPreflight['descriptorEntries'][1]['valueOffset']);
+    },
+
+    'rejects zip64 sized data descriptors before package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>zip64 descriptor signed</w:p></w:document>',
+                'method' => 8,
+                'descriptor' => true,
+                'descriptorZip64' => true,
+            ],
+        ])));
+
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/reviewer-note.txt',
+                'data' => 'zip64 descriptor unsigned',
+                'method' => 0,
+                'descriptor' => true,
+                'descriptorSignature' => false,
+                'descriptorZip64' => true,
+            ],
+        ])));
     },
 
     'builds current zip package bytes for generated pandoc containers' => static function (TestRunner $t): void {
