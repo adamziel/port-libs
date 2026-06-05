@@ -88,6 +88,37 @@ return [
         $t->true(!str_contains($html, 'zero.webp'), 'Expected zero-width srcset candidate to be removed');
         $t->true(!str_contains($html, 'mixed.webp'), 'Expected mixed descriptor srcset candidate to be removed');
     },
+    'serializes html5 boolean attributes without redundant values for review media' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<details open="open"><summary>Review packet</summary>'
+            . '<video controls="" muted playsinline loop poster="/media/cover.jpg"><source src="/media/review.mp4" type="video/mp4"></video>'
+            . '</details>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/media-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<details open><summary>Review packet</summary><video controls muted playsinline loop poster="/media/cover.jpg"><source src="/media/review.mp4" type="video/mp4"></video></details>';
+        $t->same($expected, $fragment->serialize());
+        $t->contains($expected, $blocks);
+        $t->same(['details', 'source', 'summary', 'video'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same(['open' => 'open'], $nodes[0]['attrs']);
+        $t->same([
+            'controls' => '',
+            'muted' => '',
+            'playsinline' => '',
+            'loop' => '',
+            'poster' => '/media/cover.jpg',
+        ], $nodes[0]['children'][1]['attrs']);
+        $t->same('/migration/media-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($fragment->serialize(), 'open="open"'), 'Expected open to serialize as an HTML5 boolean attribute');
+        $t->true(!str_contains($fragment->serialize(), 'controls=""'), 'Expected controls to serialize as an HTML5 boolean attribute');
+    },
     'parses XML fragments strictly and rejects DTD entity expansion inputs' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromXml('<root xml:lang="en"><br/><custom data-id="42">A &amp; B</custom></root><note/>');
         $summary = $fragment->summary();

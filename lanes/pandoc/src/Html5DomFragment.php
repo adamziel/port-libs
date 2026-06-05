@@ -6,6 +6,35 @@ namespace PortLibs\Pandoc;
 
 final class Html5DomFragment
 {
+    /** @var array<string, true> */
+    private const HTML5_BOOLEAN_ATTRIBUTES = [
+        'allowfullscreen' => true,
+        'async' => true,
+        'autofocus' => true,
+        'autoplay' => true,
+        'checked' => true,
+        'controls' => true,
+        'default' => true,
+        'defer' => true,
+        'disabled' => true,
+        'formnovalidate' => true,
+        'hidden' => true,
+        'inert' => true,
+        'ismap' => true,
+        'itemscope' => true,
+        'loop' => true,
+        'multiple' => true,
+        'muted' => true,
+        'nomodule' => true,
+        'novalidate' => true,
+        'open' => true,
+        'playsinline' => true,
+        'readonly' => true,
+        'required' => true,
+        'reversed' => true,
+        'selected' => true,
+    ];
+
     /** @var list<array<string, mixed>> */
     private array $nodes;
 
@@ -673,6 +702,13 @@ final class Html5DomFragment
     {
         $serialized = '';
         foreach ($attrs as $name => $value) {
+            $lowerName = strtolower((string) $name);
+            $stringValue = (string) $value;
+            if ($this->mode === 'html' && isset(self::HTML5_BOOLEAN_ATTRIBUTES[$lowerName]) && ($stringValue === '' || strtolower($stringValue) === $lowerName)) {
+                $serialized .= ' ' . $name;
+                continue;
+            }
+
             $serialized .= ' ' . $name . '="' . htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
         }
 
