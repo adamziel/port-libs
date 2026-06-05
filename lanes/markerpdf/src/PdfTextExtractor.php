@@ -20076,9 +20076,11 @@ final class PdfTextExtractor
             'source' => 'xref_stream',
             'offset' => $offset,
             'entries' => $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions),
-            'previousOffset' => $this->previousXrefOffsetFromSectionBody(
+            'previousOffset' => $this->previousXrefOffsetForSectionBody(
                 $pdfBytes,
                 $streamSection['body'],
+                $offset,
+                $definitions,
                 $this->objectsWithDirectStreamDictionaryOperandOwners(
                     $objects,
                     $streamSection['definition']['body'],
