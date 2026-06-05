@@ -93,16 +93,19 @@ final class PdfAnnotationExtractor
         $actionTargetContext = $this->annotationActionTargetContext($pdfBytes);
         $structureParentReviewByKey = $this->annotationStructureParentReviewByKey($pdfBytes, $objects);
         $structureReviewByAnnotationObject = $this->annotationStructTreeReviewByAnnotationObject($pdfBytes, $objects);
-        $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
+        $pageObjectReferences = $this->orderedPageObjectReferences($objects);
         $pages = [];
 
-        foreach ($pageObjectNumbers as $pnum => $pageObjectNumber) {
-            $pageBody = $objects[$pageObjectNumber] ?? null;
+        foreach ($pageObjectReferences as $pnum => $pageReference) {
+            $pageObjectNumber = $pageReference['object'];
+            $pageGeneration = $pageReference['generation'];
+            $pageBody = $this->objectBodyForReference($pageObjectNumber, $pageGeneration, $objects)
+                ?? ($objects[$pageObjectNumber] ?? null);
             if ($pageBody === null) {
                 continue;
             }
 
-            $records = $this->annotationRecordsForPage($pageObjectNumber, $pageBody, $objects);
+            $records = $this->annotationRecordsForPage($pageObjectNumber, $pageGeneration, $pageBody, $objects);
             if ($records === []) {
                 continue;
             }
@@ -1786,14 +1789,14 @@ final class PdfAnnotationExtractor
      * @param array<int, string> $objects
      * @return list<array{body: string, object: int|null, generation?: int|null}>
      */
-    private function annotationRecordsForPage(int $pageObjectNumber, string $pageBody, array $objects): array
+    private function annotationRecordsForPage(int $pageObjectNumber, ?int $pageGeneration, string $pageBody, array $objects): array
     {
         $annots = $this->pageDictionaryValueAfterName($pageBody, 'Annots');
         if ($annots === null) {
             return [];
         }
 
-        return $this->annotationRecordsFromValue($annots, $objects, $pageObjectNumber);
+        return $this->annotationRecordsFromValue($annots, $objects, $pageObjectNumber, $pageGeneration);
     }
 
     private function pageDictionaryValueAfterName(string $pageBody, string $name): ?string
@@ -1810,7 +1813,7 @@ final class PdfAnnotationExtractor
      * @param array<int, string> $objects
      * @return list<array{body: string, object: int|null, generation?: int|null}>
      */
-    private function annotationRecordsFromValue(string $value, array $objects, int $pageObjectNumber): array
+    private function annotationRecordsFromValue(string $value, array $objects, int $pageObjectNumber, ?int $pageGeneration): array
     {
         $value = trim($value);
         if ($value === '') {
@@ -1819,12 +1822,12 @@ final class PdfAnnotationExtractor
 
         if (str_starts_with($value, '[')) {
             $body = $this->arrayBodyFromValue($value);
-            return $body === null ? [] : $this->annotationRecordsFromArrayBody($body, $objects, $pageObjectNumber);
+            return $body === null ? [] : $this->annotationRecordsFromArrayBody($body, $objects, $pageObjectNumber, $pageGeneration);
         }
 
         if (str_starts_with($value, '<<')) {
             $dictionary = $this->readPdfDictionaryAt($value, 0);
-            return $dictionary === null || !$this->annotationBelongsToPage($dictionary, $pageObjectNumber)
+            return $dictionary === null || !$this->annotationBelongsToPage($dictionary, $pageObjectNumber, $pageGeneration)
                 ? []
                 : [['body' => $dictionary, 'object' => null, 'generation' => null]];
         }
@@ -1841,11 +1844,11 @@ final class PdfAnnotationExtractor
 
         if (str_starts_with($objectBody, '[')) {
             $body = $this->arrayBodyFromValue($objectBody);
-            return $body === null ? [] : $this->annotationRecordsFromArrayBody($body, $objects, $pageObjectNumber);
+            return $body === null ? [] : $this->annotationRecordsFromArrayBody($body, $objects, $pageObjectNumber, $pageGeneration);
         }
 
         $dictionary = $this->dictionaryObjectBody($objectBody);
-        return $dictionary === null || !$this->annotationBelongsToPage($dictionary, $pageObjectNumber) ? [] : [[
+        return $dictionary === null || !$this->annotationBelongsToPage($dictionary, $pageObjectNumber, $pageGeneration) ? [] : [[
             'body' => $dictionary,
             'object' => $reference['object'],
             'generation' => $reference['generation'],
@@ -1856,7 +1859,7 @@ final class PdfAnnotationExtractor
      * @param array<int, string> $objects
      * @return list<array{body: string, object: int|null, generation?: int|null}>
      */
-    private function annotationRecordsFromArrayBody(string $body, array $objects, int $pageObjectNumber): array
+    private function annotationRecordsFromArrayBody(string $body, array $objects, int $pageObjectNumber, ?int $pageGeneration): array
     {
         $records = [];
         $offset = 0;
@@ -1878,7 +1881,7 @@ final class PdfAnnotationExtractor
             $value = trim($value);
             if (str_starts_with($value, '<<')) {
                 $dictionary = $this->readPdfDictionaryAt($value, 0);
-                if ($dictionary !== null && $this->annotationBelongsToPage($dictionary, $pageObjectNumber)) {
+                if ($dictionary !== null && $this->annotationBelongsToPage($dictionary, $pageObjectNumber, $pageGeneration)) {
                     $records[] = ['body' => $dictionary, 'object' => null, 'generation' => null];
                 }
                 $offset = $endOffset;
@@ -1889,7 +1892,7 @@ final class PdfAnnotationExtractor
             if ($reference !== null) {
                 $objectBody = $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
                 $dictionary = $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
-                if ($dictionary !== null && $this->annotationBelongsToPage($dictionary, $pageObjectNumber)) {
+                if ($dictionary !== null && $this->annotationBelongsToPage($dictionary, $pageObjectNumber, $pageGeneration)) {
                     $records[] = [
                         'body' => $dictionary,
                         'object' => $reference['object'],
@@ -1906,11 +1909,20 @@ final class PdfAnnotationExtractor
         return $records;
     }
 
-    private function annotationBelongsToPage(string $annotationBody, int $pageObjectNumber): bool
+    private function annotationBelongsToPage(string $annotationBody, int $pageObjectNumber, ?int $pageGeneration): bool
     {
-        $annotationPageObject = $this->objectReferenceValueAfterName($annotationBody, 'P');
+        $value = $this->valueAfterName($annotationBody, 'P');
+        $annotationPageReference = $value === null ? null : $this->objectReferenceWithGenerationFromValue($value);
 
-        return $annotationPageObject === null || $annotationPageObject === $pageObjectNumber;
+        if ($annotationPageReference === null) {
+            return true;
+        }
+
+        if ($annotationPageReference['object'] !== $pageObjectNumber) {
+            return false;
+        }
+
+        return $pageGeneration === null || $annotationPageReference['generation'] === $pageGeneration;
     }
 
     /**
@@ -2845,12 +2857,30 @@ final class PdfAnnotationExtractor
      */
     private function orderedPageObjectNumbers(array $objects): array
     {
+        return array_map(
+            static fn (array $reference): int => $reference['object'],
+            $this->orderedPageObjectReferences($objects)
+        );
+    }
+
+    /**
+     * @return list<array{object: int, generation: int}>
+     * @param array<int, string> $objects
+     */
+    private function orderedPageObjectReferences(array $objects): array
+    {
         foreach ($objects as $body) {
-            if (preg_match('/\/Type\s*\/Catalog\b/', $body) !== 1 || preg_match('/\/Pages\s+(\d+)\s+\d+\s+R\b/s', $body, $match) !== 1) {
+            if (preg_match('/\/Type\s*\/Catalog\b/', $body) !== 1) {
                 continue;
             }
 
-            $pages = $this->pageObjectNumbersFromTree((int) $match[1], $objects);
+            $pagesValue = $this->valueAfterName($body, 'Pages');
+            $pagesReference = $pagesValue === null ? null : $this->objectReferenceWithGenerationFromValue($pagesValue);
+            if ($pagesReference === null) {
+                continue;
+            }
+
+            $pages = $this->pageObjectReferencesFromTree($pagesReference['object'], $pagesReference['generation'], $objects);
             if ($pages !== []) {
                 return $pages;
             }
@@ -2859,7 +2889,49 @@ final class PdfAnnotationExtractor
         $pages = [];
         foreach ($objects as $objectNumber => $body) {
             if (preg_match('/\/Type\s*\/Page\b/', $body) === 1) {
-                $pages[] = $objectNumber;
+                $pages[] = ['object' => $objectNumber, 'generation' => 0];
+            }
+        }
+
+        return $pages;
+    }
+
+    /**
+     * @return list<array{object: int, generation: int}>
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function pageObjectReferencesFromTree(int $objectNumber, int $generation, array $objects, array $seen = []): array
+    {
+        $key = $objectNumber . ':' . $generation;
+        if (isset($seen[$key])) {
+            return [];
+        }
+
+        $body = $this->objectBodyForReference($objectNumber, $generation, $objects);
+        if ($body === null) {
+            return [];
+        }
+
+        $seen[$key] = true;
+        if (preg_match('/\/Type\s*\/Page\b/', $body) === 1) {
+            return [['object' => $objectNumber, 'generation' => $generation]];
+        }
+
+        $kids = $this->valueAfterName($body, 'Kids');
+        if ($kids === null || !str_starts_with(trim($kids), '[')) {
+            return [];
+        }
+
+        $arrayBody = $this->arrayBodyFromValue($kids);
+        if ($arrayBody === null) {
+            return [];
+        }
+
+        $pages = [];
+        foreach ($this->objectReferenceValues($arrayBody) as $childReference) {
+            foreach ($this->pageObjectReferencesFromTree($childReference['object'], $childReference['generation'], $objects, $seen) as $pageReference) {
+                $pages[] = $pageReference;
             }
         }
 
@@ -2920,6 +2992,24 @@ final class PdfAnnotationExtractor
         }
 
         return $pages;
+    }
+
+    /**
+     * @return list<array{object: int, generation: int}>
+     */
+    private function objectReferenceValues(string $value): array
+    {
+        if (!preg_match_all('/(\d+)\s+(\d+)\s+R\b/', $value, $matches, PREG_SET_ORDER)) {
+            return [];
+        }
+
+        return array_map(
+            static fn (array $match): array => [
+                'object' => (int) $match[1],
+                'generation' => (int) $match[2],
+            ],
+            $matches
+        );
     }
 
     /**
