@@ -167,6 +167,7 @@ final class OdfReader
                     'linkedSectionCount' => $contentStats['linkedSectionCount'],
                     'protectedSectionCount' => $contentStats['protectedSectionCount'],
                     'continuedListCount' => $contentStats['continuedListCount'],
+                    'listHeaderCount' => $contentStats['listHeaderCount'],
                 ],
             ],
         ];
@@ -704,17 +705,31 @@ final class OdfReader
         }
 
         $items = [];
+        $numberedItemCount = 0;
         $pushedStyleName = $this->pushCurrentListStyleName($styleName, $catalog);
         try {
             foreach (self::childElements($list) as $child) {
-                if (!$this->isElement($child, self::TEXT_NS, 'list-item') && !$this->isElement($child, self::TEXT_NS, 'list-header')) {
+                $isListHeader = $this->isElement($child, self::TEXT_NS, 'list-header');
+                if (!$this->isElement($child, self::TEXT_NS, 'list-item') && !$isListHeader) {
                     continue;
                 }
 
                 $itemBlocks = $this->blockNodes($child, $package, $catalog);
-                $items[] = new AstNode('list_item', [
+                $itemAttrs = [
                     'sourceFormat' => 'odt',
-                ], $itemBlocks);
+                ];
+                if ($isListHeader) {
+                    $itemAttrs['listHeader'] = true;
+                    $itemAttrs['classes'] = ['odf-list-header'];
+                    $itemAttrs['attributes'] = [
+                        'data-odf-list-header' => 'true',
+                        'data-odf-list-level' => (string) $level,
+                    ];
+                } else {
+                    $numberedItemCount++;
+                }
+
+                $items[] = new AstNode('list_item', $itemAttrs, $itemBlocks);
             }
         } finally {
             if ($pushedStyleName) {
@@ -722,7 +737,7 @@ final class OdfReader
             }
         }
 
-        $this->listContinuationStartCounters[$level] = $start + count($items);
+        $this->listContinuationStartCounters[$level] = $start + $numberedItemCount;
 
         return new AstNode($ordered ? 'ordered_list' : 'bullet_list', $attrs, $items);
     }
@@ -2411,7 +2426,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, continuedListCount:int}
+     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, continuedListCount:int, listHeaderCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -2431,6 +2446,7 @@ final class OdfReader
             'linkedSectionCount' => 0,
             'protectedSectionCount' => 0,
             'continuedListCount' => 0,
+            'listHeaderCount' => 0,
         ];
         foreach ($nodes as $node) {
             if ($node->type === 'note') {
@@ -2477,6 +2493,9 @@ final class OdfReader
             }
             if (($node->type === 'ordered_list' || $node->type === 'bullet_list') && $node->attr('continued') === true) {
                 $stats['continuedListCount']++;
+            }
+            if ($node->type === 'list_item' && $node->attr('listHeader') === true) {
+                $stats['listHeaderCount']++;
             }
 
             $childStats = $this->contentNodeStats($node->children);

@@ -239,12 +239,31 @@ final class MarkdownWriter
                 continue;
             }
 
+            if ($item->attr('listHeader') === true) {
+                if ($lines !== [] && end($lines) !== '') {
+                    $lines[] = '';
+                }
+                array_push($lines, ...$this->renderListHeaderItem($item, $indent));
+                if ($lines !== [] && end($lines) !== '') {
+                    $lines[] = '';
+                }
+                continue;
+            }
+
             $marker = $ordered ? $this->orderedListMarker($node, $start + $index) : $this->bulletListMarker();
             array_push($lines, ...$this->renderListItem($item, $marker, $indent));
             $index++;
         }
 
         return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderListHeaderItem(AstNode $item, int $indent): array
+    {
+        return $this->renderDivBlock(new AstNode('div', $item->attrs, $item->children), $indent);
     }
 
     private function orderedListMarker(AstNode $node, int $number): string

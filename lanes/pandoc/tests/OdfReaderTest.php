@@ -602,6 +602,63 @@ XML;
         $t->contains('<ol start="2">', $blocksHtml);
         $t->contains('<ol start="4" type="a">', $blocksHtml);
     },
+    'maps ODT list headers as unnumbered review content' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithListHeader = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:styles>
+    <text:list-style style:name="HeaderReviewSteps">
+      <text:list-level-style-number text:level="1" style:num-format="a" text:start-value="3"/>
+    </text:list-style>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithListHeader = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:list text:style-name="HeaderReviewSteps">
+        <text:list-header><text:p>Review scope introduction</text:p></text:list-header>
+        <text:list-item><text:p>First numbered item</text:p></text:list-item>
+        <text:list-item><text:p>Second numbered item</text:p></text:list-item>
+      </text:list>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithListHeader, null, $stylesWithListHeader));
+        $list = $result['document']->children[0];
+        $header = $list->children[0];
+        $firstItem = $list->children[1];
+        $secondItem = $list->children[2];
+
+        $t->same('ordered_list', $list->type);
+        $t->same(3, $list->attr('start'));
+        $t->same('lower_alpha', $list->attr('style'));
+        $t->same(true, $header->attr('listHeader'));
+        $t->same(['odf-list-header'], $header->attr('classes'));
+        $t->same('true', $header->attr('attributes')['data-odf-list-header']);
+        $t->same('1', $header->attr('attributes')['data-odf-list-level']);
+        $t->same('Review scope introduction', $header->children[0]->attr('text'));
+        $t->same('First numbered item', $firstItem->children[0]->attr('text'));
+        $t->same('Second numbered item', $secondItem->children[0]->attr('text'));
+        $t->same(1, $result['importReport']['content']['listHeaderCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('::: {.odf-list-header data-odf-list-header="true" data-odf-list-level="1"}', $markdown);
+        $t->contains('Review scope introduction', $markdown);
+        $t->contains('c.  First numbered item', $markdown);
+        $t->contains('d.  Second numbered item', $markdown);
+        $t->true(!str_contains($markdown, 'd.  First numbered item'), 'List header must not advance ordered Markdown numbering');
+        $t->contains('<div class="odf-list-header" data-odf-list-header="true" data-odf-list-level="1"><p>Review scope introduction</p></div>', $blocksHtml);
+        $t->contains('<ol start="3" type="a"><li>First numbered item</li><li>Second numbered item</li></ol>', $blocksHtml);
+    },
     'maps ODT footnotes endnotes and bookmark references into reviewable AST nodes' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithNotesAndBookmarks = <<<'XML'
 <office:document-content

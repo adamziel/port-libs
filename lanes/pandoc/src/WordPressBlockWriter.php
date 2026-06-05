@@ -131,15 +131,24 @@ final class WordPressBlockWriter
             $tagAttrs = ' class="task-list"';
         }
         $items = [];
+        $headers = [];
 
         foreach ($node->children as $item) {
             if ($item->type !== 'list_item') {
                 continue;
             }
+            if ($item->attr('listHeader') === true) {
+                $headers[] = $this->renderListHeaderHtml($item);
+                continue;
+            }
             $items[] = $this->renderListItem($item);
         }
 
-        return $comment
+        $headerBlock = $headers === []
+            ? ''
+            : '<!-- wp:html -->' . "\n" . implode('', $headers) . "\n" . '<!-- /wp:html -->' . "\n\n";
+
+        return $headerBlock . $comment
             . "\n" . '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>'
             . "\n" . '<!-- /wp:list -->';
     }
@@ -149,13 +158,23 @@ final class WordPressBlockWriter
         $tag = $ordered ? 'ol' : 'ul';
         $tagAttrs = $ordered ? $this->renderOrderedListTagAttrs($node) : ($node->attr('taskList') === true ? ' class="task-list"' : '');
         $items = [];
+        $headers = [];
         foreach ($node->children as $item) {
             if ($item->type === 'list_item') {
+                if ($item->attr('listHeader') === true) {
+                    $headers[] = $this->renderListHeaderHtml($item);
+                    continue;
+                }
                 $items[] = $this->renderListItem($item);
             }
         }
 
-        return '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>';
+        return implode('', $headers) . '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>';
+    }
+
+    private function renderListHeaderHtml(AstNode $item): string
+    {
+        return '<div' . $this->renderInlineSpanAttrs($item) . '>' . $this->renderBlocksAsHtml($item->children) . '</div>';
     }
 
     private function renderOrderedListTagAttrs(AstNode $node): string
