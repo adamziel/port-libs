@@ -17637,6 +17637,7 @@ final class PdfTextExtractor
         $horizontalScale = 100.0;
         $currentTextMatrixHorizontalScale = 1.0;
         $currentTextMatrixVerticalScale = 1.0;
+        $textRise = 0.0;
         $spanId = 0;
         $textRenderingMode = 0;
         $textStateStack = [];
@@ -17702,7 +17703,8 @@ final class PdfTextExtractor
                         $characterSpacing,
                         $wordSpacing,
                         $horizontalScale * $currentTextMatrixHorizontalScale,
-                        $currentTextMatrixVerticalScale
+                        $currentTextMatrixVerticalScale,
+                        $textRise
                     );
                 }
                 $operands = [];
@@ -17748,7 +17750,8 @@ final class PdfTextExtractor
                         0.0,
                         0.0,
                         100.0,
-                        $currentTextMatrixVerticalScale
+                        $currentTextMatrixVerticalScale,
+                        $textRise
                     );
                 }
                 $operands = [];
@@ -17763,6 +17766,7 @@ final class PdfTextExtractor
                     'characterSpacing' => $characterSpacing,
                     'wordSpacing' => $wordSpacing,
                     'horizontalScale' => $horizontalScale,
+                    'textRise' => $textRise,
                     'textRenderingMode' => $textRenderingMode,
                 ];
                 $clipStateStack[] = [
@@ -17783,6 +17787,7 @@ final class PdfTextExtractor
                     $characterSpacing = $state['characterSpacing'];
                     $wordSpacing = $state['wordSpacing'];
                     $horizontalScale = $state['horizontalScale'];
+                    $textRise = $state['textRise'];
                     $textRenderingMode = $state['textRenderingMode'];
                 }
                 $clipState = array_pop($clipStateStack);
@@ -17822,6 +17827,12 @@ final class PdfTextExtractor
 
             if ($token === 'Tz') {
                 $horizontalScale = $this->textHorizontalScaleOperand($operands) ?? $horizontalScale;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Ts') {
+                $textRise = $this->textRiseOperand($operands) ?? $textRise;
                 $operands = [];
                 continue;
             }
@@ -17933,7 +17944,8 @@ final class PdfTextExtractor
         float $characterSpacing = 0.0,
         float $wordSpacing = 0.0,
         float $horizontalScale = 100.0,
-        float $verticalScale = 1.0
+        float $verticalScale = 1.0,
+        float $textRise = 0.0
     ): void {
         if ($text === '') {
             return;
@@ -17960,7 +17972,8 @@ final class PdfTextExtractor
             $characterSpacing,
             $wordSpacing,
             $horizontalScale,
-            $verticalScale
+            $verticalScale,
+            $textRise
         );
 
         $span = [
@@ -17991,10 +18004,12 @@ final class PdfTextExtractor
         float $characterSpacing,
         float $wordSpacing,
         float $horizontalScale,
-        float $verticalScale = 1.0
+        float $verticalScale = 1.0,
+        float $textRise = 0.0
     ): array {
         $heightScale = is_finite($verticalScale) ? abs($verticalScale) : 1.0;
         $height = max(1.0, $fontSize * $heightScale);
+        $rise = is_finite($textRise) ? $textRise : 0.0;
         if ($sourceOperand !== null && $this->mapWritingMode($toUnicodeMap) === 1) {
             $endY = $this->advanceTextEndYForOperand(
                 0.0,
@@ -18005,7 +18020,7 @@ final class PdfTextExtractor
                 $wordSpacing
             );
             if ($endY !== null && is_finite($endY)) {
-                return [$xStart, 0.0, $xStart + $height, max(1.0, abs($endY))];
+                return [$xStart, $rise, $xStart + $height, $rise + max(1.0, abs($endY))];
             }
         }
 
@@ -18019,7 +18034,7 @@ final class PdfTextExtractor
             $horizontalScale
         );
 
-        return [$xStart, 0.0, $xStart + $width, $height];
+        return [$xStart, $rise, $xStart + $width, $rise + $height];
     }
 
     private function nativeTextSpanWidth(
@@ -19614,6 +19629,18 @@ final class PdfTextExtractor
      * @param list<string> $operands
      */
     private function fontSizeOperand(array $operands): ?float
+    {
+        if ($operands === []) {
+            return null;
+        }
+
+        return $this->numericOperand($operands[count($operands) - 1]);
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function textRiseOperand(array $operands): ?float
     {
         if ($operands === []) {
             return null;
