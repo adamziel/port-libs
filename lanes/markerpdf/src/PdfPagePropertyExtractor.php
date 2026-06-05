@@ -1542,10 +1542,43 @@ final class PdfPagePropertyExtractor
                 break;
             }
 
+            $childGeneration = $this->currentObjectGenerations[$objectNumber] ?? null;
+            if (
+                $childGeneration === null
+                || !$this->pageTreeParentListsChild($parentDictionary, $objectNumber, $childGeneration, $objects)
+            ) {
+                break;
+            }
+
             $objectNumber = $parentObjectNumber;
         }
 
         return $lineage;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pageTreeParentListsChild(string $parentDictionary, int $childObjectNumber, int $childGeneration, array $objects): bool
+    {
+        $kids = $this->topLevelDictionaryRawValue($parentDictionary, 'Kids');
+        if ($kids === null) {
+            return false;
+        }
+
+        foreach ($this->arrayItemsFromValue($kids, $objects) as $kidValue) {
+            $reference = $this->objectReferenceFromValue($kidValue);
+            if (
+                $reference !== null
+                && $reference['objectNumber'] === $childObjectNumber
+                && $reference['generation'] === $childGeneration
+                && $this->objectBodyForPageTreeReference($objects, $childObjectNumber, $childGeneration) !== null
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

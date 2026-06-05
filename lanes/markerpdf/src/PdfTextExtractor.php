@@ -9069,6 +9069,58 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      */
+    private function pageTreeParentListsChild(string $parentBody, int $childObjectNumber, int $childGeneration, array $objects): bool
+    {
+        $dictionary = $this->dictionaryObjectBody($parentBody);
+        if ($dictionary === null) {
+            return false;
+        }
+
+        $kidsValue = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Kids');
+        if ($kidsValue === null) {
+            return false;
+        }
+
+        $kidsArray = $this->pdfArrayFromValue($kidsValue, $objects);
+        if ($kidsArray === null) {
+            return false;
+        }
+
+        foreach ($this->pageTreeKidReferencesFromArray($kidsArray, $objects) as $reference) {
+            if ($reference['objectNumber'] === $childObjectNumber && $reference['generation'] === $childGeneration) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function selectedObjectGeneration(array $objects, int $objectNumber): ?int
+    {
+        if (!isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        $owner = $this->currentObjectReferenceOwners[$objectNumber] ?? null;
+        if ($owner !== null && $objects[$objectNumber] === $owner['body']) {
+            return $owner['generation'];
+        }
+
+        foreach ($this->currentDirectObjectBodiesByGeneration[$objectNumber] ?? [] as $generation => $body) {
+            if ($objects[$objectNumber] === $body) {
+                return (int) $generation;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
     private function objectBodyForPageTreeReference(array $objects, int $objectNumber, int $generation): ?string
     {
         if ($objectNumber <= 0 || $generation < 0 || !isset($objects[$objectNumber])) {
@@ -11850,6 +11902,15 @@ final class PdfTextExtractor
                 || !isset($objects[$parentObjectNumber])
                 || $objects[$parentObjectNumber] !== $parentBody
                 || !$this->isPagesObject($parentBody)
+            ) {
+                $blocked = true;
+                break;
+            }
+
+            $childGeneration = $this->selectedObjectGeneration($objects, $objectNumber);
+            if (
+                $childGeneration === null
+                || !$this->pageTreeParentListsChild($parentBody, $objectNumber, $childGeneration, $objects)
             ) {
                 $blocked = true;
                 break;
