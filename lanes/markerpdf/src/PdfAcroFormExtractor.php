@@ -132,6 +132,7 @@ final class PdfAcroFormExtractor
         $objects = $materializedFields['objects'];
 
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects, $catalog);
+        $objects = $this->materializeDirectPageAnnotationWidgetDictionaries($objects, $pageObjectNumbers);
         $pageIndexes = array_flip($pageObjectNumbers);
         $pageWidgets = $this->pageWidgetMap($objects, $pageObjectNumbers);
         $formDefaults = $this->acroFormDefaults($acroForm);
@@ -8996,6 +8997,121 @@ final class PdfAcroFormExtractor
     }
 
     /**
+     * Page /Annots arrays may carry direct Widget dictionaries. The rest of the
+     * AcroForm repair path is object-number based, so materialize only top-level
+     * direct page annotations into synthetic in-memory objects before mapping
+     * page-owned widgets.
+     *
+     * @param array<int, string> $objects
+     * @param list<int> $pageObjectNumbers
+     * @return array<int, string>
+     */
+    private function materializeDirectPageAnnotationWidgetDictionaries(array $objects, array $pageObjectNumbers): array
+    {
+        $nextSyntheticObject = $this->nextSyntheticAcroFormObjectNumber($objects);
+
+        foreach ($pageObjectNumbers as $pageObjectNumber) {
+            if (!isset($objects[$pageObjectNumber])) {
+                continue;
+            }
+
+            $pageBody = $this->dictionaryObjectBody($objects[$pageObjectNumber]) ?? trim($objects[$pageObjectNumber]);
+            $span = $this->lastTopLevelValueSpanAfterName($pageBody, 'Annots');
+            if ($span === null) {
+                continue;
+            }
+
+            $annotsValue = trim($span['value']);
+            if (str_starts_with($annotsValue, '[')) {
+                $rewritten = $this->materializeDirectDictionariesInArrayValue(
+                    $annotsValue,
+                    $objects,
+                    $nextSyntheticObject,
+                    fn (string $dictionary): bool => $this->isWidget($dictionary)
+                );
+                if (!$rewritten['changed']) {
+                    continue;
+                }
+
+                $objects = $rewritten['objects'];
+                $pageBody = substr($pageBody, 0, $span['start'])
+                    . $rewritten['value']
+                    . substr($pageBody, $span['end']);
+                $objects[$pageObjectNumber] = '<<' . $pageBody . '>>';
+                continue;
+            }
+
+            $arrayObject = $this->validObjectReferenceFromValue($annotsValue, $objects);
+            if ($arrayObject === null || !isset($objects[$arrayObject])) {
+                continue;
+            }
+
+            $arrayBody = $this->arrayBodyFromValue(trim($objects[$arrayObject]));
+            if ($arrayBody === null) {
+                continue;
+            }
+
+            $materialized = $this->materializeDirectDictionariesInArrayBody(
+                $arrayBody,
+                $objects,
+                $nextSyntheticObject,
+                fn (string $dictionary): bool => $this->isWidget($dictionary)
+            );
+            if (!$materialized['changed']) {
+                continue;
+            }
+
+            $objects = $materialized['objects'];
+            $objects[$arrayObject] = '[' . $materialized['body'] . ']';
+        }
+
+        ksort($objects, SORT_NUMERIC);
+
+        return $objects;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{value: string, objects: array<int, string>, changed: bool}
+     */
+    private function materializeDirectDictionariesInArrayValue(
+        string $arrayValue,
+        array $objects,
+        int &$nextSyntheticObject,
+        ?callable $shouldMaterialize = null
+    ): array {
+        $arrayEnd = null;
+        $arrayBody = $this->readPdfArrayAt($arrayValue, 0, $arrayEnd);
+        if ($arrayBody === null || $arrayEnd === null) {
+            return [
+                'value' => $arrayValue,
+                'objects' => $objects,
+                'changed' => false,
+            ];
+        }
+
+        $materialized = $this->materializeDirectDictionariesInArrayBody(
+            $arrayBody,
+            $objects,
+            $nextSyntheticObject,
+            $shouldMaterialize
+        );
+        if (!$materialized['changed']) {
+            return [
+                'value' => $arrayValue,
+                'objects' => $objects,
+                'changed' => false,
+            ];
+        }
+
+        return [
+            'value' => '[' . $materialized['body'] . ']',
+            'objects' => $materialized['objects'],
+            'changed' => true,
+        ];
+    }
+
+    /**
      * @param array<int, string> $objects
      * @return array{body: string, objects: array<int, string>, added: list<int>, changed: bool}
      */
@@ -9052,8 +9168,10 @@ final class PdfAcroFormExtractor
     private function materializeDirectDictionariesInArrayBody(
         string $arrayBody,
         array $objects,
-        int &$nextSyntheticObject
+        int &$nextSyntheticObject,
+        ?callable $shouldMaterialize = null
     ): array {
+        $shouldMaterialize ??= fn (string $dictionary): bool => $this->isFieldDictionaryCandidate($dictionary);
         $rewritten = '';
         $cursor = 0;
         $offset = 0;
@@ -9070,7 +9188,7 @@ final class PdfAcroFormExtractor
                 $dictionaryEnd = null;
                 $dictionary = $this->readPdfDictionaryAt($arrayBody, $offset, $dictionaryEnd);
                 if ($dictionary !== null && $dictionaryEnd !== null) {
-                    if ($this->isFieldDictionaryCandidate($dictionary)) {
+                    if ($shouldMaterialize($dictionary)) {
                         while (isset($objects[$nextSyntheticObject])) {
                             $nextSyntheticObject++;
                         }

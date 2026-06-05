@@ -456,6 +456,8 @@ The 2026-06-05 named-destination indirect view-operand slice extends that smoke 
 
 `examples/wordpress-pdf-acroform-fields-direct-dictionary-currentbase.php` maps direct AcroForm field dictionaries in catalog `/Fields` and field `/Kids` arrays into WordPress form-review metadata. It materializes top-level direct root and child fields, preserves indirect widget page annotation indexes, excludes literal, nested-array, nested-dictionary, comment, and detached field-like decoys, and keeps form values out of visible Gutenberg paragraphs without executing form actions, JavaScript, Python models, OCR, or external PDF tools.
 
+`examples/wordpress-pdf-acroform-fields-direct-page-widget-currentbase.php` maps direct top-level page `/Annots` Widget dictionaries into WordPress form-review metadata. It materializes direct inline Widget fields and direct Widget `/Parent` fields that omit `/Kids`, preserves matching page `/P` ownership, excludes wrong-page, non-Widget, and explicit empty-/Kids decoys, and keeps form values out of visible Gutenberg paragraphs without executing form actions, JavaScript, Python models, OCR, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
