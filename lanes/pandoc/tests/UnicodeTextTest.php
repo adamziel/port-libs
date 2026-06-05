@@ -151,6 +151,26 @@ return [
         $t->contains("<p>Zażółć gęślą jaźń; Český Štěpán; kůň; őű; “quoted” — €10.</p>", $windowsBlocks);
         $t->contains('<p>Zażółć gęślą jaźń; Český Štěpán; kůň; őű.</p>', $latin2Blocks);
     },
+    'decodes windows 1251 cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# \xC8\xEC\xEF\xEE\xF0\xF2\n\n\xD0\xE5\xE4\xE0\xEA\xF2\xEE\xF0 \x93\xEF\xF0\xE8\xE2\xE5\xF2\x94 \x97 \x8810; \xA8\xEB\xEA\xE0 \xB9 7.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp1251');
+        $document = (new MarkdownReader())->readBytes($bytes, 'microsoft-cp1251');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $malformed = UnicodeText::decodeBytes("A\x98B", 'windows-1251');
+
+        $t->same('windows-1251', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Импорт\n\nРедактор “привет” — €10; Ёлка № 7.", $decoded['text']);
+        $t->same(['encoding' => 'windows-1251', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Импорт', $document->children[0]->attr('text'));
+        $t->same('Редактор “привет” — €10; Ёлка № 7.', $document->children[1]->attr('text'));
+        $t->same(34, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="импорт">Импорт</h1>', $blocks);
+        $t->contains('<p>Редактор “привет” — €10; Ёлка № 7.</p>', $blocks);
+        $t->same('windows-1251', $malformed['encoding']);
+        $t->same("A\u{FFFD}B", $malformed['text']);
+        $t->same(1, $malformed['repairs']);
+    },
     'decodes shift jis japanese source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = (string) hex2bin('23208c7689e60a0a967b95b682c694bc8a70b6c0b6c581418adb874094678160fbfc8de88142');
         $decoded = UnicodeText::decodeBytes($bytes, 'windows-31j');

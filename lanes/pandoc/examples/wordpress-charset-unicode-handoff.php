@@ -32,6 +32,9 @@ $windows1250Text = (string) $windows1250Source->children[1]->attr('text');
 $latin2Bytes = "# Latin2 Import\n\nZa\xBF\xF3\xB3\xE6 g\xEA\xB6l\xB1 ja\xBC\xF1; \xC8esk\xFD \xA9t\xECp\xE1n; k\xF9\xF2; \xF5\xFB.";
 $latin2Source = (new MarkdownReader())->readBytes($latin2Bytes, 'latin-2');
 $latin2Text = (string) $latin2Source->children[1]->attr('text');
+$windows1251Bytes = "# \xC8\xEC\xEF\xEE\xF0\xF2\n\n\xD0\xE5\xE4\xE0\xEA\xF2\xEE\xF0 \x93\xEF\xF0\xE8\xE2\xE5\xF2\x94 \x97 \x8810; \xA8\xEB\xEA\xE0 \xB9 7.";
+$windows1251Source = (new MarkdownReader())->readBytes($windows1251Bytes, 'cp1251');
+$windows1251Text = (string) $windows1251Source->children[1]->attr('text');
 $shiftJisBytes = (string) hex2bin('23208c7689e60a0a967b95b682c694bc8a70b6c0b6c581418adb874094678160fbfc8de88142');
 $shiftJisSource = (new MarkdownReader())->readBytes($shiftJisBytes, 'windows-31j');
 $shiftJisText = (string) $shiftJisSource->children[1]->attr('text');
@@ -319,6 +322,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($latin2Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($latin2Text)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Windows-1251 source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $windows1251Text])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($windows1251Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($windows1251Text)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Shift_JIS source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $shiftJisText])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($shiftJisSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($shiftJisText) . '/' . UnicodeText::displayWidth($shiftJisText, 'wide')])]),
@@ -506,6 +514,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>Latin-2 source</td><td>Zażółć gęślą jaźń; Český Štěpán; kůň; őű.</td><td>iso-8859-2:41</td>")) {
         throw new RuntimeException('charset handoff self-test missing Latin-2 decode audit row');
+    }
+    if (($windows1251Source->attr('sourceEncoding')['encoding'] ?? '') !== 'windows-1251') {
+        throw new RuntimeException('charset handoff self-test missing Windows-1251 source encoding');
+    }
+    if (!str_contains($blocks, '<td>Windows-1251 source</td><td>Редактор “привет” — €10; Ёлка № 7.</td><td>windows-1251:34</td>')) {
+        throw new RuntimeException('charset handoff self-test missing Windows-1251 decode audit row');
     }
     if (($shiftJisSource->attr('sourceEncoding')['encoding'] ?? '') !== 'shift_jis') {
         throw new RuntimeException('charset handoff self-test missing Shift_JIS source encoding');
