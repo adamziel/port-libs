@@ -266,8 +266,7 @@ final class PdfTextBlockConverter
                 continue;
             }
 
-            $this->assertNumeric($page[$field], $field);
-            $source[$field] = (float) $page[$field];
+            $source[$field] = $this->positivePageDimensionMetadata($page[$field], $field);
         }
 
         if (array_key_exists('refs', $page) && $page['refs'] !== null) {
@@ -365,6 +364,17 @@ final class PdfTextBlockConverter
         $floatValue = (float) $value;
         if (floor($floatValue) === $floatValue) {
             return (int) $value;
+        }
+
+        return $floatValue;
+    }
+
+    private function positivePageDimensionMetadata(mixed $value, string $field): float
+    {
+        $this->assertNumeric($value, $field);
+        $floatValue = (float) $value;
+        if ($floatValue <= 0.0) {
+            throw new InvalidArgumentException("pdftext {$field} must be greater than zero.");
         }
 
         return $floatValue;

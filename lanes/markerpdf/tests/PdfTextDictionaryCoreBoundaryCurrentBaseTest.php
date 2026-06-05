@@ -625,6 +625,33 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$infiniteFontSize], maxPages: 1));
         $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$nanReferenceCoordinate], maxPages: 1));
     },
+    'rejects nonpositive pdftext source dimensions before WordPress metadata' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $zeroWidth = $pdftextLinkedPage();
+        $zeroWidth['width'] = 0.0;
+
+        $negativeWidth = $pdftextLinkedPage();
+        $negativeWidth['width'] = -612.0;
+
+        $zeroHeight = $pdftextLinkedPage();
+        $zeroHeight['height'] = 0;
+
+        $negativeHeight = $pdftextLinkedPage();
+        $negativeHeight['height'] = -792;
+
+        $validTinyPage = $pdftextLinkedPage();
+        $validTinyPage['width'] = 1.0;
+        $validTinyPage['height'] = 1.0;
+
+        $extractor = new PdfTextDocumentExtractor();
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$zeroWidth], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$negativeWidth], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$zeroHeight], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$negativeHeight], maxPages: 1));
+
+        $document = $extractor->getTextBlocks([$validTinyPage], maxPages: 1);
+        $t->same(1.0, $document['pages'][0]['pdftext_source']['width']);
+        $t->same(1.0, $document['pages'][0]['pdftext_source']['height']);
+    },
     'preserves fractional pdftext span rotation metadata before WordPress rendering' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $page = $pdftextLinkedPage();
         $page['page'] = 77;
