@@ -67,6 +67,32 @@ $runLengthEncode = static function (string $bytes): string {
     return $encoded . chr(128);
 };
 
+$lzwLiteralEncode = static function (string $bytes): string {
+    if (strlen($bytes) > 240) {
+        throw new RuntimeException('Focused LZW stack smoke fixture must keep 9-bit literal codes.');
+    }
+
+    $codes = array_merge([256], array_map('ord', str_split($bytes)), [257]);
+    $bits = '';
+    foreach ($codes as $code) {
+        for ($shift = 8; $shift >= 0; $shift--) {
+            $bits .= (($code >> $shift) & 1) === 1 ? '1' : '0';
+        }
+    }
+
+    $encoded = '';
+    for ($offset = 0, $length = strlen($bits); $offset < $length; $offset += 8) {
+        $byte = substr($bits, $offset, 8);
+        if (strlen($byte) < 8) {
+            $byte = str_pad($byte, 8, '0');
+        }
+
+        $encoded .= chr(bindec($byte));
+    }
+
+    return $encoded;
+};
+
 $pngSubPredictorEncode = static function (string $bytes, int $columns): string {
     $encoded = '';
     for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += $columns) {
@@ -330,6 +356,22 @@ $indirectNullFilterPdf = "%PDF-1.4\n"
     . "99 0 obj\n{$indirectNullFilterDecodeParmsObject}\nendobj\n"
     . "%%EOF";
 
+$lzwShortLengthContent = 'BT /F1 12 Tf 72 720 Td (LZW Short Length Before) Tj T* (LZW Short Length After) Tj ET';
+$lzwShortLengthEncoded = $lzwLiteralEncode($zlibStored($lzwShortLengthContent));
+$lzwShortDeclaredLength = intdiv(strlen($lzwShortLengthEncoded), 2);
+$lzwMalformedLeak = 'BT /F1 12 Tf 72 688 Td (Malformed LZW Stack Leak) Tj ET';
+$lzwMalformedEncoded = substr($lzwLiteralEncode($zlibStored($lzwMalformedLeak)), 0, -2);
+$lzwVisibleAfter = 'BT /F1 12 Tf 72 672 Td (Visible After LZW Boundary) Tj ET';
+$lzwShortLengthPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 7 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Length {$lzwShortDeclaredLength} /Filter [ /LZWDecode /FlateDecode ] >>\nstream\n{$lzwShortLengthEncoded}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "6 0 obj\n<< /Length {$lzwShortDeclaredLength} /Filter [ /LZWDecode /FlateDecode ] >>\nstream\n{$lzwMalformedEncoded}\nendstream\nendobj\n"
+    . "7 0 obj\n<< /Length " . strlen($lzwVisibleAfter) . " >>\nstream\n{$lzwVisibleAfter}\nendstream\nendobj\n"
+    . "%%EOF";
+
 $cryptFirstContent = "BT /F1 12 Tf 72 720 Td (Identity Crypt First Before) Tj ET\n"
     . "\nendstream\n"
     . "BT /F1 12 Tf 72 704 Td (Identity Crypt First After) Tj ET";
@@ -392,6 +434,7 @@ $aliasCompactDecodeParmsLines = $extractor->extractTextLines($aliasCompactDecode
 $strayDecodeParmsLines = $extractor->extractTextLines($strayDecodeParmsPdf);
 $allNullFilterLines = $extractor->extractTextLines($allNullFilterPdf);
 $indirectNullFilterLines = $extractor->extractTextLines($indirectNullFilterPdf);
+$lzwShortLengthLines = $extractor->extractTextLines($lzwShortLengthPdf);
 $cryptIdentityLines = $extractor->extractTextLines($cryptIdentityPdf);
 $indirectCryptNameLines = $extractor->extractTextLines($indirectCryptNamePdf);
 $allLines = [
@@ -409,6 +452,7 @@ $allLines = [
     ...$strayDecodeParmsLines,
     ...$allNullFilterLines,
     ...$indirectNullFilterLines,
+    ...$lzwShortLengthLines,
     ...$cryptIdentityLines,
     ...$indirectCryptNameLines,
 ];
@@ -432,6 +476,7 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         [],
         [null],
         [null, 'FlateDecode'],
+        ['LZWDecode', 'FlateDecode'],
         ['Crypt', 'FlateDecode'],
         ['FlateDecode', 'Crypt'],
         ['Crypt', 'FlateDecode'],
@@ -466,6 +511,12 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         'Indirect Null DecodeParms Applies',
         'Visible After Indirect Null Filter',
     ],
+    'short_declared_length_lzw_stack_recovers_after_eod' => $lzwShortLengthLines === [
+        'LZW Short Length Before',
+        'LZW Short Length After',
+        'Visible After LZW Boundary',
+    ],
+    'malformed_lzw_stack_fail_closed' => !str_contains($joined, 'Malformed LZW Stack Leak'),
     'identity_crypt_filter_stack_passthrough' => $cryptIdentityLines === [
         'Identity Crypt First Before',
         'Identity Crypt First After',
@@ -485,6 +536,7 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
     'declared_length_points_at_runlength_fake_endstream' => true,
     'requires_ascii85_eod_before_endstream_boundary' => true,
     'requires_runlength_eod_before_endstream_boundary' => true,
+    'requires_lzw_eod_before_flate_stack_boundary' => true,
     'requires_complete_filter_stack_before_boundary' => true,
     'requires_flate_stage_before_ascii85_eod_boundary' => true,
     'fake_endstream_payload_excluded' => !str_contains($joined, 'endstream'),

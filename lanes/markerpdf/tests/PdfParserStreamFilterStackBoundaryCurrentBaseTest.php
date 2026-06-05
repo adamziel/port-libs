@@ -64,6 +64,36 @@ $parserStreamFilterStackBoundaryCurrentBaseRunLength = static function (string $
     return $encoded . chr(128);
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseLzwLiteral = static function (string $bytes): string {
+    if (strlen($bytes) > 240) {
+        throw new RuntimeException('Focused LZW stack fixture must keep 9-bit literal codes.');
+    }
+
+    $codes = array_merge([256], array_map('ord', str_split($bytes)), [257]);
+    $bits = '';
+    foreach ($codes as $code) {
+        if (!is_int($code) || $code < 0 || $code > 511) {
+            throw new RuntimeException('Focused LZW stack fixture uses invalid 9-bit code.');
+        }
+
+        for ($shift = 8; $shift >= 0; $shift--) {
+            $bits .= (($code >> $shift) & 1) === 1 ? '1' : '0';
+        }
+    }
+
+    $encoded = '';
+    for ($offset = 0, $length = strlen($bits); $offset < $length; $offset += 8) {
+        $byte = substr($bits, $offset, 8);
+        if (strlen($byte) < 8) {
+            $byte = str_pad($byte, 8, '0');
+        }
+
+        $encoded .= chr(bindec($byte));
+    }
+
+    return $encoded;
+};
+
 $parserStreamFilterStackBoundaryCurrentBasePngSubPredictor = static function (string $bytes, int $columns): string {
     $encoded = '';
     for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += $columns) {
@@ -435,6 +465,40 @@ $parserStreamFilterStackBoundaryCurrentBaseRunLengthPdf = static function (
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseLzwShortLengthPdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBaseLzwLiteral,
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $content = 'BT /F1 12 Tf 72 720 Td (LZW Short Length Before) Tj T* (LZW Short Length After) Tj ET';
+    $encoded = $parserStreamFilterStackBoundaryCurrentBaseLzwLiteral(
+        $parserStreamFilterStackBoundaryCurrentBaseZlibStored($content)
+    );
+    $declaredLength = intdiv(strlen($encoded), 2);
+    if ($declaredLength < 1) {
+        throw new RuntimeException('Focused LZW stack fixture must have a short declared length.');
+    }
+
+    $malformedLeak = 'BT /F1 12 Tf 72 688 Td (Malformed LZW Stack Leak) Tj ET';
+    $malformedEncoded = substr(
+        $parserStreamFilterStackBoundaryCurrentBaseLzwLiteral(
+            $parserStreamFilterStackBoundaryCurrentBaseZlibStored($malformedLeak)
+        ),
+        0,
+        -2
+    );
+    $visibleAfter = 'BT /F1 12 Tf 72 672 Td (Visible After LZW Boundary) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 7 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Length {$declaredLength} /Filter [ /LZWDecode /FlateDecode ] >>\nstream\n{$encoded}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "6 0 obj\n<< /Length {$declaredLength} /Filter [ /LZWDecode /FlateDecode ] >>\nstream\n{$malformedEncoded}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $parserStreamFilterStackBoundaryCurrentBaseCryptIdentityPdf = static function () use (
     $parserStreamFilterStackBoundaryCurrentBaseZlibStored
 ): string {
@@ -717,6 +781,23 @@ return [
             $t->true(!str_contains($text, 'FlateDecode'));
         }
         $t->true($declaredLength > 0);
+    },
+    'recovers short Length LZW and Flate stacks only after the LZW EOD code' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseLzwShortLengthPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseLzwShortLengthPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = ['LZW Short Length Before', 'LZW Short Length After', 'Visible After LZW Boundary'];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same("LZW Short Length Before\nLZW Short Length After\nVisible After LZW Boundary", $text);
+        $t->same("LZW Short Length Before\nLZW Short Length After\nVisible After LZW Boundary\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Malformed LZW Stack Leak'));
+        $t->true(!str_contains($text, 'LZWDecode'));
+        $t->true(!str_contains($text, 'FlateDecode'));
+        $t->true(!str_contains($text, "\0"));
     },
     'treats explicit Identity Crypt filters as pass-through stack stages while rejecting named crypt filters' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseCryptIdentityPdf): void {
         $extractor = new PdfTextExtractor();
