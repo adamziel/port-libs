@@ -347,6 +347,7 @@ final class PdfTextExtractor
      *     compressed_entry_count: int,
      *     zero_width_object_stream_entry_count: int,
      *     unresolved_object_stream_carrier_count: int,
+     *     invalid_explicit_object_stream_carrier_count: int,
      *     zero_width_index_entry_count: int,
      *     recovered_zero_width_member_count: int,
      *     ambiguous_zero_width_member_count: int,
@@ -381,6 +382,7 @@ final class PdfTextExtractor
             'compressed_entry_count' => 0,
             'zero_width_object_stream_entry_count' => 0,
             'unresolved_object_stream_carrier_count' => 0,
+            'invalid_explicit_object_stream_carrier_count' => 0,
             'zero_width_index_entry_count' => 0,
             'recovered_zero_width_member_count' => 0,
             'ambiguous_zero_width_member_count' => 0,
@@ -465,15 +467,17 @@ final class PdfTextExtractor
 
             $review['compressed_entry_count']++;
             $objectStreamIsExplicit = ($entry['objectStreamIsExplicit'] ?? true) === true;
+            $objectStreamNumber = (int) $entry['objectStream'];
             if (!$objectStreamIsExplicit) {
                 $review['zero_width_object_stream_entry_count']++;
+            } elseif ($objectStreamNumber <= 0) {
+                $review['invalid_explicit_object_stream_carrier_count']++;
             }
             $indexIsExplicit = ($entry['indexIsExplicit'] ?? true) === true;
             if (!$indexIsExplicit) {
                 $review['zero_width_index_entry_count']++;
             }
 
-            $objectStreamNumber = (int) $entry['objectStream'];
             $defaultMemberIndex = (int) ($entry['index'] ?? 0);
             $objectStreamXrefEntry = $objectStreamNumber > 0 ? ($xrefEntries[$objectStreamNumber] ?? null) : null;
             $objectStreamOwner = $objectStreamNumber > 0 && isset($objects[$objectStreamNumber])
@@ -548,7 +552,7 @@ final class PdfTextExtractor
             $objectStreamCarrierHasFilter = isset($objects[$objectStreamNumber])
                 && $this->objectStreamCarrierHasFilters($objects[$objectStreamNumber], $objects);
             $objectStreamOwnerPolicy = $objectStreamNumber <= 0
-                ? 'missing_object_stream_carrier'
+                ? ($objectStreamIsExplicit ? 'invalid_explicit_object_stream_carrier' : 'missing_object_stream_carrier')
                 : $this->objectStreamCarrierOwnerPolicy($objectStreamXrefEntry, $objectStreamOwner);
             $streamMemberRejected = $selectedMemberIsStream;
             if ($streamMemberRejected) {
