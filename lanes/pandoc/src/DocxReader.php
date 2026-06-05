@@ -1002,7 +1002,12 @@ final class DocxReader
 
         $attrs = $this->hyperlinkFieldAttrs($field['instruction']);
         if ($attrs === null) {
-            return $resultNodes;
+            $attrs = $this->fieldSpanAttrs($field['instruction']);
+            if ($attrs === null) {
+                return $resultNodes;
+            }
+
+            return [new AstNode('span', $attrs, $resultNodes)];
         }
 
         return [new AstNode('link', $attrs, $resultNodes)];
@@ -1433,7 +1438,12 @@ final class DocxReader
 
         $attrs = $this->hyperlinkFieldAttrs((string) $this->wordAttr($field, 'instr'));
         if ($attrs === null) {
-            return $children;
+            $attrs = $this->fieldSpanAttrs((string) $this->wordAttr($field, 'instr'));
+            if ($attrs === null) {
+                return $children;
+            }
+
+            return [new AstNode('span', $attrs, $children)];
         }
 
         return [new AstNode('link', $attrs, $children)];
@@ -1489,6 +1499,74 @@ final class DocxReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function fieldSpanAttrs(string $instruction): ?array
+    {
+        $tokens = $this->fieldInstructionTokens($instruction);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $fieldNames = [
+            'PAGE' => 'page',
+            'NUMPAGES' => 'numpages',
+            'SECTIONPAGES' => 'sectionpages',
+            'DATE' => 'date',
+            'TIME' => 'time',
+            'CREATEDATE' => 'createdate',
+            'SAVEDATE' => 'savedate',
+            'PRINTDATE' => 'printdate',
+        ];
+
+        $fieldName = strtoupper(array_shift($tokens));
+        if (!isset($fieldNames[$fieldName])) {
+            return null;
+        }
+
+        $fieldKey = $fieldNames[$fieldName];
+        $attributes = [
+            'data-docx-field' => $fieldKey,
+            'data-docx-field-instruction' => $this->normalizeFieldInstruction($instruction),
+        ];
+
+        $format = $this->fieldFormatSwitchValue($tokens);
+        if ($format !== null && $format !== '') {
+            $attributes['data-docx-field-format'] = $format;
+        }
+
+        return [
+            'classes' => ['docx-field', 'docx-field-' . $fieldKey],
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function fieldFormatSwitchValue(array $tokens): ?string
+    {
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if (!str_starts_with($token, '\\')) {
+                continue;
+            }
+
+            $switch = strtolower(substr($token, 1));
+            if (($switch === '*' || $switch === '@') && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                return $tokens[$index + 1];
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeFieldInstruction(string $instruction): string
+    {
+        return preg_replace('/\s+/u', ' ', trim($instruction)) ?? trim($instruction);
     }
 
     /**

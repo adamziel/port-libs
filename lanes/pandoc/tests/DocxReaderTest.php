@@ -390,6 +390,26 @@ $fieldHyperlinkDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$fieldMetadataDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Page </w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText xml:space="preserve"> PAGE \* Arabic </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>7</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+      <w:r><w:t xml:space="preserve"> of </w:t></w:r>
+      <w:fldSimple w:instr=' NUMPAGES \* Arabic '><w:r><w:t>12</w:t></w:r></w:fldSimple>
+      <w:r><w:t xml:space="preserve"> updated </w:t></w:r>
+      <w:fldSimple w:instr=' DATE \@ "MMMM d, yyyy" '><w:r><w:t>June 5, 2026</w:t></w:r></w:fldSimple>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $sectionPropertiesDocumentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
@@ -547,6 +567,14 @@ $buildFieldHyperlinkPackage = static function () use ($contentTypesXml, $package
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $fieldHyperlinkDocumentXml],
+    ]);
+};
+
+$buildFieldMetadataPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $fieldMetadataDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $fieldMetadataDocumentXml],
     ]);
 };
 
@@ -1002,6 +1030,49 @@ return [
         $t->contains('<a href="#source_packet">anchor jump</a>', $blocks);
         $t->contains('<span id="source_packet" class="anchor"></span>Source packet anchor target.', $blocks);
         $t->true(!str_contains($blocks, 'HYPERLINK'), 'DOCX field instructions should not render to WordPress blocks');
+    },
+    'preserves DOCX non-hyperlink field provenance around displayed results' => static function (TestRunner $t) use ($buildFieldMetadataPackage): void {
+        $document = (new DocxReader())->readDocument($buildFieldMetadataPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Page ', $paragraph->children[0]->attr('text'));
+
+        $page = $paragraph->children[1];
+        $t->same('span', $page->type);
+        $t->same(['docx-field', 'docx-field-page'], $page->attr('classes'));
+        $t->same('page', $page->attr('attributes')['data-docx-field']);
+        $t->same('PAGE \* Arabic', $page->attr('attributes')['data-docx-field-instruction']);
+        $t->same('Arabic', $page->attr('attributes')['data-docx-field-format']);
+        $t->same('7', $page->children[0]->attr('text'));
+
+        $t->same(' of ', $paragraph->children[2]->attr('text'));
+        $pageCount = $paragraph->children[3];
+        $t->same('span', $pageCount->type);
+        $t->same(['docx-field', 'docx-field-numpages'], $pageCount->attr('classes'));
+        $t->same('numpages', $pageCount->attr('attributes')['data-docx-field']);
+        $t->same('NUMPAGES \* Arabic', $pageCount->attr('attributes')['data-docx-field-instruction']);
+        $t->same('Arabic', $pageCount->attr('attributes')['data-docx-field-format']);
+        $t->same('12', $pageCount->children[0]->attr('text'));
+
+        $t->same(' updated ', $paragraph->children[4]->attr('text'));
+        $date = $paragraph->children[5];
+        $t->same('span', $date->type);
+        $t->same(['docx-field', 'docx-field-date'], $date->attr('classes'));
+        $t->same('date', $date->attr('attributes')['data-docx-field']);
+        $t->same('DATE \@ "MMMM d, yyyy"', $date->attr('attributes')['data-docx-field-instruction']);
+        $t->same('MMMM d, yyyy', $date->attr('attributes')['data-docx-field-format']);
+        $t->same('June 5, 2026', $date->children[0]->attr('text'));
+        $t->same('.', $paragraph->children[6]->attr('text'));
+
+        $t->contains('Page [7]{.docx-field .docx-field-page data-docx-field="page" data-docx-field-instruction="PAGE \\\\* Arabic" data-docx-field-format="Arabic"} of [12]{.docx-field .docx-field-numpages data-docx-field="numpages"', $markdown);
+        $t->contains('updated [June 5, 2026]{.docx-field .docx-field-date data-docx-field="date" data-docx-field-instruction="DATE \\\\@ \\"MMMM d, yyyy\\"" data-docx-field-format="MMMM d, yyyy"}.', $markdown);
+
+        $t->contains('<span class="docx-field docx-field-page" data-docx-field="page" data-docx-field-instruction="PAGE \* Arabic" data-docx-field-format="Arabic">7</span>', $blocks);
+        $t->contains('<span class="docx-field docx-field-numpages" data-docx-field="numpages" data-docx-field-instruction="NUMPAGES \* Arabic" data-docx-field-format="Arabic">12</span>', $blocks);
+        $t->contains('<span class="docx-field docx-field-date" data-docx-field="date" data-docx-field-instruction="DATE \@ &quot;MMMM d, yyyy&quot;" data-docx-field-format="MMMM d, yyyy">June 5, 2026</span>', $blocks);
     },
     'reports DOCX section page geometry margins columns and header footer relationships' => static function (TestRunner $t) use ($buildSectionPropertiesPackage): void {
         $reader = new DocxReader();

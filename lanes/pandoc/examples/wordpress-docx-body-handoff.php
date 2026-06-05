@@ -195,7 +195,12 @@ XML],
 XML],
     ['name' => 'word/footer1.xml', 'data' => <<<'XML'
 <w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:p><w:r><w:t>Source packet footer</w:t></w:r></w:p>
+  <w:p>
+    <w:r><w:t xml:space="preserve">Source packet footer page </w:t></w:r>
+    <w:fldSimple w:instr=' PAGE \* Arabic '><w:r><w:t>7</w:t></w:r></w:fldSimple>
+    <w:r><w:t xml:space="preserve"> of </w:t></w:r>
+    <w:fldSimple w:instr=' NUMPAGES \* Arabic '><w:r><w:t>12</w:t></w:r></w:fldSimple>
+  </w:p>
 </w:ftr>
 XML],
     ['name' => 'word/media/hero.png', 'data' => 'PNGDATA'],
@@ -255,8 +260,19 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['sectionProperties'][0]['headers'][0]['blocks'][0]->children[1]->attr('url') ?? '') !== 'https://example.test/header-review?post=42') {
         throw new RuntimeException('DOCX body handoff self-test missing section header hyperlink target');
     }
-    if (($summary['sectionProperties'][0]['footers'][0]['text'] ?? '') !== 'Source packet footer') {
+    if (($summary['sectionProperties'][0]['footers'][0]['text'] ?? '') !== 'Source packet footer page 7 of 12') {
         throw new RuntimeException('DOCX body handoff self-test missing parsed section footer text');
+    }
+    $footerPageField = $summary['sectionProperties'][0]['footers'][0]['blocks'][0]->children[1] ?? null;
+    if (!$footerPageField instanceof PortLibs\Pandoc\AstNode || ($footerPageField->attr('attributes')['data-docx-field'] ?? '') !== 'page') {
+        throw new RuntimeException('DOCX body handoff self-test missing footer page field metadata');
+    }
+    if (($footerPageField->attr('attributes')['data-docx-field-instruction'] ?? '') !== 'PAGE \* Arabic') {
+        throw new RuntimeException('DOCX body handoff self-test missing footer page field instruction');
+    }
+    $footerPageCountField = $summary['sectionProperties'][0]['footers'][0]['blocks'][0]->children[3] ?? null;
+    if (!$footerPageCountField instanceof PortLibs\Pandoc\AstNode || ($footerPageCountField->attr('attributes')['data-docx-field'] ?? '') !== 'numpages') {
+        throw new RuntimeException('DOCX body handoff self-test missing footer page-count field metadata');
     }
     if (str_contains($blocks, 'Old reviewer draft.')) {
         throw new RuntimeException('DOCX body handoff self-test rendered deleted tracked-change text');
