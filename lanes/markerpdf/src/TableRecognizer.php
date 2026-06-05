@@ -1029,7 +1029,8 @@ final class TableRecognizer
         $assigned = [];
         $markdown = [];
         foreach ($recognizedTables as $idx => $table) {
-            $tableCells = $this->assignRowsColumns($table, $imageSizes[$idx]);
+            $tableCells = $this->assignedCellsFromRecognizedTable($table)
+                ?? $this->assignRowsColumns($table, $imageSizes[$idx]);
             $assigned[] = $tableCells;
             $markdown[] = $this->markdownFormat($tableCells);
         }
@@ -1040,6 +1041,48 @@ final class TableRecognizer
             'recognized_tables' => $recognizedTables,
             'coordinate_space_reviews' => $coordinateSpaceReviews,
         ];
+    }
+
+    /**
+     * Saved tabled/marker results may already carry the SpanTableCell
+     * row/column assignment. Trust that complete upstream assignment instead
+     * of recomputing from geometry; raw detector cells still flow through
+     * assignRowsColumns().
+     *
+     * @param array<string, mixed> $table
+     * @return list<array<string, mixed>>|null
+     */
+    private function assignedCellsFromRecognizedTable(array $table): ?array
+    {
+        $cells = $table['cells'] ?? null;
+        if (!is_array($cells) || $cells === []) {
+            return null;
+        }
+
+        $cells = array_values($cells);
+        foreach ($cells as $cell) {
+            if (!is_array($cell) || !$this->hasAssignedGridAnchor($cell)) {
+                return null;
+            }
+        }
+
+        return $this->normalizeAssignedCells($cells);
+    }
+
+    /**
+     * @param array<string, mixed> $cell
+     */
+    private function hasAssignedGridAnchor(array $cell): bool
+    {
+        $rowIds = $cell['row_ids'] ?? null;
+        $colIds = $cell['col_ids'] ?? null;
+
+        return is_array($rowIds)
+            && is_array($colIds)
+            && array_key_exists(0, $rowIds)
+            && array_key_exists(0, $colIds)
+            && $rowIds[0] !== null
+            && $colIds[0] !== null;
     }
 
     /**
