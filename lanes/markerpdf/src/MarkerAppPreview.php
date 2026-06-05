@@ -1576,8 +1576,8 @@ final class MarkerAppPreview
         ?array $inheritedLimits = null
     ): array
     {
-        $value = trim($this->resolvePageLabelPdfValue($value, $objects, $seen));
-        if (!str_starts_with($value, '<<')) {
+        $value = $this->pageLabelDictionaryToken($this->resolvePageLabelPdfValue($value, $objects, $seen));
+        if ($value === null) {
             return [];
         }
 
@@ -1850,8 +1850,8 @@ final class MarkerAppPreview
      */
     private function parsePageLabelDictionary(string $value, array $objects, array $seen): ?array
     {
-        $dict = trim($this->resolvePageLabelPdfValue($value, $objects, $seen));
-        if (!str_starts_with($dict, '<<')) {
+        $dict = $this->pageLabelDictionaryToken($this->resolvePageLabelPdfValue($value, $objects, $seen));
+        if ($dict === null) {
             return null;
         }
 
@@ -1881,6 +1881,21 @@ final class MarkerAppPreview
             'style' => $style,
             'start' => $start,
         ];
+    }
+
+    private function pageLabelDictionaryToken(string $value): ?string
+    {
+        $value = trim($value);
+        if (!str_starts_with($value, '<<')) {
+            return null;
+        }
+
+        $dictionary = $this->readBalancedDictionary($value, 0);
+        if ($dictionary === null) {
+            return null;
+        }
+
+        return $this->skipPdfWhitespace($value, $dictionary[1]) >= strlen($value) ? $dictionary[0] : null;
     }
 
     /**

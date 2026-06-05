@@ -9777,7 +9777,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $kidDictionary = $this->dictionaryObjectBody($kidBody);
+            $kidDictionary = $this->pageLabelDictionaryObjectBody($kidBody);
             if ($kidDictionary === null) {
                 continue;
             }
@@ -10033,8 +10033,7 @@ final class PdfTextExtractor
     {
         $value = trim($value);
         if (str_starts_with($value, '<<')) {
-            $offset = 0;
-            return $this->readPdfDictionaryTokenAt($value, $offset);
+            return $this->pageLabelDictionaryObjectBody($value);
         }
 
         $reference = $this->pageLabelReferenceOperand($value);
@@ -10056,6 +10055,22 @@ final class PdfTextExtractor
 
         $seen[$objectKey] = true;
         return $this->pageLabelDictionaryFromValueResolved($body, $objects, $seen);
+    }
+
+    private function pageLabelDictionaryObjectBody(string $value): ?string
+    {
+        $value = trim($value);
+        if (!str_starts_with($value, '<<')) {
+            return null;
+        }
+
+        $offset = 0;
+        $dictionary = $this->readPdfDictionaryTokenAt($value, $offset);
+        if ($dictionary === null) {
+            return null;
+        }
+
+        return $this->skipPdfWhitespace($value, $offset) >= strlen($value) ? $dictionary : null;
     }
 
     /**

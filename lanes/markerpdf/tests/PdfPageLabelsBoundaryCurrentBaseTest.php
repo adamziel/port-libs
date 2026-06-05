@@ -789,6 +789,30 @@ $malformedStyleScalarPageLabelBoundaryPdf = static function (): string {
         . "%%EOF\n";
 };
 
+$malformedDictionaryObjectPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Malformed dictionary first imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Valid dictionary second imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums [0 30 0 R 1 31 0 R] >>\nendobj\n"
+        . "30 0 obj\n<< /P (Bad-) /S /D /St 4 >> /Private\nendobj\n"
+        . "31 0 obj\n<< /P (Valid-) /S /D /St 8 >> % comment-only dictionary tail remains whitespace\nendobj\n"
+        . "%%EOF\n";
+};
+
 $malformedValueOrderingPageLabelBoundaryPdf = static function (): string {
     $contents = [
         10 => 'BT /F1 12 Tf 72 720 Td (Malformed value cover imported) Tj ET',
@@ -1399,6 +1423,25 @@ return [
         $t->true(!in_array('Bad-4', $labels, true));
         $t->true(!in_array('Bad-4', $previewLabels, true));
         $t->same('Bad-', $summary['pages'][0]['page_label'] ?? null);
+        $t->same('Valid-8', $preview->getPageImagePlan($pdf, 2)['page_label']);
+    },
+    'rejects malformed PageLabels dictionary object tails before WordPress page metadata' => static function (TestRunner $t) use ($malformedDictionaryObjectPageLabelBoundaryPdf): void {
+        $pdf = $malformedDictionaryObjectPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['1', 'Valid-8'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Malformed dictionary first imported', 'Valid dictionary second imported'], array_column($entries, 'text'));
+        $t->true(!in_array('Bad-4', $labels, true));
+        $t->true(!in_array('Bad-4', $previewLabels, true));
+        $t->same('1', $summary['pages'][0]['page_label'] ?? null);
         $t->same('Valid-8', $preview->getPageImagePlan($pdf, 2)['page_label']);
     },
     'keeps malformed PageLabels values as ordering boundaries before stale lower keys' => static function (TestRunner $t) use ($malformedValueOrderingPageLabelBoundaryPdf): void {
