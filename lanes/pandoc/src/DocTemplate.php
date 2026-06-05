@@ -896,7 +896,7 @@ final class DocTemplate
 
         $rendered = [];
         foreach ($iterations as $item) {
-            $iterationContext = $this->contextForPartialApplication($context, $item);
+            $iterationContext = $this->contextForLoopIteration($context, $appliedPartial['variable']['name'], $item);
             $value = $this->renderPartial($appliedPartial['partial']['name'], $iterationContext, $partials, $partialStack);
             foreach ($appliedPartial['partial']['pipes'] as $pipe) {
                 $value = $this->applyPipe($pipe, $value);
@@ -1732,18 +1732,6 @@ final class DocTemplate
             }
             unset($cursor);
         }
-
-        return $next;
-    }
-
-    /**
-     * @param array<string, mixed> $context
-     * @return array<string, mixed>
-     */
-    private function contextForPartialApplication(array $context, mixed $item): array
-    {
-        $next = $context;
-        $next['it'] = $item;
 
         return $next;
     }

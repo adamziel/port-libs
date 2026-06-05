@@ -41,7 +41,7 @@ HTML,
     'review-packets/components/résumé.html' => <<<'HTML'
 <p class="source-summary" data-état="$révision.état$">$révision.titre$</p>
 HTML,
-    'review-packets/components/next-warning.html' => '$it.source$: $it.message$',
+    'review-packets/components/next-warning.html' => '$warnings.source$/$it.source$: $warnings.message$',
     'review-packets/components/trailing-note.html' => '<p class="partial-spacing">Partial spacing survives reviewer packet boundaries</p>' . "\n\n",
     'review-packets/components/warning-list.html' => <<<'HTML'
 $if(warnings)$
@@ -102,7 +102,7 @@ if (in_array('--self-test', $argv, true)) {
     foreach ([
         '<h1>BATCH 42 REVIEW</h1>',
         '<p class="summary">27 warnings queued for Batch 42 Review</p>',
-        '<p class="next-warning">LINKS: VERIFY EDIT LINKS BEFORE PUBLISH</p>',
+        '<p class="next-warning">LINKS/LINKS: VERIFY EDIT LINKS BEFORE PUBLISH</p>',
         '<p class="ticket">Ticket: [        ]</p>',
         '<p class="authors">Migration bot, Content editor</p>',
         '<p class="review-sources">LINKS / LAYOUT</p>',

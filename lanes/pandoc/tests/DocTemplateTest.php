@@ -675,10 +675,45 @@ TPL;
 
         $t->same(implode("\n", [
             'Cards:',
-            '<article data-source="docx"><h2>Imported heading</h2><p>Check hierarchy</p><span></span></article>',
+            '<article data-source="docx"><h2>Imported heading</h2><p>Check hierarchy</p><span>Imported heading</span></article>',
             '---',
-            '<article data-source="html"><h2>Legacy block</h2><p>Review shortcode</p><span></span></article>',
+            '<article data-source="html"><h2>Legacy block</h2><p>Review shortcode</p><span>Legacy block</span></article>',
             'Reviewer: ADA EDITOR <MIGRATION>',
+        ]), $output);
+    },
+
+    'rebinds pandoc doctemplate applied partial variables like explicit loops' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+Cards: ${ articles:card()[ | ] }
+Next: ${ warnings/rest/first:warning-summary() }
+Nested: ${ import.items/last:import-row() }
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'articles' => [
+                ['title' => 'Imported heading', 'source' => 'docx'],
+                ['title' => 'Legacy block', 'source' => 'html'],
+            ],
+            'warnings' => [
+                ['source' => 'media', 'message' => 'Confirm alt text'],
+                ['source' => 'links', 'message' => 'Review redirects'],
+            ],
+            'import' => [
+                'items' => [
+                    ['title' => 'First item'],
+                    ['title' => 'Final item'],
+                ],
+            ],
+        ], [
+            'card' => '$articles.title$/$it.title$',
+            'warning-summary' => '$warnings.source$/$it.source$: $warnings.message$',
+            'import-row' => '$import.items.title$/$it.title$',
+        ]);
+
+        $t->same(implode("\n", [
+            'Cards: Imported heading/Imported heading | Legacy block/Legacy block',
+            'Next: links/links: Review redirects',
+            'Nested: Final item/Final item',
         ]), $output);
     },
 
