@@ -1930,6 +1930,143 @@ XML
 XML
         ));
     },
+    'applies bounded csl number rendering forms for page issue and edition variables' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'numbered-source',
+                'type' => 'report',
+                'title' => 'Numbered Review Packet',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'number' => '2 - 4',
+                'page' => '12 , 18&20',
+                'edition' => '3',
+            ],
+            [
+                'id' => 'special-number',
+                'type' => 'report',
+                'title' => 'Special Number Packet',
+                'author' => [
+                    ['literal' => 'Archive Team'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'number' => 'Appendix 2E',
+                'page' => 'A2',
+                'edition' => 'Eleventh',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Number Review Style</title>
+    <id>https://example.test/styles/bounded-number-review</id>
+    <updated>2026-06-05T04:20:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author editor"/>
+        <group delimiter=" " prefix="[" suffix="]">
+          <label variable="number" form="short"/>
+          <number variable="number" form="roman"/>
+        </group>
+        <group delimiter=" " prefix="edition ">
+          <number variable="edition" form="long-ordinal"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout>
+      <group delimiter=". " suffix=".">
+        <text variable="title"/>
+        <group delimiter=" ">
+          <label variable="page" form="short"/>
+          <number variable="page"/>
+        </group>
+        <group delimiter=" ">
+          <label variable="edition"/>
+          <number variable="edition" form="long-ordinal"/>
+        </group>
+        <group delimiter=" ">
+          <text value="ordinal"/>
+          <number variable="number" form="ordinal"/>
+        </group>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Number Review Style', $summary['title'] ?? null);
+        $t->same('number', $summary['citationRendering'][0]['children'][1]['children'][1]['type'] ?? null);
+        $t->same('roman', $summary['citationRendering'][0]['children'][1]['children'][1]['form'] ?? null);
+        $t->same('long-ordinal', $summary['citationRendering'][0]['children'][2]['children'][0]['form'] ?? null);
+        $t->same('number', $summary['bibliographyRendering'][0]['children'][1]['children'][1]['type'] ?? null);
+        $t->same('numeric', $summary['bibliographyRendering'][0]['children'][1]['children'][1]['form'] ?? null);
+
+        $t->same('(de la Cruz [nos. ii-iv] edition third; Archive Team [no. Appendix 2E] edition Eleventh)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'numbered-source', 'text' => '[@numbered-source]']),
+            new AstNode('citation', ['id' => 'special-number', 'text' => '[@special-number]']),
+        ]));
+        $t->same('Numbered Review Packet. pp. 12, 18 & 20. edition third. ordinal 2nd-4th.', $processor->renderBibliographyEntry('numbered-source'));
+        $t->same('Special Number Packet. p. A2. edition Eleventh. ordinal Appendix 2E.', $processor->renderBibliographyEntry('special-number'));
+
+        $ordinalLocale = $processor->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <locale>
+    <terms>
+      <term name="ordinal">º</term>
+      <term name="ordinal-01">er</term>
+      <term name="long-ordinal-03">third local</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" ">
+        <number variable="edition" form="long-ordinal"/>
+        <number variable="number" form="ordinal"/>
+      </group>
+    </layout>
+  </citation>
+</style>
+XML
+        );
+        $t->same('[third local 2º-4º]', $ordinalLocale->renderCitationCluster([
+            new AstNode('citation', ['id' => 'numbered-source', 'text' => '[@numbered-source]']),
+        ]));
+
+        $document = (new MarkdownReader())->read('Review cites [@numbered-source; @special-number] for numbered source packets.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites (de la Cruz [nos. ii-iv] edition third; Archive Team [no. Appendix 2E] edition Eleventh) for numbered source packets.</p>', $blocks);
+        $t->contains('<dt>de la Cruz 2026</dt><dd>Numbered Review Packet. pp. 12, 18 &amp; 20. edition third. ordinal 2nd-4th.</dd>', $blocks);
+        $t->contains('<dt>Archive Team 2025</dt><dd>Special Number Packet. p. A2. edition Eleventh. ordinal Appendix 2E.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><number variable="title"/></layout></citation>
+</style>
+XML
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><number variable="number" form="alphabetic"/></layout></citation>
+</style>
+XML
+        ));
+    },
     'applies bounded csl citation position conditionals for repeated cites' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

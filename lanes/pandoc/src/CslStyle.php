@@ -33,6 +33,20 @@ final class CslStyle
         'number|short' => ['single' => 'no.', 'multiple' => 'nos.'],
         'edition|long' => ['single' => 'edition', 'multiple' => 'editions'],
         'edition|short' => ['single' => 'ed.', 'multiple' => 'eds.'],
+        'ordinal|long' => ['single' => 'th', 'multiple' => 'th'],
+        'ordinal-01|long' => ['single' => 'st', 'multiple' => 'st'],
+        'ordinal-02|long' => ['single' => 'nd', 'multiple' => 'nd'],
+        'ordinal-03|long' => ['single' => 'rd', 'multiple' => 'rd'],
+        'long-ordinal-01|long' => ['single' => 'first', 'multiple' => 'first'],
+        'long-ordinal-02|long' => ['single' => 'second', 'multiple' => 'second'],
+        'long-ordinal-03|long' => ['single' => 'third', 'multiple' => 'third'],
+        'long-ordinal-04|long' => ['single' => 'fourth', 'multiple' => 'fourth'],
+        'long-ordinal-05|long' => ['single' => 'fifth', 'multiple' => 'fifth'],
+        'long-ordinal-06|long' => ['single' => 'sixth', 'multiple' => 'sixth'],
+        'long-ordinal-07|long' => ['single' => 'seventh', 'multiple' => 'seventh'],
+        'long-ordinal-08|long' => ['single' => 'eighth', 'multiple' => 'eighth'],
+        'long-ordinal-09|long' => ['single' => 'ninth', 'multiple' => 'ninth'],
+        'long-ordinal-10|long' => ['single' => 'tenth', 'multiple' => 'tenth'],
     ];
 
     /** @var array{citation:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}, bibliography:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}} */
@@ -240,6 +254,11 @@ final class CslStyle
 
     public function term(string $name, string $form = 'long', bool $plural = false): string
     {
+        return $this->termOrNull($name, $form, $plural) ?? $name;
+    }
+
+    public function termOrNull(string $name, string $form = 'long', bool $plural = false): ?string
+    {
         foreach (self::termFallbackKeys($name, $form) as $key) {
             $term = $this->terms[$key] ?? null;
             if ($term !== null) {
@@ -247,7 +266,7 @@ final class CslStyle
             }
         }
 
-        return $name;
+        return null;
     }
 
     /**
@@ -699,6 +718,7 @@ final class CslStyle
             'group' => self::groupRenderingElement($element, $scope),
             'text' => self::textRenderingElement($element, $scope),
             'date' => self::dateRenderingElement($element, $scope),
+            'number' => self::numberRenderingElement($element, $scope),
             'names' => self::namesRenderingElement($element, $scope),
             'label' => self::labelRenderingElement($element, $scope),
             'choose' => self::chooseRenderingElement($element, $scope),
@@ -784,6 +804,37 @@ final class CslStyle
     }
 
     /**
+     * @return array{type:string, prefix:string, suffix:string, variable:string, form:string}
+     */
+    private static function numberRenderingElement(\DOMElement $number, string $scope): array
+    {
+        $variable = strtolower(trim($number->getAttribute('variable')));
+        if ($variable === '') {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' number element must declare a variable');
+        }
+
+        if (!in_array($variable, self::supportedNumberVariables(), true)) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' number variable is not supported: ' . $variable);
+        }
+
+        $form = strtolower(trim($number->getAttribute('form')));
+        if ($form === '') {
+            $form = 'numeric';
+        }
+        if (!in_array($form, ['numeric', 'ordinal', 'long-ordinal', 'roman'], true)) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' number form must be numeric, ordinal, long-ordinal, or roman');
+        }
+
+        return [
+            'type' => 'number',
+            'prefix' => self::optionalAttribute($number, 'prefix'),
+            'suffix' => self::optionalAttribute($number, 'suffix'),
+            'variable' => $variable,
+            'form' => $form,
+        ];
+    }
+
+    /**
      * @return array{type:string, prefix:string, suffix:string, variable:string}
      */
     private static function namesRenderingElement(\DOMElement $names, string $scope): array
@@ -852,7 +903,16 @@ final class CslStyle
      */
     private static function supportedLabelVariables(): array
     {
+        return self::supportedNumberVariables();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function supportedNumberVariables(): array
+    {
         return [
+            'citation-number',
             'locator',
             'page',
             'number',
@@ -1075,7 +1135,15 @@ final class CslStyle
             return $terms;
         }
 
-        foreach (self::directChildren($termsElement, 'term') as $termElement) {
+        $termElements = self::directChildren($termsElement, 'term');
+        foreach ($termElements as $termElement) {
+            if (self::isOrdinalSuffixTerm(trim($termElement->getAttribute('name')))) {
+                $terms = self::withoutDefaultOrdinalSuffixTerms($terms);
+                break;
+            }
+        }
+
+        foreach ($termElements as $termElement) {
             $name = trim($termElement->getAttribute('name'));
             if ($name === '') {
                 throw new \InvalidArgumentException('CSL locale term is missing a name');
@@ -1100,6 +1168,26 @@ final class CslStyle
 
             $text = self::elementText($termElement);
             $terms[self::termKey($name, $form)] = ['single' => $text, 'multiple' => $text];
+        }
+
+        return $terms;
+    }
+
+    private static function isOrdinalSuffixTerm(string $name): bool
+    {
+        return preg_match('/^ordinal(?:-\d{2})?$/', $name) === 1;
+    }
+
+    /**
+     * @param array<string, array{single:string, multiple:string}> $terms
+     * @return array<string, array{single:string, multiple:string}>
+     */
+    private static function withoutDefaultOrdinalSuffixTerms(array $terms): array
+    {
+        foreach (array_keys($terms) as $key) {
+            if (preg_match('/^ordinal(?:-\d{2})?\|/', $key) === 1) {
+                unset($terms[$key]);
+            }
         }
 
         return $terms;

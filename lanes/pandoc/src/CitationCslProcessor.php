@@ -1685,6 +1685,7 @@ final class CitationCslProcessor
             'group' => $this->renderGroupElement($element, $item, $scope, $macroStack, $citation),
             'text' => $this->renderTextElement($element, $item, $scope, $macroStack, $citation),
             'date' => $this->renderDateElement($element, $item, $scope),
+            'number' => $this->renderNumberElement($element, $item, $scope, $citation),
             'names' => $this->renderNamesElement($element, $item, $scope),
             'label' => $this->renderLabelElement($element, $item, $scope, $citation),
             'choose' => $this->renderChooseElement($element, $item, $scope, $macroStack, $citation),
@@ -1737,7 +1738,7 @@ final class CitationCslProcessor
     private function isVariableRenderingElement(array $element): bool
     {
         $type = (string) ($element['type'] ?? '');
-        if ($type === 'date' || $type === 'names' || $type === 'label') {
+        if ($type === 'date' || $type === 'number' || $type === 'names' || $type === 'label') {
             return true;
         }
 
@@ -2037,6 +2038,129 @@ final class CitationCslProcessor
             $options,
             $scope === 'bibliography'
         );
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @param array<string, mixed> $item
+     */
+    private function renderNumberElement(array $element, array $item, string $scope, ?AstNode $citation = null): string
+    {
+        $variable = strtolower(trim((string) ($element['variable'] ?? '')));
+        if ($variable === '') {
+            return '';
+        }
+
+        $value = $this->renderVariableValue($item, $variable, $scope, $citation);
+        if ($value === '') {
+            return '';
+        }
+
+        return $this->formatCslNumber($value, (string) ($element['form'] ?? 'numeric'));
+    }
+
+    private function formatCslNumber(string $value, string $form): string
+    {
+        $value = trim(preg_replace('/\s+/u', ' ', $value) ?? $value);
+        if ($value === '' || !$this->cslNumberValueIsNumeric($value)) {
+            return $value;
+        }
+
+        preg_match_all('/\d+|[-\x{2010}-\x{2015}]|,|&/u', $value, $matches);
+        $tokens = $matches[0] ?? [];
+        $rendered = '';
+        foreach ($tokens as $token) {
+            if (preg_match('/^\d+$/', $token) === 1) {
+                $rendered .= $this->formatCslNumberToken((int) $token, $form);
+                continue;
+            }
+
+            $rendered .= match ($token) {
+                ',' => ', ',
+                '&' => ' & ',
+                default => '-',
+            };
+        }
+
+        return trim(preg_replace('/\s+/', ' ', $rendered) ?? $rendered);
+    }
+
+    private function cslNumberValueIsNumeric(string $value): bool
+    {
+        return preg_match('/^\d+\s*(?:(?:[-\x{2010}-\x{2015}]|,|&)\s*\d+\s*)*$/u', $value) === 1;
+    }
+
+    private function formatCslNumberToken(int $number, string $form): string
+    {
+        $numeric = (string) $number;
+
+        return match ($form) {
+            'ordinal' => $numeric . $this->ordinalSuffix($number),
+            'long-ordinal' => $this->longOrdinalNumber($number),
+            'roman' => $this->romanNumber($number) ?? $numeric,
+            default => $numeric,
+        };
+    }
+
+    private function ordinalSuffix(int $number): string
+    {
+        $lastTwo = abs($number) % 100;
+        if ($lastTwo >= 11 && $lastTwo <= 13) {
+            return $this->style->termOrNull('ordinal-' . sprintf('%02d', $lastTwo))
+                ?? $this->style->termOrNull('ordinal')
+                ?? 'th';
+        }
+
+        $lastDigit = abs($number) % 10;
+
+        return $this->style->termOrNull('ordinal-' . sprintf('%02d', $lastDigit))
+            ?? $this->style->termOrNull('ordinal')
+            ?? 'th';
+    }
+
+    private function longOrdinalNumber(int $number): string
+    {
+        if ($number >= 1 && $number <= 10) {
+            $term = $this->style->termOrNull('long-ordinal-' . sprintf('%02d', $number));
+            if ($term !== null) {
+                return $term;
+            }
+        }
+
+        return (string) $number . $this->ordinalSuffix($number);
+    }
+
+    private function romanNumber(int $number): ?string
+    {
+        if ($number < 1 || $number > 3999) {
+            return null;
+        }
+
+        $map = [
+            1000 => 'm',
+            900 => 'cm',
+            500 => 'd',
+            400 => 'cd',
+            100 => 'c',
+            90 => 'xc',
+            50 => 'l',
+            40 => 'xl',
+            10 => 'x',
+            9 => 'ix',
+            5 => 'v',
+            4 => 'iv',
+            1 => 'i',
+        ];
+
+        $roman = '';
+        foreach ($map as $value => $glyph) {
+            while ($number >= $value) {
+                $roman .= $glyph;
+                $number -= $value;
+            }
+        }
+
+        return $roman;
     }
 
     /**

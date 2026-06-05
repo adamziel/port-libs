@@ -19,6 +19,8 @@ The position style cites [@particle-source, p. 2], then [@particle-source, p. 3]
 
 The local style renders @committee-source when source dates are missing.
 
+The numbered style preserves @numbered-source issue ranges for reviewer packets.
+
 The source archive keeps [see @missing-source; @{https://example.com/bib?name=foobar&date=2000}, p. 33] visible for reviewer follow-up.
 MARKDOWN;
 
@@ -65,6 +67,16 @@ $cslJson = <<<'JSON'
       {"family": "Baker", "given": "Bea"},
       {"family": "Clark", "given": "Cy"}
     ]
+  },
+  {
+    "id": "numbered-source",
+    "type": "report",
+    "title": "Numbered Review Packet",
+    "author": [
+      {"literal": "Review Board"}
+    ],
+    "issued": {"date-parts": [[2025]]},
+    "number": "2 - 4"
   },
   {
     "id": "https://example.com/bib?name=foobar&date=2000",
@@ -131,6 +143,16 @@ $cslStyleXml = <<<'XML'
       <date variable="accessed"/>
     </group>
   </macro>
+  <macro name="review-number">
+    <choose>
+      <if variable="number" match="any">
+        <group delimiter=" ">
+          <label variable="number" form="short"/>
+          <number variable="number" form="ordinal"/>
+        </group>
+      </if>
+    </choose>
+  </macro>
   <macro name="review-source-locator">
     <choose>
       <if variable="DOI" match="any">
@@ -151,6 +173,7 @@ $cslStyleXml = <<<'XML'
       </names>
       <text variable="title"/>
       <text macro="review-publication"/>
+      <text macro="review-number"/>
       <text macro="review-source-locator"/>
       <text macro="review-accessed"/>
     </group>
@@ -204,6 +227,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['macros']['review-normal-citation'][0]['children'][1]['macro'] ?? null) !== 'review-locator') {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve the locator macro reference');
     }
+    if (($summary['macros']['review-number'][0]['branches'][0]['children'][0]['children'][1]['type'] ?? null) !== 'number') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve the number rendering element');
+    }
+    if (($summary['macros']['review-number'][0]['branches'][0]['children'][0]['children'][1]['form'] ?? null) !== 'ordinal') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve the ordinal number form');
+    }
     if (($summary['bibliographyRendering'][0]['macro'] ?? null) !== 'review-bibliography-entry') {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve the bibliography macro reference');
     }
@@ -217,7 +246,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>The reviewer packet cites de la Cruz (2026) for imported source access dates.</p>',
         '<p>The position style cites (ibid, p. 2), then (ibid, p. 3), and then (ibid).</p>',
         '<p>The local style renders Adams, Baker, and others (undated) when source dates are missing.</p>',
+        '<p>The numbered style preserves Review Board (2025) issue ranges for reviewer packets.</p>',
         '<dt>de la Cruz 2026</dt><dd>[de la Cruz, A. M., Jr. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.]</dd>',
+        '<dt>Review Board 2025</dt><dd>[Review Board. Numbered Review Packet. 2025. nos. 2nd-4th. No stable source locator.]</dd>',
         '<dt>Adams, Baker, and others undated</dt><dd>[Adams, A.; Baker, B.; Clark, C. Undated Committee Packet. No stable source locator.]</dd>',
         '<p>The source archive keeps (see @missing-source; URL Key Source 2000, p. 33) visible for reviewer follow-up.</p>',
     ] as $snippet) {
@@ -228,6 +259,7 @@ if (($argv[1] ?? '') === '--self-test') {
 
     $sortedTerms = [
         '<dt>de la Cruz 2026</dt>',
+        '<dt>Review Board 2025</dt>',
         '<dt>WordPress Migration Team 2024</dt>',
         '<dt>URL Key Source 2000</dt>',
         '<dt>Smith 1899</dt>',
