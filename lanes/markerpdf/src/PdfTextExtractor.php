@@ -11656,8 +11656,13 @@ final class PdfTextExtractor
                 $hasCidFontBody = true;
             }
 
+            $bodyIsType3Font = $this->isType3FontBody($body);
             $simpleWidths = $this->simpleFontWidthMetrics($body, $objects);
             foreach ($simpleWidths as $code => $width) {
+                if ($bodyIsType3Font && array_key_exists((int) $code, $widths)) {
+                    continue;
+                }
+
                 $widths[$code] = $width;
             }
 
@@ -11665,7 +11670,7 @@ final class PdfTextExtractor
                 $missingWidth = $this->fontDescriptorMissingWidth($body, $objects);
                 if ($missingWidth !== null) {
                     $defaultWidth = $missingWidth;
-                } elseif ($simpleWidths !== [] && !$this->isType3FontBody($body)) {
+                } elseif ($simpleWidths !== [] && !$bodyIsType3Font) {
                     $defaultWidth = $this->averagePositiveFontWidth($simpleWidths) ?? $defaultWidth;
                 }
             }
