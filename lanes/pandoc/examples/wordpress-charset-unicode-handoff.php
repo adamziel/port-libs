@@ -70,6 +70,13 @@ $indicDevanagari = "\u{0915}\u{093F}";
 $indicTamil = "\u{0B95}\u{0BC8}";
 $indicBengali = "\u{09AC}\u{09BE}\u{0982}\u{09B2}\u{09BE}";
 $indicSlices = UnicodeText::splitByDisplayBreakpoints($indicDevanagari . $indicTamil . $indicBengali, [1, 2]);
+$indicViramaDevanagari = "\u{0915}\u{094D}\u{0937}";
+$indicViramaZwjDevanagari = "\u{0915}\u{094D}\u{200D}\u{0937}";
+$indicViramaBengali = "\u{0995}\u{09CD}\u{09A4}";
+$indicViramaSlices = UnicodeText::splitByDisplayBreakpoints(
+    $indicViramaDevanagari . $indicViramaZwjDevanagari . $indicViramaBengali,
+    [1, 2]
+);
 $thaiSaraAm = "\u{0E01}\u{0E33}";
 $laoSaraAm = "\u{0EA5}\u{0EB3}";
 $thaiLaoAmSlices = UnicodeText::splitByDisplayBreakpoints($thaiSaraAm . $laoSaraAm . 'X', [2, 4]);
@@ -177,6 +184,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Indic marks'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $indicSlices)])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $indicSlices))])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Indic virama'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $indicViramaSlices)])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $indicViramaSlices))])]),
         ]),
         new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Thai/Lao AM'])]),
@@ -402,6 +414,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>Indic marks</td><td>' . $indicDevanagari . ' / ' . $indicTamil . ' / ' . $indicBengali . '</td><td>1,1,2</td>')) {
         throw new RuntimeException('charset handoff self-test missing Indic spacing-mark display-width audit');
+    }
+    if (!str_contains($blocks, '<td>Indic virama</td><td>' . $indicViramaDevanagari . ' / ' . $indicViramaZwjDevanagari . ' / ' . $indicViramaBengali . '</td><td>1,1,1</td>')) {
+        throw new RuntimeException('charset handoff self-test missing Indic virama display-width audit');
     }
     if (!str_contains($blocks, '<td>Thai/Lao AM</td><td>' . $thaiSaraAm . ' / ' . $laoSaraAm . ' / X</td><td>2,2,1</td>')) {
         throw new RuntimeException('charset handoff self-test missing Thai/Lao AM display-width audit');

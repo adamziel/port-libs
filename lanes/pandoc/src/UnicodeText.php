@@ -716,6 +716,7 @@ final class UnicodeText
     {
         $clusters = [];
         $joinNext = false;
+        $indicViramaJoinNext = false;
         $regionalIndicatorRun = 0;
         foreach (self::characters($text) as $char) {
             $codepoint = self::codepoint($char);
@@ -723,13 +724,16 @@ final class UnicodeText
             $emojiSkinToneModifier = self::isEmojiSkinToneModifier($codepoint);
             $clusterExtender = $combiningOrZeroWidth || self::isBoundedGraphemeSpacingMark($codepoint);
             $regionalIndicator = self::isRegionalIndicator($codepoint);
+            $indicConsonant = self::isBoundedIndicConsonant($codepoint);
             $append = $clusters !== []
                 && (
                     $joinNext
                     || $clusterExtender
                     || ($emojiSkinToneModifier && self::isEmojiModifierClusterBase($clusters[count($clusters) - 1]))
+                    || ($indicViramaJoinNext && $indicConsonant)
                     || ($regionalIndicator && $regionalIndicatorRun === 1)
                 );
+            $hadIndicViramaJoinNext = $indicViramaJoinNext;
 
             if (!$append) {
                 $clusters[] = $char;
@@ -743,6 +747,8 @@ final class UnicodeText
                 }
             }
             $joinNext = $codepoint === 0x200d;
+            $indicViramaJoinNext = self::isBoundedIndicVirama($codepoint)
+                || ($codepoint === 0x200d && $hadIndicViramaJoinNext);
         }
 
         return $clusters;
@@ -2104,6 +2110,9 @@ final class UnicodeText
         if ($hasEmojiVariation && $hasEmojiVariationBase) {
             return max(2, $width);
         }
+        if (self::isBoundedIndicViramaCluster($cluster)) {
+            return 1;
+        }
 
         return $width;
     }
@@ -2112,6 +2121,7 @@ final class UnicodeText
     {
         return self::isUnicodeCombiningMark($codepoint)
             || self::isUnicodeFormatControl($codepoint)
+            || self::isBoundedIndicVirama($codepoint)
             || ($codepoint >= 0x0300 && $codepoint <= 0x036f)
             || $codepoint === 0x00ad
             || ($codepoint >= 0x0483 && $codepoint <= 0x0489)
@@ -2185,6 +2195,54 @@ final class UnicodeText
     {
         return $codepoint === 0x0e33
             || $codepoint === 0x0eb3;
+    }
+
+    private static function isBoundedIndicViramaCluster(string $cluster): bool
+    {
+        $hasVirama = false;
+        $consonants = 0;
+        foreach (self::characters($cluster) as $char) {
+            $codepoint = self::codepoint($char);
+            if (self::isBoundedIndicConsonant($codepoint)) {
+                $consonants++;
+            }
+            if (self::isBoundedIndicVirama($codepoint)) {
+                $hasVirama = true;
+            }
+        }
+
+        return $hasVirama && $consonants >= 2;
+    }
+
+    private static function isBoundedIndicVirama(int $codepoint): bool
+    {
+        return $codepoint === 0x094d
+            || $codepoint === 0x09cd
+            || $codepoint === 0x0a4d
+            || $codepoint === 0x0acd
+            || $codepoint === 0x0b4d
+            || $codepoint === 0x0bcd
+            || $codepoint === 0x0c4d
+            || $codepoint === 0x0ccd
+            || $codepoint === 0x0d4d
+            || $codepoint === 0x0dca;
+    }
+
+    private static function isBoundedIndicConsonant(int $codepoint): bool
+    {
+        return ($codepoint >= 0x0915 && $codepoint <= 0x0939)
+            || ($codepoint >= 0x0958 && $codepoint <= 0x095f)
+            || ($codepoint >= 0x0995 && $codepoint <= 0x09b9)
+            || ($codepoint >= 0x0a15 && $codepoint <= 0x0a39)
+            || ($codepoint >= 0x0a59 && $codepoint <= 0x0a5e)
+            || ($codepoint >= 0x0a95 && $codepoint <= 0x0ab9)
+            || ($codepoint >= 0x0b15 && $codepoint <= 0x0b39)
+            || ($codepoint >= 0x0b5c && $codepoint <= 0x0b5f)
+            || ($codepoint >= 0x0b95 && $codepoint <= 0x0bb9)
+            || ($codepoint >= 0x0c15 && $codepoint <= 0x0c39)
+            || ($codepoint >= 0x0c95 && $codepoint <= 0x0cb9)
+            || ($codepoint >= 0x0d15 && $codepoint <= 0x0d39)
+            || ($codepoint >= 0x0d9a && $codepoint <= 0x0dc6);
     }
 
     private static function isUnicodeFormatControl(int $codepoint): bool

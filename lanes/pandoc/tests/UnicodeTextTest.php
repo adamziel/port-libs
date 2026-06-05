@@ -575,6 +575,27 @@ return [
         $t->same($tamilKai . '   ', UnicodeText::padDisplay($tamilKai, 4));
         $t->same(["Indic {$clusterRun}", '  tail'], UnicodeText::wrapByDisplayWidth("Indic {$clusterRun} tail", 10, '  '));
     },
+    'keeps indic virama conjuncts intact for display slicing' => static function (TestRunner $t): void {
+        $devanagariKsha = "\u{0915}\u{094D}\u{0937}";
+        $devanagariZwjKsha = "\u{0915}\u{094D}\u{200D}\u{0937}";
+        $bengaliKta = "\u{0995}\u{09CD}\u{09A4}";
+        $tamilKssa = "\u{0B95}\u{0BCD}\u{0BB7}";
+        $text = $devanagariKsha . $devanagariZwjKsha . $bengaliKta . 'X';
+        $wrapped = UnicodeText::wrapByDisplayWidth("Indic {$devanagariKsha}{$devanagariZwjKsha} {$bengaliKta} tail", 9, '  ');
+
+        $t->same(1, UnicodeText::displayWidth($devanagariKsha));
+        $t->same(1, UnicodeText::displayWidth($devanagariZwjKsha));
+        $t->same(1, UnicodeText::displayWidth($bengaliKta));
+        $t->same(1, UnicodeText::displayWidth($tamilKssa));
+        $t->same([$devanagariKsha, $devanagariZwjKsha, $bengaliKta, 'X'], UnicodeText::graphemes($text));
+        $t->same([$devanagariKsha, $devanagariZwjKsha . $bengaliKta . 'X'], UnicodeText::splitAtDisplayWidth($text, 1));
+        $t->same([$devanagariKsha, $devanagariZwjKsha, $bengaliKta, 'X'], UnicodeText::splitByDisplayBreakpoints($text, [1, 2, 3]));
+        $t->same($devanagariKsha . '   ', UnicodeText::padDisplay($devanagariKsha, 4));
+        $t->same(['Indic ' . $devanagariKsha . $devanagariZwjKsha, '  ' . $bengaliKta . ' tail'], $wrapped);
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 9, 'Indic virama wrapped line exceeds requested width');
+        }
+    },
     'keeps thai and lao sara am grapheme clusters intact for display slicing' => static function (TestRunner $t): void {
         $thai = "\u{0E01}\u{0E33}";
         $lao = "\u{0EA5}\u{0EB3}";
