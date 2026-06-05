@@ -221,6 +221,22 @@ final class PdfLinkAnnotationExtractor
                         if (is_string($link['uri'] ?? null) && ($link['is_safe_uri'] ?? false) === true) {
                             $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_uri'] = $link['uri'];
                         }
+                        foreach ([
+                            'raw_uri' => 'link_raw_uri',
+                            'uri_base' => 'link_uri_base',
+                        ] as $sourceKey => $spanKey) {
+                            if (is_string($link[$sourceKey] ?? null) && $link[$sourceKey] !== '') {
+                                $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex][$spanKey] = $link[$sourceKey];
+                            }
+                        }
+                        foreach ([
+                            'uri_relative' => 'link_uri_relative',
+                            'uri_resolved_from_base' => 'link_uri_resolved_from_base',
+                        ] as $sourceKey => $spanKey) {
+                            if (array_key_exists($sourceKey, $link)) {
+                                $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex][$spanKey] = (bool) $link[$sourceKey];
+                            }
+                        }
 
                         if (($link['safety'] ?? null) === 'remote-document-review') {
                             foreach ([
