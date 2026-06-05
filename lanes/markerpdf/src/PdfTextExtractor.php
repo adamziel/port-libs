@@ -24444,6 +24444,7 @@ final class PdfTextExtractor
         $insideTextObject = false;
         $textObjectHasText = false;
         $closedTextObject = false;
+        $graphicsStateDepth = 0;
 
         while ($index < $length) {
             $char = $segment[$index];
@@ -24513,6 +24514,16 @@ final class PdfTextExtractor
 
             $token = substr($segment, $start, $index - $start);
             if (!$insideTextObject) {
+                if ($token === 'q') {
+                    $graphicsStateDepth++;
+                    continue;
+                }
+
+                if ($token === 'Q' && $graphicsStateDepth > 0) {
+                    $graphicsStateDepth--;
+                    continue;
+                }
+
                 if ($token !== 'BT') {
                     return false;
                 }
@@ -24535,7 +24546,7 @@ final class PdfTextExtractor
             }
         }
 
-        return $closedTextObject && !$insideTextObject;
+        return $closedTextObject && !$insideTextObject && $graphicsStateDepth === 0;
     }
 
     private function contentSegmentContainsInlineImagePreamble(string $segment): bool
