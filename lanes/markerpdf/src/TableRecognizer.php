@@ -673,6 +673,7 @@ final class TableRecognizer
         $geometryBands = $this->tableGridGeometryBoundary($rows, $cols, $imageSize);
         $rows = $geometryBands['rows'];
         $cols = $geometryBands['cols'];
+        $geometryBoundaryReview = $geometryBands['review'];
         $rowBboxes = $this->bboxesById($rows, 'row_id');
         $colBboxes = $this->bboxesById($cols, 'col_id');
         $rotated = $rows !== [] && $cols !== [] && $this->isRotated($rows, $cols);
@@ -687,6 +688,9 @@ final class TableRecognizer
             }
 
             $entry = $conflict;
+            if ($geometryBoundaryReview !== null) {
+                $entry['geometry_boundary_review'] = $geometryBoundaryReview;
+            }
             $candidateIndexes = $this->integerList($conflict['candidate_cell_indexes'] ?? []);
             $candidateGridCells = [];
             $candidateGridRenderCells = [];
