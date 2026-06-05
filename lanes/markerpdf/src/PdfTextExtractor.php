@@ -7748,6 +7748,10 @@ final class PdfTextExtractor
             return null;
         }
 
+        if ($filters === []) {
+            return $stream;
+        }
+
         $decodeParms = $this->streamDecodeParms($dict, $objects);
         if ($decodeParms === null) {
             return null;
