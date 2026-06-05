@@ -319,6 +319,30 @@ return [
         $t->same(12, $document['pages'][0]['pnum']);
         $t->same(12, $document['pages'][0]['pdftext_source']['page']);
     },
+    'drops non core pdftext page payload keys before WordPress metadata' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $page = $pdftextLinkedPage();
+        $page['raw_page_bytes'] = 'raw page bytes must not cross dictionary_output';
+        $page['metadata'] = [
+            'document_page' => 999,
+            'raw_nested_payload' => 'nested page metadata must not cross dictionary_output',
+        ];
+        $page['images'] = [
+            ['payload' => 'page image payload must not cross dictionary_output'],
+        ];
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1);
+        $source = $document['pages'][0]['pdftext_source'];
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same(['page', 'bbox', 'rotation', 'width', 'height', 'refs'], array_keys($source));
+        $t->same(12, $source['page']);
+        $t->same([0.0, 0.0, 612.0, 792.0], $source['bbox']);
+        $t->same('Read ', $document['pages'][0]['char_blocks'][0]['lines'][0]['spans'][0]['text']);
+        $t->true(!array_key_exists('metadata', $source), 'Supplied adapter metadata is not trusted pdftext page-source metadata.');
+        $t->true(!str_contains($encoded, 'raw page bytes must not cross dictionary_output'));
+        $t->true(!str_contains($encoded, 'nested page metadata must not cross dictionary_output'));
+        $t->true(!str_contains($encoded, 'page image payload must not cross dictionary_output'));
+    },
     'honors pdftext disable_links at the dictionary core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $page = $pdftextLinkedPage();
         $page['refs'][0]['raw_private_payload'] = 'hidden disabled-link ref payload';

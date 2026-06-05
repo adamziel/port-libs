@@ -210,12 +210,23 @@ final class PdfTextDocumentExtractor
     {
         $bboxScale = $this->dictionaryOutputBboxScale($page);
 
-        if ($disableLinks) {
-            unset($page['refs']);
+        $sanitizedPage = [];
+        foreach (['page', 'bbox', 'width', 'height', 'rotation'] as $key) {
+            if (array_key_exists($key, $page)) {
+                $sanitizedPage[$key] = $page[$key];
+            }
+        }
+
+        if (!$disableLinks && array_key_exists('refs', $page)) {
+            $sanitizedPage['refs'] = $page['refs'];
         }
 
         if (!isset($page['blocks']) || !is_array($page['blocks']) || !array_is_list($page['blocks'])) {
-            return $page;
+            if (array_key_exists('blocks', $page)) {
+                $sanitizedPage['blocks'] = $page['blocks'];
+            }
+
+            return $sanitizedPage;
         }
 
         $blocks = [];
@@ -235,8 +246,8 @@ final class PdfTextDocumentExtractor
             $blocks[] = $sanitizedBlock;
         }
 
-        $page['blocks'] = $blocks;
-        return $page;
+        $sanitizedPage['blocks'] = $blocks;
+        return $sanitizedPage;
     }
 
     /**
