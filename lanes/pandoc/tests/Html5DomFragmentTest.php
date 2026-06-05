@@ -207,6 +207,41 @@ return [
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe noscript fallback URL to be stripped');
         $t->true(!str_contains($blocks, '<noscript'), 'Expected WordPress blocks to omit noscript wrapper');
     },
+    'unwraps template inert content while keeping reviewer-visible children' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<template data-source="legacy-hidden"><p>Template fallback <a href="/review">review</a><a href="javascript:alert(1)">bad</a></p>'
+            . '<img src="/uploads/template.png" alt="Template"><script>drop()</script></template><p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/template-fallback-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<p>Template fallback <a href="/review">review</a><a>bad</a></p><img src="/uploads/template.png" alt="Template"><p>after</p>';
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Template fallback reviewbadafter', $fragment->textContent());
+        $t->same(['a', 'img', 'p'], $summary['elementNames']);
+        $t->same(['script', 'template'], $summary['blockedTags']);
+        $t->same(['href'], $summary['filteredAttributes']);
+        $t->same(4, $summary['diagnostics']);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+        $t->same(['blocked-tag', 'unsafe-url', 'blocked-tag'], $policyDiagnostics);
+        $t->same('p', $nodes[0]['name']);
+        $t->same('img', $nodes[1]['name']);
+        $t->same('p', $nodes[2]['name']);
+        $t->same('/migration/template-fallback-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, '<template'), 'Expected template wrapper to be stripped');
+        $t->true(!str_contains($html, '<script'), 'Expected nested active script to be dropped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe template fallback URL to be stripped');
+        $t->true(!str_contains($blocks, '<template'), 'Expected WordPress blocks to omit template wrapper');
+    },
     'filters mixed unsafe srcset candidates before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<p>'

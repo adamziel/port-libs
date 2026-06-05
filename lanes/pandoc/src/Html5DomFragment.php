@@ -591,6 +591,7 @@ final class Html5DomFragment
             'plaintext',
             'select',
             'textarea',
+            'template',
             'xmp',
         ], true);
     }

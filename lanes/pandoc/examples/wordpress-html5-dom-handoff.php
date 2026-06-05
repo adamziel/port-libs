@@ -21,6 +21,7 @@ $sourceHtml = <<<'HTML'
   <object data="javascript:alert(1)" type="application/x-shockwave-flash"><param name="movie" value="legacy.swf"><p>Object fallback <a href="/review">review</a></p></object>
   <applet code="Legacy.class"><span>Applet fallback</span></applet>
   <noscript><p>Script-disabled fallback <a href="/review">review</a><a href="javascript:alert(1)">bad</a></p><script>drop()</script></noscript>
+  <template data-source="legacy-hidden"><p>Template fallback <a href="/review">review</a><a href="javascript:alert(1)">bad</a></p><img src="/uploads/template.png" alt="Template"><script>drop()</script></template>
   <xmp data-source="legacy-raw">Reviewer <script>alert(1)</script> &amp; <b>source</b></xmp>
   <table class="legacy-table"><caption>Review rows</caption><p data-review="loose-table">Loose table note</p><tr><td>Cell A</td></tr>orphan table text<tr><td>Cell B</td></tr></table>
   <details open="open"><summary>Media review</summary><video controls="" muted playsinline loop poster="tel:+15550100"><source src="mailto:review@example.test" type="video/mp4"><source src="/uploads/preview.mp4" type="video/mp4"></video></details>
@@ -49,6 +50,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Object fallback <a href="/review">review</a></p>',
         '<span>Applet fallback</span>',
         '<p>Script-disabled fallback <a href="/review">review</a><a>bad</a></p>',
+        '<p>Template fallback <a href="/review">review</a><a>bad</a></p><img src="/uploads/template.png" alt="Template">',
         'Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; &lt;b&gt;source&lt;/b&gt;',
         '<p data-review="loose-table">Loose table note</p>orphan table text<table class="legacy-table"><caption>Review rows</caption><tr><td>Cell A</td></tr><tr><td>Cell B</td></tr></table>',
         '<details open><summary>Media review</summary><video controls muted playsinline loop><source type="video/mp4"><source src="/uploads/preview.mp4" type="video/mp4"></video></details>',
@@ -62,14 +64,14 @@ if (($argv[1] ?? '') === '--self-test') {
         }
     }
 
-    foreach (['onclick=', 'ping=', 'formaction=', 'background="mailto:', 'javascript:', 'src="mailto:', 'poster="tel:', '<form', '<input', '<button', '<select', '<textarea', '<iframe', '<object', '<applet', '<noscript', '<param', '<xmp', '<plaintext', '<script>', '<p>suppressed tail</p>', 'open="open"', 'controls=""', 'viewBox="html attr"', '<textPath>HTML text</textPath>'] as $blocked) {
+    foreach (['onclick=', 'ping=', 'formaction=', 'background="mailto:', 'javascript:', 'src="mailto:', 'poster="tel:', '<form', '<input', '<button', '<select', '<textarea', '<iframe', '<object', '<applet', '<noscript', '<template', '<param', '<xmp', '<plaintext', '<script>', '<p>suppressed tail</p>', 'open="open"', 'controls=""', 'viewBox="html attr"', '<textPath>HTML text</textPath>'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM handoff self-test retained blocked content: ' . $blocked);
         }
     }
 
-    if ($fragment->summary()['blockedTags'] !== ['applet', 'button', 'form', 'iframe', 'input', 'noscript', 'object', 'option', 'param', 'plaintext', 'script', 'select', 'textarea', 'xmp']) {
-        throw new RuntimeException('HTML5 DOM handoff self-test did not report blocked form/embed/noscript/script/plaintext tags');
+    if ($fragment->summary()['blockedTags'] !== ['applet', 'button', 'form', 'iframe', 'input', 'noscript', 'object', 'option', 'param', 'plaintext', 'script', 'select', 'template', 'textarea', 'xmp']) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not report blocked form/embed/noscript/template/script/plaintext tags');
     }
     if (!in_array('srcset', $fragment->summary()['filteredAttributes'], true)) {
         throw new RuntimeException('HTML5 DOM handoff self-test did not report filtered srcset attribute');
