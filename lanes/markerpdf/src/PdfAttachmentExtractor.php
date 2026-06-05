@@ -2175,28 +2175,50 @@ final class PdfAttachmentExtractor
     }
 
     /**
-     * @return list<array{objectNumber: int, offset: int}>
+     * @return array<int, array{objectNumber: int, offset: int}>
      */
     private function objectStreamHeaderMembers(string $header, int $declaredCount): array
     {
-        if (preg_match_all('/\d+/', $header, $matches) < 1) {
-            return [];
+        $members = [];
+        $offset = 0;
+        for ($index = 0; $index < $declaredCount; $index++) {
+            $objectNumber = $this->readObjectStreamHeaderUnsignedInteger($header, $offset);
+            $objectOffset = $this->readObjectStreamHeaderUnsignedInteger($header, $offset);
+            if ($objectNumber === null || $objectOffset === null) {
+                return [];
+            }
+
+            if ($objectNumber > 0) {
+                $members[$index] = [
+                    'objectNumber' => $objectNumber,
+                    'offset' => $objectOffset,
+                ];
+            }
         }
 
-        $members = [];
-        $tokens = $matches[0];
-        for ($index = 0, $count = count($tokens); $index + 1 < $count && count($members) < $declaredCount; $index += 2) {
-            $members[] = [
-                'objectNumber' => (int) $tokens[$index],
-                'offset' => (int) $tokens[$index + 1],
-            ];
+        $tailOffset = $offset;
+        $this->skipWhitespaceAndComments($header, $tailOffset);
+        if ($tailOffset !== strlen($header)) {
+            return [];
         }
 
         return $members;
     }
 
+    private function readObjectStreamHeaderUnsignedInteger(string $header, int &$offset): ?int
+    {
+        $this->skipWhitespaceAndComments($header, $offset);
+        if (preg_match('/\G(\d+)(?=$|[\s\[\]()<>{}\/%])/s', $header, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $offset += strlen($match[1]);
+
+        return (int) $match[1];
+    }
+
     /**
-     * @param list<array{objectNumber: int, offset: int}> $members
+     * @param array<int, array{objectNumber: int, offset: int}> $members
      * @param array{type: int, index?: int, indexIsExplicit?: bool} $xrefEntry
      */
     private function objectStreamSelectedMemberIndex(array $members, array $xrefEntry, int $requestedObjectNumber): ?int

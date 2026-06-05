@@ -436,6 +436,8 @@ The 2026-06-05 named-destination indirect view-operand slice extends that smoke 
 
 `examples/wordpress-pdf-type3-charprocs-resource-comment-currentbase.php` maps PDF comments inside Type3 CharProc glyph-private `/Resources /XObject` references into a WordPress-safe fallback path. It treats comments as whitespace before resource traversal, emits only `Visible fallback content`, and excludes direct CharProc payloads plus top-level, stream-local, and nested glyph-private Form XObject text without Python, pdftext, pypdfium/PDFium execution, Poppler, Ghostscript, models, OCR, or external PDF tools.
 
+`examples/wordpress-pdf-xref-object-stream-attachment-header-comment-currentbase.php` maps xref-stream type-2 compressed FileSpec attachment preflight through an `/ObjStm` header that contains commented numeric decoys. It keeps the explicit member index aligned to the current compressed FileSpec, excludes the stale direct FileSpec and comment-decoy member, omits embedded payload bytes, and avoids Python, pdftext, pypdfium/PDFium execution, Poppler, Ghostscript, models, OCR, and external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
