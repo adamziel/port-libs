@@ -9084,6 +9084,9 @@ final class PdfAcroFormExtractor
                 if ($annotationBody === '' || !$this->isWidget($annotationBody)) {
                     continue;
                 }
+                if (!$this->widgetAnnotationBelongsToPage($annotationBody, $objects, $pageObjectNumber)) {
+                    continue;
+                }
 
                 $widgets[$annotationRef] = [
                     'page_index' => $pageIndex,
@@ -9094,6 +9097,20 @@ final class PdfAcroFormExtractor
         }
 
         return $widgets;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function widgetAnnotationBelongsToPage(string $annotationBody, array $objects, int $pageObjectNumber): bool
+    {
+        $pageValue = $this->valueAfterName($annotationBody, 'P');
+        if ($pageValue === null) {
+            return true;
+        }
+
+        $pageObject = $this->validObjectReferenceFromValue($pageValue, $objects);
+        return $pageObject === $pageObjectNumber;
     }
 
     /**

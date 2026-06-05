@@ -8,11 +8,12 @@ use PortLibs\MarkerPDF\PdfTextExtractor;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $pageText = 'BT /F1 12 Tf 72 720 Td (Visible AcroForm page widget boundary body) Tj ET';
+$secondPageText = 'BT /F1 12 Tf 72 720 Td (Visible AcroForm widget P second page boundary body) Tj ET';
 $pdf = "%PDF-1.7\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
-    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
-    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R (90 0 R) [91 0 R] << /Nested 92 0 R >> % 93 0 R stays a comment\n12 0 R 14 0 R 18 0 R 24 0 R 110 0 R 120 0 R 124 0 R] >>\nendobj\n"
-    . "4 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 41 0 R /Annots [8 0 R (90 0 R) [91 0 R] << /Nested 92 0 R >> % 93 0 R stays a comment\n12 0 R 14 0 R 18 0 R 24 0 R 110 0 R 120 0 R 124 0 R 132 0 R 134 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 42 0 R /Annots [150 0 R] >>\nendobj\n"
     . "5 0 obj\n<< /Fields [6 0 R 23 0 R 122 0 R 124 0 R (94 0 R) [95 0 R] << /Nested 96 0 R >> % 97 0 R stays a comment\n] /NeedAppearances true /DA (/Helv 9 Tf 0 0 0 rg) /DR << /Font << /Helv 40 0 R >> >> >>\nendobj\n"
     . "6 0 obj\n<< /FT /Tx /T (listed.email) /V (listed@example.test) /Kids [8 0 R (98 0 R) [99 0 R] << /Nested 100 0 R >> % 101 0 R stays a comment\n112 0 R] >>\nendobj\n"
     . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 300 664] /P 3 0 R /F 4 >>\nendobj\n"
@@ -50,6 +51,13 @@ $pdf = "%PDF-1.7\n"
     . "122 0 obj\n<< /Parent 118 0 R /T (email) /TU (Child root editor email) /TM (childroot.email.export) /V (childroot@example.test) /Kids [120 0 R] >>\nendobj\n"
     . "124 0 obj\n<< /Subtype /Widget /Parent 126 0 R /T (status) /TU (Workflow status label) /TM (workflow.status.export) /V (publish) /Rect [72 220 280 244] /P 3 0 R /F 4 >>\nendobj\n"
     . "126 0 obj\n<< /FT /Ch /T (workflow) /TU (Workflow parent label) /V (draft) /Opt [(draft) (publish)] /Kids [124 0 R] >>\nendobj\n"
+    . "130 0 obj\n<< /FT /Tx /T (wrongpage.parent) /V (Wrong page parent value must not surface) /Kids [132 0 R] >>\nendobj\n"
+    . "132 0 obj\n<< /Subtype /Widget /Parent 130 0 R /Rect [72 180 320 204] /P 4 0 R /F 4 >>\nendobj\n"
+    . "134 0 obj\n<< /Subtype /Widget /FT /Tx /T (wrongpage.inline) /V (Wrong page inline value must not surface) /Rect [72 140 320 164] /P 4 0 R /F 4 >>\nendobj\n"
+    . "148 0 obj\n<< /FT /Ch /T (second.page.status) /V (published) /Opt [(draft) (published)] /Kids [150 0 R] >>\nendobj\n"
+    . "150 0 obj\n<< /Subtype /Widget /Parent 148 0 R /Rect [72 640 280 664] /P 4 0 R /F 4 >>\nendobj\n"
+    . "41 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
+    . "42 0 obj\n<< /Length " . strlen($secondPageText) . " >>\nstream\n{$secondPageText}\nendstream\nendobj\n"
     . "%%EOF";
 
 $form = (new PdfAcroFormExtractor())->extractForm($pdf);
@@ -59,13 +67,18 @@ foreach ($form['fields'] as $field) {
     $fieldsByName[(string) ($field['name'] ?? '')] = $field;
 }
 
-foreach (['listed.email', 'omitted.category', 'inline.note', 'indirect.geometry', 'review.label', 'childroot.email', 'workflow.status'] as $name) {
+foreach (['listed.email', 'omitted.category', 'inline.note', 'indirect.geometry', 'review.label', 'childroot.email', 'workflow.status', 'second.page.status'] as $name) {
     if (!isset($fieldsByName[$name])) {
         throw new RuntimeException("Missing expected AcroForm field {$name}.");
     }
 }
 if (isset($fieldsByName['detached.secret'])) {
     throw new RuntimeException('Detached widget field must not be promoted into the AcroForm review.');
+}
+foreach (['wrongpage.parent', 'wrongpage.inline'] as $wrongPageName) {
+    if (isset($fieldsByName[$wrongPageName])) {
+        throw new RuntimeException("Wrong-page widget /P field {$wrongPageName} must not be promoted from this page annotation list.");
+    }
 }
 
 $indirectWidget = $fieldsByName['indirect.geometry']['widgets'][0] ?? null;
@@ -140,6 +153,11 @@ if (array_column($workflowStatus['field_hierarchy']['path'] ?? [], 'object') !==
     throw new RuntimeException('Merged Widget AcroForm field hierarchy was not preserved.');
 }
 
+$secondPageStatus = $fieldsByName['second.page.status'];
+if (($secondPageStatus['object'] ?? null) !== 148 || array_column($secondPageStatus['widgets'] ?? [], 'page_object') !== [4]) {
+    throw new RuntimeException('Widget /P references that match their listing page must remain page-owned form fields.');
+}
+
 $rows = [];
 foreach ($form['fields'] as $field) {
     $widgets = is_array($field['widgets'] ?? null) ? $field['widgets'] : [];
@@ -159,11 +177,16 @@ foreach ($form['fields'] as $field) {
 
 echo '<!-- markerpdf:pdf-acroform-fields-boundary-currentbase ' . htmlspecialchars(json_encode([
     'source' => 'native-pdf-catalog-acroform-page-widget-boundary',
-    'native_boundary' => 'Page-owned Widget annotations and their Parent fields are reviewed when malformed AcroForm Fields omits them; comment-only Widget subtype markers and AcroForm alternate/mapping names stay review-only',
+    'native_boundary' => 'Page-owned Widget annotations and their Parent fields are reviewed when malformed AcroForm Fields omits them; explicit Widget /P references must match the listing page; comment-only Widget subtype markers and AcroForm alternate/mapping names stay review-only',
     'field_count' => count($form['fields']),
     'field_names' => array_column($rows, 'name'),
     'promoted_page_widget_parent_fields' => ['omitted.category'],
     'promoted_standalone_widget_fields' => ['inline.note'],
+    'wrong_page_widget_p_references_excluded' => !isset($fieldsByName['wrongpage.parent']) && !isset($fieldsByName['wrongpage.inline']),
+    'wrong_page_decoy_names' => ['wrongpage.parent', 'wrongpage.inline'],
+    'matching_widget_p_second_page_preserved' => ($secondPageStatus['object'] ?? null) === 148
+        && array_column($secondPageStatus['widgets'] ?? [], 'page_object') === [4]
+        && array_column($secondPageStatus['widgets'] ?? [], 'page_index') === [1],
     'alternate_name_review_field' => $reviewLabel['alternate_name'] ?? null,
     'mapping_name_review_field' => $reviewLabel['mapping_name'] ?? null,
     'wordpress_label_from_alternate_name' => $fieldNameReview['wordpress_label'] ?? null,

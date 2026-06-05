@@ -34,6 +34,29 @@ $pageWidgetFieldBoundaryPdf = static function (): string {
         . "%%EOF";
 };
 
+$acroFormWidgetPageMismatchBoundaryPdf = static function (): string {
+    $pageOneText = 'BT /F1 12 Tf 72 720 Td (Visible AcroForm widget P mismatch page one body) Tj ET';
+    $pageTwoText = 'BT /F1 12 Tf 72 720 Td (Visible AcroForm widget P mismatch page two body) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 30 0 R /Annots [8 0 R 12 0 R 14 0 R 16 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 31 0 R /Annots [20 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R] /NeedAppearances true /DA (/Helv 9 Tf 0 0 0 rg) >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (listed.first) /V (listed first value) /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 320 664] /P 3 0 R /F 4 >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Tx /T (wrongpage.parent) /V (wrong page parent value must not surface) /Kids [12 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 600 320 624] /P 4 0 R /F 4 >>\nendobj\n"
+        . "14 0 obj\n<< /Subtype /Widget /FT /Tx /T (wrongpage.inline) /V (wrong page inline value must not surface) /Rect [72 560 320 584] /P 4 0 R /F 4 >>\nendobj\n"
+        . "16 0 obj\n<< /Subtype /Widget /FT /Tx /T (floating.nop) /V (floating no page value) /Rect [72 520 320 544] /F 4 >>\nendobj\n"
+        . "18 0 obj\n<< /FT /Ch /T (listed.second) /V (publish) /Opt [(draft) (publish)] /Kids [20 0 R] >>\nendobj\n"
+        . "20 0 obj\n<< /Subtype /Widget /Parent 18 0 R /Rect [72 640 260 664] /P 4 0 R /F 4 >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($pageOneText) . " >>\nstream\n{$pageOneText}\nendstream\nendobj\n"
+        . "31 0 obj\n<< /Length " . strlen($pageTwoText) . " >>\nstream\n{$pageTwoText}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $directWidgetFieldsRootBoundaryPdf = static function (): string {
     $pageText = 'BT /F1 12 Tf 72 720 Td (Visible direct widget Fields boundary body) Tj ET';
 
@@ -359,6 +382,58 @@ return [
         $t->true(str_contains($visibleText, 'Visible AcroForm page widget boundary body'));
         $t->true(!str_contains($visibleText, 'detached widget value must not surface'));
         $t->true(!str_contains($visibleText, 'inline page widget value'));
+    },
+    'rejects wrong-page AcroForm widget P references before page-owned field repair' => static function (
+        TestRunner $t
+    ) use ($acroFormWidgetPageMismatchBoundaryPdf, $fieldsByName): void {
+        $pdf = $acroFormWidgetPageMismatchBoundaryPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $visibleText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($form, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['listed.first', 'floating.nop', 'listed.second'], array_keys($fields));
+        $t->same(3, count($form['fields']));
+        $t->same(true, $form['need_appearances']);
+
+        $listed = $fields['listed.first'];
+        $t->same([8], array_column($listed['widgets'], 'object'));
+        $t->same([0], array_column($listed['widgets'], 'page_index'));
+        $t->same([3], array_column($listed['widgets'], 'page_object'));
+        $t->same([0], array_column($listed['widgets'], 'page_annotation_index'));
+        $t->same([true], array_column($listed['widgets'], 'referenced_from_page_annots'));
+
+        $floating = $fields['floating.nop'];
+        $t->same(16, $floating['object']);
+        $t->same('floating no page value', $floating['value']);
+        $t->same([16], array_column($floating['widgets'], 'object'));
+        $t->same([0], array_column($floating['widgets'], 'page_index'));
+        $t->same([3], array_column($floating['widgets'], 'page_object'));
+        $t->same([3], array_column($floating['widgets'], 'page_annotation_index'));
+        $t->same([true], array_column($floating['widgets'], 'referenced_from_page_annots'));
+
+        $second = $fields['listed.second'];
+        $t->same(18, $second['object']);
+        $t->same('choice', $second['field_type_label']);
+        $t->same('publish', $second['value']);
+        $t->same([20], array_column($second['widgets'], 'object'));
+        $t->same([1], array_column($second['widgets'], 'page_index'));
+        $t->same([4], array_column($second['widgets'], 'page_object'));
+        $t->same([0], array_column($second['widgets'], 'page_annotation_index'));
+        $t->same([true], array_column($second['widgets'], 'referenced_from_page_annots'));
+
+        foreach (['wrongpage.parent', 'wrongpage.inline'] as $wrongPageName) {
+            $t->true(!isset($fields[$wrongPageName]));
+            $t->true(is_string($encoded) && !str_contains($encoded, $wrongPageName));
+        }
+
+        $t->true(str_contains($visibleText, 'Visible AcroForm widget P mismatch page one body'));
+        $t->true(str_contains($visibleText, 'Visible AcroForm widget P mismatch page two body'));
+        $t->true(!str_contains($visibleText, 'wrong page parent value must not surface'));
+        $t->true(!str_contains($visibleText, 'wrong page inline value must not surface'));
+        $t->true(!str_contains($visibleText, 'floating no page value'));
+        $t->true(!str_contains($visibleText, 'listed first value'));
+        $t->true(!str_contains($visibleText, 'publish'));
     },
     'normalizes direct widget entries in AcroForm Fields to their parent field roots' => static function (
         TestRunner $t
