@@ -887,6 +887,7 @@ final class BatchConverter
                 'falsy_non_mapping_metadata_filenames' => $metadataValueReview['falsy_non_mapping_metadata_filenames'],
                 'per_file_metadata_error_boundary' => $metadataValueReview['conversion_error_boundary'],
                 'pool_creation' => $this->convertMainPoolCreationPlan($totalProcesses),
+                'pool_cleanup' => $this->convertMainPoolCleanupPlan($totalProcesses, $modelHandoff),
                 'process_single_pdf_preflight' => $processSinglePdfPreflight,
                 'progress_iterator' => $this->progressIterator(),
             ],
@@ -1994,6 +1995,57 @@ final class BatchConverter
             'pool_imap_reached' => $success,
             'progress_iterator_reached' => $success,
             'executes_multiprocessing' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $modelHandoff
+     * @return array{
+     *     source: string,
+     *     order: string,
+     *     cleanup_reached: bool,
+     *     blocked_by: string|null,
+     *     pool_imap_completed_required: true,
+     *     pool_imap_reached: bool,
+     *     worker_handler_terminate_assignment: string,
+     *     worker_handler_terminate_override_reached: bool,
+     *     worker_exit_function: string,
+     *     worker_exit_deletes_global_model_refs: bool,
+     *     worker_exit_delete_statement: string,
+     *     model_list_delete_reached: bool,
+     *     model_list_delete_statement: string,
+     *     parent_model_list_loaded: bool,
+     *     worker_init_argument: string|null,
+     *     executes_python_or_models: false,
+     *     executes_multiprocessing: false,
+     *     executes_external_pdf_tools: false
+     * }
+     */
+    private function convertMainPoolCleanupPlan(int $totalProcesses, array $modelHandoff): array
+    {
+        $reached = $totalProcesses >= 1;
+
+        return [
+            'source' => 'convert.py pool worker_exit and model_lst cleanup boundary',
+            'order' => 'after_pool_imap_before_del_model_lst',
+            'cleanup_reached' => $reached,
+            'blocked_by' => $reached ? null : 'pool-process-count-failed',
+            'pool_imap_completed_required' => true,
+            'pool_imap_reached' => $reached,
+            'worker_handler_terminate_assignment' => 'pool._worker_handler.terminate = worker_exit',
+            'worker_handler_terminate_override_reached' => $reached,
+            'worker_exit_function' => 'worker_exit',
+            'worker_exit_deletes_global_model_refs' => true,
+            'worker_exit_delete_statement' => 'del model_refs',
+            'model_list_delete_reached' => $reached,
+            'model_list_delete_statement' => 'del model_lst',
+            'parent_model_list_loaded' => $reached && (bool) ($modelHandoff['main_load_all_models'] ?? false),
+            'worker_init_argument' => $reached && is_string($modelHandoff['worker_init_argument'] ?? null)
+                ? $modelHandoff['worker_init_argument']
+                : null,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
         ];
     }
 

@@ -757,6 +757,73 @@ return [
             $removeTree($input);
         }
     },
+    'records convert.py worker cleanup boundary after pool imap' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['first.pdf', 'second.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+
+            $batch = new BatchConverter();
+            $cuda = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 4,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+            $mps = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 4,
+                torchDevice: 'mps',
+                torchDeviceModel: 'cpu'
+            );
+            $invalidWorkers = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 0
+            );
+
+            $cleanup = $cuda['worker_pool']['pool_cleanup'];
+            $t->same('convert.py pool worker_exit and model_lst cleanup boundary', $cleanup['source']);
+            $t->same('after_pool_imap_before_del_model_lst', $cleanup['order']);
+            $t->same(true, $cleanup['cleanup_reached']);
+            $t->same(null, $cleanup['blocked_by']);
+            $t->same(true, $cleanup['pool_imap_completed_required']);
+            $t->same(true, $cleanup['pool_imap_reached']);
+            $t->same('pool._worker_handler.terminate = worker_exit', $cleanup['worker_handler_terminate_assignment']);
+            $t->same(true, $cleanup['worker_handler_terminate_override_reached']);
+            $t->same('worker_exit', $cleanup['worker_exit_function']);
+            $t->same(true, $cleanup['worker_exit_deletes_global_model_refs']);
+            $t->same('del model_refs', $cleanup['worker_exit_delete_statement']);
+            $t->same(true, $cleanup['model_list_delete_reached']);
+            $t->same('del model_lst', $cleanup['model_list_delete_statement']);
+            $t->same(true, $cleanup['parent_model_list_loaded']);
+            $t->same('model_lst', $cleanup['worker_init_argument']);
+            $t->same(false, $cleanup['executes_python_or_models']);
+            $t->same(false, $cleanup['executes_multiprocessing']);
+            $t->same(false, $cleanup['executes_external_pdf_tools']);
+
+            $mpsCleanup = $mps['worker_pool']['pool_cleanup'];
+            $t->same(true, $mpsCleanup['cleanup_reached']);
+            $t->same(false, $mpsCleanup['parent_model_list_loaded']);
+            $t->same(null, $mpsCleanup['worker_init_argument']);
+            $t->same(true, $mpsCleanup['model_list_delete_reached']);
+
+            $blockedCleanup = $invalidWorkers['worker_pool']['pool_cleanup'];
+            $t->same(false, $blockedCleanup['cleanup_reached']);
+            $t->same('pool-process-count-failed', $blockedCleanup['blocked_by']);
+            $t->same(false, $blockedCleanup['pool_imap_reached']);
+            $t->same(false, $blockedCleanup['worker_handler_terminate_override_reached']);
+            $t->same(false, $blockedCleanup['model_list_delete_reached']);
+            $t->same(false, $blockedCleanup['executes_multiprocessing']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'records output-folder file conflicts before metadata and worker launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $root = $makeTempDir();

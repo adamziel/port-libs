@@ -424,6 +424,17 @@ try {
     ) {
         throw new RuntimeException('Expected zero or negative worker counts to fail at upstream multiprocessing Pool creation before pool.imap.');
     }
+    if (
+        $runtimePlan['worker_pool']['pool_cleanup']['cleanup_reached'] !== true
+        || $runtimePlan['worker_pool']['pool_cleanup']['worker_handler_terminate_assignment'] !== 'pool._worker_handler.terminate = worker_exit'
+        || $runtimePlan['worker_pool']['pool_cleanup']['worker_exit_deletes_global_model_refs'] !== true
+        || $runtimePlan['worker_pool']['pool_cleanup']['model_list_delete_reached'] !== true
+        || $mpsRuntimePlan['worker_pool']['pool_cleanup']['parent_model_list_loaded'] !== false
+        || $zeroWorkerPlan['worker_pool']['pool_cleanup']['blocked_by'] !== 'pool-process-count-failed'
+        || $zeroWorkerPlan['worker_pool']['pool_cleanup']['cleanup_reached'] !== false
+    ) {
+        throw new RuntimeException('Expected convert.py worker cleanup boundary to be recorded after pool.imap and blocked by failed Pool creation.');
+    }
     if ($zeroMinLengthSpoof['min_length_gate_active'] !== false || $zeroMinLengthSpoof['filetype_checked'] !== false || $zeroMinLengthSpoof['status'] !== 'ready-for-conversion') {
         throw new RuntimeException('Expected --min_length=0 to leave filetype preflight inactive like upstream convert.py.');
     }
@@ -577,6 +588,13 @@ try {
         'negative_worker_pool_creation_error_boundary' => $negativeWorkerPlan['worker_pool']['pool_creation']['error_boundary'],
         'negative_worker_pool_creation_error_class' => $negativeWorkerPlan['worker_pool']['pool_creation']['error_class'],
         'negative_worker_pool_imap_reached' => $negativeWorkerPlan['worker_pool']['pool_creation']['pool_imap_reached'],
+        'runtime_pool_cleanup_reached' => $runtimePlan['worker_pool']['pool_cleanup']['cleanup_reached'],
+        'runtime_worker_exit_assignment' => $runtimePlan['worker_pool']['pool_cleanup']['worker_handler_terminate_assignment'],
+        'runtime_worker_exit_deletes_model_refs' => $runtimePlan['worker_pool']['pool_cleanup']['worker_exit_deletes_global_model_refs'],
+        'runtime_model_list_delete_reached' => $runtimePlan['worker_pool']['pool_cleanup']['model_list_delete_reached'],
+        'mps_runtime_cleanup_parent_model_list_loaded' => $mpsRuntimePlan['worker_pool']['pool_cleanup']['parent_model_list_loaded'],
+        'zero_worker_cleanup_blocked_by' => $zeroWorkerPlan['worker_pool']['pool_cleanup']['blocked_by'],
+        'zero_worker_cleanup_reached' => $zeroWorkerPlan['worker_pool']['pool_cleanup']['cleanup_reached'],
         'runtime_output_folder_creation_required' => $runtimePlan['paths']['output_folder_creation_required'],
         'status_by_filename' => array_map(static fn (array $plan): string => (string) $plan['status'], $plans),
         'skip_reasons' => array_map(static fn (array $plan): ?string => $plan['skip_reason'], $plans),
