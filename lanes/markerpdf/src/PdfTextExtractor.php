@@ -1959,7 +1959,12 @@ final class PdfTextExtractor
 
             $decoded = $this->decodeStreamObject($objects[$contentObjectNumber], $objects, true);
             if ($decoded !== null) {
-                $streams[] = $this->filterOptionalContentMarkedBlocks($decoded, $optionalContentProperties);
+                $streams[] = $this->filterOptionalContentMarkedBlocks(
+                    $decoded,
+                    $optionalContentProperties,
+                    $objects,
+                    $optionalContentStates
+                );
             }
         }
 
@@ -3336,7 +3341,9 @@ final class PdfTextExtractor
                                 $formResourceOwnerBody,
                                 $objects,
                                 $optionalContentStates
-                            )
+                            ),
+                            $objects,
+                            $optionalContentStates
                         );
                         $formStream = $this->rewriteMarkedContentPropertyOperands(
                             $this->rewriteFontResourceOperands($formStream, $fontAliases),
@@ -3996,9 +4003,14 @@ final class PdfTextExtractor
             $objects,
             $optionalContentStates
         );
-        if ($optionalContentProperties !== []) {
+        if ($decodedContents !== []) {
             $decodedContents = array_map(
-                fn (string $content): string => $this->filterOptionalContentMarkedBlocks($content, $optionalContentProperties),
+                fn (string $content): string => $this->filterOptionalContentMarkedBlocks(
+                    $content,
+                    $optionalContentProperties,
+                    $objects,
+                    $optionalContentStates
+                ),
                 $decodedContents
             );
         }
@@ -5611,7 +5623,9 @@ final class PdfTextExtractor
                 $objects[$appearanceObjectNumber],
                 $objects,
                 $optionalContentStates
-            )
+            ),
+            $objects,
+            $optionalContentStates
         );
 
         return $this->expandFormXObjectInvocations(
@@ -6031,9 +6045,14 @@ final class PdfTextExtractor
     /**
      * @param array<string, bool> $propertyVisibility
      */
-    private function filterOptionalContentMarkedBlocks(string $content, array $propertyVisibility): string
+    private function filterOptionalContentMarkedBlocks(
+        string $content,
+        array $propertyVisibility,
+        array $objects = [],
+        array $optionalContentStates = []
+    ): string
     {
-        if ($propertyVisibility === [] || !str_contains($content, 'BDC')) {
+        if (!str_contains($content, 'BDC')) {
             return $content;
         }
 
@@ -6043,7 +6062,12 @@ final class PdfTextExtractor
 
         foreach ($this->contentTokens($content) as $token) {
             if ($token === 'BDC') {
-                $hidden = $hiddenDepth > 0 || $this->markedOptionalContentIsHidden($operands, $propertyVisibility);
+                $hidden = $hiddenDepth > 0 || $this->markedOptionalContentIsHidden(
+                    $operands,
+                    $propertyVisibility,
+                    $objects,
+                    $optionalContentStates
+                );
                 if ($hidden) {
                     $hiddenDepth++;
                     $operands = [];
@@ -6122,25 +6146,61 @@ final class PdfTextExtractor
     /**
      * @param list<string> $operands
      * @param array<string, bool> $propertyVisibility
+     * @param array<int, string> $objects
+     * @param array<int, bool> $optionalContentStates
      */
-    private function markedOptionalContentIsHidden(array $operands, array $propertyVisibility): bool
+    private function markedOptionalContentIsHidden(
+        array $operands,
+        array $propertyVisibility,
+        array $objects = [],
+        array $optionalContentStates = []
+    ): bool
     {
         if (count($operands) < 2) {
             return false;
         }
 
-        $tagOperand = $operands[count($operands) - 2];
+        $tagIndex = count($operands) - 2;
         $propertyOperand = $operands[count($operands) - 1];
+        if (
+            count($operands) >= 4
+            && $operands[count($operands) - 1] === 'R'
+            && preg_match('/^\d+$/', $operands[count($operands) - 3]) === 1
+            && preg_match('/^\d+$/', $operands[count($operands) - 2]) === 1
+        ) {
+            $tagIndex = count($operands) - 4;
+            $propertyOperand = $operands[count($operands) - 3]
+                . ' '
+                . $operands[count($operands) - 2]
+                . ' R';
+        }
+
+        if (!isset($operands[$tagIndex])) {
+            return false;
+        }
+
+        $tagOperand = $operands[$tagIndex];
         if (!str_starts_with($tagOperand, '/') || $this->decodePdfName(substr($tagOperand, 1)) !== 'OC') {
             return false;
         }
 
-        if (!str_starts_with($propertyOperand, '/')) {
-            return false;
+        $propertyOperand = trim($propertyOperand);
+        if (str_starts_with($propertyOperand, '/')) {
+            $propertyName = $this->decodePdfName(substr($propertyOperand, 1));
+            return isset($propertyVisibility[$propertyName]) && !$propertyVisibility[$propertyName];
         }
 
-        $propertyName = $this->decodePdfName(substr($propertyOperand, 1));
-        return isset($propertyVisibility[$propertyName]) && !$propertyVisibility[$propertyName];
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $propertyOperand, $match) === 1) {
+            return !$this->optionalContentReferenceVisible((int) $match[1], $objects, $optionalContentStates);
+        }
+
+        if (str_starts_with($propertyOperand, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($propertyOperand, 0);
+            return $dictionary !== null
+                && !$this->optionalContentDictionaryVisible($dictionary, $objects, $optionalContentStates);
+        }
+
+        return false;
     }
 
     /**

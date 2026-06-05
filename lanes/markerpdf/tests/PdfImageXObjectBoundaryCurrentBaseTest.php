@@ -294,6 +294,83 @@ return [
         $t->true(!str_contains($plainText, 'Hidden Marked Image Noise'));
         $t->true(!str_contains($plainText, 'Hidden Object Image Noise'));
     },
+    'honors inline OCMD dictionaries before counting image XObject invocations' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before inline OCMD images) Tj ET\n"
+            . "/OC << /Type /OCMD /OCGs [20 0 R 21 0 R] /P /AllOn >> BDC q 16 0 0 8 72 690 cm /Inline#20Hidden Do Q EMC\n"
+            . "/OC << /Type /OCMD /OCGs [20 0 R 22 0 R] /P /AllOn >> BDC q 16 0 0 8 96 690 cm /Inline#20Visible Do Q EMC\n"
+            . "q 8 0 0 8 120 690 cm /Plain#20Image Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After inline OCMD images) Tj ET';
+        $hiddenPayload = 'BT /F1 12 Tf 72 720 Td (Hidden Inline OCMD Image Payload Noise) Tj ET';
+        $visiblePayload = 'BT /F1 12 Tf 72 720 Td (Visible Inline OCMD Image Payload Noise) Tj ET';
+        $plainPayload = 'BT /F1 12 Tf 72 720 Td (Plain Inline OCMD Image Payload Noise) Tj ET';
+        $hiddenCompressed = gzcompress($hiddenPayload);
+        $visibleCompressed = gzcompress($visiblePayload);
+        $plainCompressed = gzcompress($plainPayload);
+        if (!is_string($hiddenCompressed) || !is_string($visibleCompressed) || !is_string($plainCompressed)) {
+            throw new RuntimeException('Unable to compress inline OCMD image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.5\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [20 0 R 21 0 R 22 0 R] /D << /BaseState /OFF /ON [20 0 R 22 0 R] /Order [20 0 R 21 0 R 22 0 R] >> >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 10 0 R >> /XObject << /Inline#20Hidden 5 0 R /Inline#20Visible 6 0 R /Plain#20Image 7 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($hiddenCompressed) . " >>\nstream\n{$hiddenCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($visibleCompressed) . " >>\nstream\n{$visibleCompressed}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($plainCompressed) . " >>\nstream\n{$plainCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "20 0 obj\n<< /Type /OCG /Name (Visible Shared Layer) >>\nendobj\n"
+            . "21 0 obj\n<< /Type /OCG /Name (Hidden Inline Layer) >>\nendobj\n"
+            . "22 0 obj\n<< /Type /OCG /Name (Visible Inline Layer) >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(3, $review['image_xobject_count']);
+        $t->same(2, $review['invoked_image_xobject_count']);
+        $t->same(1, $review['uninvoked_image_xobject_count']);
+        $t->same(['Before inline OCMD images', 'After inline OCMD images'], $extractor->extractTextLines($pdf));
+        $t->same("Before inline OCMD images\nAfter inline OCMD images", $plainText);
+
+        $hidden = $entriesByName['Inline Hidden'];
+        $t->same(true, $hidden['optional_content_visible']);
+        $t->same(false, $hidden['invoked']);
+        $t->same(0, $hidden['invocation_count']);
+        $t->same(true, $hidden['decoded_with_current_filters']);
+        $t->same(hash('sha256', $hiddenPayload), $hidden['decoded_sha256']);
+
+        $visible = $entriesByName['Inline Visible'];
+        $t->same(true, $visible['optional_content_visible']);
+        $t->same(true, $visible['invoked']);
+        $t->same(1, $visible['invocation_count']);
+        $t->same([[16.0, 0.0, 0.0, 8.0, 96.0, 690.0]], $visible['invocation_matrices']);
+        $t->same([96.0, 690.0, 112.0, 698.0], $visible['image_unit_bbox']);
+        $t->same(true, $visible['decoded_with_current_filters']);
+        $t->same(hash('sha256', $visiblePayload), $visible['decoded_sha256']);
+
+        $plain = $entriesByName['Plain Image'];
+        $t->same(true, $plain['optional_content_visible']);
+        $t->same(true, $plain['invoked']);
+        $t->same(1, $plain['invocation_count']);
+        $t->same([[8.0, 0.0, 0.0, 8.0, 120.0, 690.0]], $plain['invocation_matrices']);
+        $t->same([120.0, 690.0, 128.0, 698.0], $plain['image_unit_bbox']);
+        $t->same(true, $plain['decoded_with_current_filters']);
+        $t->same(hash('sha256', $plainPayload), $plain['decoded_sha256']);
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $hiddenPayload));
+        $t->true(!str_contains($encoded, $visiblePayload));
+        $t->true(!str_contains($encoded, $plainPayload));
+        $t->true(!str_contains($plainText, 'Hidden Inline OCMD Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Visible Inline OCMD Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Plain Inline OCMD Image Payload Noise'));
+    },
     'records image XObject invocation CTM placement for WordPress media review' => static function (TestRunner $t): void {
         $pageContent = "BT /F1 12 Tf 72 720 Td (Before placed images) Tj ET\n"
             . "q 2 0 0 2 10 20 cm q 12 0 0 8 5 6 cm /Placed#20Image Do Q Q\n"
