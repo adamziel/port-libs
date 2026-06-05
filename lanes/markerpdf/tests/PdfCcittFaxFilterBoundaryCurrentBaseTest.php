@@ -945,6 +945,110 @@ return [
         $t->true(!str_contains($encodedReview, $faxPayload));
         $t->true(!str_contains($encodedReview, $encodedFaxPayload));
     },
+    'marks trailing extra CCITT Fax DecodeParms arrays fail closed before WordPress review' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $inlinePayload = "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline extra CCITT DecodeParms payload noise) Tj ET final";
+        $inlinePlan = $renderer->inlineImageReviewPlan(
+            '/W 16 /H 1 /IM true /F /CCF /DP [<< /K -1 /Columns 16 /Rows 1 /BlackIs1 true /EndOfBlock false >> << /K /Bad /Columns 1 >>] /D [1 0]',
+            $inlinePayload
+        );
+        $inlineParms = $inlinePlan['image_filter_details'][0]['decode_parms'] ?? [];
+        $inlineBoundary = $inlinePlan['ccitt_fax_decode_boundary'] ?? [];
+
+        $t->same(['CCITTFaxDecode'], $inlinePlan['image_filters']);
+        $t->same('CCITTFaxDecode', $inlineParms['type'] ?? null);
+        $t->same(false, $inlineParms['valid_decode_parms'] ?? null);
+        $t->same(['decode_parms_alignment'], $inlineParms['invalid_decode_parms_fields'] ?? null);
+        $t->same('unaligned_ccitt_decodeparms_fail_closed', $inlineParms['decode_parms_review'] ?? null);
+        $t->same('unapplied_filter_slot', $inlineParms['decode_parms_alignment'] ?? null);
+        $t->same(1, $inlineParms['filter_slot_count'] ?? null);
+        $t->same(2, $inlineParms['decode_parms_slot_count'] ?? null);
+        $t->same([1], $inlineParms['unapplied_decode_parms_slots'] ?? null);
+        $t->same(true, $inlineBoundary['decode_parms_present'] ?? null);
+        $t->same(true, $inlineBoundary['invalid_decode_parms'] ?? null);
+        $t->same(['decode_parms_alignment'], $inlineBoundary['invalid_decode_parms_fields'] ?? null);
+        $t->same([
+            'k' => 0,
+            'columns' => 1728,
+            'rows' => 0,
+            'black_is_1' => false,
+            'encoded_byte_align' => false,
+            'end_of_line' => false,
+            'end_of_block' => true,
+            'damaged_rows_before_error' => 0,
+        ], $inlineBoundary['effective_decode_parms'] ?? null);
+        $t->same([
+            'k',
+            'columns',
+            'rows',
+            'black_is_1',
+            'encoded_byte_align',
+            'end_of_line',
+            'end_of_block',
+            'damaged_rows_before_error',
+        ], $inlineBoundary['defaults_applied'] ?? null);
+        $t->same(false, $inlinePlan['inline_image']['native_raster_decode'] ?? null);
+        $t->same(true, $inlinePlan['inline_image_payload_excluded_from_text']);
+        $t->true(!str_contains(json_encode($inlinePlan, JSON_UNESCAPED_SLASHES) ?: '', 'Inline extra CCITT DecodeParms payload noise'));
+
+        $trailingNullFilterPlan = $renderer->inlineImageReviewPlan(
+            '/W 16 /H 1 /IM true /F [/CCF null] /DP [<< /K -1 /Columns 16 /Rows 1 /BlackIs1 true /EndOfBlock false >> << /K /Ignored /Columns 1 >>] /D [1 0]',
+            'fax bytes EI BT /F1 12 Tf 72 640 Td (Inline trailing null filter payload noise) Tj ET final'
+        );
+        $trailingNullParms = $trailingNullFilterPlan['image_filter_details'][0]['decode_parms'] ?? [];
+        $trailingNullBoundary = $trailingNullFilterPlan['ccitt_fax_decode_boundary'] ?? [];
+        $t->same(-1, $trailingNullParms['k'] ?? null);
+        $t->same(16, $trailingNullParms['columns'] ?? null);
+        $t->same(1, $trailingNullParms['rows'] ?? null);
+        $t->same(null, $trailingNullParms['valid_decode_parms'] ?? null);
+        $t->same(false, $trailingNullBoundary['invalid_decode_parms'] ?? null);
+        $t->same(['encoded_byte_align', 'end_of_line', 'damaged_rows_before_error'], $trailingNullBoundary['defaults_applied'] ?? null);
+        $t->true(!str_contains(json_encode($trailingNullFilterPlan, JSON_UNESCAPED_SLASHES) ?: '', 'Inline trailing null filter payload noise'));
+
+        $extractor = new PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before extra CCITT DecodeParms) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After extra CCITT DecodeParms) Tj ET';
+        $faxPayload = 'BT /F1 12 Tf 72 700 Td (WordPress extra CCITT DecodeParms leak) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /ExtraParmsFax 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms [<< /K -1 /Columns 16 /Rows 1 /BlackIs1 true /EndOfBlock false >> << /K /Bad /Columns 1 >>] /Length " . strlen($faxPayload) . " >>\nstream\n{$faxPayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $decodeParms = $entry['filter_details'][0]['decode_parms'] ?? [];
+        $boundary = $entry['ccitt_fax_decode_boundary'] ?? [];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Before extra CCITT DecodeParms', 'After extra CCITT DecodeParms'], $extractor->extractTextLines($pdf));
+        $t->same("Before extra CCITT DecodeParms\nAfter extra CCITT DecodeParms", $plainText);
+        $t->true(!str_contains($plainText, 'WordPress extra CCITT DecodeParms leak'));
+        $t->same('ExtraParmsFax', $entry['resource_name'] ?? null);
+        $t->same(['CCITTFaxDecode'], $entry['filters'] ?? null);
+        $t->same(['CCITTFaxDecode'], $entry['preview_only_filters'] ?? null);
+        $t->same(false, $entry['native_raster_decode'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        $t->same('CCITTFaxDecode', $decodeParms['type'] ?? null);
+        $t->same(false, $decodeParms['valid_decode_parms'] ?? null);
+        $t->same(['decode_parms_alignment'], $decodeParms['invalid_decode_parms_fields'] ?? null);
+        $t->same('unaligned_ccitt_decodeparms_fail_closed', $decodeParms['decode_parms_review'] ?? null);
+        $t->same('unapplied_filter_slot', $decodeParms['decode_parms_alignment'] ?? null);
+        $t->same(1, $decodeParms['filter_slot_count'] ?? null);
+        $t->same(2, $decodeParms['decode_parms_slot_count'] ?? null);
+        $t->same([1], $decodeParms['unapplied_decode_parms_slots'] ?? null);
+        $t->same(true, $boundary['decode_parms_present'] ?? null);
+        $t->same(true, $boundary['invalid_decode_parms'] ?? null);
+        $t->same(['decode_parms_alignment'], $boundary['invalid_decode_parms_fields'] ?? null);
+        $t->same($inlineBoundary['effective_decode_parms'] ?? null, $boundary['effective_decode_parms'] ?? null);
+        $t->same($inlineBoundary['defaults_applied'] ?? null, $boundary['defaults_applied'] ?? null);
+        $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encodedReview, $faxPayload));
+    },
     'keeps Flate-wrapped CCITT Fax endstream decoys inside image payload boundaries' => static function (TestRunner $t) use ($ccittFaxFilterBoundaryZlibStored): void {
         $extractor = new PdfTextExtractor();
         $before = 'BT /F1 12 Tf 72 720 Td (Before Flate CCITT stream) Tj ET';

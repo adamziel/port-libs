@@ -62,6 +62,11 @@ $unresolvedInlineReview = (new PdfImageRenderer())->inlineImageReviewPlan(
     '/W 16 /H 1 /IM true /F /CCF /DP 99 0 R /D [1 0]',
     $unresolvedInlinePayload
 );
+$extraDecodeParmsInlinePayload = "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline extra CCITT DecodeParms payload noise) Tj ET final";
+$extraDecodeParmsInlineReview = (new PdfImageRenderer())->inlineImageReviewPlan(
+    '/W 16 /H 1 /IM true /F /CCF /DP [<< /K -1 /Columns 16 /Rows 1 /BlackIs1 true /EndOfBlock false >> << /K /Bad /Columns 1 >>] /D [1 0]',
+    $extraDecodeParmsInlinePayload
+);
 $inlineGeometryReview = (new PdfImageRenderer())->inlineImageReviewPlan(
     '/W 8 /H 3 /IM true /F /CCF /DP << /Columns 16 /Rows 4 /BlackIs1 true >>',
     "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline CCITT geometry payload noise) Tj ET final"
@@ -213,6 +218,21 @@ $unresolvedXobjectReview = $boundaryExtractor->extractImageXObjectBoundaryReview
 $unresolvedXobjectEntry = $unresolvedXobjectReview['entries'][0] ?? [];
 $unresolvedXobjectParms = $unresolvedXobjectEntry['filter_details'][0]['decode_parms'] ?? [];
 $unresolvedXobjectBoundary = $unresolvedXobjectEntry['ccitt_fax_decode_boundary'] ?? [];
+$extraDecodeParmsBefore = 'BT /F1 12 Tf 72 720 Td (Before extra CCITT DecodeParms import) Tj ET';
+$extraDecodeParmsAfter = 'BT /F1 12 Tf 72 680 Td (After extra CCITT DecodeParms import) Tj ET';
+$extraDecodeParmsPayload = 'BT /F1 12 Tf 72 700 Td (WordPress extra CCITT DecodeParms leak) Tj ET';
+$extraDecodeParmsPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /ExtraParmsFax 5 0 R >> >> >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($extraDecodeParmsBefore) . " >>\nstream\n{$extraDecodeParmsBefore}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms [<< /K -1 /Columns 16 /Rows 1 /BlackIs1 true /EndOfBlock false >> << /K /Bad /Columns 1 >>] /Length " . strlen($extraDecodeParmsPayload) . " >>\nstream\n{$extraDecodeParmsPayload}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Length " . strlen($extraDecodeParmsAfter) . " >>\nstream\n{$extraDecodeParmsAfter}\nendstream\nendobj\n"
+    . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+$extraDecodeParmsReview = $boundaryExtractor->extractImageXObjectBoundaryReview($extraDecodeParmsPdf);
+$extraDecodeParmsEntry = $extraDecodeParmsReview['entries'][0] ?? [];
+$extraDecodeParmsParms = $extraDecodeParmsEntry['filter_details'][0]['decode_parms'] ?? [];
+$extraDecodeParmsBoundary = $extraDecodeParmsEntry['ccitt_fax_decode_boundary'] ?? [];
 $invalidOwnerBefore = 'BT /F1 12 Tf 72 720 Td (Before invalid-owner CCITT import) Tj ET';
 $invalidOwnerAfter = 'BT /F1 12 Tf 72 680 Td (After invalid-owner CCITT import) Tj ET';
 $invalidOwnerFakeText = 'BT /F1 12 Tf 72 700 Td (WordPress invalid-owner CCITT leak) Tj ET';
@@ -268,6 +288,8 @@ $inlineNotes = $inlineReview['notes'] ?? [];
 $invalidInlineParms = $invalidInlineReview['image_filter_details'][0]['decode_parms'] ?? [];
 $unresolvedInlineParms = $unresolvedInlineReview['image_filter_details'][0]['decode_parms'] ?? [];
 $unresolvedInlineBoundary = $unresolvedInlineReview['ccitt_fax_decode_boundary'] ?? [];
+$extraDecodeParmsInlineParms = $extraDecodeParmsInlineReview['image_filter_details'][0]['decode_parms'] ?? [];
+$extraDecodeParmsInlineBoundary = $extraDecodeParmsInlineReview['ccitt_fax_decode_boundary'] ?? [];
 $inlineGeometryBoundary = $inlineGeometryReview['ccitt_fax_decode_boundary'] ?? [];
 $escapedInlineParms = $escapedInlineReview['image_filter_details'][0]['decode_parms'] ?? [];
 $escapedInlineBoundary = $escapedInlineReview['ccitt_fax_decode_boundary'] ?? [];
@@ -303,6 +325,17 @@ if (
     || str_contains(json_encode($unresolvedInlineReview, JSON_UNESCAPED_SLASHES) ?: '', $unresolvedInlinePayload)
 ) {
     throw new RuntimeException('Inline unresolved CCITT DecodeParms smoke failed.');
+}
+if (
+    ($extraDecodeParmsInlineParms['valid_decode_parms'] ?? null) !== false
+    || ($extraDecodeParmsInlineParms['decode_parms_review'] ?? null) !== 'unaligned_ccitt_decodeparms_fail_closed'
+    || ($extraDecodeParmsInlineParms['decode_parms_alignment'] ?? null) !== 'unapplied_filter_slot'
+    || ($extraDecodeParmsInlineParms['unapplied_decode_parms_slots'] ?? null) !== [1]
+    || ($extraDecodeParmsInlineBoundary['invalid_decode_parms'] ?? null) !== true
+    || !in_array('decode_parms_alignment', $extraDecodeParmsInlineBoundary['invalid_decode_parms_fields'] ?? [], true)
+    || str_contains(json_encode($extraDecodeParmsInlineReview, JSON_UNESCAPED_SLASHES) ?: '', $extraDecodeParmsInlinePayload)
+) {
+    throw new RuntimeException('Inline extra CCITT DecodeParms boundary smoke failed.');
 }
 if (
     $boundaryLines !== ['Before Flate CCITT import', 'After Flate CCITT import']
@@ -418,6 +451,18 @@ if (
     throw new RuntimeException('XObject unresolved CCITT DecodeParms boundary smoke failed.');
 }
 if (
+    ($extraDecodeParmsParms['valid_decode_parms'] ?? null) !== false
+    || ($extraDecodeParmsParms['decode_parms_review'] ?? null) !== 'unaligned_ccitt_decodeparms_fail_closed'
+    || ($extraDecodeParmsParms['decode_parms_alignment'] ?? null) !== 'unapplied_filter_slot'
+    || ($extraDecodeParmsParms['unapplied_decode_parms_slots'] ?? null) !== [1]
+    || ($extraDecodeParmsBoundary['invalid_decode_parms'] ?? null) !== true
+    || !in_array('decode_parms_alignment', $extraDecodeParmsBoundary['invalid_decode_parms_fields'] ?? [], true)
+    || str_contains($boundaryExtractor->extractPlainText($extraDecodeParmsPdf), 'WordPress extra CCITT DecodeParms leak')
+    || str_contains(json_encode($extraDecodeParmsReview, JSON_UNESCAPED_SLASHES) ?: '', $extraDecodeParmsPayload)
+) {
+    throw new RuntimeException('XObject extra CCITT DecodeParms boundary smoke failed.');
+}
+if (
     $invalidOwnerLines !== ['Before invalid-owner CCITT import', 'After invalid-owner CCITT import']
     || str_contains($boundaryExtractor->extractPlainText($invalidOwnerPdf), 'WordPress invalid-owner CCITT leak')
     || (($invalidOwnerEntry['raw_length'] ?? null) !== strlen($invalidOwnerPayload))
@@ -466,6 +511,12 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'inline_unresolved_decode_parms_review' => $unresolvedInlineParms['decode_parms_review'] ?? null,
     'inline_unresolved_decode_parms_operand' => $unresolvedInlineParms['decode_parms_operand'] ?? null,
     'inline_unresolved_payload_excluded_from_review' => !str_contains(json_encode($unresolvedInlineReview, JSON_UNESCAPED_SLASHES) ?: '', $unresolvedInlinePayload),
+    'inline_extra_decode_parms_valid' => $extraDecodeParmsInlineParms['valid_decode_parms'] ?? null,
+    'inline_extra_decode_parms_review' => $extraDecodeParmsInlineParms['decode_parms_review'] ?? null,
+    'inline_extra_decode_parms_alignment' => $extraDecodeParmsInlineParms['decode_parms_alignment'] ?? null,
+    'inline_extra_decode_parms_unapplied_slots' => $extraDecodeParmsInlineParms['unapplied_decode_parms_slots'] ?? [],
+    'inline_extra_decode_parms_fail_closed' => ($extraDecodeParmsInlineBoundary['invalid_decode_parms'] ?? null) === true,
+    'inline_extra_payload_excluded_from_review' => !str_contains(json_encode($extraDecodeParmsInlineReview, JSON_UNESCAPED_SLASHES) ?: '', $extraDecodeParmsInlinePayload),
     'inline_effective_decode_parms' => $inlineGeometryBoundary['effective_decode_parms'] ?? [],
     'inline_geometry_dimension_mismatch' => $inlineGeometryBoundary['dimension_mismatch'] ?? null,
     'inline_geometry_defaults_applied' => $inlineGeometryBoundary['defaults_applied'] ?? [],
@@ -538,6 +589,13 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'xobject_unresolved_decode_parms_operand' => $unresolvedXobjectParms['decode_parms_operand'] ?? null,
     'xobject_unresolved_payload_excluded_from_review' => !str_contains(json_encode($unresolvedXobjectReview, JSON_UNESCAPED_SLASHES) ?: '', $unresolvedXobjectPayload),
     'xobject_unresolved_payload_excluded_from_text' => !str_contains($boundaryExtractor->extractPlainText($unresolvedXobjectPdf), 'WordPress unresolved CCITT DecodeParms leak'),
+    'xobject_extra_decode_parms_valid' => $extraDecodeParmsParms['valid_decode_parms'] ?? null,
+    'xobject_extra_decode_parms_review' => $extraDecodeParmsParms['decode_parms_review'] ?? null,
+    'xobject_extra_decode_parms_alignment' => $extraDecodeParmsParms['decode_parms_alignment'] ?? null,
+    'xobject_extra_decode_parms_unapplied_slots' => $extraDecodeParmsParms['unapplied_decode_parms_slots'] ?? [],
+    'xobject_extra_decode_parms_fail_closed' => ($extraDecodeParmsBoundary['invalid_decode_parms'] ?? null) === true,
+    'xobject_extra_payload_excluded_from_review' => !str_contains(json_encode($extraDecodeParmsReview, JSON_UNESCAPED_SLASHES) ?: '', $extraDecodeParmsPayload),
+    'xobject_extra_payload_excluded_from_text' => !str_contains($boundaryExtractor->extractPlainText($extraDecodeParmsPdf), 'WordPress extra CCITT DecodeParms leak'),
     'xobject_invalid_owner_decode_parms_valid' => $invalidOwnerParms['valid_decode_parms'] ?? null,
     'xobject_invalid_owner_decode_parms_review' => $invalidOwnerParms['decode_parms_review'] ?? null,
     'xobject_invalid_owner_invalid_fields' => $invalidOwnerParms['invalid_decode_parms_fields'] ?? [],

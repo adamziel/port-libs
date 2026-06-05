@@ -6753,7 +6753,7 @@ final class PdfTextExtractor
      * @param list<string|null> $filters
      * @param list<string|null>|null $decodeParms
      * @param array<int, string> $objects
-     * @return list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null|list<string>>|null}>
+     * @return list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null|list<int>|list<string>>|null}>
      */
     private function imageXObjectFilterDetails(
         array $filters,
@@ -6786,13 +6786,84 @@ final class PdfTextExtractor
                 'decode_parms' => ($decodeParmsValue === null && $decodeParmsOperandFailure !== null && ($filter === 'CCITTFaxDecode' || $filter === 'CCF'))
                     ? $decodeParmsOperandFailure
                     : (
-                        $this->imageXObjectFilterDecodeParms($filter, $decodeParmsValue, $objects)
+                        $this->ccittFaxUnappliedDecodeParmsReview($filter, $filters, $decodeParms ?? [])
+                        ?? $this->imageXObjectFilterDecodeParms($filter, $decodeParmsValue, $objects)
                         ?? $this->ccittFaxUnalignedDecodeParmsReview($filter, $filters, $decodeParms ?? [], $decodeParmsIndex)
                     ),
             ];
         }
 
         return $details;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @param list<string|null> $decodeParms
+     * @return array<string, int|bool|string|null|list<int>|list<string>>|null
+     */
+    private function ccittFaxUnappliedDecodeParmsReview(string $filter, array $filters, array $decodeParms): ?array
+    {
+        if ($filter !== 'CCITTFaxDecode' && $filter !== 'CCF') {
+            return null;
+        }
+
+        $unappliedSlots = $this->unappliedNonNullDecodeParmsSlots($filters, $decodeParms);
+        if ($unappliedSlots === []) {
+            return null;
+        }
+
+        return [
+            'type' => 'CCITTFaxDecode',
+            'k' => null,
+            'columns' => null,
+            'rows' => null,
+            'black_is_1' => null,
+            'encoded_byte_align' => null,
+            'end_of_line' => null,
+            'end_of_block' => null,
+            'damaged_rows_before_error' => null,
+            'valid_decode_parms' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_alignment'],
+            'decode_parms_review' => 'unaligned_ccitt_decodeparms_fail_closed',
+            'decode_parms_alignment' => 'unapplied_filter_slot',
+            'filter_slot_count' => count($filters),
+            'decode_parms_slot_count' => count($decodeParms),
+            'unapplied_decode_parms_slots' => $unappliedSlots,
+        ];
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @param list<string|null> $decodeParms
+     * @return list<int>
+     */
+    private function unappliedNonNullDecodeParmsSlots(array $filters, array $decodeParms): array
+    {
+        $nonNullFilterIndexes = [];
+        foreach ($filters as $filterIndex => $filter) {
+            if (is_string($filter)) {
+                $nonNullFilterIndexes[] = $filterIndex;
+            }
+        }
+
+        if ($this->decodeParmsUseCompactNonNullFilterIndexes($filters, count($decodeParms), $nonNullFilterIndexes)) {
+            return [];
+        }
+
+        $slots = [];
+        foreach ($decodeParms as $decodeParmsIndex => $value) {
+            if ($value === null || trim($value) === '') {
+                continue;
+            }
+
+            if (array_key_exists($decodeParmsIndex, $filters)) {
+                continue;
+            }
+
+            $slots[] = $decodeParmsIndex;
+        }
+
+        return $slots;
     }
 
     /**
