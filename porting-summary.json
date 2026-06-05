@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 15:03:20 UTC",
-    "sourceCommit": "8088230c0cb25451cb939cf28f00ed666465e77b",
-    "sourceCommitShort": "8088230c0cb2",
+    "generated": "2026-06-05 15:04:58 UTC",
+    "sourceCommit": "5e277f7985f08bbea655de828433799334fd1a1e",
+    "sourceCommitShort": "5e277f7985f0",
     "sourceBranch": "unknown",
-    "dashboardCommit": "8088230c0cb25451cb939cf28f00ed666465e77b",
-    "dashboardCommitShort": "8088230c0cb2",
+    "dashboardCommit": "5e277f7985f08bbea655de828433799334fd1a1e",
+    "dashboardCommitShort": "5e277f7985f0",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -91,9 +91,9 @@
             "coverage": "738 / 78 (946.2%)",
             "mapPercent": "946.2%",
             "unmapped": "0",
-            "php": "2,016 pass / 0 fail",
-            "phase": "native no-GPU markerPDF scope; isolated embedded-files attachment nam...",
-            "audit": "2026-06-05 UTC isolated embedded-files attachment name-tree EF fallba...",
+            "php": "2,017 pass / 0 fail",
+            "phase": "native no-GPU markerPDF scope; isolated PageLabels prefix name scalar...",
+            "audit": "2026-06-05 UTC isolated PageLabels prefix name scalar boundary slice...",
             "currentWork": "MarkerPDF is supervised as a native PHP searchable-PDF parser/converter plus supplied...",
             "nextTarget": "After this patch is accepted, continue native no-GPU markerPD...",
             "remainingGate": "No GPU/model execution will be run for markerPDF under current user d...",

@@ -9625,13 +9625,10 @@ final class PdfTextExtractor
             return $this->pageLabelTextStringValue($objectBody, $objects, $seen);
         }
 
-        return $this->pageLabelSingleTextStringValue($value, $objects);
+        return $this->pageLabelSingleTextStringValue($value);
     }
 
-    /**
-     * @param array<int, string> $objects
-     */
-    private function pageLabelSingleTextStringValue(string $value, array $objects): ?string
+    private function pageLabelSingleTextStringValue(string $value): ?string
     {
         $offset = $this->skipPdfWhitespace($value, 0);
         if ($offset >= strlen($value)) {
@@ -9648,7 +9645,18 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->pdfTextStringValue(substr($value, $offset, $endOffset - $offset), $objects);
+        $token = substr($value, $offset, $endOffset - $offset);
+        if (($token[0] ?? '') === '(') {
+            $raw = $this->readPdfLiteralStringAt($token, 0);
+            return $raw === null ? null : $this->decodePdfTextStringBytes($this->decodeLiteralString($raw));
+        }
+
+        if (($token[0] ?? '') === '<' && substr($token, 0, 2) !== '<<') {
+            $bytes = $this->readPdfHexStringAt($token, 0);
+            return $bytes === null ? null : $this->decodePdfTextStringBytes($bytes);
+        }
+
+        return null;
     }
 
     /**
