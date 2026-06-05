@@ -17594,7 +17594,7 @@ final class PdfTextExtractor
                 $horizontalScale
             );
             if ($endX !== null && is_finite($endX)) {
-                return max(1.0, $endX);
+                return max(1.0, abs($endX));
             }
         }
 
