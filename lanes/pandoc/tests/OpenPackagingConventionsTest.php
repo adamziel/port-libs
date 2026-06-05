@@ -999,11 +999,59 @@ XML;
 
         $t->same('../../evil.xml', $preflight['rIdEscape']['target']);
         $t->same(false, $preflight['rIdEscape']['valid']);
-        $t->same(['invalid-target'], $preflight['rIdEscape']['issues']);
+        $t->same(['invalid-target', 'internal-target-package-root-traversal'], $preflight['rIdEscape']['issues']);
 
         $imagePreflight = $graph->preflightTargetsForSource('/word/document.xml', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image');
         $t->same(['rIdMissingImage', 'rIdEscape'], array_column($imagePreflight, 'id'));
         $t->same([], $graph->preflightTargetsForSource('/word/missing.xml'));
+    },
+    'classifies invalid internal OPC relationship target URI references' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdAbsoluteUri" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://example.test/review.png"/>
+  <Relationship Id="rIdAuthority" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="//cdn.example.test/review.png"/>
+  <Relationship Id="rIdTraversal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../../evil.xml"/>
+  <Relationship Id="rIdBadEscape" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/bad%ZZ.png"/>
+  <Relationship Id="rIdEncodedSlash" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media%2Fhidden.png"/>
+  <Relationship Id="rIdEncodedBackslash" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media%5Chidden.png"/>
+  <Relationship Id="rIdEncodedNul" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media%00hidden.png"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $preflight = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $preflight[$target['id']] = $target;
+        }
+
+        $t->same([
+            'rIdAbsoluteUri',
+            'rIdAuthority',
+            'rIdTraversal',
+            'rIdBadEscape',
+            'rIdEncodedSlash',
+            'rIdEncodedBackslash',
+            'rIdEncodedNul',
+        ], array_keys($preflight));
+        $t->same(['invalid-target', 'internal-target-absolute-uri'], $preflight['rIdAbsoluteUri']['issues']);
+        $t->same(['invalid-target', 'internal-target-network-path-reference'], $preflight['rIdAuthority']['issues']);
+        $t->same(['invalid-target', 'internal-target-package-root-traversal'], $preflight['rIdTraversal']['issues']);
+        $t->same(['invalid-target', 'internal-target-malformed-percent-escape'], $preflight['rIdBadEscape']['issues']);
+        $t->same(['invalid-target', 'internal-target-unsafe-percent-encoded-path-byte'], $preflight['rIdEncodedSlash']['issues']);
+        $t->same(['invalid-target', 'internal-target-unsafe-percent-encoded-path-byte'], $preflight['rIdEncodedBackslash']['issues']);
+        $t->same(['invalid-target', 'internal-target-unsafe-percent-encoded-path-byte'], $preflight['rIdEncodedNul']['issues']);
+        $t->same(array_fill(0, 7, null), array_column(array_filter(
+            $graph->preflightAllRelationshipTargets(),
+            static fn (array $target): bool => $target['source'] === '/word/document.xml',
+        ), 'targetPart'));
+        $t->same(array_fill(0, 7, false), array_column($preflight, 'valid'));
     },
     'classifies and preflights external OPC relationship target policies' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $documentRelationshipsXml = <<<'XML'
@@ -2798,7 +2846,7 @@ XML;
         $t->same(true, $closureById['rIdRelsTarget']['relationshipPartTarget']);
         $t->same(['targets-relationship-part'], $closureById['rIdRelsTarget']['issues']);
         $t->same(null, $closureById['rIdEscape']['targetPart']);
-        $t->same(['invalid-target'], $closureById['rIdEscape']['issues']);
+        $t->same(['invalid-target', 'internal-target-package-root-traversal'], $closureById['rIdEscape']['issues']);
         $t->same(false, isset($closureById['rIdNeverTraversed']));
     },
     'guards cyclic OPC relationship closure traversal' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {

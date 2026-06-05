@@ -400,7 +400,11 @@ final class OpcRelationshipGraph
             try {
                 $target = $relationships->resolveTarget($relationship);
             } catch (\InvalidArgumentException $exception) {
-                $issues = array_values(array_unique(array_merge($typePreflight['issues'], ['invalid-target'])));
+                $issues = array_values(array_unique(array_merge(
+                    $typePreflight['issues'],
+                    ['invalid-target'],
+                    self::internalTargetIssues($relationship->target, $exception->getMessage()),
+                )));
                 $preflight[] = [
                     'id' => $relationship->id,
                     'type' => $relationship->type,
@@ -1859,6 +1863,59 @@ final class OpcRelationshipGraph
         if (!in_array($value, $values, true)) {
             $values[] = $value;
         }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function internalTargetIssues(string $target, string $parseError): array
+    {
+        $issues = [];
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $target) === 1) {
+            self::appendUniqueString($issues, 'internal-target-absolute-uri');
+        }
+
+        if (str_starts_with($target, '//')) {
+            self::appendUniqueString($issues, 'internal-target-network-path-reference');
+        }
+
+        if (str_contains($target, "\0") || str_contains($target, '\\')) {
+            self::appendUniqueString($issues, 'internal-target-unsafe-path-byte');
+        }
+
+        if (preg_match('/%(?![0-9A-Fa-f]{2})/', $target) === 1) {
+            self::appendUniqueString($issues, 'internal-target-malformed-percent-escape');
+        } elseif (self::internalTargetContainsUnsafePercentEncodedPathByte($target)) {
+            self::appendUniqueString($issues, 'internal-target-unsafe-percent-encoded-path-byte');
+        }
+
+        if (str_contains($parseError, 'traverse above the package root')) {
+            self::appendUniqueString($issues, 'internal-target-package-root-traversal');
+        }
+
+        if (str_contains($parseError, 'target path must not be empty') || str_contains($parseError, 'target must not be empty')) {
+            self::appendUniqueString($issues, 'internal-target-empty-path');
+        }
+
+        return $issues;
+    }
+
+    private static function internalTargetContainsUnsafePercentEncodedPathByte(string $target): bool
+    {
+        $split = strcspn($target, '?#');
+        $path = substr($target, 0, $split);
+        if ($path === '') {
+            return false;
+        }
+
+        foreach (explode('/', $path) as $segment) {
+            $decoded = rawurldecode($segment);
+            if (str_contains($decoded, "\0") || str_contains($decoded, '/') || str_contains($decoded, '\\')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

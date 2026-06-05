@@ -318,6 +318,46 @@ $caseEquivalentTargets = [
     'closure' => $caseEquivalentTargetClosure,
 ];
 
+$internalTargetDiagnosticsContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+$internalTargetDiagnosticsRootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+$internalTargetDiagnosticsDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdAbsoluteUri" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://example.test/review.png"/>
+  <Relationship Id="rIdEncodedSlash" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media%2Fhidden.png"/>
+</Relationships>
+XML;
+
+$internalTargetDiagnosticsGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => $internalTargetDiagnosticsContentTypesXml],
+    ['name' => '_rels/.rels', 'data' => $internalTargetDiagnosticsRootRelationshipsXml],
+    ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => 'word/_rels/document.xml.rels', 'data' => $internalTargetDiagnosticsDocumentRelationshipsXml],
+]));
+$internalTargetDiagnostics = [];
+foreach ($internalTargetDiagnosticsGraph->preflightTargetsForSource('/word/document.xml') as $target) {
+    $internalTargetDiagnostics[$target['id']] = [
+        'id' => $target['id'],
+        'target' => $target['target'],
+        'targetPart' => $target['external'] || in_array('invalid-target', $target['issues'], true)
+            ? null
+            : OpcPackagePath::stripQueryAndFragment($target['target']),
+        'valid' => $target['valid'],
+        'issues' => $target['issues'],
+    ];
+}
+
 $relationshipSourceAliasGraphRejected = false;
 try {
     OpcRelationshipGraph::fromPackage($relationshipSourceAliasPackage);
@@ -739,6 +779,7 @@ $summary = [
         'contentTypeOverrideCaseLookup' => $caseEquivalentTypes->contentTypeForPart('/word/document.xml'),
         'contentTypeOverrideDuplicateRejected' => $caseEquivalentOverrideDuplicateRejected,
         'caseEquivalentTargets' => $caseEquivalentTargets,
+        'internalTargetDiagnostics' => $internalTargetDiagnostics,
     ],
     'relationshipSourceAliasGuards' => $relationshipSourceAliasGuards,
     'partNameCaseCollisionGuards' => $partNameCaseCollisionGuards,
@@ -907,6 +948,12 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['caseEquivalentTargets']['closure']['rIdStyles']['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml'
         || ($summary['integrity']['caseEquivalentTargets']['closure']['rIdStyles']['exists'] ?? null) !== true
         || ($summary['integrity']['caseEquivalentTargets']['closure']['rIdStyles']['valid'] ?? null) !== true
+        || ($summary['integrity']['internalTargetDiagnostics']['rIdAbsoluteUri']['targetPart'] ?? null) !== null
+        || ($summary['integrity']['internalTargetDiagnostics']['rIdAbsoluteUri']['valid'] ?? null) !== false
+        || ($summary['integrity']['internalTargetDiagnostics']['rIdAbsoluteUri']['issues'] ?? null) !== ['invalid-target', 'internal-target-absolute-uri']
+        || ($summary['integrity']['internalTargetDiagnostics']['rIdEncodedSlash']['targetPart'] ?? null) !== null
+        || ($summary['integrity']['internalTargetDiagnostics']['rIdEncodedSlash']['valid'] ?? null) !== false
+        || ($summary['integrity']['internalTargetDiagnostics']['rIdEncodedSlash']['issues'] ?? null) !== ['invalid-target', 'internal-target-unsafe-percent-encoded-path-byte']
         || array_keys($summary['relationshipSourceAliasGuards'] ?? []) !== [
             '/word/_rels/review%20source.xml.rels',
             '/word/_rels/review source.xml.rels',
