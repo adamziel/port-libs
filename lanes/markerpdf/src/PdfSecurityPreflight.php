@@ -214,15 +214,15 @@ final class PdfSecurityPreflight
         $recipientPermissionsDeclared = (int) ($publicKeyRecipientReview['recipient_count'] ?? 0) > 0;
         $selectedRecipientCount = (int) ($publicKeyRecipientReview['selected_recipient_count'] ?? 0);
         $permissionBitsReliable = $handlerSupported && !$standardParametersMalformed && $permissionWellFormed === true && $permissionWordRangeValid !== false;
-        $copyAllowed = $permissionsDecoded && $handlerSupported && !$standardParametersMalformed && !$permissionWordDuplicateEntries && $permissionWordRangeValid !== false
+        $copyAllowed = $permissionsDecoded && $permissionBitsReliable && !$permissionWordDuplicateEntries
             ? in_array('copy_or_extract', $allowed, true)
             : null;
-        $accessibilityAllowed = $permissionsDecoded && $handlerSupported && !$standardParametersMalformed && !$permissionWordDuplicateEntries && $permissionWordRangeValid !== false
+        $accessibilityAllowed = $permissionsDecoded && $permissionBitsReliable && !$permissionWordDuplicateEntries
             ? in_array('extract_for_accessibility', $allowed, true)
             : null;
-        $reviewAllowed = $handlerSupported && !$standardParametersMalformed && $permissionWordRangeValid !== false ? $allowed : [];
-        $reviewDenied = $handlerSupported && !$standardParametersMalformed && $permissionWordRangeValid !== false ? $denied : [];
-        $permissionBits = $handlerSupported && !$standardParametersMalformed && $permissionWordRangeValid !== false && is_array($permissions['permission_bits'] ?? null)
+        $reviewAllowed = $permissionBitsReliable ? $allowed : [];
+        $reviewDenied = $permissionBitsReliable ? $denied : [];
+        $permissionBits = $permissionBitsReliable && is_array($permissions['permission_bits'] ?? null)
             ? $permissions['permission_bits']
             : [];
         $permissionAuthenticationTrustReview = $this->standardPermissionAuthenticationTrustReview(
@@ -312,20 +312,20 @@ final class PdfSecurityPreflight
             'encrypt_metadata_declaration_review' => $encryptMetadataDeclarationReview,
             'allowed' => $reviewAllowed,
             'denied' => $reviewDenied,
-            'applicable_permission_names' => $handlerSupported && !$standardParametersMalformed && is_array($permissions['applicable_permission_names'] ?? null)
+            'applicable_permission_names' => $permissionBitsReliable && is_array($permissions['applicable_permission_names'] ?? null)
                 ? $permissions['applicable_permission_names']
                 : [],
-            'not_applicable_permission_names' => $handlerSupported && !$standardParametersMalformed && is_array($permissions['not_applicable_permission_names'] ?? null)
+            'not_applicable_permission_names' => $permissionBitsReliable && is_array($permissions['not_applicable_permission_names'] ?? null)
                 ? $permissions['not_applicable_permission_names']
                 : [],
             'permission_bit_review_count' => count($permissionBits),
-            'permission_bit_statuses' => $handlerSupported && !$standardParametersMalformed && is_array($permissions['permission_bit_statuses'] ?? null)
+            'permission_bit_statuses' => $permissionBitsReliable && is_array($permissions['permission_bit_statuses'] ?? null)
                 ? $permissions['permission_bit_statuses']
                 : [],
             'permission_bits' => $permissionBits,
             'copy_or_extract_allowed' => $copyAllowed,
             'accessibility_extract_allowed' => $accessibilityAllowed,
-            'print_quality' => $handlerSupported && !$standardParametersMalformed ? ($permissions['print_quality'] ?? null) : null,
+            'print_quality' => $permissionBitsReliable ? ($permissions['print_quality'] ?? null) : null,
             'permission_bits_reliable' => $permissionBitsReliable,
             'permission_authentication_trust_review' => $permissionAuthenticationTrustReview,
             'permission_bits_authentication_required' => (bool) ($permissionAuthenticationTrustReview['authentication_required'] ?? false),
@@ -1530,10 +1530,6 @@ final class PdfSecurityPreflight
         $permissionDigest = is_array($standardAuthenticationReview['permission_digest'] ?? null)
             ? $standardAuthenticationReview['permission_digest']
             : [];
-        $permissionBits = $standardHandler && $declared && !$standardParametersMalformed && $permissionWordRangeValid !== false && is_array($permissions['permission_bits'] ?? null)
-            ? $permissions['permission_bits']
-            : [];
-
         if (!$declared && $recipientPermissionsDeclared) {
             $status = 'public_key_recipient_permissions_undecoded_review';
             $reviewWellFormed = null;
@@ -1562,6 +1558,14 @@ final class PdfSecurityPreflight
             $status = 'well_formed_standard_permissions';
             $reviewWellFormed = true;
         }
+        $permissionBitsTrusted = $standardHandler
+            && $declared
+            && !$standardParametersMalformed
+            && $reviewWellFormed === true
+            && $permissionWordRangeValid !== false;
+        $permissionBits = $permissionBitsTrusted && is_array($permissions['permission_bits'] ?? null)
+            ? $permissions['permission_bits']
+            : [];
 
         return [
             'source' => 'permission_handler_review',
@@ -1593,14 +1597,14 @@ final class PdfSecurityPreflight
             'standard_security_handler_parameter_violations' => is_array($standardParameterReview['violations'] ?? null)
                 ? $standardParameterReview['violations']
                 : [],
-            'applicable_permission_names' => $standardHandler && $declared && !$standardParametersMalformed && is_array($permissions['applicable_permission_names'] ?? null)
+            'applicable_permission_names' => $permissionBitsTrusted && is_array($permissions['applicable_permission_names'] ?? null)
                 ? $permissions['applicable_permission_names']
                 : [],
-            'not_applicable_permission_names' => $standardHandler && $declared && !$standardParametersMalformed && is_array($permissions['not_applicable_permission_names'] ?? null)
+            'not_applicable_permission_names' => $permissionBitsTrusted && is_array($permissions['not_applicable_permission_names'] ?? null)
                 ? $permissions['not_applicable_permission_names']
                 : [],
             'permission_bit_review_count' => count($permissionBits),
-            'permission_bit_statuses' => $standardHandler && $declared && !$standardParametersMalformed && is_array($permissions['permission_bit_statuses'] ?? null)
+            'permission_bit_statuses' => $permissionBitsTrusted && is_array($permissions['permission_bit_statuses'] ?? null)
                 ? $permissions['permission_bit_statuses']
                 : [],
             'permission_bits' => $permissionBits,
@@ -5182,9 +5186,15 @@ final class PdfSecurityPreflight
             $reservedBits['violations'] ?? [],
             static fn (mixed $value): bool => is_string($value)
         ));
-        $reviewAllowed = $standardHandler && !$standardParametersMalformed && $permissionWordRangeValid !== false ? $allowed : [];
-        $reviewDenied = $standardHandler && !$standardParametersMalformed && $permissionWordRangeValid !== false ? $denied : [];
-        $permissionBits = $standardHandler && !$standardParametersMalformed && $permissionWordRangeValid !== false && is_array($permissions['permission_bits'] ?? null)
+        $permissionBitsReliable = $standardHandler
+            && $permissions !== []
+            && !$standardParametersMalformed
+            && $permissionWellFormed === true
+            && !$permissionWordDuplicateEntries
+            && $permissionWordRangeValid !== false;
+        $reviewAllowed = $permissionBitsReliable ? $allowed : [];
+        $reviewDenied = $permissionBitsReliable ? $denied : [];
+        $permissionBits = $permissionBitsReliable && is_array($permissions['permission_bits'] ?? null)
             ? $permissions['permission_bits']
             : [];
         $publicKeyRecipientReview = is_array($encryption['public_key_recipient_review'] ?? null)
@@ -5201,11 +5211,6 @@ final class PdfSecurityPreflight
         $cryptFilterRoleDeclarationReview = is_array($encryption['crypt_filter_role_declaration_review'] ?? null)
             ? $encryption['crypt_filter_role_declaration_review']
             : [];
-        $permissionBitsReliable = $standardHandler
-            && $permissions !== []
-            && !$standardParametersMalformed
-            && $permissionWellFormed === true
-            && $permissionWordRangeValid !== false;
         $permissionAuthenticationTrustReview = $this->standardPermissionAuthenticationTrustReview(
             $encryption,
             $standardHandler,
@@ -5255,24 +5260,24 @@ final class PdfSecurityPreflight
             'standard_security_handler_parameter_violations' => is_array($standardParameterReview['violations'] ?? null)
                 ? $standardParameterReview['violations']
                 : [],
-            'applicable_permission_names' => $standardHandler && !$standardParametersMalformed && is_array($permissions['applicable_permission_names'] ?? null)
+            'applicable_permission_names' => $permissionBitsReliable && is_array($permissions['applicable_permission_names'] ?? null)
                 ? $permissions['applicable_permission_names']
                 : [],
-            'not_applicable_permission_names' => $standardHandler && !$standardParametersMalformed && is_array($permissions['not_applicable_permission_names'] ?? null)
+            'not_applicable_permission_names' => $permissionBitsReliable && is_array($permissions['not_applicable_permission_names'] ?? null)
                 ? $permissions['not_applicable_permission_names']
                 : [],
             'permission_bit_review_count' => count($permissionBits),
-            'permission_bit_statuses' => $standardHandler && !$standardParametersMalformed && is_array($permissions['permission_bit_statuses'] ?? null)
+            'permission_bit_statuses' => $permissionBitsReliable && is_array($permissions['permission_bit_statuses'] ?? null)
                 ? $permissions['permission_bit_statuses']
                 : [],
             'permission_bits' => $permissionBits,
-            'copy_or_extract_allowed' => $standardHandler && $permissions !== [] && !$standardParametersMalformed && !$permissionWordDuplicateEntries && $permissionWordRangeValid !== false
+            'copy_or_extract_allowed' => $permissionBitsReliable
                 ? in_array('copy_or_extract', $allowed, true)
                 : null,
-            'accessibility_extract_allowed' => $standardHandler && $permissions !== [] && !$standardParametersMalformed && !$permissionWordDuplicateEntries && $permissionWordRangeValid !== false
+            'accessibility_extract_allowed' => $permissionBitsReliable
                 ? in_array('extract_for_accessibility', $allowed, true)
                 : null,
-            'print_quality' => $standardHandler && !$standardParametersMalformed ? ($permissions['print_quality'] ?? null) : null,
+            'print_quality' => $permissionBitsReliable ? ($permissions['print_quality'] ?? null) : null,
             'permission_word_status' => $permissionWordDuplicateEntries
                 ? 'duplicate_standard_permission_entries_review'
                 : ($permissions['permission_word_status'] ?? (
