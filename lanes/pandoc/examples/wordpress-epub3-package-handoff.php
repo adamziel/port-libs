@@ -233,6 +233,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if ($result['metadata']['title'] !== 'WordPress EPUB source packet') {
         throw new RuntimeException('Expected EPUB OPF title metadata');
     }
+    if (($result['metadata']['uniqueIdentifier']['id'] ?? null) !== 'source-id' || ($result['metadata']['uniqueIdentifier']['value'] ?? null) !== 'urn:uuid:wordpress-epub-source') {
+        throw new RuntimeException('Expected EPUB OPF unique identifier binding to be preserved');
+    }
+    if (($result['metadata']['uniqueIdentifier']['valid'] ?? null) !== true || ($result['metadata']['uniqueIdentifier']['diagnostics'] ?? null) !== []) {
+        throw new RuntimeException('Expected EPUB OPF unique identifier binding to avoid review diagnostics');
+    }
+    if (($result['package']['uniqueIdentifier']['selectedBy'] ?? null) !== 'unique-identifier') {
+        throw new RuntimeException('Expected EPUB package report to expose the canonical identifier source');
+    }
+    $missingIdentifierParts = $packageParts;
+    $missingIdentifierParts[3]['data'] = str_replace('unique-identifier="source-id"', 'unique-identifier="missing-id"', $opfXml);
+    $missingIdentifierResult = $reader->readPackage(ZipPackage::fromParts($missingIdentifierParts));
+    if (($missingIdentifierResult['metadata']['uniqueIdentifier']['diagnostics'][0]['type'] ?? null) !== 'unique-identifier-not-found') {
+        throw new RuntimeException('Expected unresolved EPUB unique identifier to remain a review diagnostic');
+    }
+    if (($missingIdentifierResult['metadata']['uniqueIdentifier']['value'] ?? null) !== 'urn:uuid:wordpress-epub-source') {
+        throw new RuntimeException('Expected unresolved EPUB unique identifier to keep first dc:identifier fallback visible');
+    }
     if (($result['package']['prefixes']['schema'] ?? null) !== 'https://schema.org/' || ($result['package']['prefixes']['marc'] ?? null) !== 'http://id.loc.gov/vocabulary/relators/') {
         throw new RuntimeException('Expected EPUB OPF prefix declarations to be preserved for metadata vocabulary review');
     }
@@ -577,6 +595,9 @@ if (($argv[1] ?? '') === '--self-test') {
 echo "EPUB3 package handoff for WordPress import:\n";
 echo 'title=' . $result['metadata']['title'] . "\n";
 echo 'identifier=' . $result['metadata']['identifier'] . "\n";
+echo 'uniqueIdentifierId=' . ($result['metadata']['uniqueIdentifier']['id'] ?? '') . "\n";
+echo 'uniqueIdentifierSelectedBy=' . ($result['metadata']['uniqueIdentifier']['selectedBy'] ?? '') . "\n";
+echo 'uniqueIdentifierDiagnostics=' . count($result['metadata']['uniqueIdentifier']['diagnostics'] ?? []) . "\n";
 echo 'opfPart=' . $result['opfPart'] . "\n";
 echo 'opfPrefixes=' . implode(',', array_keys($result['package']['prefixes'] ?? [])) . "\n";
 echo 'schemaPrefix=' . ($result['package']['prefixes']['schema'] ?? '') . "\n";

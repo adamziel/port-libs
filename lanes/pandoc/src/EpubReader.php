@@ -337,6 +337,7 @@ final class EpubReader
                 'id' => $packageId,
                 'version' => trim($root->getAttribute('version')),
                 'uniqueIdentifierId' => $uniqueIdentifier === '' ? null : $uniqueIdentifier,
+                'uniqueIdentifier' => $metadata['uniqueIdentifier'],
                 'opfPart' => $opfPart,
                 'language' => self::xmlLang($root),
                 'refinements' => self::metadataRefinementsForId($refinementsById, $packageId),
@@ -668,14 +669,17 @@ final class EpubReader
     /**
      * @return array<string, mixed>
      */
-    private function readMetadata(\DOMElement $metadataElement, string $uniqueIdentifier): array
+    private function readMetadata(
+        \DOMElement $metadataElement,
+        string $uniqueIdentifier,
+        bool $requireUniqueIdentifier = true
+    ): array
     {
         $dc = [];
         $metaProperties = [];
         $metaNames = [];
         $links = [];
         $raw = [];
-        $uniqueIdentifierValue = null;
 
         foreach (self::childElements($metadataElement) as $child) {
             $text = self::normalizedText($child);
@@ -690,9 +694,6 @@ final class EpubReader
                 ];
                 $dc[$name][] = $entry;
                 $raw[] = ['type' => 'dc'] + $entry;
-                if ($uniqueIdentifier !== '' && $entry['id'] === $uniqueIdentifier && $name === 'identifier') {
-                    $uniqueIdentifierValue = $text;
-                }
                 continue;
             }
 
@@ -748,12 +749,14 @@ final class EpubReader
             static fn (array $entry): string => $entry['text'],
             $dc['identifier'] ?? []
         );
+        $uniqueIdentifierReport = self::uniqueIdentifierReport($uniqueIdentifier, $dc, $requireUniqueIdentifier);
 
         $metadata = [
             'title' => $dc['title'][0]['text'] ?? '',
             'creators' => array_map(static fn (array $entry): string => $entry['text'], $dc['creator'] ?? []),
             'language' => $dc['language'][0]['text'] ?? null,
-            'identifier' => $uniqueIdentifierValue ?? ($identifiers[0] ?? null),
+            'identifier' => $uniqueIdentifierReport['value'],
+            'uniqueIdentifier' => $uniqueIdentifierReport,
             'identifiers' => $identifiers,
             'subjects' => array_map(static fn (array $entry): string => $entry['text'], $dc['subject'] ?? []),
             'description' => $dc['description'][0]['text'] ?? null,
@@ -772,6 +775,109 @@ final class EpubReader
         $metadata['accessibility'] = self::accessibilityMetadataReport($metadata);
 
         return $metadata;
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $dc
+     *
+     * @return array<string, mixed>
+     */
+    private static function uniqueIdentifierReport(string $uniqueIdentifierId, array $dc, bool $required): array
+    {
+        $id = trim($uniqueIdentifierId);
+        $specified = $id !== '';
+        $identifierEntries = [];
+        foreach ($dc['identifier'] ?? [] as $index => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $identifierEntries[] = self::identifierReportEntry($entry, (int) $index);
+        }
+
+        $matchedEntries = [];
+        if ($specified) {
+            foreach ($identifierEntries as $entry) {
+                if (($entry['id'] ?? null) === $id) {
+                    $matchedEntries[] = $entry;
+                }
+            }
+        }
+
+        $value = null;
+        $selectedBy = null;
+        if ($matchedEntries !== []) {
+            $value = (string) $matchedEntries[0]['text'];
+            $selectedBy = 'unique-identifier';
+        } elseif ($identifierEntries !== []) {
+            $value = (string) $identifierEntries[0]['text'];
+            $selectedBy = 'first-dc-identifier';
+        }
+
+        $diagnostics = [];
+        if ($required && !$specified) {
+            $diagnostics[] = [
+                'type' => 'missing-unique-identifier',
+                'message' => 'EPUB OPF package is missing the unique-identifier attribute',
+            ];
+        }
+        if ($specified && $matchedEntries === []) {
+            $diagnostics[] = [
+                'type' => 'unique-identifier-not-found',
+                'id' => $id,
+                'message' => 'EPUB OPF unique-identifier does not match any dc:identifier id',
+            ];
+        }
+        if ($required && $identifierEntries === []) {
+            $diagnostics[] = [
+                'type' => 'missing-dc-identifier',
+                'message' => 'EPUB OPF metadata does not contain a dc:identifier entry',
+            ];
+        }
+        if (count($matchedEntries) > 1) {
+            $diagnostics[] = [
+                'type' => 'duplicate-unique-identifier-id',
+                'id' => $id,
+                'values' => array_map(
+                    static fn (array $entry): string => (string) $entry['text'],
+                    $matchedEntries
+                ),
+                'message' => 'EPUB OPF metadata contains multiple dc:identifier entries with the unique-identifier id',
+            ];
+        }
+
+        return [
+            'specified' => $specified,
+            'id' => $specified ? $id : null,
+            'present' => $value !== null,
+            'matched' => $matchedEntries !== [],
+            'value' => $value,
+            'selectedBy' => $selectedBy,
+            'identifierCount' => count($identifierEntries),
+            'matchCount' => count($matchedEntries),
+            'duplicateMatchCount' => max(0, count($matchedEntries) - 1),
+            'entries' => $identifierEntries,
+            'matchedEntries' => $matchedEntries,
+            'valid' => $diagnostics === [],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     *
+     * @return array<string, mixed>
+     */
+    private static function identifierReportEntry(array $entry, int $index): array
+    {
+        return [
+            'index' => $index,
+            'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+            'text' => (string) ($entry['text'] ?? ''),
+            'scheme' => is_string($entry['scheme'] ?? null) ? $entry['scheme'] : null,
+            'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+            'refinements' => is_array($entry['refinements'] ?? null) ? $entry['refinements'] : [],
+        ];
     }
 
     /**
@@ -2271,7 +2377,7 @@ final class EpubReader
             'role' => self::nullableAttribute($collectionElement, 'role'),
             'language' => self::xmlLang($collectionElement),
             'dir' => self::nullableAttribute($collectionElement, 'dir'),
-            'metadata' => $metadataElement instanceof \DOMElement ? $this->readMetadata($metadataElement, '') : [],
+            'metadata' => $metadataElement instanceof \DOMElement ? $this->readMetadata($metadataElement, '', false) : [],
             'links' => $links,
             'children' => $children,
         ];

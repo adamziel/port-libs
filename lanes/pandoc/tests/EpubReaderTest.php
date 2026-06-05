@@ -387,6 +387,82 @@ return [
         $t->contains('bad-prefix', $package['prefixDiagnostics'][0]['value']);
         $t->same($package, $result['importReport']['package']);
     },
+    'reports OPF unique identifier binding and diagnostics for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $reader = new EpubReader();
+        $result = $reader->readPackage($buildEpubPackage());
+        $identifier = $result['metadata']['uniqueIdentifier'];
+
+        $t->same(true, $identifier['specified']);
+        $t->same('pub-id', $identifier['id']);
+        $t->same(true, $identifier['matched']);
+        $t->same('urn:uuid:wp-epub-source-42', $identifier['value']);
+        $t->same('unique-identifier', $identifier['selectedBy']);
+        $t->same(1, $identifier['identifierCount']);
+        $t->same(1, $identifier['matchCount']);
+        $t->same(0, $identifier['duplicateMatchCount']);
+        $t->same(0, $identifier['matchedEntries'][0]['index']);
+        $t->same('pub-id', $identifier['matchedEntries'][0]['id']);
+        $t->same('urn:uuid:wp-epub-source-42', $identifier['matchedEntries'][0]['text']);
+        $t->same([], $identifier['diagnostics']);
+        $t->same($identifier, $result['package']['uniqueIdentifier']);
+        $t->same($identifier, $result['importReport']['metadata']['uniqueIdentifier']);
+        $t->same($identifier, $result['document']->attr('metadata')['uniqueIdentifier']);
+
+        $missingIdOpf = str_replace('unique-identifier="pub-id"', 'unique-identifier="missing-id"', $opfXml);
+        $missingResult = $reader->readPackage($buildEpubPackage($missingIdOpf));
+        $missingIdentifier = $missingResult['metadata']['uniqueIdentifier'];
+        $t->same(true, $missingIdentifier['specified']);
+        $t->same('missing-id', $missingIdentifier['id']);
+        $t->same(false, $missingIdentifier['matched']);
+        $t->same('urn:uuid:wp-epub-source-42', $missingIdentifier['value']);
+        $t->same('first-dc-identifier', $missingIdentifier['selectedBy']);
+        $t->same(1, $missingIdentifier['identifierCount']);
+        $t->same(0, $missingIdentifier['matchCount']);
+        $t->same('unique-identifier-not-found', $missingIdentifier['diagnostics'][0]['type']);
+        $t->same('missing-id', $missingIdentifier['diagnostics'][0]['id']);
+        $t->same($missingIdentifier, $missingResult['package']['uniqueIdentifier']);
+
+        $noUniqueIdOpf = str_replace(' unique-identifier="pub-id"', '', $opfXml);
+        $noUniqueResult = $reader->readPackage($buildEpubPackage($noUniqueIdOpf));
+        $noUniqueIdentifier = $noUniqueResult['metadata']['uniqueIdentifier'];
+        $t->same(false, $noUniqueIdentifier['specified']);
+        $t->same(null, $noUniqueIdentifier['id']);
+        $t->same(false, $noUniqueIdentifier['matched']);
+        $t->same('urn:uuid:wp-epub-source-42', $noUniqueIdentifier['value']);
+        $t->same('first-dc-identifier', $noUniqueIdentifier['selectedBy']);
+        $t->same('missing-unique-identifier', $noUniqueIdentifier['diagnostics'][0]['type']);
+        $t->same($noUniqueIdentifier, $noUniqueResult['document']->attr('metadata')['uniqueIdentifier']);
+
+        $duplicateIdOpf = str_replace(
+            '<dc:title>WordPress Import EPUB</dc:title>',
+            '<dc:identifier id="pub-id">urn:uuid:duplicate-review-copy</dc:identifier><dc:title>WordPress Import EPUB</dc:title>',
+            $opfXml
+        );
+        $duplicateResult = $reader->readPackage($buildEpubPackage($duplicateIdOpf));
+        $duplicateIdentifier = $duplicateResult['metadata']['uniqueIdentifier'];
+        $t->same(2, $duplicateIdentifier['identifierCount']);
+        $t->same(2, $duplicateIdentifier['matchCount']);
+        $t->same(1, $duplicateIdentifier['duplicateMatchCount']);
+        $t->same('urn:uuid:wp-epub-source-42', $duplicateIdentifier['value']);
+        $t->same('urn:uuid:duplicate-review-copy', $duplicateIdentifier['matchedEntries'][1]['text']);
+        $t->same('duplicate-unique-identifier-id', $duplicateIdentifier['diagnostics'][0]['type']);
+        $t->same(['urn:uuid:wp-epub-source-42', 'urn:uuid:duplicate-review-copy'], $duplicateIdentifier['diagnostics'][0]['values']);
+
+        $withoutIdentifierOpf = str_replace(
+            '    <dc:identifier id="pub-id">urn:uuid:wp-epub-source-42</dc:identifier>' . "\n",
+            '',
+            $opfXml
+        );
+        $withoutIdentifierResult = $reader->readPackage($buildEpubPackage($withoutIdentifierOpf));
+        $withoutIdentifier = $withoutIdentifierResult['metadata']['uniqueIdentifier'];
+        $t->same(true, $withoutIdentifier['specified']);
+        $t->same('pub-id', $withoutIdentifier['id']);
+        $t->same(null, $withoutIdentifier['value']);
+        $t->same(null, $withoutIdentifier['selectedBy']);
+        $t->same(0, $withoutIdentifier['identifierCount']);
+        $t->same('unique-identifier-not-found', $withoutIdentifier['diagnostics'][0]['type']);
+        $t->same('missing-dc-identifier', $withoutIdentifier['diagnostics'][1]['type']);
+    },
     'reports OPF spine page progression direction and itemref spread properties' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithReadingOrder = str_replace(
             '<spine toc="toc">',
