@@ -1098,6 +1098,49 @@ $embeddedObjectDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$settingsContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
+</Types>
+XML;
+
+$settingsDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
+</Relationships>
+XML;
+
+$settingsRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdTemplate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" Target="file:///C:/source-templates/review.dotx" TargetMode="External"/>
+</Relationships>
+XML;
+
+$settingsXml = <<<'XML'
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:trackRevisions/>
+  <w:doNotTrackMoves/>
+  <w:doNotTrackFormatting w:val="0"/>
+  <w:evenAndOddHeaders/>
+  <w:updateFields w:val="true"/>
+  <w:documentProtection w:edit="readOnly" w:enforcement="1" w:cryptProviderType="rsaFull" w:cryptAlgorithmClass="hash" w:cryptAlgorithmType="typeAny" w:cryptAlgorithmSid="14" w:cryptSpinCount="100000"/>
+  <w:proofState w:spelling="clean" w:grammar="dirty"/>
+  <w:zoom w:percent="125"/>
+  <w:defaultTabStop w:val="720"/>
+  <w:decimalSymbol w:val=","/>
+  <w:listSeparator w:val=";"/>
+  <w:attachedTemplate r:id="rIdTemplate"/>
+  <w:compat>
+    <w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/>
+    <w:compatSetting w:name="overrideTableStyleFontSizeAndJustification" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/>
+  </w:compat>
+</w:settings>
+XML;
+
 $buildDocxPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $documentXml, $footnotesXml, $corePropertiesXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -1406,6 +1449,23 @@ $buildEmbeddedObjectPackage = static function () use (
         ['name' => 'word/_rels/document.xml.rels', 'data' => $embeddedObjectDocumentRelationshipsXml],
         ['name' => 'word/embeddings/oleObject1.bin', 'data' => 'OLEWORKBOOK'],
         ['name' => 'word/embeddings/source-audit.xlsx', 'data' => 'XLSXPACKAGE'],
+    ]);
+};
+
+$buildSettingsPackage = static function () use (
+    $settingsContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $settingsDocumentRelationshipsXml,
+    $settingsRelationshipsXml,
+    $settingsXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $settingsContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Settings packet body.</w:t></w:r></w:p></w:body></w:document>'],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $settingsDocumentRelationshipsXml],
+        ['name' => 'word/settings.xml', 'data' => $settingsXml],
+        ['name' => 'word/_rels/settings.xml.rels', 'data' => $settingsRelationshipsXml],
     ]);
 };
 
@@ -2887,6 +2947,57 @@ return [
         $t->same(false, $embeddedObjects['items'][2]['exists']);
         $t->same(null, $embeddedObjects['items'][2]['bytes']);
         $t->same(['missing-in-package'], $embeddedObjects['items'][2]['issues']);
+    },
+    'reports DOCX document settings policy metadata and attached template relationships' => static function (TestRunner $t) use ($buildSettingsPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildSettingsPackage());
+        $document = $result['document'];
+        $settings = $result['metadata']['docxSettings'];
+
+        $t->same('Settings packet body.', $document->children[0]->children[0]->attr('text'));
+        $t->same('/word/settings.xml', $settings['part']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml', $settings['contentType']);
+        $t->same('rIdSettings', $settings['relationship']['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings', $settings['relationship']['type']);
+        $t->same('/word/settings.xml', $settings['relationship']['target']);
+        $t->same(false, $settings['relationship']['external']);
+        $t->same(true, $settings['relationship']['exists']);
+        $t->same(true, $settings['trackRevisions']);
+        $t->same(true, $settings['doNotTrackMoves']);
+        $t->same(false, $settings['doNotTrackFormatting']);
+        $t->same(true, $settings['evenAndOddHeaders']);
+        $t->same(true, $settings['updateFields']);
+        $t->same(720, $settings['defaultTabStopTwips']);
+        $t->same(',', $settings['decimalSymbol']);
+        $t->same(';', $settings['listSeparator']);
+        $t->same(125, $settings['zoom']['percent']);
+        $t->same('clean', $settings['proofState']['spelling']);
+        $t->same('dirty', $settings['proofState']['grammar']);
+        $t->same('readOnly', $settings['documentProtection']['edit']);
+        $t->same(true, $settings['documentProtection']['enforcement']);
+        $t->same('rsaFull', $settings['documentProtection']['cryptProviderType']);
+        $t->same('hash', $settings['documentProtection']['cryptAlgorithmClass']);
+        $t->same('typeAny', $settings['documentProtection']['cryptAlgorithmType']);
+        $t->same(14, $settings['documentProtection']['cryptAlgorithmSid']);
+        $t->same(100000, $settings['documentProtection']['cryptSpinCount']);
+        $t->same(2, count($settings['compatibility']));
+        $t->same('compatibilityMode', $settings['compatibility'][0]['name']);
+        $t->same('http://schemas.microsoft.com/office/word', $settings['compatibility'][0]['uri']);
+        $t->same('15', $settings['compatibility'][0]['value']);
+        $t->same('overrideTableStyleFontSizeAndJustification', $settings['compatibility'][1]['name']);
+        $t->same('1', $settings['compatibility'][1]['value']);
+
+        $template = $settings['attachedTemplate'];
+        $t->same('rIdTemplate', $template['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate', $template['relationshipType']);
+        $t->same('file:///C:/source-templates/review.dotx', $template['target']);
+        $t->same(true, $template['external']);
+        $t->same('absolute-uri', $template['externalTargetKind']);
+        $t->same('file', $template['externalTargetScheme']);
+        $t->same(false, $template['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $template['issues']);
+
+        $t->same($settings, $result['importReport']['settings']);
     },
     'rejects malformed DOCX packages without shelling out to office tooling' => static function (TestRunner $t) use ($contentTypesXml, $documentXml): void {
         $reader = new DocxReader();

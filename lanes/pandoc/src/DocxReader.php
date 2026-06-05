@@ -28,6 +28,8 @@ final class DocxReader
     public const REL_TYPE_COMMENTS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
     public const REL_TYPE_STYLES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
     public const REL_TYPE_NUMBERING = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
+    public const REL_TYPE_SETTINGS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
+    public const REL_TYPE_ATTACHED_TEMPLATE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate';
     public const REL_TYPE_CORE_PROPERTIES = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
     public const REL_TYPE_ALTERNATIVE_FORMAT_IMPORT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
     public const REL_TYPE_CHART = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
@@ -85,6 +87,7 @@ final class DocxReader
         $documentRelationships = $graph->relationshipsForSource($documentPart);
         $relationshipPreflight = $graph->preflightTargetsForSource($documentPart);
         $reachableRelationships = $graph->reachableTargetsForSource($documentPart);
+        $settings = $this->readSettings($package, $graph, $documentPart);
         $referencedNotes = $this->loadReferencedNotes($package, $graph, $documentPart);
         $styles = $this->loadStyles($package, $graph, $documentPart);
         $numbering = $this->loadNumbering($package, $graph, $documentPart);
@@ -99,6 +102,9 @@ final class DocxReader
             $numbering,
         );
         $metadata = $this->readCoreProperties($package, $graph);
+        if ($settings !== []) {
+            $metadata['docxSettings'] = $settings;
+        }
 
         return [
             'document' => $document,
@@ -114,6 +120,7 @@ final class DocxReader
                 $document,
                 $this->revisionImportReport($documentXml),
                 $this->alternativeFormatImportReport($documentXml, $package, $documentRelationships),
+                $settings,
             ),
         ];
     }
@@ -123,6 +130,7 @@ final class DocxReader
      * @param list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}> $reachableRelationships
      * @param array{insertionCount:int, deletionCount:int, items:list<array{type:string, accepted:bool, id:?string, author:?string, date:?string, text:string}>} $revisions
      * @param array<string, mixed> $alternativeFormats
+     * @param array<string, mixed> $settings
      * @return array<string, mixed>
      */
     private function importReport(
@@ -133,7 +141,8 @@ final class DocxReader
         array $reachableRelationships,
         AstNode $document,
         array $revisions,
-        array $alternativeFormats
+        array $alternativeFormats,
+        array $settings
     ): array {
         $relationshipIssues = [];
         foreach ($reachableRelationships as $relationship) {
@@ -160,6 +169,7 @@ final class DocxReader
             'embeddedObjects' => $this->embeddedObjectImportReport($package, $reachableRelationships, $document),
             'alternativeFormats' => $alternativeFormats,
             'revisions' => $revisions,
+            'settings' => $settings,
             'sections' => [
                 'count' => count($document->attr('sectionProperties', [])),
                 'items' => $document->attr('sectionProperties', []),
@@ -4153,6 +4163,383 @@ final class DocxReader
         }
 
         return $properties;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readSettings(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart): array
+    {
+        $documentRelationships = $graph->relationshipsForSource($documentPart);
+        if (!$documentRelationships instanceof OpcRelationships) {
+            return [];
+        }
+
+        $relationship = $documentRelationships->firstOfType(self::REL_TYPE_SETTINGS);
+        if (!$relationship instanceof OpcRelationship) {
+            return [];
+        }
+
+        $relationshipSummary = $this->internalSupportPartRelationshipSummary(
+            $relationship,
+            $package,
+            $documentRelationships,
+        );
+
+        $settings = [
+            'part' => $relationshipSummary['targetPart'],
+            'contentType' => $relationshipSummary['contentType'],
+            'relationship' => $relationshipSummary,
+        ];
+
+        if ($relationshipSummary['exists'] !== true || !is_string($relationshipSummary['targetPart'])) {
+            $settings['issues'] = $relationshipSummary['issues'];
+
+            return $settings;
+        }
+
+        $dom = self::loadXml($package->read($relationshipSummary['targetPart']), 'DOCX settings XML');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || !$this->isWordElement($root, 'settings')) {
+            $settings['issues'] = ['invalid-settings-root'];
+
+            return $settings;
+        }
+
+        $settings += [
+            'trackRevisions' => $this->settingsOnOff($root, 'trackRevisions'),
+            'doNotTrackMoves' => $this->settingsOnOff($root, 'doNotTrackMoves'),
+            'doNotTrackFormatting' => $this->settingsOnOff($root, 'doNotTrackFormatting'),
+            'evenAndOddHeaders' => $this->settingsOnOff($root, 'evenAndOddHeaders'),
+            'updateFields' => $this->settingsOnOff($root, 'updateFields'),
+        ];
+
+        $defaultTabStop = $this->settingsIntChildValue($root, 'defaultTabStop');
+        if ($defaultTabStop !== null) {
+            $settings['defaultTabStopTwips'] = $defaultTabStop;
+        }
+
+        $decimalSymbol = $this->settingsStringChildValue($root, 'decimalSymbol');
+        if ($decimalSymbol !== null) {
+            $settings['decimalSymbol'] = $decimalSymbol;
+        }
+
+        $listSeparator = $this->settingsStringChildValue($root, 'listSeparator');
+        if ($listSeparator !== null) {
+            $settings['listSeparator'] = $listSeparator;
+        }
+
+        $zoom = $this->settingsZoom($root);
+        if ($zoom !== []) {
+            $settings['zoom'] = $zoom;
+        }
+
+        $proofState = $this->settingsProofState($root);
+        if ($proofState !== []) {
+            $settings['proofState'] = $proofState;
+        }
+
+        $documentProtection = $this->settingsDocumentProtection($root);
+        if ($documentProtection !== []) {
+            $settings['documentProtection'] = $documentProtection;
+        }
+
+        $attachedTemplate = $this->settingsAttachedTemplate($root, $package, $graph, $relationshipSummary['targetPart']);
+        if ($attachedTemplate !== null) {
+            $settings['attachedTemplate'] = $attachedTemplate;
+        }
+
+        $compatibility = $this->settingsCompatibility($root);
+        if ($compatibility !== []) {
+            $settings['compatibility'] = $compatibility;
+        }
+
+        return $settings;
+    }
+
+    /**
+     * @return array{id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, issues:list<string>}
+     */
+    private function internalSupportPartRelationshipSummary(
+        OpcRelationship $relationship,
+        ZipPackage $package,
+        OpcRelationships $relationships
+    ): array {
+        $summary = [
+            'id' => $relationship->id,
+            'type' => $relationship->type,
+            'target' => $relationship->target,
+            'targetPart' => null,
+            'contentType' => null,
+            'external' => $relationship->isExternal(),
+            'exists' => null,
+            'issues' => [],
+        ];
+
+        if ($relationship->isExternal()) {
+            $summary['issues'][] = 'external-support-part';
+
+            return $summary;
+        }
+
+        try {
+            $target = $relationships->resolveTarget($relationship);
+        } catch (\InvalidArgumentException) {
+            $summary['issues'][] = 'invalid-target';
+
+            return $summary;
+        }
+
+        $targetPart = OpcPackagePath::stripQueryAndFragment($target);
+        $summary['target'] = $target;
+        $summary['targetPart'] = $targetPart;
+        $summary['contentType'] = $this->contentTypeForPackagePart($package, $targetPart);
+        $summary['exists'] = $package->has($targetPart);
+
+        if ($summary['exists'] !== true) {
+            $summary['issues'][] = 'missing-in-package';
+        }
+
+        if ($summary['contentType'] === null) {
+            $summary['issues'][] = 'missing-content-type';
+        }
+
+        return $summary;
+    }
+
+    private function settingsOnOff(\DOMElement $settings, string $localName): bool
+    {
+        $child = $this->firstChildElement($settings, self::WORDPROCESSINGML_NS, $localName);
+
+        return $child instanceof \DOMElement && $this->onOffWordAttr($child, 'val', true);
+    }
+
+    private function settingsIntChildValue(\DOMElement $settings, string $localName): ?int
+    {
+        $child = $this->firstChildElement($settings, self::WORDPROCESSINGML_NS, $localName);
+
+        return $child instanceof \DOMElement ? $this->optionalIntWordAttr($child, 'val') : null;
+    }
+
+    private function settingsStringChildValue(\DOMElement $settings, string $localName): ?string
+    {
+        $child = $this->firstChildElement($settings, self::WORDPROCESSINGML_NS, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = $this->wordAttr($child, 'val');
+
+        return $value === null || $value === '' ? null : $value;
+    }
+
+    /**
+     * @return array<string, int|string>
+     */
+    private function settingsZoom(\DOMElement $settings): array
+    {
+        $zoom = $this->firstChildElement($settings, self::WORDPROCESSINGML_NS, 'zoom');
+        if (!$zoom instanceof \DOMElement) {
+            return [];
+        }
+
+        $attrs = [];
+        $percent = $this->optionalIntWordAttr($zoom, 'percent');
+        if ($percent !== null) {
+            $attrs['percent'] = $percent;
+        }
+
+        $value = $this->wordAttr($zoom, 'val');
+        if ($value !== null && $value !== '') {
+            $attrs['value'] = $value;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function settingsProofState(\DOMElement $settings): array
+    {
+        $proofState = $this->firstChildElement($settings, self::WORDPROCESSINGML_NS, 'proofState');
+        if (!$proofState instanceof \DOMElement) {
+            return [];
+        }
+
+        $attrs = [];
+        foreach (['spelling', 'grammar'] as $name) {
+            $value = $this->wordAttr($proofState, $name);
+            if ($value !== null && $value !== '') {
+                $attrs[$name] = $value;
+            }
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, bool|int|string>
+     */
+    private function settingsDocumentProtection(\DOMElement $settings): array
+    {
+        $protection = $this->firstChildElement($settings, self::WORDPROCESSINGML_NS, 'documentProtection');
+        if (!$protection instanceof \DOMElement) {
+            return [];
+        }
+
+        $attrs = [];
+        foreach ([
+            'edit' => 'edit',
+            'cryptProviderType' => 'cryptProviderType',
+            'cryptAlgorithmClass' => 'cryptAlgorithmClass',
+            'cryptAlgorithmType' => 'cryptAlgorithmType',
+        ] as $source => $target) {
+            $value = $this->wordAttr($protection, $source);
+            if ($value !== null && $value !== '') {
+                $attrs[$target] = $value;
+            }
+        }
+
+        $attrs['enforcement'] = $this->onOffWordAttr($protection, 'enforcement', false);
+
+        foreach ([
+            'cryptAlgorithmSid' => 'cryptAlgorithmSid',
+            'cryptSpinCount' => 'cryptSpinCount',
+        ] as $source => $target) {
+            $value = $this->optionalIntWordAttr($protection, $source);
+            if ($value !== null) {
+                $attrs[$target] = $value;
+            }
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function settingsAttachedTemplate(
+        \DOMElement $settings,
+        ZipPackage $package,
+        OpcRelationshipGraph $graph,
+        string $settingsPart
+    ): ?array {
+        $attachedTemplate = $this->firstChildElement($settings, self::WORDPROCESSINGML_NS, 'attachedTemplate');
+        if (!$attachedTemplate instanceof \DOMElement) {
+            return null;
+        }
+
+        $id = $this->relationshipAttr($attachedTemplate, 'id');
+        $summary = [
+            'id' => $id,
+            'relationshipType' => null,
+            'target' => null,
+            'targetPart' => null,
+            'contentType' => null,
+            'external' => null,
+            'exists' => null,
+            'externalTargetKind' => null,
+            'externalTargetScheme' => null,
+            'externalTargetAllowed' => null,
+            'issues' => [],
+        ];
+
+        if ($id === null || $id === '') {
+            $summary['issues'][] = 'missing-relationship-id';
+
+            return $summary;
+        }
+
+        $relationships = $graph->relationshipsForSource($settingsPart);
+        if (!$relationships instanceof OpcRelationships) {
+            $summary['issues'][] = 'missing-relationships';
+
+            return $summary;
+        }
+
+        $relationship = $relationships->byId($id);
+        if (!$relationship instanceof OpcRelationship) {
+            $summary['issues'][] = 'unknown-relationship';
+
+            return $summary;
+        }
+
+        $summary['relationshipType'] = $relationship->type;
+        if ($relationship->type !== self::REL_TYPE_ATTACHED_TEMPLATE) {
+            $summary['issues'][] = 'unexpected-relationship-type';
+        }
+
+        if ($relationship->isExternal()) {
+            $target = $relationship->target;
+            $externalTarget = $relationship->externalTargetPreflight();
+            $summary['target'] = $target;
+            $summary['external'] = true;
+            $summary['externalTargetKind'] = $externalTarget['kind'];
+            $summary['externalTargetScheme'] = $externalTarget['scheme'];
+            $summary['externalTargetAllowed'] = $externalTarget['allowed'];
+            $summary['issues'] = array_values(array_unique(array_merge($summary['issues'], $externalTarget['issues'])));
+
+            return $summary;
+        }
+
+        try {
+            $target = $relationships->resolveTarget($relationship);
+        } catch (\InvalidArgumentException) {
+            $summary['external'] = false;
+            $summary['issues'][] = 'invalid-target';
+
+            return $summary;
+        }
+
+        $targetPart = OpcPackagePath::stripQueryAndFragment($target);
+        $summary['target'] = $target;
+        $summary['targetPart'] = $targetPart;
+        $summary['contentType'] = $this->contentTypeForPackagePart($package, $targetPart);
+        $summary['external'] = false;
+        $summary['exists'] = $package->has($targetPart);
+
+        if ($summary['exists'] !== true) {
+            $summary['issues'][] = 'missing-in-package';
+        }
+        if ($summary['contentType'] === null) {
+            $summary['issues'][] = 'missing-content-type';
+        }
+
+        $summary['issues'] = array_values(array_unique($summary['issues']));
+
+        return $summary;
+    }
+
+    /**
+     * @return list<array{name:string, uri:?string, value:?string}>
+     */
+    private function settingsCompatibility(\DOMElement $settings): array
+    {
+        $compatibility = $this->firstChildElement($settings, self::WORDPROCESSINGML_NS, 'compat');
+        if (!$compatibility instanceof \DOMElement) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($compatibility->childNodes as $child) {
+            if (!$child instanceof \DOMElement || !$this->isWordElement($child, 'compatSetting')) {
+                continue;
+            }
+
+            $name = $this->wordAttr($child, 'name');
+            if ($name === null || $name === '') {
+                continue;
+            }
+
+            $items[] = [
+                'name' => $name,
+                'uri' => $this->wordAttr($child, 'uri'),
+                'value' => $this->wordAttr($child, 'val'),
+            ];
+        }
+
+        return $items;
     }
 
     /**

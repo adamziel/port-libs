@@ -18,6 +18,7 @@ $contentTypesXml = <<<'XML'
   <Default Extension="bin" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/>
   <Default Extension="xlsx" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
   <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
   <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
@@ -49,6 +50,7 @@ XML],
   <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
   <Relationship Id="rIdEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="endnotes.xml"/>
   <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+  <Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
   <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
   <Relationship Id="rIdNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
   <Relationship Id="rIdHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
@@ -365,6 +367,32 @@ XML],
   </w:body>
 </w:document>
 XML],
+    ['name' => 'word/_rels/settings.xml.rels', 'data' => <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdReviewTemplate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" Target="file:///C:/source-templates/review-packet.dotx" TargetMode="External"/>
+</Relationships>
+XML],
+    ['name' => 'word/settings.xml', 'data' => <<<'XML'
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:trackRevisions/>
+  <w:doNotTrackMoves/>
+  <w:doNotTrackFormatting w:val="0"/>
+  <w:evenAndOddHeaders/>
+  <w:updateFields w:val="true"/>
+  <w:documentProtection w:edit="readOnly" w:enforcement="1" w:cryptProviderType="rsaFull" w:cryptAlgorithmClass="hash" w:cryptAlgorithmType="typeAny" w:cryptAlgorithmSid="14" w:cryptSpinCount="100000"/>
+  <w:proofState w:spelling="clean" w:grammar="dirty"/>
+  <w:zoom w:percent="125"/>
+  <w:defaultTabStop w:val="720"/>
+  <w:decimalSymbol w:val=","/>
+  <w:listSeparator w:val=";"/>
+  <w:attachedTemplate r:id="rIdReviewTemplate"/>
+  <w:compat>
+    <w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/>
+    <w:compatSetting w:name="overrideTableStyleFontSizeAndJustification" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/>
+  </w:compat>
+</w:settings>
+XML],
     ['name' => 'word/chunks/review.html', 'data' => '<aside data-review="docx-alt"><p>Alternative HTML chunk from source packet.</p></aside>'],
     ['name' => 'word/chunks/plain-review.txt', 'data' => "\xEF\xBB\xBFPlain text source note\r\nSecond imported line\r\n\r\nFinal plain-text checkpoint."],
     ['name' => 'word/styles.xml', 'data' => <<<'XML'
@@ -463,6 +491,21 @@ $summary = [
 if (($argv[1] ?? '') === '--self-test') {
     if (($summary['metadata']['title'] ?? '') !== 'WordPress DOCX handoff') {
         throw new RuntimeException('DOCX body handoff self-test missing metadata title');
+    }
+    if (($summary['metadata']['docxSettings']['trackRevisions'] ?? null) !== true) {
+        throw new RuntimeException('DOCX body handoff self-test missing settings tracked-revisions metadata');
+    }
+    if (($summary['metadata']['docxSettings']['documentProtection']['edit'] ?? '') !== 'readOnly') {
+        throw new RuntimeException('DOCX body handoff self-test missing settings protection metadata');
+    }
+    if (($summary['metadata']['docxSettings']['attachedTemplate']['issues'][0] ?? '') !== 'external-target-unsafe-scheme') {
+        throw new RuntimeException('DOCX body handoff self-test missing unsafe attached-template setting');
+    }
+    if (($summary['importReport']['settings']['part'] ?? '') !== '/word/settings.xml') {
+        throw new RuntimeException('DOCX body handoff self-test missing settings import report');
+    }
+    if (($summary['importReport']['settings']['attachedTemplate']['id'] ?? '') !== 'rIdReviewTemplate') {
+        throw new RuntimeException('DOCX body handoff self-test missing attached-template relationship report');
     }
     if (($summary['importReport']['media']['embeddedCount'] ?? 0) !== 2) {
         throw new RuntimeException('DOCX body handoff self-test missing media import report');
