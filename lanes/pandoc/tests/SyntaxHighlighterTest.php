@@ -44,6 +44,8 @@ return [
         $t->same('ruby', SyntaxHighlighter::normalizeLanguage('rake'));
         $t->same('lua', SyntaxHighlighter::normalizeLanguage('lua'));
         $t->same('lua', SyntaxHighlighter::normalizeLanguage('pandoc-lua'));
+        $t->same('typescript', SyntaxHighlighter::normalizeLanguage('ts'));
+        $t->same('typescript', SyntaxHighlighter::normalizeLanguage('typescript'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('sourceCode'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('lineAnchors'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('number-lines'));
@@ -405,6 +407,54 @@ return [
         $t->contains('<span class="dt">pandoc</span><span class="op">.</span><span class="fu">Div</span>', $wordpressBlock);
         $t->same('lua', $directLua['language']);
         $t->contains('<span class="kw">return</span> <span class="dt">pandoc</span><span class="op">.</span><span class="fu">Str</span><span class="op">(</span><span class="st">&quot;ok&quot;</span><span class="op">)</span>', $directLua['html']);
+    },
+    'highlights typescript review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $codeBlock = new AstNode('code_block', [
+            'id' => 'ts-review',
+            'classes' => ['sourceCode', 'ts', 'numberLines'],
+            'attributes' => ['startFrom' => '12'],
+            'text' => implode("\n", [
+                '// Gutenberg block migration packet',
+                'type BlockPayload = {',
+                '  title?: string;',
+                '  meta: Record<string, unknown>;',
+                '};',
+                '',
+                'export async function migrateBlock(payload: BlockPayload): Promise<void> {',
+                '  const title = payload.title ?? `Untitled`;',
+                '  if (payload.meta?.sourceId !== undefined) {',
+                '    console.log(`import:${payload.meta.sourceId}`);',
+                '  }',
+                '  return;',
+                '}',
+            ]),
+        ]);
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'kate');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'kate');
+        $directTypescript = (new SyntaxHighlighter())->highlight('interface ReviewBlock { readonly title: string }', 'typescript');
+
+        $t->same('ts', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('typescript', $highlighted['language']);
+        $t->same('ts', $highlighted['requestedLanguage']);
+        $t->same('kate', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(12, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource ts numberLines"><code class="sourceCode typescript" style="counter-reset: source-line 11;">', $highlighted['html']);
+        $t->contains('<span id="ts-review-12"><a href="#ts-review-12"></a><span class="co">// Gutenberg block migration packet</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">type</span> <span class="dt">BlockPayload</span> <span class="op">=</span>', $highlighted['html']);
+        $t->contains('<span class="va">title</span><span class="op">?:</span> <span class="dt">string</span>', $highlighted['html']);
+        $t->contains('<span class="va">meta</span><span class="op">:</span> <span class="dt">Record</span><span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">unknown</span><span class="op">&gt;;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">export</span> <span class="kw">async</span> <span class="kw">function</span> <span class="fu">migrateBlock</span>', $highlighted['html']);
+        $t->contains('<span class="dt">Promise</span><span class="op">&lt;</span><span class="dt">void</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="va">payload</span><span class="op">.</span><span class="va">title</span> <span class="op">??</span> <span class="st">`Untitled`</span>', $highlighted['html']);
+        $t->contains('<span class="va">payload</span><span class="op">.</span><span class="va">meta</span><span class="op">?.</span><span class="va">sourceId</span> <span class="op">!==</span> <span class="dt">undefined</span>', $highlighted['html']);
+        $t->contains('<span class="va">console</span><span class="op">.</span><span class="fu">log</span><span class="op">(</span><span class="st">`import:${payload.meta.sourceId}`</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="kate">', $wordpressBlock);
+        $t->contains('<span class="kw">export</span> <span class="kw">async</span> <span class="kw">function</span>', $wordpressBlock);
+        $t->same('typescript', $directTypescript['language']);
+        $t->contains('<span class="kw">interface</span> <span class="dt">ReviewBlock</span>', $directTypescript['html']);
+        $t->contains('<span class="kw">readonly</span> <span class="va">title</span><span class="op">:</span> <span class="dt">string</span>', $directTypescript['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

@@ -75,3 +75,19 @@ function Header(el)
   return nil
 end
 ```
+
+``` {.ts #ts-review .numberLines startFrom=12}
+// Gutenberg block migration packet
+type BlockPayload = {
+  title?: string;
+  meta: Record<string, unknown>;
+};
+
+export async function migrateBlock(payload: BlockPayload): Promise<void> {
+  const title = payload.title ?? `Untitled`;
+  if (payload.meta?.sourceId !== undefined) {
+    console.log(`import:${payload.meta.sourceId}`);
+  }
+  return;
+}
+```

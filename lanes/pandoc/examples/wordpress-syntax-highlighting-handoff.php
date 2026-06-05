@@ -78,6 +78,12 @@ if (!$luaCodeBlock instanceof PortLibs\Pandoc\AstNode || $luaCodeBlock->type !==
 }
 $lua = $highlighter->highlightCodeBlock($luaCodeBlock, 'breezedark');
 $luaWordpressBlock = $highlighter->wordpressHtmlBlock($luaCodeBlock, 'breezedark');
+$typescriptCodeBlock = $document->children[7] ?? null;
+if (!$typescriptCodeBlock instanceof PortLibs\Pandoc\AstNode || $typescriptCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a TypeScript code block');
+}
+$typescript = $highlighter->highlightCodeBlock($typescriptCodeBlock, 'kate');
+$typescriptWordpressBlock = $highlighter->wordpressHtmlBlock($typescriptCodeBlock, 'kate');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -238,6 +244,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($luaWordpressBlock, '<span class="kw">return</span> <span class="dt">pandoc</span><span class="op">.</span><span class="fu">Div</span>')) {
         throw new RuntimeException('Expected Lua pandoc constructor handoff');
     }
+    if (($typescript['language'] ?? '') !== 'typescript') {
+        throw new RuntimeException('Expected ts alias to normalize to TypeScript highlighting');
+    }
+    if (($typescript['lineNumbering']['start'] ?? null) !== 12) {
+        throw new RuntimeException('Expected TypeScript source startFrom line-number handoff');
+    }
+    if (!str_contains($typescript['html'], '<span class="kw">type</span> <span class="dt">BlockPayload</span>')) {
+        throw new RuntimeException('Expected TypeScript type alias token handoff');
+    }
+    if (!str_contains($typescript['html'], '<span class="dt">Record</span><span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">unknown</span><span class="op">&gt;;</span>')) {
+        throw new RuntimeException('Expected TypeScript generic type token handoff');
+    }
+    if (!str_contains($typescript['html'], '<span class="va">payload</span><span class="op">.</span><span class="va">meta</span><span class="op">?.</span><span class="va">sourceId</span> <span class="op">!==</span> <span class="dt">undefined</span>')) {
+        throw new RuntimeException('Expected TypeScript optional chaining token handoff');
+    }
+    if (!str_contains($typescriptWordpressBlock, '<style data-pandoc-highlight-style="kate">')) {
+        throw new RuntimeException('Expected TypeScript WordPress style metadata');
+    }
+    if (!str_contains($typescriptWordpressBlock, '<span class="kw">export</span> <span class="kw">async</span> <span class="kw">function</span> <span class="fu">migrateBlock</span>')) {
+        throw new RuntimeException('Expected TypeScript async function token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -268,6 +295,7 @@ echo "diffHighlightedHtml:\n" . $diff['html'] . "\n";
 echo "markdownHighlightedHtml:\n" . $markdown['html'] . "\n";
 echo "rubyHighlightedHtml:\n" . $ruby['html'] . "\n";
 echo "luaHighlightedHtml:\n" . $lua['html'] . "\n";
+echo "typescriptHighlightedHtml:\n" . $typescript['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";

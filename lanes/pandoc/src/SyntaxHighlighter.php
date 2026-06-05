@@ -63,6 +63,8 @@ final class SyntaxHighlighter
         'shell' => 'bash',
         'sql' => 'sql',
         'tex' => 'tex',
+        'ts' => 'typescript',
+        'typescript' => 'typescript',
         'udiff' => 'diff',
         'unified-diff' => 'diff',
         'xhtml' => 'html',
@@ -487,6 +489,7 @@ final class SyntaxHighlighter
             'ruby' => $this->tokenizeRuby($code),
             'sql' => $this->tokenizeSql($code),
             'tex' => $this->tokenizeTex($code),
+            'typescript' => $this->tokenizeTypeScript($code),
             'yaml' => $this->tokenizeYaml($code),
             default => [['type' => 'text', 'text' => $code, 'class' => '']],
         };
@@ -597,6 +600,29 @@ final class SyntaxHighlighter
             ['number', '/^\\b\\d+(?:\\.\\d+)?\\b/'],
             ['function', '/^\\b[A-Za-z_$][A-Za-z0-9_$]*(?=\\s*\\()/'],
             ['operator', '/^(?:=>|===|!==|==|!=|<=|>=|&&|\\|\\||[{}()[\\];,.+*\\/%=!<>?:-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeTypeScript(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['string', '/^`(?:\\\\.|[^`\\\\])*`/s'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['attribute', '/^@[A-Za-z_$][A-Za-z0-9_$]*/'],
+            ['keyword', '/^\\b(?:abstract|as|asserts|async|await|break|case|catch|class|const|constructor|continue|declare|default|do|else|enum|export|extends|finally|for|from|function|get|if|implements|import|in|infer|interface|is|keyof|let|module|namespace|new|of|private|protected|public|readonly|return|satisfies|set|static|switch|this|throw|try|type|typeof|var|while|yield)\\b/'],
+            ['datatype', '/^\\b(?:any|bigint|boolean|never|null|number|object|string|symbol|undefined|unknown|void)\\b/'],
+            ['constant', '/^\\b(?:false|true)\\b/'],
+            ['number', '/^\\b(?:0[xX][0-9A-Fa-f]+|0[bB][01]+|\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_$]*(?=\\s*(?:[<:={]|\\b))/'],
+            ['function', '/^\\b[A-Za-z_$][A-Za-z0-9_$]*(?=\\s*\\()/'],
+            ['variable', '/^\\b[A-Za-z_$][A-Za-z0-9_$]*\\b/'],
+            ['operator', '/^(?:=>|===|!==|==|!=|<=|>=|&&|\\|\\||\\?\\?|\\?\\.|\\.\\.\\.|[{}()[\\];,.+*\\/%=!<>?:|-])/'],
         ]);
     }
 
