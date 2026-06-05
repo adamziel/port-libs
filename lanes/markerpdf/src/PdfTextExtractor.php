@@ -15553,11 +15553,22 @@ final class PdfTextExtractor
             return $path;
         }
 
+        $left = max($clip[0], $path[0]);
+        $bottom = max($clip[1], $path[1]);
+        $right = min($clip[2], $path[2]);
+        $top = min($clip[3], $path[3]);
+        if ($right < $left) {
+            $right = $left;
+        }
+        if ($top < $bottom) {
+            $top = $bottom;
+        }
+
         return [
-            max($clip[0], $path[0]),
-            max($clip[1], $path[1]),
-            min($clip[2], $path[2]),
-            min($clip[3], $path[3]),
+            $left,
+            $bottom,
+            $right,
+            $top,
         ];
     }
 
@@ -15568,6 +15579,9 @@ final class PdfTextExtractor
     {
         if ($clipRectangle === null) {
             return true;
+        }
+        if (!$this->pdfRectangleHasArea($clipRectangle)) {
+            return false;
         }
 
         return $this->pdfPointInsideRectangle($x ?? 0.0, $y ?? 0.0, $clipRectangle);
