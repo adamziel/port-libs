@@ -331,6 +331,70 @@ XML;
         $t->same(['rIdMissingImage', 'rIdEscape'], array_column($imagePreflight, 'id'));
         $t->same([], $graph->preflightTargetsForSource('/word/missing.xml'));
     },
+    'preflights OPC package parts for content type and orphan relationship issues' => static function (TestRunner $t) use ($packageRelationshipsXml, $documentRelationshipsXml): void {
+        $badContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+        $missingPartRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdOrphanImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/orphan.png"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $badContentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/review-image.PNG', 'data' => 'PNG'],
+            ['name' => 'word/embeddings/oleObject1.bin', 'data' => 'OLE'],
+            ['name' => 'word/_rels/missing.xml.rels', 'data' => $missingPartRelationshipsXml],
+        ]));
+
+        $parts = [];
+        foreach ($graph->preflightPackageParts() as $part) {
+            $parts[$part['partName']] = $part;
+        }
+
+        $t->same([
+            '/_rels/.rels',
+            '/word/document.xml',
+            '/word/_rels/document.xml.rels',
+            '/word/media/review-image.PNG',
+            '/word/embeddings/oleObject1.bin',
+            '/word/_rels/missing.xml.rels',
+        ], array_keys($parts));
+
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $parts['/word/document.xml']['contentType']);
+        $t->same(false, $parts['/word/document.xml']['relationshipPart']);
+        $t->same(true, $parts['/word/document.xml']['valid']);
+        $t->same('image/png', $parts['/word/media/review-image.PNG']['contentType']);
+        $t->same([], $parts['/word/media/review-image.PNG']['issues']);
+
+        $t->same(null, $parts['/word/embeddings/oleObject1.bin']['contentType']);
+        $t->same(['missing-content-type'], $parts['/word/embeddings/oleObject1.bin']['issues']);
+        $t->same(false, $parts['/word/embeddings/oleObject1.bin']['valid']);
+
+        $t->same(true, $parts['/_rels/.rels']['relationshipPart']);
+        $t->same('/', $parts['/_rels/.rels']['relationshipSource']);
+        $t->same(true, $parts['/_rels/.rels']['sourceExists']);
+        $t->same(['invalid-relationship-content-type'], $parts['/_rels/.rels']['issues']);
+
+        $t->same('/word/document.xml', $parts['/word/_rels/document.xml.rels']['relationshipSource']);
+        $t->same(true, $parts['/word/_rels/document.xml.rels']['sourceExists']);
+        $t->same(['invalid-relationship-content-type'], $parts['/word/_rels/document.xml.rels']['issues']);
+
+        $t->same('/word/missing.xml', $parts['/word/_rels/missing.xml.rels']['relationshipSource']);
+        $t->same(false, $parts['/word/_rels/missing.xml.rels']['sourceExists']);
+        $t->same(['invalid-relationship-content-type', 'orphan-relationship-part'], $parts['/word/_rels/missing.xml.rels']['issues']);
+        $t->same(false, $parts['/word/_rels/missing.xml.rels']['valid']);
+    },
     'walks reachable OPC relationship closure from office document root' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $footnotesRelationshipsXml): void {
         $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
             ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],

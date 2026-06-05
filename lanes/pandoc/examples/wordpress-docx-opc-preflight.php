@@ -63,6 +63,18 @@ if ($documentPart === null) {
 
 $documentRelationships = $graph->requireRelationshipsForSource($documentPart);
 
+$packagePartPreflight = [];
+foreach ($graph->preflightPackageParts() as $part) {
+    $packagePartPreflight[$part['partName']] = [
+        'contentType' => $part['contentType'],
+        'relationshipPart' => $part['relationshipPart'],
+        'relationshipSource' => $part['relationshipSource'],
+        'sourceExists' => $part['sourceExists'],
+        'valid' => $part['valid'],
+        'issues' => $part['issues'],
+    ];
+}
+
 $relationshipSummaries = [];
 foreach ($graph->summarizeTargetsForSource($documentPart) as $relationship) {
     $relationshipSummaries[$relationship['id']] = [
@@ -111,9 +123,15 @@ $summary = [
         'part' => $corePropertiesPart,
         'contentType' => $corePropertiesPart === null ? null : $types->contentTypeForPart($corePropertiesPart),
     ],
+    'packageParts' => $packagePartPreflight,
     'relationships' => $relationshipSummaries,
     'reachableRelationships' => $reachableTargets,
     'integrity' => [
+        'packagePartsValid' => array_reduce(
+            $packagePartPreflight,
+            static fn (bool $valid, array $part): bool => $valid && $part['valid'],
+            true
+        ),
         'documentRelationshipsValid' => array_reduce(
             $relationshipPreflight,
             static fn (bool $valid, array $target): bool => $valid && $target['valid'],
@@ -160,6 +178,10 @@ if (($argv[1] ?? '') === '--self-test') {
     if (
         $actual !== $expected
         || $summary['wordpressImport']['hasReviewerEditLink'] !== true
+        || $summary['integrity']['packagePartsValid'] !== true
+        || $summary['packageParts']['/_rels/.rels']['relationshipSource'] !== '/'
+        || $summary['packageParts']['/word/_rels/document.xml.rels']['relationshipSource'] !== '/word/document.xml'
+        || $summary['packageParts']['/word/media/hero.PNG']['contentType'] !== 'image/png'
         || $summary['integrity']['documentRelationshipsValid'] !== true
         || $summary['integrity']['reachableRelationshipsValid'] !== true
         || $summary['integrity']['issues'] !== []

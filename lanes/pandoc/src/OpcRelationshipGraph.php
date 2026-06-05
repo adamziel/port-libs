@@ -7,6 +7,7 @@ namespace PortLibs\Pandoc;
 final class OpcRelationshipGraph
 {
     public const OFFICE_DOCUMENT_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+    private const RELATIONSHIP_PART_CONTENT_TYPE = 'application/vnd.openxmlformats-package.relationships+xml';
 
     /**
      * @param array<string, OpcRelationships> $relationshipsBySource
@@ -203,6 +204,55 @@ final class OpcRelationshipGraph
                 'external' => false,
                 'exists' => $exists,
                 'relationshipPartTarget' => $relationshipPartTarget,
+                'valid' => $issues === [],
+                'issues' => $issues,
+            ];
+        }
+
+        return $preflight;
+    }
+
+    /**
+     * @return list<array{partName:string, contentType:?string, relationshipPart:bool, relationshipSource:?string, sourceExists:?bool, valid:bool, issues:list<string>}>
+     */
+    public function preflightPackageParts(): array
+    {
+        $preflight = [];
+        foreach ($this->package->names() as $name) {
+            if ($name === '[Content_Types].xml' || str_ends_with($name, '/')) {
+                continue;
+            }
+
+            $partName = OpcPackagePath::canonicalPartName($name);
+            $contentType = $this->contentTypes->contentTypeForPart($partName);
+            $relationshipPart = self::isRelationshipPartName($partName);
+            $relationshipSource = null;
+            $sourceExists = null;
+            $issues = [];
+
+            if ($contentType === null) {
+                $issues[] = 'missing-content-type';
+            }
+
+            if ($relationshipPart) {
+                $relationshipSource = OpcRelationships::sourcePartNameForRelationshipPart($partName);
+                $sourceExists = $relationshipSource === '/' || $this->package->has($relationshipSource);
+
+                if ($contentType !== null && $contentType !== self::RELATIONSHIP_PART_CONTENT_TYPE) {
+                    $issues[] = 'invalid-relationship-content-type';
+                }
+
+                if (!$sourceExists) {
+                    $issues[] = 'orphan-relationship-part';
+                }
+            }
+
+            $preflight[] = [
+                'partName' => $partName,
+                'contentType' => $contentType,
+                'relationshipPart' => $relationshipPart,
+                'relationshipSource' => $relationshipSource,
+                'sourceExists' => $sourceExists,
                 'valid' => $issues === [],
                 'issues' => $issues,
             ];
