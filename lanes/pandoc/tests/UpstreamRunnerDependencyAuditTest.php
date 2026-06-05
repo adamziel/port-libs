@@ -819,6 +819,49 @@ return [
         $t->contains('runner other-modules closure', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
+    'blocks full pandoc runner reader and writer module closure drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] = str_replace(
+            "    Tests.Readers.Docx,\n",
+            '',
+            $files['pandoc.cabal']
+        );
+        $files['pandoc.cabal'] = str_replace(
+            "    Tests.Writers.BBCode",
+            '    Tests.Writers.Native',
+            $files['pandoc.cabal']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['projectSourceRepositoryPins']['missing']);
+        $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([
+            'Tests.Readers.Docx',
+            'Tests.Writers.BBCode',
+        ], $audit['runnerDependencyClosure']['missingOtherModules']['test:test-pandoc']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing Cabal runner other-modules: test:test-pandoc (Tests.Readers.Docx, Tests.Writers.BBCode)', $blocked);
+        $t->contains('runner other-modules closure', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
     'blocks lua engine library dependency drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $luaCabal): void {
         $root = $makeTree($requiredFiles(
             $pinnedProject(),
