@@ -12010,7 +12010,7 @@ final class PdfTextExtractor
         }
 
         $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $ccittFilterIndex);
-        $imageHeight = $this->pdfIntegerValueAfterName($dict, 'Height');
+        $imageHeight = $this->pdfIntegerValueAfterNameResolvingObjects($dict, 'Height', $objects);
         $markers = $this->ccittFaxEndOfBlockMarkersForOwnership($filterDecodeParms, $objects, $imageHeight);
         if ($markers === []) {
             return null;
@@ -12094,7 +12094,7 @@ final class PdfTextExtractor
             ? null
             : $this->decodeParmsForFilterIndex($filters, $decodeParms, $ccittFilterIndex);
 
-        $imageHeight = $this->pdfIntegerValueAfterName($dict, 'Height');
+        $imageHeight = $this->pdfIntegerValueAfterNameResolvingObjects($dict, 'Height', $objects);
 
         return $this->ccittFaxBytesReachBoundaryForDecodeParms($faxBytes, $filterDecodeParms, $objects, true, $imageHeight);
     }
@@ -19947,7 +19947,7 @@ final class PdfTextExtractor
     private function directObjectStreamFilterObjectsBeforeOffset(string $pdfBytes, string $dict, int $beforeOffset): array
     {
         $pending = [];
-        foreach (['Filter', 'DecodeParms'] as $name) {
+        foreach (['Filter', 'DecodeParms', 'Height'] as $name) {
             $offset = $this->topLevelNameValueOffset($dict, $name);
             if ($offset === null) {
                 continue;
