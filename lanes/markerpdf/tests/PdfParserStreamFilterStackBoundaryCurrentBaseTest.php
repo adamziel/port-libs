@@ -688,6 +688,43 @@ $parserStreamFilterStackBoundaryCurrentBaseIndirectMultiNameFilterPdf = static f
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBasePatternBoundaryPdf = static function (): string {
+    $pageContent = "BT /F1 12 Tf 72 720 Td (Before Pattern Filter Boundary) Tj ET\n"
+        . "/Pattern cs /Bad#20Pattern scn 0 0 20 10 re f\n"
+        . "/Pattern cs /Safe#20Pattern scn 25 0 20 10 re f\n"
+        . 'BT /F1 12 Tf 72 660 Td (After Pattern Filter Boundary) Tj ET';
+
+    $badPatternContent = 'q 20 0 0 20 0 0 cm /Bad#20Pattern#20Image Do Q';
+    $badPatternEncoded = strtoupper(bin2hex($badPatternContent))
+        . '> q 20 0 0 20 0 0 cm /Bad#20Trailing#20Image Do Q';
+
+    $safePatternContent = 'q 20 0 0 20 0 0 cm /Safe#20Pattern#20Image Do Q';
+    $safePatternEncoded = strtoupper(bin2hex($safePatternContent)) . ">\n \t";
+
+    $badPayload = 'BT /F1 12 Tf 72 720 Td (Bad Pattern Image Payload Leak) Tj ET';
+    $badTrailingPayload = 'BT /F1 12 Tf 72 720 Td (Bad Trailing Pattern Image Payload Leak) Tj ET';
+    $safePayload = 'BT /F1 12 Tf 72 720 Td (Safe Pattern Image Payload Noise) Tj ET';
+    $badCompressed = gzcompress($badPayload);
+    $badTrailingCompressed = gzcompress($badTrailingPayload);
+    $safeCompressed = gzcompress($safePayload);
+    if (!is_string($badCompressed) || !is_string($badTrailingCompressed) || !is_string($safeCompressed)) {
+        throw new RuntimeException('Unable to compress focused tiling pattern boundary image payloads.');
+    }
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /Pattern << /Bad#20Pattern 11 0 R /Safe#20Pattern 12 0 R >> >> >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($badCompressed) . " >>\nstream\n{$badCompressed}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($safeCompressed) . " >>\nstream\n{$safeCompressed}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($badTrailingCompressed) . " >>\nstream\n{$badTrailingCompressed}\nendstream\nendobj\n"
+        . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "11 0 obj\n<< /Type /Pattern /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 20 20] /XStep 20 /YStep 20 /Resources << /XObject << /Bad#20Pattern#20Image 5 0 R /Bad#20Trailing#20Image 7 0 R >> >> /Filter /ASCIIHexDecode /Length " . strlen($badPatternEncoded) . " >>\nstream\n{$badPatternEncoded}\nendstream\nendobj\n"
+        . "12 0 obj\n<< /Type /Pattern /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 20 20] /XStep 20 /YStep 20 /Resources << /XObject << /Safe#20Pattern#20Image 6 0 R >> >> /Filter /ASCIIHexDecode /Length " . strlen($safePatternEncoded) . " >>\nstream\n{$safePatternEncoded}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses ASCII85 EOD markers before accepting missing-Length filter-stack endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -1076,6 +1113,51 @@ return [
         $t->true(!str_contains($text, 'Malformed Indirect Multi Filter Leak'));
         $t->true(!str_contains($text, 'ASCII85Decode /FlateDecode'));
         $t->true(!str_contains($text, '10 0 obj'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'rejects tiling pattern filter streams with raw bytes after the filter EOD before image review traversal' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBasePatternBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBasePatternBoundaryPdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $expected = ['Before Pattern Filter Boundary', 'After Pattern Filter Boundary'];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $text);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+
+        $t->same(1, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+        $t->true(isset($entriesByName['Safe Pattern Image']));
+        $t->true(!isset($entriesByName['Bad Pattern Image']));
+        $t->true(!isset($entriesByName['Bad Trailing Image']));
+
+        $safe = $entriesByName['Safe Pattern Image'] ?? [];
+        $t->same('Safe Pattern', $safe['pattern_resource_name'] ?? null);
+        $t->same(12, $safe['parent_pattern_object'] ?? null);
+        $t->same(true, $safe['pattern_review_only'] ?? null);
+        $t->same(true, $safe['decoded_with_current_filters'] ?? null);
+        $t->same(false, $safe['payload_in_visible_text'] ?? null);
+        $t->same(['Safe Pattern', 'Safe Pattern Image'], $safe['resource_path'] ?? null);
+        $t->same([25.0, 0.0, 45.0, 10.0], $safe['pattern_bboxes'][0] ?? null);
+
+        $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(str_contains($encodedReview, 'Safe Pattern Image'));
+        $t->true(!str_contains($encodedReview, 'Bad Pattern Image'));
+        $t->true(!str_contains($encodedReview, 'Bad Trailing Image'));
+        $t->true(!str_contains($text, 'Bad Pattern Image Payload Leak'));
+        $t->true(!str_contains($text, 'Bad Trailing Pattern Image Payload Leak'));
+        $t->true(!str_contains($text, 'Safe Pattern Image Payload Noise'));
+        $t->true(!str_contains($text, 'ASCIIHexDecode'));
         $t->true(!str_contains($text, "\0"));
     },
 ];
