@@ -127,7 +127,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, localeOptions:array{punctuationInQuote:bool}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string, nearNoteDistance:int}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, localeOptions:array{punctuationInQuote:bool}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function cslStyleSummary(): array
     {
@@ -1289,23 +1289,29 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}|null}|null}
+     * @return array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array<string, mixed>|null}|null, noteCounter:int, lastNoteById:array<string, array{index:int, type:string}>}
      */
     private function emptyCitationPositionState(): array
     {
         return [
             'seenIds' => [],
             'previousUnit' => null,
+            'noteCounter' => 0,
+            'lastNoteById' => [],
         ];
     }
 
     /**
-     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}|null}|null} $state
+     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array<string, mixed>|null}|null, noteCounter:int, lastNoteById:array<string, array{index:int, type:string}>} $state
      */
-    private function annotateCitationPositions(AstNode $node, array &$state): AstNode
+    private function annotateCitationPositions(AstNode $node, array &$state, ?array $noteContext = null): AstNode
     {
+        if ($node->type === 'note') {
+            $noteContext = $this->citationNoteContext($node, $state);
+        }
+
         if ($node->type === 'citation') {
-            [$annotated, $info] = $this->annotateCitationPosition($node, $state, null, true);
+            [$annotated, $info] = $this->annotateCitationPosition($node, $state, null, true, $noteContext);
             $this->recordCitationPositionUnit($state, [$info]);
 
             return $annotated;
@@ -1320,7 +1326,7 @@ final class CitationCslProcessor
                     throw new \InvalidArgumentException('Citation group entries must be citation AST nodes');
                 }
 
-                [$annotated, $info] = $this->annotateCitationPosition($child, $state, $previousInUnit, $children === []);
+                [$annotated, $info] = $this->annotateCitationPosition($child, $state, $previousInUnit, $children === [], $noteContext);
                 $children[] = $annotated;
                 $unit[] = $info;
                 $previousInUnit = $info;
@@ -1338,7 +1344,7 @@ final class CitationCslProcessor
         $children = [];
         $changed = false;
         foreach ($node->children as $child) {
-            $annotated = $this->annotateCitationPositions($child, $state);
+            $annotated = $this->annotateCitationPositions($child, $state, $noteContext);
             $children[] = $annotated;
             $changed = $changed || $annotated !== $child;
         }
@@ -1347,13 +1353,13 @@ final class CitationCslProcessor
     }
 
     /**
-     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}|null}|null} $state
-     * @param array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}|null $previousInUnit
-     * @return array{AstNode, array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}}
+     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array<string, mixed>|null}|null, noteCounter:int, lastNoteById:array<string, array{index:int, type:string}>} $state
+     * @param array<string, mixed>|null $previousInUnit
+     * @return array{AstNode, array<string, mixed>}
      */
-    private function annotateCitationPosition(AstNode $citation, array &$state, ?array $previousInUnit, bool $firstInUnit): array
+    private function annotateCitationPosition(AstNode $citation, array &$state, ?array $previousInUnit, bool $firstInUnit, ?array $noteContext): array
     {
-        $info = $this->citationPositionInfo($citation);
+        $info = $this->citationPositionInfo($citation, $noteContext);
         $position = $this->citationPositionForInfo($info, $state, $previousInUnit, $firstInUnit);
         $annotated = new AstNode('citation', [
             ...$citation->attrs,
@@ -1369,8 +1375,8 @@ final class CitationCslProcessor
     }
 
     /**
-     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}|null}|null} $state
-     * @param list<array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}> $unit
+     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array<string, mixed>|null}|null, noteCounter:int, lastNoteById:array<string, array{index:int, type:string}>} $state
+     * @param list<array<string, mixed>> $unit
      */
     private function recordCitationPositionUnit(array &$state, array $unit): void
     {
@@ -1382,12 +1388,23 @@ final class CitationCslProcessor
             'single' => count($known) === 1,
             'first' => $known[0] ?? null,
         ];
+
+        foreach ($known as $info) {
+            if (!is_int($info['noteIndex'] ?? null)) {
+                continue;
+            }
+
+            $state['lastNoteById'][(string) $info['id']] = [
+                'index' => (int) $info['noteIndex'],
+                'type' => (string) ($info['noteType'] ?? 'footnote'),
+            ];
+        }
     }
 
     /**
-     * @return array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}
+     * @return array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string, noteIndex:int|null, noteType:string}
      */
-    private function citationPositionInfo(AstNode $citation): array
+    private function citationPositionInfo(AstNode $citation, ?array $noteContext = null): array
     {
         $id = (string) $citation->attr('id', '');
         if ($id !== '' && !isset($this->itemsById[$id])) {
@@ -1397,19 +1414,85 @@ final class CitationCslProcessor
         }
 
         $locator = $this->citationLocatorParts($citation);
+        $noteContext = $this->citationExplicitNoteContext($citation) ?? $noteContext;
 
         return [
             'id' => $id,
             'locatorLabel' => $locator['label'],
             'locatorValue' => $locator['value'],
             'locatorKey' => $locator['label'] . "\n" . $locator['value'],
+            'noteIndex' => is_array($noteContext) ? (int) ($noteContext['index'] ?? 0) : null,
+            'noteType' => is_array($noteContext) ? (string) ($noteContext['type'] ?? 'footnote') : '',
         ];
     }
 
     /**
-     * @param array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string} $info
-     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}|null}|null} $state
-     * @param array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}|null $previousInUnit
+     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array<string, mixed>|null}|null, noteCounter:int, lastNoteById:array<string, array{index:int, type:string}>} $state
+     * @return array{index:int, type:string}
+     */
+    private function citationNoteContext(AstNode $note, array &$state): array
+    {
+        $explicit = $this->explicitNoteIndexFromNode($note);
+        if ($explicit !== null) {
+            $state['noteCounter'] = max((int) ($state['noteCounter'] ?? 0), $explicit);
+
+            return [
+                'index' => $explicit,
+                'type' => $this->normalizedNoteType((string) $note->attr('sourceType', $note->attr('noteType', 'footnote'))),
+            ];
+        }
+
+        $state['noteCounter'] = (int) ($state['noteCounter'] ?? 0) + 1;
+
+        return [
+            'index' => $state['noteCounter'],
+            'type' => $this->normalizedNoteType((string) $note->attr('sourceType', $note->attr('noteType', 'footnote'))),
+        ];
+    }
+
+    /**
+     * @return array{index:int, type:string}|null
+     */
+    private function citationExplicitNoteContext(AstNode $citation): ?array
+    {
+        $index = $this->explicitNoteIndexFromNode($citation);
+        if ($index === null) {
+            return null;
+        }
+
+        return [
+            'index' => $index,
+            'type' => $this->normalizedNoteType((string) $citation->attr('cslNoteType', $citation->attr('noteType', $citation->attr('sourceType', 'footnote')))),
+        ];
+    }
+
+    private function explicitNoteIndexFromNode(AstNode $node): ?int
+    {
+        foreach (['cslNoteIndex', 'noteIndex', 'noteNumber'] as $attribute) {
+            $value = $node->attr($attribute);
+            if (is_int($value) && $value >= 1) {
+                return $value;
+            }
+
+            if (is_string($value) && preg_match('/^\d+$/', trim($value)) === 1 && (int) $value >= 1) {
+                return (int) $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizedNoteType(string $type): string
+    {
+        $type = strtolower(trim($type));
+
+        return in_array($type, ['footnote', 'endnote'], true) ? $type : 'footnote';
+    }
+
+    /**
+     * @param array<string, mixed> $info
+     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array<string, mixed>|null}|null, noteCounter:int, lastNoteById:array<string, array{index:int, type:string}>} $state
+     * @param array<string, mixed>|null $previousInUnit
      * @return array{position:string, tests:list<string>}
      */
     private function citationPositionForInfo(array $info, array $state, ?array $previousInUnit, bool $firstInUnit): array
@@ -1434,26 +1517,80 @@ final class CitationCslProcessor
         }
 
         if ($preceding === null) {
-            return ['position' => 'subsequent', 'tests' => ['subsequent']];
+            return $this->withNearNotePositionTest(['position' => 'subsequent', 'tests' => ['subsequent']], $info, $state);
         }
 
         $precedingHasLocator = $preceding['locatorValue'] !== '';
         $currentHasLocator = $info['locatorValue'] !== '';
         if (!$precedingHasLocator) {
-            return $currentHasLocator
+            return $this->withNearNotePositionTest($currentHasLocator
                 ? ['position' => 'ibid-with-locator', 'tests' => ['subsequent', 'ibid', 'ibid-with-locator']]
-                : ['position' => 'ibid', 'tests' => ['subsequent', 'ibid']];
+                : ['position' => 'ibid', 'tests' => ['subsequent', 'ibid']], $info, $state);
         }
 
         if (!$currentHasLocator) {
-            return ['position' => 'subsequent', 'tests' => ['subsequent']];
+            return $this->withNearNotePositionTest(['position' => 'subsequent', 'tests' => ['subsequent']], $info, $state);
         }
 
         if ($preceding['locatorKey'] === $info['locatorKey']) {
-            return ['position' => 'ibid', 'tests' => ['subsequent', 'ibid']];
+            return $this->withNearNotePositionTest(['position' => 'ibid', 'tests' => ['subsequent', 'ibid']], $info, $state);
         }
 
-        return ['position' => 'ibid-with-locator', 'tests' => ['subsequent', 'ibid', 'ibid-with-locator']];
+        return $this->withNearNotePositionTest(['position' => 'ibid-with-locator', 'tests' => ['subsequent', 'ibid', 'ibid-with-locator']], $info, $state);
+    }
+
+    /**
+     * @param array{position:string, tests:list<string>} $position
+     * @param array<string, mixed> $info
+     * @param array{lastNoteById:array<string, array{index:int, type:string}>} $state
+     * @return array{position:string, tests:list<string>}
+     */
+    private function withNearNotePositionTest(array $position, array $info, array $state): array
+    {
+        if (!$this->citationInfoIsNearNote($info, $state)) {
+            return $position;
+        }
+
+        if (!in_array('subsequent', $position['tests'], true)) {
+            $position['tests'][] = 'subsequent';
+        }
+        if (!in_array('near-note', $position['tests'], true)) {
+            $position['tests'][] = 'near-note';
+        }
+
+        return $position;
+    }
+
+    /**
+     * @param array<string, mixed> $info
+     * @param array{lastNoteById:array<string, array{index:int, type:string}>} $state
+     */
+    private function citationInfoIsNearNote(array $info, array $state): bool
+    {
+        $id = (string) ($info['id'] ?? '');
+        if ($id === '' || !is_int($info['noteIndex'] ?? null)) {
+            return false;
+        }
+
+        $previous = $state['lastNoteById'][$id] ?? null;
+        if (!is_array($previous)) {
+            return false;
+        }
+
+        $currentIndex = (int) $info['noteIndex'];
+        $previousIndex = (int) ($previous['index'] ?? 0);
+        if ($previousIndex < 1 || $currentIndex < $previousIndex) {
+            return false;
+        }
+
+        if ((string) ($previous['type'] ?? 'footnote') !== (string) ($info['noteType'] ?? 'footnote')) {
+            return false;
+        }
+
+        $options = $this->style->citationOptions();
+        $nearNoteDistance = max(0, (int) ($options['nearNoteDistance'] ?? 5));
+
+        return ($currentIndex - $previousIndex) <= $nearNoteDistance;
     }
 
     /**
@@ -1485,7 +1622,7 @@ final class CitationCslProcessor
         $annotated = [];
         $previousInUnit = null;
         foreach ($citations as $citation) {
-            [$node, $info] = $this->annotateCitationPosition($citation, $state, $previousInUnit, $annotated === []);
+            [$node, $info] = $this->annotateCitationPosition($citation, $state, $previousInUnit, $annotated === [], null);
             $annotated[] = $node;
             $previousInUnit = $info;
         }

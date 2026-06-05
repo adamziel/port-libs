@@ -4796,6 +4796,159 @@ XML
 XML
         ));
     },
+    'applies bounded csl near-note position conditionals for note citations' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'source-a',
+                'type' => 'article-journal',
+                'title' => 'Near Note Source A',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'source-b',
+                'type' => 'report',
+                'title' => 'Near Note Source B',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+            [
+                'id' => 'source-c',
+                'type' => 'webpage',
+                'title' => 'Spacer Source C',
+                'author' => [
+                    ['literal' => 'Archive Desk'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="note" default-locale="en-US">
+  <info>
+    <title>Bounded Near Note Review Style</title>
+    <id>https://example.test/styles/bounded-near-note-review</id>
+    <updated>2026-06-05T12:48:25+00:00</updated>
+  </info>
+  <macro name="citation-key">
+    <group delimiter=" ">
+      <names variable="author editor"/>
+      <date variable="issued">
+        <date-part name="year"/>
+      </date>
+    </group>
+  </macro>
+  <citation near-note-distance="2">
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <choose>
+        <if position="ibid" match="any">
+          <text value="ibid"/>
+        </if>
+        <else-if position="near-note" match="any">
+          <group delimiter=" ">
+            <text value="near-note"/>
+            <text macro="citation-key"/>
+          </group>
+        </else-if>
+        <else-if position="subsequent" match="any">
+          <group delimiter=" ">
+            <text value="subsequent"/>
+            <text macro="citation-key"/>
+          </group>
+        </else-if>
+        <else>
+          <text macro="citation-key"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author"/>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('note', $summary['class'] ?? null);
+        $t->same(2, $summary['citationOptions']['nearNoteDistance'] ?? null);
+        $t->same(['near-note'], $summary['citationRendering'][0]['branches'][1]['positions'] ?? null);
+
+        $document = (new MarkdownReader())->read(
+            'Initial source note.[^a]'
+            . "\n\n" . 'Bridge note.[^b]'
+            . "\n\n" . 'Nearby source note.[^c]'
+            . "\n\n" . 'Nearby bridge note.[^d]'
+            . "\n\n" . 'Spacer note.[^e]'
+            . "\n\n" . 'Far source note.[^f]'
+            . "\n\n" . '[^a]: Initial footnote cites [@source-a].'
+            . "\n\n" . '[^b]: Bridge footnote cites [@source-b].'
+            . "\n\n" . '[^c]: Nearby footnote cites [@source-a].'
+            . "\n\n" . '[^d]: Nearby bridge footnote cites [@source-b].'
+            . "\n\n" . '[^e]: Spacer footnote cites [@source-c].'
+            . "\n\n" . '[^f]: Far footnote cites [@source-a].'
+        );
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+
+        $citations = [];
+        $collectCitations = static function (AstNode $node) use (&$collectCitations, &$citations): void {
+            if ($node->type === 'citation') {
+                $citations[] = $node;
+            }
+
+            foreach ($node->children as $child) {
+                $collectCitations($child);
+            }
+        };
+        $collectCitations($processed);
+
+        $t->same(6, count($citations));
+        $t->same(['first'], $citations[0]->attr('cslPositionTests'));
+        $t->same(['first'], $citations[1]->attr('cslPositionTests'));
+        $t->same(['subsequent', 'near-note'], $citations[2]->attr('cslPositionTests'));
+        $t->same(['subsequent', 'near-note'], $citations[3]->attr('cslPositionTests'));
+        $t->same(['first'], $citations[4]->attr('cslPositionTests'));
+        $t->same(['subsequent'], $citations[5]->attr('cslPositionTests'));
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<li id="fn-1"><p>Initial footnote cites (de la Cruz 2026).</p>', $blocks);
+        $t->contains('<li id="fn-3"><p>Nearby footnote cites (near-note de la Cruz 2026).</p>', $blocks);
+        $t->contains('<li id="fn-4"><p>Nearby bridge footnote cites (near-note Ng 2025).</p>', $blocks);
+        $t->contains('<li id="fn-6"><p>Far footnote cites (subsequent de la Cruz 2026).</p>', $blocks);
+        $t->contains('<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria. Near Note Source A.</dd>', $blocks);
+
+        $explicit = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('citation', ['id' => 'source-a', 'text' => '[@source-a]', 'cslNoteIndex' => 10]),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('citation', ['id' => 'source-b', 'text' => '[@source-b]', 'cslNoteIndex' => 11]),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('citation', ['id' => 'source-a', 'text' => '[@source-a]', 'cslNoteIndex' => 12]),
+            ]),
+        ]);
+        $explicitProcessed = $processor->apply($explicit);
+        $explicitNearNote = $explicitProcessed->children[2]->children[0];
+        $t->same(['subsequent', 'near-note'], $explicitNearNote->attr('cslPositionTests'));
+        $t->same('(near-note de la Cruz 2026)', $explicitNearNote->attr('rendered'));
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="note">
+  <citation near-note-distance="close"><layout><text variable="title"/></layout></citation>
+</style>
+XML
+        ));
+    },
     'applies bounded csl bibliography display parts for second field layouts' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

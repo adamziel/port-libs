@@ -125,7 +125,7 @@ final class CslStyle
      * @param array{prefix:string, suffix:string, delimiter:string} $citationLayout
      * @param array{prefix:string, suffix:string, delimiter:string} $bibliographyLayout
      * @param array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string} $bibliographyOptions
-     * @param array{disambiguateAddYearSuffix:bool, collapse:string} $citationOptions
+     * @param array{disambiguateAddYearSuffix:bool, collapse:string, nearNoteDistance:int} $citationOptions
      * @param list<array{sort:string, variable?:string, macro?:string}> $citationSortKeys
      * @param list<array{sort:string, variable?:string, macro?:string}> $bibliographySortKeys
      * @param list<array<string, mixed>> $citationRenderingElements
@@ -159,7 +159,7 @@ final class CslStyle
             ['prefix' => '(', 'suffix' => ')', 'delimiter' => '; '],
             ['prefix' => '', 'suffix' => '', 'delimiter' => ' '],
             ['hangingIndent' => false, 'entrySpacing' => null, 'lineSpacing' => null, 'secondFieldAlign' => '', 'subsequentAuthorSubstitute' => '', 'subsequentAuthorSubstituteRule' => 'complete-all'],
-            ['disambiguateAddYearSuffix' => false, 'collapse' => ''],
+            ['disambiguateAddYearSuffix' => false, 'collapse' => '', 'nearNoteDistance' => 5],
             [],
             [],
             [],
@@ -317,7 +317,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{disambiguateAddYearSuffix:bool, collapse:string}
+     * @return array{disambiguateAddYearSuffix:bool, collapse:string, nearNoteDistance:int}
      */
     public function citationOptions(): array
     {
@@ -416,7 +416,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, localeOptions:array{punctuationInQuote:bool}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string, nearNoteDistance:int}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, localeOptions:array{punctuationInQuote:bool}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function summary(): array
     {
@@ -561,7 +561,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{disambiguateAddYearSuffix:bool, collapse:string}
+     * @return array{disambiguateAddYearSuffix:bool, collapse:string, nearNoteDistance:int}
      */
     private static function parseCitationOptions(\DOMElement $citation): array
     {
@@ -570,9 +570,19 @@ final class CslStyle
             throw new \InvalidArgumentException('CSL citation attribute collapse must be citation-number, year, year-suffix, or year-suffix-ranged');
         }
 
+        $nearNoteDistance = 5;
+        if ($citation->hasAttribute('near-note-distance')) {
+            $value = trim($citation->getAttribute('near-note-distance'));
+            if (preg_match('/^\d+$/', $value) !== 1) {
+                throw new \InvalidArgumentException('CSL citation attribute near-note-distance must be a non-negative integer');
+            }
+            $nearNoteDistance = (int) $value;
+        }
+
         return [
             'disambiguateAddYearSuffix' => self::booleanAttribute($citation, 'disambiguate-add-year-suffix', false, 'citation'),
             'collapse' => $collapse,
+            'nearNoteDistance' => $nearNoteDistance,
         ];
     }
 
