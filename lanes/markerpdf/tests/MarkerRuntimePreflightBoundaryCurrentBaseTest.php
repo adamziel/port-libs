@@ -26,10 +26,10 @@ $removeTree = static function (string $path) use (&$removeTree): void {
         }
 
         $child = $path . DIRECTORY_SEPARATOR . $entry;
-        if (is_dir($child)) {
-            $removeTree($child);
-        } else {
+        if (is_link($child) || !is_dir($child)) {
             unlink($child);
+        } else {
+            $removeTree($child);
         }
     }
 
@@ -1739,6 +1739,95 @@ return [
                 $plan['console_summary']['message_line']
             );
             $t->same(false, $plan['executes_python_or_models']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records convert.py os.path.isfile symlink boundary before chunking and task args' => static function (
+        TestRunner $t
+    ) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'target-report.pdf', "%PDF-1.4\n% symlink target\n%%EOF");
+            mkdir($input . DIRECTORY_SEPARATOR . 'asset-folder');
+            $fileLink = $input . DIRECTORY_SEPARATOR . 'linked-report.pdf';
+            $directoryLink = $input . DIRECTORY_SEPARATOR . 'linked-directory.pdf';
+            $brokenLink = $input . DIRECTORY_SEPARATOR . 'broken-upload.pdf';
+            if (
+                !@symlink($input . DIRECTORY_SEPARATOR . 'target-report.pdf', $fileLink)
+                || !@symlink($input . DIRECTORY_SEPARATOR . 'asset-folder', $directoryLink)
+                || !@symlink($input . DIRECTORY_SEPARATOR . 'missing-target.pdf', $brokenLink)
+            ) {
+                throw new RuntimeException('Unable to create symlink fixtures for markerPDF runtime preflight.');
+            }
+
+            $entryOrder = $runtimeDirectoryOrder($input);
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $symlinkOrder = array_values(array_filter(
+                $entryOrder,
+                static fn (string $filename): bool => is_link($input . DIRECTORY_SEPARATOR . $filename)
+            ));
+            $fileSymlinks = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => is_link($input . DIRECTORY_SEPARATOR . $filename)
+            ));
+            $skippedSymlinks = array_values(array_filter(
+                $entryOrder,
+                static fn (string $filename): bool => is_link($input . DIRECTORY_SEPARATOR . $filename)
+                    && !is_file($input . DIRECTORY_SEPARATOR . $filename)
+            ));
+            $brokenSymlinks = array_values(array_filter(
+                $entryOrder,
+                static fn (string $filename): bool => is_link($input . DIRECTORY_SEPARATOR . $filename)
+                    && !file_exists($input . DIRECTORY_SEPARATOR . $filename)
+            ));
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                metadataByFilename: [
+                    'linked-report.pdf' => ['title' => 'Symlinked Upload', 'languages' => ['English']],
+                ],
+                workers: 6
+            );
+
+            $listing = $plan['input_listing'];
+            $t->same('os.listdir + os.path.isfile', $listing['source']);
+            $t->same('os.path.isfile follows regular-file symlinks and excludes directory or broken symlinks', $listing['symlink_filter']);
+            $t->same($entryOrder, $listing['entry_basenames']);
+            $t->same($fileOrder, $listing['file_basenames']);
+            $t->same($symlinkOrder, $listing['symlink_basenames']);
+            $t->same($fileSymlinks, $listing['file_symlink_basenames']);
+            $t->same($skippedSymlinks, $listing['skipped_symlink_basenames']);
+            $t->same($brokenSymlinks, $listing['broken_symlink_basenames']);
+            $t->same(true, in_array('linked-report.pdf', $listing['file_basenames'], true));
+            $t->same(false, in_array('linked-directory.pdf', $listing['file_basenames'], true));
+            $t->same(false, in_array('broken-upload.pdf', $listing['file_basenames'], true));
+            $t->same(true, in_array('linked-directory.pdf', $listing['skipped_non_file_basenames'], true));
+            $t->same(true, in_array('broken-upload.pdf', $listing['skipped_non_file_basenames'], true));
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
+            $t->same(true, $plan['chunking']['preserves_input_listing_order']);
+            $t->same(2, $plan['worker_pool']['task_args_count']);
+            $t->same(2, $plan['worker_pool']['total_processes']);
+            $t->same(true, $plan['worker_pool']['pool_launchable']);
+
+            $taskArgsByName = [];
+            foreach ($plan['worker_pool']['task_args'] as $taskArg) {
+                $taskArgsByName[basename($taskArg['filepath'])] = $taskArg;
+            }
+            $t->same($fileLink, $taskArgsByName['linked-report.pdf']['filepath']);
+            $t->same(['title' => 'Symlinked Upload', 'languages' => ['English']], $taskArgsByName['linked-report.pdf']['metadata']);
+            $t->same(null, $taskArgsByName['target-report.pdf']['metadata']);
+
+            $preflight = $plan['worker_pool']['process_single_pdf_preflight'];
+            $t->same($fileOrder, $preflight['task_arg_filenames']);
+            $t->same(false, in_array('linked-directory.pdf', $preflight['task_arg_filenames'], true));
+            $t->same(false, in_array('broken-upload.pdf', $preflight['task_arg_filenames'], true));
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
         } finally {
             $removeTree($input);
             $removeTree($output);

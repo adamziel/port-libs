@@ -12,10 +12,12 @@ $input = sys_get_temp_dir() . '/markerpdf-runtime-preflight-input-' . $runId;
 $output = sys_get_temp_dir() . '/markerpdf-runtime-preflight-output-' . $runId;
 $blockedOutputRoot = sys_get_temp_dir() . '/markerpdf-runtime-preflight-blocked-output-' . $runId;
 $relativeMetadataRoot = sys_get_temp_dir() . '/markerpdf-runtime-preflight-relative-metadata-' . $runId;
+$symlinkRoot = sys_get_temp_dir() . '/markerpdf-runtime-preflight-symlink-' . $runId;
 @mkdir($input, 0777, true);
 @mkdir($output, 0777, true);
 @mkdir($blockedOutputRoot, 0777, true);
 @mkdir($relativeMetadataRoot, 0777, true);
+@mkdir($symlinkRoot, 0777, true);
 
 $removeTree = static function (string $path) use (&$removeTree): void {
     if (!is_dir($path)) {
@@ -28,10 +30,10 @@ $removeTree = static function (string $path) use (&$removeTree): void {
         }
 
         $child = $path . DIRECTORY_SEPARATOR . $entry;
-        if (is_dir($child)) {
-            $removeTree($child);
-        } else {
+        if (is_link($child) || !is_dir($child)) {
             unlink($child);
+        } else {
+            $removeTree($child);
         }
     }
 
@@ -323,6 +325,50 @@ try {
         ],
         metadataFile: '',
         workers: 8
+    );
+    $symlinkInput = $symlinkRoot . DIRECTORY_SEPARATOR . 'uploads';
+    $symlinkOutput = $symlinkRoot . DIRECTORY_SEPARATOR . 'marker-output';
+    mkdir($symlinkInput);
+    mkdir($symlinkOutput);
+    $writePdf($symlinkInput . DIRECTORY_SEPARATOR . 'target-report.pdf', 'Symlink target WordPress PDF');
+    mkdir($symlinkInput . DIRECTORY_SEPARATOR . 'asset-folder');
+    $symlinkFile = $symlinkInput . DIRECTORY_SEPARATOR . 'linked-report.pdf';
+    $symlinkDirectory = $symlinkInput . DIRECTORY_SEPARATOR . 'linked-directory.pdf';
+    $symlinkBroken = $symlinkInput . DIRECTORY_SEPARATOR . 'broken-upload.pdf';
+    if (
+        !@symlink($symlinkInput . DIRECTORY_SEPARATOR . 'target-report.pdf', $symlinkFile)
+        || !@symlink($symlinkInput . DIRECTORY_SEPARATOR . 'asset-folder', $symlinkDirectory)
+        || !@symlink($symlinkInput . DIRECTORY_SEPARATOR . 'missing-target.pdf', $symlinkBroken)
+    ) {
+        throw new RuntimeException('Unable to create runtime symlink preflight smoke fixtures.');
+    }
+    $symlinkEntryOrder = $runtimeDirectoryOrder($symlinkInput);
+    $symlinkFileOrder = $runtimeDirectoryOrder($symlinkInput, filesOnly: true);
+    $symlinkBasenames = array_values(array_filter(
+        $symlinkEntryOrder,
+        static fn (string $filename): bool => is_link($symlinkInput . DIRECTORY_SEPARATOR . $filename)
+    ));
+    $symlinkFileBasenames = array_values(array_filter(
+        $symlinkFileOrder,
+        static fn (string $filename): bool => is_link($symlinkInput . DIRECTORY_SEPARATOR . $filename)
+    ));
+    $symlinkSkippedBasenames = array_values(array_filter(
+        $symlinkEntryOrder,
+        static fn (string $filename): bool => is_link($symlinkInput . DIRECTORY_SEPARATOR . $filename)
+            && !is_file($symlinkInput . DIRECTORY_SEPARATOR . $filename)
+    ));
+    $symlinkBrokenBasenames = array_values(array_filter(
+        $symlinkEntryOrder,
+        static fn (string $filename): bool => is_link($symlinkInput . DIRECTORY_SEPARATOR . $filename)
+            && !file_exists($symlinkInput . DIRECTORY_SEPARATOR . $filename)
+    ));
+    $symlinkPlan = $batch->runtimeMainPreflightPlan(
+        $symlinkInput,
+        $symlinkOutput,
+        metadataByFilename: [
+            'linked-report.pdf' => ['title' => 'Symlinked Upload', 'languages' => ['English']],
+        ],
+        workers: 6
     );
     $plans = [];
     foreach (['already-imported.pdf', 'extension-spoof.pdf', 'short-text.pdf', 'ready-for-marker.pdf'] as $filename) {
@@ -641,6 +687,32 @@ try {
     ) {
         throw new RuntimeException('Expected empty metadata_file runtime preflight to use explicit metadata arguments and ignore metadata-file decoys.');
     }
+    if (
+        $symlinkPlan['input_listing']['symlink_filter'] !== 'os.path.isfile follows regular-file symlinks and excludes directory or broken symlinks'
+        || $symlinkPlan['input_listing']['entry_basenames'] !== $symlinkEntryOrder
+        || $symlinkPlan['input_listing']['file_basenames'] !== $symlinkFileOrder
+        || $symlinkPlan['input_listing']['symlink_basenames'] !== $symlinkBasenames
+        || $symlinkPlan['input_listing']['file_symlink_basenames'] !== $symlinkFileBasenames
+        || $symlinkPlan['input_listing']['skipped_symlink_basenames'] !== $symlinkSkippedBasenames
+        || $symlinkPlan['input_listing']['broken_symlink_basenames'] !== $symlinkBrokenBasenames
+        || !in_array('linked-report.pdf', $symlinkPlan['chunking']['selected_filenames'], true)
+        || in_array('linked-directory.pdf', $symlinkPlan['chunking']['selected_filenames'], true)
+        || in_array('broken-upload.pdf', $symlinkPlan['chunking']['selected_filenames'], true)
+        || $symlinkPlan['worker_pool']['task_args_count'] !== 2
+    ) {
+        throw new RuntimeException('Expected os.path.isfile symlink boundary to include regular-file symlinks and exclude directory/broken symlinks before task args.');
+    }
+    $symlinkTaskArgsByName = [];
+    foreach ($symlinkPlan['worker_pool']['task_args'] as $taskArg) {
+        $symlinkTaskArgsByName[basename($taskArg['filepath'])] = $taskArg;
+    }
+    if (
+        $symlinkTaskArgsByName['linked-report.pdf']['filepath'] !== $symlinkFile
+        || $symlinkTaskArgsByName['linked-report.pdf']['metadata'] !== ['title' => 'Symlinked Upload', 'languages' => ['English']]
+        || $symlinkTaskArgsByName['target-report.pdf']['metadata'] !== null
+    ) {
+        throw new RuntimeException('Expected symlinked PDF task args to preserve the link path and basename metadata.');
+    }
     $relativeTaskArgsByName = [];
     foreach ($relativeMetadataPlan['worker_pool']['task_args'] as $taskArg) {
         $relativeTaskArgsByName[basename($taskArg['filepath'])] = $taskArg;
@@ -951,6 +1023,17 @@ try {
         'empty_metadata_file_selected_metadata_filenames' => $emptyMetadataRuntimePlan['metadata']['selected_metadata_filenames'],
         'empty_metadata_file_ignored_file_decoys' => $emptyMetadataRuntimePlan['metadata']['metadata_file'] === null
             && $emptyMetadataRuntimePlan['metadata']['metadata_file_input'] === null,
+        'symlink_filter' => $symlinkPlan['input_listing']['symlink_filter'],
+        'symlink_entries' => $symlinkPlan['input_listing']['symlink_basenames'],
+        'file_symlink_basenames' => $symlinkPlan['input_listing']['file_symlink_basenames'],
+        'skipped_symlink_basenames' => $symlinkPlan['input_listing']['skipped_symlink_basenames'],
+        'broken_symlink_basenames' => $symlinkPlan['input_listing']['broken_symlink_basenames'],
+        'symlink_selected_filenames' => $symlinkPlan['chunking']['selected_filenames'],
+        'symlink_task_args_count' => $symlinkPlan['worker_pool']['task_args_count'],
+        'symlink_link_path_preserved' => $symlinkTaskArgsByName['linked-report.pdf']['filepath'] === $symlinkFile,
+        'symlink_link_metadata_title' => $symlinkTaskArgsByName['linked-report.pdf']['metadata']['title'],
+        'symlink_directory_excluded' => !in_array('linked-directory.pdf', $symlinkPlan['chunking']['selected_filenames'], true),
+        'symlink_broken_excluded' => !in_array('broken-upload.pdf', $symlinkPlan['chunking']['selected_filenames'], true),
         'runtime_max_files_limit_active' => $runtimePlan['chunking']['max_files_limit_active'],
         'runtime_zero_max_selected_count' => $runtimePlan['chunking']['selected_count'],
         'negative_max_selected_filenames' => $negativeMaxPlan['chunking']['selected_filenames'],
@@ -1064,4 +1147,5 @@ try {
     $removeTree($output);
     $removeTree($blockedOutputRoot);
     $removeTree($relativeMetadataRoot);
+    $removeTree($symlinkRoot);
 }
