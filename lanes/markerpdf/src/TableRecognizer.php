@@ -948,8 +948,13 @@ final class TableRecognizer
             'covered_by',
             'source_cell_bbox',
             'source_cell_bboxes',
+            'source_page_image_bbox',
+            'source_page_image_bboxes',
             'source_coordinate_space',
             'source_coordinate_spaces',
+            'source_coordinate_source',
+            'source_coordinate_sources',
+            'source_endpoint_order_normalized',
         ] as $field) {
             if (array_key_exists($field, $gridCell)) {
                 $summary[$field] = $gridCell[$field];
@@ -1026,8 +1031,13 @@ final class TableRecognizer
             'row_header_physical_axis',
             'source_cell_bbox',
             'source_cell_bboxes',
+            'source_page_image_bbox',
+            'source_page_image_bboxes',
             'source_coordinate_space',
             'source_coordinate_spaces',
+            'source_coordinate_source',
+            'source_coordinate_sources',
+            'source_endpoint_order_normalized',
         ] as $field) {
             if (array_key_exists($field, $renderCell)) {
                 $summary[$field] = $renderCell[$field];
@@ -1207,11 +1217,7 @@ final class TableRecognizer
                 'assignment_retained_after_crop_boundary' => $active,
                 'assignment_excluded_before_markdown' => !$active,
             ];
-            foreach (['source_bbox', 'source_coordinate_space'] as $field) {
-                if (array_key_exists($field, $cell)) {
-                    $reviewRow[$field] = $cell[$field];
-                }
-            }
+            $reviewRow = $this->withSourceGeometryReviewFields($reviewRow, $cell);
             if ($reviewRow['row_ids'] !== [] && $reviewRow['col_ids'] !== []) {
                 $reviewRow['anchor'] = [
                     'row_id' => $reviewRow['row_ids'][0],
@@ -1354,11 +1360,7 @@ final class TableRecognizer
                 'active' => $active,
                 'upstream_assignment_retained' => $active && $status === 'within_active_bands',
             ];
-            foreach (['source_bbox', 'source_coordinate_space'] as $field) {
-                if (array_key_exists($field, $cell)) {
-                    $reviewRow[$field] = $cell[$field];
-                }
-            }
+            $reviewRow = $this->withSourceGeometryReviewFields($reviewRow, $cell);
             if ($active && $status === 'trimmed_to_active_bands') {
                 $reviewRow['upstream_assignment_trimmed'] = true;
             }
@@ -2023,8 +2025,12 @@ final class TableRecognizer
     private function translatedGeometryRecord(array $record, float $dx, float $dy, string $sourceCoordinateSpace): array
     {
         $sourceBbox = $this->bboxFromRecord($record);
+        $sourceCoordinateSource = $this->bboxCoordinateSourceFromRecord($record);
+        $sourceEndpointOrderNormalized = $this->bboxEndpointOrderNormalizedFromRecord($record);
         $record['source_bbox'] = $sourceBbox;
         $record['source_coordinate_space'] = $sourceCoordinateSpace;
+        $record['source_coordinate_source'] = $sourceCoordinateSource;
+        $record['source_endpoint_order_normalized'] = $sourceEndpointOrderNormalized;
         $record['bbox'] = $this->translatedBbox($sourceBbox, $dx, $dy);
         $record = $this->withGeometryRecordCoordinateSpace($record, 'table_crop');
 
@@ -2044,10 +2050,14 @@ final class TableRecognizer
         string $sourceCoordinateSpace
     ): array {
         $sourceBbox = $this->bboxFromRecord($record);
+        $sourceCoordinateSource = $this->bboxCoordinateSourceFromRecord($record);
+        $sourceEndpointOrderNormalized = $this->bboxEndpointOrderNormalizedFromRecord($record);
         $pageImageBbox = $this->unnormalizedTableBbox($sourceBbox, $pageImageSize);
         $record['source_bbox'] = $sourceBbox;
         $record['source_page_image_bbox'] = $pageImageBbox;
         $record['source_coordinate_space'] = $sourceCoordinateSpace;
+        $record['source_coordinate_source'] = $sourceCoordinateSource;
+        $record['source_endpoint_order_normalized'] = $sourceEndpointOrderNormalized;
         $record['bbox'] = $this->translatedBbox($pageImageBbox, $dx, $dy);
         $record = $this->withGeometryRecordCoordinateSpace($record, 'table_crop');
 
@@ -2062,8 +2072,12 @@ final class TableRecognizer
     private function unnormalizedGeometryRecord(array $record, array $imageSize, string $sourceCoordinateSpace): array
     {
         $sourceBbox = $this->bboxFromRecord($record);
+        $sourceCoordinateSource = $this->bboxCoordinateSourceFromRecord($record);
+        $sourceEndpointOrderNormalized = $this->bboxEndpointOrderNormalizedFromRecord($record);
         $record['source_bbox'] = $sourceBbox;
         $record['source_coordinate_space'] = $sourceCoordinateSpace;
+        $record['source_coordinate_source'] = $sourceCoordinateSource;
+        $record['source_endpoint_order_normalized'] = $sourceEndpointOrderNormalized;
         $record['bbox'] = $this->unnormalizedTableBbox($sourceBbox, $imageSize);
         $record = $this->withGeometryRecordCoordinateSpace($record, 'table_crop');
 
@@ -2108,6 +2122,8 @@ final class TableRecognizer
                 $bbox = $this->bboxFromValue($conflict['bbox']);
                 if ($bbox !== null) {
                     $conflict['source_bbox'] = $bbox;
+                    $conflict['source_coordinate_source'] = $this->bboxCoordinateSourceFromRecord($conflict);
+                    $conflict['source_endpoint_order_normalized'] = $this->bboxEndpointOrderNormalizedFromRecord($conflict);
                     $conflict['bbox'] = $this->translatedBbox($bbox, $dx, $dy);
                 }
             }
@@ -2165,6 +2181,8 @@ final class TableRecognizer
                     $pageImageBbox = $this->unnormalizedTableBbox($bbox, $pageImageSize);
                     $conflict['source_bbox'] = $bbox;
                     $conflict['source_page_image_bbox'] = $pageImageBbox;
+                    $conflict['source_coordinate_source'] = $this->bboxCoordinateSourceFromRecord($conflict);
+                    $conflict['source_endpoint_order_normalized'] = $this->bboxEndpointOrderNormalizedFromRecord($conflict);
                     $conflict['bbox'] = $this->translatedBbox($pageImageBbox, $dx, $dy);
                 }
             }
@@ -2219,6 +2237,8 @@ final class TableRecognizer
                 $bbox = $this->bboxFromValue($conflict['bbox']);
                 if ($bbox !== null) {
                     $conflict['source_bbox'] = $bbox;
+                    $conflict['source_coordinate_source'] = $this->bboxCoordinateSourceFromRecord($conflict);
+                    $conflict['source_endpoint_order_normalized'] = $this->bboxEndpointOrderNormalizedFromRecord($conflict);
                     $conflict['bbox'] = $this->unnormalizedTableBbox($bbox, $imageSize);
                 }
             }
@@ -3409,13 +3429,7 @@ final class TableRecognizer
             if (isset($cell['order'])) {
                 $entry['order'] = (int) $cell['order'];
             }
-            $sourceBbox = $this->bboxFromValue($cell['source_bbox'] ?? null);
-            if ($sourceBbox !== null) {
-                $entry['source_bbox'] = $sourceBbox;
-            }
-            if (isset($cell['source_coordinate_space']) && is_scalar($cell['source_coordinate_space'])) {
-                $entry['source_coordinate_space'] = $this->normalizeCoordinateSpace((string) $cell['source_coordinate_space']);
-            }
+            $entry = $this->withSourceGeometryReviewFields($entry, $cell);
             foreach (['row_geometry_orders', 'col_geometry_orders'] as $field) {
                 if (isset($cell[$field]) && is_array($cell[$field])) {
                     $entry[$field] = array_map(
@@ -3526,7 +3540,7 @@ final class TableRecognizer
 
             $id = $item[$idField] ?? $item['id'] ?? $index;
             $bbox = $this->bboxFromRecord($item);
-            $normalized[] = [
+            $entry = [
                 $idField => (int) $id,
                 'bbox' => $bbox,
                 'coordinate_source' => $this->bboxCoordinateSourceFromRecord($item),
@@ -3535,6 +3549,7 @@ final class TableRecognizer
                 'height' => $bbox[3] - $bbox[1],
                 'area' => $this->area($bbox),
             ];
+            $normalized[] = $this->withSourceGeometryReviewFields($entry, $item);
         }
 
         return $normalized;
@@ -4089,6 +4104,7 @@ final class TableRecognizer
             if (($band['endpoint_order_normalized'] ?? false) === true) {
                 $reviewRow['endpoint_order_normalized'] = true;
             }
+            $reviewRow = $this->withSourceGeometryReviewFields($reviewRow, $band);
             $reviewRows[] = $reviewRow;
 
             if (!$active) {
@@ -4156,11 +4172,7 @@ final class TableRecognizer
                 'active' => $active,
                 'upstream_cell_bbox_retained' => true,
             ];
-            foreach (['source_bbox', 'source_coordinate_space'] as $field) {
-                if (array_key_exists($field, $cell)) {
-                    $reviewRow[$field] = $cell[$field];
-                }
-            }
+            $reviewRow = $this->withSourceGeometryReviewFields($reviewRow, $cell);
             if ($rowIds !== [] && $colIds !== []) {
                 $reviewRow['anchor'] = [
                     'row_id' => $rowIds[0],
@@ -4249,7 +4261,11 @@ final class TableRecognizer
         $boundedBboxes = [];
         $clippedBboxes = [];
         $sourceBboxes = [];
+        $sourcePageImageBboxes = [];
         $sourceCoordinateSpaces = [];
+        $sourceCoordinateSources = [];
+        $sourceEndpointOrderObserved = false;
+        $sourceEndpointOrderNormalized = false;
         $activeCount = 0;
         $clippedCount = 0;
         $excludedCount = 0;
@@ -4274,8 +4290,18 @@ final class TableRecognizer
             if (isset($cell['source_bbox']) && is_array($cell['source_bbox'])) {
                 $sourceBboxes[] = $cell['source_bbox'];
             }
+            if (isset($cell['source_page_image_bbox']) && is_array($cell['source_page_image_bbox'])) {
+                $sourcePageImageBboxes[] = $cell['source_page_image_bbox'];
+            }
             if (isset($cell['source_coordinate_space']) && is_scalar($cell['source_coordinate_space'])) {
                 $sourceCoordinateSpaces[] = (string) $cell['source_coordinate_space'];
+            }
+            if (isset($cell['source_coordinate_source']) && is_scalar($cell['source_coordinate_source'])) {
+                $sourceCoordinateSources[] = (string) $cell['source_coordinate_source'];
+            }
+            if (array_key_exists('source_endpoint_order_normalized', $cell)) {
+                $sourceEndpointOrderObserved = true;
+                $sourceEndpointOrderNormalized = $sourceEndpointOrderNormalized || (bool) $cell['source_endpoint_order_normalized'];
             }
             if ($status === 'clipped_to_table_image') {
                 $clippedCount++;
@@ -4324,12 +4350,29 @@ final class TableRecognizer
                 $summary['source_cell_bbox'] = $sourceBbox;
             }
         }
+        if ($sourcePageImageBboxes !== []) {
+            $summary['source_page_image_bboxes'] = $sourcePageImageBboxes;
+            $sourcePageImageBbox = $this->mergedBboxList($sourcePageImageBboxes);
+            if ($sourcePageImageBbox !== null) {
+                $summary['source_page_image_bbox'] = $sourcePageImageBbox;
+            }
+        }
         $sourceCoordinateSpaces = array_values(array_unique($sourceCoordinateSpaces));
         if ($sourceCoordinateSpaces !== []) {
             $summary['source_coordinate_spaces'] = $sourceCoordinateSpaces;
             if (count($sourceCoordinateSpaces) === 1) {
                 $summary['source_coordinate_space'] = $sourceCoordinateSpaces[0];
             }
+        }
+        $sourceCoordinateSources = array_values(array_unique($sourceCoordinateSources));
+        if ($sourceCoordinateSources !== []) {
+            $summary['source_coordinate_sources'] = $sourceCoordinateSources;
+            if (count($sourceCoordinateSources) === 1) {
+                $summary['source_coordinate_source'] = $sourceCoordinateSources[0];
+            }
+        }
+        if ($sourceEndpointOrderObserved) {
+            $summary['source_endpoint_order_normalized'] = $sourceEndpointOrderNormalized;
         }
 
         return $summary;
@@ -5830,6 +5873,33 @@ final class TableRecognizer
 
         return $this->bboxNamedFieldSource($record)
             ?? (is_array($record['polygon'] ?? null) ? 'polygon' : 'bbox_array');
+    }
+
+    /**
+     * @param array<string, mixed> $target
+     * @param array<string, mixed> $source
+     * @return array<string, mixed>
+     */
+    private function withSourceGeometryReviewFields(array $target, array $source): array
+    {
+        foreach (['source_bbox', 'source_page_image_bbox'] as $field) {
+            $bbox = $this->bboxFromValue($source[$field] ?? null);
+            if ($bbox !== null) {
+                $target[$field] = $bbox;
+            }
+        }
+
+        if (isset($source['source_coordinate_space']) && is_scalar($source['source_coordinate_space'])) {
+            $target['source_coordinate_space'] = $this->normalizeCoordinateSpace((string) $source['source_coordinate_space']);
+        }
+        if (isset($source['source_coordinate_source']) && is_scalar($source['source_coordinate_source'])) {
+            $target['source_coordinate_source'] = (string) $source['source_coordinate_source'];
+        }
+        if (array_key_exists('source_endpoint_order_normalized', $source)) {
+            $target['source_endpoint_order_normalized'] = (bool) $source['source_endpoint_order_normalized'];
+        }
+
+        return $target;
     }
 
     /**
