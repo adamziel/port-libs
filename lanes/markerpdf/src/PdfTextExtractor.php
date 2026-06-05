@@ -27158,7 +27158,48 @@ final class PdfTextExtractor
             true
         );
 
-        return $decoded !== null && strlen($decoded) >= $expectedLength;
+        if ($decoded !== null) {
+            return strlen($decoded) >= $expectedLength;
+        }
+
+        $nativePrefix = $this->decodeInlineImageNativePrefixBeforePreviewFilter(
+            $filters,
+            $decodeParms,
+            $dictionary,
+            substr($candidate, 0, $firstFilterEnd)
+        );
+
+        return $nativePrefix !== null && strlen($nativePrefix) >= $expectedLength;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @param list<string|null> $decodeParms
+     */
+    private function decodeInlineImageNativePrefixBeforePreviewFilter(
+        array $filters,
+        array $decodeParms,
+        string $dictionary,
+        string $candidate
+    ): ?string {
+        $stopBeforeIndex = null;
+        foreach ($filters as $index => $filter) {
+            if ($filter === null) {
+                continue;
+            }
+
+            $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $index);
+            if (!$this->textStreamFilterIsSupported($filter, $filterDecodeParms, [])) {
+                $stopBeforeIndex = $index;
+                break;
+            }
+        }
+
+        if ($stopBeforeIndex === null || $stopBeforeIndex <= 0) {
+            return null;
+        }
+
+        return $this->decodeStreamBeforeFilter($dictionary, $candidate, [], $filters, $stopBeforeIndex);
     }
 
     private function inlineImageCandidateIsIncompletePreviewOnly(string $dictionary, string $candidate): bool

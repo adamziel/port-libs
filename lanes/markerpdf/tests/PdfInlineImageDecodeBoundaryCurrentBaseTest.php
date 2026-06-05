@@ -347,6 +347,34 @@ return [
             )
         );
     },
+    'keeps native prefix preview-only inline image surplus closed until the real EI terminator' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $jpxBytes = "\xFF\x4FWrapped JPX bytes after native prefix\xFF\xD9";
+        $postPrefixSurplus = 'ZZ EI BT /F1 12 Tf 72 690 Td (Wrapped JPX Prefix Surplus Noise) Tj ET rawtail';
+        $payload = strtoupper(bin2hex($jpxBytes)) . '>' . $postPrefixSurplus;
+        $dictionary = '/W 2 /H 1 /CS /RGB /BPC 8 /F [/AHx /JPXDecode] /D [0 1 0 1 0 1]';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Wrapped JPX Prefix Surplus) Tj ET\n"
+            . "BI {$dictionary} ID {$payload}\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Wrapped JPX Prefix Surplus) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+
+        $expected = [
+            'Before Wrapped JPX Prefix Surplus',
+            'After Wrapped JPX Prefix Surplus',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->true(str_contains($postPrefixSurplus, ' EI '));
+        $t->true(str_ends_with(strtoupper(bin2hex($jpxBytes)) . '>', '>'));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Wrapped JPX Prefix Surplus Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+    },
     'aligns null filter DecodeParms slots before inline image RGB preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $decodedImageBytes = 'ABC';
