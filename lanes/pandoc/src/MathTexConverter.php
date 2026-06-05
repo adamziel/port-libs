@@ -86,6 +86,25 @@ final class MathTexConverter
     ];
 
     /** @var array<string, string> */
+    private const SPACING_COMMANDS = [
+        ' ' => '0.3333em',
+        '!' => '-0.1667em',
+        ',' => '0.1667em',
+        ':' => '0.2222em',
+        ';' => '0.2778em',
+        '>' => '0.2222em',
+        'enspace' => '0.5em',
+        'medspace' => '0.2222em',
+        'negmedspace' => '-0.2222em',
+        'negthickspace' => '-0.2778em',
+        'negthinspace' => '-0.1667em',
+        'quad' => '1em',
+        'qquad' => '2em',
+        'thickspace' => '0.2778em',
+        'thinspace' => '0.1667em',
+    ];
+
+    /** @var array<string, string> */
     private const OVER_ACCENT_COMMANDS = [
         'bar' => '¯',
         'ddot' => '¨',
@@ -603,6 +622,10 @@ final class MathTexConverter
 
         if (isset(self::MATH_VARIANT_COMMANDS[$command])) {
             return $this->parseMathVariantCommand($source, $offset, $command);
+        }
+
+        if (isset(self::SPACING_COMMANDS[$command])) {
+            return '<mspace width="' . self::SPACING_COMMANDS[$command] . '"></mspace>';
         }
 
         if ($command === 'begin') {

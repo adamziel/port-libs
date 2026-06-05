@@ -172,6 +172,20 @@ return [
         $t->contains('<mtable columnalign="right left"><mtr><mtd><mi>S</mi></mtd><mtd><mo>=</mo><msubsup><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></msubsup><msub><mi>p</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd></mtd><mtd><mo>=</mo><mfrac><mi>a</mi><mi>b</mi></mfrac></mtd></mtr></mtable>', $splitMathml);
         $t->contains('<annotation encoding="application/x-tex">\\begin{split}S &amp;= \\sum_{i=1}^{n} p_i \\\\ &amp;= \\frac{a}{b}\\end{split}</annotation>', $splitMathml);
     },
+    'converts bounded tex spacing commands to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $punctuationSpacingMathml = $converter->texToMathMl('p_i\\,m_i\\;n_i\\!q_i + a\\quad b\\qquad c', true);
+        $namedSpacingMathml = $converter->texToMathMl('\\operatorname{post}\\thinspace\\operatorname{media}\\negthinspace\\operatorname{review} + x\\medspace y\\thickspace z');
+        $mediumSpacingMathml = $converter->texToMathMl('a\\:b\\>c\\enspace d\\negmedspace e\\negthickspace f');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $punctuationSpacingMathml);
+        $t->contains('<msub><mi>p</mi><mi>i</mi></msub><mspace width="0.1667em"></mspace><msub><mi>m</mi><mi>i</mi></msub><mspace width="0.2778em"></mspace><msub><mi>n</mi><mi>i</mi></msub><mspace width="-0.1667em"></mspace><msub><mi>q</mi><mi>i</mi></msub>', $punctuationSpacingMathml);
+        $t->contains('<mi>a</mi><mspace width="1em"></mspace><mi>b</mi><mspace width="2em"></mspace><mi>c</mi>', $punctuationSpacingMathml);
+        $t->contains('<annotation encoding="application/x-tex">p_i\\,m_i\\;n_i\\!q_i + a\\quad b\\qquad c</annotation>', $punctuationSpacingMathml);
+        $t->contains('<mi>post</mi><mspace width="0.1667em"></mspace><mi>media</mi><mspace width="-0.1667em"></mspace><mi>review</mi>', $namedSpacingMathml);
+        $t->contains('<mi>x</mi><mspace width="0.2222em"></mspace><mi>y</mi><mspace width="0.2778em"></mspace><mi>z</mi>', $namedSpacingMathml);
+        $t->contains('<mi>a</mi><mspace width="0.2222em"></mspace><mi>b</mi><mspace width="0.2222em"></mspace><mi>c</mi><mspace width="0.5em"></mspace><mi>d</mi><mspace width="-0.2222em"></mspace><mi>e</mi><mspace width="-0.2778em"></mspace><mi>f</mi>', $mediumSpacingMathml);
+    },
     'converts bounded tex relation set logic and arrow commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $setMathml = $converter->texToMathMl('\\forall p_i \\in P \\land m_i \\notin M \\Rightarrow p_i \\subseteq Q \\cup R', true);
