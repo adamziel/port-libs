@@ -7974,7 +7974,56 @@ final class PdfMetadataExtractor
 
         foreach (['Bag', 'Seq', 'Alt'] as $containerName) {
             foreach ($this->xmpChildElements($element, self::NS_RDF, $containerName) as $container) {
-                $items = $this->xmpChildElements($container, self::NS_RDF, 'li');
+                $items = $this->xmpRdfContainerItems($container);
+                if ($items !== []) {
+                    return $items;
+                }
+            }
+        }
+
+        foreach ($this->xmpChildElements($element, self::NS_RDF, 'Description') as $description) {
+            $items = $this->xmpRdfResourceWrappedCollectionItems($description);
+            if ($items !== []) {
+                return $items;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<DOMElement>
+     */
+    private function xmpRdfContainerItems(DOMElement $container): array
+    {
+        $directItems = $this->xmpChildElements($container, self::NS_RDF, 'li');
+        if ($directItems !== []) {
+            return $directItems;
+        }
+
+        foreach ($this->xmpChildElements($container, self::NS_RDF, 'Description') as $description) {
+            $items = $this->xmpRdfResourceWrappedCollectionItems($description);
+            if ($items !== []) {
+                return $items;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<DOMElement>
+     */
+    private function xmpRdfResourceWrappedCollectionItems(DOMElement $description): array
+    {
+        $directItems = $this->xmpChildElements($description, self::NS_RDF, 'li');
+        if ($directItems !== []) {
+            return $directItems;
+        }
+
+        foreach (['Bag', 'Seq', 'Alt'] as $containerName) {
+            foreach ($this->xmpChildElements($description, self::NS_RDF, $containerName) as $container) {
+                $items = $this->xmpRdfContainerItems($container);
                 if ($items !== []) {
                     return $items;
                 }
