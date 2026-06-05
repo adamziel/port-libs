@@ -392,6 +392,10 @@ final class CitationCslProcessor
             'page' => self::stringField($item, 'page'),
             'doi' => self::stringField($item, 'DOI'),
             'url' => self::stringField($item, 'URL'),
+            'language' => self::stringField($item, 'language'),
+            'abstract' => self::stringField($item, 'abstract'),
+            'keywords' => self::stringListField($item, 'keyword'),
+            'sourceFiles' => self::sourceFiles($item['sourceFiles'] ?? [], $id),
             'issuedDate' => $issuedDate,
             'accessedDate' => self::dateVariable($item['accessed'] ?? null, $id, 'accessed'),
             'issuedYear' => $issuedDate['year'],
@@ -413,6 +417,103 @@ final class CitationCslProcessor
 
         if (!is_scalar($value)) {
             throw new \InvalidArgumentException('CSL field ' . $key . ' must be scalar when present');
+        }
+
+        return trim((string) $value);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function stringListField(array $item, string $key): array
+    {
+        $value = $item[$key] ?? [];
+        if ($value === null || $value === '') {
+            return [];
+        }
+
+        if (is_scalar($value)) {
+            $parts = preg_split('/\s*[,;]\s*/', (string) $value) ?: [];
+
+            return array_values(array_filter(
+                array_map(static fn (string $part): string => trim($part), $parts),
+                static fn (string $part): bool => $part !== ''
+            ));
+        }
+
+        if (!is_array($value) || !array_is_list($value)) {
+            throw new \InvalidArgumentException('CSL field ' . $key . ' must be scalar or a list when present');
+        }
+
+        $strings = [];
+        foreach ($value as $index => $part) {
+            if (!is_scalar($part)) {
+                throw new \InvalidArgumentException('CSL field ' . $key . '[' . $index . '] must be scalar');
+            }
+
+            $part = trim((string) $part);
+            if ($part !== '') {
+                $strings[] = $part;
+            }
+        }
+
+        return $strings;
+    }
+
+    /**
+     * @return list<array{label:string, path:string, mediaType:string}>
+     */
+    private static function sourceFiles(mixed $value, string $id): array
+    {
+        if ($value === null || $value === []) {
+            return [];
+        }
+
+        if (!is_array($value) || !array_is_list($value)) {
+            throw new \InvalidArgumentException('CSL item ' . $id . ' sourceFiles must be a list');
+        }
+
+        $files = [];
+        foreach ($value as $index => $file) {
+            if (is_scalar($file)) {
+                $path = trim((string) $file);
+                if ($path !== '') {
+                    $files[] = [
+                        'label' => '',
+                        'path' => $path,
+                        'mediaType' => '',
+                    ];
+                }
+                continue;
+            }
+
+            if (!is_array($file)) {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' sourceFiles[' . $index . '] must be an object or path string');
+            }
+
+            $path = self::sourceFileString($file['path'] ?? '', $id, $index, 'path');
+            if ($path === '') {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' sourceFiles[' . $index . '] is missing path');
+            }
+
+            $files[] = [
+                'label' => self::sourceFileString($file['label'] ?? '', $id, $index, 'label'),
+                'path' => $path,
+                'mediaType' => self::sourceFileString($file['mediaType'] ?? '', $id, $index, 'mediaType'),
+            ];
+        }
+
+        return $files;
+    }
+
+    private static function sourceFileString(mixed $value, string $id, int $index, string $field): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        if (!is_scalar($value)) {
+            throw new \InvalidArgumentException('CSL item ' . $id . ' sourceFiles[' . $index . '].' . $field . ' must be scalar');
         }
 
         return trim((string) $value);

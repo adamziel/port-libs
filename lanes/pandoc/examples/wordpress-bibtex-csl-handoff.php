@@ -19,6 +19,8 @@ A proceedings child entry inherits @source-audit conference metadata for reviewe
 
 Accented .bib names such as @accented-source remain readable in bibliography review.
 
+The xdata-backed glossary entry @source-glossary keeps reviewer packet metadata attached.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -76,6 +78,26 @@ $bibtex = <<<'BIB'
   pages        = {7--9},
   url          = {https://example.test/accented}
 }
+
+@xdata{shared-review-packet,
+  publisher = {Migration Desk},
+  date      = {2026-06-05},
+  keywords  = {wordpress, import, reviewer},
+  abstract  = {Reviewer summary for source packet handoff.}
+}
+
+@xdata{attachment-review-packet,
+  langid = {english},
+  file   = {Review PDF:attachments/source-audit.pdf:application/pdf; Source HTML:attachments/source-audit.html:text/html}
+}
+
+@inreference{source-glossary,
+  author    = {Ng, Nia},
+  title     = {Import Glossary},
+  booktitle = {Migration Reference},
+  url       = {https://example.test/glossary},
+  xdata     = {shared-review-packet, attachment-review-packet}
+}
 BIB;
 
 $processor = CitationCslProcessor::fromBibtex($bibtex);
@@ -83,15 +105,28 @@ $document = $processor->appendBibliography((new MarkdownReader())->read($markdow
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
+    $sourceGlossary = $processor->item('source-glossary');
+    if (($sourceGlossary['language'] ?? null) !== 'english') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not inherit source-glossary language metadata');
+    }
+    if (($sourceGlossary['keywords'] ?? null) !== ['wordpress', 'import', 'reviewer']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not inherit source-glossary keywords metadata');
+    }
+    if (($sourceGlossary['sourceFiles'][0]['path'] ?? null) !== 'attachments/source-audit.pdf') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not inherit source-glossary attachment metadata');
+    }
+
     foreach ([
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
         '<p>The reviewer queue keeps de la Cruz (2026) attached to imported source access notes.</p>',
         '<p>A proceedings child entry inherits Smith (2026) conference metadata for reviewer bibliographies.</p>',
         '<p>Accented .bib names such as Müller et al. (2026) remain readable in bibliography review.</p>',
+        '<p>The xdata-backed glossary entry Ng (2026) keeps reviewer packet metadata attached.</p>',
         '<dt>Doe and Roe 2020</dt><dd>Doe, Jane; Roe, Pat. Field Notes. Journal of Imports. 2020. 55-60. https://example.test/field-notes. Accessed 2026-06-04.</dd>',
         '<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria, Jr. Source Packet. 2026. https://example.test/source-packet.</dd>',
         '<dt>Smith 2026</dt><dd>Smith, Ada. Packet Audit Trails. Migration Futures Conference. Review Press, 2026. 12-18.</dd>',
         '<dt>Müller et al. 2026</dt><dd>Müller, Mia; García, Gia; Søren Archive Team. Étude of Jalapeño Source Packets. Crème Brûlée Review. Revü Press, 2026. 7-9. https://example.test/accented.</dd>',
+        '<dt>Ng 2026</dt><dd>Ng, Nia. Import Glossary. Migration Reference. Migration Desk, 2026. https://example.test/glossary.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {

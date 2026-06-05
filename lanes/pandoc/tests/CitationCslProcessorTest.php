@@ -350,6 +350,64 @@ BIB;
         $t->contains('Smith 2026' . "\n" . ':   Smith, Ada. Packet Audit Trails. Migration Futures Conference. Review Press, 2026. 12-18.', $markdown);
         $t->contains('Roe 2027' . "\n" . ':   Roe, Pat. Chapter Review Notes. Manual Override. Review Press, 2027.', $markdown);
     },
+    'inherits bounded biblatex xdata fields and preserves reviewer metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@xdata{shared-review-packet,
+  publisher = {Migration Desk},
+  date      = {2026-06-05},
+  keywords  = {wordpress, import, reviewer},
+  abstract  = {Reviewer summary for source packet handoff.}
+}
+
+@xdata{attachment-review-packet,
+  langid = {english},
+  file   = {Review PDF:attachments/source-audit.pdf:application/pdf; Source HTML:attachments/source-audit.html:text/html}
+}
+
+@inreference{source-glossary,
+  author    = {Ng, Nia},
+  title     = {Import Glossary},
+  booktitle = {Migration Reference},
+  url       = {https://example.test/glossary},
+  xdata     = {shared-review-packet, attachment-review-packet}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('source-glossary', $items[0]['id']);
+        $t->same('entry-encyclopedia', $items[0]['type']);
+        $t->same('Migration Reference', $items[0]['container-title']);
+        $t->same('Migration Desk', $items[0]['publisher']);
+        $t->same(['date-parts' => [[2026, 6, 5]]], $items[0]['issued']);
+        $t->same('english', $items[0]['language']);
+        $t->same(['wordpress', 'import', 'reviewer'], $items[0]['keyword']);
+        $t->same('Reviewer summary for source packet handoff.', $items[0]['abstract']);
+        $t->same([
+            ['label' => 'Review PDF', 'path' => 'attachments/source-audit.pdf', 'mediaType' => 'application/pdf'],
+            ['label' => 'Source HTML', 'path' => 'attachments/source-audit.html', 'mediaType' => 'text/html'],
+        ], $items[0]['sourceFiles']);
+        $t->same('shared-review-packet, attachment-review-packet', $items[0]['rawBibtex']['fields']['xdata'] ?? null);
+        $t->same('wordpress, import, reviewer', $items[0]['rawBibtex']['fields']['keywords'] ?? null);
+        $t->same('Review PDF:attachments/source-audit.pdf:application/pdf; Source HTML:attachments/source-audit.html:text/html', $items[0]['rawBibtex']['fields']['file'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('source-glossary');
+        $t->same('english', $item['language'] ?? null);
+        $t->same(['wordpress', 'import', 'reviewer'], $item['keywords'] ?? null);
+        $t->same('Reviewer summary for source packet handoff.', $item['abstract'] ?? null);
+        $t->same('attachments/source-audit.pdf', $item['sourceFiles'][0]['path'] ?? null);
+        $t->same([2026, 6, 5], $item['issuedDate']['parts'] ?? null);
+        $t->same('(Ng 2026)', $processor->renderCitationCluster([$citation('source-glossary', '[@source-glossary]')]));
+        $t->same('Ng, Nia. Import Glossary. Migration Reference. Migration Desk, 2026. https://example.test/glossary.', $processor->renderBibliographyEntry('source-glossary'));
+
+        $document = (new MarkdownReader())->read('Glossary entry @source-glossary keeps inherited source packet metadata.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Glossary entry Ng (2026) keeps inherited source packet metadata.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Import Glossary. Migration Reference. Migration Desk, 2026. https://example.test/glossary.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@xdata{a,xdata={b}} @xdata{b,xdata={a}} @online{site,title={Site},xdata={a}}'));
+    },
     'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
         $document = (new MarkdownReader())->read(
@@ -748,6 +806,8 @@ XML
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-year', 'issued' => ['date-parts' => [['soon']]]]]));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-accessed-month', 'accessed' => ['date-parts' => [[2026, 13]]]]]));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-comma-suffix', 'author' => [['family' => 'Smith', 'comma-suffix' => 'yes']]]]));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-source-files', 'sourceFiles' => 'source.pdf']]));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-source-file-path', 'sourceFiles' => [['label' => 'Missing path']]]]));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@book{missing, title={Bad}'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@book{dup,title={A}} @article{dup,title={B}}'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@online{bad,date={2026-13-01}}'));

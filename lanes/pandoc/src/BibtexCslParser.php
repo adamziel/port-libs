@@ -404,11 +404,20 @@ final class BibtexCslParser
 
         $items = [];
         foreach ($entries as $entry) {
-            $fields = self::resolveCrossrefFields($entry, $entriesByKey);
+            if (self::isDataEntryType($entry['type'])) {
+                continue;
+            }
+
+            $fields = self::resolveInheritedFields($entry, $entriesByKey);
             $items[] = self::entryToCslItem($entry['type'], $entry['key'], $fields);
         }
 
         return $items;
+    }
+
+    private static function isDataEntryType(string $type): bool
+    {
+        return in_array(strtolower($type), ['xdata'], true);
     }
 
     /**
@@ -417,24 +426,57 @@ final class BibtexCslParser
      * @param list<string> $stack
      * @return array<string, string>
      */
-    private static function resolveCrossrefFields(array $entry, array $entriesByKey, array $stack = []): array
+    private static function resolveInheritedFields(array $entry, array $entriesByKey, array $stack = []): array
     {
         if (in_array($entry['key'], $stack, true)) {
-            throw new \InvalidArgumentException('BibTeX crossref cycle involving entry: ' . $entry['key']);
+            throw new \InvalidArgumentException('BibTeX inheritance cycle involving entry: ' . $entry['key']);
         }
 
-        $fields = $entry['fields'];
+        $stack[] = $entry['key'];
+        $fields = self::resolveXdataFields($entry, $entriesByKey, $stack);
         $crossref = self::cleanBibtexText($fields['crossref'] ?? '');
         if ($crossref === '' || !isset($entriesByKey[$crossref])) {
             return $fields;
         }
 
         $parent = $entriesByKey[$crossref];
-        $parentFields = self::resolveCrossrefFields($parent, $entriesByKey, [...$stack, $entry['key']]);
+        $parentFields = self::resolveInheritedFields($parent, $entriesByKey, $stack);
         $inherited = self::crossrefInheritedFields($entry['type'], $fields, $parentFields);
         foreach ($inherited as $field => $value) {
             if (!isset($fields[$field]) || trim($fields[$field]) === '') {
                 $fields[$field] = $value;
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param array{type:string, key:string, fields:array<string, string>} $entry
+     * @param array<string, array{type:string, key:string, fields:array<string, string>}> $entriesByKey
+     * @param list<string> $stack
+     * @return array<string, string>
+     */
+    private static function resolveXdataFields(array $entry, array $entriesByKey, array $stack): array
+    {
+        $fields = $entry['fields'];
+        $xdata = self::biblatexKeyList($fields['xdata'] ?? '');
+        if ($xdata === []) {
+            return $fields;
+        }
+
+        foreach ($xdata as $key) {
+            $parent = $entriesByKey[$key] ?? null;
+            if ($parent === null || strtolower($parent['type']) !== 'xdata') {
+                continue;
+            }
+
+            $parentFields = self::resolveInheritedFields($parent, $entriesByKey, $stack);
+            unset($parentFields['xdata'], $parentFields['crossref']);
+            foreach ($parentFields as $field => $value) {
+                if (!isset($fields[$field]) || trim($fields[$field]) === '') {
+                    $fields[$field] = $value;
+                }
             }
         }
 
@@ -503,12 +545,24 @@ final class BibtexCslParser
             'page' => self::normalizePages(self::firstField($fields, ['pages', 'page'])),
             'DOI' => self::firstField($fields, ['doi']),
             'URL' => self::firstField($fields, ['url']),
+            'language' => self::firstField($fields, ['langid', 'language', 'hyphenation']),
+            'abstract' => self::firstField($fields, ['abstract', 'annote', 'annotation']),
             'rawBibtex' => [
                 'type' => $type,
                 'key' => $key,
                 'fields' => $fields,
             ],
         ];
+
+        $keywords = self::keywordList(self::firstField($fields, ['keywords', 'keyword']));
+        if ($keywords !== []) {
+            $item['keyword'] = $keywords;
+        }
+
+        $sourceFiles = self::sourceFilesFromField(self::firstField($fields, ['file']));
+        if ($sourceFiles !== []) {
+            $item['sourceFiles'] = $sourceFiles;
+        }
 
         $author = self::namesFromBibtex($fields['author'] ?? '');
         if ($author !== []) {
@@ -539,8 +593,12 @@ final class BibtexCslParser
             'article' => 'article-journal',
             'inproceedings', 'conference' => 'paper-conference',
             'inbook', 'incollection' => 'chapter',
+            'inreference' => 'entry-encyclopedia',
+            'collection', 'mvcollection', 'mvbook', 'mvproceedings', 'mvreference', 'proceedings', 'reference' => 'book',
             'phdthesis', 'mastersthesis' => 'thesis',
-            'techreport' => 'report',
+            'report', 'techreport' => 'report',
+            'software' => 'software',
+            'dataset' => 'dataset',
             'online', 'www', 'electronic' => 'webpage',
             'unpublished' => 'manuscript',
             default => strtolower($type),
@@ -563,6 +621,86 @@ final class BibtexCslParser
         }
 
         return '';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function biblatexKeyList(string $value): array
+    {
+        $value = self::cleanBibtexText($value);
+        if ($value === '') {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map(
+                static fn (string $key): string => trim($key),
+                self::splitTopLevel($value, ',')
+            ),
+            static fn (string $key): bool => $key !== ''
+        ));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function keywordList(string $value): array
+    {
+        if ($value === '') {
+            return [];
+        }
+
+        $keywords = preg_split('/\s*[,;]\s*/', $value) ?: [];
+
+        return array_values(array_filter(
+            array_map(static fn (string $keyword): string => trim($keyword), $keywords),
+            static fn (string $keyword): bool => $keyword !== ''
+        ));
+    }
+
+    /**
+     * @return list<array{label:string, path:string, mediaType:string}>
+     */
+    private static function sourceFilesFromField(string $value): array
+    {
+        if ($value === '') {
+            return [];
+        }
+
+        $files = [];
+        foreach (self::splitTopLevel($value, ';') as $entry) {
+            $entry = trim($entry);
+            if ($entry === '') {
+                continue;
+            }
+
+            $parts = array_map('trim', explode(':', $entry));
+            if (count($parts) >= 3) {
+                $label = array_shift($parts) ?? '';
+                $mediaType = array_pop($parts) ?? '';
+                $path = implode(':', $parts);
+            } elseif (count($parts) === 2) {
+                $label = '';
+                [$path, $mediaType] = $parts;
+            } else {
+                $label = '';
+                $path = $entry;
+                $mediaType = '';
+            }
+
+            if ($path === '') {
+                continue;
+            }
+
+            $files[] = [
+                'label' => $label,
+                'path' => $path,
+                'mediaType' => $mediaType,
+            ];
+        }
+
+        return $files;
     }
 
     /**
