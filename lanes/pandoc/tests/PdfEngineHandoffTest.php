@@ -742,6 +742,65 @@ MARKDOWN);
         $t->same('en-US', $sequence['finalPdfLanguage']);
     },
 
+    'fake runner extracts bounded pdf catalog presentation preferences from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/presentation.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /PageLayout /TwoPageRight /PageMode /UseOutlines /OpenAction [3 0 R /FitH 720] /ViewerPreferences << /DisplayDocTitle true /HideToolbar true /Direction /L2R /PrintScaling /None /NumCopies 2 >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/presentation.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/presentation.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same('TwoPageRight', $result['pdfPageLayout']);
+        $t->same('UseOutlines', $result['pdfPageMode']);
+        $t->same([
+            'type' => 'destination',
+            'pageObject' => '3 0 R',
+            'fit' => 'FitH',
+        ], $result['pdfOpenAction']);
+        $t->same([
+            'HideToolbar' => true,
+            'DisplayDocTitle' => true,
+            'Direction' => 'L2R',
+            'PrintScaling' => 'None',
+            'NumCopies' => 2,
+        ], $result['pdfViewerPreferences']);
+        $t->contains('pdf-byte-page-layout:TwoPageRight', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-mode:UseOutlines', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-open-action:destination', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-viewer-preferences:5', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same('TwoPageRight', $sequence['finalPdfPageLayout']);
+        $t->same('UseOutlines', $sequence['finalPdfPageMode']);
+        $t->same($result['pdfOpenAction'], $sequence['finalPdfOpenAction']);
+        $t->same($result['pdfViewerPreferences'], $sequence['finalPdfViewerPreferences']);
+    },
+
     'fake runner extracts bounded pdf annotation links and embedded file names from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/review.pdf']);
