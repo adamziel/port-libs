@@ -979,6 +979,84 @@ return [
             unlink($path);
         }
     },
+    'matches sparse post-trim layout and order indexes across selected pdftext pages' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-supplied-layout-order-selected-index-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% supplied selected-index layout order boundary\n%%EOF");
+        try {
+            $coverPage = $pdftextPage(210, [
+                ['text' => 'Selected-index cover page artifact.', 'bbox' => [72.0, 80.0, 300.0, 94.0]],
+            ]);
+            $firstSelectedPage = $pdftextPage(211, [
+                ['text' => 'Second selected-index page keeps source order.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                ['text' => 'First selected-index page has no supplied order.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+            ]);
+            $secondSelectedPage = $pdftextPage(212, [
+                ['text' => 'Second relative-index matched page column.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                ['text' => 'First relative-index matched page column.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+            ]);
+            $appendixPage = $pdftextPage(213, [
+                ['text' => 'Selected-index appendix page artifact.', 'bbox' => [72.0, 80.0, 320.0, 94.0]],
+            ]);
+
+            $layout = [
+                'selected_page_index' => 1,
+                'selected_page_number' => 2,
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                    ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                ],
+            ];
+            $order = [
+                'selected_page_index' => 1,
+                'selected_page_number' => 2,
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['position' => 1, 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                    ['position' => 2, 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$coverPage, $firstSelectedPage, $secondSelectedPage, $appendixPage],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 2,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['selected_page_index' => 1, 'selected_page_number' => 2, 'image' => 'matched-second-selected-layout-render'],
+                    ],
+                    'layout_results' => [$layout],
+                    'order_images' => [
+                        ['selected_page_index' => 1, 'selected_page_number' => 2, 'image' => 'matched-second-selected-order-render'],
+                    ],
+                    'order_results' => [$order],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $text = $result['text'];
+            $t->same([1, 2], $result['metadata']['page_range']);
+            $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries']);
+            $t->same(1, $result['metadata']['layout_plan']['image_count']);
+            $t->same(1, $result['metadata']['layout_plan']['layout_result_count']);
+            $t->same(1, $result['metadata']['layout_plan']['assigned_pages']);
+            $t->same(1, $result['metadata']['order_plan']['image_count']);
+            $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+            $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+            $t->contains('Second selected-index page keeps source order.', $text);
+            $t->contains('First selected-index page has no supplied order.', $text);
+            $t->contains('First relative-index matched page column.', $text);
+            $t->contains('Second relative-index matched page column.', $text);
+            $t->true(strpos($text, 'Second selected-index page keeps source order.') < strpos($text, 'First selected-index page has no supplied order.'));
+            $t->true(strpos($text, 'First relative-index matched page column.') < strpos($text, 'Second relative-index matched page column.'));
+            $t->true(!str_contains($text, 'Selected-index cover page artifact.'));
+            $t->true(!str_contains($text, 'Selected-index appendix page artifact.'));
+        } finally {
+            unlink($path);
+        }
+    },
     'routes forced OCR table cells through supplied detector output before formatting' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-forced-ocr-table-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% forced OCR table supplied pipeline\n%%EOF");

@@ -900,4 +900,61 @@ return [
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'matches sparse post-trim order indexes across selected pdftext pages' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(210, [
+                    ['text' => 'Selected-index cover page skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(211, [
+                    ['text' => 'Second selected-index page keeps source order', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First selected-index page has no supplied order', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+                $pdftextLinesPage(212, [
+                    ['text' => 'Second relative-index matched page column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First relative-index matched page column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+                $pdftextLinesPage(213, [
+                    ['text' => 'Selected-index appendix page skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+            ],
+            [
+                [
+                    'selected_page_index' => 1,
+                    'selected_page_number' => 2,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['selected_page_index' => 1, 'selected_page_number' => 2, 'image' => 'matched-second-selected-relative-order-render'],
+            ],
+            maxPages: 2,
+            startPage: 1
+        );
+
+        $pageOneBlocks = array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        );
+        $pageTwoBlocks = array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][1]['blocks']
+        );
+
+        $t->same([1, 2], $result['page_range']);
+        $t->same(211, $result['pages'][0]['pnum']);
+        $t->same(212, $result['pages'][1]['pnum']);
+        $t->same(['Second selected-index page keeps source order', 'First selected-index page has no supplied order'], $pageOneBlocks);
+        $t->same(['First relative-index matched page column', 'Second relative-index matched page column'], $pageTwoBlocks);
+        $t->same(null, $result['pages'][0]['order'] ?? null);
+        $t->same(1, $result['pages'][1]['order']['selected_page_index']);
+        $t->same(2, $result['pages'][1]['order']['selected_page_number']);
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
 ];

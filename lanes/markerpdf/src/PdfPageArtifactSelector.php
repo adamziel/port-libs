@@ -115,7 +115,7 @@ final class PdfPageArtifactSelector
                 }
 
                 $hasMarkers = true;
-                $score = $this->pageMarkerMatchScore($markers, $sourceIndex, $pageNumber);
+                $score = $this->pageMarkerMatchScore($markers, $sourceIndex, $pageNumber, $selectedIndex);
                 if ($score !== null && ($bestScore === null || $score > $bestScore)) {
                     $artifact = $candidate;
                     $bestScore = $score;
@@ -139,7 +139,7 @@ final class PdfPageArtifactSelector
     }
 
     /**
-     * @return array{source_indexes?: list<int>, pages?: list<int>, page_numbers?: list<int>}
+     * @return array{source_indexes?: list<int>, selected_indexes?: list<int>, pages?: list<int>, page_numbers?: list<int>, selected_page_numbers?: list<int>}
      */
     private function pageMarkers(array $artifact): array
     {
@@ -151,6 +151,11 @@ final class PdfPageArtifactSelector
             $markers['source_indexes'] = $sourceIndexes;
         }
 
+        $selectedIndexes = $this->integerFieldsFromSources($sources, ['selected_page_index', 'trimmed_page_index', 'relative_page_index']);
+        if ($selectedIndexes !== []) {
+            $markers['selected_indexes'] = $selectedIndexes;
+        }
+
         $pages = $this->integerFieldsFromSources($sources, ['pnum', 'page', 'pdftext_page']);
         if ($pages !== []) {
             $markers['pages'] = $pages;
@@ -159,6 +164,11 @@ final class PdfPageArtifactSelector
         $pageNumbers = $this->integerFieldsFromSources($sources, ['page_number']);
         if ($pageNumbers !== []) {
             $markers['page_numbers'] = $pageNumbers;
+        }
+
+        $selectedPageNumbers = $this->integerFieldsFromSources($sources, ['selected_page_number', 'trimmed_page_number', 'relative_page_number']);
+        if ($selectedPageNumbers !== []) {
+            $markers['selected_page_numbers'] = $selectedPageNumbers;
         }
 
         return $markers;
@@ -203,9 +213,9 @@ final class PdfPageArtifactSelector
     }
 
     /**
-     * @param array{source_indexes?: list<int>, pages?: list<int>, page_numbers?: list<int>} $markers
+     * @param array{source_indexes?: list<int>, selected_indexes?: list<int>, pages?: list<int>, page_numbers?: list<int>, selected_page_numbers?: list<int>} $markers
      */
-    private function pageMarkerMatchScore(array $markers, int $sourceIndex, ?int $pageNumber): ?int
+    private function pageMarkerMatchScore(array $markers, int $sourceIndex, ?int $pageNumber, int $selectedIndex): ?int
     {
         $score = 0;
 
@@ -216,6 +226,15 @@ final class PdfPageArtifactSelector
         }
         if (($markers['source_indexes'] ?? []) !== []) {
             $score += 20;
+        }
+
+        foreach ($markers['selected_indexes'] ?? [] as $marker) {
+            if ($marker !== $selectedIndex) {
+                return null;
+            }
+        }
+        if (($markers['selected_indexes'] ?? []) !== []) {
+            $score += 40;
         }
 
         foreach ($markers['pages'] ?? [] as $marker) {
@@ -234,6 +253,15 @@ final class PdfPageArtifactSelector
         }
         if (($markers['page_numbers'] ?? []) !== []) {
             $score += 10;
+        }
+
+        foreach ($markers['selected_page_numbers'] ?? [] as $marker) {
+            if ($marker !== $selectedIndex + 1) {
+                return null;
+            }
+        }
+        if (($markers['selected_page_numbers'] ?? []) !== []) {
+            $score += 30;
         }
 
         return $markers !== [] ? $score : null;
