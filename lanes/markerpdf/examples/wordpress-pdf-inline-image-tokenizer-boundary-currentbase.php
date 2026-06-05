@@ -74,6 +74,10 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "x\n"
     . "EI/Decorative Do\n"
     . "BT /F1 12 Tf 72 637 Td (After Slash EI Boundary) Tj ET\n"
+    . "BI /W 1 /H 1 /CS /G /BPC 8 ID\n"
+    . "x\n"
+    . "EI/Span << /ActualText (Slash EI ActualText) >> BDC BT /F1 12 Tf 72 636 Td (Hidden Slash EI Text) Tj ET EMC\n"
+    . "BT /F1 12 Tf 72 637 Td (After Slash Marked EI) Tj ET\n"
     . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
     . "\x00\x01\x02 EI BT /F1 12 Tf 72 636 Td (Preview Payload EI Noise) Tj ET rawtail\n"
     . "EI\n"
@@ -190,6 +194,10 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
         && str_contains($plainText, 'After Named ColorSpace Boundary'),
     'slash_after_inline_ei_closes_before_name_operand' => str_contains($plainText, 'After Slash EI Boundary')
         && !str_contains($plainText, 'Decorative'),
+    'slash_after_inline_ei_marked_actualtext_preserved' => str_contains($plainText, 'Slash EI ActualText')
+        && str_contains($plainText, 'After Slash Marked EI')
+        && !str_contains($plainText, 'Hidden Slash EI Text')
+        && !str_contains($plainText, 'EI/Span'),
     'preview_only_visible_ei_text_preserved_after_safe_boundary' => str_contains($plainText, 'Visible EI Marker Text')
         && !str_contains($plainText, 'Preview Payload EI Noise')
         && !str_contains($plainText, 'rawtail'),

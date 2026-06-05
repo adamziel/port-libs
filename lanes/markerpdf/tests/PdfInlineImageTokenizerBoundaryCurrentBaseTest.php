@@ -374,6 +374,22 @@ $inlineImageTokenizerSlashDelimiterAfterEiPdf = static function (): string {
         . "%%EOF";
 };
 
+$inlineImageTokenizerSlashMarkedContentActualTextPdf = static function (): string {
+    $content = "BT /F1 12 Tf 72 720 Td (Before Slash Marked EI) Tj ET\n"
+        . "BI /W 1 /H 1 /CS /G /BPC 8 ID\n"
+        . "x\n"
+        . "EI/Span << /ActualText (Slash EI ActualText) >> BDC BT /F1 12 Tf 72 700 Td (Hidden Slash EI Text) Tj ET EMC\n"
+        . "BT /F1 12 Tf 72 704 Td (After Slash Marked EI) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 $inlineImageTokenizerStrayEiAfterTextPdf = static function (): string {
     $content = "BT /F1 12 Tf 72 720 Td (Before Stray Operator) Tj ET\n"
         . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
@@ -816,6 +832,26 @@ return [
         $t->true(str_contains($plainText, 'After Slash EI Boundary'));
         $t->true(!str_contains($plainText, 'Decorative'));
         $t->true(!str_contains($plainText, "\0"));
+    },
+    'preserves slash-delimited marked ActualText immediately after inline image EI' => static function (TestRunner $t) use ($inlineImageTokenizerSlashMarkedContentActualTextPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerSlashMarkedContentActualTextPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Slash Marked EI',
+            'Slash EI ActualText',
+            'After Slash Marked EI',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(str_contains($plainText, 'Slash EI ActualText'));
+        $t->true(!str_contains($plainText, 'Hidden Slash EI Text'));
+        $t->true(!str_contains($plainText, 'EI/Span'));
     },
     'closes preview-only fallback before line-separated text followed by stray EI operator' => static function (TestRunner $t) use ($inlineImageTokenizerStrayEiAfterTextPdf): void {
         $extractor = new PdfTextExtractor();
