@@ -24876,8 +24876,7 @@ final class PdfTextExtractor
         $named = [];
         foreach ($objects as $body) {
             $cmap = $this->decodedCMapBodyForParsing($body, $objects);
-            $nameSource = $this->decodedCMapBody($body, $objects) ?? $cmap;
-            $name = is_string($nameSource) ? $this->cMapName($nameSource) : null;
+            $name = $cmap === null ? null : $this->cMapName($cmap);
             if ($cmap === null || $name === null) {
                 continue;
             }
@@ -25347,13 +25346,17 @@ final class PdfTextExtractor
     {
         $entry = $this->streamDictionaryAndPayload($objectBody, $objects);
         if ($entry !== null) {
+            $decoded = $this->decodeCMapStream($entry['dict'], $entry['stream'], $objects);
+            if ($decoded === null) {
+                return null;
+            }
+
             $name = $this->pdfNameValueAfterNameResolvingObjects($entry['dict'], 'CMapName', $objects);
             if ($name !== null && $name !== '') {
                 return $name;
             }
 
-            $decoded = $this->decodedCMapBodyForParsing($objectBody, $objects);
-            return $decoded === null ? null : $this->cMapName($decoded);
+            return $this->cMapName($this->boundedSingleCMapStreamProgram($decoded));
         }
 
         return $this->cMapName($objectBody);

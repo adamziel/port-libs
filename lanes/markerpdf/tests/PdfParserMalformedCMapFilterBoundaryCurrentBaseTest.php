@@ -1294,6 +1294,72 @@ $parserMalformedCMapLiteralUseCMapOperatorBoundaryCurrentBasePdf = static functi
         . "%%EOF";
 };
 
+$parserMalformedCMapObjectUseCMapNameBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $safeText = 'Object UseCMap Safe Import';
+    $safeHex = $utf16beHex($safeText);
+    $sourceCode = substr($safeHex, 0, 4);
+    $forgedBaseName = 'ForgedObjectBase-H';
+    $leakingText = 'Forged Object UseCMap Leak';
+
+    $derivedCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /ObjectUseCMapDerived-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedDerivedCMap = gzcompress($derivedCMap, 0);
+    if (!is_string($compressedDerivedCMap)) {
+        throw new RuntimeException('Unable to compress focused object UseCMap derived fixture.');
+    }
+
+    $baseCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /{$forgedBaseName} def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<{$sourceCode}> <" . $utf16beHex($leakingText) . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedBaseCMap = gzcompress($baseCMap, 0);
+    if (!is_string($compressedBaseCMap)) {
+        throw new RuntimeException('Unable to compress focused object UseCMap base fixture.');
+    }
+
+    $malformedBaseStream = strtoupper(bin2hex($baseCMap));
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /ObjectUseCMapBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /ObjectUseCMapDerived-H /UseCMap 7 0 R /Filter /FlateDecode /Length " . strlen($compressedDerivedCMap) . " >>\nstream\n{$compressedDerivedCMap}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /CMap /CMapName /{$forgedBaseName} /Filter /ASCIIHexDecode /Length " . strlen($malformedBaseStream) . " >>\nstream\n{$malformedBaseStream}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Type /CMap /CMapName /{$forgedBaseName} /Filter /FlateDecode /Length " . strlen($compressedBaseCMap) . " >>\nstream\n{$compressedBaseCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $parserMalformedCMapUnsupportedFilterBoundaryCurrentBasePdf = static function (): string {
     $utf16beHex = static function (string $ascii): string {
         $hex = '';
@@ -2838,6 +2904,72 @@ return [
         $t->same(true, $decoyBaseEntry['decoded_with_current_operands'] ?? null);
         $t->same(false, $review['executes_python_or_models']);
         $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'does not trust dictionary CMapName from malformed object-valued UseCMap streams before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapObjectUseCMapNameBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapObjectUseCMapNameBoundaryCurrentBasePdf();
+
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $text = $extractor->extractPlainText($pdf);
+        $derivedEntry = null;
+        $malformedBaseEntry = null;
+        $validBaseEntry = null;
+        foreach ($review['entries'] as $entry) {
+            if (($entry['object_number'] ?? null) === 6) {
+                $derivedEntry = $entry;
+            } elseif (($entry['object_number'] ?? null) === 7) {
+                $malformedBaseEntry = $entry;
+            } elseif (($entry['object_number'] ?? null) === 8) {
+                $validBaseEntry = $entry;
+            }
+        }
+
+        $t->same(['Object UseCMap Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Object UseCMap Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Object UseCMap Safe Import', $text);
+        $t->same("Object UseCMap Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Forged Object UseCMap Leak'));
+        $t->true(!str_contains($text, 'ForgedObjectBase-H'));
+        $t->true(!str_contains($text, 'ASCIIHexDecode'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same(3, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(1, $review['use_cmap_stream_count']);
+        $t->same(2, $review['decoded_cmap_count']);
+        $t->same(1, $review['filter_end_marker_problem_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(0, $review['unsupported_filter_count']);
+        $t->same(0, $review['filter_decode_error_count']);
+
+        $t->true(is_array($derivedEntry));
+        $t->true(is_array($malformedBaseEntry));
+        $t->true(is_array($validBaseEntry));
+        $t->same('ObjectUseCMapDerived-H', $derivedEntry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $derivedEntry['filters'] ?? null);
+        $t->same('filters_resolved', $derivedEntry['filter_operand_policy'] ?? null);
+        $t->same('filter_end_markers_resolved', $derivedEntry['filter_end_marker_policy'] ?? null);
+        $t->same('filter_decoders_resolved', $derivedEntry['filter_decode_policy'] ?? null);
+
+        $t->same('ForgedObjectBase-H', $malformedBaseEntry['cmap_name'] ?? null);
+        $t->same(['ASCIIHexDecode'], $malformedBaseEntry['filters'] ?? null);
+        $t->same('filters_resolved', $malformedBaseEntry['filter_operand_policy'] ?? null);
+        $t->same('reject_malformed_filter_end_markers', $malformedBaseEntry['filter_end_marker_policy'] ?? null);
+        $t->same('filter_decode_not_reached', $malformedBaseEntry['filter_decode_policy'] ?? null);
+        $t->same(false, $malformedBaseEntry['decoded_with_current_operands'] ?? null);
+        $t->same(1, $malformedBaseEntry['filter_end_marker_problem_count'] ?? null);
+        $t->same('ASCIIHexDecode', $malformedBaseEntry['filter_end_marker_problems'][0]['filter'] ?? null);
+        $t->same('missing_explicit_end_marker', $malformedBaseEntry['filter_end_marker_problems'][0]['problem'] ?? null);
+        $t->same(true, $malformedBaseEntry['filter_end_marker_problems'][0]['requires_explicit_end_marker'] ?? null);
+
+        $t->same('ForgedObjectBase-H', $validBaseEntry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $validBaseEntry['filters'] ?? null);
+        $t->same('filters_resolved', $validBaseEntry['filter_operand_policy'] ?? null);
+        $t->same('filter_end_markers_resolved', $validBaseEntry['filter_end_marker_policy'] ?? null);
+        $t->same('filter_decoders_resolved', $validBaseEntry['filter_decode_policy'] ?? null);
+        $t->same(true, $validBaseEntry['decoded_with_current_operands'] ?? null);
     },
     'treats identity Crypt CMap filters as pass-through while rejecting named crypt filters' => static function (TestRunner $t) use (
         $parserMalformedCMapCryptIdentityFilterBoundaryCurrentBasePdf,
