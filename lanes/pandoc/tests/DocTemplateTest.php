@@ -642,6 +642,31 @@ HTML,
         ], 'wp-data'));
     },
 
+    'renders unicode pandoc doctemplate variables and partial resource names' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->renderResource('packets/review.html', [
+            'packets/review.html' => <<<'HTML'
+<article>
+${ components/résumé() }
+Auteur: $auteur.nom$
+文書: $文書.題名$
+</article>
+HTML,
+            'packets/components/résumé.html' => '<p data-état="$révision.état$">$révision.titre$</p>' . "\n",
+        ], [
+            'auteur' => ['nom' => 'Ada Editor'],
+            'révision' => ['état' => 'prêt', 'titre' => 'Résumé de migration'],
+            '文書' => ['題名' => '移行レビュー'],
+        ]);
+
+        $t->same(implode("\n", [
+            '<article>',
+            '<p data-état="prêt">Résumé de migration</p>',
+            'Auteur: Ada Editor',
+            '文書: 移行レビュー',
+            '</article>',
+        ]), $output);
+    },
+
     'rejects unsafe pandoc doctemplate resource paths' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

@@ -853,7 +853,7 @@ final class DocTemplate
      */
     private function parsePartialCallExpression(string $expression): ?array
     {
-        if (!preg_match('/^([A-Za-z0-9_.\\/\\\\-]+)\\(\\)(?:\\[(.*)\\])?(?:\\/(.*))?$/s', $expression, $matches)) {
+        if (!preg_match('/^([\\p{L}\\p{N}_.\\/\\\\-]+)\\(\\)(?:\\[(.*)\\])?(?:\\/(.*))?$/su', $expression, $matches)) {
             return null;
         }
 
@@ -925,15 +925,49 @@ final class DocTemplate
     {
         $parts = $this->splitPipeExpression($expression);
         $base = array_shift($parts);
-        if ($base === null || !preg_match('/^(it|[A-Za-z][A-Za-z0-9_.-]*)(?:\\[(.*)\\])?$/s', $base, $matches)) {
+        if ($base === null || !preg_match('/^(.+?)(?:\\[(.*)\\])?$/s', $base, $matches)) {
             throw new \UnexpectedValueException("Unsupported doctemplate directive {$expression}");
         }
 
+        $name = $matches[1];
+        $this->validateVariableName($name, $expression);
+
         return [
-            'name' => $matches[1],
+            'name' => $name,
             'separator' => array_key_exists(2, $matches) ? $matches[2] : null,
             'pipes' => $this->parsePipeSpecs($parts, $expression),
         ];
+    }
+
+    private function validateVariableName(string $name, string $expression): void
+    {
+        $segments = explode('.', $name);
+        if ($segments === [] || in_array('', $segments, true)) {
+            throw new \UnexpectedValueException("Unsupported doctemplate directive {$expression}");
+        }
+
+        foreach ($segments as $offset => $segment) {
+            if ($offset === 0 && $segment === 'it') {
+                continue;
+            }
+
+            if (!$this->isVariableIdentifierPart($segment)) {
+                throw new \UnexpectedValueException("Unsupported doctemplate directive {$expression}");
+            }
+        }
+    }
+
+    private function isVariableIdentifierPart(string $part): bool
+    {
+        if ($part === '') {
+            return false;
+        }
+
+        if (in_array($part, ['if', 'else', 'endif', 'elseif', 'for', 'endfor', 'sep', 'it'], true)) {
+            return false;
+        }
+
+        return preg_match('/^\\p{L}[\\p{L}\\p{N}_-]*$/u', $part) === 1;
     }
 
     /**

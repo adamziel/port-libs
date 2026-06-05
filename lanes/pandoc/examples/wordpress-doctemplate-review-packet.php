@@ -11,6 +11,7 @@ $resources = [
     $templatePath => <<<'HTML'
 <article class="wp-import-review">
 ${ components/review-header() }
+${ components/résumé() }
 ${ components/warning-list() }
 ${ review-body() }
 </article>
@@ -24,6 +25,9 @@ HTML,
 <p class="authors">$for(authors/pairs)$$it.value.name$$sep$, $endfor$</p>
 <p class="audit-flag" data-suppressed="$suppressed$">Suppressed: <$suppressed$></p>
 </header>
+HTML,
+    'review-packets/components/résumé.html' => <<<'HTML'
+<p class="source-summary" data-état="$révision.état$">$révision.titre$</p>
 HTML,
     'review-packets/components/next-warning.html' => '$it.source$: $it.message$',
     'review-packets/components/warning-list.html' => <<<'HTML'
@@ -50,6 +54,7 @@ $context = [
         ['name' => 'Content editor'],
     ],
     'suppressed' => false,
+    'révision' => ['état' => 'prêt', 'titre' => 'Résumé de migration'],
     'warnings' => [
         ['index' => 1, 'title' => 'Media warning', 'source' => 'media', 'priority' => 1, 'message' => 'Check &amp; confirm alt text'],
         ['index' => 2, 'title' => 'Link warning', 'source' => 'links', 'priority' => 4, 'message' => 'Verify edit links before publish'],
@@ -81,6 +86,7 @@ if (in_array('--self-test', $argv, true)) {
         '<p class="ticket">Ticket: [        ]</p>',
         '<p class="authors">Migration bot, Content editor</p>',
         '<p class="audit-flag" data-suppressed="">Suppressed: <></p>',
+        '<p class="source-summary" data-état="prêt">Résumé de migration</p>',
         '<li data-index="1" data-source="media" data-review-title="Batch 42 Review"><span class="marker">A.</span> <span class="source">{MEDIA   }</span> <span class="priority">   I</span> Check &amp; confirm alt text</li>',
         '<li data-index="2" data-source="links" data-review-title="Batch 42 Review"><span class="marker">B.</span> <span class="source">{LINKS   }</span> <span class="priority">  IV</span> Verify edit links before publish</li>',
         '<li data-index="3" data-source="魚" data-review-title="Batch 42 Review"><span class="marker">C.</span> <span class="source">{魚      }</span> <span class="priority">  IX</span> Confirm multilingual source label spacing</li>',
