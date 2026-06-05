@@ -1035,12 +1035,15 @@ final class TableRecognizer
         }
 
         $coordinateSpaceReviews = [];
+        $recognitionImageSizes = [];
         foreach ($recognizedTables as $idx => $table) {
             if (!is_array($table)) {
                 throw new InvalidArgumentException('Recognized table entries must be arrays.');
             }
 
-            $localized = $this->localizeRecognizedTableGeometry($table, $imageSizes[$idx]);
+            $recognitionImageSize = $this->tableRecognitionImageSize($imageSizes[$idx], $table);
+            $recognitionImageSizes[$idx] = $recognitionImageSize;
+            $localized = $this->localizeRecognizedTableGeometry($table, $recognitionImageSize);
             $recognizedTables[$idx] = $localized['table'];
             $coordinateSpaceReviews[] = $localized['review'];
         }
@@ -1054,18 +1057,18 @@ final class TableRecognizer
             if ($assignedCells !== null) {
                 $assignedCropBoundaryReview = $this->assignedCellCropBoundaryReview(
                     $assignedCells,
-                    $imageSizes[$idx]
+                    $recognitionImageSizes[$idx]
                 );
                 $assignedCropBoundaryReviews[] = $assignedCropBoundaryReview;
                 $bounded = $this->boundedAssignedCellsWithActiveBands(
                     $this->activeAssignedCellsFromCropBoundary($assignedCells, $assignedCropBoundaryReview),
                     $table,
-                    $imageSizes[$idx]
+                    $recognitionImageSizes[$idx]
                 );
                 $tableCells = $bounded['cells'];
                 $assignedBandBoundaryReviews[] = $bounded['review'];
             } else {
-                $tableCells = $this->assignRowsColumns($table, $imageSizes[$idx]);
+                $tableCells = $this->assignRowsColumns($table, $recognitionImageSizes[$idx]);
                 $assignedCropBoundaryReviews[] = null;
                 $assignedBandBoundaryReviews[] = null;
             }
@@ -1081,6 +1084,64 @@ final class TableRecognizer
             'assigned_crop_boundary_reviews' => $assignedCropBoundaryReviews,
             'assigned_band_boundary_reviews' => $assignedBandBoundaryReviews,
         ];
+    }
+
+    /**
+     * Saved tabled-pdf result JSON carries each table's high-resolution page
+     * bbox plus the full image_bbox. When the sidecar size is absent, the
+     * table bbox extent is the cropped table image size used by rows/cols/cells.
+     *
+     * @param array{width?: int|float, height?: int|float}|list<int|float>|array<string|int, mixed> $imageSize
+     * @param array<string, mixed> $table
+     * @return array<string|int, mixed>
+     */
+    private function tableRecognitionImageSize(array $imageSize, array $table): array
+    {
+        $provided = $this->nullableImageSize($imageSize);
+        if ($provided !== null) {
+            $imageSize['width'] = $provided['width'];
+            $imageSize['height'] = $provided['height'];
+
+            return $imageSize;
+        }
+
+        $cropBbox = $this->tableCropBbox($table, $imageSize);
+        if ($cropBbox !== null) {
+            $fromCropExtent = $this->imageSizeFromBboxExtent($cropBbox);
+            if ($fromCropExtent !== null) {
+                $imageSize['width'] = $fromCropExtent['width'];
+                $imageSize['height'] = $fromCropExtent['height'];
+                if (!isset($imageSize['table_bbox'])) {
+                    $imageSize['table_bbox'] = $cropBbox;
+                }
+                $imageSize['image_size_source'] = 'table_crop_bbox_extent';
+
+                return $imageSize;
+            }
+        }
+
+        foreach (['image_bbox', 'page_image_bbox', 'rendered_image_bbox'] as $key) {
+            $bbox = isset($table[$key]) ? $this->bboxFromValue($table[$key]) : null;
+            if ($bbox === null && isset($imageSize[$key])) {
+                $bbox = $this->bboxFromValue($imageSize[$key]);
+            }
+            if ($bbox === null) {
+                continue;
+            }
+
+            $fromExtent = $this->imageSizeFromBboxExtent($bbox);
+            if ($fromExtent === null) {
+                continue;
+            }
+
+            $imageSize['width'] = $fromExtent['width'];
+            $imageSize['height'] = $fromExtent['height'];
+            $imageSize['image_size_source'] = $key . '_extent';
+
+            return $imageSize;
+        }
+
+        return $this->imageSize($imageSize);
     }
 
     /**
@@ -1537,6 +1598,9 @@ final class TableRecognizer
         if ($cropBbox !== null) {
             $review['table_bbox'] = $cropBbox;
             $review['translation'] = ['x' => $dx, 'y' => $dy];
+        }
+        if (isset($imageSize['image_size_source']) && is_scalar($imageSize['image_size_source'])) {
+            $review['image_size_source'] = (string) $imageSize['image_size_source'];
         }
         if ($needsNormalization) {
             $review['normalization_scale'] = [
@@ -5390,10 +5454,39 @@ final class TableRecognizer
      */
     private function imageSize(array $imageSize): array
     {
+        $size = $this->nullableImageSize($imageSize);
+        if ($size !== null) {
+            return $size;
+        }
+
+        throw new InvalidArgumentException('Table image sizes must include positive width and height.');
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @return array{width: int, height: int}|null
+     */
+    private function imageSizeFromBboxExtent(array $bbox): ?array
+    {
+        $width = $bbox[2] - $bbox[0];
+        $height = $bbox[3] - $bbox[1];
+        if ($width <= 0.0 || $height <= 0.0) {
+            return null;
+        }
+
+        return ['width' => (int) round($width), 'height' => (int) round($height)];
+    }
+
+    /**
+     * @param array{width?: int|float, height?: int|float}|list<int|float>|array<string|int, mixed> $imageSize
+     * @return array{width: int, height: int}|null
+     */
+    private function nullableImageSize(array $imageSize): ?array
+    {
         $width = $this->numericScalar($imageSize['width'] ?? $imageSize[0] ?? null);
         $height = $this->numericScalar($imageSize['height'] ?? $imageSize[1] ?? null);
         if ($width === null || $height === null || $width <= 0.0 || $height <= 0.0) {
-            throw new InvalidArgumentException('Table image sizes must include positive width and height.');
+            return null;
         }
 
         return ['width' => (int) round($width), 'height' => (int) round($height)];
