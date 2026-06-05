@@ -742,6 +742,9 @@ final class PdfTextExtractor
      *     invalid_filter_operand_count: int,
      *     dictionary_filter_operand_count: int,
      *     malformed_filter_operand_count: int,
+     *     invalid_decodeparms_operand_count: int,
+     *     malformed_decodeparms_operand_count: int,
+     *     invalid_decodeparms_parameter_count: int,
      *     decoded_cmap_count: int,
      *     entries: list<array<string, mixed>>,
      *     executes_python_or_models: false,
@@ -764,6 +767,9 @@ final class PdfTextExtractor
             'invalid_filter_operand_count' => 0,
             'dictionary_filter_operand_count' => 0,
             'malformed_filter_operand_count' => 0,
+            'invalid_decodeparms_operand_count' => 0,
+            'malformed_decodeparms_operand_count' => 0,
+            'invalid_decodeparms_parameter_count' => 0,
             'decoded_cmap_count' => 0,
             'entries' => [],
             'executes_python_or_models' => false,
@@ -828,9 +834,12 @@ final class PdfTextExtractor
             $invalidFilterOperandCount = $this->invalidStreamFilterOperandCount($operandGroups['Filter']);
             $dictionaryFilterOperandCount = $this->dictionaryStreamFilterOperandCount($operandGroups['Filter']);
             $malformedFilterOperandCount = $this->malformedStreamFilterOperandCount($operandGroups['Filter']);
-            $decoded = $this->decodedCMapBody($body, $objects);
             $filters = $this->streamFilters($dict, $objects);
             $decodeParms = $this->streamDecodeParms($dict, $objects);
+            $invalidDecodeParmsOperandCount = $this->invalidStreamDecodeParmsOperandCount($operandGroups['DecodeParms']);
+            $malformedDecodeParmsOperandCount = $this->malformedStreamDecodeParmsOperandCount($operandGroups['DecodeParms']);
+            $invalidDecodeParmsParameterCount = $this->invalidDecodeParmsParameterCount($filters, $decodeParms, $objects);
+            $decoded = $this->decodedCMapBody($body, $objects);
             $owner = $this->currentObjectReferenceOwners[$objectNumber] ?? null;
             $generation = $owner['generation']
                 ?? ($xrefEntries[$objectNumber]['generation'] ?? null);
@@ -851,6 +860,9 @@ final class PdfTextExtractor
             $review['invalid_filter_operand_count'] += $invalidFilterOperandCount;
             $review['dictionary_filter_operand_count'] += $dictionaryFilterOperandCount;
             $review['malformed_filter_operand_count'] += $malformedFilterOperandCount;
+            $review['invalid_decodeparms_operand_count'] += $invalidDecodeParmsOperandCount;
+            $review['malformed_decodeparms_operand_count'] += $malformedDecodeParmsOperandCount;
+            $review['invalid_decodeparms_parameter_count'] += $invalidDecodeParmsParameterCount;
             if ($decoded !== null) {
                 $review['decoded_cmap_count']++;
             }
@@ -869,11 +881,20 @@ final class PdfTextExtractor
                 'invalid_filter_operand_count' => $invalidFilterOperandCount,
                 'dictionary_filter_operand_count' => $dictionaryFilterOperandCount,
                 'malformed_filter_operand_count' => $malformedFilterOperandCount,
+                'invalid_decodeparms_operand_count' => $invalidDecodeParmsOperandCount,
+                'malformed_decodeparms_operand_count' => $malformedDecodeParmsOperandCount,
+                'invalid_decodeparms_parameter_count' => $invalidDecodeParmsParameterCount,
                 'filter_operand_policy' => $this->streamFilterOperandPolicy(
                     $filters,
                     $invalidFilterOperandCount,
                     $dictionaryFilterOperandCount,
                     $malformedFilterOperandCount
+                ),
+                'decodeparms_operand_policy' => $this->streamDecodeParmsOperandPolicy(
+                    $decodeParms,
+                    $invalidDecodeParmsOperandCount,
+                    $malformedDecodeParmsOperandCount,
+                    $invalidDecodeParmsParameterCount
                 ),
                 'decoded_cmap_length' => $decoded === null ? null : strlen($decoded),
                 'decoded_cmap_sha256' => $decoded === null ? null : hash('sha256', $decoded),
@@ -14491,6 +14512,9 @@ final class PdfTextExtractor
             if ($name === 'Filter') {
                 $review['valid_filter_operand'] = $this->directFilterOperandTokenTypeIsValid($tokenType);
             }
+            if ($name === 'DecodeParms') {
+                $review['valid_decodeparms_operand'] = $this->decodeParmsOperandBodyIsValid($item, $objects);
+            }
 
             $reviews[] = $review;
         }
@@ -14577,6 +14601,15 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     */
+    private function decodeParmsOperandBodyIsValid(string $body, array $objects, array $seen = []): bool
+    {
+        return $this->decodeParmsValueList(trim($body), 0, $objects, $seen) !== null;
+    }
+
+    /**
+     * @param array<int, string> $objects
      * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
      * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
      * @return array<string, mixed>
@@ -14635,6 +14668,15 @@ final class PdfTextExtractor
                 $objects,
                 [$objectNumber . ':' . $generation => true]
             ) !== null;
+        }
+        if ($name === 'DecodeParms' && $body !== null) {
+            $body = trim($body);
+            $review['token_type'] = $this->pdfOperandTokenType($body);
+            $review['valid_decodeparms_operand'] = $this->decodeParmsOperandBodyIsValid(
+                $body,
+                $objects,
+                [$objectNumber . ':' . $generation => true]
+            );
         }
 
         return $review;
@@ -14798,6 +14840,74 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param list<array<string, mixed>> $operands
+     */
+    private function invalidStreamDecodeParmsOperandCount(array $operands): int
+    {
+        $count = 0;
+        foreach ($operands as $operand) {
+            if (
+                ($operand['kind'] ?? null) !== 'direct'
+                && (($operand['resolved'] ?? false) !== true || ($operand['xref_selected'] ?? false) !== true)
+            ) {
+                $count++;
+                continue;
+            }
+
+            if (($operand['valid_decodeparms_operand'] ?? true) === false) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $operands
+     */
+    private function malformedStreamDecodeParmsOperandCount(array $operands): int
+    {
+        $count = 0;
+        foreach ($operands as $operand) {
+            if (($operand['valid_decodeparms_operand'] ?? null) === false) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<string|null>|null $filters
+     * @param list<string|null>|null $decodeParms
+     * @param array<int, string> $objects
+     */
+    private function invalidDecodeParmsParameterCount(?array $filters, ?array $decodeParms, array $objects): int
+    {
+        if ($filters === null || $decodeParms === null) {
+            return 0;
+        }
+
+        $count = 0;
+        foreach ($filters as $index => $filter) {
+            if ($filter === null) {
+                continue;
+            }
+
+            $filterDecodeParms = $decodeParms[$index] ?? null;
+            if (
+                $filterDecodeParms !== null
+                && trim($filterDecodeParms) !== ''
+                && !$this->canApplyDecodeParms($filter, $filterDecodeParms, $objects)
+            ) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
      * @param array<string, mixed> $operand
      */
     private function streamFilterOperandIsDictionary(array $operand): bool
@@ -14875,6 +14985,34 @@ final class PdfTextExtractor
         }
 
         return 'filters_resolved';
+    }
+
+    /**
+     * @param list<string|null>|null $decodeParms
+     */
+    private function streamDecodeParmsOperandPolicy(
+        ?array $decodeParms,
+        int $invalidOperandCount,
+        int $malformedOperandCount,
+        int $invalidParameterCount
+    ): string {
+        if ($invalidParameterCount > 0) {
+            return 'reject_malformed_decodeparms_parameters';
+        }
+
+        if ($malformedOperandCount > 0) {
+            return 'reject_malformed_decodeparms_operands';
+        }
+
+        if ($invalidOperandCount > 0) {
+            return 'reject_unresolved_decodeparms_operands';
+        }
+
+        if ($decodeParms === null) {
+            return 'decodeparms_resolution_failed';
+        }
+
+        return 'decodeparms_resolved';
     }
 
     /**
