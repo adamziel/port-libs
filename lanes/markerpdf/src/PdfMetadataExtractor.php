@@ -4719,6 +4719,10 @@ final class PdfMetadataExtractor
                 ?? $this->dictionaryStringValue($filterBody, 'AuthEvent');
             if ($authEvent !== null) {
                 $metadata['auth_event'] = $authEvent;
+            } elseif ($method !== null && !in_array($method, ['Identity', 'None'], true)) {
+                $metadata['auth_event'] = 'DocOpen';
+                $metadata['auth_event_defaulted'] = true;
+                $metadata['auth_event_source'] = 'pdf_default_doc_open';
             }
 
             $lengthBytes = $this->dictionaryIntegerValue($filterBody, 'Length', $objects);

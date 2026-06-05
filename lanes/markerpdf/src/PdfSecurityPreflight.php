@@ -455,6 +455,50 @@ final class PdfSecurityPreflight
         }
 
         $cryptFilters = is_array($encryption['crypt_filters'] ?? null) ? $encryption['crypt_filters'] : [];
+        $version = is_int($encryption['version'] ?? null) ? $encryption['version'] : null;
+        $usesCryptFilterRoles = in_array($version, [4, 5], true)
+            || $cryptFilters !== []
+            || is_string($encryption['stream_filter'] ?? null)
+            || is_string($encryption['string_filter'] ?? null)
+            || is_string($encryption['embedded_file_filter'] ?? null);
+        if (!$usesCryptFilterRoles) {
+            return [
+                'source' => 'encryption_crypt_filter_content_review',
+                'present' => false,
+                'encrypted_document' => true,
+                'handler' => is_string($encryption['filter'] ?? null) ? $encryption['filter'] : null,
+                'subfilter' => is_string($encryption['subfilter'] ?? null) ? $encryption['subfilter'] : null,
+                'declared_crypt_filter_count' => 0,
+                'role_count' => 0,
+                'role_names' => [],
+                'role_statuses' => [],
+                'selected_filter_names' => [],
+                'identity_role_names' => [],
+                'encrypted_role_names' => [],
+                'missing_role_names' => [],
+                'unsupported_role_names' => [],
+                'fail_closed_role_names' => [],
+                'fail_closed_filter_names' => [],
+                'fail_closed_role_count' => 0,
+                'identity_filter_names' => [],
+                'encrypted_filter_names' => [],
+                'missing_filter_names' => [],
+                'auth_event_statuses' => [],
+                'auth_event_defaulted_role_names' => [],
+                'auth_event_defaulted_filter_names' => [],
+                'auth_event_mismatch_role_names' => [],
+                'auth_event_mismatch_filter_names' => [],
+                'text_content_policy' => 'review_only_encrypted_document_boundary',
+                'embedded_file_payload_policy' => 'encrypted_filter_requires_decryption',
+                'roles' => [],
+                'review_only' => true,
+                'native_text_extraction_allowed_now' => false,
+                'decryption_performed' => false,
+                'executes_decryption' => false,
+                'executes_permission_enforcement' => false,
+                'executes_external_pdf_tools' => false,
+            ];
+        }
         $roles = [];
         foreach ([
             'document_streams' => ['key' => 'stream_filter', 'pdf_name' => 'StmF'],
@@ -501,6 +545,11 @@ final class PdfSecurityPreflight
             'identity_filter_names' => $this->cryptFilterNamesByStatus($roles, 'identity_crypt_filter'),
             'encrypted_filter_names' => $this->cryptFilterNamesByStatus($roles, 'encrypted_crypt_filter'),
             'missing_filter_names' => $this->cryptFilterNamesByStatus($roles, 'missing_declared_crypt_filter'),
+            'auth_event_statuses' => $this->uniqueStringColumn($roles, 'auth_event_status'),
+            'auth_event_defaulted_role_names' => $this->cryptFilterAuthEventDefaultedRoleNames($roles),
+            'auth_event_defaulted_filter_names' => $this->cryptFilterAuthEventDefaultedFilterNames($roles),
+            'auth_event_mismatch_role_names' => $this->cryptFilterAuthEventMismatchRoleNames($roles),
+            'auth_event_mismatch_filter_names' => $this->cryptFilterAuthEventMismatchFilterNames($roles),
             'text_content_policy' => $this->cryptFilterTextContentPolicy($documentTextRows),
             'embedded_file_payload_policy' => $this->cryptFilterEmbeddedFilePolicy($embeddedFileRows),
             'roles' => $roles,
@@ -565,13 +614,19 @@ final class PdfSecurityPreflight
         }
 
         $method = is_string($filter['method'] ?? null) ? $filter['method'] : null;
+        $authEvent = is_string($filter['auth_event'] ?? null) ? $filter['auth_event'] : null;
         $status = $this->cryptFilterMethodStatus($method);
         $identity = $status === 'identity_crypt_filter';
+        $authEventStatus = $this->cryptFilterAuthEventStatus($authEvent, $role, $identity);
 
         return array_merge($row, [
             'crypt_filter_present' => true,
             'method' => $method,
-            'auth_event' => is_string($filter['auth_event'] ?? null) ? $filter['auth_event'] : null,
+            'auth_event' => $authEvent,
+            'auth_event_defaulted' => ($filter['auth_event_defaulted'] ?? false) === true,
+            'auth_event_source' => is_string($filter['auth_event_source'] ?? null) ? $filter['auth_event_source'] : null,
+            'auth_event_status' => $authEventStatus,
+            'auth_event_applies_to_role' => $this->cryptFilterAuthEventAppliesToRole($authEventStatus),
             'key_length_bytes' => is_int($filter['key_length_bytes'] ?? null) ? $filter['key_length_bytes'] : null,
             'content_encrypted' => !$identity,
             'identity_crypt_filter' => $identity,
@@ -592,6 +647,38 @@ final class PdfSecurityPreflight
         }
 
         return 'unsupported_crypt_filter_method_fail_closed';
+    }
+
+    private function cryptFilterAuthEventStatus(?string $authEvent, string $role, bool $identity): string
+    {
+        if ($identity) {
+            return 'identity_filter_no_authorization_event_required';
+        }
+        if ($authEvent === null || $authEvent === '') {
+            return 'authorization_event_unavailable_review';
+        }
+        if ($authEvent === 'DocOpen') {
+            return 'document_open_authorization';
+        }
+        if ($authEvent === 'EFOpen') {
+            return $role === 'embedded_file_streams'
+                ? 'embedded_file_open_authorization'
+                : 'embedded_file_auth_event_on_document_content_review';
+        }
+
+        return 'unknown_authorization_event_review';
+    }
+
+    private function cryptFilterAuthEventAppliesToRole(string $status): ?bool
+    {
+        return match ($status) {
+            'document_open_authorization',
+            'embedded_file_open_authorization',
+            'identity_filter_no_authorization_event_required' => true,
+            'embedded_file_auth_event_on_document_content_review',
+            'unknown_authorization_event_review' => false,
+            default => null,
+        };
     }
 
     /**
@@ -766,6 +853,86 @@ final class PdfSecurityPreflight
         foreach ($roles as $role) {
             if (
                 $this->cryptFilterRoleFailsClosed($role)
+                && is_string($role['filter_name'] ?? null)
+                && !in_array($role['filter_name'], $names, true)
+            ) {
+                $names[] = $role['filter_name'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterAuthEventDefaultedRoleNames(array $roles): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            if (
+                ($role['auth_event_defaulted'] ?? false) === true
+                && is_string($role['role'] ?? null)
+                && !in_array($role['role'], $names, true)
+            ) {
+                $names[] = $role['role'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterAuthEventDefaultedFilterNames(array $roles): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            if (
+                ($role['auth_event_defaulted'] ?? false) === true
+                && is_string($role['filter_name'] ?? null)
+                && !in_array($role['filter_name'], $names, true)
+            ) {
+                $names[] = $role['filter_name'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterAuthEventMismatchRoleNames(array $roles): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            if (
+                ($role['auth_event_applies_to_role'] ?? null) === false
+                && is_string($role['role'] ?? null)
+                && !in_array($role['role'], $names, true)
+            ) {
+                $names[] = $role['role'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterAuthEventMismatchFilterNames(array $roles): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            if (
+                ($role['auth_event_applies_to_role'] ?? null) === false
                 && is_string($role['filter_name'] ?? null)
                 && !in_array($role['filter_name'], $names, true)
             ) {
