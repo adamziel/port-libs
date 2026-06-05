@@ -4130,6 +4130,7 @@ final class CitationCslProcessor
             'initializeWith' => is_string($options['initializeWith'] ?? null) ? $options['initializeWith'] : $defaults['initializeWith'],
             'initializeWithHyphen' => is_bool($options['initializeWithHyphen'] ?? null) ? $options['initializeWithHyphen'] : ($defaults['initializeWithHyphen'] ?? true),
             'nameAsSortOrder' => is_string($options['nameAsSortOrder'] ?? null) ? $options['nameAsSortOrder'] : $defaults['nameAsSortOrder'],
+            'sortSeparator' => is_string($options['sortSeparator'] ?? null) ? $options['sortSeparator'] : ($defaults['sortSeparator'] ?? ', '),
             'nameParts' => array_key_exists('nameParts', $options) && is_array($options['nameParts']) ? $options['nameParts'] : [],
         ];
     }
@@ -5086,7 +5087,7 @@ final class CitationCslProcessor
 
         if ($sortOrdered) {
             if ($family !== '' && $given !== '') {
-                $entry = $family . ', ' . $given;
+                $entry = $family . (string) ($options['sortSeparator'] ?? ', ') . $given;
             } else {
                 $entry = $family !== '' ? $family : $given;
             }

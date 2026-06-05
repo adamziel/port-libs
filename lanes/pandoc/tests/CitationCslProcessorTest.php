@@ -3462,6 +3462,97 @@ XML
 XML
         ));
     },
+    'applies bounded csl sort separator for inverted bibliography names' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'sort-separator-source',
+                'type' => 'report',
+                'title' => 'Sort Separator Packet',
+                'author' => [
+                    ['family' => 'Source', 'given' => 'Ada Maria'],
+                    ['family' => 'Reviewer', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'first-sort-separator-source',
+                'type' => 'report',
+                'title' => 'First Sort Separator Packet',
+                'author' => [
+                    ['family' => 'Primary', 'given' => 'Eli'],
+                    ['family' => 'Secondary', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Sort Separator Review Style</title>
+    <id>https://example.test/styles/bounded-sort-separator-review</id>
+    <updated>2026-06-05T13:52:03+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author">
+        <name initialize-with=". " name-as-sort-order="all" sort-separator=" | "/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Sort Separator Review Style', $summary['title'] ?? null);
+        $t->same(' | ', $summary['nameRendering']['bibliography']['sortSeparator'] ?? null);
+        $t->same(' | ', $summary['bibliographyRendering'][0]['nameRendering']['sortSeparator'] ?? null);
+        $t->same('(Source and Reviewer 2026; Primary and Secondary 2025)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'sort-separator-source', 'text' => '[@sort-separator-source]']),
+            new AstNode('citation', ['id' => 'first-sort-separator-source', 'text' => '[@first-sort-separator-source]']),
+        ]));
+        $t->same('Source | A. M.; Reviewer | N. Sort Separator Packet.', $processor->renderBibliographyEntry('sort-separator-source'));
+
+        $firstOnly = $processor->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <names variable="author">
+        <name initialize-with=". " name-as-sort-order="first" sort-separator=" - "/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+        $t->same('Primary - E.; P. Secondary :: First Sort Separator Packet', $firstOnly->renderBibliographyEntry('first-sort-separator-source'));
+
+        $document = (new MarkdownReader())->read('Sort separator source @sort-separator-source keeps reviewer names readable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Sort separator source Source and Reviewer (2026) keeps reviewer names readable.</p>', $blocks);
+        $t->contains('<dt>Source and Reviewer 2026</dt><dd>Source | A. M.; Reviewer | N. Sort Separator Packet.</dd>', $blocks);
+    },
     'applies bounded csl et al element term formatting and delimiter policy' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
