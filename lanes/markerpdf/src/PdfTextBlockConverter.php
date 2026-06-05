@@ -210,7 +210,10 @@ final class PdfTextBlockConverter
                     if (array_key_exists('flags', $span['font']) && $span['font']['flags'] !== null) {
                         $this->integerMetadata($span['font']['flags'], "blocks[{$blockIndex}].lines[{$lineIndex}].spans[{$spanIndex}].font.flags");
                     }
-                    if (array_key_exists('rotation', $span) && !is_int($span['rotation']) && !is_float($span['rotation'])) {
+                    if (
+                        array_key_exists('rotation', $span)
+                        && ((!is_int($span['rotation']) && !is_float($span['rotation'])) || !is_finite((float) $span['rotation']))
+                    ) {
                         throw new InvalidArgumentException('pdftext span rotation must be numeric when supplied.');
                     }
                     foreach (['char_start_idx', 'char_end_idx'] as $metadataKey) {
@@ -233,7 +236,7 @@ final class PdfTextBlockConverter
 
     private function assertNumeric(mixed $value, string $field): void
     {
-        if (!is_int($value) && !is_float($value)) {
+        if ((!is_int($value) && !is_float($value)) || !is_finite((float) $value)) {
             throw new InvalidArgumentException("pdftext {$field} must be numeric.");
         }
     }
@@ -361,7 +364,7 @@ final class PdfTextBlockConverter
 
         $point = [];
         foreach (array_values($value) as $part) {
-            if (!is_int($part) && !is_float($part)) {
+            if ((!is_int($part) && !is_float($part)) || !is_finite((float) $part)) {
                 throw new InvalidArgumentException("pdftext {$field} must be a two-number coordinate.");
             }
             $point[] = (float) $part;
@@ -399,7 +402,7 @@ final class PdfTextBlockConverter
 
         $bbox = [];
         foreach (array_values($value) as $part) {
-            if (!is_int($part) && !is_float($part)) {
+            if ((!is_int($part) && !is_float($part)) || !is_finite((float) $part)) {
                 throw new InvalidArgumentException("pdftext {$field} must be a four-number bbox.");
             }
             $bbox[] = (float) $part;

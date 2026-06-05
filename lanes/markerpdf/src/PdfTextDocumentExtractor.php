@@ -446,7 +446,7 @@ final class PdfTextDocumentExtractor
 
         $bbox = [];
         foreach (array_values($value) as $part) {
-            if (!is_int($part) && !is_float($part)) {
+            if ((!is_int($part) && !is_float($part)) || !is_finite((float) $part)) {
                 throw new InvalidArgumentException("pdftext {$field} must be a four-number bbox.");
             }
             $bbox[] = (float) $part;
@@ -457,7 +457,7 @@ final class PdfTextDocumentExtractor
 
     private function assertNumeric(mixed $value, string $field): void
     {
-        if (!is_int($value) && !is_float($value)) {
+        if ((!is_int($value) && !is_float($value)) || !is_finite((float) $value)) {
             throw new InvalidArgumentException("pdftext {$field} must be numeric.");
         }
     }
@@ -505,7 +505,7 @@ final class PdfTextDocumentExtractor
 
         $width = (float) $page['width'];
         $height = (float) $page['height'];
-        if ($width <= 1.0 || $height <= 1.0) {
+        if (!is_finite($width) || !is_finite($height) || $width <= 1.0 || $height <= 1.0) {
             return null;
         }
 
@@ -525,7 +525,7 @@ final class PdfTextDocumentExtractor
 
         $bbox = [];
         foreach (array_values($value) as $part) {
-            if (!is_int($part) && !is_float($part)) {
+            if ((!is_int($part) && !is_float($part)) || !is_finite((float) $part)) {
                 return $value;
             }
             $bbox[] = (float) $part;
@@ -624,7 +624,7 @@ final class PdfTextDocumentExtractor
 
         $bbox = [];
         foreach (array_values($value) as $part) {
-            if (!is_int($part) && !is_float($part)) {
+            if ((!is_int($part) && !is_float($part)) || !is_finite((float) $part)) {
                 throw new InvalidArgumentException("pdftext {$field} must be a four-number bbox before dictionary sort.");
             }
             $bbox[] = (float) $part;

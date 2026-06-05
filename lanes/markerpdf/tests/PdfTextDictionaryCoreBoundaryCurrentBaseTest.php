@@ -519,4 +519,27 @@ return [
 
         $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1));
     },
+    'rejects non finite pdftext numeric dictionaries before WordPress rendering' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $infinitePageBbox = $pdftextLinkedPage();
+        $infinitePageBbox['bbox'][2] = INF;
+
+        $nanPageWidth = $pdftextLinkedPage();
+        $nanPageWidth['width'] = NAN;
+
+        $nanSpanBbox = $pdftextLinkedPage();
+        $nanSpanBbox['blocks'][0]['lines'][0]['spans'][0]['bbox'][2] = NAN;
+
+        $infiniteFontSize = $pdftextLinkedPage();
+        $infiniteFontSize['blocks'][0]['lines'][0]['spans'][0]['font']['size'] = INF;
+
+        $nanReferenceCoordinate = $pdftextLinkedPage();
+        $nanReferenceCoordinate['refs'][0]['dest_pos'][1] = NAN;
+
+        $extractor = new PdfTextDocumentExtractor();
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$infinitePageBbox], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$nanPageWidth], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$nanSpanBbox], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$infiniteFontSize], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$nanReferenceCoordinate], maxPages: 1));
+    },
 ];
