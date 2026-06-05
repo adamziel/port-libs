@@ -5108,6 +5108,7 @@ final class PdfTextExtractor
             $imageDecode,
             $effectiveBitsPerComponent ?? 1
         );
+        $reviewStream = $this->imageXObjectReviewStreamBytes($stream['dict'], $stream['stream'], $objects);
 
         return [
             'page_index' => $pageIndex,
@@ -5226,7 +5227,7 @@ final class PdfTextExtractor
             'ccitt_fax_coding_boundary' => $ccittCodingBoundary,
             'ccitt_fax_imagemask_polarity_boundary' => $ccittImageMaskPolarityBoundary,
             'native_raster_decode' => $filters !== null && $previewOnlyFilters === [],
-            'raw_length' => strlen($stream['stream']),
+            'raw_length' => strlen($reviewStream),
             'decoded_with_current_filters' => $decoded !== null,
             'decoded_length' => $decoded === null ? null : strlen($decoded),
             'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
@@ -5832,6 +5833,51 @@ final class PdfTextExtractor
                 true
             )
         ));
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function imageXObjectReviewStreamBytes(string $dictionary, string $stream, array $objects): string
+    {
+        $filters = $this->streamFilters($dictionary, $objects);
+        if ($filters === null) {
+            return $stream;
+        }
+
+        return $this->rawDctPreviewPayloadBytesForReview($filters, $stream) ?? $stream;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     */
+    private function rawDctPreviewPayloadBytesForReview(array $filters, string $stream): ?string
+    {
+        $firstFilter = null;
+        foreach ($filters as $filter) {
+            if (is_string($filter)) {
+                $firstFilter = $filter;
+                break;
+            }
+        }
+        if ($firstFilter !== 'DCTDecode' && $firstFilter !== 'DCT') {
+            return null;
+        }
+
+        $eoiEnd = null;
+        foreach ($this->dctPreviewEoiEndOffsets($stream) as $candidateEnd) {
+            $eoiEnd = $candidateEnd;
+        }
+        if ($eoiEnd === null) {
+            return null;
+        }
+
+        $payloadEnd = $this->skipDctPreviewPadding($stream, $eoiEnd);
+        if ($payloadEnd >= strlen($stream)) {
+            return $stream;
+        }
+
+        return substr($stream, 0, $eoiEnd);
     }
 
     /**

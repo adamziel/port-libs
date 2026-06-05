@@ -7251,9 +7251,13 @@ final class PdfImageRenderer
             )
             : $this->rawDctPreviewStreamTerminatorOffset($resolved, $streamStart);
 
-        return $terminator === null
-            ? null
-            : $this->stripStreamTerminatingLineEnding(substr($resolved, $streamStart, $terminator - $streamStart));
+        if ($terminator !== null) {
+            return $this->stripStreamTerminatingLineEnding(substr($resolved, $streamStart, $terminator - $streamStart));
+        }
+
+        return $hasDctFilter
+            ? $this->dctPreviewStreamPayloadBytesWithPostEoiSurplus($resolved, $streamStart, $filters)
+            : null;
     }
 
     /**
@@ -7386,6 +7390,75 @@ final class PdfImageRenderer
         }
 
         return $lastCompleteTerminator;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     */
+    private function dctPreviewStreamPayloadBytesWithPostEoiSurplus(
+        string $value,
+        int $streamStart,
+        array $filters
+    ): ?string {
+        $firstFilter = null;
+        foreach ($filters as $filter) {
+            if (is_string($filter)) {
+                $firstFilter = $filter;
+                break;
+            }
+        }
+        if ($firstFilter !== 'DCTDecode' && $firstFilter !== 'DCT') {
+            return null;
+        }
+
+        $payload = null;
+        $offset = $streamStart;
+        while (($terminator = strpos($value, 'endstream', $offset)) !== false) {
+            $offset = $terminator + strlen('endstream');
+            if (!$this->streamEndKeywordAt($value, $terminator)) {
+                continue;
+            }
+
+            $candidate = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $terminator - $streamStart));
+            $reviewBytes = $this->rawDctPreviewPayloadBytesForReview($filters, $candidate);
+            if ($reviewBytes !== null && strlen($reviewBytes) < strlen($candidate)) {
+                $payload = $reviewBytes;
+            }
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     */
+    private function rawDctPreviewPayloadBytesForReview(array $filters, string $stream): ?string
+    {
+        $firstFilter = null;
+        foreach ($filters as $filter) {
+            if (is_string($filter)) {
+                $firstFilter = $filter;
+                break;
+            }
+        }
+        if ($firstFilter !== 'DCTDecode' && $firstFilter !== 'DCT') {
+            return null;
+        }
+
+        $eoiEnd = null;
+        foreach ($this->dctPreviewEoiEndOffsets($stream) as $candidateEnd) {
+            $eoiEnd = $candidateEnd;
+        }
+        if ($eoiEnd === null) {
+            return null;
+        }
+
+        $payloadEnd = $this->skipDctPreviewPadding($stream, $eoiEnd);
+        if ($payloadEnd >= strlen($stream)) {
+            return $stream;
+        }
+
+        return substr($stream, 0, $eoiEnd);
     }
 
     /**
