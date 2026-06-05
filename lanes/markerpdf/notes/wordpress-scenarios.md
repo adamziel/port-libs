@@ -452,6 +452,8 @@ The 2026-06-05 named-destination indirect view-operand slice extends that smoke 
 
 `examples/wordpress-pdf-image-xobject-tiling-pattern-currentbase.php` maps Image XObjects invoked from painted PatternType 1 tiling-pattern streams into WordPress media-review metadata. It records the pattern resource/object, paint bbox, pattern matrix, image placement bbox, safe decoded hashes for painted and unpainted pattern resources, emits only surrounding Gutenberg paragraphs, and excludes pattern image payload bytes without Python, pdftext, pypdfium/PDFium execution, PIL, Poppler, Ghostscript, models, OCR, or external PDF tools.
 
+`examples/wordpress-pdf-acroform-fields-direct-dictionary-currentbase.php` maps direct AcroForm field dictionaries in catalog `/Fields` and field `/Kids` arrays into WordPress form-review metadata. It materializes top-level direct root and child fields, preserves indirect widget page annotation indexes, excludes literal, nested-array, nested-dictionary, comment, and detached field-like decoys, and keeps form values out of visible Gutenberg paragraphs without executing form actions, JavaScript, Python models, OCR, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

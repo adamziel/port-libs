@@ -127,6 +127,10 @@ final class PdfAcroFormExtractor
             ];
         }
 
+        $materializedFields = $this->materializeDirectAcroFormFieldDictionaries($acroForm, $objects);
+        $acroForm = $materializedFields['acroForm'];
+        $objects = $materializedFields['objects'];
+
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects, $catalog);
         $pageIndexes = array_flip($pageObjectNumbers);
         $pageWidgets = $this->pageWidgetMap($objects, $pageObjectNumbers);
@@ -8935,6 +8939,211 @@ final class PdfAcroFormExtractor
     }
 
     /**
+     * @param array<int, string> $objects
+     * @return array{acroForm: string, objects: array<int, string>}
+     */
+    private function materializeDirectAcroFormFieldDictionaries(string $acroForm, array $objects): array
+    {
+        $nextSyntheticObject = $this->nextSyntheticAcroFormObjectNumber($objects);
+        $root = $this->materializeDirectDictionariesInNamedArray($acroForm, 'Fields', $objects, $nextSyntheticObject);
+        $acroForm = $root['body'];
+        $objects = $root['objects'];
+        $queue = $this->fieldReferencesFromAcroForm($acroForm, $objects);
+        foreach ($root['added'] as $objectNumber) {
+            if (!in_array($objectNumber, $queue, true)) {
+                $queue[] = $objectNumber;
+            }
+        }
+
+        $seen = [];
+        while ($queue !== []) {
+            $objectNumber = array_shift($queue);
+            if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+                continue;
+            }
+
+            $seen[$objectNumber] = true;
+            $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
+            if (!$this->isFieldDictionaryCandidate($body)) {
+                continue;
+            }
+
+            $kids = $this->materializeDirectDictionariesInNamedArray($body, 'Kids', $objects, $nextSyntheticObject);
+            if ($kids['changed']) {
+                $body = $kids['body'];
+                $objects = $kids['objects'];
+                $objects[$objectNumber] = '<<' . $body . '>>';
+                foreach ($kids['added'] as $childObject) {
+                    if (!isset($seen[$childObject]) && !in_array($childObject, $queue, true)) {
+                        $queue[] = $childObject;
+                    }
+                }
+            }
+
+            foreach ($this->kidReferences($body, $objects) as $kidObject) {
+                if (!isset($seen[$kidObject]) && !in_array($kidObject, $queue, true)) {
+                    $queue[] = $kidObject;
+                }
+            }
+        }
+
+        ksort($objects, SORT_NUMERIC);
+
+        return [
+            'acroForm' => $acroForm,
+            'objects' => $objects,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{body: string, objects: array<int, string>, added: list<int>, changed: bool}
+     */
+    private function materializeDirectDictionariesInNamedArray(
+        string $dictionaryBody,
+        string $name,
+        array $objects,
+        int &$nextSyntheticObject
+    ): array {
+        $empty = [
+            'body' => $dictionaryBody,
+            'objects' => $objects,
+            'added' => [],
+            'changed' => false,
+        ];
+
+        $span = $this->lastTopLevelValueSpanAfterName($dictionaryBody, $name);
+        if ($span === null || !str_starts_with(trim($span['value']), '[')) {
+            return $empty;
+        }
+
+        $arrayOffset = strpos($span['value'], '[');
+        if ($arrayOffset === false) {
+            return $empty;
+        }
+
+        $arrayEnd = null;
+        $arrayBody = $this->readPdfArrayAt($span['value'], $arrayOffset, $arrayEnd);
+        if ($arrayBody === null || $arrayEnd === null) {
+            return $empty;
+        }
+
+        $materialized = $this->materializeDirectDictionariesInArrayBody($arrayBody, $objects, $nextSyntheticObject);
+        if (!$materialized['changed']) {
+            return $empty;
+        }
+
+        $rewrittenValue = '[' . $materialized['body'] . ']';
+
+        return [
+            'body' => substr($dictionaryBody, 0, $span['start'])
+                . $rewrittenValue
+                . substr($dictionaryBody, $span['end']),
+            'objects' => $materialized['objects'],
+            'added' => $materialized['added'],
+            'changed' => true,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{body: string, objects: array<int, string>, added: list<int>, changed: bool}
+     */
+    private function materializeDirectDictionariesInArrayBody(
+        string $arrayBody,
+        array $objects,
+        int &$nextSyntheticObject
+    ): array {
+        $rewritten = '';
+        $cursor = 0;
+        $offset = 0;
+        $length = strlen($arrayBody);
+        $added = [];
+
+        while ($offset < $length) {
+            $this->skipWhitespace($arrayBody, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (substr($arrayBody, $offset, 2) === '<<') {
+                $dictionaryEnd = null;
+                $dictionary = $this->readPdfDictionaryAt($arrayBody, $offset, $dictionaryEnd);
+                if ($dictionary !== null && $dictionaryEnd !== null) {
+                    if ($this->isFieldDictionaryCandidate($dictionary)) {
+                        while (isset($objects[$nextSyntheticObject])) {
+                            $nextSyntheticObject++;
+                        }
+
+                        $objectNumber = $nextSyntheticObject++;
+                        $objects[$objectNumber] = '<<' . $dictionary . '>>';
+                        $this->objectGenerations[$objectNumber] = 0;
+                        $added[] = $objectNumber;
+                        $rewritten .= substr($arrayBody, $cursor, $offset - $cursor) . $objectNumber . ' 0 R';
+                        $cursor = $dictionaryEnd;
+                    }
+
+                    $offset = $dictionaryEnd;
+                    continue;
+                }
+            }
+
+            $char = $arrayBody[$offset];
+            if ($char === '(') {
+                $offset = $this->skipLiteralString($arrayBody, $offset);
+                continue;
+            }
+
+            if ($char === '[') {
+                $arrayEnd = null;
+                $this->readPdfArrayAt($arrayBody, $offset, $arrayEnd);
+                $offset = $arrayEnd ?? ($offset + 1);
+                continue;
+            }
+
+            if ($char === '<') {
+                $offset = $this->skipHexString($arrayBody, $offset);
+                continue;
+            }
+
+            if ($char === '/') {
+                $offset = $this->skipPdfName($arrayBody, $offset);
+                continue;
+            }
+
+            $valueEnd = null;
+            $this->readPdfValueAt($arrayBody, $offset, $valueEnd);
+            $offset = $valueEnd !== null && $valueEnd > $offset ? $valueEnd : $offset + 1;
+        }
+
+        if ($added === []) {
+            return [
+                'body' => $arrayBody,
+                'objects' => $objects,
+                'added' => [],
+                'changed' => false,
+            ];
+        }
+
+        $rewritten .= substr($arrayBody, $cursor);
+
+        return [
+            'body' => $rewritten,
+            'objects' => $objects,
+            'added' => $added,
+            'changed' => true,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function nextSyntheticAcroFormObjectNumber(array $objects): int
+    {
+        return $objects === [] ? 1 : max(array_keys($objects)) + 1;
+    }
+
+    /**
      * @param list<int> $fieldRefs
      * @param array<int, string> $objects
      * @param array<int, array{page_index: int, page_object: int, annotation_index: int}> $pageWidgets
@@ -9795,6 +10004,70 @@ final class PdfAcroFormExtractor
         }
 
         return $lastValue;
+    }
+
+    /**
+     * @return array{start: int, end: int, value: string}|null
+     */
+    private function lastTopLevelValueSpanAfterName(string $body, string $name): ?array
+    {
+        $lastSpan = null;
+        $offset = 0;
+        $length = strlen($body);
+        while ($offset < $length) {
+            $this->skipWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $char = $body[$offset];
+            if ($char === '(') {
+                $offset = $this->skipLiteralString($body, $offset);
+                continue;
+            }
+
+            if ($char === '<' && substr($body, $offset, 2) === '<<') {
+                $endOffset = null;
+                $this->readPdfDictionaryAt($body, $offset, $endOffset);
+                $offset = $endOffset ?? ($offset + 2);
+                continue;
+            }
+
+            if ($char === '<') {
+                $offset = $this->skipHexString($body, $offset);
+                continue;
+            }
+
+            if ($char === '[') {
+                $endOffset = null;
+                $this->readPdfArrayAt($body, $offset, $endOffset);
+                $offset = $endOffset ?? ($offset + 1);
+                continue;
+            }
+
+            if ($char === '/') {
+                $nameEnd = $this->skipPdfName($body, $offset);
+                $matched = $this->decodePdfName(substr($body, $offset, $nameEnd - $offset)) === $name;
+                $valueStart = $nameEnd;
+                $this->skipWhitespace($body, $valueStart);
+                $valueEnd = null;
+                $value = $this->readPdfValueAt($body, $valueStart, $valueEnd);
+                if ($matched && $value !== null && $valueEnd !== null) {
+                    $lastSpan = [
+                        'start' => $valueStart,
+                        'end' => $valueEnd,
+                        'value' => $value,
+                    ];
+                }
+
+                $offset = $valueEnd !== null && $valueEnd > $nameEnd ? $valueEnd : $nameEnd;
+                continue;
+            }
+
+            $offset++;
+        }
+
+        return $lastSpan;
     }
 
     private function topLevelDictionaryBody(string $body): ?string
