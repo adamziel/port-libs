@@ -6,30 +6,30 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\DocTemplate;
 
-$template = <<<'HTML'
+$templatePath = 'review-packets/review.html';
+$resources = [
+    $templatePath => <<<'HTML'
 <article class="wp-import-review">
 ${ review-header() }
 ${ warning-list() }
 ${ review-body() }
 </article>
-HTML;
-
-$partials = [
-    'review-header' => <<<'HTML'
+HTML,
+    'review-packets/review-header.html' => <<<'HTML'
 <header>
 <h1>$title/uppercase$</h1>
 <p class="summary">$~$$warnings/length$ warnings queued for $title$$~$</p>
 <p class="authors">$for(authors/pairs)$$it.value.name$$sep$, $endfor$</p>
 </header>
 HTML,
-    'warning-list' => <<<'HTML'
+    'review-packets/warning-list.html' => <<<'HTML'
 $if(warnings)$
 <ul class="warnings">
 $for(warnings/pairs)$<li data-index="$it.key$" data-source="$it.value.source$">$~$<span class="marker">$it.key/alpha/uppercase$.</span> <span class="source">$it.value.source/uppercase/left 8$</span> <span class="priority">$it.value.priority/roman/uppercase/right 4$</span> $it.value.message$$~$</li>
 $endfor$</ul>
 $endif$
 HTML,
-    'review-body' => <<<'HTML'
+    'wp-data/templates/review-body.html' => <<<'HTML'
 <section class="wp-import-body">
   $^$$body$
 </section>
@@ -52,7 +52,7 @@ $context = [
     ]),
 ];
 
-$output = (new DocTemplate())->render($template, $context, $partials);
+$output = (new DocTemplate())->renderResource($templatePath, $resources, $context, 'wp-data');
 
 if (in_array('--self-test', $argv, true)) {
     foreach ([

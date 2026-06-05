@@ -362,6 +362,81 @@ TPL;
         ]), $output);
     },
 
+    'renders pandoc doctemplate resources with partial extension inference' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->renderResource('templates/review.html', [
+            'templates/review.html' => <<<'HTML'
+<article>
+${ review_header() }
+${ styles.html() }
+<section>
+${ warnings:warning-row()[
+] }
+</section>
+</article>
+HTML,
+            'templates/review_header.html' => '<header><h1>$title_text$</h1></header>' . "\n",
+            'templates/styles.html' => '<style>.warnings{color:$warning_color$}</style>' . "\n",
+            'templates/warning-row.html' => '<p class="warnings" data-source="$it.source$">$it.message$</p>' . "\n",
+        ], [
+            'title_text' => 'Batch 42 Review',
+            'warning_color' => 'crimson',
+            'warnings' => [
+                ['source' => 'media', 'message' => 'Confirm alt text'],
+                ['source' => 'links', 'message' => 'Review redirects'],
+            ],
+        ]);
+
+        $t->same(implode("\n", [
+            '<article>',
+            '<header><h1>Batch 42 Review</h1></header>',
+            '<style>.warnings{color:crimson}</style>',
+            '<section>',
+            '<p class="warnings" data-source="media">Confirm alt text</p>',
+            '<p class="warnings" data-source="links">Review redirects</p>',
+            '</section>',
+            '</article>',
+        ]), $output);
+    },
+
+    'uses pandoc user data template fallback only for relative template resources' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $output = $renderer->renderResource('reports/review.html', [
+            'reports/review.html' => '<article>$title$${ footer() }</article>',
+            'wp-data/templates/footer.html' => '<footer>$reviewer$</footer>',
+        ], [
+            'title' => 'Relative packet',
+            'reviewer' => 'Migration desk',
+        ], 'wp-data');
+
+        $t->same('<article>Relative packet<footer>Migration desk</footer></article>', $output);
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->renderResource('/reports/review.html', [
+            '/reports/review.html' => '<article>$title$${ footer() }</article>',
+            'wp-data/templates/footer.html' => '<footer>$reviewer$</footer>',
+        ], [
+            'title' => 'Absolute packet',
+            'reviewer' => 'Migration desk',
+        ], 'wp-data'));
+    },
+
+    'rejects unsafe pandoc doctemplate resource paths' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->renderResource('missing.html', [
+            'review.html' => '$title$',
+        ], ['title' => 'Missing']));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $renderer->renderResource('../review.html', [
+            '../review.html' => '$title$',
+        ], ['title' => 'Traversal']));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $renderer->renderResource('review.html', [
+            'review.html' => '$title$',
+            "bad\0name.html" => '$title$',
+        ], ['title' => 'NUL']));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $renderer->renderResource('review.html', [
+            'review.html' => ['not', 'a', 'template'],
+        ], ['title' => 'Not string']));
+    },
+
     'renders wordpress review packet templates without output escaping' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 <article class="wp-import-review">

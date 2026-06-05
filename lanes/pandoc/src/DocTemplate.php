@@ -18,6 +18,25 @@ final class DocTemplate
     }
 
     /**
+     * @param array<string, string> $resources
+     * @param array<string, mixed> $context
+     */
+    public function renderResource(string $templatePath, array $resources, array $context, ?string $userDataDirectory = null): string
+    {
+        $templatePath = $this->normalizeTemplateResourcePath($templatePath);
+        $resources = $this->normalizeTemplateResourceMap($resources);
+        if (!array_key_exists($templatePath, $resources)) {
+            throw new \UnexpectedValueException("Missing doctemplate resource {$templatePath}");
+        }
+
+        return $this->render(
+            $resources[$templatePath],
+            $context,
+            $this->partialsForTemplateResource($templatePath, $resources, $userDataDirectory),
+        );
+    }
+
+    /**
      * @param array<string, mixed> $context
      * @param array<string, string> $partials
      * @param list<string> $partialStack
@@ -27,6 +46,188 @@ final class DocTemplate
         $tokens = $this->tokenize($template);
 
         return $this->renderRange($tokens, 0, count($tokens), $context, $partials, $partialStack);
+    }
+
+    /**
+     * @param array<string, string> $resources
+     * @return array<string, string>
+     */
+    private function normalizeTemplateResourceMap(array $resources): array
+    {
+        $normalized = [];
+        foreach ($resources as $path => $source) {
+            if (!is_string($path)) {
+                throw new \InvalidArgumentException('Doctemplate resource paths must be strings');
+            }
+
+            if (!is_string($source)) {
+                throw new \InvalidArgumentException("Doctemplate resource {$path} must be a string");
+            }
+
+            $normalized[$this->normalizeTemplateResourcePath($path)] = $source;
+        }
+
+        return $normalized;
+    }
+
+    private function normalizeTemplateResourcePath(string $path): string
+    {
+        if ($path === '' || str_contains($path, "\0")) {
+            throw new \InvalidArgumentException('Invalid doctemplate resource path');
+        }
+
+        $path = str_replace('\\', '/', $path);
+        $absolute = str_starts_with($path, '/');
+        $segments = [];
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+
+            if ($segment === '..') {
+                throw new \InvalidArgumentException('Doctemplate resource paths must not contain parent-directory segments');
+            }
+
+            $segments[] = $segment;
+        }
+
+        if ($segments === []) {
+            throw new \InvalidArgumentException('Invalid doctemplate resource path');
+        }
+
+        return ($absolute ? '/' : '') . implode('/', $segments);
+    }
+
+    /**
+     * @param array<string, string> $resources
+     * @return array<string, string>
+     */
+    private function partialsForTemplateResource(string $templatePath, array $resources, ?string $userDataDirectory): array
+    {
+        $mainDirectory = $this->templateResourceDirectory($templatePath);
+        $mainExtension = $this->templateResourceExtension($this->templateResourceBasename($templatePath));
+        $searchDirectories = [$mainDirectory];
+        if ($userDataDirectory !== null && !$this->isAbsoluteTemplateResourcePath($templatePath)) {
+            $searchDirectories[] = $this->joinTemplateResourcePath(
+                $this->normalizeTemplateResourcePath($userDataDirectory),
+                'templates',
+            );
+        }
+
+        $partials = [];
+        foreach ($searchDirectories as $directory) {
+            foreach ($resources as $resourcePath => $source) {
+                if ($resourcePath === $templatePath) {
+                    continue;
+                }
+
+                $basename = $this->directTemplateResourceChild($resourcePath, $directory);
+                if ($basename === null) {
+                    continue;
+                }
+
+                foreach ($this->partialAliasesForResourceBasename($basename, $mainExtension) as $alias) {
+                    if (!array_key_exists($alias, $partials)) {
+                        $partials[$alias] = $source;
+                    }
+                }
+            }
+        }
+
+        return $partials;
+    }
+
+    private function isAbsoluteTemplateResourcePath(string $path): bool
+    {
+        return str_starts_with($path, '/');
+    }
+
+    private function templateResourceDirectory(string $path): string
+    {
+        $slash = strrpos($path, '/');
+        if ($slash === false) {
+            return '';
+        }
+
+        if ($slash === 0) {
+            return '/';
+        }
+
+        return substr($path, 0, $slash);
+    }
+
+    private function templateResourceBasename(string $path): string
+    {
+        $slash = strrpos($path, '/');
+
+        return $slash === false ? $path : substr($path, $slash + 1);
+    }
+
+    private function templateResourceExtension(string $basename): string
+    {
+        $dot = strrpos($basename, '.');
+        if ($dot === false || $dot === 0) {
+            return '';
+        }
+
+        return substr($basename, $dot);
+    }
+
+    private function joinTemplateResourcePath(string $directory, string $basename): string
+    {
+        if ($directory === '') {
+            return $basename;
+        }
+
+        if ($directory === '/') {
+            return '/' . $basename;
+        }
+
+        return $directory . '/' . $basename;
+    }
+
+    private function directTemplateResourceChild(string $path, string $directory): ?string
+    {
+        if ($directory === '') {
+            return str_contains($path, '/') ? null : $path;
+        }
+
+        if ($directory === '/') {
+            if (!str_starts_with($path, '/')) {
+                return null;
+            }
+
+            $relative = substr($path, 1);
+
+            return $relative !== '' && !str_contains($relative, '/') ? $relative : null;
+        }
+
+        $prefix = $directory . '/';
+        if (!str_starts_with($path, $prefix)) {
+            return null;
+        }
+
+        $relative = substr($path, strlen($prefix));
+
+        return $relative !== '' && !str_contains($relative, '/') ? $relative : null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function partialAliasesForResourceBasename(string $basename, string $mainExtension): array
+    {
+        $extension = $this->templateResourceExtension($basename);
+        if ($extension === '') {
+            return $mainExtension === '' ? [$basename] : [];
+        }
+
+        $aliases = [$basename];
+        if ($extension === $mainExtension) {
+            $aliases[] = substr($basename, 0, -strlen($extension));
+        }
+
+        return $aliases;
     }
 
     /**
