@@ -319,6 +319,57 @@ $tokenBoundaryPageLabelPdf = static function (): string {
         . "%%EOF\n";
 };
 
+$trailerRootPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Stale catalog page imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Current root page one imported) Tj ET',
+        13 => 'BT /F1 12 Tf 72 720 Td (Current root page two imported) Tj ET',
+    ];
+
+    $objects = [
+        1 => '<< /Type /Catalog /Pages 2 0 R /PageLabels 30 0 R >>',
+        2 => '<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R] /Count 1 >>',
+        3 => '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 14 0 R >> >> /Contents 10 0 R >>',
+        7 => '<< /Type /Catalog /Pages 8 0 R /PageLabels 31 0 R >>',
+        8 => '<< /Type /Pages /MediaBox [0 0 612 792] /Kids [9 0 R 11 0 R] /Count 2 >>',
+        9 => '<< /Type /Page /Parent 8 0 R /Resources << /Font << /F1 14 0 R >> >> /Contents 12 0 R >>',
+        11 => '<< /Type /Page /Parent 8 0 R /Resources << /Font << /F1 14 0 R >> >> /Contents 13 0 R >>',
+        14 => '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+        30 => '<< /Nums [0 << /P (stale-root-) /S /D /St 99 >>] >>',
+        31 => '<< /Nums [0 << /P (Current-) /S /D /St 4 >> 1 << /P (Appendix-) /S /A /St 26 >>] >>',
+    ];
+
+    foreach ($contents as $objectNumber => $content) {
+        $objects[$objectNumber] = '<< /Length ' . strlen($content) . " >>\nstream\n{$content}\nendstream";
+    }
+
+    ksort($objects, SORT_NUMERIC);
+
+    $pdf = "%PDF-1.7\n";
+    $offsets = [];
+    foreach ($objects as $objectNumber => $body) {
+        $offsets[$objectNumber] = strlen($pdf);
+        $pdf .= "{$objectNumber} 0 obj\n{$body}\nendobj\n";
+    }
+
+    $xrefOffset = strlen($pdf);
+    $size = max(array_keys($objects)) + 1;
+    $pdf .= "xref\n0 {$size}\n";
+    for ($objectNumber = 0; $objectNumber < $size; $objectNumber++) {
+        if (!isset($offsets[$objectNumber])) {
+            $pdf .= "0000000000 65535 f \n";
+            continue;
+        }
+
+        $pdf .= sprintf("%010d 00000 n \n", $offsets[$objectNumber]);
+    }
+
+    return $pdf
+        . "trailer\n<< /Size {$size} /Root 7 0 R >>\n"
+        . "startxref\n{$xrefOffset}\n%%EOF\n"
+        . "trailer\n<< /Root 1 0 R >>\n";
+};
+
 return [
     'keeps parent PageLabels Limits across indirect kid number-tree boundaries' => static function (TestRunner $t) use ($pageLabelBoundaryPdf): void {
         $pdf = $pageLabelBoundaryPdf();
@@ -516,5 +567,25 @@ return [
         $t->true(!in_array('kid-stale-66', $labels, true));
         $t->true(!in_array('nested-stale-77', $previewLabels, true));
         $t->same('Body 4', $preview->getPageImagePlan($pdf, 2)['page_label']);
+    },
+    'keeps trailer Root catalog PageLabels before stale catalog scan' => static function (TestRunner $t) use ($trailerRootPageLabelBoundaryPdf): void {
+        $pdf = $trailerRootPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Current-4', 'Appendix-Z'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Current root page one imported', 'Current root page two imported'], array_column($entries, 'text'));
+        $t->same([9, 11], array_column($summary['pages'], 'object_id'));
+        $t->true(!in_array('stale-root-99', $labels, true));
+        $t->true(!in_array('stale-root-99', $previewLabels, true));
+        $t->true(!in_array(3, array_column($summary['pages'], 'object_id'), true));
+        $t->same('Appendix-Z', $preview->getPageImagePlan($pdf, 2)['page_label']);
     },
 ];

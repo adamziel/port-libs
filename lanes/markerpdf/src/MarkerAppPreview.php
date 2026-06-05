@@ -692,7 +692,20 @@ final class MarkerAppPreview
 
         $pages = [];
         $catalogBody = null;
+        $rootCatalog = $this->catalogFromTrailerRoot($pdfBytes, $objects);
+        if ($rootCatalog !== null) {
+            $catalogBody = $rootCatalog['body'];
+            $pagesId = $this->reference($catalogBody, 'Pages');
+            if ($pagesId !== null && isset($objects[$pagesId])) {
+                $pages = $this->uniquePagesByObjectId($this->collectPages($pagesId, $objects));
+            }
+        }
+
         foreach ($objects as $objectId => $object) {
+            if ($pages !== []) {
+                break;
+            }
+
             if ($this->objectType($object['body']) !== 'Catalog') {
                 continue;
             }
@@ -822,6 +835,66 @@ final class MarkerAppPreview
         ksort($objects, SORT_NUMERIC);
 
         return $objects;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @return array{object_id: int, generation: int, body: string}|null
+     */
+    private function catalogFromTrailerRoot(string $pdfBytes, array $objects): ?array
+    {
+        $reference = $this->trailerRootReference($pdfBytes);
+        if ($reference === null) {
+            return null;
+        }
+
+        $body = $this->objectBodyForReference($objects, $reference['object_id'], $reference['generation'], []);
+        if ($body === null || $this->objectType($body) !== 'Catalog') {
+            return null;
+        }
+
+        return [
+            'object_id' => $reference['object_id'],
+            'generation' => $reference['generation'],
+            'body' => $body,
+        ];
+    }
+
+    /**
+     * @return array{object_id: int, generation: int}|null
+     */
+    private function trailerRootReference(string $pdfBytes): ?array
+    {
+        $startxrefOffset = strrpos($pdfBytes, 'startxref');
+        $candidateBytes = $startxrefOffset === false ? $pdfBytes : substr($pdfBytes, 0, $startxrefOffset);
+        if (preg_match_all('/\btrailer\b/s', $candidateBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return null;
+        }
+
+        for ($index = count($matches[0]) - 1; $index >= 0; $index--) {
+            $offset = $matches[0][$index][1] + strlen($matches[0][$index][0]);
+            $offset = $this->skipPdfWhitespace($candidateBytes, $offset);
+            if (substr($candidateBytes, $offset, 2) !== '<<') {
+                continue;
+            }
+
+            $dictionary = $this->readBalancedDictionary($candidateBytes, $offset);
+            if ($dictionary === null) {
+                continue;
+            }
+
+            $root = $this->valueAfterName($dictionary[0], 'Root');
+            if ($root === null || preg_match('/^(\d+)\s+(\d+)\s+R$/', trim($root), $match) !== 1) {
+                continue;
+            }
+
+            return [
+                'object_id' => (int) $match[1],
+                'generation' => (int) $match[2],
+            ];
+        }
+
+        return null;
     }
 
     private function objectType(string $body): ?string
