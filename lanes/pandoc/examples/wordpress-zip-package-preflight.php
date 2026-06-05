@@ -958,6 +958,7 @@ $package = ZipPackage::fromParts([
     ],
 ], 'wordpress import package');
 $packageSizePreflight = $package->sizePreflight();
+$packagePermissionPreflight = $package->permissionPreflight();
 $packageSizeRejected = false;
 try {
     $package->assertSizePreflight($packageSizePreflight['uncompressedBytes'] - 1, null);
@@ -990,6 +991,29 @@ try {
     $oversizedMediaPackage->readBounded('/word/media/oversized.bin', 64);
 } catch (RuntimeException $exception) {
     $oversizedMediaRejected = str_contains($exception->getMessage(), 'exceeds maximum uncompressed read size');
+}
+$executableMediaPackage = ZipPackage::fromParts([
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:body><w:p>Executable media review source</w:p></w:body></w:document>',
+        'externalAttributes' => 0x81a40000,
+    ],
+    [
+        'name' => 'word/media/reviewer-script.bin',
+        'data' => "#!/bin/sh\necho reviewer-script\n",
+        'compressionMethod' => 0,
+        'externalAttributes' => 0x81ed0000,
+    ],
+    [
+        'name' => 'word/media/',
+        'externalAttributes' => 0x41ed0000,
+    ],
+]);
+$executablePermissionRejected = false;
+try {
+    $executableMediaPackage->assertNoExecutableFiles();
+} catch (RuntimeException $exception) {
+    $executablePermissionRejected = str_contains($exception->getMessage(), 'Unix executable file entries');
 }
 $compressedPackage = GzipStream::build($package->bytes(), [
     'modifiedAt' => $documentModifiedAt,
@@ -1390,6 +1414,14 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP package size preflight limits to return the accepted summary');
     }
 
+    if (($packagePermissionPreflight['entryCount'] ?? null) !== 3 || ($packagePermissionPreflight['executableFileCount'] ?? null) !== 0) {
+        throw new RuntimeException('Expected ZIP package permission preflight to accept generated non-executable import parts');
+    }
+
+    if ($package->assertNoExecutableFiles() !== $packagePermissionPreflight) {
+        throw new RuntimeException('Expected ZIP package permission preflight to return the accepted summary');
+    }
+
     if (!$packageSizeRejected) {
         throw new RuntimeException('Expected aggregate ZIP package size limits to reject oversized packages before import');
     }
@@ -1758,6 +1790,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected hidden ZIP local entry bytes to be rejected before media import');
     }
 
+    if (!$executablePermissionRejected) {
+        throw new RuntimeException('Expected Unix executable ZIP media entries to be rejected before media import');
+    }
+
     if (!$missingTarEndMarkerRejected) {
         throw new RuntimeException('Expected TAR packets without two zero end blocks to be rejected before import');
     }
@@ -1833,6 +1869,8 @@ echo 'packageSize.uncompressedBytes=' . $packageSizePreflight['uncompressedBytes
 echo 'packageSize.compressedBytes=' . $packageSizePreflight['compressedBytes'] . "\n";
 echo 'packageSize.expansionRatio=' . ($packageSizePreflight['expansionRatio'] === null ? 'unknown' : (string) $packageSizePreflight['expansionRatio']) . "\n";
 echo 'packageSize.largestEntry=' . ($packageSizePreflight['largestEntry']['name'] ?? 'none') . "\n";
+echo 'packagePermissions.unixModeEntryCount=' . $packagePermissionPreflight['unixModeEntryCount'] . "\n";
+echo 'packagePermissions.executableFileCount=' . $packagePermissionPreflight['executableFileCount'] . "\n";
 echo 'descriptor.comments.xml=' . $descriptorPackage->read('/word/comments.xml') . "\n";
 $ntfsTimestamps = $ntfsPackage->entry('/word/media/review.png')->ntfsTimestamps();
 echo 'ntfs.review.png.modifiedAt=' . ($ntfsTimestamps['modifiedAt'] ?? 'none') . "\n";
@@ -1854,6 +1892,7 @@ echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected 
 echo 'zipVersionNeededMismatchPolicy=' . ($versionNeededMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalHeaderNameMismatchPolicy=' . ($localHeaderNameMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalEntrySlackPolicy=' . ($localEntrySlackRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipExecutablePermissionPolicy=' . ($executablePermissionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'boundedReadPolicy=' . ($oversizedMediaRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarEndMarkerPolicy=' . ($missingTarEndMarkerRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarDanglingPaxPolicy=' . ($danglingPaxMetadataRejected ? 'rejected' : 'not-rejected') . "\n";

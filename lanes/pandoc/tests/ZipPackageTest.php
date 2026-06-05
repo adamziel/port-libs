@@ -575,6 +575,76 @@ return [
         $t->same('<w:document><w:p>metadata</w:p></w:document>', $package->read('word/document.xml'));
     },
 
+    'preflights unix executable permissions before office package media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>permission preflight</w:p></w:document>',
+                'method' => 8,
+                'externalAttributes' => 0x81a40000,
+            ],
+            [
+                'name' => 'word/media/reviewer-script.bin',
+                'data' => "#!/bin/sh\necho reviewer-script\n",
+                'method' => 0,
+                'externalAttributes' => 0x81ed0000,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+                'externalAttributes' => 0x41ed0000,
+            ],
+            [
+                'name' => 'word/media/fat-flags.bin',
+                'data' => 'non-unix host bits should stay metadata only',
+                'method' => 0,
+                'versionMadeBy' => 0x0014,
+                'externalAttributes' => 0x81ff0000,
+            ],
+        ]));
+
+        $document = $package->entry('/word/document.xml');
+        $script = $package->entry('/word/media/reviewer-script.bin');
+        $directory = $package->entry('/word/media/');
+        $fatEntry = $package->entry('/word/media/fat-flags.bin');
+        $summary = $package->permissionPreflight();
+
+        $t->same(0644, $document->unixPermissionBits());
+        $t->same(false, $document->isUnixExecutableFile());
+        $t->same(0755, $script->unixPermissionBits());
+        $t->same(true, $script->isUnixExecutableFile());
+        $t->same(0755, $directory->unixPermissionBits());
+        $t->same(false, $directory->isUnixExecutableFile());
+        $t->same(null, $fatEntry->unixPermissionBits());
+        $t->same(false, $fatEntry->isUnixExecutableFile());
+        $t->same(4, $summary['entryCount']);
+        $t->same(3, $summary['unixModeEntryCount']);
+        $t->same(1, $summary['executableFileCount']);
+        $t->same('word/media/reviewer-script.bin', $summary['executableEntries'][0]['name']);
+        $t->same(0x81ed, $summary['executableEntries'][0]['unixMode']);
+        $t->same(0755, $summary['executableEntries'][0]['permissions']);
+        $t->same(true, $summary['entries'][1]['isExecutableFile']);
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertNoExecutableFiles());
+
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>safe generated permissions</w:p></w:document>',
+                'externalAttributes' => 0x81a40000,
+            ],
+            [
+                'name' => 'word/media/',
+                'externalAttributes' => 0x41ed0000,
+            ],
+        ]);
+        $safeSummary = $safePackage->assertNoExecutableFiles();
+
+        $t->same(2, $safeSummary['unixModeEntryCount']);
+        $t->same(0, $safeSummary['executableFileCount']);
+        $t->same([], $safeSummary['executableEntries']);
+    },
+
     'rejects zip symlink entries before office package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [

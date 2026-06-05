@@ -96,6 +96,23 @@ final class ZipPackageEntry
         return $mode !== null && ($mode & self::UNIX_FILE_TYPE_MASK) === self::UNIX_SYMLINK_TYPE;
     }
 
+    public function unixPermissionBits(): ?int
+    {
+        $mode = $this->unixMode();
+
+        return $mode === null ? null : $mode & 07777;
+    }
+
+    public function isUnixExecutableFile(): bool
+    {
+        $permissions = $this->unixPermissionBits();
+
+        return !$this->isDirectory()
+            && !$this->isUnixSymlink()
+            && $permissions !== null
+            && ($permissions & 0111) !== 0;
+    }
+
     public function lastModifiedTimestamp(): ?int
     {
         $extendedTimestamp = $this->extendedLastModifiedTimestamp();

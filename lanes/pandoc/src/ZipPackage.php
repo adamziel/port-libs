@@ -692,6 +692,79 @@ final class ZipPackage
         return $summary;
     }
 
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     unixModeEntryCount:int,
+     *     executableFileCount:int,
+     *     executableEntries:list<array{name:string, isDirectory:bool, madeByHostSystem:int, unixMode:?int, permissions:?int, isExecutableFile:bool, externalAttributes:int}>,
+     *     entries:list<array{name:string, isDirectory:bool, madeByHostSystem:int, unixMode:?int, permissions:?int, isExecutableFile:bool, externalAttributes:int}>
+     * }
+     */
+    public function permissionPreflight(): array
+    {
+        $unixModeEntryCount = 0;
+        $executableEntries = [];
+        $entries = [];
+
+        foreach ($this->entries as $entry) {
+            $unixMode = $entry->unixMode();
+            $permissions = $entry->unixPermissionBits();
+            $isExecutableFile = $entry->isUnixExecutableFile();
+            if ($unixMode !== null) {
+                $unixModeEntryCount++;
+            }
+
+            $summary = [
+                'name' => $entry->name,
+                'isDirectory' => $entry->isDirectory(),
+                'madeByHostSystem' => $entry->madeByHostSystem(),
+                'unixMode' => $unixMode,
+                'permissions' => $permissions,
+                'isExecutableFile' => $isExecutableFile,
+                'externalAttributes' => $entry->externalFileAttributes,
+            ];
+            $entries[] = $summary;
+            if ($isExecutableFile) {
+                $executableEntries[] = $summary;
+            }
+        }
+
+        return [
+            'entryCount' => count($this->entries),
+            'unixModeEntryCount' => $unixModeEntryCount,
+            'executableFileCount' => count($executableEntries),
+            'executableEntries' => $executableEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     unixModeEntryCount:int,
+     *     executableFileCount:int,
+     *     executableEntries:list<array{name:string, isDirectory:bool, madeByHostSystem:int, unixMode:?int, permissions:?int, isExecutableFile:bool, externalAttributes:int}>,
+     *     entries:list<array{name:string, isDirectory:bool, madeByHostSystem:int, unixMode:?int, permissions:?int, isExecutableFile:bool, externalAttributes:int}>
+     * }
+     */
+    public function assertNoExecutableFiles(): array
+    {
+        $summary = $this->permissionPreflight();
+        if ($summary['executableFileCount'] > 0) {
+            $names = implode(
+                ', ',
+                array_map(static fn (array $entry): string => $entry['name'], $summary['executableEntries'])
+            );
+
+            throw new \RuntimeException(
+                'ZIP package contains Unix executable file entries that require explicit import review: ' . $names
+            );
+        }
+
+        return $summary;
+    }
+
     private static function assertDirectoryEntryMetadata(ZipPackageEntry $entry): void
     {
         if (!$entry->isDirectory()) {
