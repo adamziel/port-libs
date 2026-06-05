@@ -147,6 +147,41 @@ $codespacePaddingPdf = "%PDF-1.4\n"
     . "3 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($codespacePaddingContent) . " >>\nstream\n{$codespacePaddingContent}\nendstream\nendobj\n"
     . "5 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /CodespacePaddingFallback /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 500 /W [65 68 1000 69 72 250] >>\nendobj\n%%EOF";
+$explicitLongSourceCmap = "/CIDInit /ProcSet findresource begin\n"
+    . "12 dict begin\n"
+    . "begincmap\n"
+    . "1 begincodespacerange\n"
+    . "<00> <FF>\n"
+    . "endcodespacerange\n"
+    . "17 beginbfchar\n"
+    . "<00> <005A>\n"
+    . "<41> <0078>\n"
+    . "<42> <0079>\n"
+    . "<43> <007A>\n"
+    . "<44> <0077>\n"
+    . "<45> <0071>\n"
+    . "<46> <0072>\n"
+    . "<47> <0073>\n"
+    . "<48> <0074>\n"
+    . "<0041> <0041>\n"
+    . "<0042> <0042>\n"
+    . "<0043> <0043>\n"
+    . "<0044> <0044>\n"
+    . "<0045> <0045>\n"
+    . "<0046> <0046>\n"
+    . "<0047> <0047>\n"
+    . "<0048> <0048>\n"
+    . "endbfchar\n"
+    . "endcmap\n"
+    . "CMapName currentdict /CMap defineresource pop\n"
+    . "end\n"
+    . "end\n";
+$explicitLongSourcePdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /ExplicitLongSourceWidthFallback /Encoding /MissingCustom-H /DescendantFonts [5 0 R] /ToUnicode 3 0 R >>\nendobj\n"
+    . "3 0 obj\n<< /Length " . strlen($explicitLongSourceCmap) . " >>\nstream\n{$explicitLongSourceCmap}\nendstream\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($codespacePaddingContent) . " >>\nstream\n{$codespacePaddingContent}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /ExplicitLongSourceWidthFallback /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 500 /W [65 68 1000 69 72 250] >>\nendobj\n%%EOF";
 
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
@@ -182,11 +217,15 @@ $codespacePaddingLines = $extractor->extractTextLines($codespacePaddingPdf);
 $codespacePaddingRuns = $extractor->extractTextRuns($codespacePaddingPdf);
 $codespacePaddingPages = $extractor->extractStyledTextPages($codespacePaddingPdf);
 $codespacePaddingSpans = $codespacePaddingPages[0]['blocks'][0]['lines'][0]['spans'] ?? [];
+$explicitLongSourceLines = $extractor->extractTextLines($explicitLongSourcePdf);
+$explicitLongSourceRuns = $extractor->extractTextRuns($explicitLongSourcePdf);
+$explicitLongSourcePages = $extractor->extractStyledTextPages($explicitLongSourcePdf);
+$explicitLongSourceSpans = $explicitLongSourcePages[0]['blocks'][0]['lines'][0]['spans'] ?? [];
 
 echo "<!-- markerpdf-cmap-source-width-fallback-smoke " . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'predefined Identity-H/UCS2-H source-width fallback with CIDFont default, metric-miss ToUnicode width fallback, partial metric-miss chunk fallback, DW-only metric-miss fallback, horizontal and vertical TJ adjustment gap recovery, odd hex operand and CMap source-key right-padding, and one-byte ToUnicode codespace padding fallback before Gutenberg paragraph rendering',
+    'native_boundary' => 'predefined Identity-H/UCS2-H source-width fallback with CIDFont default, metric-miss ToUnicode width fallback, partial metric-miss chunk fallback, DW-only metric-miss fallback, horizontal and vertical TJ adjustment gap recovery, odd hex operand and CMap source-key right-padding, one-byte ToUnicode codespace padding fallback, and explicit longer source-key precedence before Gutenberg paragraph rendering',
     'default_width_source_fallback_applied' => $lines === ['ABCD EFGH'],
     'predefined_identity_source_width_applied' => $lines === ['ABCD EFGH'],
     'padding_bytes_not_counted_as_glyphs' => ($spans[0]['bbox'][2] ?? null) === 48.0,
@@ -224,9 +263,13 @@ echo "<!-- markerpdf-cmap-source-width-fallback-smoke " . htmlspecialchars(json_
     'codespace_padding_runs_preserved' => $codespacePaddingRuns === ['ABCD', 'EFGH'],
     'codespace_padding_false_join_excluded' => !in_array('ABCDEFGH', $codespacePaddingLines, true),
     'codespace_padding_span_widths' => array_column($codespacePaddingSpans, 'bbox') === [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 60.0, 12.0]],
+    'explicit_long_source_key_precedes_narrow_codespace' => $explicitLongSourceLines === ['ABCD EFGH'],
+    'explicit_long_source_runs_preserved' => $explicitLongSourceRuns === ['ABCD', 'EFGH'],
+    'explicit_long_source_decoy_prefix_excluded' => !in_array('ZxZyZzZw ZqZrZsZt', $explicitLongSourceLines, true),
+    'explicit_long_source_span_widths' => array_column($explicitLongSourceSpans, 'bbox') === [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 60.0, 12.0]],
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $predefinedUcs2Lines, $metricMissLines, $defaultMetricMissLines, $partialMetricMissLines, $tjGapLines, $verticalTjGapLines, $oddHexLines, $oddCMapSourceKeyLines, $codespacePaddingLines) as $line) {
+foreach (array_merge($lines, $predefinedUcs2Lines, $metricMissLines, $defaultMetricMissLines, $partialMetricMissLines, $tjGapLines, $verticalTjGapLines, $oddHexLines, $oddCMapSourceKeyLines, $codespacePaddingLines, $explicitLongSourceLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

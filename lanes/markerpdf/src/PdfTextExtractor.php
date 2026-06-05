@@ -23216,6 +23216,19 @@ final class PdfTextExtractor
         string $normalized,
         int $offset
     ): int {
+        $mappedLength = null;
+        foreach ($keyLengths as $keyLength) {
+            if ($keyLength <= 0 || $keyLength > $remainingHexLength) {
+                continue;
+            }
+
+            if (array_key_exists(substr($normalized, $offset, $keyLength), $mappings)) {
+                $mappedLength = $keyLength;
+                break;
+            }
+        }
+
+        $codeSpaceLength = null;
         foreach ($codeSpaceRanges as $range) {
             $width = $range['width'];
             if ($width <= 0 || $width > $remainingHexLength) {
@@ -23224,18 +23237,16 @@ final class PdfTextExtractor
 
             $source = hexdec(substr($normalized, $offset, $width));
             if ($source >= $range['start'] && $source <= $range['end']) {
-                return $width;
+                $codeSpaceLength = $width;
+                break;
             }
         }
 
-        foreach ($keyLengths as $keyLength) {
-            if ($keyLength <= 0 || $keyLength > $remainingHexLength) {
-                continue;
-            }
-
-            if (array_key_exists(substr($normalized, $offset, $keyLength), $mappings)) {
-                return $keyLength;
-            }
+        if ($mappedLength !== null && ($codeSpaceLength === null || $mappedLength >= $codeSpaceLength)) {
+            return $mappedLength;
+        }
+        if ($codeSpaceLength !== null) {
+            return $codeSpaceLength;
         }
 
         $usableLengths = array_values(array_filter(
