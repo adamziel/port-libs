@@ -19381,6 +19381,10 @@ final class PdfTextExtractor
             ];
         }
 
+        if ($this->skipPdfWhitespace($header, $offset) !== strlen($header)) {
+            return [];
+        }
+
         return $members;
     }
 

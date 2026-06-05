@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 07:26:44 UTC",
-    "sourceCommit": "17dbfeadf12027c4877b7ae89d1c4dadc1683066",
-    "sourceCommitShort": "17dbfeadf120",
+    "generated": "2026-06-05 07:28:02 UTC",
+    "sourceCommit": "3b9767ce8c21142a751d7d2fe37577b7e692da2d",
+    "sourceCommitShort": "3b9767ce8c21",
     "sourceBranch": "unknown",
-    "dashboardCommit": "17dbfeadf12027c4877b7ae89d1c4dadc1683066",
-    "dashboardCommitShort": "17dbfeadf120",
+    "dashboardCommit": "3b9767ce8c21142a751d7d2fe37577b7e692da2d",
+    "dashboardCommitShort": "3b9767ce8c21",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -81,7 +81,7 @@
             "library": "markerPDF",
             "priority": "Active",
             "queue": "Active",
-            "state": "PHP green, upstream gap",
+            "state": "Near complete",
             "progressPercent": "100.0",
             "completion": "100.0%",
             "suite": "cloned-static-inventory",
@@ -91,12 +91,12 @@
             "coverage": "725 / 78 (929.5%)",
             "mapPercent": "929.5%",
             "unmapped": "0",
-            "php": "1,572 pass / 0 fail",
-            "phase": "native no-GPU markerPDF scope; isolated malformed CMap literal-name f...",
-            "audit": "2026-06-05 UTC isolated malformed CMap literal-name filter boundary s...",
+            "php": "1,573 pass / 0 fail",
+            "phase": "native no-GPU markerPDF scope; isolated object-stream /First header-b...",
+            "audit": "Current-base red-first fixture showed malformed /First pointing into...",
             "currentWork": "MarkerPDF is supervised as a native PHP searchable-PDF parser/converter plus supplied...",
-            "nextTarget": "After this patch is accepted, continue native no-GPU markerPD...",
-            "remainingGate": "No GPU/model execution will be run for markerPDF under current user d...",
+            "nextTarget": "Continue no-GPU markerPDF native parser work on non-overlappi...",
+            "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },
         {

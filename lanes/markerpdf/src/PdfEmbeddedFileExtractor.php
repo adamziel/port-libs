@@ -3008,6 +3008,10 @@ final class PdfEmbeddedFileExtractor
             }
         }
 
+        if ($this->skipWhitespace($header, $offset) !== strlen($header)) {
+            return [];
+        }
+
         return $members;
     }
 

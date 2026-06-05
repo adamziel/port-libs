@@ -9299,6 +9299,10 @@ final class PdfMetadataExtractor
             }
         }
 
+        if ($this->skipPdfWhitespace($header, $offset) !== strlen($header)) {
+            return [];
+        }
+
         return $members;
     }
 
