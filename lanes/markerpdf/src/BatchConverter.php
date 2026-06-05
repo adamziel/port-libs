@@ -624,6 +624,13 @@ final class BatchConverter
                     'metadata_shape_error_class' => null,
                     'metadata_shape_error_message' => null,
                     'metadata_value_types' => $this->phpMetadataValueTypes($metadataByFilename),
+                    'metadata_top_level_key_order' => array_map(
+                        static fn (int|string $filename): string => (string) $filename,
+                        array_keys($metadataByFilename)
+                    ),
+                    'metadata_duplicate_keys' => [],
+                    'metadata_duplicate_key_counts' => [],
+                    'metadata_duplicate_key_last_value_types' => [],
                 ]
                 : $this->loadRuntimeMetadataFile($absoluteMetadataFile);
         } catch (InvalidArgumentException $exception) {
@@ -856,6 +863,11 @@ final class BatchConverter
                     'metadata_shape_error_class' => $runtimeMetadataPlan['metadata_shape_error_class'],
                     'metadata_shape_error_message' => $runtimeMetadataPlan['metadata_shape_error_message'],
                     'metadata_value_types' => $runtimeMetadataPlan['metadata_value_types'],
+                    'metadata_top_level_key_order' => $runtimeMetadataPlan['metadata_top_level_key_order'],
+                    'metadata_duplicate_key_review' => $this->runtimeMetadataDuplicateKeyReview(
+                        $selectedFilenames,
+                        $runtimeMetadataPlan
+                    ),
                     'metadata_value_review' => $this->runtimeMetadataValueReview(
                         $selectedFilenames,
                         $runtimeMetadata,
@@ -983,6 +995,11 @@ final class BatchConverter
                     'metadata_shape_error_class' => $runtimeMetadataPlan['metadata_shape_error_class'],
                     'metadata_shape_error_message' => $runtimeMetadataPlan['metadata_shape_error_message'],
                     'metadata_value_types' => $runtimeMetadataPlan['metadata_value_types'],
+                    'metadata_top_level_key_order' => $runtimeMetadataPlan['metadata_top_level_key_order'],
+                    'metadata_duplicate_key_review' => $this->runtimeMetadataDuplicateKeyReview(
+                        $selectedFilenames,
+                        $runtimeMetadataPlan
+                    ),
                     'metadata_value_review' => $this->runtimeMetadataValueReview(
                         $selectedFilenames,
                         $runtimeMetadata,
@@ -1133,6 +1150,11 @@ final class BatchConverter
                 'metadata_shape_error_class' => $runtimeMetadataPlan['metadata_shape_error_class'],
                 'metadata_shape_error_message' => $runtimeMetadataPlan['metadata_shape_error_message'],
                 'metadata_value_types' => $runtimeMetadataPlan['metadata_value_types'],
+                'metadata_top_level_key_order' => $runtimeMetadataPlan['metadata_top_level_key_order'],
+                'metadata_duplicate_key_review' => $this->runtimeMetadataDuplicateKeyReview(
+                    $selectedFilenames,
+                    $runtimeMetadataPlan
+                ),
                 'metadata_value_review' => $metadataValueReview,
                 'metadata_filenames' => $metadataFilenames,
                 'selected_metadata_filenames' => $selectedMetadataFilenames,
@@ -1509,13 +1531,17 @@ final class BatchConverter
      * when convert.py calls metadata.get(os.path.basename(f)).
      *
      * @return array{
-     *     metadata: array<string, array<string, mixed>|null>,
+     *     metadata: array<string, mixed>,
      *     metadata_json_type: string,
      *     metadata_get_available: bool,
      *     metadata_shape_error_boundary: string|null,
      *     metadata_shape_error_class: string|null,
      *     metadata_shape_error_message: string|null,
-     *     metadata_value_types: array<string, string>
+     *     metadata_value_types: array<string, string>,
+     *     metadata_top_level_key_order: list<string>,
+     *     metadata_duplicate_keys: list<string>,
+     *     metadata_duplicate_key_counts: array<string, int>,
+     *     metadata_duplicate_key_last_value_types: array<string, string>
      * }
      */
     private function loadRuntimeMetadataFile(string $metadataFile): array
@@ -1541,7 +1567,24 @@ final class BatchConverter
                 'metadata_shape_error_class' => 'AttributeError',
                 'metadata_shape_error_message' => "'" . $jsonType . "' object has no attribute 'get'",
                 'metadata_value_types' => [],
+                'metadata_top_level_key_order' => [],
+                'metadata_duplicate_keys' => [],
+                'metadata_duplicate_key_counts' => [],
+                'metadata_duplicate_key_last_value_types' => [],
             ];
+        }
+
+        $topLevelKeyOrder = $this->jsonTopLevelObjectKeys($contents);
+        $duplicateKeyCounts = $this->duplicateStringCounts($topLevelKeyOrder);
+        $duplicateKeys = [];
+        $duplicateKeySeen = [];
+        foreach ($topLevelKeyOrder as $key) {
+            if (($duplicateKeyCounts[$key] ?? 0) < 2 || isset($duplicateKeySeen[$key])) {
+                continue;
+            }
+
+            $duplicateKeys[] = $key;
+            $duplicateKeySeen[$key] = true;
         }
 
         $metadata = [];
@@ -1552,6 +1595,12 @@ final class BatchConverter
             $metadata[$filename] = $this->runtimeMetadataPhpValue($value);
             $metadataValueTypes[$filename] = $this->jsonMetadataType($value);
         }
+        $duplicateKeyLastValueTypes = [];
+        foreach ($duplicateKeys as $filename) {
+            if (isset($metadataValueTypes[$filename])) {
+                $duplicateKeyLastValueTypes[$filename] = $metadataValueTypes[$filename];
+            }
+        }
 
         return [
             'metadata' => $metadata,
@@ -1561,7 +1610,207 @@ final class BatchConverter
             'metadata_shape_error_class' => null,
             'metadata_shape_error_message' => null,
             'metadata_value_types' => $metadataValueTypes,
+            'metadata_top_level_key_order' => $topLevelKeyOrder,
+            'metadata_duplicate_keys' => $duplicateKeys,
+            'metadata_duplicate_key_counts' => $duplicateKeyCounts,
+            'metadata_duplicate_key_last_value_types' => $duplicateKeyLastValueTypes,
         ];
+    }
+
+    /**
+     * Python's json.load() silently keeps the last value for duplicate object
+     * keys. Preserve that runtime boundary for metadata files keyed by basename.
+     *
+     * @param list<string> $selectedFilenames
+     * @param array<string, mixed> $runtimeMetadataPlan
+     * @return array<string, mixed>
+     */
+    private function runtimeMetadataDuplicateKeyReview(array $selectedFilenames, array $runtimeMetadataPlan): array
+    {
+        $duplicateKeys = $runtimeMetadataPlan['metadata_duplicate_keys'] ?? [];
+        $duplicateKeyCounts = $runtimeMetadataPlan['metadata_duplicate_key_counts'] ?? [];
+        $duplicateKeyLastValueTypes = $runtimeMetadataPlan['metadata_duplicate_key_last_value_types'] ?? [];
+        $selectedDuplicateFilenames = array_values(array_filter(
+            $selectedFilenames,
+            static fn (string $filename): bool => isset($duplicateKeyCounts[$filename])
+        ));
+
+        return [
+            'source' => 'convert.py metadata_file json.load duplicate basename boundary',
+            'review_reached' => true,
+            'json_loader' => 'json.load',
+            'duplicate_key_policy' => 'python-json-load-last-value-wins',
+            'duplicate_keys_found' => $duplicateKeys !== [],
+            'duplicate_key_count' => count($duplicateKeys),
+            'duplicate_keys' => $duplicateKeys,
+            'duplicate_key_occurrence_counts' => $duplicateKeyCounts,
+            'duplicate_key_last_value_types' => $duplicateKeyLastValueTypes,
+            'selected_duplicate_filenames' => $selectedDuplicateFilenames,
+            'selected_duplicate_count' => count($selectedDuplicateFilenames),
+            'task_args_receive_last_values' => $selectedDuplicateFilenames !== [],
+            'stale_duplicate_values_excluded_from_task_args' => $selectedDuplicateFilenames !== [],
+            'blocks_task_args' => false,
+            'blocks_model_handoff' => false,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function jsonTopLevelObjectKeys(string $json): array
+    {
+        $length = strlen($json);
+        $index = $this->skipJsonWhitespace($json, 0);
+        if ($index >= $length || $json[$index] !== '{') {
+            return [];
+        }
+
+        $index++;
+        $keys = [];
+        while ($index < $length) {
+            $index = $this->skipJsonWhitespace($json, $index);
+            if ($index >= $length || $json[$index] === '}') {
+                break;
+            }
+            if ($json[$index] !== '"') {
+                break;
+            }
+
+            [$rawKey, $index] = $this->readJsonStringToken($json, $index);
+            try {
+                $key = json_decode($rawKey, true, flags: JSON_THROW_ON_ERROR);
+            } catch (JsonException) {
+                break;
+            }
+            if (is_string($key)) {
+                $keys[] = $key;
+            }
+
+            $index = $this->skipJsonWhitespace($json, $index);
+            if ($index >= $length || $json[$index] !== ':') {
+                break;
+            }
+
+            $index = $this->skipJsonValue($json, $index + 1);
+            $index = $this->skipJsonWhitespace($json, $index);
+            if ($index < $length && $json[$index] === ',') {
+                $index++;
+                continue;
+            }
+            if ($index < $length && $json[$index] === '}') {
+                break;
+            }
+        }
+
+        return $keys;
+    }
+
+    private function skipJsonWhitespace(string $json, int $index): int
+    {
+        $length = strlen($json);
+        while ($index < $length && str_contains(" \t\r\n", $json[$index])) {
+            $index++;
+        }
+
+        return $index;
+    }
+
+    /**
+     * @return array{string, int}
+     */
+    private function readJsonStringToken(string $json, int $index): array
+    {
+        $start = $index;
+        $length = strlen($json);
+        $index++;
+        $escaped = false;
+        while ($index < $length) {
+            $char = $json[$index];
+            if ($escaped) {
+                $escaped = false;
+                $index++;
+                continue;
+            }
+            if ($char === '\\') {
+                $escaped = true;
+                $index++;
+                continue;
+            }
+            if ($char === '"') {
+                $index++;
+
+                return [substr($json, $start, $index - $start), $index];
+            }
+
+            $index++;
+        }
+
+        return [substr($json, $start), $length];
+    }
+
+    private function skipJsonValue(string $json, int $index): int
+    {
+        $index = $this->skipJsonWhitespace($json, $index);
+        $length = strlen($json);
+        if ($index >= $length) {
+            return $index;
+        }
+
+        $char = $json[$index];
+        if ($char === '"') {
+            [, $index] = $this->readJsonStringToken($json, $index);
+
+            return $index;
+        }
+
+        if ($char === '{' || $char === '[') {
+            $stack = [$char];
+            $index++;
+            while ($index < $length && $stack !== []) {
+                $char = $json[$index];
+                if ($char === '"') {
+                    [, $index] = $this->readJsonStringToken($json, $index);
+                    continue;
+                }
+                if ($char === '{' || $char === '[') {
+                    $stack[] = $char;
+                    $index++;
+                    continue;
+                }
+                if ($char === '}' || $char === ']') {
+                    array_pop($stack);
+                    $index++;
+                    continue;
+                }
+
+                $index++;
+            }
+
+            return $index;
+        }
+
+        while ($index < $length && $json[$index] !== ',' && $json[$index] !== '}') {
+            $index++;
+        }
+
+        return $index;
+    }
+
+    /**
+     * @param list<string> $values
+     * @return array<string, int>
+     */
+    private function duplicateStringCounts(array $values): array
+    {
+        $counts = [];
+        foreach ($values as $value) {
+            $counts[$value] = ($counts[$value] ?? 0) + 1;
+        }
+
+        return array_filter($counts, static fn (int $count): bool => $count > 1);
     }
 
     private function jsonMetadataType(mixed $value): string
