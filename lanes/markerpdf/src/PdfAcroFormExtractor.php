@@ -9386,7 +9386,7 @@ final class PdfAcroFormExtractor
      */
     private function kidReferences(string $body, array $objects): array
     {
-        $kids = $this->valueAfterName($body, 'Kids');
+        $kids = $this->lastTopLevelValueAfterName($body, 'Kids');
         if ($kids === null) {
             return [];
         }
