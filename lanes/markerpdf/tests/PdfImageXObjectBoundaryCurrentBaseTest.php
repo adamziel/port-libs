@@ -1505,6 +1505,129 @@ return [
         $t->true(!str_contains($encoded, $outsidePayload));
         $t->true(!str_contains($encoded, $nestedPayload));
     },
+    'records JPX SMaskInData boundaries on page image XObject review rows' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before JPX SMaskInData images) Tj ET\n"
+            . "q 24 0 0 12 72 690 cm /Embedded#20Alpha Do Q\n"
+            . "q 12 0 0 12 110 690 cm /Invalid#20Alpha Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After JPX SMaskInData images) Tj ET';
+        $embeddedPayload = "\xff\x4fBT /F1 12 Tf 72 720 Td (Embedded JPX Alpha Payload Noise) Tj ET\xff\xd9";
+        $embeddedExternalMaskPayload = 'BT /F1 12 Tf 72 720 Td (Ignored External SMask Payload Noise) Tj ET';
+        $invalidPayload = "\xff\x4fBT /F1 12 Tf 72 720 Td (Invalid JPX Alpha Payload Noise) Tj ET\xff\xd9";
+        $invalidExternalMaskPayload = 'BT /F1 12 Tf 72 720 Td (Invalid External SMask Payload Noise) Tj ET';
+        $embeddedExternalMaskCompressed = gzcompress($embeddedExternalMaskPayload);
+        $invalidExternalMaskCompressed = gzcompress($invalidExternalMaskPayload);
+        if (!is_string($embeddedExternalMaskCompressed) || !is_string($invalidExternalMaskCompressed)) {
+            throw new RuntimeException('Unable to compress JPX SMaskInData mask fixture payloads.');
+        }
+
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Embedded#20Alpha 5 0 R /Invalid#20Alpha 7 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /JPXDecode /SMaskInData 2 /SMask 6 0 R /Mask [0 0 120 140 200 255] /Length " . strlen($embeddedPayload) . " >>\nstream\n{$embeddedPayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Decode [1 0] /Length " . strlen($embeddedExternalMaskCompressed) . " >>\nstream\n{$embeddedExternalMaskCompressed}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /JPXDecode /SMaskInData 9 0 R /SMask 8 0 R /Length " . strlen($invalidPayload) . " >>\nstream\n{$invalidPayload}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Decode [1 0] /Length " . strlen($invalidExternalMaskCompressed) . " >>\nstream\n{$invalidExternalMaskCompressed}\nendstream\nendobj\n"
+            . "9 0 obj\n9\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(2, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+
+        $embedded = $entriesByName['Embedded Alpha'];
+        $t->same(['JPXDecode'], $embedded['filters']);
+        $t->same(['JPXDecode'], $embedded['preview_only_filters']);
+        $t->same(false, $embedded['native_raster_decode']);
+        $t->same([
+            'present' => true,
+            'value' => 2,
+            'valid_value' => true,
+            'filter_is_jpx' => true,
+            'uses_embedded_soft_mask' => true,
+            'encoded_soft_mask_values' => false,
+            'preblended_with_matte' => true,
+            'external_soft_mask_present' => true,
+            'external_soft_mask_ignored' => true,
+            'external_soft_mask_object' => 6,
+            'external_soft_mask_generation' => 0,
+            'ignored_without_jpx' => false,
+            'review_only' => true,
+        ], $embedded['jpx_soft_mask_in_data']);
+        $t->same(true, $embedded['jpx_embedded_soft_mask_present']);
+        $t->same(true, $embedded['jpx_embedded_soft_mask_review_only']);
+        $t->same(null, $embedded['soft_mask_object']);
+        $t->same(null, $embedded['soft_mask_generation']);
+        $t->same(null, $embedded['soft_mask_review']);
+        $t->same(false, $embedded['soft_mask_review_only']);
+        $t->same([
+            'type' => 'color_key_mask_array',
+            'ranges' => [
+                ['min' => 0.0, 'max' => 0.0],
+                ['min' => 120.0, 'max' => 140.0],
+                ['min' => 200.0, 'max' => 255.0],
+            ],
+            'component_count' => 3,
+            'expected_components' => 3,
+            'valid_for_components' => true,
+            'compares_before_decode' => true,
+            'transparent_when_all_components_match' => true,
+            'suppressed_by_soft_mask' => true,
+            'review_only' => true,
+        ], $embedded['mask_review']);
+        $t->same(false, $embedded['decoded_with_current_filters']);
+        $t->same(null, $embedded['decoded_sha256']);
+
+        $invalid = $entriesByName['Invalid Alpha'];
+        $t->same([
+            'present' => true,
+            'value' => 9,
+            'valid_value' => false,
+            'filter_is_jpx' => true,
+            'uses_embedded_soft_mask' => false,
+            'encoded_soft_mask_values' => false,
+            'preblended_with_matte' => false,
+            'external_soft_mask_present' => true,
+            'external_soft_mask_ignored' => false,
+            'external_soft_mask_object' => 8,
+            'external_soft_mask_generation' => 0,
+            'ignored_without_jpx' => false,
+            'review_only' => true,
+        ], $invalid['jpx_soft_mask_in_data']);
+        $t->same(false, $invalid['jpx_embedded_soft_mask_present']);
+        $t->same(true, $invalid['jpx_embedded_soft_mask_review_only']);
+        $t->same(8, $invalid['soft_mask_object']);
+        $t->same(0, $invalid['soft_mask_generation']);
+        $t->same('soft_mask_stream', $invalid['soft_mask_review']['type']);
+        $t->same(true, $invalid['soft_mask_review_only']);
+        $t->same(true, $invalid['soft_mask_review']['decoded_with_current_filters']);
+        $t->same(hash('sha256', $invalidExternalMaskPayload), $invalid['soft_mask_review']['decoded_sha256']);
+
+        $t->same(['Before JPX SMaskInData images', 'After JPX SMaskInData images'], $extractor->extractTextLines($pdf));
+        $t->same("Before JPX SMaskInData images\nAfter JPX SMaskInData images", $plainText);
+        $t->true(!str_contains($plainText, 'Embedded JPX Alpha Payload Noise'));
+        $t->true(!str_contains($plainText, 'Ignored External SMask Payload Noise'));
+        $t->true(!str_contains($plainText, 'Invalid JPX Alpha Payload Noise'));
+        $t->true(!str_contains($plainText, 'Invalid External SMask Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $embeddedPayload));
+        $t->true(!str_contains($encoded, $embeddedExternalMaskPayload));
+        $t->true(!str_contains($encoded, $invalidPayload));
+        $t->true(!str_contains($encoded, $invalidExternalMaskPayload));
+        $t->true(!str_contains($encoded, hash('sha256', $embeddedExternalMaskPayload)));
+        $t->true(str_contains($encoded, hash('sha256', $invalidExternalMaskPayload)));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"

@@ -4658,7 +4658,12 @@ final class PdfTextExtractor
         $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
         $metadataStream = $this->imageXObjectMetadataStreamReview($stream['dict'], $objects);
         $alternateImages = $this->imageXObjectAlternateImageReviews($stream['dict'], $objects);
-        $softMaskReview = $this->imageXObjectSoftMaskReview($stream['dict'], $objects);
+        $jpxSoftMaskInData = $this->imageXObjectJpxSoftMaskInDataReview($stream['dict'], $resolvedFilters, $objects);
+        $jpxEmbeddedSoftMaskPresent = is_array($jpxSoftMaskInData)
+            && ($jpxSoftMaskInData['uses_embedded_soft_mask'] ?? false) === true;
+        $softMaskReview = $jpxEmbeddedSoftMaskPresent
+            ? null
+            : $this->imageXObjectSoftMaskReview($stream['dict'], $objects);
         $softMaskObject = is_array($softMaskReview) && isset($softMaskReview['object_number']) && is_int($softMaskReview['object_number'])
             ? $softMaskReview['object_number']
             : null;
@@ -4669,7 +4674,7 @@ final class PdfTextExtractor
             $stream['dict'],
             $objects,
             $colorSpace,
-            is_array($softMaskReview) && ($softMaskReview['present'] ?? false) === true
+            $jpxEmbeddedSoftMaskPresent || (is_array($softMaskReview) && ($softMaskReview['present'] ?? false) === true)
         );
         $invocationMatrices = [];
         $invocationBboxes = [];
@@ -4818,6 +4823,10 @@ final class PdfTextExtractor
             'soft_mask_review' => $softMaskReview,
             'soft_mask_payload_in_visible_text' => false,
             'soft_mask_review_only' => $softMaskReview !== null,
+            'jpx_soft_mask_in_data' => $jpxSoftMaskInData,
+            'jpx_embedded_soft_mask_present' => $jpxEmbeddedSoftMaskPresent,
+            'jpx_embedded_soft_mask_review_only' => is_array($jpxSoftMaskInData)
+                && ($jpxSoftMaskInData['review_only'] ?? false) === true,
             'mask_object' => is_array($maskReview) && isset($maskReview['object_number']) && is_int($maskReview['object_number'])
                 ? $maskReview['object_number']
                 : null,
@@ -4842,6 +4851,64 @@ final class PdfTextExtractor
             'payload_in_visible_text' => false,
             'rgb_preview_boundary' => 'marker.pdf.images.render_image',
             'review_only' => true,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string> $filters
+     * @return array{
+     *     present: true,
+     *     value: int|null,
+     *     valid_value: bool,
+     *     filter_is_jpx: bool,
+     *     uses_embedded_soft_mask: bool,
+     *     encoded_soft_mask_values: bool,
+     *     preblended_with_matte: bool,
+     *     external_soft_mask_present: bool,
+     *     external_soft_mask_ignored: bool,
+     *     external_soft_mask_object: int|null,
+     *     external_soft_mask_generation: int|null,
+     *     ignored_without_jpx: bool,
+     *     review_only: bool
+     * }|null
+     */
+    private function imageXObjectJpxSoftMaskInDataReview(string $imageDictionary, array $filters, array $objects): ?array
+    {
+        $value = $this->topLevelPdfValueAfterNameInDictionaryBody($imageDictionary, 'SMaskInData');
+        if ($value === null) {
+            return null;
+        }
+
+        $integer = $this->streamLengthValueAt($value, 0, $objects);
+        $validValue = is_int($integer) && in_array($integer, [0, 1, 2], true);
+        $filterIsJpx = in_array('JPXDecode', $filters, true);
+        $usesEmbeddedSoftMask = $filterIsJpx && $validValue && $integer !== 0;
+        $softMaskValue = $this->topLevelPdfValueAfterNameInDictionaryBody($imageDictionary, 'SMask');
+        $externalSoftMaskReference = is_string($softMaskValue)
+            ? ($this->objectReferencePairs($softMaskValue)[0] ?? null)
+            : null;
+        $externalSoftMaskPresent = $softMaskValue !== null
+            && $this->pdfNameValueAt($softMaskValue, 0, $objects) !== 'None';
+
+        return [
+            'present' => true,
+            'value' => $integer,
+            'valid_value' => $validValue,
+            'filter_is_jpx' => $filterIsJpx,
+            'uses_embedded_soft_mask' => $usesEmbeddedSoftMask,
+            'encoded_soft_mask_values' => $usesEmbeddedSoftMask && $integer === 1,
+            'preblended_with_matte' => $usesEmbeddedSoftMask && $integer === 2,
+            'external_soft_mask_present' => $externalSoftMaskPresent,
+            'external_soft_mask_ignored' => $usesEmbeddedSoftMask && $externalSoftMaskPresent,
+            'external_soft_mask_object' => is_array($externalSoftMaskReference)
+                ? $externalSoftMaskReference['objectNumber']
+                : null,
+            'external_soft_mask_generation' => is_array($externalSoftMaskReference)
+                ? $externalSoftMaskReference['generation']
+                : null,
+            'ignored_without_jpx' => !$filterIsJpx,
+            'review_only' => $usesEmbeddedSoftMask || ($filterIsJpx && !$validValue),
         ];
     }
 
