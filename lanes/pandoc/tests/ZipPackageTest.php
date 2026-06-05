@@ -353,6 +353,34 @@ return [
         $t->same(false, $fatPackage->entry('word/media/review.png')->isUnixSymlink());
     },
 
+    'rejects zip directory entries with payload before office package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/',
+                'data' => 'hidden directory payload',
+                'method' => 0,
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 8,
+            ],
+        ])));
+
+        $directoryPackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+        ]));
+
+        $t->true($directoryPackage->entry('word/media/')->isDirectory());
+        $t->same('', $directoryPackage->read('word/media/'));
+    },
+
     'decodes cp437 zip entry names and comments when utf8 flag is absent' => static function (TestRunner $t) use ($buildZipPackage): void {
         $rawName = "word/media/caf\x82.png";
         $decodedName = "word/media/caf\u{00e9}.png";

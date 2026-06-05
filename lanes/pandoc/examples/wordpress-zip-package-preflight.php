@@ -421,6 +421,53 @@ $buildDriveLetterBackedPackage = static function () use ($crc32): string {
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildDirectoryPayloadBackedPackage = static function () use ($crc32): string {
+    $name = 'word/media/';
+    $data = "Directory payload should stay blocked\n";
+    $crc = $crc32($data);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x10,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 
 $package = ZipPackage::fromParts([
     [
@@ -557,6 +604,12 @@ try {
     ZipPackage::fromString($buildDriveLetterBackedPackage());
 } catch (RuntimeException $exception) {
     $driveLetterRejected = str_contains($exception->getMessage(), 'Unsafe ZIP package entry name');
+}
+$directoryPayloadRejected = false;
+try {
+    ZipPackage::fromString($buildDirectoryPayloadBackedPackage());
+} catch (RuntimeException $exception) {
+    $directoryPayloadRejected = str_contains($exception->getMessage(), 'directory entry');
 }
 
 if (in_array('--self-test', $argv, true)) {
@@ -748,6 +801,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected drive-letter ZIP paths to be rejected before media import');
     }
 
+    if (!$directoryPayloadRejected) {
+        throw new RuntimeException('Expected ZIP directory entries with payload bytes to be rejected before media import');
+    }
+
     $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
     if ($unicodePathEntry->rawName !== $unicodePathRawName) {
         throw new RuntimeException('Expected ZIP Unicode path extra field to preserve raw legacy path bytes');
@@ -796,6 +853,7 @@ echo 'extended.reviewer-note.createdAt=' . ($extendedTimestamps['createdAt'] ?? 
 echo 'symlinkPolicy=' . ($symlinkRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zip64Policy=' . ($zip64Rejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'driveLetterPathPolicy=' . ($driveLetterRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'directoryPayloadPolicy=' . ($directoryPayloadRejected ? 'rejected' : 'not-rejected') . "\n";
 $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
 echo 'unicodePath.name=' . $unicodePathEntry->name . "\n";
 echo 'unicodePath.rawName=' . $unicodePathEntry->rawName . "\n";

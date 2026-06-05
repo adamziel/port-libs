@@ -155,6 +155,7 @@ final class ZipPackage
                 $decodedName['encoding'],
                 $decodedComment['encoding']
             );
+            self::assertDirectoryEntryMetadata($entry);
             if ($entry->isUnixSymlink()) {
                 throw new \RuntimeException("ZIP symlink entries are not supported by the pandoc package reader: {$name}");
             }
@@ -170,7 +171,14 @@ final class ZipPackage
 
         $packageComment = substr($bytes, $eocdOffset + 22, $packageCommentLength);
 
-        return new self($bytes, $entriesByName, $entries, $centralDirectoryOffset, $packageComment);
+        $package = new self($bytes, $entriesByName, $entries, $centralDirectoryOffset, $packageComment);
+        foreach ($entries as $entry) {
+            if ($entry->isDirectory()) {
+                $package->validateDirectoryLocalHeader($entry);
+            }
+        }
+
+        return $package;
     }
 
     /**
@@ -483,6 +491,50 @@ final class ZipPackage
     public function centralDirectoryOffset(): int
     {
         return $this->centralDirectoryOffset;
+    }
+
+    private static function assertDirectoryEntryMetadata(ZipPackageEntry $entry): void
+    {
+        if (!$entry->isDirectory()) {
+            return;
+        }
+
+        if ($entry->compressionMethod !== 0) {
+            throw new \RuntimeException("ZIP package directory entry {$entry->name} must use stored compression");
+        }
+
+        if (($entry->generalPurposeFlags & 0x0008) !== 0) {
+            throw new \RuntimeException("ZIP package directory entry {$entry->name} must not use a data descriptor");
+        }
+
+        if ($entry->compressedSize !== 0 || $entry->uncompressedSize !== 0) {
+            throw new \RuntimeException("ZIP package directory entry {$entry->name} must not contain file data");
+        }
+    }
+
+    private function validateDirectoryLocalHeader(ZipPackageEntry $entry): void
+    {
+        $localHeader = $this->readLocalHeader($entry);
+        $nextOffset = $this->nextEntryOrCentralDirectoryOffset($entry);
+        if ($localHeader['dataStart'] !== $nextOffset) {
+            throw new \RuntimeException("ZIP package directory entry {$entry->name} contains payload bytes before the next header");
+        }
+    }
+
+    private function nextEntryOrCentralDirectoryOffset(ZipPackageEntry $entry): int
+    {
+        $nextOffset = $this->centralDirectoryOffset;
+        foreach ($this->entries as $candidate) {
+            if ($candidate === $entry || $candidate->localHeaderOffset <= $entry->localHeaderOffset) {
+                continue;
+            }
+
+            if ($candidate->localHeaderOffset < $nextOffset) {
+                $nextOffset = $candidate->localHeaderOffset;
+            }
+        }
+
+        return $nextOffset;
     }
 
     private static function findEndOfCentralDirectory(string $bytes): int
