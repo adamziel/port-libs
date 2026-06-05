@@ -257,6 +257,7 @@ final class TableGeometry
      *     columnAlignments:list<string>,
      *     widths:list<?float>,
      *     declaredColumns:list<bool>,
+     *     columnSources?:list<array<string, mixed>|null>,
      *     occupiedSlots:list<array{row:int,column:int,covering:string}>,
      *     node:AstNode
      * }>
@@ -286,6 +287,8 @@ final class TableGeometry
                     $columnAlignments = [];
                     $widths = [];
                     $declaredColumns = [];
+                    $columnSources = [];
+                    $hasColumnSources = false;
                     for ($column = $cell['column']; $column < $cell['column'] + $cell['colspan'] && $column < $columnCount; $column++) {
                         $spec = $columnSpecs[$column] ?? [
                             'alignment' => 'default',
@@ -296,6 +299,9 @@ final class TableGeometry
                         $columnAlignments[] = (string) $spec['alignment'];
                         $widths[] = $spec['width'];
                         $declaredColumns[] = (bool) $spec['declared'];
+                        $source = isset($spec['source']) && is_array($spec['source']) ? $spec['source'] : null;
+                        $columnSources[] = $source;
+                        $hasColumnSources = $hasColumnSources || $source !== null;
                     }
 
                     $rawColspan = self::cellColspan($cell['node']);
@@ -333,6 +339,9 @@ final class TableGeometry
                     ];
                     if (($cell['rowspanToEnd'] ?? false) === true) {
                         $record['rowspanToEnd'] = true;
+                    }
+                    if ($hasColumnSources) {
+                        $record['columnSources'] = $columnSources;
                     }
 
                     $coverage[] = $record;
@@ -545,7 +554,7 @@ final class TableGeometry
     }
 
     /**
-     * @return list<array{column:int,alignment:string,width:?float,declared:bool}>
+     * @return list<array{column:int,alignment:string,width:?float,declared:bool,source?:array<string, mixed>}>
      */
     public static function columnSpecs(AstNode $table, int $columnCount): array
     {
@@ -559,6 +568,7 @@ final class TableGeometry
         }
 
         $declaredColumnCount = self::declaredColumnCount($table);
+        $columnSources = self::columnSources($table);
         $specs = [];
         for ($column = 0; $column < $columnCount; $column++) {
             $width = null;
@@ -566,12 +576,17 @@ final class TableGeometry
                 $width = (float) $widths[$column];
             }
 
-            $specs[] = [
+            $spec = [
                 'column' => $column,
                 'alignment' => $alignments[$column] ?? 'default',
                 'width' => $width,
                 'declared' => $column < $declaredColumnCount,
             ];
+            if (isset($columnSources[$column])) {
+                $spec['source'] = $columnSources[$column];
+            }
+
+            $specs[] = $spec;
         }
 
         return $specs;
@@ -1445,6 +1460,94 @@ final class TableGeometry
             self::tableAttributeColumnCount($table->attr('alignments', [])),
             self::tableAttributeColumnCount($table->attr('widths', []))
         );
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private static function columnSources(AstNode $table): array
+    {
+        $sources = $table->attr('columnSources', []);
+        if (!is_array($sources)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($sources as $index => $source) {
+            if (!is_array($source)) {
+                continue;
+            }
+
+            $record = self::serializableColumnSource($source);
+            if ($record === []) {
+                continue;
+            }
+
+            $column = isset($record['column']) && is_numeric($record['column'])
+                ? (int) $record['column']
+                : (int) $index;
+            if ($column < 0) {
+                continue;
+            }
+
+            $record['column'] = $column;
+            $normalized[$column] = $record;
+        }
+
+        ksort($normalized);
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string|int, mixed> $source
+     * @return array<string, mixed>
+     */
+    private static function serializableColumnSource(array $source): array
+    {
+        $record = [];
+        foreach ($source as $key => $value) {
+            $key = trim((string) $key);
+            if ($key === '') {
+                continue;
+            }
+
+            $normalized = self::serializableColumnSourceValue($value);
+            if ($normalized['valid'] === true) {
+                $record[$key] = $normalized['value'];
+            }
+        }
+
+        return $record;
+    }
+
+    /**
+     * @return array{valid:bool,value:mixed}
+     */
+    private static function serializableColumnSourceValue(mixed $value): array
+    {
+        if ($value === null || is_scalar($value)) {
+            return ['valid' => true, 'value' => $value];
+        }
+
+        if (!is_array($value)) {
+            return ['valid' => false, 'value' => null];
+        }
+
+        $normalized = [];
+        foreach ($value as $key => $nestedValue) {
+            $key = is_int($key) ? $key : trim((string) $key);
+            if ($key === '') {
+                continue;
+            }
+
+            $nested = self::serializableColumnSourceValue($nestedValue);
+            if ($nested['valid'] === true) {
+                $normalized[$key] = $nested['value'];
+            }
+        }
+
+        return ['valid' => true, 'value' => $normalized];
     }
 
     /**

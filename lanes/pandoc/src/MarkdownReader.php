@@ -4960,6 +4960,9 @@ final class MarkdownReader
             'caption' => $captionInlines === [] ? '' : trim(preg_replace('/\s+/', ' ', $this->plainTextFromInlines($captionInlines)) ?? ''),
             'alignments' => $alignments,
         ]);
+        if ($columnMetadata['sources'] !== null) {
+            $attrs['columnSources'] = $columnMetadata['sources'];
+        }
         if ($captionInlines !== []) {
             $attrs['captionInlines'] = $captionInlines;
         }
@@ -5080,29 +5083,32 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{alignments:?list<string>, widths:?list<float>}
+     * @return array{alignments:?list<string>, widths:?list<float>, sources:?list<array<string, mixed>>}
      */
     private function readHtmlTableColumnMetadata(\DOMElement $table, int $maxColumns): array
     {
         $colgroups = $this->childElements($table, 'colgroup');
         if ($colgroups === []) {
-            return ['alignments' => null, 'widths' => null];
+            return ['alignments' => null, 'widths' => null, 'sources' => null];
         }
 
         $widths = [];
         $alignments = [];
+        $sources = [];
         $hasAlignment = false;
         $hasWidth = false;
         $hasCompleteWidths = true;
-        foreach ($colgroups as $colgroup) {
+        foreach ($colgroups as $colgroupIndex => $colgroup) {
             $cols = $this->childElements($colgroup, 'col');
             if ($cols === []) {
                 $span = $this->positiveHtmlSpan($colgroup->getAttribute('span'));
                 $alignment = $this->normalizeHtmlColumnAlignment($colgroup);
                 $width = $this->htmlColumnWidthPercent($colgroup);
                 for ($index = 0; $index < $span; $index++) {
+                    $column = count($alignments);
                     $alignments[] = $alignment;
                     $widths[] = $width;
+                    $sources[] = $this->htmlColumnSourceRecord($colgroup, $colgroupIndex, null, null, $column, $span, $index, $alignment, $width);
                     $hasAlignment = $hasAlignment || $alignment !== 'default';
                     $hasWidth = $hasWidth || $width !== null;
                     $hasCompleteWidths = $hasCompleteWidths && $width !== null;
@@ -5110,13 +5116,15 @@ final class MarkdownReader
                 continue;
             }
 
-            foreach ($cols as $col) {
+            foreach ($cols as $colIndex => $col) {
                 $span = $this->positiveHtmlSpan($col->getAttribute('span'));
                 $alignment = $this->normalizeHtmlColumnAlignment($col, $colgroup);
                 $width = $this->htmlColumnWidthPercent($col);
                 for ($index = 0; $index < $span; $index++) {
+                    $column = count($alignments);
                     $alignments[] = $alignment;
                     $widths[] = $width;
+                    $sources[] = $this->htmlColumnSourceRecord($colgroup, $colgroupIndex, $col, $colIndex, $column, $span, $index, $alignment, $width);
                     $hasAlignment = $hasAlignment || $alignment !== 'default';
                     $hasWidth = $hasWidth || $width !== null;
                     $hasCompleteWidths = $hasCompleteWidths && $width !== null;
@@ -5125,13 +5133,82 @@ final class MarkdownReader
         }
 
         if ($alignments === [] || ($maxColumns > 0 && count($alignments) !== $maxColumns)) {
-            return ['alignments' => null, 'widths' => null];
+            return ['alignments' => null, 'widths' => null, 'sources' => null];
         }
 
         return [
             'alignments' => $hasAlignment ? $alignments : null,
             'widths' => $hasWidth && $hasCompleteWidths ? array_values($widths) : null,
+            'sources' => $sources,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function htmlColumnSourceRecord(
+        \DOMElement $colgroup,
+        int $colgroupIndex,
+        ?\DOMElement $col,
+        ?int $colIndex,
+        int $column,
+        int $sourceSpan,
+        int $spanOffset,
+        string $alignment,
+        ?float $width
+    ): array {
+        $record = [
+            'kind' => $col instanceof \DOMElement ? 'col' : 'colgroup',
+            'column' => $column,
+            'colgroupIndex' => $colgroupIndex,
+            'sourceSpan' => $sourceSpan,
+            'spanOffset' => $spanOffset,
+            'alignment' => $alignment,
+            'width' => $width,
+        ];
+
+        $colgroupAttributes = $this->htmlColumnSourceAttributes($colgroup);
+        if ($colgroupAttributes !== []) {
+            $record['colgroupAttributes'] = $colgroupAttributes;
+        }
+
+        if ($col instanceof \DOMElement) {
+            $record['colIndex'] = $colIndex ?? 0;
+            $colAttributes = $this->htmlColumnSourceAttributes($col);
+            if ($colAttributes !== []) {
+                $record['colAttributes'] = $colAttributes;
+            }
+        }
+
+        return $record;
+    }
+
+    /**
+     * @return array{htmlAttributes?:array<string, string>}
+     */
+    private function htmlColumnSourceAttributes(\DOMElement $element): array
+    {
+        $htmlAttributes = [];
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            $name = strtolower(trim($attribute->name));
+            if ($name === '') {
+                continue;
+            }
+
+            $htmlAttributes[$name] = trim($attribute->value);
+        }
+
+        if ($htmlAttributes === []) {
+            return [];
+        }
+
+        ksort($htmlAttributes);
+
+        return ['htmlAttributes' => $htmlAttributes];
     }
 
     private function htmlColumnWidthPercent(\DOMElement $col): ?float

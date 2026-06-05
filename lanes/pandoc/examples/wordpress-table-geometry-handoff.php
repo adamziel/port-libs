@@ -40,9 +40,9 @@ $rowspanZeroTables = array_values(array_filter(
 $colgroupAlignmentDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="colgroup-alignment-grid" data-source="html-reader">
 <caption>Colgroup alignment review</caption>
-<colgroup>
-<col span="2" style="width: 25%; text-align: right" />
-<col width="50%" align="center" />
+<colgroup data-source="legacy-doc">
+<col span="2" style="width: 25%; text-align: right" data-origin="col-a" />
+<col width="50%" align="center" data-origin="col-b" />
 </colgroup>
 <thead>
 <tr><th>Scope</th><th>Items</th><th>State</th></tr>
@@ -647,8 +647,18 @@ if (($argv[1] ?? '') === '--self-test') {
     ) {
         throw new RuntimeException('Table geometry self-test missing HTML colgroup span alignment and width expansion');
     }
+    $columnSources = $colgroupAlignmentTable->attr('columnSources');
+    if (!is_array($columnSources) || ($columnSources[1]['spanOffset'] ?? null) !== 1 || ($columnSources[2]['colIndex'] ?? null) !== 1) {
+        throw new RuntimeException('Table geometry self-test missing HTML colgroup span provenance metadata');
+    }
+    if (($columnSources[0]['colgroupAttributes']['htmlAttributes']['data-source'] ?? null) !== 'legacy-doc' || ($columnSources[2]['colAttributes']['htmlAttributes']['data-origin'] ?? null) !== 'col-b') {
+        throw new RuntimeException('Table geometry self-test missing source colgroup/col attributes in provenance metadata');
+    }
     if (!is_array($colgroupAlignmentPacket) || ($colgroupAlignmentPacket['coverage'][4]['columnAlignments'] ?? null) !== ['right'] || ($colgroupAlignmentPacket['coverage'][5]['widths'] ?? null) !== [0.5]) {
         throw new RuntimeException('Table geometry self-test missing colgroup metadata in review-packet coverage');
+    }
+    if (($colgroupAlignmentPacket['columns'][1]['source']['spanOffset'] ?? null) !== 1 || ($colgroupAlignmentPacket['coverage'][5]['columnSources'][0]['colAttributes']['htmlAttributes']['data-origin'] ?? null) !== 'col-b') {
+        throw new RuntimeException('Table geometry self-test missing colgroup provenance in review-packet columns and coverage');
     }
     if (!str_contains($blocks, '<table id="colgroup-alignment-grid" data-source="html-reader"><colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:50%"/></colgroup><thead><tr><th style="text-align:right">Scope</th><th style="text-align:right">Items</th><th style="text-align:center">State</th></tr></thead>')) {
         throw new RuntimeException('Table geometry self-test missing WordPress output for expanded colgroup alignment metadata');

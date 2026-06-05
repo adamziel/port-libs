@@ -345,4 +345,49 @@ HTML;
         $t->contains('<tbody><tr><td style="text-align:right">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td></tr><tr><td style="text-align:right">Media</td><td style="text-align:right">7</td><td style="text-align:center">Review</td></tr></tbody>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'carries html colgroup span provenance into table geometry review packets' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="colgroup-provenance-grid" data-source="html-reader">
+<caption>Colgroup provenance review</caption>
+<colgroup data-source="legacy-doc">
+<col span="2" style="width: 25%; text-align: right" data-origin="col-a" />
+<col width="50%" align="center" data-origin="col-b" />
+</colgroup>
+<thead>
+<tr><th>Scope</th><th>Items</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>42</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(true, is_array($table->attr('columnSources')), 'HTML reader should keep expanded source column provenance on the table AST');
+        $columnSources = is_array($table->attr('columnSources')) ? $table->attr('columnSources') : [];
+        $t->same(['col', 'col', 'col'], array_map(static fn (array $source): string => (string) ($source['kind'] ?? ''), $columnSources));
+        $t->same([0, 0, 0], array_map(static fn (array $source): int => (int) ($source['colgroupIndex'] ?? -1), $columnSources));
+        $t->same([0, 0, 1], array_map(static fn (array $source): int => (int) ($source['colIndex'] ?? -1), $columnSources));
+        $t->same([0, 1, 0], array_map(static fn (array $source): int => (int) ($source['spanOffset'] ?? -1), $columnSources));
+        $t->same([2, 2, 1], array_map(static fn (array $source): int => (int) ($source['sourceSpan'] ?? 0), $columnSources));
+        $t->same('legacy-doc', $columnSources[0]['colgroupAttributes']['htmlAttributes']['data-source'] ?? null);
+        $t->same('col-a', $columnSources[1]['colAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->same('width: 25%; text-align: right', $columnSources[0]['colAttributes']['htmlAttributes']['style'] ?? null);
+        $t->same('50%', $columnSources[2]['colAttributes']['htmlAttributes']['width'] ?? null);
+
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same('col', $packet['columns'][0]['source']['kind'] ?? null);
+        $t->same(0, $packet['columns'][1]['source']['colIndex'] ?? null);
+        $t->same(1, $packet['columns'][1]['source']['spanOffset'] ?? null);
+        $t->same('col-b', $packet['columns'][2]['source']['colAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->same('col-a', $packet['coverage'][3]['columnSources'][0]['colAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->same('col-b', $packet['coverage'][5]['columnSources'][0]['colAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->contains('<colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:50%"/></colgroup>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
 ];
