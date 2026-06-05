@@ -14,6 +14,9 @@ final class OpcContentTypes
     /** @var array<string, string> */
     private array $overrides = [];
 
+    /** @var array<string, string> */
+    private array $overridePartNamesByEquivalenceKey = [];
+
     public static function fromXml(string $xml): self
     {
         $dom = self::loadXml($xml);
@@ -78,12 +81,14 @@ final class OpcContentTypes
     {
         $partName = OpcPackagePath::canonicalPartNameFromUri($partName);
         self::assertContentType($contentType);
+        $equivalenceKey = self::partNameEquivalenceKey($partName);
 
-        if (isset($this->overrides[$partName])) {
+        if (isset($this->overridePartNamesByEquivalenceKey[$equivalenceKey])) {
             throw new \InvalidArgumentException('Duplicate OPC override content type for part: ' . $partName);
         }
 
         $this->overrides[$partName] = $contentType;
+        $this->overridePartNamesByEquivalenceKey[$equivalenceKey] = $partName;
     }
 
     public function contentTypeForPart(string $partName): ?string
@@ -91,6 +96,11 @@ final class OpcContentTypes
         $partName = OpcPackagePath::canonicalPartNameFromUri(OpcPackagePath::stripQueryAndFragment($partName));
         if (isset($this->overrides[$partName])) {
             return $this->overrides[$partName];
+        }
+
+        $overridePartName = $this->overridePartNamesByEquivalenceKey[self::partNameEquivalenceKey($partName)] ?? null;
+        if ($overridePartName !== null) {
+            return $this->overrides[$overridePartName];
         }
 
         $basename = basename($partName);
@@ -213,6 +223,11 @@ final class OpcContentTypes
                 throw new \InvalidArgumentException('OPC Override part name must not contain empty or dot path segments');
             }
         }
+    }
+
+    private static function partNameEquivalenceKey(string $partName): string
+    {
+        return strtolower($partName);
     }
 
     private static function assertContentType(string $contentType): void

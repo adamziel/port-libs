@@ -43,6 +43,17 @@ final class OpcRelationshipGraph
             throw new \RuntimeException('OPC package is missing [Content_Types].xml');
         }
 
+        foreach (self::preflightPackagePartNameEquivalence($package) as $partNameEquivalence) {
+            if ($partNameEquivalence['valid']) {
+                continue;
+            }
+
+            throw new \RuntimeException(
+                'OPC package contains equivalent part names that differ only by ASCII case: '
+                . implode(', ', $partNameEquivalence['equivalentPartNames'])
+            );
+        }
+
         $contentTypes = OpcContentTypes::fromXml($package->read('[Content_Types].xml'));
         $relationshipsBySource = [];
 
@@ -72,6 +83,52 @@ final class OpcRelationshipGraph
         }
 
         return new self($package, $contentTypes, $relationshipsBySource);
+    }
+
+    /**
+     * @return list<array{partName:string, equivalenceKey:string, equivalentPartNames:list<string>, valid:bool, issues:list<string>}>
+     */
+    public static function preflightPackagePartNameEquivalence(ZipPackage $package): array
+    {
+        $preflight = [];
+        $indexesByEquivalenceKey = [];
+
+        foreach ($package->names() as $name) {
+            if (str_ends_with($name, '/')) {
+                continue;
+            }
+
+            $partName = OpcPackagePath::canonicalPartName($name);
+            $equivalenceKey = self::partNameEquivalenceKey($partName);
+            $preflight[] = [
+                'partName' => $partName,
+                'equivalenceKey' => $equivalenceKey,
+                'equivalentPartNames' => [],
+                'valid' => true,
+                'issues' => [],
+            ];
+            $indexesByEquivalenceKey[$equivalenceKey][] = array_key_last($preflight);
+        }
+
+        foreach ($indexesByEquivalenceKey as $rowIndexes) {
+            if (count($rowIndexes) < 2) {
+                continue;
+            }
+
+            $partNames = [];
+            foreach ($rowIndexes as $rowIndex) {
+                $partNames[] = $preflight[$rowIndex]['partName'];
+            }
+            sort($partNames, SORT_STRING);
+
+            foreach ($rowIndexes as $rowIndex) {
+                $preflight[$rowIndex]['equivalentPartNames'] = $partNames;
+                $preflight[$rowIndex]['valid'] = false;
+                $preflight[$rowIndex]['issues'] = ['equivalent-part-name-case-collision'];
+            }
+        }
+
+        return $preflight;
     }
 
     /**
@@ -1532,6 +1589,11 @@ final class OpcRelationshipGraph
     private static function isRelationshipPartName(string $name): bool
     {
         return OpcRelationships::isRelationshipPartName($name);
+    }
+
+    private static function partNameEquivalenceKey(string $partName): string
+    {
+        return strtolower($partName);
     }
 
     /**

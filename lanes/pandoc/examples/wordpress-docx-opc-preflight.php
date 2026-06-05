@@ -183,11 +183,67 @@ $relationshipSourceAliasPackage = ZipPackage::fromParts([
     ['name' => 'word/media/raw.png', 'data' => 'PNG'],
 ]);
 
+$caseCollisionContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/Word/Document.XML" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+$caseCollisionRootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="Word/Document.XML"/>
+</Relationships>
+XML;
+
+$caseCollisionPackage = ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => $caseCollisionContentTypesXml],
+    ['name' => '_rels/.rels', 'data' => $caseCollisionRootRelationshipsXml],
+    ['name' => 'Word/Document.XML', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => 'word/media/Hero.PNG', 'data' => 'PNG'],
+    ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+]);
+
+$caseEquivalentTypes = new OpcContentTypes();
+$caseEquivalentTypes->addDefault('xml', 'application/xml');
+$caseEquivalentTypes->addOverride('/Word/Document.XML', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml');
+$caseEquivalentOverrideDuplicateRejected = false;
+try {
+    $caseEquivalentTypes->addOverride('/word/document.xml', 'application/xml');
+} catch (InvalidArgumentException) {
+    $caseEquivalentOverrideDuplicateRejected = true;
+}
+
 $relationshipSourceAliasGraphRejected = false;
 try {
     OpcRelationshipGraph::fromPackage($relationshipSourceAliasPackage);
 } catch (RuntimeException) {
     $relationshipSourceAliasGraphRejected = true;
+}
+
+$partNameCaseCollisionGraphRejected = false;
+try {
+    OpcRelationshipGraph::fromPackage($caseCollisionPackage);
+} catch (RuntimeException) {
+    $partNameCaseCollisionGraphRejected = true;
+}
+
+$partNameCaseCollisionGuards = [];
+foreach (OpcRelationshipGraph::preflightPackagePartNameEquivalence($caseCollisionPackage) as $part) {
+    if ($part['valid']) {
+        continue;
+    }
+
+    $partNameCaseCollisionGuards[$part['partName']] = [
+        'partName' => $part['partName'],
+        'equivalenceKey' => $part['equivalenceKey'],
+        'equivalentPartNames' => $part['equivalentPartNames'],
+        'valid' => $part['valid'],
+        'issues' => $part['issues'],
+    ];
 }
 
 $relationshipSourceAliasGuards = [];
@@ -572,8 +628,12 @@ $summary = [
         'strictXmlShapeGuards' => $strictXmlShapeGuards,
         'markupCompatibilityGuards' => $markupCompatibilityGuards,
         'relationshipSourceAliasGraphRejected' => $relationshipSourceAliasGraphRejected,
+        'partNameCaseCollisionGraphRejected' => $partNameCaseCollisionGraphRejected,
+        'contentTypeOverrideCaseLookup' => $caseEquivalentTypes->contentTypeForPart('/word/document.xml'),
+        'contentTypeOverrideDuplicateRejected' => $caseEquivalentOverrideDuplicateRejected,
     ],
     'relationshipSourceAliasGuards' => $relationshipSourceAliasGuards,
+    'partNameCaseCollisionGuards' => $partNameCaseCollisionGuards,
     'wordpressImport' => [
         'mediaParts' => array_values(array_unique(array_filter(
             array_map(static fn (array $target): ?string => $target['targetPart'], $reachableTargets),
@@ -720,6 +780,9 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['invalidRelationshipParts'][0]['partName'] ?? null) !== '/word/_rels/draft.xml.rels'
         || ($summary['integrity']['invalidRelationshipParts'][0]['relationshipSourceLoaded'] ?? null) !== false
         || ($summary['integrity']['relationshipSourceAliasGraphRejected'] ?? null) !== true
+        || ($summary['integrity']['partNameCaseCollisionGraphRejected'] ?? null) !== true
+        || ($summary['integrity']['contentTypeOverrideCaseLookup'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
+        || ($summary['integrity']['contentTypeOverrideDuplicateRejected'] ?? null) !== true
         || array_keys($summary['relationshipSourceAliasGuards'] ?? []) !== [
             '/word/_rels/review%20source.xml.rels',
             '/word/_rels/review source.xml.rels',
@@ -735,6 +798,25 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipSourceAliasGuards']['/word/_rels/review source.xml.rels']['relationshipSource'] ?? null) !== '/word/review source.xml'
         || ($summary['relationshipSourceAliasGuards']['/word/_rels/review source.xml.rels']['loaded'] ?? null) !== false
         || ($summary['relationshipSourceAliasGuards']['/word/_rels/review source.xml.rels']['issues'] ?? null) !== ['duplicate-relationship-source']
+        || array_keys($summary['partNameCaseCollisionGuards'] ?? []) !== [
+            '/Word/Document.XML',
+            '/word/document.xml',
+            '/word/media/Hero.PNG',
+            '/word/media/hero.png',
+        ]
+        || ($summary['partNameCaseCollisionGuards']['/Word/Document.XML']['equivalenceKey'] ?? null) !== '/word/document.xml'
+        || ($summary['partNameCaseCollisionGuards']['/Word/Document.XML']['equivalentPartNames'] ?? null) !== [
+            '/Word/Document.XML',
+            '/word/document.xml',
+        ]
+        || ($summary['partNameCaseCollisionGuards']['/Word/Document.XML']['issues'] ?? null) !== ['equivalent-part-name-case-collision']
+        || ($summary['partNameCaseCollisionGuards']['/word/document.xml']['valid'] ?? null) !== false
+        || ($summary['partNameCaseCollisionGuards']['/word/media/Hero.PNG']['equivalenceKey'] ?? null) !== '/word/media/hero.png'
+        || ($summary['partNameCaseCollisionGuards']['/word/media/Hero.PNG']['equivalentPartNames'] ?? null) !== [
+            '/word/media/Hero.PNG',
+            '/word/media/hero.png',
+        ]
+        || ($summary['partNameCaseCollisionGuards']['/word/media/hero.png']['issues'] ?? null) !== ['equivalent-part-name-case-collision']
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeUnexpectedAttributeRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeDefaultDotExtensionRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeOverrideRelativePartNameRejected'] ?? null) !== true

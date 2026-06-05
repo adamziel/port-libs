@@ -466,6 +466,81 @@ XML;
 
         $t->throws(\RuntimeException::class, static fn (): OpcRelationshipGraph => OpcRelationshipGraph::fromPackage($package));
     },
+    'preflights case-insensitive OPC part-name equivalence collisions' => static function (TestRunner $t): void {
+        $types = new OpcContentTypes();
+        $types->addDefault('xml', 'application/xml');
+        $types->addOverride('/Word/Document.XML', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml');
+
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $types->contentTypeForPart('/word/document.xml'));
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $types->contentTypeForPart('/WORD/DOCUMENT.XML'));
+        $t->same(['/Word/Document.XML' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'], $types->overrides());
+        $t->throws(\InvalidArgumentException::class, static fn (): null => $types->addOverride('/word/document.xml', 'application/xml'));
+
+        $duplicateOverridesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/WORD/DOCUMENT.XML" ContentType="application/xml"/>
+</Types>
+XML;
+        $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml($duplicateOverridesXml));
+
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+        $rootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/Document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/media/Hero.PNG', 'data' => 'PNG'],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+        ]);
+
+        $equivalence = [];
+        foreach (OpcRelationshipGraph::preflightPackagePartNameEquivalence($package) as $part) {
+            if ($part['valid']) {
+                continue;
+            }
+
+            $equivalence[$part['partName']] = $part;
+        }
+
+        $t->same([
+            '/word/document.xml',
+            '/word/Document.xml',
+            '/word/media/Hero.PNG',
+            '/word/media/hero.png',
+        ], array_keys($equivalence));
+
+        foreach (['/word/document.xml', '/word/Document.xml'] as $partName) {
+            $t->same('/word/document.xml', $equivalence[$partName]['equivalenceKey']);
+            $t->same(['/word/Document.xml', '/word/document.xml'], $equivalence[$partName]['equivalentPartNames']);
+            $t->same(['equivalent-part-name-case-collision'], $equivalence[$partName]['issues']);
+            $t->same(false, $equivalence[$partName]['valid']);
+        }
+
+        foreach (['/word/media/Hero.PNG', '/word/media/hero.png'] as $partName) {
+            $t->same('/word/media/hero.png', $equivalence[$partName]['equivalenceKey']);
+            $t->same(['/word/media/Hero.PNG', '/word/media/hero.png'], $equivalence[$partName]['equivalentPartNames']);
+            $t->same(['equivalent-part-name-case-collision'], $equivalence[$partName]['issues']);
+        }
+
+        $t->throws(\RuntimeException::class, static fn (): OpcRelationshipGraph => OpcRelationshipGraph::fromPackage($package));
+    },
     'parses package level OPC relationships and resolves package root targets' => static function (TestRunner $t) use ($packageRelationshipsXml): void {
         $relationships = OpcRelationships::fromXml($packageRelationshipsXml);
 
