@@ -315,6 +315,7 @@ $embeddedNativeData = 'opaque legacy embedded spreadsheet bytes';
 $firstPieceText = 'Legacy DOC import ΩЖ魚';
 $secondPieceText = "\rReviewer notes keep hard\vbreaks for block review with "
     . 'note ' . "\x02" . ' and endnote # while checking '
+    . 'comment ' . "\x05" . ' and '
     . $fieldBegin . ' HYPERLINK "https://example.test/legacy-doc?source=42" \o "Source packet" '
     . $fieldSeparator . 'source dossier' . $fieldEnd
     . ' and '
@@ -391,6 +392,25 @@ $plcfendRef = $u32($endnoteReferenceCp)
 $plcfendTxt = $u32(0)
     . $u32(29)
     . $u32(30);
+$commentReferenceOffset = strpos($secondPieceText, "\x05");
+if ($commentReferenceOffset === false) {
+    throw new RuntimeException('Unable to locate legacy DOC comment reference fixture character');
+}
+$commentReferenceCp = $firstPieceCharacters + $characterLength(substr($secondPieceText, 0, $commentReferenceOffset));
+$commentInitialsBytes = $utf16le('MR');
+$commentDescriptor = $u16(2)
+    . $commentInitialsBytes
+    . str_repeat("\0", 18 - strlen($commentInitialsBytes))
+    . $u16(3)
+    . $u16(0)
+    . $u16(0)
+    . $u32(0x2042);
+$plcfandRef = $u32($commentReferenceCp)
+    . $u32($totalPieceCharacters + 1)
+    . $commentDescriptor;
+$plcfandTxt = $u32(0)
+    . $u32(24)
+    . $u32(25);
 $plcfSed = $u32(0)
     . $u32($totalPieceCharacters + 1)
     . $u16(0) . $u32($sepxFc) . $u16(0) . $u32(0);
@@ -414,11 +434,13 @@ $fcPlcffndRef = $fcPlcfBkl + strlen($plcfBkl);
 $fcPlcffndTxt = $fcPlcffndRef + strlen($plcffndRef);
 $fcPlcfendRef = $fcPlcffndTxt + strlen($plcffndTxt);
 $fcPlcfendTxt = $fcPlcfendRef + strlen($plcfendRef);
-$fcPlcfSed = $fcPlcfendTxt + strlen($plcfendTxt);
+$fcPlcfandRef = $fcPlcfendTxt + strlen($plcfendTxt);
+$fcPlcfandTxt = $fcPlcfandRef + strlen($plcfandRef);
+$fcPlcfSed = $fcPlcfandTxt + strlen($plcfandTxt);
 $fcPlcBtePapx = $fcPlcfSed + strlen($plcfSed);
 $fcPlcBteChpx = $fcPlcBtePapx + strlen($plcBtePapx);
 $fcStshf = $fcPlcBteChpx + strlen($plcBteChpx);
-$tableStream = $clx . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh;
+$tableStream = $clx . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh;
 $wordDocument = substr_replace($wordDocument, $u32($fcStshf), 0x00a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($stsh)), 0x00a6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcBteChpx), 0x00fa, 4);
@@ -443,6 +465,10 @@ $wordDocument = substr_replace($wordDocument, $u32($fcPlcfendRef), 0x020a, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfendRef)), 0x020e, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfendTxt), 0x0212, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfendTxt)), 0x0216, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcPlcfandRef), 0x00ba, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($plcfandRef)), 0x00be, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcPlcfandTxt), 0x00c2, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($plcfandTxt)), 0x00c6, 4);
 $docSummaryFmtid = hex2bin('02d5cdd59c2e1b10939708002b2cf9ae');
 $userDefinedFmtid = hex2bin('05d5cdd59c2e1b10939708002b2cf9ae');
 if (!is_string($docSummaryFmtid) || !is_string($userDefinedFmtid)) {
@@ -749,6 +775,7 @@ $summary = [
     'bookmarks' => $result['bookmarks'],
     'footnotes' => $result['footnotes'],
     'endnotes' => $result['endnotes'],
+    'comments' => $result['comments'],
     'embeddedObjects' => $result['embeddedObjects'],
     'macroProjects' => $result['macroProjects'],
     'blockCount' => count($result['document']->children),
@@ -891,6 +918,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['endnotes'][0]['marker'] ?? '') !== '#' || ($summary['endnotes'][0]['autoNumbered'] ?? null) !== false) {
         throw new RuntimeException('Legacy DOC handoff self-test missing custom endnote metadata');
     }
+    if (($summary['metadata']['commentReferenceCount'] ?? null) !== 1) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing comment reference count');
+    }
+    if (($summary['comments'][0]['marker'] ?? '') !== 'MR' || ($summary['comments'][0]['authorInitials'] ?? '') !== 'MR') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing comment author initials');
+    }
+    if (($summary['comments'][0]['authorIndex'] ?? null) !== 3 || ($summary['comments'][0]['bookmarkTag'] ?? null) !== 0x2042) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing comment descriptor provenance');
+    }
     if (($summary['metadata']['embeddedObjectCount'] ?? null) !== 1) {
         throw new RuntimeException('Legacy DOC handoff self-test missing embedded object count');
     }
@@ -972,6 +1008,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Reviewer notes keep hard<br/>breaks for block review with note ',
         '<span class="legacy-doc-note-ref legacy-doc-footnote-ref" data-legacy-doc-note-type="footnote" data-legacy-doc-note-index="1" data-legacy-doc-note-reference-cp="' . (string) ($summary['footnotes'][0]['referenceCp'] ?? '') . '" data-legacy-doc-note-text-start-cp="0" data-legacy-doc-note-text-end-cp="35" data-legacy-doc-note-auto-numbered="true"><sup>1</sup></span>',
         '<span class="legacy-doc-note-ref legacy-doc-endnote-ref" data-legacy-doc-note-type="endnote" data-legacy-doc-note-index="0" data-legacy-doc-note-reference-cp="' . (string) ($summary['endnotes'][0]['referenceCp'] ?? '') . '" data-legacy-doc-note-text-start-cp="0" data-legacy-doc-note-text-end-cp="29" data-legacy-doc-note-auto-numbered="false"><sup>#</sup></span>',
+        '<span class="legacy-doc-comment-ref" data-legacy-doc-comment-index="1" data-legacy-doc-comment-reference-cp="' . (string) ($summary['comments'][0]['referenceCp'] ?? '') . '" data-legacy-doc-comment-text-start-cp="0" data-legacy-doc-comment-text-end-cp="24" data-legacy-doc-comment-author-index="3" data-legacy-doc-comment-author-initials="MR" data-legacy-doc-comment-bookmark-tag="8258"><sup>MR</sup></span>',
         '<a href="https://example.test/legacy-doc?source=42" title="Source packet">source dossier</a>',
         '<a href="#legacy_anchor">opening bookmark</a>',
         '<span class="legacy-doc-field legacy-doc-field-page" data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \* Arabic" data-legacy-doc-field-format="Arabic">7</span>',

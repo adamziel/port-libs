@@ -709,6 +709,48 @@ $buildNoteTableDocStreams = static function () use ($u16, $u32): array {
     ];
 };
 
+$buildCommentTableDocStreams = static function () use ($utf16le, $u16, $u32): array {
+    $text = "Alpha \x05 beta\r";
+    $fibSize = 1024;
+    $wordDocument = str_repeat("\0", $fibSize) . $text;
+    $wordDocument = substr_replace($wordDocument, $u16(0xa5ec), 0, 2);
+    $wordDocument = substr_replace($wordDocument, $u16(0x00c1), 2, 2);
+    $wordDocument = substr_replace($wordDocument, $u32($fibSize), 24, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fibSize + strlen($text)), 28, 4);
+
+    $initialsBytes = $utf16le('JD');
+    $atrd = $u16(2)
+        . $initialsBytes
+        . str_repeat("\0", 18 - strlen($initialsBytes))
+        . $u16(2)
+        . $u16(0)
+        . $u16(0)
+        . $u32(0x1234);
+
+    $commentReferenceCp = 6;
+    $textEndCp = strlen($text);
+    $plcfandRef = $u32($commentReferenceCp)
+        . $u32($textEndCp)
+        . $atrd;
+    $plcfandTxt = $u32(0)
+        . $u32(31)
+        . $u32(32);
+
+    $fcPlcfandRef = 0;
+    $fcPlcfandTxt = strlen($plcfandRef);
+    $tableStream = $plcfandRef . $plcfandTxt;
+
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlcfandRef), 0x00ba, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfandRef)), 0x00be, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlcfandTxt), 0x00c2, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfandTxt)), 0x00c6, 4);
+
+    return [
+        'WordDocument' => $wordDocument,
+        '0Table' => $tableStream,
+    ];
+};
+
 $buildSectionTableDocStreams = static function () use ($u16, $u32): array {
     $text = "Intro section\fSecond section\r";
     $fibSize = 1024;
@@ -1623,6 +1665,50 @@ return [
         $t->contains('<span class="legacy-doc-note-ref legacy-doc-endnote-ref" data-legacy-doc-note-type="endnote" data-legacy-doc-note-index="0" data-legacy-doc-note-reference-cp="13" data-legacy-doc-note-text-start-cp="0" data-legacy-doc-note-text-end-cp="11" data-legacy-doc-note-auto-numbered="false"><sup>*</sup></span>', $blocks);
         $t->true(!str_contains($blocks, "\x02"), 'Legacy DOC special footnote reference character should not render directly');
     },
+    'extracts legacy DOC comment reference PLCs as review anchors' => static function (TestRunner $t) use ($buildCfb, $buildCommentTableDocStreams): void {
+        $result = (new LegacyDocReader())->readBytes($buildCfb($buildCommentTableDocStreams()));
+        $document = $result['document'];
+        $comments = $result['comments'];
+        $metadata = $result['metadata'];
+        $paragraph = $document->children[0];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(1, count($comments));
+        $t->same($comments, $document->attr('comments'));
+        $t->same($comments, $metadata['comments']);
+        $t->same(1, $metadata['commentReferenceCount']);
+        $t->same('comment', $comments[0]['type']);
+        $t->same(1, $comments[0]['index']);
+        $t->same(6, $comments[0]['referenceCp']);
+        $t->same('JD', $comments[0]['authorInitials']);
+        $t->same(2, $comments[0]['authorIndex']);
+        $t->same(0x1234, $comments[0]['bookmarkTag']);
+        $t->same(false, $comments[0]['lengthZeroRange']);
+        $t->same('JD', $comments[0]['marker']);
+        $t->same(0, $comments[0]['textStartCp']);
+        $t->same(31, $comments[0]['textEndCp']);
+        $t->same(true, $comments[0]['canAnchor']);
+
+        $t->same('Alpha ', $paragraph->children[0]->attr('text'));
+        $commentRef = $paragraph->children[1];
+        $t->same('span', $commentRef->type);
+        $t->same(['legacy-doc-comment-ref'], $commentRef->attr('classes'));
+        $t->same('1', $commentRef->attr('attributes')['data-legacy-doc-comment-index']);
+        $t->same('6', $commentRef->attr('attributes')['data-legacy-doc-comment-reference-cp']);
+        $t->same('0', $commentRef->attr('attributes')['data-legacy-doc-comment-text-start-cp']);
+        $t->same('31', $commentRef->attr('attributes')['data-legacy-doc-comment-text-end-cp']);
+        $t->same('2', $commentRef->attr('attributes')['data-legacy-doc-comment-author-index']);
+        $t->same('JD', $commentRef->attr('attributes')['data-legacy-doc-comment-author-initials']);
+        $t->same((string) 0x1234, $commentRef->attr('attributes')['data-legacy-doc-comment-bookmark-tag']);
+        $t->same('superscript', $commentRef->children[0]->type);
+        $t->same('JD', $commentRef->children[0]->children[0]->attr('text'));
+        $t->same(' beta', $paragraph->children[2]->attr('text'));
+
+        $t->contains('[^JD^]{.legacy-doc-comment-ref data-legacy-doc-comment-index="1"', $markdown);
+        $t->contains('<span class="legacy-doc-comment-ref" data-legacy-doc-comment-index="1" data-legacy-doc-comment-reference-cp="6" data-legacy-doc-comment-text-start-cp="0" data-legacy-doc-comment-text-end-cp="31" data-legacy-doc-comment-author-index="2" data-legacy-doc-comment-author-initials="JD" data-legacy-doc-comment-bookmark-tag="4660"><sup>JD</sup></span>', $blocks);
+        $t->true(!str_contains($blocks, "\x05"), 'Legacy DOC special comment reference character should not render directly');
+    },
     'extracts legacy DOC section descriptor PLCs as bounded layout review metadata' => static function (TestRunner $t) use ($buildCfb, $buildSectionTableDocStreams): void {
         $result = (new LegacyDocReader())->readBytes($buildCfb($buildSectionTableDocStreams()));
         $document = $result['document'];
@@ -1782,7 +1868,7 @@ return [
         $badSepxPointer['0Table'] = substr_replace($badSepxPointer['0Table'], $u32(999999), 26, 4);
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badSepxPointer)));
     },
-    'rejects malformed legacy DOC footnote and endnote PLCs before rendering references' => static function (TestRunner $t) use ($buildCfb, $buildNoteTableDocStreams, $u32): void {
+    'rejects malformed legacy DOC footnote endnote and comment PLCs before rendering references' => static function (TestRunner $t) use ($buildCfb, $buildNoteTableDocStreams, $buildCommentTableDocStreams, $u16, $u32): void {
         $reader = new LegacyDocReader();
         $missingFootnoteText = $buildNoteTableDocStreams();
         $missingFootnoteText['WordDocument'] = substr_replace($missingFootnoteText['WordDocument'], $u32(0), 0x00b6, 4);
@@ -1791,6 +1877,18 @@ return [
         $badAutoReference = $buildNoteTableDocStreams();
         $badAutoReference['WordDocument'] = substr_replace($badAutoReference['WordDocument'], 'x', 1024 + 6, 1);
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badAutoReference)));
+
+        $missingCommentText = $buildCommentTableDocStreams();
+        $missingCommentText['WordDocument'] = substr_replace($missingCommentText['WordDocument'], $u32(0), 0x00c6, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($missingCommentText)));
+
+        $badCommentMarker = $buildCommentTableDocStreams();
+        $badCommentMarker['WordDocument'] = substr_replace($badCommentMarker['WordDocument'], 'x', 1024 + 6, 1);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badCommentMarker)));
+
+        $badCommentReserved = $buildCommentTableDocStreams();
+        $badCommentReserved['0Table'] = substr_replace($badCommentReserved['0Table'], $u16(1), 8 + 22, 2);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badCommentReserved)));
     },
     'preserves legacy DOC non-hyperlink field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $fieldBegin = "\x13";

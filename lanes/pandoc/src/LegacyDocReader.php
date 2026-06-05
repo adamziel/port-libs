@@ -15,6 +15,10 @@ final class LegacyDocReader
     private const FIB_LCB_PLCFFND_REF = 0x00ae;
     private const FIB_FC_PLCFFND_TXT = 0x00b2;
     private const FIB_LCB_PLCFFND_TXT = 0x00b6;
+    private const FIB_FC_PLCFAND_REF = 0x00ba;
+    private const FIB_LCB_PLCFAND_REF = 0x00be;
+    private const FIB_FC_PLCFAND_TXT = 0x00c2;
+    private const FIB_LCB_PLCFAND_TXT = 0x00c6;
     private const FIB_FC_PLCF_SED = 0x00ca;
     private const FIB_LCB_PLCF_SED = 0x00ce;
     private const FIB_FC_PLCF_BTE_CHPX = 0x00fa;
@@ -33,7 +37,7 @@ final class LegacyDocReader
     private const FIB_LCB_PLCFEND_TXT = 0x0216;
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readBytes(string $bytes): array
     {
@@ -41,7 +45,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -139,6 +143,11 @@ final class LegacyDocReader
             $metadata['endnoteReferenceCount'] = count($endnotes);
             $metadata['endnotes'] = $endnotes;
         }
+        $comments = $this->commentReferenceReport($wordDocument, $tableStream, $textResult['text']);
+        if ($comments !== []) {
+            $metadata['commentReferenceCount'] = count($comments);
+            $metadata['comments'] = $comments;
+        }
         $embeddedObjects = $this->embeddedObjectReport($compoundFile);
         if ($embeddedObjects !== []) {
             $metadata['embeddedObjectCount'] = count($embeddedObjects);
@@ -164,6 +173,7 @@ final class LegacyDocReader
             'bookmarks' => $bookmarks,
             'footnotes' => $footnotes,
             'endnotes' => $endnotes,
+            'comments' => $comments,
             'embeddedObjects' => $embeddedObjects,
             'macroProjects' => $macroProjects,
         ];
@@ -172,7 +182,7 @@ final class LegacyDocReader
             'document' => new AstNode('document', $attrs, $this->paragraphNodes(
                 $textResult['text'],
                 $bookmarks,
-                array_merge($footnotes, $endnotes)
+                array_merge($footnotes, $endnotes, $comments)
             )),
             'metadata' => $metadata,
             'streams' => $compoundFile->streamNames(),
@@ -185,6 +195,7 @@ final class LegacyDocReader
             'bookmarks' => $bookmarks,
             'footnotes' => $footnotes,
             'endnotes' => $endnotes,
+            'comments' => $comments,
             'embeddedObjects' => $embeddedObjects,
             'macroProjects' => $macroProjects,
         ];
@@ -993,6 +1004,26 @@ final class LegacyDocReader
     private function noteReferenceSpanAttrs(array $noteReference): array
     {
         $type = (string) ($noteReference['type'] ?? 'footnote');
+        if ($type === 'comment') {
+            $attributes = [
+                'data-legacy-doc-comment-index' => (string) ((int) ($noteReference['index'] ?? 0)),
+                'data-legacy-doc-comment-reference-cp' => (string) ((int) ($noteReference['referenceCp'] ?? 0)),
+                'data-legacy-doc-comment-text-start-cp' => (string) ((int) ($noteReference['textStartCp'] ?? 0)),
+                'data-legacy-doc-comment-text-end-cp' => (string) ((int) ($noteReference['textEndCp'] ?? 0)),
+                'data-legacy-doc-comment-author-index' => (string) ((int) ($noteReference['authorIndex'] ?? 0)),
+            ];
+            if (($noteReference['authorInitials'] ?? '') !== '') {
+                $attributes['data-legacy-doc-comment-author-initials'] = (string) $noteReference['authorInitials'];
+            }
+            if (isset($noteReference['bookmarkTag'])) {
+                $attributes['data-legacy-doc-comment-bookmark-tag'] = (string) ((int) $noteReference['bookmarkTag']);
+            }
+
+            return [
+                'classes' => ['legacy-doc-comment-ref'],
+                'attributes' => $attributes,
+            ];
+        }
 
         return [
             'classes' => ['legacy-doc-note-ref', 'legacy-doc-' . $type . '-ref'],
@@ -2788,6 +2819,138 @@ final class LegacyDocReader
         }
 
         return '*';
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function commentReferenceReport(string $wordDocument, ?string $tableStream, string $text): array
+    {
+        if ($tableStream === null || strlen($wordDocument) < self::FIB_LCB_PLCFAND_TXT + 4) {
+            return [];
+        }
+
+        $fib = $this->readFib($wordDocument);
+        if ((int) $fib['fcMin'] > 0 && self::FIB_LCB_PLCFAND_TXT + 4 > (int) $fib['fcMin']) {
+            return [];
+        }
+
+        $fcRef = self::u32($wordDocument, self::FIB_FC_PLCFAND_REF);
+        $lcbRef = self::u32($wordDocument, self::FIB_LCB_PLCFAND_REF);
+        $fcTxt = self::u32($wordDocument, self::FIB_FC_PLCFAND_TXT);
+        $lcbTxt = self::u32($wordDocument, self::FIB_LCB_PLCFAND_TXT);
+        if ($lcbRef === 0 && $lcbTxt === 0) {
+            return [];
+        }
+        if ($lcbRef === 0 || $lcbTxt === 0) {
+            throw new \RuntimeException('Legacy DOC comment reference PLC is present without matching text-range PLC');
+        }
+
+        $references = $this->parseCommentReferencePlc(
+            $this->tableStreamSlice($tableStream, $fcRef, $lcbRef, 'comment reference PLC')
+        );
+        $ranges = $this->parseNoteTextPlc(
+            $this->tableStreamSlice($tableStream, $fcTxt, $lcbTxt, 'comment text PLC'),
+            'comment'
+        );
+        if (count($references) !== count($ranges)) {
+            throw new \RuntimeException('Legacy DOC comment reference and text PLCs do not contain parallel counts');
+        }
+
+        $characters = $this->unicodeCharacters($text);
+        $textLength = count($characters);
+        $comments = [];
+        foreach ($references as $index => $reference) {
+            $referenceCp = (int) $reference['referenceCp'];
+            if ($referenceCp < 0 || $referenceCp >= $textLength) {
+                throw new \RuntimeException('Legacy DOC comment reference CP points outside the extracted main text');
+            }
+            if (($characters[$referenceCp] ?? '') !== "\x05") {
+                throw new \RuntimeException('Legacy DOC comment reference is missing the special annotation reference character');
+            }
+
+            $range = $ranges[$index];
+            $authorInitials = (string) ($reference['authorInitials'] ?? '');
+            $comments[] = [
+                'type' => 'comment',
+                'index' => $index + 1,
+                'referenceCp' => $referenceCp,
+                'authorInitials' => $authorInitials,
+                'authorIndex' => (int) $reference['authorIndex'],
+                'bookmarkTag' => (int) $reference['bookmarkTag'],
+                'lengthZeroRange' => (int) $reference['bookmarkTag'] === -1,
+                'marker' => $authorInitials !== '' ? $authorInitials : (string) ($index + 1),
+                'textStartCp' => (int) $range['startCp'],
+                'textEndCp' => (int) $range['endCp'],
+                'canAnchor' => true,
+            ];
+        }
+
+        return $comments;
+    }
+
+    /**
+     * @return list<array{referenceCp:int,authorInitials:string,authorIndex:int,bookmarkTag:int}>
+     */
+    private function parseCommentReferencePlc(string $bytes): array
+    {
+        $length = strlen($bytes);
+        if ($length < 38 || (($length - 4) % 34) !== 0) {
+            throw new \RuntimeException('Legacy DOC comment reference PLC has an invalid length');
+        }
+
+        $count = intdiv($length - 4, 34);
+        $dataOffset = ($count + 1) * 4;
+        $entries = [];
+        $previousCp = null;
+        $seenCps = [];
+        for ($index = 0; $index < $count; $index++) {
+            $referenceCp = self::u32($bytes, $index * 4);
+            if ($previousCp !== null && $referenceCp <= $previousCp) {
+                throw new \RuntimeException('Legacy DOC comment reference PLC contains duplicate or unsorted CPs');
+            }
+            if (isset($seenCps[$referenceCp])) {
+                throw new \RuntimeException('Legacy DOC comment reference PLC contains duplicate CPs');
+            }
+            $previousCp = $referenceCp;
+            $seenCps[$referenceCp] = true;
+
+            $recordOffset = $dataOffset + ($index * 30);
+            $unusedBits = self::u16($bytes, $recordOffset + 22);
+            $unusedFlags = self::u16($bytes, $recordOffset + 24);
+            if ($unusedBits !== 0 || $unusedFlags !== 0) {
+                throw new \RuntimeException('Legacy DOC comment reference descriptor contains nonzero reserved fields');
+            }
+
+            $bookmarkTag = self::signed32(self::u32($bytes, $recordOffset + 26));
+            $entries[] = [
+                'referenceCp' => $referenceCp,
+                'authorInitials' => $this->readLpxCharBuffer9(substr($bytes, $recordOffset, 20)),
+                'authorIndex' => self::u16($bytes, $recordOffset + 20),
+                'bookmarkTag' => $bookmarkTag,
+            ];
+        }
+
+        $ignoredCp = self::u32($bytes, $count * 4);
+        if ($previousCp !== null && $ignoredCp <= $previousCp) {
+            throw new \RuntimeException('Legacy DOC comment reference PLC final CP is not after the last reference CP');
+        }
+
+        return $entries;
+    }
+
+    private function readLpxCharBuffer9(string $bytes): string
+    {
+        if (strlen($bytes) !== 20) {
+            throw new \RuntimeException('Legacy DOC LPXCharBuffer9 is truncated');
+        }
+
+        $characters = self::u16($bytes, 0);
+        if ($characters > 9) {
+            throw new \RuntimeException('Legacy DOC LPXCharBuffer9 declares too many characters');
+        }
+
+        return $characters === 0 ? '' : $this->decodeUtf16Le(substr($bytes, 2, $characters * 2));
     }
 
     /**
