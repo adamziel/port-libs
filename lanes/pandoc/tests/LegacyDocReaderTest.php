@@ -693,6 +693,127 @@ $buildSubdocumentPieceTableDocStreams = static function () use ($u16, $u32): arr
     ];
 };
 
+$buildSubdocumentReferenceBodyDocStreams = static function () use ($utf16le, $u16, $u32): array {
+    $mainText = "Main \x02 footnote, # endnote, \x05 comment\r";
+    $separator = "\r";
+    $footnoteText = "Footnote body retained for reviewer metadata.\r";
+    $headerText = "Header text stays metadata-only.\r";
+    $commentText = "Comment body retained for reviewer metadata.\r";
+    $endnoteText = "Endnote body retained for reviewer metadata.\r";
+
+    $pieces = [
+        $mainText,
+        $separator,
+        $footnoteText,
+        $headerText,
+        $commentText,
+        $endnoteText,
+    ];
+    $cpOffsets = [0];
+    foreach ($pieces as $piece) {
+        $cpOffsets[] = end($cpOffsets) + strlen($piece);
+    }
+
+    $pieceStart = 1536;
+    $wordDocument = str_repeat("\0", $pieceStart);
+    $pcds = '';
+    foreach ($pieces as $piece) {
+        $pieceBytes = $utf16le($piece);
+        $fc = strlen($wordDocument);
+        $wordDocument .= $pieceBytes;
+        $pcds .= $u16(0) . $u32($fc) . "\0\0";
+    }
+
+    $plc = '';
+    foreach ($cpOffsets as $cp) {
+        $plc .= $u32($cp);
+    }
+    $plc .= $pcds;
+    $clx = "\x02" . $u32(strlen($plc)) . $plc;
+
+    $footnoteReferenceCp = strpos($mainText, "\x02");
+    $endnoteReferenceCp = strpos($mainText, '#');
+    $commentReferenceCp = strpos($mainText, "\x05");
+    if ($footnoteReferenceCp === false || $endnoteReferenceCp === false || $commentReferenceCp === false) {
+        throw new RuntimeException('Unable to locate note/comment reference markers in legacy DOC fixture');
+    }
+
+    $mainTextEndCp = strlen($mainText);
+    $plcffndRef = $u32($footnoteReferenceCp)
+        . $u32($mainTextEndCp)
+        . $u16(1);
+    $plcffndTxt = $u32(0)
+        . $u32(strlen($footnoteText))
+        . $u32(strlen($footnoteText) + 1);
+    $plcfendRef = $u32($endnoteReferenceCp)
+        . $u32($mainTextEndCp)
+        . $u16(0);
+    $plcfendTxt = $u32(0)
+        . $u32(strlen($endnoteText))
+        . $u32(strlen($endnoteText) + 1);
+
+    $commentInitialsBytes = $utf16le('CM');
+    $commentDescriptor = $u16(2)
+        . $commentInitialsBytes
+        . str_repeat("\0", 18 - strlen($commentInitialsBytes))
+        . $u16(4)
+        . $u16(0)
+        . $u16(0)
+        . $u32(0x3344);
+    $plcfandRef = $u32($commentReferenceCp)
+        . $u32($mainTextEndCp)
+        . $commentDescriptor;
+    $plcfandTxt = $u32(0)
+        . $u32(strlen($commentText))
+        . $u32(strlen($commentText) + 1);
+
+    $fcPlcffndRef = strlen($clx);
+    $fcPlcffndTxt = $fcPlcffndRef + strlen($plcffndRef);
+    $fcPlcfendRef = $fcPlcffndTxt + strlen($plcffndTxt);
+    $fcPlcfendTxt = $fcPlcfendRef + strlen($plcfendRef);
+    $fcPlcfandRef = $fcPlcfendTxt + strlen($plcfendTxt);
+    $fcPlcfandTxt = $fcPlcfandRef + strlen($plcfandRef);
+    $tableStream = $clx . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt;
+
+    $wordDocument = substr_replace($wordDocument, $u16(0xa5ec), 0, 2);
+    $wordDocument = substr_replace($wordDocument, $u16(0x00c1), 2, 2);
+    $wordDocument = substr_replace($wordDocument, $u16(0x0204), 10, 2);
+    $wordDocument = substr_replace($wordDocument, $u32(0), 24, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($wordDocument)), 28, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($wordDocument)), 0x0040, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($mainText)), 0x004c, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($footnoteText)), 0x0050, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($headerText)), 0x0054, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($commentText)), 0x005c, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($endnoteText)), 0x0060, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(0), 0x01a2, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($clx)), 0x01a6, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlcffndRef), 0x00aa, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcffndRef)), 0x00ae, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlcffndTxt), 0x00b2, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcffndTxt)), 0x00b6, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlcfendRef), 0x020a, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfendRef)), 0x020e, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlcfendTxt), 0x0212, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfendTxt)), 0x0216, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlcfandRef), 0x00ba, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfandRef)), 0x00be, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlcfandTxt), 0x00c2, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfandTxt)), 0x00c6, 4);
+
+    return [
+        'streams' => [
+            'WordDocument' => $wordDocument,
+            '1Table' => $tableStream,
+        ],
+        'mainText' => $mainText,
+        'footnoteText' => $footnoteText,
+        'headerText' => $headerText,
+        'commentText' => $commentText,
+        'endnoteText' => $endnoteText,
+    ];
+};
+
 $buildBookmarkTableDocStreams = static function () use ($buildSimpleWordDocument, $utf16le, $u16, $u32): array {
     $text = "Intro target text\rJump to anchor\r";
     $wordDocument = $buildSimpleWordDocument($text);
@@ -1678,6 +1799,54 @@ return [
                 'characterCount' => $commentCharacters,
             ],
         ], $fibRgLw97['subdocuments']);
+    },
+    'extracts legacy DOC supplemental note comment and header subdocument text as metadata only' => static function (TestRunner $t) use ($buildCfb, $buildSubdocumentReferenceBodyDocStreams): void {
+        $fixture = $buildSubdocumentReferenceBodyDocStreams();
+        $result = (new LegacyDocReader())->readBytes($buildCfb($fixture['streams']));
+        $document = $result['document'];
+        $metadata = $result['metadata'];
+        $subdocuments = $result['subdocuments'];
+        $footnotes = $result['footnotes'];
+        $endnotes = $result['endnotes'];
+        $comments = $result['comments'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $subdocumentsByType = [];
+        foreach ($subdocuments as $subdocument) {
+            $subdocumentsByType[(string) $subdocument['type']] = $subdocument;
+        }
+
+        $t->same(4, count($subdocuments));
+        $t->same(4, $metadata['subdocumentCount']);
+        $t->same($subdocuments, $metadata['subdocuments']);
+        $t->same($subdocuments, $document->attr('subdocuments'));
+        $t->same($fixture['footnoteText'], $subdocumentsByType['footnote']['text']);
+        $t->same($fixture['headerText'], $subdocumentsByType['header']['text']);
+        $t->same($fixture['commentText'], $subdocumentsByType['comment']['text']);
+        $t->same($fixture['endnoteText'], $subdocumentsByType['endnote']['text']);
+
+        $t->same($fixture['footnoteText'], $footnotes[0]['bodyText']);
+        $t->same(strlen($fixture['footnoteText']), $footnotes[0]['bodyCharacterCount']);
+        $t->same($fixture['endnoteText'], $endnotes[0]['bodyText']);
+        $t->same(strlen($fixture['endnoteText']), $endnotes[0]['bodyCharacterCount']);
+        $t->same($fixture['commentText'], $comments[0]['bodyText']);
+        $t->same(strlen($fixture['commentText']), $comments[0]['bodyCharacterCount']);
+
+        $paragraph = $document->children[0];
+        $footnoteRef = $paragraph->children[1];
+        $endnoteRef = $paragraph->children[3];
+        $commentRef = $paragraph->children[5];
+        $t->same('true', $footnoteRef->attr('attributes')['data-legacy-doc-note-has-body']);
+        $t->same((string) strlen($fixture['footnoteText']), $footnoteRef->attr('attributes')['data-legacy-doc-note-body-character-count']);
+        $t->same('true', $endnoteRef->attr('attributes')['data-legacy-doc-note-has-body']);
+        $t->same((string) strlen($fixture['endnoteText']), $endnoteRef->attr('attributes')['data-legacy-doc-note-body-character-count']);
+        $t->same('true', $commentRef->attr('attributes')['data-legacy-doc-comment-has-body']);
+        $t->same((string) strlen($fixture['commentText']), $commentRef->attr('attributes')['data-legacy-doc-comment-body-character-count']);
+
+        $t->contains('<p>Main <span class="legacy-doc-note-ref legacy-doc-footnote-ref"', $blocks);
+        foreach (['footnoteText', 'headerText', 'commentText', 'endnoteText'] as $field) {
+            $t->true(!str_contains($blocks, trim($fixture[$field])), 'Legacy DOC supplemental subdocument text should not render to WordPress blocks');
+        }
     },
     'honors legacy DOC piece-table no-paragraph-last flags on non-paragraph pieces' => static function (TestRunner $t) use ($buildCfb, $buildPieceTableDocStreams): void {
         $streams = $buildPieceTableDocStreams(0x0001);

@@ -828,6 +828,7 @@ $summary = [
     'directoryEntries' => $result['directoryEntries'],
     'textSource' => $result['document']->attr('textSource'),
     'fib' => $result['fib'],
+    'subdocuments' => $result['subdocuments'],
     'styles' => $result['styles'],
     'formattingRuns' => $result['formattingRuns'],
     'sections' => $result['sections'],
@@ -1043,6 +1044,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['comments'][0]['authorIndex'] ?? null) !== 3 || ($summary['comments'][0]['bookmarkTag'] ?? null) !== 0x2042) {
         throw new RuntimeException('Legacy DOC handoff self-test missing comment descriptor provenance');
     }
+    $subdocumentsByType = [];
+    foreach (($summary['subdocuments'] ?? []) as $subdocument) {
+        $subdocumentsByType[(string) ($subdocument['type'] ?? '')] = $subdocument;
+    }
+    if (($summary['metadata']['subdocumentCount'] ?? null) !== 4 || count($subdocumentsByType) !== 4) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing supplemental subdocument text records');
+    }
+    if (
+        ($subdocumentsByType['footnote']['text'] ?? '') !== $footnoteSubdocumentText
+        || ($subdocumentsByType['header']['text'] ?? '') !== $headerSubdocumentText
+        || ($subdocumentsByType['comment']['text'] ?? '') !== $commentSubdocumentText
+        || ($subdocumentsByType['endnote']['text'] ?? '') !== $endnoteSubdocumentText
+    ) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing supplemental subdocument body text');
+    }
+    if (($summary['footnotes'][0]['bodyText'] ?? '') !== substr($footnoteSubdocumentText, 0, 35)) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing bounded footnote body text');
+    }
+    if (($summary['endnotes'][0]['bodyText'] ?? '') !== substr($endnoteSubdocumentText, 0, 29)) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing bounded endnote body text');
+    }
+    if (($summary['comments'][0]['bodyText'] ?? '') !== substr($commentSubdocumentText, 0, 24)) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing bounded comment body text');
+    }
     if (($summary['metadata']['embeddedObjectCount'] ?? null) !== 1) {
         throw new RuntimeException('Legacy DOC handoff self-test missing embedded object count');
     }
@@ -1122,9 +1147,9 @@ if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         '<p><span id="legacy_anchor" class="legacy-doc-bookmark" data-legacy-doc-bookmark="legacy_anchor" data-legacy-doc-bookmark-start-cp="0" data-legacy-doc-bookmark-end-cp="21">Legacy DOC import ΩЖ魚</span></p>',
         '<p>Reviewer notes keep hard<br/>breaks for block review with note ',
-        '<span class="legacy-doc-note-ref legacy-doc-footnote-ref" data-legacy-doc-note-type="footnote" data-legacy-doc-note-index="1" data-legacy-doc-note-reference-cp="' . (string) ($summary['footnotes'][0]['referenceCp'] ?? '') . '" data-legacy-doc-note-text-start-cp="0" data-legacy-doc-note-text-end-cp="35" data-legacy-doc-note-auto-numbered="true"><sup>1</sup></span>',
-        '<span class="legacy-doc-note-ref legacy-doc-endnote-ref" data-legacy-doc-note-type="endnote" data-legacy-doc-note-index="0" data-legacy-doc-note-reference-cp="' . (string) ($summary['endnotes'][0]['referenceCp'] ?? '') . '" data-legacy-doc-note-text-start-cp="0" data-legacy-doc-note-text-end-cp="29" data-legacy-doc-note-auto-numbered="false"><sup>#</sup></span>',
-        '<span class="legacy-doc-comment-ref" data-legacy-doc-comment-index="1" data-legacy-doc-comment-reference-cp="' . (string) ($summary['comments'][0]['referenceCp'] ?? '') . '" data-legacy-doc-comment-text-start-cp="0" data-legacy-doc-comment-text-end-cp="24" data-legacy-doc-comment-author-index="3" data-legacy-doc-comment-author-initials="MR" data-legacy-doc-comment-bookmark-tag="8258"><sup>MR</sup></span>',
+        '<span class="legacy-doc-note-ref legacy-doc-footnote-ref" data-legacy-doc-note-type="footnote" data-legacy-doc-note-index="1" data-legacy-doc-note-reference-cp="' . (string) ($summary['footnotes'][0]['referenceCp'] ?? '') . '" data-legacy-doc-note-text-start-cp="0" data-legacy-doc-note-text-end-cp="35" data-legacy-doc-note-auto-numbered="true" data-legacy-doc-note-has-body="true" data-legacy-doc-note-body-character-count="35"><sup>1</sup></span>',
+        '<span class="legacy-doc-note-ref legacy-doc-endnote-ref" data-legacy-doc-note-type="endnote" data-legacy-doc-note-index="0" data-legacy-doc-note-reference-cp="' . (string) ($summary['endnotes'][0]['referenceCp'] ?? '') . '" data-legacy-doc-note-text-start-cp="0" data-legacy-doc-note-text-end-cp="29" data-legacy-doc-note-auto-numbered="false" data-legacy-doc-note-has-body="true" data-legacy-doc-note-body-character-count="29"><sup>#</sup></span>',
+        '<span class="legacy-doc-comment-ref" data-legacy-doc-comment-index="1" data-legacy-doc-comment-reference-cp="' . (string) ($summary['comments'][0]['referenceCp'] ?? '') . '" data-legacy-doc-comment-text-start-cp="0" data-legacy-doc-comment-text-end-cp="24" data-legacy-doc-comment-author-index="3" data-legacy-doc-comment-author-initials="MR" data-legacy-doc-comment-bookmark-tag="8258" data-legacy-doc-comment-has-body="true" data-legacy-doc-comment-body-character-count="24"><sup>MR</sup></span>',
         '<a href="https://example.test/legacy-doc?source=42" title="Source packet">source dossier</a>',
         '<a href="#legacy_anchor">opening bookmark</a>',
         '<span class="legacy-doc-field legacy-doc-field-page" data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \* Arabic" data-legacy-doc-field-format="Arabic">7</span>',

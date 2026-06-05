@@ -56,7 +56,7 @@ final class LegacyDocReader
     ];
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readBytes(string $bytes): array
     {
@@ -64,7 +64,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -94,12 +94,18 @@ final class LegacyDocReader
         }
 
         $textResult = $this->extractText($wordDocument, $tableStream, $fib);
+        $subdocuments = is_array($textResult['subdocuments'] ?? null) ? $textResult['subdocuments'] : [];
+        $subdocumentTexts = $this->subdocumentTextsByType($subdocuments);
         $streamDirectory = $this->streamDirectoryReport($compoundFile);
         $directoryEntries = $this->directoryEntryReport($compoundFile);
         $metadata = $this->readMetadata($compoundFile);
         $metadata['fibBase'] = $this->fibBaseReviewMetadata($fib);
         if (isset($fib['fibRgLw97']) && is_array($fib['fibRgLw97'])) {
             $metadata['fibRgLw97'] = $fib['fibRgLw97'];
+        }
+        if ($subdocuments !== []) {
+            $metadata['subdocumentCount'] = count($subdocuments);
+            $metadata['subdocuments'] = $subdocuments;
         }
         if ($streamDirectory !== []) {
             $metadata['cfbStreamCount'] = count($streamDirectory);
@@ -155,17 +161,17 @@ final class LegacyDocReader
             $metadata['bookmarkCount'] = count($bookmarks);
             $metadata['bookmarks'] = $bookmarks;
         }
-        $footnotes = $this->noteReferenceReport('footnote', $wordDocument, $tableStream, $textResult['text']);
+        $footnotes = $this->noteReferenceReport('footnote', $wordDocument, $tableStream, $textResult['text'], $subdocumentTexts);
         if ($footnotes !== []) {
             $metadata['footnoteReferenceCount'] = count($footnotes);
             $metadata['footnotes'] = $footnotes;
         }
-        $endnotes = $this->noteReferenceReport('endnote', $wordDocument, $tableStream, $textResult['text']);
+        $endnotes = $this->noteReferenceReport('endnote', $wordDocument, $tableStream, $textResult['text'], $subdocumentTexts);
         if ($endnotes !== []) {
             $metadata['endnoteReferenceCount'] = count($endnotes);
             $metadata['endnotes'] = $endnotes;
         }
-        $comments = $this->commentReferenceReport($wordDocument, $tableStream, $textResult['text']);
+        $comments = $this->commentReferenceReport($wordDocument, $tableStream, $textResult['text'], $subdocumentTexts);
         if ($comments !== []) {
             $metadata['commentReferenceCount'] = count($comments);
             $metadata['comments'] = $comments;
@@ -189,6 +195,7 @@ final class LegacyDocReader
             'textSource' => $textResult['source'],
             'tableStream' => $tableStreamName,
             'meta' => $metadata,
+            'subdocuments' => $subdocuments,
             'styles' => $styles,
             'formattingRuns' => $formattingRuns,
             'sections' => $sections,
@@ -211,6 +218,7 @@ final class LegacyDocReader
             'streamDirectory' => $streamDirectory,
             'directoryEntries' => $directoryEntries,
             'fib' => $fib + ['textSource' => $textResult['source']],
+            'subdocuments' => $subdocuments,
             'styles' => $styles,
             'formattingRuns' => $formattingRuns,
             'sections' => $sections,
@@ -457,22 +465,19 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{text:string,source:string}
+     * @return array{text:string,source:string,fullText?:string,subdocuments?:list<array<string,mixed>>}
      */
     private function extractText(string $wordDocument, ?string $tableStream, ?array $fib = null): array
     {
         $fib ??= $this->readFib($wordDocument);
         if ($tableStream !== null) {
-            $pieceText = $this->extractPieceTableText(
+            $pieceTextResult = $this->extractPieceTableText(
                 $wordDocument,
                 $tableStream,
                 is_array($fib['fibRgLw97'] ?? null) ? $fib['fibRgLw97'] : []
             );
-            if ($pieceText !== null) {
-                return [
-                    'text' => $pieceText,
-                    'source' => 'piece-table',
-                ];
+            if ($pieceTextResult !== null) {
+                return ['source' => 'piece-table'] + $pieceTextResult;
             }
         }
 
@@ -502,8 +507,9 @@ final class LegacyDocReader
 
     /**
      * @param array<string,mixed> $fibRgLw97
+     * @return array{text:string,fullText:string,subdocuments:list<array<string,mixed>>}|null
      */
-    private function extractPieceTableText(string $wordDocument, string $tableStream, array $fibRgLw97): ?string
+    private function extractPieceTableText(string $wordDocument, string $tableStream, array $fibRgLw97): ?array
     {
         foreach ([0x01a2, 0x010c] as $offset) {
             if (strlen($wordDocument) < $offset + 8) {
@@ -527,8 +533,9 @@ final class LegacyDocReader
 
     /**
      * @param array<string,mixed> $fibRgLw97
+     * @return array{text:string,fullText:string,subdocuments:list<array<string,mixed>>}
      */
-    private function parseClx(string $clx, string $wordDocument, array $fibRgLw97): string
+    private function parseClx(string $clx, string $wordDocument, array $fibRgLw97): array
     {
         $cursor = 0;
         $length = strlen($clx);
@@ -565,8 +572,9 @@ final class LegacyDocReader
 
     /**
      * @param array<string,mixed> $fibRgLw97
+     * @return array{text:string,fullText:string,subdocuments:list<array<string,mixed>>}
      */
-    private function parsePlcPcd(string $plcPcd, string $wordDocument, array $fibRgLw97): string
+    private function parsePlcPcd(string $plcPcd, string $wordDocument, array $fibRgLw97): array
     {
         $length = strlen($plcPcd);
         if ($length < 4 || ($length - 4) % 12 !== 0) {
@@ -604,16 +612,19 @@ final class LegacyDocReader
 
         $pcdOffset = ($pieceCount + 1) * 4;
         $text = '';
+        $fullText = '';
         for ($index = 0; $index < $pieceCount; $index++) {
             $characters = $cpOffsets[$index + 1] - $cpOffsets[$index];
             if ($characters <= 0) {
                 continue;
             }
+            $mainCharacters = $characters;
             if ($mainTextCpLimit !== null) {
                 if ($cpOffsets[$index] >= $mainTextCpLimit) {
-                    break;
+                    $mainCharacters = 0;
+                } else {
+                    $mainCharacters = min($characters, $mainTextCpLimit - $cpOffsets[$index]);
                 }
-                $characters = min($characters, $mainTextCpLimit - $cpOffsets[$index]);
             }
 
             $pcdFlags = self::u16($plcPcd, $pcdOffset + ($index * 8));
@@ -631,7 +642,12 @@ final class LegacyDocReader
                 }
                 $pieceText = $this->decodeCompressedPiece(substr($wordDocument, $start, $characters));
                 $this->assertNoParagraphLastPieceIsValid($pcdFlags, $pieceText);
-                $text .= $pieceText;
+                $fullText .= $pieceText;
+                if ($mainCharacters > 0) {
+                    $text .= $mainCharacters === $characters
+                        ? $pieceText
+                        : $this->charactersToString(array_slice($this->unicodeCharacters($pieceText), 0, $mainCharacters));
+                }
                 continue;
             }
 
@@ -641,10 +657,23 @@ final class LegacyDocReader
             }
             $pieceText = $this->decodeUtf16Le(substr($wordDocument, $fc, $byteLength));
             $this->assertNoParagraphLastPieceIsValid($pcdFlags, $pieceText);
-            $text .= $pieceText;
+            $fullText .= $pieceText;
+            if ($mainCharacters > 0) {
+                $text .= $mainCharacters === $characters
+                    ? $pieceText
+                    : $this->charactersToString(array_slice($this->unicodeCharacters($pieceText), 0, $mainCharacters));
+            }
         }
 
-        return $text;
+        if ($mainTextCpLimit === null) {
+            $text = $fullText;
+        }
+
+        return [
+            'text' => $text,
+            'fullText' => $fullText,
+            'subdocuments' => $this->pieceTableSubdocumentTextReport($fullText, $fibRgLw97),
+        ];
     }
 
     private function assertNoParagraphLastPieceIsValid(int $pcdFlags, string $pieceText): void
@@ -652,6 +681,82 @@ final class LegacyDocReader
         if (($pcdFlags & 0x0001) !== 0 && str_contains($pieceText, "\r")) {
             throw new \RuntimeException('Legacy DOC piece table marks a piece as paragraph-free but contains a paragraph mark');
         }
+    }
+
+    /**
+     * @param array<string,mixed> $fibRgLw97
+     * @return list<array{type:string,startCp:int,endCp:int,characterCount:int,text:string}>
+     */
+    private function pieceTableSubdocumentTextReport(string $fullText, array $fibRgLw97): array
+    {
+        if (!is_array($fibRgLw97['subdocuments'] ?? null)) {
+            return [];
+        }
+
+        $characters = $this->unicodeCharacters($fullText);
+        $textLength = count($characters);
+        $subdocuments = [];
+        foreach ($fibRgLw97['subdocuments'] as $subdocument) {
+            if (!is_array($subdocument) || (string) ($subdocument['type'] ?? '') === 'main') {
+                continue;
+            }
+
+            $type = (string) ($subdocument['type'] ?? '');
+            $startCp = (int) ($subdocument['startCp'] ?? -1);
+            $endCp = (int) ($subdocument['endCp'] ?? -1);
+            if ($type === '' || $startCp < 0 || $endCp < $startCp || $endCp > $textLength) {
+                throw new \RuntimeException('Legacy DOC FibRgLw97 subdocument range points outside piece-table text');
+            }
+
+            $subdocuments[] = [
+                'type' => $type,
+                'startCp' => $startCp,
+                'endCp' => $endCp,
+                'characterCount' => $endCp - $startCp,
+                'text' => $this->charactersToString(array_slice($characters, $startCp, $endCp - $startCp)),
+            ];
+        }
+
+        return $subdocuments;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $subdocuments
+     * @return array<string,string>
+     */
+    private function subdocumentTextsByType(array $subdocuments): array
+    {
+        $texts = [];
+        foreach ($subdocuments as $subdocument) {
+            $type = (string) ($subdocument['type'] ?? '');
+            if ($type === '' || !isset($subdocument['text']) || !is_string($subdocument['text'])) {
+                continue;
+            }
+
+            $texts[$type] = $subdocument['text'];
+        }
+
+        return $texts;
+    }
+
+    /**
+     * @param array<string,string> $subdocumentTexts
+     */
+    private function subdocumentRangeText(array $subdocumentTexts, string $type, int $startCp, int $endCp): ?string
+    {
+        if (!isset($subdocumentTexts[$type])) {
+            return null;
+        }
+        if ($startCp < 0 || $endCp < $startCp) {
+            throw new \RuntimeException('Legacy DOC ' . $type . ' body range is invalid');
+        }
+
+        $characters = $this->unicodeCharacters($subdocumentTexts[$type]);
+        if ($endCp > count($characters)) {
+            throw new \RuntimeException('Legacy DOC ' . $type . ' body range points outside supplemental subdocument text');
+        }
+
+        return $this->charactersToString(array_slice($characters, $startCp, $endCp - $startCp));
     }
 
     /**
@@ -1178,6 +1283,10 @@ final class LegacyDocReader
             if (isset($noteReference['bookmarkTag'])) {
                 $attributes['data-legacy-doc-comment-bookmark-tag'] = (string) ((int) $noteReference['bookmarkTag']);
             }
+            if (isset($noteReference['bodyText'])) {
+                $attributes['data-legacy-doc-comment-has-body'] = 'true';
+                $attributes['data-legacy-doc-comment-body-character-count'] = (string) ((int) ($noteReference['bodyCharacterCount'] ?? 0));
+            }
 
             return [
                 'classes' => ['legacy-doc-comment-ref'],
@@ -1194,7 +1303,10 @@ final class LegacyDocReader
                 'data-legacy-doc-note-text-start-cp' => (string) ((int) ($noteReference['textStartCp'] ?? 0)),
                 'data-legacy-doc-note-text-end-cp' => (string) ((int) ($noteReference['textEndCp'] ?? 0)),
                 'data-legacy-doc-note-auto-numbered' => ($noteReference['autoNumbered'] ?? false) === true ? 'true' : 'false',
-            ],
+            ] + (isset($noteReference['bodyText']) ? [
+                'data-legacy-doc-note-has-body' => 'true',
+                'data-legacy-doc-note-body-character-count' => (string) ((int) ($noteReference['bodyCharacterCount'] ?? 0)),
+            ] : []),
         ];
     }
 
@@ -2822,9 +2934,16 @@ final class LegacyDocReader
     }
 
     /**
+     * @param array<string,string> $subdocumentTexts
      * @return list<array<string,mixed>>
      */
-    private function noteReferenceReport(string $type, string $wordDocument, ?string $tableStream, string $text): array
+    private function noteReferenceReport(
+        string $type,
+        string $wordDocument,
+        ?string $tableStream,
+        string $text,
+        array $subdocumentTexts = []
+    ): array
     {
         if ($tableStream === null) {
             return [];
@@ -2890,7 +3009,13 @@ final class LegacyDocReader
             }
 
             $range = $ranges[$index];
-            $result[] = [
+            $bodyText = $this->subdocumentRangeText(
+                $subdocumentTexts,
+                $type,
+                (int) $range['startCp'],
+                (int) $range['endCp']
+            );
+            $record = [
                 'type' => $type,
                 'index' => $index + 1,
                 'referenceCp' => $referenceCp,
@@ -2901,6 +3026,12 @@ final class LegacyDocReader
                 'textEndCp' => (int) $range['endCp'],
                 'canAnchor' => true,
             ];
+            if ($bodyText !== null) {
+                $record['bodyText'] = $bodyText;
+                $record['bodyCharacterCount'] = $this->textCharacterLength($bodyText);
+            }
+
+            $result[] = $record;
         }
 
         return $result;
@@ -2997,9 +3128,15 @@ final class LegacyDocReader
     }
 
     /**
+     * @param array<string,string> $subdocumentTexts
      * @return list<array<string,mixed>>
      */
-    private function commentReferenceReport(string $wordDocument, ?string $tableStream, string $text): array
+    private function commentReferenceReport(
+        string $wordDocument,
+        ?string $tableStream,
+        string $text,
+        array $subdocumentTexts = []
+    ): array
     {
         if ($tableStream === null || strlen($wordDocument) < self::FIB_LCB_PLCFAND_TXT + 4) {
             return [];
@@ -3045,8 +3182,14 @@ final class LegacyDocReader
             }
 
             $range = $ranges[$index];
+            $bodyText = $this->subdocumentRangeText(
+                $subdocumentTexts,
+                'comment',
+                (int) $range['startCp'],
+                (int) $range['endCp']
+            );
             $authorInitials = (string) ($reference['authorInitials'] ?? '');
-            $comments[] = [
+            $record = [
                 'type' => 'comment',
                 'index' => $index + 1,
                 'referenceCp' => $referenceCp,
@@ -3059,6 +3202,12 @@ final class LegacyDocReader
                 'textEndCp' => (int) $range['endCp'],
                 'canAnchor' => true,
             ];
+            if ($bodyText !== null) {
+                $record['bodyText'] = $bodyText;
+                $record['bodyCharacterCount'] = $this->textCharacterLength($bodyText);
+            }
+
+            $comments[] = $record;
         }
 
         return $comments;
