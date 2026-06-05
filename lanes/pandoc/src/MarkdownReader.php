@@ -898,10 +898,9 @@ final class MarkdownReader
             return $parsed;
         }
 
-        if ($this->yamlTagsForceString($tags)) {
-            $parsed = (($value[0] === '"' && str_ends_with($value, '"')) || ($value[0] === "'" && str_ends_with($value, "'")))
-                ? $this->unquoteYamlScalar($value)
-                : $value;
+        $explicitScalarTag = $this->yamlExplicitScalarTag($tags);
+        if ($explicitScalarTag !== null) {
+            $parsed = $this->parseYamlExplicitTaggedScalar($value, $explicitScalarTag);
             $this->rememberYamlAnchor($anchorName, $parsed);
             return $parsed;
         }
@@ -1409,16 +1408,69 @@ final class MarkdownReader
         return [$value, $anchorName, $tags];
     }
 
-    private function yamlTagsForceString(array $tags): bool
+    private function yamlExplicitScalarTag(array $tags): ?string
     {
         foreach ($tags as $tag) {
             $normalized = strtolower($tag);
-            if ($normalized === '!!str' || $normalized === '!str' || $normalized === 'tag:yaml.org,2002:str') {
-                return true;
+            if (str_starts_with($normalized, 'tag:yaml.org,2002:')) {
+                $normalized = substr($normalized, strlen('tag:yaml.org,2002:'));
+            } elseif (str_starts_with($normalized, '!!')) {
+                $normalized = substr($normalized, 2);
+            } elseif (str_starts_with($normalized, '!')) {
+                $normalized = substr($normalized, 1);
+            }
+
+            if (in_array($normalized, ['str', 'int', 'float', 'bool', 'null'], true)) {
+                return $normalized;
             }
         }
 
-        return false;
+        return null;
+    }
+
+    private function parseYamlExplicitTaggedScalar(string $value, string $tag): mixed
+    {
+        $scalar = (($value[0] === '"' && str_ends_with($value, '"')) || ($value[0] === "'" && str_ends_with($value, "'")))
+            ? $this->unquoteYamlScalar($value)
+            : $value;
+
+        return match ($tag) {
+            'str' => $scalar,
+            'int' => $this->parseYamlExplicitIntegerScalar($scalar),
+            'float' => $this->parseYamlExplicitFloatScalar($scalar),
+            'bool' => $this->parseYamlExplicitBooleanScalar($scalar),
+            'null' => null,
+            default => $scalar,
+        };
+    }
+
+    private function parseYamlExplicitIntegerScalar(string $value): int|string
+    {
+        $normalized = str_replace('_', '', trim($value));
+        if (preg_match('/^[+-]?[0-9]+$/', $normalized) !== 1) {
+            return $value;
+        }
+
+        return (int) $normalized;
+    }
+
+    private function parseYamlExplicitFloatScalar(string $value): float|string
+    {
+        $normalized = str_replace('_', '', trim($value));
+        if (preg_match('/^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/', $normalized) !== 1) {
+            return $value;
+        }
+
+        return (float) $normalized;
+    }
+
+    private function parseYamlExplicitBooleanScalar(string $value): bool|string
+    {
+        return match (strtolower(trim($value))) {
+            'true' => true,
+            'false' => false,
+            default => $value,
+        };
     }
 
     private function isYamlAliasScalar(string $value): bool

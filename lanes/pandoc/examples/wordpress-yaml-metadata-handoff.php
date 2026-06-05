@@ -32,10 +32,17 @@ reviewOverride_: &merge_review_override
 review:
   <<: *review_defaults
   owner: !wp-reviewer "Import Desk"
+typed-review:
+  source-revision: !!str 007
+  typed-revision: !!int "007"
+  confidence: !!float "0.75"
+  approved: !!bool "true"
+  withdrawn: !!null "not carried"
 optional-deadline:
 blank-note: # intentionally blank in source packet
 explicit-empty: ""
 flow-empty-review: {migration-ticket:, quoted-empty: ""}
+typed-flow-review: {priority: !!int "4", enabled: !!bool "false", ticket: !!str 009}
 review-notes:
   - |-
     Preserve original front matter.
@@ -107,6 +114,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['review']['status'] ?? '') !== 'needs-review') {
         throw new RuntimeException('YAML metadata self-test missing later review override');
     }
+    if (($meta['typed-review']['source-revision'] ?? '') !== '007') {
+        throw new RuntimeException('YAML metadata self-test failed to preserve explicit string revision');
+    }
+    if (($meta['typed-review']['typed-revision'] ?? null) !== 7) {
+        throw new RuntimeException('YAML metadata self-test missing explicit integer tag coercion');
+    }
+    if (($meta['typed-review']['confidence'] ?? null) !== 0.75) {
+        throw new RuntimeException('YAML metadata self-test missing explicit float tag coercion');
+    }
+    if (($meta['typed-review']['approved'] ?? null) !== true) {
+        throw new RuntimeException('YAML metadata self-test missing explicit bool tag coercion');
+    }
+    if (!array_key_exists('withdrawn', $meta['typed-review'] ?? []) || $meta['typed-review']['withdrawn'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing explicit null tag coercion');
+    }
     if (!array_key_exists('optional-deadline', $meta) || $meta['optional-deadline'] !== null) {
         throw new RuntimeException('YAML metadata self-test missing empty scalar deadline null');
     }
@@ -124,6 +146,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['flow-empty-review']['quoted-empty'] ?? null) !== '') {
         throw new RuntimeException('YAML metadata self-test missing flow quoted empty scalar');
+    }
+    if (($meta['typed-flow-review']['priority'] ?? null) !== 4) {
+        throw new RuntimeException('YAML metadata self-test missing flow explicit integer tag coercion');
+    }
+    if (($meta['typed-flow-review']['enabled'] ?? null) !== false) {
+        throw new RuntimeException('YAML metadata self-test missing flow explicit bool tag coercion');
+    }
+    if (($meta['typed-flow-review']['ticket'] ?? null) !== '009') {
+        throw new RuntimeException('YAML metadata self-test missing flow explicit string tag preservation');
     }
     if (($meta['review-notes'][0] ?? '') !== "Preserve original front matter.\nKeep reviewer line breaks.") {
         throw new RuntimeException('YAML metadata self-test missing literal sequence block scalar note');
@@ -213,6 +244,7 @@ echo 'Keywords: ' . implode(', ', $meta['keywords'] ?? []) . "\n\n";
 echo 'Review optional deadline is null: ' . ((array_key_exists('optional-deadline', $meta) && $meta['optional-deadline'] === null) ? 'yes' : 'no') . "\n";
 echo 'Merge sequence review: ' . ($meta['merge-sequence-review']['status'] ?? '') . ' / priority ' . ($meta['merge-sequence-review']['priority'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
+echo 'Typed review revision: ' . ($meta['typed-review']['typed-revision'] ?? '') . ' / confidence ' . ($meta['typed-review']['confidence'] ?? '') . "\n";
 echo 'Escaped source title: ' . ($meta['escaped-source-title'] ?? '') . "\n";
 echo 'Multiline source title: ' . ($meta['multiline-source-title'] ?? '') . "\n";
 echo 'Single quoted source note: ' . ($meta['single-quoted-source-note'] ?? '') . "\n";

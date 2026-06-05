@@ -1218,6 +1218,57 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('escaped-yaml-body', $document->children[0]->attr('id'));
     },
+    'maps pandoc yaml explicit core scalar tags in metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Explicit tag **Packet**',
+            'review:',
+            '  revision: !!int "007"',
+            '  negative: !!int -3',
+            '  confidence: !!float "0.75"',
+            '  exponent: !<tag:yaml.org,2002:float> 1.2e2',
+            '  approved: !!bool "true"',
+            '  rejected: !bool false',
+            '  withdrawn: !!null "not carried"',
+            '  source-revision: !!str 007',
+            '  local-source-revision: !str 008',
+            '  typed-flow: {priority: !!int "4", ratio: !!float "1.5", enabled: !!bool "false", unset: !!null ignored, ticket: !!str 009}',
+            'references:',
+            '  - id: typed-ref',
+            '    issued:',
+            '      date-parts:',
+            '        - - !!int "2026"',
+            '          - !!int "06"',
+            '          - !!int "05"',
+            '...',
+            '',
+            '# Explicit tag YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Explicit tag **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same(7, $meta['review']['revision']);
+        $t->same(-3, $meta['review']['negative']);
+        $t->same(0.75, $meta['review']['confidence']);
+        $t->same(120.0, $meta['review']['exponent']);
+        $t->same(true, $meta['review']['approved']);
+        $t->same(false, $meta['review']['rejected']);
+        $t->true(array_key_exists('withdrawn', $meta['review']) && $meta['review']['withdrawn'] === null);
+        $t->same('007', $meta['review']['source-revision']);
+        $t->same('008', $meta['review']['local-source-revision']);
+        $t->same(4, $meta['review']['typed-flow']['priority']);
+        $t->same(1.5, $meta['review']['typed-flow']['ratio']);
+        $t->same(false, $meta['review']['typed-flow']['enabled']);
+        $t->true(array_key_exists('unset', $meta['review']['typed-flow']) && $meta['review']['typed-flow']['unset'] === null);
+        $t->same('009', $meta['review']['typed-flow']['ticket']);
+        $t->same([[2026, 6, 5]], $meta['references'][0]['issued']['date-parts']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('explicit-tag-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="explicit-tag-yaml-body">Explicit tag YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml multiline double quoted metadata scalars' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
