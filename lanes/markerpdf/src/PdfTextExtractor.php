@@ -20219,7 +20219,11 @@ final class PdfTextExtractor
 
         $expectedLength = $this->inlineImageExpectedDecodedLength($dictionary);
         if ($filters === []) {
-            return $expectedLength === null || strlen($candidate) >= $expectedLength;
+            if ($expectedLength !== null) {
+                return strlen($candidate) >= $expectedLength;
+            }
+
+            return $this->inlineImageMinimumUnfilteredLength($dictionary) === null;
         }
 
         if (!$this->hasVerifiableInlineImageFilter($filters)) {
@@ -20238,6 +20242,10 @@ final class PdfTextExtractor
     {
         $filters = $this->streamFilters($dictionary, []);
         if ($filters === null) {
+            return rtrim($candidate, "\x00\t\n\f\r ") !== '';
+        }
+
+        if ($filters === [] && $this->inlineImageMinimumUnfilteredLength($dictionary) !== null) {
             return rtrim($candidate, "\x00\t\n\f\r ") !== '';
         }
 
@@ -20267,7 +20275,13 @@ final class PdfTextExtractor
     {
         $expectedLength = $this->inlineImageExpectedDecodedLength($dictionary);
         if ($expectedLength === null) {
-            return false;
+            $minimumLength = $this->inlineImageMinimumUnfilteredLength($dictionary);
+            if ($minimumLength === null) {
+                return false;
+            }
+
+            $filters = $this->streamFilters($dictionary, []);
+            return $filters === [] && strlen($candidate) >= $minimumLength;
         }
 
         $filters = $this->streamFilters($dictionary, []);
@@ -20635,6 +20649,31 @@ final class PdfTextExtractor
         }
 
         return intdiv(($width * $height * $components * $bitsPerComponent) + 7, 8);
+    }
+
+    private function inlineImageMinimumUnfilteredLength(string $dictionary): ?int
+    {
+        $width = $this->pdfIntegerValueAfterName($dictionary, 'Width');
+        $height = $this->pdfIntegerValueAfterName($dictionary, 'Height');
+        if ($width === null || $height === null || $width < 1 || $height < 1) {
+            return null;
+        }
+
+        if ($this->pdfBooleanValueAfterName($dictionary, 'ImageMask') === true) {
+            return null;
+        }
+
+        $bitsPerComponent = $this->pdfIntegerValueAfterName($dictionary, 'BitsPerComponent');
+        if ($bitsPerComponent === null || $bitsPerComponent < 1) {
+            return null;
+        }
+
+        $colorSpace = $this->pdfValueAfterName($dictionary, 'ColorSpace');
+        if ($colorSpace === null || $this->inlineImageColorComponents($dictionary) !== null) {
+            return null;
+        }
+
+        return intdiv(($width * $height * $bitsPerComponent) + 7, 8);
     }
 
     private function inlineImageColorComponents(string $dictionary): ?int
