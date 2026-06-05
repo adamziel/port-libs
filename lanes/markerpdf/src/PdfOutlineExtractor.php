@@ -1046,6 +1046,7 @@ final class PdfOutlineExtractor
 
         $items = [];
         $current = $this->validReferenceObjectNumber($firstItem, $objects);
+        $previousSiblingObject = null;
         while ($current !== null && !isset($seen[$current])) {
             $seen[$current] = true;
             $dict = $this->resolveDictionary($this->refValue($current), $objects);
@@ -1053,6 +1054,9 @@ final class PdfOutlineExtractor
                 break;
             }
             if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject)) {
+                break;
+            }
+            if (!$this->outlineItemPrevMatches($dict, $objects, $previousSiblingObject)) {
                 break;
             }
 
@@ -1204,6 +1208,7 @@ final class PdfOutlineExtractor
                 break;
             }
 
+            $previousSiblingObject = $current;
             $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
         }
 
@@ -1226,6 +1231,25 @@ final class PdfOutlineExtractor
         $parent = $this->validReferenceObjectNumber($outline['Parent'], $objects);
 
         return $parent === $expectedParentObject;
+    }
+
+    /**
+     * PDF outline sibling chains expose /Next and /Prev links. Keep older
+     * lightweight fixtures that omit /Prev valid, but stop on explicit
+     * contradictory backlinks to avoid importing stale same-parent siblings.
+     *
+     * @param array<string, mixed> $outline
+     * @param array<int, mixed> $objects
+     */
+    private function outlineItemPrevMatches(array $outline, array $objects, ?int $previousSiblingObject): bool
+    {
+        if (!array_key_exists('Prev', $outline)) {
+            return true;
+        }
+
+        $previous = $this->validReferenceObjectNumber($outline['Prev'], $objects);
+
+        return $previous !== null && $previous === $previousSiblingObject;
     }
 
     /**
@@ -1991,6 +2015,7 @@ final class PdfOutlineExtractor
 
         $items = [];
         $current = $this->validReferenceObjectNumber($firstItem, $objects);
+        $previousSiblingObject = null;
         while ($current !== null && !isset($seen[$current])) {
             $seen[$current] = true;
             $dict = $this->resolveDictionary($this->refValue($current), $objects);
@@ -1998,6 +2023,9 @@ final class PdfOutlineExtractor
                 break;
             }
             if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject)) {
+                break;
+            }
+            if (!$this->outlineItemPrevMatches($dict, $objects, $previousSiblingObject)) {
                 break;
             }
 
@@ -2023,6 +2051,7 @@ final class PdfOutlineExtractor
                 break;
             }
 
+            $previousSiblingObject = $current;
             $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
         }
 
@@ -2061,6 +2090,7 @@ final class PdfOutlineExtractor
 
         $items = [];
         $current = $this->validReferenceObjectNumber($firstItem, $objects);
+        $previousSiblingObject = null;
         while ($current !== null && !isset($seen[$current])) {
             $seen[$current] = true;
             $dict = $this->resolveDictionary($this->refValue($current), $objects);
@@ -2068,6 +2098,9 @@ final class PdfOutlineExtractor
                 break;
             }
             if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject)) {
+                break;
+            }
+            if (!$this->outlineItemPrevMatches($dict, $objects, $previousSiblingObject)) {
                 break;
             }
 
@@ -2102,6 +2135,7 @@ final class PdfOutlineExtractor
                 break;
             }
 
+            $previousSiblingObject = $current;
             $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
         }
 
@@ -2144,6 +2178,7 @@ final class PdfOutlineExtractor
 
         $items = [];
         $current = $this->validReferenceObjectNumber($firstItem, $objects);
+        $previousSiblingObject = null;
         while ($current !== null && !isset($seen[$current])) {
             $seen[$current] = true;
             $dict = $this->resolveDictionary($this->refValue($current), $objects);
@@ -2151,6 +2186,9 @@ final class PdfOutlineExtractor
                 break;
             }
             if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject)) {
+                break;
+            }
+            if (!$this->outlineItemPrevMatches($dict, $objects, $previousSiblingObject)) {
                 break;
             }
 
@@ -2232,6 +2270,7 @@ final class PdfOutlineExtractor
                 break;
             }
 
+            $previousSiblingObject = $current;
             $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
         }
 
@@ -2488,6 +2527,7 @@ final class PdfOutlineExtractor
 
         $items = [];
         $current = $this->validReferenceObjectNumber($firstItem, $objects);
+        $previousSiblingObject = null;
         while ($current !== null && !isset($seen[$current])) {
             $seen[$current] = true;
             $dict = $this->resolveDictionary($this->refValue($current), $objects);
@@ -2495,6 +2535,9 @@ final class PdfOutlineExtractor
                 break;
             }
             if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject)) {
+                break;
+            }
+            if (!$this->outlineItemPrevMatches($dict, $objects, $previousSiblingObject)) {
                 break;
             }
 
@@ -2521,6 +2564,7 @@ final class PdfOutlineExtractor
                 break;
             }
 
+            $previousSiblingObject = $current;
             $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
         }
 

@@ -2801,6 +2801,7 @@ final class PdfMetadataExtractor
 
         $items = [];
         $current = $this->validObjectNumberFromReference($firstItemValue, $objects);
+        $previousSiblingObject = null;
         while ($current !== null && !isset($seen[$current])) {
             $seen[$current] = true;
             $dictionary = isset($objects[$current]) ? $this->dictionaryObjectBody($objects[$current]) : null;
@@ -2808,6 +2809,9 @@ final class PdfMetadataExtractor
                 break;
             }
             if (!$this->documentOutlineItemParentMatches($dictionary, $objects, $expectedParentObject)) {
+                break;
+            }
+            if (!$this->documentOutlineItemPrevMatches($dictionary, $objects, $previousSiblingObject)) {
                 break;
             }
 
@@ -2844,6 +2848,7 @@ final class PdfMetadataExtractor
                 break;
             }
 
+            $previousSiblingObject = $current;
             $current = $this->validObjectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Next'), $objects);
         }
 
@@ -2864,6 +2869,25 @@ final class PdfMetadataExtractor
         $parent = $this->validObjectNumberFromReference($parentValue, $objects);
 
         return $parent === $expectedParentObject;
+    }
+
+    /**
+     * PDF outline sibling lists are linked in both directions. Missing /Prev
+     * is tolerated for lightweight producers, but an explicit contradictory
+     * backlink marks a corrupt or stale sibling boundary.
+     *
+     * @param array<int, string> $objects
+     */
+    private function documentOutlineItemPrevMatches(string $dictionary, array $objects, ?int $previousSiblingObject): bool
+    {
+        $prevValue = $this->dictionaryTopLevelRawValue($dictionary, 'Prev');
+        if ($prevValue === null) {
+            return true;
+        }
+
+        $previous = $this->validObjectNumberFromReference($prevValue, $objects);
+
+        return $previous !== null && $previous === $previousSiblingObject;
     }
 
     /**
