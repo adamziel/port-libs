@@ -188,6 +188,35 @@ XML],
       <w:r><w:t>.</w:t></w:r>
     </w:p>
     <w:p>
+      <w:pPr>
+        <w:jc w:val="center"/>
+        <w:pPrChange w:id="24" w:author="Layout Reviewer" w:date="2026-06-05T18:30:00Z">
+          <w:pPr>
+            <w:pStyle w:val="OldReviewLayout"/>
+            <w:jc w:val="left"/>
+          </w:pPr>
+        </w:pPrChange>
+      </w:pPr>
+      <w:r><w:t>Tracked paragraph formatting remains auditable.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Tracked run formatting </w:t></w:r>
+      <w:r>
+        <w:rPr>
+          <w:b/>
+          <w:rPrChange w:id="25" w:author="Run Reviewer" w:date="2026-06-05T18:35:00Z">
+            <w:rPr>
+              <w:i/>
+              <w:highlight w:val="yellow"/>
+              <w:lang w:val="fr-FR"/>
+            </w:rPr>
+          </w:rPrChange>
+        </w:rPr>
+        <w:t>approved label</w:t>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> stays visible.</w:t></w:r>
+    </w:p>
+    <w:p>
       <w:r><w:t xml:space="preserve">Proof and permissions </w:t></w:r>
       <w:proofErr w:type="spellStart"/>
       <w:r><w:t>migraton</w:t></w:r>
@@ -639,6 +668,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['importReport']['revisions']['insertionCount'] ?? 0) !== 2 || ($summary['importReport']['revisions']['deletionCount'] ?? 0) !== 2) {
         throw new RuntimeException('DOCX body handoff self-test missing tracked-change report');
     }
+    if (($summary['importReport']['revisions']['formattingCount'] ?? 0) !== 2) {
+        throw new RuntimeException('DOCX body handoff self-test missing tracked formatting-change report');
+    }
     if (($summary['importReport']['sections']['count'] ?? 0) !== 1) {
         throw new RuntimeException('DOCX body handoff self-test missing section property report');
     }
@@ -770,6 +802,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<div class="docx-custom-xml" data-docx-custom-xml-uri="https://example.test/docx/custom" data-docx-custom-xml-element="review-section" data-docx-custom-xml-prop-section-id="source-review"><p>Custom XML review block for source packet.</p></div>',
         '<p>Decoded source symbols α • ✓ ← remain visible.</p>',
         '<p>Reviewer marks <span class="docx-highlight docx-highlight-yellow" data-docx-highlight="yellow">priority update</span> and <span class="docx-shading" data-docx-shading-val="clear" data-docx-shading-fill="D9EAF7">source shading</span>.</p>',
+        '<p><span class="docx-paragraph-align docx-align-center docx-formatting-change docx-paragraph-formatting-change" data-docx-paragraph-align="center" data-docx-formatting-change="paragraph" data-docx-change-id="24" data-docx-author="Layout Reviewer" data-docx-date="2026-06-05T18:30:00Z" data-docx-previous-paragraph-style="OldReviewLayout" data-docx-previous-paragraph-align="left">Tracked paragraph formatting remains auditable.</span></p>',
+        '<p>Tracked run formatting <span class="docx-formatting-change docx-run-formatting-change" data-docx-formatting-change="run" data-docx-change-id="25" data-docx-author="Run Reviewer" data-docx-date="2026-06-05T18:35:00Z" data-docx-previous-italic="true" data-docx-previous-highlight="yellow" data-docx-previous-lang="fr-FR"><strong>approved label</strong></span> stays visible.</p>',
         '<p>Proof and permissions <span class="docx-proof-error docx-proof-spelling" data-docx-proof-error="spelling" data-docx-proof-start="spellStart" data-docx-proof-end="spellEnd">migraton</span> plus <span class="docx-permission-range docx-permission-group" data-docx-permission-id="70" data-docx-permission-group="everyone"><strong>review window</strong></span> stay labeled.</p>',
         '<p>Character style reviewer label <span class="docx-highlight docx-highlight-yellow docx-language docx-shading" data-docx-highlight="yellow" data-docx-lang="fr-FR" lang="fr-FR" data-docx-shading-fill="FFE699"><strong><em><u>inherited urgency</u></em></strong></span> and <span class="docx-shading docx-language" data-docx-shading-fill="FFE699" data-docx-lang="de-DE" lang="de-DE"><strong><u>muted follow-up</u></strong></span>.</p>',
         '<p>Multilingual source note <span class="docx-language" data-docx-lang="es-ES" lang="es-ES">Resumen</span> and <span class="docx-language docx-rtl" data-docx-lang="ar-SA" data-docx-lang-bidi="ar-SA" lang="ar-SA" dir="rtl">ملف المصدر</span> remain labeled.</p>',

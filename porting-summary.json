@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 21:11:19 UTC",
-    "sourceCommit": "51a06c2e4d068494c9869cbc4ab8445059008d96",
-    "sourceCommitShort": "51a06c2e4d06",
+    "generated": "2026-06-05 21:11:35 UTC",
+    "sourceCommit": "351480d7c94fd928d187200bf2fbdee153b35b73",
+    "sourceCommitShort": "351480d7c94f",
     "sourceBranch": "unknown",
-    "dashboardCommit": "51a06c2e4d068494c9869cbc4ab8445059008d96",
-    "dashboardCommitShort": "51a06c2e4d06",
+    "dashboardCommit": "351480d7c94fd928d187200bf2fbdee153b35b73",
+    "dashboardCommitShort": "351480d7c94f",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1527",
-            "coverage": "1,527 / 2,276 (67.1%)",
+            "mapped": "1528",
+            "coverage": "1,528 / 2,276 (67.1%)",
             "mapPercent": "67.1%",
-            "unmapped": "749",
-            "php": "1,075 pass / 0 fail",
+            "unmapped": "748",
+            "php": "1,076 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-05 UTC charset/Unicode width slice on accepted base 573d6fae3...",
+            "audit": "2026-06-05 UTC DOCX/OpenXML formatting-change slice on accepted base...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For charset/Unicode closure, keep EUC-KR/UHC, full GB18030 fo...",
+            "nextTarget": "For DOCX/OpenXML closure, keep glossary document parts, theme...",
             "remainingGate": "No local blocker",
-            "commit": "pending fast ac..."
+            "commit": "pending pandoc-..."
         },
         {
             "lane": "quadrable",

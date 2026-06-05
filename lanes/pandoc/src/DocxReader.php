@@ -142,7 +142,7 @@ final class DocxReader
     /**
      * @param list<array{id:string, type:string, target:string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}> $relationshipPreflight
      * @param list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}> $reachableRelationships
-     * @param array{insertionCount:int, deletionCount:int, items:list<array{type:string, accepted:bool, id:?string, author:?string, date:?string, text:string}>} $revisions
+     * @param array{insertionCount:int, deletionCount:int, formattingCount:int, items:list<array{type:string, accepted:bool, id:?string, author:?string, date:?string, text:string}>} $revisions
      * @param array<string, mixed> $alternativeFormats
      * @param array<string, mixed> $settings
      * @return array<string, mixed>
@@ -1656,7 +1656,7 @@ final class DocxReader
     /**
      * @return array{classes:list<string>, attributes:array<string, string>}|null
      */
-    private function paragraphPropertiesMetadataAttrs(\DOMElement $properties): ?array
+    private function paragraphPropertiesMetadataAttrs(\DOMElement $properties, bool $includeFormattingChange = true): ?array
     {
         $classes = [];
         $attributes = [];
@@ -1695,6 +1695,14 @@ final class DocxReader
             $attributes['data-docx-page-break-before'] = 'true';
         }
 
+        if ($includeFormattingChange) {
+            $changeAttrs = $this->paragraphFormattingChangeAttrs($properties);
+            if ($changeAttrs !== null) {
+                array_push($classes, ...$changeAttrs['classes']);
+                $attributes = array_replace($attributes, $changeAttrs['attributes']);
+            }
+        }
+
         if ($classes === [] && $attributes === []) {
             return null;
         }
@@ -1703,6 +1711,39 @@ final class DocxReader
             'classes' => array_values(array_unique($classes)),
             'attributes' => $attributes,
         ];
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function paragraphFormattingChangeAttrs(\DOMElement $properties): ?array
+    {
+        $change = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'pPrChange');
+        if (!$change instanceof \DOMElement) {
+            return null;
+        }
+
+        $attrs = $this->trackedFormattingChangeAttrs($change, 'paragraph');
+        $previous = $this->firstChildElement($change, self::WORDPROCESSINGML_NS, 'pPr');
+        if ($previous instanceof \DOMElement) {
+            $previousStyle = $this->firstChildElement($previous, self::WORDPROCESSINGML_NS, 'pStyle');
+            $styleId = $previousStyle instanceof \DOMElement ? $this->wordAttr($previousStyle, 'val') : null;
+            if ($styleId !== null && $styleId !== '') {
+                $attrs['attributes']['data-docx-previous-paragraph-style'] = $styleId;
+            }
+
+            $previousAttrs = $this->paragraphPropertiesMetadataAttrs($previous, false);
+            if ($previousAttrs !== null) {
+                foreach ($previousAttrs['attributes'] as $name => $value) {
+                    $previousName = $this->previousFormattingAttributeName((string) $name);
+                    if ($previousName !== null) {
+                        $attrs['attributes'][$previousName] = $value;
+                    }
+                }
+            }
+        }
+
+        return $attrs;
     }
 
     /**
@@ -3657,12 +3698,13 @@ final class DocxReader
     /**
      * @return array{classes:list<string>, attributes:array<string, string>}|null
      */
-    private function runMetadataAttrs(\DOMElement $properties): ?array
+    private function runMetadataAttrs(\DOMElement $properties, bool $includeFormattingChange = true): ?array
     {
         $attrs = null;
         foreach ([
             $this->runReviewMarkupAttrs($properties),
             $this->runLanguageDirectionAttrs($properties),
+            $includeFormattingChange ? $this->runFormattingChangeAttrs($properties) : null,
         ] as $source) {
             if ($source === null) {
                 continue;
@@ -3681,6 +3723,122 @@ final class DocxReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function runFormattingChangeAttrs(\DOMElement $properties): ?array
+    {
+        $change = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'rPrChange');
+        if (!$change instanceof \DOMElement) {
+            return null;
+        }
+
+        $attrs = $this->trackedFormattingChangeAttrs($change, 'run');
+        $previous = $this->firstChildElement($change, self::WORDPROCESSINGML_NS, 'rPr');
+        if ($previous instanceof \DOMElement) {
+            foreach ($this->previousRunFormattingAttributes($previous) as $name => $value) {
+                $attrs['attributes'][$name] = $value;
+            }
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function previousRunFormattingAttributes(\DOMElement $properties): array
+    {
+        $attributes = [];
+        $styleId = $this->runStyleId($properties);
+        if ($styleId !== null && $styleId !== '') {
+            $attributes['data-docx-previous-run-style'] = $styleId;
+        }
+
+        foreach ([
+            'b' => 'bold',
+            'i' => 'italic',
+            'u' => 'underline',
+            'smallCaps' => 'small-caps',
+            'rtl' => 'rtl',
+        ] as $childName => $target) {
+            $value = $this->onOffChildValue($properties, $childName);
+            if ($value !== null) {
+                $attributes['data-docx-previous-' . $target] = $value ? 'true' : 'false';
+            }
+        }
+
+        $strikeout = null;
+        foreach (['strike', 'dstrike'] as $childName) {
+            $value = $this->onOffChildValue($properties, $childName);
+            if ($value === true) {
+                $strikeout = true;
+                break;
+            }
+            if ($value === false && $strikeout === null) {
+                $strikeout = false;
+            }
+        }
+        if ($strikeout !== null) {
+            $attributes['data-docx-previous-strikeout'] = $strikeout ? 'true' : 'false';
+        }
+
+        $verticalAlign = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'vertAlign');
+        if ($verticalAlign instanceof \DOMElement) {
+            $value = strtolower(trim((string) ($this->wordAttr($verticalAlign, 'val') ?? '')));
+            if ($value !== '') {
+                $attributes['data-docx-previous-vertical-align'] = $value;
+            }
+        }
+
+        $previousMetadata = $this->runMetadataAttrs($properties, false);
+        if ($previousMetadata !== null) {
+            foreach ($previousMetadata['attributes'] as $name => $value) {
+                $previousName = $this->previousFormattingAttributeName((string) $name);
+                if ($previousName !== null) {
+                    $attributes[$previousName] = $value;
+                }
+            }
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function trackedFormattingChangeAttrs(\DOMElement $change, string $scope): array
+    {
+        $attributes = [
+            'data-docx-formatting-change' => $scope,
+        ];
+
+        foreach ([
+            'id' => 'data-docx-change-id',
+            'author' => 'data-docx-author',
+            'date' => 'data-docx-date',
+        ] as $wordAttr => $htmlAttr) {
+            $value = $this->wordAttr($change, $wordAttr);
+            if ($value !== null && $value !== '') {
+                $attributes[$htmlAttr] = $value;
+            }
+        }
+
+        return [
+            'classes' => ['docx-formatting-change', 'docx-' . $scope . '-formatting-change'],
+            'attributes' => $attributes,
+        ];
+    }
+
+    private function previousFormattingAttributeName(string $name): ?string
+    {
+        if (!str_starts_with($name, 'data-docx-')) {
+            return null;
+        }
+
+        return 'data-docx-previous-' . substr($name, strlen('data-docx-'));
     }
 
     /**
@@ -5770,7 +5928,7 @@ final class DocxReader
     }
 
     /**
-     * @return array{insertionCount:int, deletionCount:int, items:list<array{type:string, accepted:bool, id:?string, author:?string, date:?string, text:string}>}
+     * @return array{insertionCount:int, deletionCount:int, formattingCount:int, items:list<array{type:string, accepted:bool, id:?string, author:?string, date:?string, text:string}>}
      */
     private function revisionImportReport(string $xml): array
     {
@@ -5780,6 +5938,7 @@ final class DocxReader
             return [
                 'insertionCount' => 0,
                 'deletionCount' => 0,
+                'formattingCount' => 0,
                 'items' => [],
             ];
         }
@@ -5788,17 +5947,21 @@ final class DocxReader
         $this->collectTrackedChanges($root, $items);
         $insertionCount = 0;
         $deletionCount = 0;
+        $formattingCount = 0;
         foreach ($items as $item) {
             if (in_array($item['type'], ['insertion', 'move-to'], true)) {
                 $insertionCount++;
             } elseif (in_array($item['type'], ['deletion', 'move-from'], true)) {
                 $deletionCount++;
+            } elseif (in_array($item['type'], ['paragraph-formatting', 'run-formatting'], true)) {
+                $formattingCount++;
             }
         }
 
         return [
             'insertionCount' => $insertionCount,
             'deletionCount' => $deletionCount,
+            'formattingCount' => $formattingCount,
             'items' => $items,
         ];
     }
@@ -5817,16 +5980,21 @@ final class DocxReader
             $type = 'move-from';
         } elseif ($this->isWordElement($element, 'moveTo')) {
             $type = 'move-to';
+        } elseif ($this->isWordElement($element, 'pPrChange')) {
+            $type = 'paragraph-formatting';
+        } elseif ($this->isWordElement($element, 'rPrChange')) {
+            $type = 'run-formatting';
         }
 
         if ($type !== null) {
+            $isFormatting = in_array($type, ['paragraph-formatting', 'run-formatting'], true);
             $items[] = [
                 'type' => $type,
-                'accepted' => in_array($type, ['insertion', 'move-to'], true),
+                'accepted' => $isFormatting || in_array($type, ['insertion', 'move-to'], true),
                 'id' => $this->wordAttr($element, 'id'),
                 'author' => $this->wordAttr($element, 'author'),
                 'date' => $this->wordAttr($element, 'date'),
-                'text' => $this->trackedChangeText($element),
+                'text' => $isFormatting ? $this->formattingChangeText($element) : $this->trackedChangeText($element),
             ];
 
             return;
@@ -5837,6 +6005,21 @@ final class DocxReader
                 $this->collectTrackedChanges($child, $items);
             }
         }
+    }
+
+    private function formattingChangeText(\DOMElement $change): string
+    {
+        $owner = $change;
+        $parent = $change->parentNode;
+        if ($parent instanceof \DOMElement) {
+            if ($this->isWordElement($change, 'pPrChange') && $this->isWordElement($parent, 'pPr') && $parent->parentNode instanceof \DOMElement) {
+                $owner = $parent->parentNode;
+            } elseif ($this->isWordElement($change, 'rPrChange') && $this->isWordElement($parent, 'rPr') && $parent->parentNode instanceof \DOMElement) {
+                $owner = $parent->parentNode;
+            }
+        }
+
+        return $this->trackedChangeText($owner);
     }
 
     private function trackedChangeText(\DOMElement $element): string

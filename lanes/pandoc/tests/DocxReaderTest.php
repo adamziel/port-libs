@@ -869,6 +869,43 @@ $moveTrackedChangesDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$formattingChangeDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="CurrentReview"/>
+        <w:jc w:val="center"/>
+        <w:pPrChange w:id="20" w:author="Layout Reviewer" w:date="2026-06-05T18:30:00Z">
+          <w:pPr>
+            <w:pStyle w:val="OldReview"/>
+            <w:jc w:val="left"/>
+          </w:pPr>
+        </w:pPrChange>
+      </w:pPr>
+      <w:r><w:t>Paragraph formatting revision.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Run formatting </w:t></w:r>
+      <w:r>
+        <w:rPr>
+          <w:b/>
+          <w:rPrChange w:id="21" w:author="Run Reviewer" w:date="2026-06-05T18:35:00Z">
+            <w:rPr>
+              <w:i/>
+              <w:highlight w:val="yellow"/>
+              <w:lang w:val="fr-FR"/>
+            </w:rPr>
+          </w:rPrChange>
+        </w:rPr>
+        <w:t>approved label</w:t>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> stays visible.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $bookmarkDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -1775,6 +1812,14 @@ $buildMoveTrackedChangesPackage = static function () use ($contentTypesXml, $pac
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $moveTrackedChangesDocumentXml],
+    ]);
+};
+
+$buildFormattingChangePackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $formattingChangeDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $formattingChangeDocumentXml],
     ]);
 };
 
@@ -2999,6 +3044,75 @@ return [
         $t->same('Migration Editor', $revisions['items'][1]['author']);
         $t->same('2026-06-04T18:07:00Z', $revisions['items'][1]['date']);
         $t->same('to publication checklist', $revisions['items'][1]['text']);
+    },
+    'preserves DOCX tracked paragraph and run formatting changes as reviewer metadata' => static function (TestRunner $t) use ($buildFormattingChangePackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildFormattingChangePackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($document->children));
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('CurrentReview', $paragraph->attr('style'));
+        $paragraphRevision = $paragraph->children[0];
+        $t->same('span', $paragraphRevision->type);
+        $t->same([
+            'docx-paragraph-align',
+            'docx-align-center',
+            'docx-formatting-change',
+            'docx-paragraph-formatting-change',
+        ], $paragraphRevision->attr('classes'));
+        $paragraphAttrs = $paragraphRevision->attr('attributes');
+        $t->same('center', $paragraphAttrs['data-docx-paragraph-align']);
+        $t->same('paragraph', $paragraphAttrs['data-docx-formatting-change']);
+        $t->same('20', $paragraphAttrs['data-docx-change-id']);
+        $t->same('Layout Reviewer', $paragraphAttrs['data-docx-author']);
+        $t->same('2026-06-05T18:30:00Z', $paragraphAttrs['data-docx-date']);
+        $t->same('OldReview', $paragraphAttrs['data-docx-previous-paragraph-style']);
+        $t->same('left', $paragraphAttrs['data-docx-previous-paragraph-align']);
+        $t->same('Paragraph formatting revision.', $paragraphRevision->children[0]->attr('text'));
+
+        $runParagraph = $document->children[1];
+        $t->same('Run formatting ', $runParagraph->children[0]->attr('text'));
+        $runRevision = $runParagraph->children[1];
+        $t->same('span', $runRevision->type);
+        $t->same(['docx-formatting-change', 'docx-run-formatting-change'], $runRevision->attr('classes'));
+        $runAttrs = $runRevision->attr('attributes');
+        $t->same('run', $runAttrs['data-docx-formatting-change']);
+        $t->same('21', $runAttrs['data-docx-change-id']);
+        $t->same('Run Reviewer', $runAttrs['data-docx-author']);
+        $t->same('2026-06-05T18:35:00Z', $runAttrs['data-docx-date']);
+        $t->same('true', $runAttrs['data-docx-previous-italic']);
+        $t->same('yellow', $runAttrs['data-docx-previous-highlight']);
+        $t->same('fr-FR', $runAttrs['data-docx-previous-lang']);
+        $t->same('strong', $runRevision->children[0]->type);
+        $t->same('approved label', $runRevision->children[0]->children[0]->attr('text'));
+        $t->same(' stays visible.', $runParagraph->children[2]->attr('text'));
+
+        $t->contains('[Paragraph formatting revision.]{.docx-paragraph-align .docx-align-center .docx-formatting-change .docx-paragraph-formatting-change data-docx-paragraph-align="center" data-docx-formatting-change="paragraph" data-docx-change-id="20" data-docx-author="Layout Reviewer" data-docx-date="2026-06-05T18:30:00Z" data-docx-previous-paragraph-style="OldReview" data-docx-previous-paragraph-align="left"}', $markdown);
+        $t->contains('Run formatting [**approved label**]{.docx-formatting-change .docx-run-formatting-change data-docx-formatting-change="run" data-docx-change-id="21" data-docx-author="Run Reviewer" data-docx-date="2026-06-05T18:35:00Z" data-docx-previous-italic="true" data-docx-previous-highlight="yellow" data-docx-previous-lang="fr-FR"} stays visible.', $markdown);
+
+        $t->contains('<p><span class="docx-paragraph-align docx-align-center docx-formatting-change docx-paragraph-formatting-change" data-docx-paragraph-align="center" data-docx-formatting-change="paragraph" data-docx-change-id="20" data-docx-author="Layout Reviewer" data-docx-date="2026-06-05T18:30:00Z" data-docx-previous-paragraph-style="OldReview" data-docx-previous-paragraph-align="left">Paragraph formatting revision.</span></p>', $blocks);
+        $t->contains('<p>Run formatting <span class="docx-formatting-change docx-run-formatting-change" data-docx-formatting-change="run" data-docx-change-id="21" data-docx-author="Run Reviewer" data-docx-date="2026-06-05T18:35:00Z" data-docx-previous-italic="true" data-docx-previous-highlight="yellow" data-docx-previous-lang="fr-FR"><strong>approved label</strong></span> stays visible.</p>', $blocks);
+
+        $revisions = $result['importReport']['revisions'];
+        $t->same(0, $revisions['insertionCount']);
+        $t->same(0, $revisions['deletionCount']);
+        $t->same(2, $revisions['formattingCount']);
+        $t->same(2, count($revisions['items']));
+        $t->same('paragraph-formatting', $revisions['items'][0]['type']);
+        $t->same(true, $revisions['items'][0]['accepted']);
+        $t->same('20', $revisions['items'][0]['id']);
+        $t->same('Layout Reviewer', $revisions['items'][0]['author']);
+        $t->same('Paragraph formatting revision.', $revisions['items'][0]['text']);
+        $t->same('run-formatting', $revisions['items'][1]['type']);
+        $t->same(true, $revisions['items'][1]['accepted']);
+        $t->same('21', $revisions['items'][1]['id']);
+        $t->same('Run Reviewer', $revisions['items'][1]['author']);
+        $t->same('approved label', $revisions['items'][1]['text']);
     },
     'preserves DOCX bookmarks as anchor spans for internal hyperlink targets' => static function (TestRunner $t) use ($buildBookmarkPackage): void {
         $document = (new DocxReader())->readDocument($buildBookmarkPackage());
