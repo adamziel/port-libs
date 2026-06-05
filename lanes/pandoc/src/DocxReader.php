@@ -5126,6 +5126,11 @@ final class DocxReader
             $settings['listSeparator'] = $listSeparator;
         }
 
+        $documentVariables = $this->settingsDocumentVariables($root);
+        if ($documentVariables !== []) {
+            $settings['documentVariables'] = $documentVariables;
+        }
+
         $zoom = $this->settingsZoom($root);
         if ($zoom !== []) {
             $settings['zoom'] = $zoom;
@@ -5228,6 +5233,66 @@ final class DocxReader
         $value = $this->wordAttr($child, 'val');
 
         return $value === null || $value === '' ? null : $value;
+    }
+
+    /**
+     * @return array{count:int, duplicateNameCount:int, emptyValueCount:int, duplicateNames:list<string>, byName:array<string, string>, items:list<array{name:string, value:string, duplicate:bool}>}|array{}
+     */
+    private function settingsDocumentVariables(\DOMElement $settings): array
+    {
+        $documentVariables = $this->firstChildElement($settings, self::WORDPROCESSINGML_NS, 'docVars');
+        if (!$documentVariables instanceof \DOMElement) {
+            return [];
+        }
+
+        $items = [];
+        $byName = [];
+        $seen = [];
+        $duplicateNames = [];
+        $emptyValueCount = 0;
+
+        foreach ($documentVariables->childNodes as $child) {
+            if (!$child instanceof \DOMElement || !$this->isWordElement($child, 'docVar')) {
+                continue;
+            }
+
+            $name = $this->wordAttr($child, 'name');
+            if ($name === null || $name === '') {
+                continue;
+            }
+
+            $value = $this->wordAttr($child, 'val') ?? '';
+            if ($value === '') {
+                $emptyValueCount++;
+            }
+
+            $duplicate = isset($seen[$name]);
+            if ($duplicate) {
+                $duplicateNames[$name] = true;
+            } else {
+                $byName[$name] = $value;
+                $seen[$name] = true;
+            }
+
+            $items[] = [
+                'name' => $name,
+                'value' => $value,
+                'duplicate' => $duplicate,
+            ];
+        }
+
+        if ($items === []) {
+            return [];
+        }
+
+        return [
+            'count' => count($items),
+            'duplicateNameCount' => count($duplicateNames),
+            'emptyValueCount' => $emptyValueCount,
+            'duplicateNames' => array_keys($duplicateNames),
+            'byName' => $byName,
+            'items' => $items,
+        ];
     }
 
     /**

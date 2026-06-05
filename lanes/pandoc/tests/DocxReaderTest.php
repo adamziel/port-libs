@@ -1392,6 +1392,13 @@ $settingsXml = <<<'XML'
   <w:defaultTabStop w:val="720"/>
   <w:decimalSymbol w:val=","/>
   <w:listSeparator w:val=";"/>
+  <w:docVars>
+    <w:docVar w:name="ReviewStatus" w:val="needs-media-review"/>
+    <w:docVar w:name="ImportOwner" w:val="Migration Desk"/>
+    <w:docVar w:name="ReviewStatus" w:val="approved-for-staging"/>
+    <w:docVar w:name="IgnoredEmptyName" w:val=""/>
+    <w:docVar w:name="" w:val="ignored-empty-name"/>
+  </w:docVars>
   <w:attachedTemplate r:id="rIdTemplate"/>
   <w:compat>
     <w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/>
@@ -3744,6 +3751,34 @@ return [
         $t->same(['external-target-unsafe-scheme'], $template['issues']);
 
         $t->same($settings, $result['importReport']['settings']);
+    },
+    'reports DOCX settings document variables for reviewer handoff' => static function (TestRunner $t) use ($buildSettingsPackage): void {
+        $result = (new DocxReader())->readPackage($buildSettingsPackage());
+        $settings = $result['metadata']['docxSettings'];
+        $docVars = $settings['documentVariables'];
+
+        $t->same(4, $docVars['count']);
+        $t->same(1, $docVars['duplicateNameCount']);
+        $t->same(1, $docVars['emptyValueCount']);
+        $t->same(['ReviewStatus'], $docVars['duplicateNames']);
+        $t->same('needs-media-review', $docVars['byName']['ReviewStatus']);
+        $t->same('Migration Desk', $docVars['byName']['ImportOwner']);
+        $t->same('', $docVars['byName']['IgnoredEmptyName']);
+
+        $t->same('ReviewStatus', $docVars['items'][0]['name']);
+        $t->same('needs-media-review', $docVars['items'][0]['value']);
+        $t->same(false, $docVars['items'][0]['duplicate']);
+        $t->same('ImportOwner', $docVars['items'][1]['name']);
+        $t->same('Migration Desk', $docVars['items'][1]['value']);
+        $t->same(false, $docVars['items'][1]['duplicate']);
+        $t->same('ReviewStatus', $docVars['items'][2]['name']);
+        $t->same('approved-for-staging', $docVars['items'][2]['value']);
+        $t->same(true, $docVars['items'][2]['duplicate']);
+        $t->same('IgnoredEmptyName', $docVars['items'][3]['name']);
+        $t->same('', $docVars['items'][3]['value']);
+        $t->same(false, $docVars['items'][3]['duplicate']);
+
+        $t->same($docVars, $result['importReport']['settings']['documentVariables']);
     },
     'rejects malformed DOCX packages without shelling out to office tooling' => static function (TestRunner $t) use ($contentTypesXml, $documentXml): void {
         $reader = new DocxReader();

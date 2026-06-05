@@ -427,6 +427,13 @@ XML],
   <w:defaultTabStop w:val="720"/>
   <w:decimalSymbol w:val=","/>
   <w:listSeparator w:val=";"/>
+  <w:docVars>
+    <w:docVar w:name="ReviewStatus" w:val="needs-media-review"/>
+    <w:docVar w:name="ImportOwner" w:val="Migration Desk"/>
+    <w:docVar w:name="ReviewStatus" w:val="approved-for-staging"/>
+    <w:docVar w:name="DeferredOwner" w:val=""/>
+    <w:docVar w:name="" w:val="ignored-empty-name"/>
+  </w:docVars>
   <w:attachedTemplate r:id="rIdReviewTemplate"/>
   <w:compat>
     <w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/>
@@ -571,6 +578,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['metadata']['docxSettings']['documentProtection']['edit'] ?? '') !== 'readOnly') {
         throw new RuntimeException('DOCX body handoff self-test missing settings protection metadata');
     }
+    if (($summary['metadata']['docxSettings']['documentVariables']['byName']['ReviewStatus'] ?? '') !== 'needs-media-review') {
+        throw new RuntimeException('DOCX body handoff self-test missing settings document variable metadata');
+    }
+    if (($summary['metadata']['docxSettings']['documentVariables']['duplicateNames'][0] ?? '') !== 'ReviewStatus') {
+        throw new RuntimeException('DOCX body handoff self-test missing duplicate settings document variable report');
+    }
+    if (($summary['metadata']['docxSettings']['documentVariables']['emptyValueCount'] ?? -1) !== 1) {
+        throw new RuntimeException('DOCX body handoff self-test missing empty settings document variable report');
+    }
     if (($summary['metadata']['docxSettings']['attachedTemplate']['issues'][0] ?? '') !== 'external-target-unsafe-scheme') {
         throw new RuntimeException('DOCX body handoff self-test missing unsafe attached-template setting');
     }
@@ -579,6 +595,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['importReport']['settings']['attachedTemplate']['id'] ?? '') !== 'rIdReviewTemplate') {
         throw new RuntimeException('DOCX body handoff self-test missing attached-template relationship report');
+    }
+    if (($summary['importReport']['settings']['documentVariables']['items'][2]['duplicate'] ?? null) !== true) {
+        throw new RuntimeException('DOCX body handoff self-test missing settings document variable import report');
     }
     if (($summary['importReport']['media']['embeddedCount'] ?? 0) !== 2) {
         throw new RuntimeException('DOCX body handoff self-test missing media import report');
