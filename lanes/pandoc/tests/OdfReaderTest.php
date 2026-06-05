@@ -598,6 +598,47 @@ XML;
         $t->contains('<sup><span data-odf-style-name="InheritedSuperscript">TM</span></sup>', $blocksHtml);
         $t->contains('<sub><span data-odf-style-name="SourceSubscript">2</span></sub>', $blocksHtml);
     },
+    'maps ODT ruby annotations into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithRuby = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Localized <text:ruby text:style-name="SourceRuby"><text:ruby-base>漢字</text:ruby-base><text:ruby-text text:style-name="RubyText">kanji</text:ruby-text></text:ruby> label and <text:ruby><text:ruby-base><text:span>東京</text:span></text:ruby-base><text:ruby-text>Tokyo</text:ruby-text></text:ruby> note.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithRuby));
+        $paragraph = $result['document']->children[0];
+        $firstRuby = $paragraph->children[1];
+        $secondRuby = $paragraph->children[3];
+
+        $t->same('Localized 漢字 label and 東京 note.', $paragraph->attr('text'));
+        $t->same('span', $firstRuby->type);
+        $t->same(['odf-ruby'], $firstRuby->attr('classes'));
+        $t->same('kanji', $firstRuby->attr('rubyText'));
+        $t->same('SourceRuby', $firstRuby->attr('rubyStyleName'));
+        $t->same('RubyText', $firstRuby->attr('rubyTextStyleName'));
+        $t->same('kanji', $firstRuby->attr('attributes')['data-odf-ruby-text']);
+        $t->same('SourceRuby', $firstRuby->attr('attributes')['data-odf-ruby-style-name']);
+        $t->same('RubyText', $firstRuby->attr('attributes')['data-odf-ruby-text-style-name']);
+        $t->same('漢字', $firstRuby->children[0]->attr('text'));
+
+        $t->same('span', $secondRuby->type);
+        $t->same('Tokyo', $secondRuby->attr('rubyText'));
+        $t->same('東京', $secondRuby->children[0]->attr('text'));
+        $t->same(2, $result['importReport']['content']['rubyCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[漢字]{.odf-ruby data-odf-ruby-text="kanji" data-odf-ruby-style-name="SourceRuby" data-odf-ruby-text-style-name="RubyText"}', $markdown);
+        $t->contains('[東京]{.odf-ruby data-odf-ruby-text="Tokyo"}', $markdown);
+        $t->contains('<span class="odf-ruby" data-odf-ruby-text="kanji" data-odf-ruby-style-name="SourceRuby" data-odf-ruby-text-style-name="RubyText">漢字</span>', $blocksHtml);
+        $t->contains('<span class="odf-ruby" data-odf-ruby-text="Tokyo">東京</span>', $blocksHtml);
+    },
     'continues ODT ordered list numbering across sibling lists by level' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithContinuationLists = <<<'XML'
 <office:document-styles

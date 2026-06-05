@@ -170,6 +170,7 @@ final class OdfReader
                     'referenceReferenceCount' => $contentStats['referenceReferenceCount'],
                     'sequenceCount' => $contentStats['sequenceCount'],
                     'fieldCount' => $contentStats['fieldCount'],
+                    'rubyCount' => $contentStats['rubyCount'],
                     'softPageBreakCount' => $contentStats['softPageBreakCount'],
                     'citationCount' => $contentStats['citationCount'],
                     'annotationRangeCount' => $contentStats['annotationRangeCount'],
@@ -1575,6 +1576,13 @@ final class OdfReader
                 array_push($nodes, ...$this->spanNodes($child, $catalog, $package));
                 continue;
             }
+            if ($this->isElement($child, self::TEXT_NS, 'ruby')) {
+                $ruby = $this->rubyNode($child, $catalog, $package);
+                if ($ruby instanceof AstNode) {
+                    $nodes[] = $ruby;
+                }
+                continue;
+            }
             if ($this->isElement($child, self::TEXT_NS, 'a')) {
                 $nodes[] = $this->linkNode($child, $catalog, $package);
                 continue;
@@ -1711,6 +1719,70 @@ final class OdfReader
         }
 
         return $nodes;
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     */
+    private function rubyNode(\DOMElement $ruby, array $catalog, ?ZipPackage $package): ?AstNode
+    {
+        $base = self::firstChildElement($ruby, 'ruby-base', self::TEXT_NS);
+        $baseNodes = $base instanceof \DOMElement
+            ? $this->coalesceTextNodes($this->inlineNodes($base, $catalog, $package))
+            : $this->coalesceTextNodes($this->rubyFallbackBaseNodes($ruby, $catalog, $package));
+        if ($baseNodes === []) {
+            return null;
+        }
+
+        $rubyText = self::firstChildElement($ruby, 'ruby-text', self::TEXT_NS);
+        $annotation = '';
+        $textStyleName = '';
+        if ($rubyText instanceof \DOMElement) {
+            $annotationNodes = $this->coalesceTextNodes($this->inlineNodes($rubyText, $catalog, $package));
+            $annotation = $this->plainInlineText($annotationNodes);
+            if ($annotation === '') {
+                $annotation = self::normalizedText($rubyText);
+            }
+            $textStyleName = self::attr($rubyText, self::TEXT_NS, 'style-name');
+        }
+
+        $styleName = self::attr($ruby, self::TEXT_NS, 'style-name');
+        $attrs = [
+            'sourceFormat' => 'odt',
+            'classes' => ['odf-ruby'],
+            'attributes' => [],
+        ];
+        if ($annotation !== '') {
+            $attrs['rubyText'] = $annotation;
+            $attrs['attributes']['data-odf-ruby-text'] = $annotation;
+        }
+        if ($styleName !== '') {
+            $attrs['rubyStyleName'] = $styleName;
+            $attrs['attributes']['data-odf-ruby-style-name'] = $styleName;
+        }
+        if ($textStyleName !== '') {
+            $attrs['rubyTextStyleName'] = $textStyleName;
+            $attrs['attributes']['data-odf-ruby-text-style-name'] = $textStyleName;
+        }
+
+        return new AstNode('span', $attrs, $baseNodes);
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     * @return list<AstNode>
+     */
+    private function rubyFallbackBaseNodes(\DOMElement $ruby, array $catalog, ?ZipPackage $package): array
+    {
+        $children = [];
+        foreach ($ruby->childNodes as $child) {
+            if ($child instanceof \DOMElement && $this->isElement($child, self::TEXT_NS, 'ruby-text')) {
+                continue;
+            }
+            $children[] = $child;
+        }
+
+        return $this->inlineNodesFromNodeList($children, $catalog, $package);
     }
 
     /**
@@ -3310,7 +3382,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, continuedListCount:int, listHeaderCount:int}
+     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, continuedListCount:int, listHeaderCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -3322,6 +3394,7 @@ final class OdfReader
             'referenceReferenceCount' => 0,
             'sequenceCount' => 0,
             'fieldCount' => 0,
+            'rubyCount' => 0,
             'softPageBreakCount' => 0,
             'citationCount' => 0,
             'annotationRangeCount' => 0,
@@ -3367,6 +3440,9 @@ final class OdfReader
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-field')) {
                 $stats['fieldCount']++;
+            }
+            if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-ruby')) {
+                $stats['rubyCount']++;
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-soft-page-break')) {
                 $stats['softPageBreakCount']++;
