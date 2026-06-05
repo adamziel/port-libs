@@ -63,7 +63,7 @@ $pinnedProject = static function (array $overrides = []): string {
     return implode("\n", $lines);
 };
 
-$pandocCabal = static function (array $without = [], ?string $mainIs = null, ?string $sourceDirectory = null, ?string $ghcOptions = null, string $type = 'exitcode-stdio-1.0', ?string $buildable = null): string {
+$pandocCabal = static function (array $without = [], ?string $mainIs = null, ?string $sourceDirectory = null, ?string $ghcOptions = null, string $type = 'exitcode-stdio-1.0', ?string $buildable = null, ?string $defaultLanguage = 'Haskell2010'): string {
     $dependencies = array_values(array_diff(
         UpstreamRunnerDependencyAudit::expectedRunnerDependencies()['test:test-pandoc'],
         $without
@@ -99,11 +99,12 @@ $pandocCabal = static function (array $without = [], ?string $mainIs = null, ?st
     return implode("\n", array_merge([
         'common common-options',
         '  build-depends: ' . implode(', ', $commonDependencies),
+        $defaultLanguage === null || $defaultLanguage === '' ? '' : '  default-language: ' . $defaultLanguage,
         '',
     ], $commonExecutable, $testSuite));
 };
 
-$luaCabal = static function (array $without = [], ?string $mainIs = null, ?string $sourceDirectory = null, string $type = 'exitcode-stdio-1.0', ?string $buildable = null): string {
+$luaCabal = static function (array $without = [], ?string $mainIs = null, ?string $sourceDirectory = null, string $type = 'exitcode-stdio-1.0', ?string $buildable = null, ?string $defaultLanguage = 'Haskell2010'): string {
     $dependencies = array_values(array_diff(
         UpstreamRunnerDependencyAudit::expectedRunnerDependencies()['test:test-pandoc-lua-engine'],
         $without
@@ -114,6 +115,7 @@ $luaCabal = static function (array $without = [], ?string $mainIs = null, ?strin
     $testSuite = [
         'common test-options',
         '  build-depends: ' . implode(', ', $commonDependencies),
+        $defaultLanguage === null || $defaultLanguage === '' ? '' : '  default-language: ' . $defaultLanguage,
         '',
         'test-suite test-pandoc-lua-engine',
         '  import: test-options',
@@ -289,9 +291,12 @@ return [
         $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
         $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
         $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedDefaultLanguages']);
         $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
         $t->same('exitcode-stdio-1.0', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['type']);
         $t->same('exitcode-stdio-1.0', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['type']);
+        $t->same('Haskell2010', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['defaultLanguage']);
+        $t->same('Haskell2010', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['defaultLanguage']);
         $t->same(true, in_array('base', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['buildDepends'], true));
         $t->same(true, in_array('zip-archive', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['buildDepends'], true));
         $t->same(true, in_array('tasty-lua', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['buildDepends'], true));
@@ -316,7 +321,7 @@ return [
         $t->contains('record cabal.project package/flag closure', $audit['nonMutatingPlan'][0]);
         $t->contains('runner entry-point semantics', $audit['nonMutatingPlan'][0]);
         $t->contains('solver constraints and runner executable options', $audit['nonMutatingPlan'][1]);
-        $t->contains('test-suite type, buildable state, entry point, direct build-depends, and other-modules closure', $audit['nonMutatingPlan'][2]);
+        $t->contains('test-suite type, buildable state, default-language, entry point, direct build-depends, and other-modules closure', $audit['nonMutatingPlan'][2]);
     },
     'records required runner file provenance before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
@@ -772,6 +777,47 @@ return [
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('missing Cabal runner other-modules', $blocked);
         $t->contains('runner other-modules closure', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks runner default-language drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $pandocCabal, $luaCabal): void {
+        $root = $makeTree($requiredFiles(
+            $pinnedProject(),
+            $pandocCabal([], null, null, null, 'exitcode-stdio-1.0', null, 'Haskell98'),
+            $luaCabal([], null, null, 'exitcode-stdio-1.0', null, '')
+        ));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['projectSourceRepositoryPins']['missing']);
+        $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([
+            'expected' => 'Haskell2010',
+            'actual' => 'Haskell98',
+        ], $audit['runnerDependencyClosure']['mismatchedDefaultLanguages']['test:test-pandoc']);
+        $t->same([
+            'expected' => 'Haskell2010',
+            'actual' => null,
+        ], $audit['runnerDependencyClosure']['mismatchedDefaultLanguages']['test:test-pandoc-lua-engine']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('mismatched Cabal runner default-language', $blocked);
+        $t->contains('test:test-pandoc expected Haskell2010, found Haskell98', $blocked);
+        $t->contains('test:test-pandoc-lua-engine expected Haskell2010, found none', $blocked);
+        $t->contains('Haskell2010 default-language closure', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
 ];
