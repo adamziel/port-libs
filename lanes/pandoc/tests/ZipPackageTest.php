@@ -339,6 +339,31 @@ $buildCentralDirectorySignaturePackage = static function (
         . $centralDirectorySignature
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, $centralDirectorySize, strlen($body), 0);
 };
+$rewriteEndOfCentralDirectory = static function (string $zip, array $fields): string {
+    $eocdOffset = strrpos($zip, "PK\x05\x06");
+    if ($eocdOffset === false) {
+        throw new RuntimeException('EOCD fixture not found');
+    }
+
+    $offsets = [
+        'diskNumber' => 4,
+        'centralDirectoryDisk' => 6,
+        'diskEntryCount' => 8,
+        'totalEntryCount' => 10,
+        'centralDirectorySize' => 12,
+        'centralDirectoryOffset' => 16,
+    ];
+    foreach ($fields as $field => $value) {
+        if (!isset($offsets[$field]) || !is_int($value)) {
+            throw new RuntimeException('Unsupported EOCD fixture field: ' . (string) $field);
+        }
+
+        $format = $field === 'centralDirectorySize' || $field === 'centralDirectoryOffset' ? 'V' : 'v';
+        $zip = substr_replace($zip, pack($format, $value), $eocdOffset + $offsets[$field], $format === 'V' ? 4 : 2);
+    }
+
+    return $zip;
+};
 
 return [
     'reads current zip package central directory and stored deflated parts' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
@@ -862,6 +887,65 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString(
             $buildCentralDirectorySignaturePackage(false, 5)
         ));
+    },
+
+    'preflights zip end of central directory archive layout before package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>EOCD preflight</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "PNG reviewer attachment placeholder\n",
+                'method' => 0,
+            ],
+        ], 'archive layout comment');
+        $rawSummary = ZipPackage::endOfCentralDirectoryPreflight($zip);
+        $package = ZipPackage::fromString($zip);
+        $summary = $package->archivePreflight();
+
+        $t->same($rawSummary['eocdOffset'], strlen($zip) - 22 - strlen('archive layout comment'));
+        $t->same(0, $summary['diskNumber']);
+        $t->same(0, $summary['centralDirectoryDisk']);
+        $t->same(2, $summary['diskEntryCount']);
+        $t->same(2, $summary['totalEntryCount']);
+        $t->same($package->centralDirectoryOffset(), $summary['centralDirectoryOffset']);
+        $t->same($rawSummary['centralDirectorySize'], $summary['centralDirectorySize']);
+        $t->same($summary['eocdOffset'], $summary['centralDirectoryEnd']);
+        $t->same('archive layout comment', $summary['packageComment']);
+        $t->same(strlen('archive layout comment'), $summary['packageCommentLength']);
+        $t->same(true, $summary['isSingleDisk']);
+        $t->same(false, $summary['requiresZip64']);
+        $t->same(true, $summary['isArchiveLayoutSupported']);
+        $t->same(false, $summary['hasCentralDirectorySignature']);
+        $t->same(null, $summary['centralDirectorySignatureOffset']);
+        $t->same(0, $summary['centralDirectorySignatureLength']);
+
+        $splitZip = $rewriteEndOfCentralDirectory($zip, [
+            'diskNumber' => 1,
+            'centralDirectoryDisk' => 1,
+            'diskEntryCount' => 1,
+        ]);
+        $splitSummary = ZipPackage::endOfCentralDirectoryPreflight($splitZip);
+        $t->same(1, $splitSummary['diskNumber']);
+        $t->same(1, $splitSummary['centralDirectoryDisk']);
+        $t->same(1, $splitSummary['diskEntryCount']);
+        $t->same(2, $splitSummary['totalEntryCount']);
+        $t->same(false, $splitSummary['isSingleDisk']);
+        $t->same(false, $splitSummary['isArchiveLayoutSupported']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($splitZip));
+
+        $zip64MarkerZip = $rewriteEndOfCentralDirectory($zip, [
+            'diskEntryCount' => 0xffff,
+            'totalEntryCount' => 0xffff,
+            'centralDirectorySize' => 0xffffffff,
+        ]);
+        $zip64Summary = ZipPackage::endOfCentralDirectoryPreflight($zip64MarkerZip);
+        $t->same(true, $zip64Summary['requiresZip64']);
+        $t->same(false, $zip64Summary['isArchiveLayoutSupported']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip64MarkerZip));
     },
 
     'decodes cp437 zip entry names and comments when utf8 flag is absent' => static function (TestRunner $t) use ($buildZipPackage): void {

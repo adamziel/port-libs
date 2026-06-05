@@ -936,6 +936,36 @@ $buildUnsupportedCompressionMethodBackedPackage = static function () use ($crc32
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$rewriteZipEndOfCentralDirectory = static function (string $zip, array $fields): string {
+    $eocdOffset = strrpos($zip, "PK\x05\x06");
+    if ($eocdOffset === false) {
+        throw new RuntimeException('ZIP end-of-central-directory fixture was not found');
+    }
+
+    $offsets = [
+        'diskNumber' => 4,
+        'centralDirectoryDisk' => 6,
+        'diskEntryCount' => 8,
+        'totalEntryCount' => 10,
+        'centralDirectorySize' => 12,
+        'centralDirectoryOffset' => 16,
+    ];
+    foreach ($fields as $field => $value) {
+        if (!isset($offsets[$field]) || !is_int($value)) {
+            throw new RuntimeException('Unsupported ZIP end-of-central-directory fixture field: ' . (string) $field);
+        }
+
+        $format = $field === 'centralDirectorySize' || $field === 'centralDirectoryOffset' ? 'V' : 'v';
+        $zip = substr_replace(
+            $zip,
+            pack($format, $value),
+            $eocdOffset + $offsets[$field],
+            $format === 'V' ? 4 : 2
+        );
+    }
+
+    return $zip;
+};
 $buildLocalHeaderNameMismatchBackedPackage = static function () use ($crc32): string {
     $centralName = 'word/document.xml';
     $localName = 'word/other.xml';
@@ -1051,6 +1081,7 @@ $package = ZipPackage::fromParts([
         'extraFieldData' => $documentReviewExtra,
     ],
 ], 'wordpress import package');
+$packageArchivePreflight = $package->archivePreflight();
 $packageSizePreflight = $package->sizePreflight();
 $packageCompressionPreflight = $package->compressionMethodPreflight();
 $packagePermissionPreflight = $package->permissionPreflight();
@@ -1074,6 +1105,30 @@ try {
     $unsupportedCompressionMethodPackage->assertSupportedCompressionMethods();
 } catch (RuntimeException $exception) {
     $unsupportedCompressionMethodRejected = str_contains($exception->getMessage(), 'unsupported compression methods');
+}
+$splitZipBytes = $rewriteZipEndOfCentralDirectory($package->bytes(), [
+    'diskNumber' => 1,
+    'centralDirectoryDisk' => 1,
+    'diskEntryCount' => 2,
+]);
+$splitZipArchivePreflight = ZipPackage::endOfCentralDirectoryPreflight($splitZipBytes);
+$splitZipArchiveRejected = false;
+try {
+    ZipPackage::fromString($splitZipBytes);
+} catch (RuntimeException $exception) {
+    $splitZipArchiveRejected = str_contains($exception->getMessage(), 'Split ZIP packages');
+}
+$zip64EocdBytes = $rewriteZipEndOfCentralDirectory($package->bytes(), [
+    'diskEntryCount' => 0xffff,
+    'totalEntryCount' => 0xffff,
+    'centralDirectorySize' => 0xffffffff,
+]);
+$zip64EocdPreflight = ZipPackage::endOfCentralDirectoryPreflight($zip64EocdBytes);
+$zip64EocdRejected = false;
+try {
+    ZipPackage::fromString($zip64EocdBytes);
+} catch (RuntimeException $exception) {
+    $zip64EocdRejected = str_contains($exception->getMessage(), 'ZIP64 packages');
 }
 $gzipReviewExtra = pack('CCv', ord('W'), ord('P'), strlen('review:v1')) . 'review:v1';
 $descriptorPackage = ZipPackage::fromString($buildDescriptorBackedPackage());
@@ -1659,6 +1714,31 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP package comment preflight to expose document part comment metadata');
     }
 
+    if (
+        ($packageArchivePreflight['isSingleDisk'] ?? null) !== true
+        || ($packageArchivePreflight['isArchiveLayoutSupported'] ?? null) !== true
+        || ($packageArchivePreflight['totalEntryCount'] ?? null) !== 3
+        || ($packageArchivePreflight['packageComment'] ?? null) !== 'wordpress import package'
+    ) {
+        throw new RuntimeException('Expected ZIP archive EOCD preflight to accept the generated single-disk package');
+    }
+
+    if (
+        ($splitZipArchivePreflight['isSingleDisk'] ?? null) !== false
+        || ($splitZipArchivePreflight['isArchiveLayoutSupported'] ?? null) !== false
+        || !$splitZipArchiveRejected
+    ) {
+        throw new RuntimeException('Expected split ZIP EOCD metadata to be reported and rejected before import');
+    }
+
+    if (
+        ($zip64EocdPreflight['requiresZip64'] ?? null) !== true
+        || ($zip64EocdPreflight['isArchiveLayoutSupported'] ?? null) !== false
+        || !$zip64EocdRejected
+    ) {
+        throw new RuntimeException('Expected ZIP64 EOCD markers to be reported and rejected before import');
+    }
+
     if (($package->localNames()[0] ?? null) !== '[Content_Types].xml') {
         throw new RuntimeException('Expected local ZIP entry order to be inspectable for package preflight');
     }
@@ -2144,6 +2224,15 @@ echo 'packageCompression.supportedEntryCount=' . $packageCompressionPreflight['s
 echo 'packageCompression.unsupportedMethodCount=' . $packageCompressionPreflight['unsupportedCompressionMethodCount'] . "\n";
 echo 'packagePermissions.unixModeEntryCount=' . $packagePermissionPreflight['unixModeEntryCount'] . "\n";
 echo 'packagePermissions.executableFileCount=' . $packagePermissionPreflight['executableFileCount'] . "\n";
+echo 'packageArchive.eocdOffset=' . $packageArchivePreflight['eocdOffset'] . "\n";
+echo 'packageArchive.totalEntryCount=' . $packageArchivePreflight['totalEntryCount'] . "\n";
+echo 'packageArchive.centralDirectorySize=' . $packageArchivePreflight['centralDirectorySize'] . "\n";
+echo 'packageArchive.singleDisk=' . ($packageArchivePreflight['isSingleDisk'] ? 'true' : 'false') . "\n";
+echo 'packageArchive.layoutSupported=' . ($packageArchivePreflight['isArchiveLayoutSupported'] ? 'true' : 'false') . "\n";
+echo 'zipSplitArchivePolicy=' . ($splitZipArchiveRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipSplitArchiveSingleDisk=' . ($splitZipArchivePreflight['isSingleDisk'] ? 'true' : 'false') . "\n";
+echo 'zip64EocdPolicy=' . ($zip64EocdRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zip64EocdRequiresZip64=' . ($zip64EocdPreflight['requiresZip64'] ? 'true' : 'false') . "\n";
 echo 'descriptor.comments.xml=' . $descriptorPackage->read('/word/comments.xml') . "\n";
 $ntfsTimestamps = $ntfsPackage->entry('/word/media/review.png')->ntfsTimestamps();
 echo 'ntfs.review.png.modifiedAt=' . ($ntfsTimestamps['modifiedAt'] ?? 'none') . "\n";

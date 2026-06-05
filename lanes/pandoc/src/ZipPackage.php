@@ -666,6 +666,89 @@ final class ZipPackage
 
     /**
      * @return array{
+     *     eocdOffset:int,
+     *     diskNumber:int,
+     *     centralDirectoryDisk:int,
+     *     diskEntryCount:int,
+     *     totalEntryCount:int,
+     *     centralDirectorySize:int,
+     *     centralDirectoryOffset:int,
+     *     centralDirectoryEnd:int,
+     *     packageComment:string,
+     *     packageCommentLength:int,
+     *     isSingleDisk:bool,
+     *     requiresZip64:bool,
+     *     isArchiveLayoutSupported:bool
+     * }
+     */
+    public static function endOfCentralDirectoryPreflight(string $bytes): array
+    {
+        $eocdOffset = self::findEndOfCentralDirectory($bytes);
+        $diskNumber = self::readUInt16($bytes, $eocdOffset + 4);
+        $centralDirectoryDisk = self::readUInt16($bytes, $eocdOffset + 6);
+        $diskEntryCount = self::readUInt16($bytes, $eocdOffset + 8);
+        $totalEntryCount = self::readUInt16($bytes, $eocdOffset + 10);
+        $centralDirectorySize = self::readUInt32($bytes, $eocdOffset + 12);
+        $centralDirectoryOffset = self::readUInt32($bytes, $eocdOffset + 16);
+        $packageCommentLength = self::readUInt16($bytes, $eocdOffset + 20);
+        $isSingleDisk = $diskNumber === 0
+            && $centralDirectoryDisk === 0
+            && $diskEntryCount === $totalEntryCount;
+        $requiresZip64 = $totalEntryCount === 0xffff
+            || $centralDirectorySize === 0xffffffff
+            || $centralDirectoryOffset === 0xffffffff;
+
+        return [
+            'eocdOffset' => $eocdOffset,
+            'diskNumber' => $diskNumber,
+            'centralDirectoryDisk' => $centralDirectoryDisk,
+            'diskEntryCount' => $diskEntryCount,
+            'totalEntryCount' => $totalEntryCount,
+            'centralDirectorySize' => $centralDirectorySize,
+            'centralDirectoryOffset' => $centralDirectoryOffset,
+            'centralDirectoryEnd' => $centralDirectoryOffset + $centralDirectorySize,
+            'packageComment' => substr($bytes, $eocdOffset + 22, $packageCommentLength),
+            'packageCommentLength' => $packageCommentLength,
+            'isSingleDisk' => $isSingleDisk,
+            'requiresZip64' => $requiresZip64,
+            'isArchiveLayoutSupported' => $isSingleDisk && !$requiresZip64,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     eocdOffset:int,
+     *     diskNumber:int,
+     *     centralDirectoryDisk:int,
+     *     diskEntryCount:int,
+     *     totalEntryCount:int,
+     *     centralDirectorySize:int,
+     *     centralDirectoryOffset:int,
+     *     centralDirectoryEnd:int,
+     *     packageComment:string,
+     *     packageCommentLength:int,
+     *     isSingleDisk:bool,
+     *     requiresZip64:bool,
+     *     isArchiveLayoutSupported:bool,
+     *     hasCentralDirectorySignature:bool,
+     *     centralDirectorySignatureOffset:?int,
+     *     centralDirectorySignatureLength:int
+     * }
+     */
+    public function archivePreflight(): array
+    {
+        $summary = self::endOfCentralDirectoryPreflight($this->bytes);
+        $summary['hasCentralDirectorySignature'] = $this->hasCentralDirectorySignature();
+        $summary['centralDirectorySignatureOffset'] = $this->centralDirectorySignatureOffset;
+        $summary['centralDirectorySignatureLength'] = $this->centralDirectorySignatureData === null
+            ? 0
+            : strlen($this->centralDirectorySignatureData);
+
+        return $summary;
+    }
+
+    /**
+     * @return array{
      *     entryCount:int,
      *     fileCount:int,
      *     directoryCount:int,
