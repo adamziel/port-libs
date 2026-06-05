@@ -42,8 +42,8 @@ final class PdfActionReviewExtractor
     /** @var array<int, array<int, mixed>> */
     private array $objectsByGeneration = [];
 
-    /** @var array<int, int> */
-    private array $pageIndexes;
+    /** @var array<string, int> */
+    private array $pageIndexesByReference;
 
     /** @var array<string, mixed> */
     private array $destinations;
@@ -55,10 +55,10 @@ final class PdfActionReviewExtractor
         $this->objects = $this->parsedObjectValues($pdfBytes);
         $catalog = $this->catalogDictionary($this->objects);
 
-        $pageObjectNumbers = $this->orderedPageObjectNumbers($this->objects, $catalog);
-        $this->pageIndexes = [];
-        foreach ($pageObjectNumbers as $index => $objectNumber) {
-            $this->pageIndexes[$objectNumber] = $index;
+        $pageObjectReferences = $this->orderedPageObjectReferences($this->objects, $catalog);
+        $this->pageIndexesByReference = [];
+        foreach ($pageObjectReferences as $index => $reference) {
+            $this->pageIndexesByReference[$this->referenceKey($reference['object'], $reference['generation'])] = $index;
         }
 
         $this->destinations = $catalog === null ? [] : $this->destinationMap($catalog, $this->objects);
@@ -880,10 +880,11 @@ final class PdfActionReviewExtractor
      */
     private function destinationViewDetails(mixed $destination, ?string $destinationName = null, array $seenNames = []): ?array
     {
-        $pageObjectNumber = $this->referenceObjectNumber($destination);
-        if ($pageObjectNumber !== null && isset($this->pageIndexes[$pageObjectNumber])) {
+        $pageReference = $this->referenceObject($destination);
+        $pageIndex = $pageReference === null ? null : $this->pageIndexForReference($pageReference);
+        if ($pageIndex !== null) {
             return [
-                'page' => $this->pageIndexes[$pageObjectNumber],
+                'page' => $pageIndex,
                 'destination' => $destinationName,
                 'view_mode' => null,
                 'view_position' => [],
@@ -957,15 +958,21 @@ final class PdfActionReviewExtractor
 
     private function destinationPageFromValue(mixed $value): ?int
     {
-        $pageObjectNumber = $this->referenceObjectNumber($value);
-        if ($pageObjectNumber !== null) {
-            return $this->pageIndexes[$pageObjectNumber] ?? null;
+        $pageReference = $this->referenceObject($value);
+        if ($pageReference !== null) {
+            $pageIndex = $this->pageIndexForReference($pageReference);
+            if ($pageIndex !== null) {
+                return $pageIndex;
+            }
         }
 
         $resolved = $this->resolveValue($value);
-        $pageObjectNumber = $this->referenceObjectNumber($resolved);
-        if ($pageObjectNumber !== null) {
-            return $this->pageIndexes[$pageObjectNumber] ?? null;
+        $resolvedPageReference = $this->referenceObject($resolved);
+        if ($resolvedPageReference !== null) {
+            $pageIndex = $this->pageIndexForReference($resolvedPageReference);
+            if ($pageIndex !== null) {
+                return $pageIndex;
+            }
         }
 
         if (is_int($resolved) && $resolved >= 0) {
@@ -1134,14 +1141,14 @@ final class PdfActionReviewExtractor
     /**
      * @param array<int, mixed> $objects
      * @param array<string, mixed>|null $catalog
-     * @return list<int>
+     * @return list<array{object: int, generation: int}>
      */
-    private function orderedPageObjectNumbers(array $objects, ?array $catalog): array
+    private function orderedPageObjectReferences(array $objects, ?array $catalog): array
     {
         if ($catalog !== null) {
-            $pagesRoot = $this->referenceObjectNumber($catalog['Pages'] ?? null);
+            $pagesRoot = $this->referenceObject($catalog['Pages'] ?? null);
             if ($pagesRoot !== null) {
-                $pages = $this->pageObjectNumbersFromTree($pagesRoot, $objects);
+                $pages = $this->pageObjectReferencesFromTree($pagesRoot['object'], $pagesRoot['generation'], $objects);
                 if ($pages !== []) {
                     return $pages;
                 }
@@ -1149,10 +1156,23 @@ final class PdfActionReviewExtractor
         }
 
         $pages = [];
+        foreach ($this->objectsByGeneration as $objectNumber => $generations) {
+            foreach ($generations as $generation => $value) {
+                $dict = $this->dictionaryItems($value);
+                if ($dict !== null && $this->nameValue($dict['Type'] ?? null) === 'Page') {
+                    $pages[] = ['object' => $objectNumber, 'generation' => $generation];
+                }
+            }
+        }
+
+        if ($pages !== []) {
+            return $pages;
+        }
+
         foreach ($objects as $objectNumber => $value) {
             $dict = $this->dictionaryItems($value);
             if ($dict !== null && $this->nameValue($dict['Type'] ?? null) === 'Page') {
-                $pages[] = $objectNumber;
+                $pages[] = ['object' => $objectNumber, 'generation' => 0];
             }
         }
 
@@ -1161,23 +1181,24 @@ final class PdfActionReviewExtractor
 
     /**
      * @param array<int, mixed> $objects
-     * @param array<int, true> $seen
-     * @return list<int>
+     * @param array<string, true> $seen
+     * @return list<array{object: int, generation: int}>
      */
-    private function pageObjectNumbersFromTree(int $objectNumber, array $objects, array $seen = []): array
+    private function pageObjectReferencesFromTree(int $objectNumber, int $generation, array $objects, array $seen = []): array
     {
-        if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+        $key = $this->referenceKey($objectNumber, $generation);
+        if (isset($seen[$key])) {
             return [];
         }
-        $seen[$objectNumber] = true;
+        $seen[$key] = true;
 
-        $dict = $this->resolveDictionary($this->refValue($objectNumber));
+        $dict = $this->resolveDictionary($this->refValue($objectNumber, $generation));
         if ($dict === null) {
             return [];
         }
 
         if ($this->nameValue($dict['Type'] ?? null) === 'Page') {
-            return [$objectNumber];
+            return [['object' => $objectNumber, 'generation' => $generation]];
         }
 
         $kids = $this->resolveArray($dict['Kids'] ?? null);
@@ -1187,13 +1208,13 @@ final class PdfActionReviewExtractor
 
         $pages = [];
         foreach ($kids as $kid) {
-            $kidObjectNumber = $this->referenceObjectNumber($kid);
-            if ($kidObjectNumber === null) {
+            $kidReference = $this->referenceObject($kid);
+            if ($kidReference === null) {
                 continue;
             }
 
-            foreach ($this->pageObjectNumbersFromTree($kidObjectNumber, $objects, $seen) as $pageObjectNumber) {
-                $pages[] = $pageObjectNumber;
+            foreach ($this->pageObjectReferencesFromTree($kidReference['object'], $kidReference['generation'], $objects, $seen) as $pageReference) {
+                $pages[] = $pageReference;
             }
         }
 
@@ -1673,9 +1694,22 @@ final class PdfActionReviewExtractor
     /**
      * @return array{pdfType: string, object: int, generation: int}
      */
-    private function refValue(int $objectNumber): array
+    private function refValue(int $objectNumber, int $generation = 0): array
     {
-        return ['pdfType' => 'ref', 'object' => $objectNumber, 'generation' => 0];
+        return ['pdfType' => 'ref', 'object' => $objectNumber, 'generation' => $generation];
+    }
+
+    /**
+     * @param array{object: int, generation: int} $reference
+     */
+    private function pageIndexForReference(array $reference): ?int
+    {
+        return $this->pageIndexesByReference[$this->referenceKey($reference['object'], $reference['generation'])] ?? null;
+    }
+
+    private function referenceKey(int $objectNumber, int $generation): string
+    {
+        return $objectNumber . ':' . $generation;
     }
 
     private function nameValue(mixed $value): ?string
