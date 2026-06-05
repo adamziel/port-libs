@@ -7962,20 +7962,12 @@ final class PdfTextExtractor
      */
     private function pageTreeKidObjectReferences(string $body, array $objects): array
     {
-        if (preg_match('/\/Kids\s*(?:(\d+)\s+(\d+)\s+R|\[)/s', $body, $match, PREG_OFFSET_CAPTURE) !== 1) {
+        $value = $this->topLevelPdfValueAfterName($body, 'Kids');
+        if ($value === null) {
             return [];
         }
 
-        if (($match[1][0] ?? '') !== '') {
-            $objectNumber = (int) $match[1][0];
-            $generation = (int) ($match[2][0] ?? 0);
-            $objectBody = $this->objectBodyForPageTreeReference($objects, $objectNumber, $generation);
-            $arrayBody = $objectBody === null ? null : $this->pdfArrayAtStart(trim($objectBody));
-            return $arrayBody === null ? [] : $this->pageTreeKidReferencesFromArray($arrayBody, $objects);
-        }
-
-        $offset = strpos($body, '[', $match[0][1]);
-        $arrayBody = $offset === false ? null : $this->readPdfArrayAt($body, $offset);
+        $arrayBody = $this->pdfArrayFromValue($value, $objects);
 
         return $arrayBody === null ? [] : $this->pageTreeKidReferencesFromArray($arrayBody, $objects);
     }

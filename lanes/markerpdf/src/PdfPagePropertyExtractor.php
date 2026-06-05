@@ -1316,7 +1316,7 @@ final class PdfPagePropertyExtractor
                 continue;
             }
 
-            $resourceValue = $this->dictionaryEntries($objectDictionary)['Resources'] ?? null;
+            $resourceValue = $this->topLevelDictionaryRawValue($objectDictionary, 'Resources');
             if ($resourceValue === null) {
                 continue;
             }
@@ -2288,7 +2288,7 @@ final class PdfPagePropertyExtractor
             return [];
         }
 
-        $kids = $this->dictionaryRawValue($dictionary, 'Kids');
+        $kids = $this->topLevelDictionaryRawValue($dictionary, 'Kids');
         if ($kids === null) {
             return [];
         }
@@ -2486,6 +2486,42 @@ final class PdfPagePropertyExtractor
         return $this->dictionaryEntries($dictionary)[$key] ?? null;
     }
 
+    private function topLevelDictionaryRawValue(string $dictionary, string $key): ?string
+    {
+        $value = null;
+        for ($offset = 0, $length = strlen($dictionary); $offset < $length;) {
+            $offset = $this->skipWhitespace($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (($dictionary[$offset] ?? '') !== '/') {
+                $offset++;
+                continue;
+            }
+
+            $remaining = substr($dictionary, $offset);
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', $remaining, $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $entryValue = $this->readPdfValueAt($dictionary, $offset + strlen($match[0]));
+            if ($entryValue === null) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            if ($this->decodePdfName($match[1]) === $key) {
+                $value = $entryValue['raw'];
+            }
+
+            $offset = $entryValue['end'];
+        }
+
+        return $value;
+    }
+
     /**
      * @param array<int, string> $objects
      */
@@ -2572,9 +2608,21 @@ final class PdfPagePropertyExtractor
      */
     private function pdfObjectTypeName(string $body, array $objects): ?string
     {
-        $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+        $trimmed = ltrim($body);
+        $dictionary = str_starts_with($trimmed, '<<')
+            ? ($this->dictionaryObjectBody($body) ?? $body)
+            : $body;
+        $value = $this->topLevelDictionaryRawValue($dictionary, 'Type');
+        if ($value === null) {
+            return null;
+        }
 
-        return $this->dictionaryNameValue($dictionary, 'Type', $objects);
+        $resolved = trim($this->resolveRawValue($value, $objects) ?? $value);
+        if (preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $resolved, $match) !== 1) {
+            return null;
+        }
+
+        return $this->decodePdfName($match[1]);
     }
 
     private function objectNumberFromReference(string $value): ?int
