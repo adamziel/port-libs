@@ -945,6 +945,15 @@ final class DocxReader
                 continue;
             }
 
+            if ($this->isWordElement($child, 'customXml')) {
+                $this->appendListParagraphs($blocks, $pendingListParagraphs);
+                array_push(
+                    $blocks,
+                    ...$this->customXmlBlocks($child, $package, $relationships, $referencedNotes, $styles, $numbering)
+                );
+                continue;
+            }
+
             if ($this->isWordElement($child, 'sdt')) {
                 $this->appendListParagraphs($blocks, $pendingListParagraphs);
                 array_push(
@@ -1458,6 +1467,10 @@ final class DocxReader
             return $this->mathNodes($element, true);
         }
 
+        if ($this->isWordElement($element, 'customXml')) {
+            return $this->customXmlInlineNodes($element, $package, $relationships, $referencedNotes);
+        }
+
         if ($this->isWordElement($element, 'sdt')) {
             return $this->structuredDocumentTagInlineNodes($element, $package, $relationships, $referencedNotes);
         }
@@ -1507,6 +1520,103 @@ final class DocxReader
     private function structuredDocumentTagContent(\DOMElement $sdt): ?\DOMElement
     {
         return $this->firstChildElement($sdt, self::WORDPROCESSINGML_NS, 'sdtContent');
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
+     * @return list<AstNode>
+     */
+    private function customXmlBlocks(
+        \DOMElement $customXml,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes,
+        array $styles,
+        array $numbering
+    ): array {
+        $blocks = $this->blockContainerChildren($customXml, $package, $relationships, $referencedNotes, $styles, $numbering);
+        if ($blocks !== []) {
+            return [new AstNode('div', $this->customXmlAttrs($customXml), $blocks)];
+        }
+
+        $inlines = $this->coalesceTextNodes($this->inlineContainerNodes($customXml, $package, $relationships, $referencedNotes));
+        if ($inlines === []) {
+            return [];
+        }
+
+        return [new AstNode('paragraph', [], [new AstNode('span', $this->customXmlAttrs($customXml), $inlines)])];
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @return list<AstNode>
+     */
+    private function customXmlInlineNodes(
+        \DOMElement $customXml,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes
+    ): array {
+        $children = $this->coalesceTextNodes($this->inlineContainerNodes($customXml, $package, $relationships, $referencedNotes));
+        if ($children === []) {
+            return [];
+        }
+
+        return [new AstNode('span', $this->customXmlAttrs($customXml), $children)];
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function customXmlAttrs(\DOMElement $customXml): array
+    {
+        $attributes = [];
+        foreach ([
+            'uri' => 'data-docx-custom-xml-uri',
+            'element' => 'data-docx-custom-xml-element',
+        ] as $wordAttr => $htmlAttr) {
+            $value = $this->wordAttr($customXml, $wordAttr);
+            if ($value !== null && $value !== '') {
+                $attributes[$htmlAttr] = $value;
+            }
+        }
+
+        $properties = $this->firstChildElement($customXml, self::WORDPROCESSINGML_NS, 'customXmlPr');
+        if ($properties instanceof \DOMElement) {
+            foreach ($properties->childNodes as $child) {
+                if (!$child instanceof \DOMElement || !$this->isWordElement($child, 'attr')) {
+                    continue;
+                }
+
+                $name = $this->wordAttr($child, 'name');
+                $key = $name === null ? null : $this->customXmlPropertyKey($name);
+                if ($key === null) {
+                    continue;
+                }
+
+                $value = $this->wordAttr($child, 'val');
+                if ($value !== null && $value !== '') {
+                    $attributes['data-docx-custom-xml-prop-' . $key] = $value;
+                }
+
+                $uri = $this->wordAttr($child, 'uri');
+                if ($uri !== null && $uri !== '') {
+                    $attributes['data-docx-custom-xml-prop-' . $key . '-uri'] = $uri;
+                }
+            }
+        }
+
+        return [
+            'classes' => ['docx-custom-xml'],
+            'attributes' => $attributes,
+        ];
+    }
+
+    private function customXmlPropertyKey(string $name): ?string
+    {
+        return $this->xmlMetadataPropertyKey($name);
     }
 
     /**
@@ -1697,6 +1807,11 @@ final class DocxReader
     }
 
     private function smartTagPropertyKey(string $name): ?string
+    {
+        return $this->xmlMetadataPropertyKey($name);
+    }
+
+    private function xmlMetadataPropertyKey(string $name): ?string
     {
         $key = strtolower(trim($name));
         if ($key === '') {

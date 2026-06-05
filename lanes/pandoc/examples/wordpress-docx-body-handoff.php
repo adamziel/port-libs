@@ -107,6 +107,23 @@ XML],
       <w:r><w:t xml:space="preserve"> remains traceable.</w:t></w:r>
     </w:p>
     <w:p>
+      <w:r><w:t xml:space="preserve">Custom XML category </w:t></w:r>
+      <w:customXml w:uri="https://example.test/docx/custom" w:element="packet-category">
+        <w:customXmlPr>
+          <w:attr w:name="source-field" w:uri="https://example.test/docx/custom" w:val="category"/>
+          <w:attr w:name="Review ID" w:val="packet-42"/>
+        </w:customXmlPr>
+        <w:r><w:rPr><w:i/></w:rPr><w:t>Policy update</w:t></w:r>
+      </w:customXml>
+      <w:r><w:t xml:space="preserve"> remains auditable.</w:t></w:r>
+    </w:p>
+    <w:customXml w:uri="https://example.test/docx/custom" w:element="review-section">
+      <w:customXmlPr>
+        <w:attr w:name="section-id" w:val="source-review"/>
+      </w:customXmlPr>
+      <w:p><w:r><w:t>Custom XML review block for source packet.</w:t></w:r></w:p>
+    </w:customXml>
+    <w:p>
       <w:r><w:t xml:space="preserve">Decoded source symbols </w:t></w:r>
       <w:r><w:sym w:font="Symbol" w:char="F061"/></w:r>
       <w:r><w:t xml:space="preserve"> </w:t></w:r>
@@ -406,6 +423,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<a href="https://example.test/field-link?post=42" title="Field link title">field-coded source</a>',
         '<span class="docx-content-control docx-content-control-text" data-docx-sdt-id="42" data-docx-sdt-alias="Import Status" data-docx-sdt-tag="import_status" data-docx-sdt-type="text">Ready for import</span>',
         '<span class="docx-smart-tag" data-docx-smart-tag-uri="urn:schemas-microsoft-com:office:smarttags" data-docx-smart-tag-element="PersonName" data-docx-smart-tag-prop-normalized="Migration Desk" data-docx-smart-tag-prop-normalized-uri="https://example.test/docx/smart-tags" data-docx-smart-tag-prop-review-id="packet-42"><strong>Migration Desk</strong></span>',
+        '<span class="docx-custom-xml" data-docx-custom-xml-uri="https://example.test/docx/custom" data-docx-custom-xml-element="packet-category" data-docx-custom-xml-prop-source-field="category" data-docx-custom-xml-prop-source-field-uri="https://example.test/docx/custom" data-docx-custom-xml-prop-review-id="packet-42"><em>Policy update</em></span>',
+        '<div class="docx-custom-xml" data-docx-custom-xml-uri="https://example.test/docx/custom" data-docx-custom-xml-element="review-section" data-docx-custom-xml-prop-section-id="source-review"><p>Custom XML review block for source packet.</p></div>',
         '<p>Decoded source symbols α • ✓ ← remain visible.</p>',
         '<p>Textbox lead </p>',
         '<p>Source textbox note from VML shape.</p>',

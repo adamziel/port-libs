@@ -623,6 +623,36 @@ $smartTagDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$customXmlDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Packet category </w:t></w:r>
+      <w:customXml w:uri="https://example.test/docx/custom" w:element="packet-category">
+        <w:customXmlPr>
+          <w:attr w:name="source-field" w:uri="https://example.test/docx/custom" w:val="category"/>
+          <w:attr w:name="Review ID" w:val="packet-42"/>
+        </w:customXmlPr>
+        <w:r><w:rPr><w:i/></w:rPr><w:t>Policy update</w:t></w:r>
+      </w:customXml>
+      <w:r><w:t xml:space="preserve"> remains visible.</w:t></w:r>
+    </w:p>
+    <w:customXml w:uri="https://example.test/docx/custom" w:element="review-section">
+      <w:customXmlPr>
+        <w:attr w:name="section-id" w:val="source-review"/>
+      </w:customXmlPr>
+      <w:p><w:r><w:t>Source review block.</w:t></w:r></w:p>
+      <w:tbl>
+        <w:tr>
+          <w:tc><w:p><w:r><w:t>Reviewer field</w:t></w:r></w:p></w:tc>
+          <w:tc><w:p><w:r><w:t>Custom XML value</w:t></w:r></w:p></w:tc>
+        </w:tr>
+      </w:tbl>
+    </w:customXml>
+  </w:body>
+</w:document>
+XML;
+
 $textboxDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
   xmlns:v="urn:schemas-microsoft-com:vml"
@@ -929,6 +959,14 @@ $buildSmartTagPackage = static function () use ($contentTypesXml, $packageRelati
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $smartTagDocumentXml],
+    ]);
+};
+
+$buildCustomXmlPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $customXmlDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $customXmlDocumentXml],
     ]);
 };
 
@@ -1731,6 +1769,47 @@ return [
 
         $t->contains('Tagged [**Review Desk**]{.docx-smart-tag data-docx-smart-tag-uri="urn:schemas-microsoft-com:office:smarttags" data-docx-smart-tag-element="PersonName" data-docx-smart-tag-prop-normalized="Review Desk" data-docx-smart-tag-prop-normalized-uri="https://example.test/docx/smart-tags" data-docx-smart-tag-prop-review-id="packet-42"} for import.', $markdown);
         $t->contains('<p>Tagged <span class="docx-smart-tag" data-docx-smart-tag-uri="urn:schemas-microsoft-com:office:smarttags" data-docx-smart-tag-element="PersonName" data-docx-smart-tag-prop-normalized="Review Desk" data-docx-smart-tag-prop-normalized-uri="https://example.test/docx/smart-tags" data-docx-smart-tag-prop-review-id="packet-42"><strong>Review Desk</strong></span> for import.</p>', $blocks);
+    },
+    'preserves DOCX custom XML wrappers with visible content and metadata' => static function (TestRunner $t) use ($buildCustomXmlPackage): void {
+        $document = (new DocxReader())->readDocument($buildCustomXmlPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($document->children));
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Packet category ', $paragraph->children[0]->attr('text'));
+        $inlineCustom = $paragraph->children[1];
+        $t->same('span', $inlineCustom->type);
+        $t->same(['docx-custom-xml'], $inlineCustom->attr('classes'));
+        $t->same('https://example.test/docx/custom', $inlineCustom->attr('attributes')['data-docx-custom-xml-uri']);
+        $t->same('packet-category', $inlineCustom->attr('attributes')['data-docx-custom-xml-element']);
+        $t->same('category', $inlineCustom->attr('attributes')['data-docx-custom-xml-prop-source-field']);
+        $t->same('https://example.test/docx/custom', $inlineCustom->attr('attributes')['data-docx-custom-xml-prop-source-field-uri']);
+        $t->same('packet-42', $inlineCustom->attr('attributes')['data-docx-custom-xml-prop-review-id']);
+        $t->same('emph', $inlineCustom->children[0]->type);
+        $t->same('Policy update', $inlineCustom->children[0]->children[0]->attr('text'));
+        $t->same(' remains visible.', $paragraph->children[2]->attr('text'));
+
+        $blockCustom = $document->children[1];
+        $t->same('div', $blockCustom->type);
+        $t->same(['docx-custom-xml'], $blockCustom->attr('classes'));
+        $t->same('review-section', $blockCustom->attr('attributes')['data-docx-custom-xml-element']);
+        $t->same('source-review', $blockCustom->attr('attributes')['data-docx-custom-xml-prop-section-id']);
+        $t->same(2, count($blockCustom->children));
+        $t->same('Source review block.', $blockCustom->children[0]->children[0]->attr('text'));
+        $t->same('table', $blockCustom->children[1]->type);
+        $t->same('Reviewer field', $blockCustom->children[1]->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('Custom XML value', $blockCustom->children[1]->children[0]->children[0]->children[1]->attr('text'));
+
+        $t->contains('Packet category [*Policy update*]{.docx-custom-xml data-docx-custom-xml-uri="https://example.test/docx/custom" data-docx-custom-xml-element="packet-category" data-docx-custom-xml-prop-source-field="category" data-docx-custom-xml-prop-source-field-uri="https://example.test/docx/custom" data-docx-custom-xml-prop-review-id="packet-42"} remains visible.', $markdown);
+        $t->contains('::: {.docx-custom-xml data-docx-custom-xml-uri="https://example.test/docx/custom" data-docx-custom-xml-element="review-section" data-docx-custom-xml-prop-section-id="source-review"}', $markdown);
+        $t->contains('| Reviewer field | Custom XML value |', $markdown);
+
+        $t->contains('<span class="docx-custom-xml" data-docx-custom-xml-uri="https://example.test/docx/custom" data-docx-custom-xml-element="packet-category" data-docx-custom-xml-prop-source-field="category" data-docx-custom-xml-prop-source-field-uri="https://example.test/docx/custom" data-docx-custom-xml-prop-review-id="packet-42"><em>Policy update</em></span>', $blocks);
+        $t->contains('<div class="docx-custom-xml" data-docx-custom-xml-uri="https://example.test/docx/custom" data-docx-custom-xml-element="review-section" data-docx-custom-xml-prop-section-id="source-review">', $blocks);
+        $t->contains('<p>Source review block.</p><table><tbody><tr><td><p>Reviewer field</p></td><td><p>Custom XML value</p></td></tr></tbody></table>', $blocks);
     },
     'unwraps DOCX VML textbox content into body blocks in paragraph order' => static function (TestRunner $t) use ($buildTextboxPackage): void {
         $document = (new DocxReader())->readDocument($buildTextboxPackage());
