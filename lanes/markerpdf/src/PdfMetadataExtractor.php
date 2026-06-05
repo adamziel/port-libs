@@ -3239,7 +3239,8 @@ final class PdfMetadataExtractor
 
         $items = $this->arrayItemsFromValue($trimmed, $objects);
         if ($items !== []) {
-            return $this->destinationPageFromRaw($items[0] ?? '', $objects, $pageIndexes) !== null;
+            return $this->destinationPageFromRaw($items[0] ?? '', $objects, $pageIndexes) !== null
+                && $this->documentDestinationArrayViewIsValid($items, $objects);
         }
 
         $resolved = $this->trimPdfWhitespaceAndComments($this->resolvePdfValue($trimmed, $objects) ?? $trimmed);
@@ -4501,6 +4502,9 @@ final class PdfMetadataExtractor
         if ($viewMode !== null && !isset(self::VALID_DESTINATION_VIEW_NAMES[$viewMode])) {
             return null;
         }
+        if (!$this->documentDestinationArrayViewIsValid($items, $objects)) {
+            return null;
+        }
 
         $viewPosition = [];
         for ($index = 2, $count = count($items); $index < $count; $index++) {
@@ -4513,6 +4517,58 @@ final class PdfMetadataExtractor
         }
 
         return $this->documentDestinationRow($page, $destinationName, $viewMode, $viewPosition);
+    }
+
+    /**
+     * @param list<string> $items
+     * @param array<int, string> $objects
+     */
+    private function documentDestinationArrayViewIsValid(array $items, array $objects): bool
+    {
+        if (count($items) < 2) {
+            return true;
+        }
+
+        $viewMode = $this->destinationNameFromRaw($items[1], $objects);
+        if ($viewMode === null || !isset(self::VALID_DESTINATION_VIEW_NAMES[$viewMode])) {
+            return false;
+        }
+
+        $requiredOperands = match ($viewMode) {
+            'XYZ' => [2 => true, 3 => true, 4 => true],
+            'FitH', 'FitBH', 'FitV', 'FitBV' => [2 => true],
+            'FitR' => [2 => true, 3 => true, 4 => true, 5 => true],
+            default => [],
+        };
+
+        foreach ($requiredOperands as $index => $allowsNull) {
+            if (!array_key_exists($index, $items)) {
+                return false;
+            }
+
+            if (!$this->documentDestinationCoordinateOperandIsValid($items[$index], $objects, $allowsNull)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function documentDestinationCoordinateOperandIsValid(string $value, array $objects, bool $allowsNull): bool
+    {
+        if ($this->objectNumberFromReference($value) !== null && $this->validObjectNumberFromReference($value, $objects) === null) {
+            return false;
+        }
+
+        $resolved = $this->trimPdfWhitespaceAndComments($this->resolvePdfValue($value, $objects) ?? $value);
+        if ($resolved === 'null') {
+            return $allowsNull;
+        }
+
+        return is_numeric($resolved);
     }
 
     /**

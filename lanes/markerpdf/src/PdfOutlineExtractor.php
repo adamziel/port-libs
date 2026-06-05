@@ -4903,7 +4903,44 @@ final class PdfOutlineExtractor
 
         $viewMode = $this->nameValue($this->resolveValue($array[1] ?? null, $objects));
 
-        return $viewMode !== null && isset(self::VALID_DESTINATION_VIEW_NAMES[$viewMode]);
+        return $viewMode !== null
+            && isset(self::VALID_DESTINATION_VIEW_NAMES[$viewMode])
+            && $this->destinationViewCoordinateOperandsAreValid($array, $objects, $viewMode);
+    }
+
+    /**
+     * @param list<mixed> $array
+     * @param array<int, mixed> $objects
+     */
+    private function destinationViewCoordinateOperandsAreValid(array $array, array $objects, string $viewMode): bool
+    {
+        $requiredOperands = match ($viewMode) {
+            'XYZ' => [2 => true, 3 => true, 4 => true],
+            'FitH', 'FitBH', 'FitV', 'FitBV' => [2 => true],
+            'FitR' => [2 => true, 3 => true, 4 => true, 5 => true],
+            default => [],
+        };
+
+        foreach ($requiredOperands as $index => $allowsNull) {
+            if (!array_key_exists($index, $array)) {
+                return false;
+            }
+
+            $resolved = $this->resolveValue($array[$index], $objects);
+            if ($resolved === null) {
+                if ($allowsNull) {
+                    continue;
+                }
+
+                return false;
+            }
+
+            if (!is_int($resolved) && !is_float($resolved)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

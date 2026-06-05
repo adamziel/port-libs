@@ -1287,6 +1287,9 @@ final class PdfNamedDestinationExtractor
         if ($fit === null || !isset(self::VALID_DESTINATION_VIEW_NAMES[$fit])) {
             return null;
         }
+        if (!$this->destinationViewCoordinateOperandsAreValid($fit, $destination, $objects, $cache)) {
+            return null;
+        }
 
         return [
             'name' => $name,
@@ -1349,6 +1352,47 @@ final class PdfNamedDestinationExtractor
             'page' => $resolved,
             'page_object_id' => null,
         ];
+    }
+
+    /**
+     * @param list<mixed> $destination
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @param array<int, mixed> $cache
+     */
+    private function destinationViewCoordinateOperandsAreValid(string $fit, array $destination, array $objects, array &$cache): bool
+    {
+        $requiredOperands = match ($fit) {
+            'XYZ' => [2 => true, 3 => true, 4 => true],
+            'FitH', 'FitBH', 'FitV', 'FitBV' => [2 => true],
+            'FitR' => [2 => true, 3 => true, 4 => true, 5 => true],
+            default => [],
+        };
+
+        foreach ($requiredOperands as $index => $allowsNull) {
+            if (!array_key_exists($index, $destination)) {
+                return false;
+            }
+
+            $value = $destination[$index];
+            if ($this->isRefValue($value) && $this->validRefObjectId($value, $objects) === null) {
+                return false;
+            }
+
+            $resolved = $this->resolve($value, $objects, $cache);
+            if ($resolved === null) {
+                if ($allowsNull) {
+                    continue;
+                }
+
+                return false;
+            }
+
+            if (!is_int($resolved) && !is_float($resolved)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
