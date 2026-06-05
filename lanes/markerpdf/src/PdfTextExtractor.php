@@ -4047,12 +4047,18 @@ final class PdfTextExtractor
         $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
         $metadataStream = $this->imageXObjectMetadataStreamReview($stream['dict'], $objects);
         $alternateImages = $this->imageXObjectAlternateImageReviews($stream['dict'], $objects);
-        $softMaskObject = $this->objectReferenceValueAfterName($stream['dict'], 'SMask');
+        $softMaskReview = $this->imageXObjectSoftMaskReview($stream['dict'], $objects);
+        $softMaskObject = is_array($softMaskReview) && isset($softMaskReview['object_number']) && is_int($softMaskReview['object_number'])
+            ? $softMaskReview['object_number']
+            : null;
+        $softMaskGeneration = is_array($softMaskReview) && isset($softMaskReview['object_generation']) && is_int($softMaskReview['object_generation'])
+            ? $softMaskReview['object_generation']
+            : null;
         $maskReview = $this->imageXObjectMaskReview(
             $stream['dict'],
             $objects,
             $colorSpace,
-            $softMaskObject !== null
+            is_array($softMaskReview) && ($softMaskReview['present'] ?? false) === true
         );
         $invocationMatrices = [];
         $invocationBboxes = [];
@@ -4138,6 +4144,10 @@ final class PdfTextExtractor
             'alternate_images' => $alternateImages,
             'alternates_review_only' => $alternateImages !== [],
             'soft_mask_object' => $softMaskObject,
+            'soft_mask_generation' => $softMaskGeneration,
+            'soft_mask_review' => $softMaskReview,
+            'soft_mask_payload_in_visible_text' => false,
+            'soft_mask_review_only' => $softMaskReview !== null,
             'mask_object' => is_array($maskReview) && isset($maskReview['object_number']) && is_int($maskReview['object_number'])
                 ? $maskReview['object_number']
                 : null,
@@ -4156,6 +4166,113 @@ final class PdfTextExtractor
             'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
             'payload_in_visible_text' => false,
             'rgb_preview_boundary' => 'marker.pdf.images.render_image',
+            'review_only' => true,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function imageXObjectSoftMaskReview(string $imageDictionary, array $objects): ?array
+    {
+        $value = $this->topLevelPdfValueAfterNameInDictionaryBody($imageDictionary, 'SMask');
+        if ($value === null) {
+            return null;
+        }
+
+        if ($this->pdfNameValueAt($value, 0, $objects) === 'None') {
+            return [
+                'type' => 'soft_mask_none',
+                'present' => false,
+                'object_number' => null,
+                'object_generation' => null,
+                'payload_in_visible_text' => false,
+                'review_only' => true,
+            ];
+        }
+
+        $reference = $this->objectReferencePairs($value)[0] ?? null;
+        if ($reference === null) {
+            return null;
+        }
+
+        $objectBody = $this->objectBodyForExactReference(
+            $objects,
+            $reference['objectNumber'],
+            $reference['generation']
+        );
+        if ($objectBody === null) {
+            return null;
+        }
+
+        return $this->imageXObjectSoftMaskStreamReview(
+            $reference['objectNumber'],
+            $reference['generation'],
+            $objectBody,
+            $objects
+        );
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function imageXObjectSoftMaskStreamReview(
+        int $objectNumber,
+        int $objectGeneration,
+        string $objectBody,
+        array $objects
+    ): ?array {
+        $stream = $this->streamDictionaryAndPayload($objectBody, $objects);
+        if ($stream === null || !$this->isImageStreamDictionary($stream['dict'], $objects)) {
+            return null;
+        }
+
+        $filters = $this->streamFilters($stream['dict'], $objects);
+        $resolvedFilters = $filters === null
+            ? []
+            : array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+        $previewOnlyFilters = $this->previewOnlyImageXObjectFilters($resolvedFilters);
+        $decoded = $filters === null ? null : $this->decodeStream($stream['dict'], $stream['stream'], $objects);
+        $bitsPerComponent = $this->pdfIntegerValueAfterNameResolvingObjects(
+            $stream['dict'],
+            'BitsPerComponent',
+            $objects
+        );
+        $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
+        $effectiveBits = $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent;
+        $colorSpace = $this->imageColorSpaceFamily($stream['dict'], $objects);
+        $decode = $this->imageXObjectDecodeReview(
+            $stream['dict'],
+            $objects,
+            $imageMask ? 1 : $this->imageXObjectColorSpaceComponentCount($colorSpace),
+            true
+        );
+        $maxSample = (2 ** min($effectiveBits ?? 1, 30)) - 1;
+
+        return [
+            'type' => 'soft_mask_stream',
+            'present' => true,
+            'object_number' => $objectNumber,
+            'object_generation' => $objectGeneration,
+            'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
+            'width' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
+            'height' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects),
+            'color_space' => $colorSpace,
+            'bits_per_component' => $effectiveBits,
+            'image_mask' => $imageMask,
+            'decode' => $decode,
+            'opacity_for_zero' => $decode !== null ? $this->imageXObjectDecodedSampleValue(0, $decode, $effectiveBits ?? 1) : null,
+            'opacity_for_max' => $decode !== null ? $this->imageXObjectDecodedSampleValue($maxSample, $decode, $effectiveBits ?? 1) : null,
+            'filters' => $resolvedFilters,
+            'preview_only_filters' => $previewOnlyFilters,
+            'native_raster_decode' => $previewOnlyFilters === [],
+            'raw_length' => strlen($stream['stream']),
+            'decoded_with_current_filters' => $decoded !== null,
+            'decoded_length' => $decoded === null ? null : strlen($decoded),
+            'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
+            'payload_in_visible_text' => false,
             'review_only' => true,
         ];
     }

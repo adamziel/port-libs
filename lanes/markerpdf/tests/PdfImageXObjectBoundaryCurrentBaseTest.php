@@ -723,6 +723,115 @@ return [
         $t->true(!str_contains($encoded, $maskPayload));
         $t->true(!str_contains($encoded, $colorKeyPayload));
     },
+    'records image XObject SMask stream metadata by exact generation without leaking alpha bytes' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before soft mask image) Tj ET\n"
+            . "q 36 0 0 12 72 690 cm /Soft#20Mask#20Logo Do Q\n"
+            . "q 12 0 0 12 120 690 cm /Opaque#20Logo Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After soft mask image) Tj ET';
+        $imagePayload = 'BT /F1 12 Tf 72 720 Td (Soft Mask Image Payload Noise) Tj ET';
+        $currentSoftMaskPayload = 'BT /F1 12 Tf 72 720 Td (Current Soft Mask Payload Noise) Tj ET';
+        $staleSoftMaskPayload = 'BT /F1 12 Tf 72 720 Td (Stale Soft Mask Payload Noise) Tj ET';
+        $opaquePayload = 'BT /F1 12 Tf 72 720 Td (Opaque Image Payload Noise) Tj ET';
+        $imageCompressed = gzcompress($imagePayload);
+        $currentSoftMaskCompressed = gzcompress($currentSoftMaskPayload);
+        $staleSoftMaskCompressed = gzcompress($staleSoftMaskPayload);
+        $opaqueCompressed = gzcompress($opaquePayload);
+        if (
+            !is_string($imageCompressed)
+            || !is_string($currentSoftMaskCompressed)
+            || !is_string($staleSoftMaskCompressed)
+            || !is_string($opaqueCompressed)
+        ) {
+            throw new RuntimeException('Unable to compress SMask fixture payloads.');
+        }
+
+        $currentSoftMaskHex = strtoupper(bin2hex($currentSoftMaskCompressed)) . '>';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Soft#20Mask#20Logo 5 0 R /Opaque#20Logo 8 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /SMask 6 1 R /Length " . strlen($imageCompressed) . " >>\nstream\n{$imageCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 9 /Height 9 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Decode [0 1] /Length " . strlen($staleSoftMaskCompressed) . " >>\nstream\n{$staleSoftMaskCompressed}\nendstream\nendobj\n"
+            . "6 1 obj\n<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter [/ASCIIHexDecode /FlateDecode] /Decode [1 0] /Length " . strlen($currentSoftMaskHex) . " >>\nstream\n{$currentSoftMaskHex}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /SMask /None /Filter /FlateDecode /Length " . strlen($opaqueCompressed) . " >>\nstream\n{$opaqueCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $softMasked = $entriesByName['Soft Mask Logo'];
+        $t->same(6, $softMasked['soft_mask_object']);
+        $t->same(1, $softMasked['soft_mask_generation']);
+        $t->same([
+            'type' => 'soft_mask_stream',
+            'present' => true,
+            'object_number' => 6,
+            'object_generation' => 1,
+            'subtype' => 'Image',
+            'width' => 3,
+            'height' => 1,
+            'color_space' => 'DeviceGray',
+            'bits_per_component' => 8,
+            'image_mask' => false,
+            'decode' => [
+                'ranges' => [
+                    ['min' => 1.0, 'max' => 0.0],
+                ],
+                'component_count' => 1,
+                'expected_components' => 1,
+                'valid_for_components' => true,
+                'identity' => false,
+                'inverted_components' => [0],
+                'source' => 'explicit',
+            ],
+            'opacity_for_zero' => 1.0,
+            'opacity_for_max' => 0.0,
+            'filters' => ['ASCIIHexDecode', 'FlateDecode'],
+            'preview_only_filters' => [],
+            'native_raster_decode' => true,
+            'raw_length' => strlen($currentSoftMaskHex),
+            'decoded_with_current_filters' => true,
+            'decoded_length' => strlen($currentSoftMaskPayload),
+            'decoded_sha256' => hash('sha256', $currentSoftMaskPayload),
+            'payload_in_visible_text' => false,
+            'review_only' => true,
+        ], $softMasked['soft_mask_review']);
+        $t->same(false, $softMasked['soft_mask_payload_in_visible_text']);
+        $t->same(true, $softMasked['soft_mask_review_only']);
+
+        $opaque = $entriesByName['Opaque Logo'];
+        $t->same(null, $opaque['soft_mask_object']);
+        $t->same(null, $opaque['soft_mask_generation']);
+        $t->same([
+            'type' => 'soft_mask_none',
+            'present' => false,
+            'object_number' => null,
+            'object_generation' => null,
+            'payload_in_visible_text' => false,
+            'review_only' => true,
+        ], $opaque['soft_mask_review']);
+        $t->same(true, $opaque['soft_mask_review_only']);
+
+        $t->same(['Before soft mask image', 'After soft mask image'], $extractor->extractTextLines($pdf));
+        $t->same("Before soft mask image\nAfter soft mask image", $plainText);
+        $t->true(!str_contains($plainText, 'Soft Mask Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Current Soft Mask Payload Noise'));
+        $t->true(!str_contains($plainText, 'Stale Soft Mask Payload Noise'));
+        $t->true(!str_contains($plainText, 'Opaque Image Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $currentSoftMaskPayload));
+        $t->true(!str_contains($encoded, $staleSoftMaskPayload));
+        $t->true(str_contains($encoded, hash('sha256', $currentSoftMaskPayload)));
+        $t->true(!str_contains($encoded, hash('sha256', $staleSoftMaskPayload)));
+    },
     'resolves image XObject resource references by exact object generation' => static function (TestRunner $t): void {
         $pageContent = "BT /F1 12 Tf 72 720 Td (Before exact generation image) Tj ET\n"
             . "q 30 0 0 10 72 690 cm /Exact#20Image Do Q\n"
