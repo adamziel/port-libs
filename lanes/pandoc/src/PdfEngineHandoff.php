@@ -252,6 +252,7 @@ final class PdfEngineHandoff
      *     pdfPageCount: int|null,
      *     pdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     pdfPageRotations: array<int, int>,
+     *     pdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     pdfOutlineTitles: list<string>,
      *     pdfDocumentInfo: array<string, string>,
      *     pdfXmpMetadata: array<string, mixed>,
@@ -632,6 +633,7 @@ final class PdfEngineHandoff
         $pdfPageCount = null;
         $pdfPageBoxes = [];
         $pdfPageRotations = [];
+        $pdfPageLabels = [];
         $pdfOutlineTitles = [];
         $pdfDocumentInfo = [];
         $pdfXmpMetadata = [];
@@ -670,6 +672,7 @@ final class PdfEngineHandoff
                 $pdfPageCount = $pdfInspection['pageCount'];
                 $pdfPageBoxes = $pdfInspection['pageBoxes'];
                 $pdfPageRotations = $pdfInspection['pageRotations'];
+                $pdfPageLabels = $pdfInspection['pageLabels'];
                 $pdfOutlineTitles = $pdfInspection['outlineTitles'];
                 $pdfDocumentInfo = $pdfInspection['documentInfo'];
                 $pdfXmpMetadata = $pdfInspection['xmpMetadata'];
@@ -705,6 +708,9 @@ final class PdfEngineHandoff
                 }
                 if ($pdfPageRotations !== []) {
                     $diagnostics[] = 'pdf-byte-page-rotations:' . count($pdfPageRotations);
+                }
+                if ($pdfPageLabels !== []) {
+                    $diagnostics[] = 'pdf-byte-page-labels:' . count($pdfPageLabels);
                 }
                 if ($pdfTrailerCount > 0) {
                     $diagnostics[] = 'pdf-byte-trailers:' . $pdfTrailerCount;
@@ -962,6 +968,7 @@ final class PdfEngineHandoff
             'pdfPageCount' => $pdfPageCount,
             'pdfPageBoxes' => $pdfPageBoxes,
             'pdfPageRotations' => $pdfPageRotations,
+            'pdfPageLabels' => $pdfPageLabels,
             'pdfOutlineTitles' => $pdfOutlineTitles,
             'pdfDocumentInfo' => $pdfDocumentInfo,
             'pdfXmpMetadata' => $pdfXmpMetadata,
@@ -1017,6 +1024,7 @@ final class PdfEngineHandoff
      *     finalPdfPageCount: int|null,
      *     finalPdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     finalPdfPageRotations: array<int, int>,
+     *     finalPdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     finalPdfTrailerCount: int,
      *     finalPdfTrailerRevisions: list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}>,
      *     finalPdfStartXrefOffsets: list<int>,
@@ -1190,6 +1198,7 @@ final class PdfEngineHandoff
             'finalPdfPageCount' => is_array($finalRun) && is_int($finalRun['pdfPageCount'] ?? null) ? $finalRun['pdfPageCount'] : null,
             'finalPdfPageBoxes' => is_array($finalRun) && is_array($finalRun['pdfPageBoxes'] ?? null) ? $finalRun['pdfPageBoxes'] : [],
             'finalPdfPageRotations' => is_array($finalRun) && is_array($finalRun['pdfPageRotations'] ?? null) ? $finalRun['pdfPageRotations'] : [],
+            'finalPdfPageLabels' => is_array($finalRun) && is_array($finalRun['pdfPageLabels'] ?? null) ? $finalRun['pdfPageLabels'] : [],
             'finalPdfTrailerCount' => is_array($finalRun) && is_int($finalRun['pdfTrailerCount'] ?? null) ? $finalRun['pdfTrailerCount'] : 0,
             'finalPdfTrailerRevisions' => is_array($finalRun) && is_array($finalRun['pdfTrailerRevisions'] ?? null) ? $finalRun['pdfTrailerRevisions'] : [],
             'finalPdfStartXrefOffsets' => is_array($finalRun) && is_array($finalRun['pdfStartXrefOffsets'] ?? null) ? $finalRun['pdfStartXrefOffsets'] : [],
@@ -2260,6 +2269,7 @@ final class PdfEngineHandoff
      *     pageCount:int|null,
      *     pageBoxes:list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     pageRotations:array<int, int>,
+     *     pageLabels:list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     outlineTitles:list<string>,
      *     documentInfo:array<string, string>,
      *     xmpMetadata:array<string, mixed>,
@@ -2305,6 +2315,7 @@ final class PdfEngineHandoff
             'pageCount' => $this->extractPdfPageCount($pdfBytes),
             'pageBoxes' => $pageBoxes,
             'pageRotations' => $this->summarizePdfPageRotations($pageBoxes),
+            'pageLabels' => $this->extractPdfPageLabels($pdfBytes, $catalog),
             'outlineTitles' => $this->extractPdfOutlineTitles($pdfBytes),
             'documentInfo' => $this->extractPdfDocumentInfo($pdfBytes),
             'xmpMetadata' => $this->extractPdfXmpMetadata($pdfBytes, $catalog),
@@ -4596,6 +4607,222 @@ final class PdfEngineHandoff
         }
 
         return $rotations;
+    }
+
+    /**
+     * @return list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>
+     */
+    private function extractPdfPageLabels(string $pdfBytes, ?string $catalog): array
+    {
+        if ($catalog === null || !str_contains($catalog, '/PageLabels')) {
+            return [];
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $pageLabels = $this->extractPdfDictionaryOrReferenceValue($catalog, 'PageLabels', $objects);
+        if ($pageLabels === null) {
+            return [];
+        }
+
+        $labels = [];
+        $visited = [];
+        $this->collectPdfPageLabels($labels, 'catalog.PageLabels', $pageLabels, $objects, $visited, 0);
+
+        $labels = array_values($labels);
+        usort($labels, static fn (array $a, array $b): int => [$a['pageIndex'], $a['source']] <=> [$b['pageIndex'], $b['source']]);
+
+        return $labels;
+    }
+
+    /**
+     * @param array<string, array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}> $labels
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     */
+    private function collectPdfPageLabels(
+        array &$labels,
+        string $source,
+        string $dictionary,
+        array $objects,
+        array &$visited,
+        int $depth
+    ): void {
+        if ($depth > 16) {
+            return;
+        }
+
+        $array = $this->extractPdfArrayValue($dictionary, 'Nums');
+        if ($array !== null) {
+            $cursor = str_starts_with($array, '[') ? 1 : 0;
+            $length = strlen($array);
+            if (str_ends_with($array, ']')) {
+                $length--;
+            }
+
+            while ($cursor < $length) {
+                $pageIndex = $this->parsePdfValueAt($array, $cursor);
+                if ($pageIndex === null) {
+                    $cursor++;
+                    continue;
+                }
+                $cursor = $pageIndex['next'];
+
+                $labelValue = $this->parsePdfValueAt($array, $cursor);
+                if ($labelValue === null) {
+                    break;
+                }
+                $cursor = $labelValue['next'];
+
+                if ($pageIndex['kind'] !== 'number') {
+                    continue;
+                }
+
+                $index = (int) $pageIndex['value'];
+                if ($index < 0) {
+                    continue;
+                }
+
+                $labelDictionary = $this->pdfPageLabelDictionaryForValue($labelValue, $objects);
+                if ($labelDictionary === null) {
+                    continue;
+                }
+
+                $label = $this->summarizePdfPageLabel($index, $labelDictionary, $source);
+                $labels[$label['pageIndex'] . "\0" . $label['source']] = $label;
+            }
+        }
+
+        foreach ($this->extractPdfReferenceArray($dictionary, 'Kids') as $kidReference) {
+            if (isset($visited[$kidReference]) || !isset($objects[$kidReference])) {
+                continue;
+            }
+
+            $visited[$kidReference] = true;
+            $this->collectPdfPageLabels(
+                $labels,
+                $source . '.Kids.' . $kidReference . ' R',
+                $objects[$kidReference],
+                $objects,
+                $visited,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array{kind:string, value:string} $value
+     * @param array<string, string> $objects
+     */
+    private function pdfPageLabelDictionaryForValue(array $value, array $objects): ?string
+    {
+        if ($value['kind'] === 'dictionary') {
+            return $value['value'];
+        }
+
+        if ($value['kind'] !== 'reference') {
+            return null;
+        }
+
+        $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+        if ($body === null) {
+            return null;
+        }
+
+        $body = trim($body);
+        if (str_starts_with($body, '<<')) {
+            return $body;
+        }
+
+        $parsed = $this->parsePdfValueAt($body, 0);
+
+        return $parsed !== null && $parsed['kind'] === 'dictionary' ? $parsed['value'] : null;
+    }
+
+    /**
+     * @return array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}
+     */
+    private function summarizePdfPageLabel(int $pageIndex, string $dictionary, string $source): array
+    {
+        $style = $this->extractPdfNameToken($dictionary, 'S');
+        $prefixValues = $this->extractPdfNamedStrings($dictionary, 'P');
+        $prefix = $prefixValues === [] ? ($this->extractPdfNameToken($dictionary, 'P') ?? '') : $prefixValues[0];
+        $start = $this->extractPdfIntegerToken($dictionary, 'St') ?? 1;
+        if ($start < 1) {
+            $start = 1;
+        }
+
+        return [
+            'pageIndex' => $pageIndex,
+            'pageNumber' => $pageIndex + 1,
+            'style' => $style,
+            'styleLabel' => $this->pdfPageLabelStyleName($style),
+            'prefix' => $prefix,
+            'start' => $start,
+            'firstLabel' => $prefix . $this->formatPdfPageLabelNumber($start, $style),
+            'source' => $source,
+        ];
+    }
+
+    private function pdfPageLabelStyleName(?string $style): ?string
+    {
+        return match ($style) {
+            'D' => 'decimal',
+            'R' => 'upper-roman',
+            'r' => 'lower-roman',
+            'A' => 'upper-alpha',
+            'a' => 'lower-alpha',
+            null => null,
+            default => 'unknown',
+        };
+    }
+
+    private function formatPdfPageLabelNumber(int $number, ?string $style): string
+    {
+        if ($style === null) {
+            return '';
+        }
+
+        return match ($style) {
+            'D' => (string) $number,
+            'R' => $this->formatPdfRomanPageLabel($number),
+            'r' => strtolower($this->formatPdfRomanPageLabel($number)),
+            'A' => $this->formatPdfAlphabeticPageLabel($number),
+            'a' => strtolower($this->formatPdfAlphabeticPageLabel($number)),
+            default => (string) $number,
+        };
+    }
+
+    private function formatPdfRomanPageLabel(int $number): string
+    {
+        if ($number < 1) {
+            return '';
+        }
+
+        $roman = '';
+        foreach ([1000 => 'M', 900 => 'CM', 500 => 'D', 400 => 'CD', 100 => 'C', 90 => 'XC', 50 => 'L', 40 => 'XL', 10 => 'X', 9 => 'IX', 5 => 'V', 4 => 'IV', 1 => 'I'] as $value => $token) {
+            while ($number >= $value) {
+                $roman .= $token;
+                $number -= $value;
+            }
+        }
+
+        return $roman;
+    }
+
+    private function formatPdfAlphabeticPageLabel(int $number): string
+    {
+        if ($number < 1) {
+            return '';
+        }
+
+        $label = '';
+        while ($number > 0) {
+            $number--;
+            $label = chr(65 + ($number % 26)) . $label;
+            $number = intdiv($number, 26);
+        }
+
+        return $label;
     }
 
     private function pdfReferenceKey(string $reference): string

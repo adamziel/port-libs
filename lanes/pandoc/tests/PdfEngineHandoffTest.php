@@ -848,6 +848,100 @@ MARKDOWN);
         $t->same([1 => 90, 2 => 270], $sequence['finalPdfPageRotations']);
     },
 
+    'fake runner extracts bounded pdf page label ranges from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/page-labels.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /PageLabels 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 5 /Kids [3 0 R 4 0 R 5 0 R 6 0 R 7 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Kids [9 0 R 10 0 R] >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Nums [0 << /S /r /P (front-) /St 3 >> 2 << /S /D /P (Chapter ) /St 1 >>] >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Nums [4 << /S /A /P (Appendix-) /St 27 >>] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/page-labels.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/page-labels.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'pageIndex' => 0,
+                'pageNumber' => 1,
+                'style' => 'r',
+                'styleLabel' => 'lower-roman',
+                'prefix' => 'front-',
+                'start' => 3,
+                'firstLabel' => 'front-iii',
+                'source' => 'catalog.PageLabels.Kids.9 0 R',
+            ],
+            [
+                'pageIndex' => 2,
+                'pageNumber' => 3,
+                'style' => 'D',
+                'styleLabel' => 'decimal',
+                'prefix' => 'Chapter ',
+                'start' => 1,
+                'firstLabel' => 'Chapter 1',
+                'source' => 'catalog.PageLabels.Kids.9 0 R',
+            ],
+            [
+                'pageIndex' => 4,
+                'pageNumber' => 5,
+                'style' => 'A',
+                'styleLabel' => 'upper-alpha',
+                'prefix' => 'Appendix-',
+                'start' => 27,
+                'firstLabel' => 'Appendix-AA',
+                'source' => 'catalog.PageLabels.Kids.10 0 R',
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfPageLabels']);
+        $t->contains('pdf-byte-page-labels:3', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfPageLabels']);
+    },
+
     'fake runner extracts bounded pdf document info and catalog language metadata' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/metadata.pdf']);
