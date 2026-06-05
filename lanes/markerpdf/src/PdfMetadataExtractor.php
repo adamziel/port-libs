@@ -4072,7 +4072,7 @@ final class PdfMetadataExtractor
             $metadata['crypt_filters'] = $cryptFilters;
         }
 
-        $publicKeyRecipientReview = $this->publicKeyRecipientReview($dictionary, $objects, $cryptFilters);
+        $publicKeyRecipientReview = $this->publicKeyRecipientReview($dictionary, $objects, $cryptFilters, $metadata);
         if ($publicKeyRecipientReview !== []) {
             $metadata['public_key_recipient_review'] = $publicKeyRecipientReview;
         }
@@ -4995,7 +4995,7 @@ final class PdfMetadataExtractor
      * @param array<string, array<string, mixed>> $cryptFilters
      * @return array<string, mixed>
      */
-    private function publicKeyRecipientReview(string $dictionary, array $objects, array $cryptFilters): array
+    private function publicKeyRecipientReview(string $dictionary, array $objects, array $cryptFilters, array $metadata): array
     {
         $handler = $this->dictionaryNameValue($dictionary, 'Filter', $objects)
             ?? $this->dictionaryStringValue($dictionary, 'Filter');
@@ -5046,7 +5046,7 @@ final class PdfMetadataExtractor
             }
         }
 
-        $cryptFilterSelection = $this->publicKeyRecipientCryptFilterSelection($dictionary, $objects, $cryptFilters);
+        $cryptFilterSelection = $this->publicKeyRecipientCryptFilterSelection($dictionary, $objects, $cryptFilters, $metadata);
         $topLevelRecipientsSelected = $this->publicKeyTopLevelRecipientsSelected($handler, $subfilter, $topLevelRecipients !== null);
         $selectedRecipientCount = (int) ($cryptFilterSelection['selected_recipient_count'] ?? 0);
         $selectedRecipientBytes = (int) ($cryptFilterSelection['selected_recipient_bytes'] ?? 0);
@@ -5171,9 +5171,16 @@ final class PdfMetadataExtractor
      * @param array<string, array<string, mixed>> $cryptFilters
      * @return array<string, mixed>
      */
-    private function publicKeyRecipientCryptFilterSelection(string $dictionary, array $objects, array $cryptFilters): array
+    private function publicKeyRecipientCryptFilterSelection(
+        string $dictionary,
+        array $objects,
+        array $cryptFilters,
+        array $metadata
+    ): array
     {
         $declared = [];
+        $defaulted = [];
+        $sources = [];
         $selectedRows = [];
         $selectedNames = [];
         $selectedRecipientNames = [];
@@ -5184,17 +5191,44 @@ final class PdfMetadataExtractor
         $countedRecipientFilters = [];
 
         foreach ([
-            'stream_filter' => 'StmF',
-            'string_filter' => 'StrF',
-            'embedded_file_filter' => 'EFF',
-        ] as $role => $pdfName) {
-            $name = $this->dictionaryNameValue($dictionary, $pdfName, $objects)
+            'stream_filter' => [
+                'pdf_name' => 'StmF',
+                'default_flag' => 'stream_filter_defaulted',
+                'source_key' => 'stream_filter_source',
+            ],
+            'string_filter' => [
+                'pdf_name' => 'StrF',
+                'default_flag' => 'string_filter_defaulted',
+                'source_key' => 'string_filter_source',
+            ],
+            'embedded_file_filter' => [
+                'pdf_name' => 'EFF',
+                'default_flag' => 'embedded_file_filter_defaulted_from_stream_filter',
+                'source_key' => 'embedded_file_filter_source',
+            ],
+        ] as $role => $definition) {
+            $pdfName = $definition['pdf_name'];
+            $explicitName = $this->dictionaryNameValue($dictionary, $pdfName, $objects)
                 ?? $this->dictionaryStringValue($dictionary, $pdfName);
+            $name = $explicitName;
+            $roleDefaulted = false;
+            $roleSource = 'pdf_dictionary';
+            if ($name === null && is_string($metadata[$role] ?? null) && $metadata[$role] !== '') {
+                $name = $metadata[$role];
+                $roleDefaulted = ($metadata[$definition['default_flag']] ?? false) === true;
+                $roleSource = is_string($metadata[$definition['source_key']] ?? null)
+                    ? $metadata[$definition['source_key']]
+                    : 'pdf_default_crypt_filter_role';
+            }
             if ($name === null) {
                 continue;
             }
 
             $declared[$role] = $name;
+            $sources[$role] = $roleSource;
+            if ($roleDefaulted) {
+                $defaulted[$role] = $name;
+            }
             $filter = $cryptFilters[$name] ?? null;
             $recipients = is_array($filter['recipients'] ?? null) ? $filter['recipients'] : null;
             $hasRecipients = $recipients !== null;
@@ -5209,6 +5243,8 @@ final class PdfMetadataExtractor
                 'role' => $role,
                 'pdf_name' => $pdfName,
                 'name' => $name,
+                'filter_source' => $roleSource,
+                'filter_defaulted' => $roleDefaulted,
                 'crypt_filter_present' => is_array($filter),
                 'method' => is_array($filter) ? ($filter['method'] ?? null) : null,
                 'auth_event' => is_array($filter) ? ($filter['auth_event'] ?? null) : null,
@@ -5252,6 +5288,8 @@ final class PdfMetadataExtractor
         return [
             'source' => 'public_key_crypt_filter_selection',
             'declared_content_filters' => $declared,
+            'defaulted_content_filters' => $defaulted,
+            'content_filter_sources' => $sources,
             'selected_crypt_filters' => $selectedRows,
             'selected_filter_names' => $this->uniqueStrings($selectedNames),
             'selected_recipient_filter_names' => $this->uniqueStrings($selectedRecipientNames),

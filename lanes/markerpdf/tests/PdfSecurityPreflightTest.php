@@ -566,7 +566,20 @@ return [
         $t->same([hash('sha256', $recipientOne), hash('sha256', $recipientTwo)], $recipientReview['recipient_sha256']);
         $t->same(['DefaultCryptFilter'], $recipientReview['selected_crypt_filter_recipient_filter_names']);
         $t->same(2, $recipientReview['selected_recipient_count']);
-        $t->same(['stream_filter' => 'DefaultCryptFilter', 'string_filter' => 'DefaultCryptFilter'], $recipientReview['crypt_filter_selection']['declared_content_filters']);
+        $t->same([
+            'stream_filter' => 'DefaultCryptFilter',
+            'string_filter' => 'DefaultCryptFilter',
+            'embedded_file_filter' => 'DefaultCryptFilter',
+        ], $recipientReview['crypt_filter_selection']['declared_content_filters']);
+        $t->same(['embedded_file_filter' => 'DefaultCryptFilter'], $recipientReview['crypt_filter_selection']['defaulted_content_filters']);
+        $t->same([
+            'stream_filter' => 'pdf_dictionary',
+            'string_filter' => 'pdf_dictionary',
+            'embedded_file_filter' => 'pdf_default_stream_filter',
+        ], $recipientReview['crypt_filter_selection']['content_filter_sources']);
+        $t->same(3, count($recipientReview['crypt_filter_selection']['selected_crypt_filters']));
+        $t->same('embedded_file_filter', $recipientReview['crypt_filter_selection']['selected_crypt_filters'][2]['role']);
+        $t->same(true, $recipientReview['crypt_filter_selection']['selected_crypt_filters'][2]['filter_defaulted']);
         $t->same('DefaultCryptFilter', $recipientList['crypt_filter']);
         $t->same(2, $recipientList['recipient_count']);
         $t->same(false, $recipientList['recipient_bytes_exposed']);
