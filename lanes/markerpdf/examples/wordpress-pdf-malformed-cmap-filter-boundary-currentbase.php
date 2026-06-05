@@ -452,6 +452,52 @@ $buildPostEndCMapOperatorPdf = static function () use ($utf16beHex): string {
         . "%%EOF";
 };
 
+$buildSecondProgramCMapPdf = static function () use ($utf16beHex): string {
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /WPSecondProgramBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('SecondProgram Safe Import') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n"
+        . "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /WPSecondProgramDecoy-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('Second Program CMap Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($cMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress second-program CMap filter-boundary fixture.');
+    }
+
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /WPSecondProgramBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /WPSecondProgramBoundary-H /Filter /FlateDecode /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $dictionaryPdf = $buildMalformedCMapFilterPdf(
     'WPMalformedFilterBoundary-H',
     'WPMalformedFilterBoundary',
@@ -473,6 +519,7 @@ $decodeParmsPdf = $buildDecodeParmsCMapFilterPdf();
 $trailingDecodeParmsPdf = $buildTrailingDecodeParmsCMapFilterPdf();
 $staleReferencePdf = $buildStaleReferenceCMapFilterPdf();
 $postEndPdf = $buildPostEndCMapOperatorPdf();
+$secondProgramPdf = $buildSecondProgramCMapPdf();
 
 $extractor = new PdfTextExtractor();
 $dictionaryLines = $extractor->extractTextLines($dictionaryPdf);
@@ -484,6 +531,7 @@ $decodeParmsLines = $extractor->extractTextLines($decodeParmsPdf);
 $trailingDecodeParmsLines = $extractor->extractTextLines($trailingDecodeParmsPdf);
 $staleReferenceLines = $extractor->extractTextLines($staleReferencePdf);
 $postEndLines = $extractor->extractTextLines($postEndPdf);
+$secondProgramLines = $extractor->extractTextLines($secondProgramPdf);
 $dictionaryPlainText = implode("\n", $dictionaryLines);
 $literalPlainText = implode("\n", $literalLines);
 $indirectLiteralPlainText = implode("\n", $indirectLiteralLines);
@@ -493,6 +541,7 @@ $decodeParmsPlainText = implode("\n", $decodeParmsLines);
 $trailingDecodeParmsPlainText = implode("\n", $trailingDecodeParmsLines);
 $staleReferencePlainText = implode("\n", $staleReferenceLines);
 $postEndPlainText = implode("\n", $postEndLines);
+$secondProgramPlainText = implode("\n", $secondProgramLines);
 $dictionaryReview = $extractor->extractCMapStreamFilterLengthOwnerReview($dictionaryPdf);
 $literalReview = $extractor->extractCMapStreamFilterLengthOwnerReview($literalPdf);
 $indirectLiteralReview = $extractor->extractCMapStreamFilterLengthOwnerReview($indirectLiteralPdf);
@@ -502,6 +551,7 @@ $decodeParmsReview = $extractor->extractCMapStreamFilterLengthOwnerReview($decod
 $trailingDecodeParmsReview = $extractor->extractCMapStreamFilterLengthOwnerReview($trailingDecodeParmsPdf);
 $staleReferenceReview = $extractor->extractCMapStreamFilterLengthOwnerReview($staleReferencePdf);
 $postEndReview = $extractor->extractCMapStreamFilterLengthOwnerReview($postEndPdf);
+$secondProgramReview = $extractor->extractCMapStreamFilterLengthOwnerReview($secondProgramPdf);
 $dictionaryEntry = $dictionaryReview['entries'][0] ?? [];
 $literalEntry = $literalReview['entries'][0] ?? [];
 $indirectLiteralEntry = $indirectLiteralReview['entries'][0] ?? [];
@@ -511,6 +561,7 @@ $decodeParmsEntry = $decodeParmsReview['entries'][0] ?? [];
 $trailingDecodeParmsEntry = $trailingDecodeParmsReview['entries'][0] ?? [];
 $staleReferenceEntry = $staleReferenceReview['entries'][0] ?? [];
 $postEndEntry = $postEndReview['entries'][0] ?? [];
+$secondProgramEntry = $secondProgramReview['entries'][0] ?? [];
 
 if ($dictionaryLines !== ['Safe Import']) {
     throw new RuntimeException('Expected malformed dictionary CMap filter fallback text.');
@@ -548,6 +599,10 @@ if ($postEndLines !== ['PostEnd Safe Import']) {
     throw new RuntimeException('Expected post-endcmap CMap operator payload to stay excluded from WordPress text.');
 }
 
+if ($secondProgramLines !== ['SecondProgram Safe Import']) {
+    throw new RuntimeException('Expected complete second CMap program to stay excluded from WordPress text.');
+}
+
 if (
     str_contains($dictionaryPlainText, 'Dictionary Filter Leak')
     || str_contains($dictionaryPlainText, 'Filter dictionary is not a decoder')
@@ -567,6 +622,8 @@ if (
     || str_contains($staleReferencePlainText, 'xref-selected dictionary is not a decoder')
     || str_contains($postEndPlainText, 'PostEnd CMap Leak')
     || str_contains($postEndPlainText, 'WPPostEndCMapDecoy-H')
+    || str_contains($secondProgramPlainText, 'Second Program CMap Leak')
+    || str_contains($secondProgramPlainText, 'WPSecondProgramDecoy-H')
 ) {
     throw new RuntimeException('Expected malformed CMap filter payloads to stay excluded.');
 }
@@ -691,6 +748,26 @@ if (($postEndEntry['post_endcmap_byte_count'] ?? 0) <= 0) {
     throw new RuntimeException('Expected nonzero post-endcmap decoded CMap byte count.');
 }
 
+if (($secondProgramReview['decoded_cmap_count'] ?? null) !== 1) {
+    throw new RuntimeException('Expected second-program CMap stream to decode before parser-boundary filtering.');
+}
+
+if (($secondProgramEntry['cmap_name'] ?? null) !== 'WPSecondProgramBoundary-H') {
+    throw new RuntimeException('Expected second-program decoy CMapName to stay excluded.');
+}
+
+if (($secondProgramEntry['post_endcmap_bytes_excluded'] ?? null) !== true) {
+    throw new RuntimeException('Expected complete second CMap program bytes to be marked excluded.');
+}
+
+if (($secondProgramEntry['parser_bounded_cmap_bytes_excluded'] ?? null) !== true) {
+    throw new RuntimeException('Expected parser-bounded CMap body to exclude the complete second program.');
+}
+
+if (($secondProgramEntry['parser_excluded_cmap_byte_count'] ?? 0) <= ($secondProgramEntry['post_endcmap_byte_count'] ?? 0)) {
+    throw new RuntimeException('Expected parser-bounded CMap exclusion to exceed trailing post-endcmap cleanup bytes.');
+}
+
 $lines = array_merge(
     $dictionaryLines,
     $literalLines,
@@ -700,7 +777,8 @@ $lines = array_merge(
     $decodeParmsLines,
     $trailingDecodeParmsLines,
     $staleReferenceLines,
-    $postEndLines
+    $postEndLines,
+    $secondProgramLines
 );
 
 echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
@@ -766,6 +844,17 @@ echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlsp
     'post_endcmap_bytes_excluded' => ($postEndEntry['post_endcmap_bytes_excluded'] ?? null) === true,
     'post_endcmap_operator_payload_excluded' => !str_contains($postEndPlainText, 'PostEnd CMap Leak')
         && !str_contains($postEndPlainText, 'WPPostEndCMapDecoy-H'),
+    'second_program_decoded_cmap_count' => $secondProgramReview['decoded_cmap_count'] ?? null,
+    'second_program_cmap_name' => $secondProgramEntry['cmap_name'] ?? null,
+    'second_program_bounded_cmap_length' => $secondProgramEntry['bounded_cmap_length'] ?? null,
+    'second_program_decoded_cmap_length' => $secondProgramEntry['decoded_cmap_length'] ?? null,
+    'second_program_post_endcmap_byte_count' => $secondProgramEntry['post_endcmap_byte_count'] ?? null,
+    'second_program_parser_bounded_cmap_length' => $secondProgramEntry['parser_bounded_cmap_length'] ?? null,
+    'second_program_parser_excluded_byte_count' => $secondProgramEntry['parser_excluded_cmap_byte_count'] ?? null,
+    'second_program_trailing_cleanup_bytes_excluded' => ($secondProgramEntry['post_endcmap_bytes_excluded'] ?? null) === true,
+    'second_program_parser_bytes_excluded' => ($secondProgramEntry['parser_bounded_cmap_bytes_excluded'] ?? null) === true,
+    'second_program_payload_excluded' => !str_contains($secondProgramPlainText, 'Second Program CMap Leak')
+        && !str_contains($secondProgramPlainText, 'WPSecondProgramDecoy-H'),
     'leaking_cmap_text_excluded' => !str_contains($dictionaryPlainText, 'Dictionary Filter Leak')
         && !str_contains($literalPlainText, 'Literal Filter Leak')
         && !str_contains($indirectLiteralPlainText, 'Indirect Literal Filter Leak')
@@ -774,7 +863,8 @@ echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlsp
         && !str_contains($decodeParmsPlainText, 'DecodeParms CMap Leak')
         && !str_contains($trailingDecodeParmsPlainText, 'Trailing DecodeParms CMap Leak')
         && !str_contains($staleReferencePlainText, 'Stale Reference CMap Leak')
-        && !str_contains($postEndPlainText, 'PostEnd CMap Leak'),
+        && !str_contains($postEndPlainText, 'PostEnd CMap Leak')
+        && !str_contains($secondProgramPlainText, 'Second Program CMap Leak'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
 foreach ($lines as $line) {
