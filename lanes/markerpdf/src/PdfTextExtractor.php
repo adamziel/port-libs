@@ -9587,12 +9587,24 @@ final class PdfTextExtractor
             return $optionalContentStates[$objectNumber];
         }
 
-        $objectBody = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
-        if ($objectBody === null) {
+        $resolved = $this->resolvedResourceObjectBody($objects, $objectNumber, $generation);
+        if ($resolved === null) {
             return true;
         }
 
-        $dictionary = $this->dictionaryObjectBody($objectBody);
+        $resolvedObjectNumber = $resolved['object'];
+        $resolvedGeneration = $resolved['generation'];
+        if ($resolvedObjectNumber !== $objectNumber || $resolvedGeneration !== $generation) {
+            $resolvedReferenceKey = $this->optionalContentReferenceKey($resolvedObjectNumber, $resolvedGeneration);
+            if (array_key_exists($resolvedReferenceKey, $optionalContentStates)) {
+                return $optionalContentStates[$resolvedReferenceKey];
+            }
+            if ($resolvedGeneration === 0 && array_key_exists($resolvedObjectNumber, $optionalContentStates)) {
+                return $optionalContentStates[$resolvedObjectNumber];
+            }
+        }
+
+        $dictionary = $this->dictionaryObjectBody($resolved['body']);
         if ($dictionary === null) {
             return true;
         }
@@ -9601,8 +9613,8 @@ final class PdfTextExtractor
             $dictionary,
             $objects,
             $optionalContentStates,
-            $objectNumber,
-            $generation
+            $resolvedObjectNumber,
+            $resolvedGeneration
         );
     }
 
