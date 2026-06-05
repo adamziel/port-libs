@@ -96,7 +96,7 @@ $contentXml = <<<'XML'
         <text:list-item><text:p>Match ODT media to WordPress attachments</text:p></text:list-item>
         <text:list-item><text:p>Review table spans</text:p></text:list-item>
       </text:list>
-      <draw:frame draw:name="Source hero">
+      <draw:frame draw:name="Source hero" svg:width="6cm" svg:height="3.5cm">
         <draw:image xlink:href="Pictures/source-hero.png">
           <svg:title>Source hero</svg:title>
           <svg:desc>ODT source hero alt</svg:desc>
@@ -172,6 +172,10 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['media'][0]['canExposeBytes'] ?? true) !== false) {
         throw new RuntimeException('Expected encrypted ODT media bytes to stay unavailable for import');
     }
+    $imageNode = $result['document']->children[4]->children[0] ?? null;
+    if (!$imageNode instanceof \PortLibs\Pandoc\AstNode || $imageNode->attr('width') !== '6cm' || $imageNode->attr('height') !== '3.5cm') {
+        throw new RuntimeException('Expected ODT frame image dimensions to survive AST handoff');
+    }
     if (($result['importReport']['encryption']['encryptedParts'][0] ?? '') !== 'Pictures/source-hero.png') {
         throw new RuntimeException('Expected ODT encrypted media to be listed in the import report');
     }
@@ -246,6 +250,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<span class="math display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block">')) {
         throw new RuntimeException('Expected ODT MathML object to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, '<img src="Pictures/source-hero.png" alt="ODT source hero alt" title="Source hero" width="6cm" height="3.5cm"/>')) {
+        throw new RuntimeException('Expected ODT image dimensions to render in WordPress blocks');
     }
     if (!str_contains($blocks, '<annotation encoding="application/x-tex">p_i \to m_i</annotation>')) {
         throw new RuntimeException('Expected ODT MathML source annotation to survive WordPress handoff');

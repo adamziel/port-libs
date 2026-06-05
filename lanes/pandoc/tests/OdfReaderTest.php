@@ -752,6 +752,61 @@ XML;
         $t->contains('<annotation encoding="application/x-tex">x=1</annotation>', $blocksHtml);
         $t->contains('<span class="math display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $blocksHtml);
     },
+    'preserves ODT frame image dimensions for Markdown and WordPress handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithSizedImages = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Inline <draw:frame draw:name="Inline proof" svg:width="2.5cm" svg:height="1.25cm"><draw:image xlink:href="Pictures/hero.png"><svg:title>Inline proof title</svg:title><svg:desc>Inline proof alt</svg:desc></draw:image></draw:frame> image.</text:p>
+      <draw:frame draw:name="Block proof" svg:width="5cm" svg:height="3cm">
+        <draw:image xlink:href="Pictures/hero.png">
+          <svg:title>Block proof title</svg:title>
+          <svg:desc>Block proof alt</svg:desc>
+        </draw:image>
+      </draw:frame>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithSizedImages));
+        $blocks = $result['document']->children;
+
+        $t->same(2, count($blocks));
+        $paragraphImage = $blocks[0]->children[1];
+        $figure = $blocks[1];
+        $figureImage = $figure->children[0];
+
+        $t->same('image', $paragraphImage->type);
+        $t->same('2.5cm', $paragraphImage->attr('width'));
+        $t->same('1.25cm', $paragraphImage->attr('height'));
+        $t->same('2.5cm', $paragraphImage->attr('attributes')['width']);
+        $t->same('1.25cm', $paragraphImage->attr('attributes')['height']);
+        $t->same('Inline proof alt', $paragraphImage->attr('alt'));
+        $t->same('Inline proof title', $paragraphImage->attr('title'));
+        $t->same('Inline Inline proof alt image.', $blocks[0]->attr('text'));
+
+        $t->same('figure', $figure->type);
+        $t->same('Block proof alt', $figure->attr('caption'));
+        $t->same('image', $figureImage->type);
+        $t->same('5cm', $figureImage->attr('width'));
+        $t->same('3cm', $figureImage->attr('height'));
+        $t->same('5cm', $figureImage->attr('attributes')['width']);
+        $t->same('3cm', $figureImage->attr('attributes')['height']);
+        $t->same('Block proof title', $figureImage->attr('title'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('![Inline proof alt](Pictures/hero.png "Inline proof title"){width="2.5cm" height="1.25cm"}', $markdown);
+        $t->contains('![Block proof alt](Pictures/hero.png "Block proof title"){width="5cm" height="3cm"}', $markdown);
+        $t->contains('<img src="Pictures/hero.png" alt="Inline proof alt" title="Inline proof title" width="2.5cm" height="1.25cm"/>', $blocksHtml);
+        $t->contains('<img src="Pictures/hero.png" alt="Block proof alt" title="Block proof title" width="5cm" height="3cm"/>', $blocksHtml);
+    },
     'renders ODT handoff nodes through Markdown and WordPress writers' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = (new OdfReader())->readDocument($buildOdtPackage());
         $markdown = (new MarkdownWriter())->write($document);

@@ -1467,6 +1467,10 @@ final class OdfReader
             'sourceFormat' => 'odt',
             'sourcePart' => $part,
         ];
+        $dimensions = $this->frameImageDimensions($frame, $image);
+        if ($dimensions !== []) {
+            $attrs += $dimensions;
+        }
         if (is_array($manifestItem)) {
             $attrs['mediaType'] = $manifestItem['mediaType'] ?? null;
             $attrs['encrypted'] = $encrypted;
@@ -1482,6 +1486,31 @@ final class OdfReader
         }
 
         return new AstNode('image', $attrs, $alt === '' ? [] : [new AstNode('text', ['text' => $alt])]);
+    }
+
+    /**
+     * @return array{width?:string,height?:string,attributes?:array<string, string>}
+     */
+    private function frameImageDimensions(\DOMElement $frame, \DOMElement $image): array
+    {
+        $attributes = [];
+        foreach (['width', 'height'] as $name) {
+            $value = self::attr($image, self::SVG_NS, $name);
+            if ($value === '') {
+                $value = self::attr($frame, self::SVG_NS, $name);
+            }
+            if ($value === '') {
+                continue;
+            }
+
+            $attributes[$name] = $value;
+        }
+
+        if ($attributes === []) {
+            return [];
+        }
+
+        return $attributes + ['attributes' => $attributes];
     }
 
     private function frameObjectMathNode(\DOMElement $frame, ?ZipPackage $package): ?AstNode

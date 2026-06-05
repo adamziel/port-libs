@@ -916,8 +916,37 @@ final class WordPressBlockWriter
         if ($title !== '') {
             $attrs .= ' title="' . $this->esc($title) . '"';
         }
+        foreach ($this->imageHtmlAttributes($node) as $name => $value) {
+            $name = strtolower((string) $name);
+            if (in_array($name, ['src', 'alt', 'title'], true) || !$this->isAllowedImageHtmlAttr($name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
 
         return '<img' . $attrs . '/>';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function imageHtmlAttributes(AstNode $node): array
+    {
+        $attributes = $this->inlineHtmlAttributes($node);
+        foreach (['width', 'height'] as $name) {
+            $value = $node->attr($name, '');
+            if (is_string($value) && $value !== '' && !isset($attributes[$name])) {
+                $attributes[$name] = $value;
+            }
+        }
+
+        return $attributes;
+    }
+
+    private function isAllowedImageHtmlAttr(string $name): bool
+    {
+        return $name === 'width' || $name === 'height' || $this->isAllowedInlineHtmlAttr($name);
     }
 
     private function renderBlockQuote(AstNode $node): string
