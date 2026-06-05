@@ -140,7 +140,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{id:string, type:string, target:string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, valid:bool, issues:list<string>}>
+     * @return list<array{id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, valid:bool, issues:list<string>}>
      */
     public function preflightTargetsForSource(string $sourcePartName = '/', ?string $relationshipType = null): array
     {
@@ -155,11 +155,17 @@ final class OpcRelationshipGraph
 
         $preflight = [];
         foreach ($items as $relationship) {
+            $typePreflight = $relationship->relationshipTypePreflight();
             if ($relationship->isExternal()) {
                 $externalTarget = $relationship->externalTargetPreflight();
+                $issues = array_values(array_unique(array_merge($typePreflight['issues'], $externalTarget['issues'])));
                 $preflight[] = [
                     'id' => $relationship->id,
                     'type' => $relationship->type,
+                    'relationshipTypeKind' => $typePreflight['kind'],
+                    'relationshipTypeScheme' => $typePreflight['scheme'],
+                    'relationshipTypeValid' => $typePreflight['valid'],
+                    'relationshipTypeIssues' => $typePreflight['issues'],
                     'target' => $relationship->target,
                     'contentType' => null,
                     'external' => true,
@@ -168,8 +174,8 @@ final class OpcRelationshipGraph
                     'externalTargetKind' => $externalTarget['kind'],
                     'externalTargetScheme' => $externalTarget['scheme'],
                     'externalTargetAllowed' => $externalTarget['allowed'],
-                    'valid' => $externalTarget['issues'] === [],
-                    'issues' => $externalTarget['issues'],
+                    'valid' => $issues === [],
+                    'issues' => $issues,
                 ];
                 continue;
             }
@@ -177,9 +183,14 @@ final class OpcRelationshipGraph
             try {
                 $target = $relationships->resolveTarget($relationship);
             } catch (\InvalidArgumentException $exception) {
+                $issues = array_values(array_unique(array_merge($typePreflight['issues'], ['invalid-target'])));
                 $preflight[] = [
                     'id' => $relationship->id,
                     'type' => $relationship->type,
+                    'relationshipTypeKind' => $typePreflight['kind'],
+                    'relationshipTypeScheme' => $typePreflight['scheme'],
+                    'relationshipTypeValid' => $typePreflight['valid'],
+                    'relationshipTypeIssues' => $typePreflight['issues'],
                     'target' => $relationship->target,
                     'contentType' => null,
                     'external' => false,
@@ -189,7 +200,7 @@ final class OpcRelationshipGraph
                     'externalTargetScheme' => null,
                     'externalTargetAllowed' => null,
                     'valid' => false,
-                    'issues' => ['invalid-target'],
+                    'issues' => $issues,
                 ];
                 continue;
             }
@@ -198,7 +209,7 @@ final class OpcRelationshipGraph
             $exists = $this->package->has($targetPartName);
             $contentType = $this->contentTypes->contentTypeForPart($targetPartName);
             $relationshipPartTarget = self::isRelationshipPartName($targetPartName);
-            $issues = [];
+            $issues = $typePreflight['issues'];
 
             if (!$exists) {
                 $issues[] = 'missing-in-package';
@@ -215,6 +226,10 @@ final class OpcRelationshipGraph
             $preflight[] = [
                 'id' => $relationship->id,
                 'type' => $relationship->type,
+                'relationshipTypeKind' => $typePreflight['kind'],
+                'relationshipTypeScheme' => $typePreflight['scheme'],
+                'relationshipTypeValid' => $typePreflight['valid'],
+                'relationshipTypeIssues' => $typePreflight['issues'],
                 'target' => $target,
                 'contentType' => $contentType,
                 'external' => false,
@@ -224,7 +239,7 @@ final class OpcRelationshipGraph
                 'externalTargetScheme' => null,
                 'externalTargetAllowed' => null,
                 'valid' => $issues === [],
-                'issues' => $issues,
+                'issues' => array_values(array_unique($issues)),
             ];
         }
 
@@ -375,7 +390,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, valid:bool, issues:list<string>}>
+     * @return list<array{source:string, depth:int, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, valid:bool, issues:list<string>}>
      */
     public function reachableTargetsForSource(string $sourcePartName = '/', ?string $relationshipType = null): array
     {
@@ -405,6 +420,10 @@ final class OpcRelationshipGraph
                     'depth' => $depth,
                     'id' => $target['id'],
                     'type' => $target['type'],
+                    'relationshipTypeKind' => $target['relationshipTypeKind'],
+                    'relationshipTypeScheme' => $target['relationshipTypeScheme'],
+                    'relationshipTypeValid' => $target['relationshipTypeValid'],
+                    'relationshipTypeIssues' => $target['relationshipTypeIssues'],
                     'target' => $target['target'],
                     'targetPart' => $targetPart,
                     'contentType' => $target['contentType'],

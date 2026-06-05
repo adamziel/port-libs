@@ -35,6 +35,44 @@ final class OpcRelationship
     }
 
     /**
+     * @return array{kind:string, scheme:?string, valid:bool, issues:list<string>}
+     */
+    public function relationshipTypePreflight(): array
+    {
+        $scheme = null;
+        if (preg_match('/^([A-Za-z][A-Za-z0-9+.-]*):/', $this->type, $matches) === 1) {
+            $kind = 'absolute-uri';
+            $scheme = strtolower($matches[1]);
+        } elseif (str_starts_with($this->type, '//')) {
+            $kind = 'network-path-reference';
+        } elseif (str_starts_with($this->type, '#')) {
+            $kind = 'fragment-reference';
+        } else {
+            $kind = 'relative-reference';
+        }
+
+        $issues = [];
+        if ($kind !== 'absolute-uri') {
+            $issues[] = 'relationship-type-not-absolute-uri';
+        }
+
+        if (preg_match('/[\x00-\x20\x7F]/', $this->type) === 1) {
+            $issues[] = 'relationship-type-invalid-uri-bytes';
+        }
+
+        if ($kind === 'absolute-uri' && substr($this->type, strlen((string) $scheme) + 1) === '') {
+            $issues[] = 'relationship-type-empty-uri-body';
+        }
+
+        return [
+            'kind' => $kind,
+            'scheme' => $scheme,
+            'valid' => $issues === [],
+            'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
      * @return array{kind:string, scheme:?string, allowed:bool, issues:list<string>}
      */
     public function externalTargetPreflight(): array

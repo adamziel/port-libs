@@ -443,6 +443,79 @@ XML;
         $t->same(['external-target-unsafe-scheme'], $closureById['rIdJavascript']['issues']);
         $t->same(null, $closureById['rIdRelative']['targetPart']);
     },
+    'preflights OPC relationship Type URI policies' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $valid = new OpcRelationship(
+            'rIdImage',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
+            'media/review.png',
+        );
+        $urn = new OpcRelationship('rIdUrn', 'urn:example:wordpress-import-review', 'customXml/item1.xml');
+        $relative = new OpcRelationship('rIdRelativeType', 'officeDocument/relationships/image', 'media/review.png');
+        $network = new OpcRelationship('rIdNetworkType', '//schemas.openxmlformats.org/relationships/image', 'media/review.png');
+        $fragment = new OpcRelationship('rIdFragmentType', '#relationship-type', 'media/review.png');
+        $space = new OpcRelationship('rIdSpaceType', 'http://example.test/relationship type', 'media/review.png');
+
+        $t->same([
+            'kind' => 'absolute-uri',
+            'scheme' => 'http',
+            'valid' => true,
+            'issues' => [],
+        ], $valid->relationshipTypePreflight());
+        $t->same('urn', $urn->relationshipTypePreflight()['scheme']);
+        $t->same([
+            'kind' => 'relative-reference',
+            'scheme' => null,
+            'valid' => false,
+            'issues' => ['relationship-type-not-absolute-uri'],
+        ], $relative->relationshipTypePreflight());
+        $t->same('network-path-reference', $network->relationshipTypePreflight()['kind']);
+        $t->same(['relationship-type-not-absolute-uri'], $network->relationshipTypePreflight()['issues']);
+        $t->same('fragment-reference', $fragment->relationshipTypePreflight()['kind']);
+        $t->same(['relationship-type-not-absolute-uri'], $fragment->relationshipTypePreflight()['issues']);
+        $t->same(['relationship-type-invalid-uri-bytes'], $space->relationshipTypePreflight()['issues']);
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdBadType" Type="officeDocument/relationships/hyperlink" Target="https://example.test/source" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $preflight = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $preflight[$target['id']] = $target;
+        }
+
+        $t->same('absolute-uri', $preflight['rIdStyles']['relationshipTypeKind']);
+        $t->same('http', $preflight['rIdStyles']['relationshipTypeScheme']);
+        $t->same(true, $preflight['rIdStyles']['relationshipTypeValid']);
+        $t->same([], $preflight['rIdStyles']['relationshipTypeIssues']);
+        $t->same(true, $preflight['rIdStyles']['valid']);
+
+        $t->same('relative-reference', $preflight['rIdBadType']['relationshipTypeKind']);
+        $t->same(null, $preflight['rIdBadType']['relationshipTypeScheme']);
+        $t->same(false, $preflight['rIdBadType']['relationshipTypeValid']);
+        $t->same(['relationship-type-not-absolute-uri'], $preflight['rIdBadType']['relationshipTypeIssues']);
+        $t->same(false, $preflight['rIdBadType']['valid']);
+        $t->same(['relationship-type-not-absolute-uri'], $preflight['rIdBadType']['issues']);
+
+        $closureById = [];
+        foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
+            $closureById[$target['id']] = $target;
+        }
+
+        $t->same('relative-reference', $closureById['rIdBadType']['relationshipTypeKind']);
+        $t->same(['relationship-type-not-absolute-uri'], $closureById['rIdBadType']['issues']);
+    },
     'preflights OPC digital signature origin and signature parts' => static function (TestRunner $t): void {
         $signedContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

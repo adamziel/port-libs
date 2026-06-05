@@ -38,6 +38,7 @@ $documentRelationshipsXml = <<<'XML'
   <Relationship Id="rIdDiagram" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source-diagram.svg"/>
   <Relationship Id="rIdReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/wp-admin/post.php?post=42&amp;action=edit" TargetMode="External"/>
   <Relationship Id="rIdUnsafeReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
+  <Relationship Id="rIdMalformedType" Type="officeDocument/relationships/hyperlink" Target="https://example.test/source-with-bad-type" TargetMode="External"/>
 </Relationships>
 XML;
 
@@ -107,6 +108,10 @@ foreach ($graph->preflightTargetsForSource($documentPart) as $target) {
         'id' => $target['id'],
         'target' => $target['target'],
         'contentType' => $target['contentType'],
+        'relationshipTypeKind' => $target['relationshipTypeKind'],
+        'relationshipTypeScheme' => $target['relationshipTypeScheme'],
+        'relationshipTypeValid' => $target['relationshipTypeValid'],
+        'relationshipTypeIssues' => $target['relationshipTypeIssues'],
         'external' => $target['external'],
         'exists' => $target['exists'],
         'externalTargetKind' => $target['externalTargetKind'],
@@ -125,6 +130,10 @@ foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOC
         'target' => $target['target'],
         'targetPart' => $target['targetPart'],
         'contentType' => $target['contentType'],
+        'relationshipTypeKind' => $target['relationshipTypeKind'],
+        'relationshipTypeScheme' => $target['relationshipTypeScheme'],
+        'relationshipTypeValid' => $target['relationshipTypeValid'],
+        'relationshipTypeIssues' => $target['relationshipTypeIssues'],
         'external' => $target['external'],
         'externalTargetKind' => $target['externalTargetKind'],
         'externalTargetScheme' => $target['externalTargetScheme'],
@@ -199,6 +208,10 @@ $summary = [
                 'kind' => $target['externalTargetKind'],
                 'scheme' => $target['externalTargetScheme'],
                 'allowed' => $target['externalTargetAllowed'],
+                'relationshipTypeKind' => $target['relationshipTypeKind'],
+                'relationshipTypeScheme' => $target['relationshipTypeScheme'],
+                'relationshipTypeValid' => $target['relationshipTypeValid'],
+                'relationshipTypeIssues' => $target['relationshipTypeIssues'],
                 'issues' => $target['issues'],
             ],
             array_filter($relationshipPreflight, static fn (array $target): bool => $target['external'] === true)
@@ -258,6 +271,13 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['externalTargets'][1]['issues'] ?? null) !== ['external-target-unsafe-scheme']
         || ($summary['integrity']['issues'][0]['id'] ?? null) !== 'rIdUnsafeReviewer'
         || ($summary['integrity']['issues'][0]['issues'] ?? null) !== ['external-target-unsafe-scheme']
+        || ($summary['wordpressImport']['externalTargets'][2]['id'] ?? null) !== 'rIdMalformedType'
+        || ($summary['wordpressImport']['externalTargets'][2]['relationshipTypeKind'] ?? null) !== 'relative-reference'
+        || ($summary['wordpressImport']['externalTargets'][2]['relationshipTypeValid'] ?? null) !== false
+        || ($summary['wordpressImport']['externalTargets'][2]['relationshipTypeIssues'] ?? null) !== ['relationship-type-not-absolute-uri']
+        || ($summary['wordpressImport']['externalTargets'][2]['issues'] ?? null) !== ['relationship-type-not-absolute-uri']
+        || ($summary['integrity']['issues'][1]['id'] ?? null) !== 'rIdMalformedType'
+        || ($summary['integrity']['issues'][1]['issues'] ?? null) !== ['relationship-type-not-absolute-uri']
     ) {
         throw new RuntimeException('OPC DOCX preflight self-test failed');
     }
