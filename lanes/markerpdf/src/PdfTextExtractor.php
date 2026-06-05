@@ -7922,7 +7922,11 @@ final class PdfTextExtractor
     {
         $filters = $this->streamFilters($dict, $objects);
         if ($filters === null || $filters === []) {
-            return null;
+            if (!$this->isImageStreamDictionary($dict, $objects)) {
+                return null;
+            }
+
+            return $this->rawDctPreviewEndstreamTerminatorOffset($value, $streamStart);
         }
 
         $firstFilter = null;
@@ -7951,6 +7955,11 @@ final class PdfTextExtractor
             );
         }
 
+        return $this->rawDctPreviewEndstreamTerminatorOffset($value, $streamStart);
+    }
+
+    private function rawDctPreviewEndstreamTerminatorOffset(string $value, int $streamStart): ?int
+    {
         $jpegStart = $streamStart;
         $length = strlen($value);
         while ($jpegStart < $length && str_contains("\x00\t\n\f\r ", $value[$jpegStart])) {
