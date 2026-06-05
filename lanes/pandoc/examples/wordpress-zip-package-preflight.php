@@ -86,6 +86,34 @@ $buildPaxPayload = static function (array $headers): string {
 
     return $payload;
 };
+$lz4HeaderChecksum = static fn (string $descriptor): string => chr((intval(hash('xxh32', $descriptor), 16) >> 8) & 0xff);
+$buildDependentLz4Frame = static function (string $dictionaryBlock) use ($lz4HeaderChecksum): string {
+    $matchLength = strlen($dictionaryBlock);
+    if ($matchLength < 20 || $matchLength > 0xffff) {
+        throw new RuntimeException('Dependent LZ4 fixture block must be between 20 and 65535 bytes');
+    }
+
+    $extensionLength = $matchLength - 19;
+    $matchLengthExtension = '';
+    while ($extensionLength >= 255) {
+        $matchLengthExtension .= "\xff";
+        $extensionLength -= 255;
+    }
+    $matchLengthExtension .= chr($extensionLength);
+    $matchPayload = chr(0x0f)
+        . pack('v', $matchLength)
+        . $matchLengthExtension;
+    $descriptor = chr(0x40) . chr(0x40);
+
+    return pack('V', 0x184d2204)
+        . $descriptor
+        . $lz4HeaderChecksum($descriptor)
+        . pack('V', 0x80000000 | $matchLength)
+        . $dictionaryBlock
+        . pack('V', strlen($matchPayload))
+        . $matchPayload
+        . pack('V', 0);
+};
 
 $buildDescriptorBackedPackage = static function () use ($crc32): string {
     $name = 'word/comments.xml';
@@ -445,6 +473,9 @@ $lz4ReviewPacket = Lz4Frame::skippableFrame('wordpress import archive metadata',
     ]);
 $lz4ReviewFrames = Lz4Frame::frames($lz4ReviewPacket);
 $lz4TarPacketRoundTrip = TarArchive::fromString(Lz4Frame::decode($lz4ReviewPacket));
+$dependentLz4ReviewIndex = $buildDependentLz4Frame('packet/word/document.xml:');
+$dependentLz4ReviewFrames = Lz4Frame::frames($dependentLz4ReviewIndex);
+$dependentLz4ReviewIndexText = Lz4Frame::decode($dependentLz4ReviewIndex);
 $symlinkRejected = false;
 try {
     ZipPackage::fromParts([
@@ -610,6 +641,18 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected LZ4-wrapped tar document bytes to round-trip');
     }
 
+    if (($dependentLz4ReviewFrames[0]['blockIndependent'] ?? true) !== false) {
+        throw new RuntimeException('Expected dependent LZ4 frame metadata to preserve block-dependency mode');
+    }
+
+    if (($dependentLz4ReviewFrames[0]['blockTypes'] ?? []) !== ['uncompressed', 'compressed']) {
+        throw new RuntimeException('Expected dependent LZ4 review index to combine uncompressed and compressed blocks');
+    }
+
+    if ($dependentLz4ReviewIndexText !== 'packet/word/document.xml:packet/word/document.xml:') {
+        throw new RuntimeException('Expected dependent LZ4 review index to decode across block history');
+    }
+
     if (!$symlinkRejected) {
         throw new RuntimeException('Expected ZIP symlink entries to be rejected before media import');
     }
@@ -685,3 +728,5 @@ echo 'lz4.frames=' . count($lz4ReviewFrames) . "\n";
 echo 'lz4.skippable=' . $lz4ReviewFrames[0]['data'] . "\n";
 echo 'lz4.blockTypes=' . implode(',', $lz4ReviewFrames[1]['blockTypes']) . "\n";
 echo 'lz4.document.xml=' . $lz4TarPacketRoundTrip->read('/packet/word/document.xml') . "\n";
+echo 'lz4.dependentBlockIndependent=' . (($dependentLz4ReviewFrames[0]['blockIndependent'] ?? true) ? 'true' : 'false') . "\n";
+echo 'lz4.dependentIndex=' . $dependentLz4ReviewIndexText . "\n";

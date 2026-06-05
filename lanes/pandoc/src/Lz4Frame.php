@@ -19,6 +19,7 @@ final class Lz4Frame
     private const FLAG_DICTIONARY_ID = 0x01;
     private const BLOCK_UNCOMPRESSED_FLAG = 0x80000000;
     private const BLOCK_SIZE_MASK = 0x7fffffff;
+    private const DEPENDENT_BLOCK_HISTORY_SIZE = 65536;
 
     private const BLOCK_MAX_SIZES = [
         4 => 65536,
@@ -116,6 +117,7 @@ final class Lz4Frame
      *     id?:int,
      *     contentSize?:?int,
      *     blockMaxSize?:int,
+     *     blockIndependent?:bool,
      *     blockChecksum?:bool,
      *     contentChecksum?:bool,
      *     blockCount?:int,
@@ -177,9 +179,7 @@ final class Lz4Frame
                 throw new \RuntimeException('LZ4 frame descriptor uses reserved flag bits');
             }
 
-            if (($flags & self::FLAG_BLOCK_INDEPENDENCE) === 0) {
-                throw new \RuntimeException('Dependent LZ4 frame blocks are not supported by the pandoc archive reader');
-            }
+            $blockIndependent = ($flags & self::FLAG_BLOCK_INDEPENDENCE) !== 0;
 
             if (($blockDescriptor & 0x8f) !== 0) {
                 throw new \RuntimeException('LZ4 block descriptor uses reserved bits');
@@ -220,6 +220,7 @@ final class Lz4Frame
             $blockCount = 0;
             $compressedSize = 0;
             $blockChecksum = ($flags & self::FLAG_BLOCK_CHECKSUM) !== 0;
+            $blockHistory = '';
 
             while (true) {
                 self::assertRange($bytes, $cursor, 4, 'block size');
@@ -252,12 +253,15 @@ final class Lz4Frame
 
                 $decodedBlock = $uncompressedBlock
                     ? $blockPayload
-                    : self::decodeRawBlock($blockPayload, $blockMaxSize);
+                    : self::decodeRawBlock($blockPayload, $blockMaxSize, $blockIndependent ? '' : $blockHistory);
                 if (strlen($decodedBlock) > $blockMaxSize) {
                     throw new \RuntimeException('LZ4 decoded block exceeds the configured frame maximum');
                 }
 
                 $data .= $decodedBlock;
+                if (!$blockIndependent) {
+                    $blockHistory = self::appendDependentBlockHistory($blockHistory, $decodedBlock);
+                }
                 $blockTypes[] = $uncompressedBlock ? 'uncompressed' : 'compressed';
                 $blockCount++;
                 $totalUncompressedBytes += strlen($decodedBlock);
@@ -287,6 +291,7 @@ final class Lz4Frame
                 'frameSize' => $cursor - $frameStart,
                 'contentSize' => $contentSize,
                 'blockMaxSize' => $blockMaxSize,
+                'blockIndependent' => $blockIndependent,
                 'blockChecksum' => $blockChecksum,
                 'contentChecksum' => $contentChecksum,
                 'blockCount' => $blockCount,
@@ -358,11 +363,14 @@ final class Lz4Frame
         return $out;
     }
 
-    private static function decodeRawBlock(string $payload, int $maxOutputBytes): string
+    private static function decodeRawBlock(string $payload, int $maxOutputBytes, string $dependentHistory = ''): string
     {
         $out = '';
         $offset = 0;
         $length = strlen($payload);
+        if (strlen($dependentHistory) > self::DEPENDENT_BLOCK_HISTORY_SIZE) {
+            $dependentHistory = substr($dependentHistory, -self::DEPENDENT_BLOCK_HISTORY_SIZE);
+        }
 
         while ($offset < $length) {
             $token = ord($payload[$offset]);
@@ -396,7 +404,7 @@ final class Lz4Frame
 
             $matchOffset = ord($payload[$offset]) | (ord($payload[$offset + 1]) << 8);
             $offset += 2;
-            if ($matchOffset <= 0 || $matchOffset > strlen($out)) {
+            if ($matchOffset <= 0 || $matchOffset > strlen($dependentHistory) + strlen($out)) {
                 throw new \RuntimeException('LZ4 raw block has an invalid match offset');
             }
 
@@ -410,11 +418,31 @@ final class Lz4Frame
             }
 
             for ($index = 0; $index < $matchLength; $index++) {
-                $out .= $out[strlen($out) - $matchOffset];
+                $sourceIndex = strlen($out) - $matchOffset;
+                if ($sourceIndex >= 0) {
+                    $out .= $out[$sourceIndex];
+                    continue;
+                }
+
+                $historyIndex = strlen($dependentHistory) + $sourceIndex;
+                if ($historyIndex < 0 || $historyIndex >= strlen($dependentHistory)) {
+                    throw new \RuntimeException('LZ4 raw block has an invalid dependent-block match offset');
+                }
+                $out .= $dependentHistory[$historyIndex];
             }
         }
 
         return $out;
+    }
+
+    private static function appendDependentBlockHistory(string $history, string $decodedBlock): string
+    {
+        $combined = $history . $decodedBlock;
+        if (strlen($combined) <= self::DEPENDENT_BLOCK_HISTORY_SIZE) {
+            return $combined;
+        }
+
+        return substr($combined, -self::DEPENDENT_BLOCK_HISTORY_SIZE);
     }
 
     private static function encodeRawSequence(string $literals, int $matchOffset, int $matchLength): string

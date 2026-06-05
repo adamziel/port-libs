@@ -375,6 +375,32 @@ return [
         $t->same($packet, Lz4Frame::decode($stream));
     },
 
+    'decodes dependent lz4 frame blocks using previous package fixture bytes' => static function (TestRunner $t) use ($lz4HeaderChecksum): void {
+        $dictionaryBlock = 'packet/word/document.xml:';
+        $matchLength = strlen($dictionaryBlock);
+        $matchPayload = chr(0x0f)
+            . pack('v', $matchLength)
+            . chr($matchLength - 19);
+        $descriptor = chr(0x40) . chr(0x40);
+        $dependentFrame = pack('V', 0x184d2204)
+            . $descriptor
+            . $lz4HeaderChecksum($descriptor)
+            . pack('V', 0x80000000 | strlen($dictionaryBlock))
+            . $dictionaryBlock
+            . pack('V', strlen($matchPayload))
+            . $matchPayload
+            . pack('V', 0);
+        $frames = Lz4Frame::frames($dependentFrame);
+
+        $t->same($dictionaryBlock . $dictionaryBlock, Lz4Frame::decode($dependentFrame));
+        $t->same(1, count($frames));
+        $t->same('frame', $frames[0]['type']);
+        $t->same(false, $frames[0]['blockIndependent']);
+        $t->same(2, $frames[0]['blockCount']);
+        $t->same(['uncompressed', 'compressed'], $frames[0]['blockTypes']);
+        $t->same(strlen($dictionaryBlock) + strlen($matchPayload), $frames[0]['compressedSize']);
+    },
+
     'rejects malformed lz4 frame descriptors checksums and limits' => static function (TestRunner $t) use ($lz4HeaderChecksum): void {
         $valid = Lz4Frame::build('review source', [
             'blockChecksum' => true,
@@ -386,8 +412,11 @@ return [
         $badContentSize = substr_replace($badContentSize, $lz4HeaderChecksum(substr($badContentSize, 4, 10)), 14, 1);
         $badBlockChecksum = substr_replace($valid, "\xff\xff\xff\xff", 15 + 4 + strlen('review source'), 4);
         $badContentChecksum = substr_replace($valid, "\xff\xff\xff\xff", -4, 4);
-        $dependentDescriptor = chr(0x40) . chr(0x40);
-        $dependentBlocks = pack('V', 0x184d2204) . $dependentDescriptor . $lz4HeaderChecksum($dependentDescriptor) . pack('V', 0);
+        $dictionaryDescriptor = chr(0x41) . chr(0x40) . pack('V', 17);
+        $dictionaryBlocks = pack('V', 0x184d2204)
+            . $dictionaryDescriptor
+            . $lz4HeaderChecksum($dictionaryDescriptor)
+            . pack('V', 0);
 
         $t->throws(\RuntimeException::class, static fn (): string => Lz4Frame::decode('not lz4'));
         $t->throws(\RuntimeException::class, static fn (): string => Lz4Frame::decode($badHeaderChecksum));
@@ -395,7 +424,7 @@ return [
         $t->throws(\RuntimeException::class, static fn (): string => Lz4Frame::decode($badBlockChecksum));
         $t->throws(\RuntimeException::class, static fn (): string => Lz4Frame::decode($badContentChecksum));
         $t->throws(\RuntimeException::class, static fn (): string => Lz4Frame::decode(substr($valid, 0, -2)));
-        $t->throws(\RuntimeException::class, static fn (): string => Lz4Frame::decode($dependentBlocks));
+        $t->throws(\RuntimeException::class, static fn (): string => Lz4Frame::decode($dictionaryBlocks));
         $t->throws(\RuntimeException::class, static fn (): string => Lz4Frame::decode($valid, 1));
         $t->throws(\RuntimeException::class, static fn (): string => Lz4Frame::skippableFrame('x', 16));
         $t->throws(\RuntimeException::class, static fn (): string => Lz4Frame::build('x', ['blockMaxSize' => 123]));
