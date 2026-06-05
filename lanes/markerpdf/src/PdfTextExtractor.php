@@ -7537,7 +7537,7 @@ final class PdfTextExtractor
     {
         $length = strlen($bytes);
         $start = 0;
-        while ($start < $length && str_contains("\t\n\f\r ", $bytes[$start])) {
+        while ($start < $length && str_contains("\x00\t\n\f\r ", $bytes[$start])) {
             $start++;
         }
 

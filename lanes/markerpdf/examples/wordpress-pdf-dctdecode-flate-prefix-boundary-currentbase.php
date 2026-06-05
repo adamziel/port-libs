@@ -30,10 +30,10 @@ $zlibStored = static function (string $bytes): string {
 $before = 'BT /F1 12 Tf 72 720 Td (Before Flate DCT Import) Tj ET';
 $after = 'BT /F1 12 Tf 72 680 Td (After Flate DCT Import) Tj ET';
 $fakeObject = 'BT /F1 12 Tf 72 700 Td (WordPress Flate DCT Payload Leak) Tj ET';
-$jpegPayload = "\xff\xd8\xff\xe0JFIF\0JPEG bytes\n"
+$jpegPayload = "\0\0\xff\xd8\xff\xe0JFIF\0JPEG bytes\n"
     . "endstream\nendobj\n"
     . "9 0 obj\n<< /Length " . strlen($fakeObject) . " >>\nstream\n{$fakeObject}\nendstream\nendobj\n"
-    . "\xff\xd9";
+    . "\xff\xd9\0\0";
 $compressedPayload = $zlibStored($jpegPayload);
 $fakeTerminatorOffset = strpos($compressedPayload, "\nendstream\n");
 if ($fakeTerminatorOffset === false) {
@@ -78,6 +78,7 @@ echo '<!-- markerpdf:pdf-dctdecode-flate-prefix-boundary-currentbase ' . htmlspe
     'upstream_boundary' => 'marker.pdf.extract_text.get_text_blocks + marker.pdf.images.render_image',
     'stream_filters' => ['FlateDecode', 'DCTDecode'],
     'prefix_filter_decoded_before_dct_boundary' => true,
+    'prefix_decoded_nul_padded_jpeg_boundary' => true,
     'missing_length_fake_endstream_rejected' => $missingLengthPayloadExcluded,
     'stale_length_fake_endstream_rejected' => $staleLengthPayloadExcluded,
     'dctdecode_image_payload_excluded_from_text' => $missingLengthPayloadExcluded && $staleLengthPayloadExcluded,
