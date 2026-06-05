@@ -1450,8 +1450,9 @@ final class TableRecognizer
     /**
      * Upstream crops page images before tabled recognition, so tabled rows,
      * columns, and cells are normally table-crop-local. Supplied fixtures may
-     * serialize those same model records in rendered page-image coordinates;
-     * translate only when the bundle declares that boundary explicitly.
+     * serialize those same model records in rendered page-image coordinates,
+     * or in 1000-unit normalized page-image coordinates. Translate and
+     * unnormalize only when the bundle declares that boundary explicitly.
      *
      * @param array<string, mixed> $table
      * @param array{width?: int|float, height?: int|float}|list<int|float> $imageSize
@@ -1473,7 +1474,13 @@ final class TableRecognizer
         ];
         $needsTranslation = false;
         $needsNormalization = false;
+        $hasNormalizedPageImage = false;
         foreach ($spaces as $field => $space) {
+            if ($this->isNormalizedPageImageCoordinateSpace($space)) {
+                $needsTranslation = true;
+                $needsNormalization = true;
+                $hasNormalizedPageImage = true;
+            }
             if ($this->isPageImageCoordinateSpace($space)) {
                 $needsTranslation = true;
             }
@@ -1481,6 +1488,11 @@ final class TableRecognizer
                 $needsNormalization = true;
             }
             foreach ($recordSpaces[$field] as $recordSpace) {
+                if ($this->isNormalizedPageImageCoordinateSpace($recordSpace)) {
+                    $needsTranslation = true;
+                    $needsNormalization = true;
+                    $hasNormalizedPageImage = true;
+                }
                 if ($this->isPageImageCoordinateSpace($recordSpace)) {
                     $needsTranslation = true;
                 }
@@ -1511,6 +1523,9 @@ final class TableRecognizer
         }
 
         $size = $this->imageSize($imageSize);
+        $pageImageNormalizationSize = $hasNormalizedPageImage
+            ? $this->pageImageNormalizationSize($table, $imageSize, $size)
+            : $size;
         $dx = $cropBbox === null ? 0.0 : -$cropBbox[0];
         $dy = $cropBbox === null ? 0.0 : -$cropBbox[1];
         $translatedCounts = [
@@ -1540,6 +1555,19 @@ final class TableRecognizer
                 }
 
                 $recordSpace = $this->geometryRecordCoordinateSpace($record, $fieldSpace);
+                if ($this->isNormalizedPageImageCoordinateSpace($recordSpace)) {
+                    $localizedRecords[] = $this->localizedNormalizedPageImageGeometryRecord(
+                        $record,
+                        $pageImageNormalizationSize,
+                        $dx,
+                        $dy,
+                        $recordSpace
+                    );
+                    $normalizedCounts[$field]++;
+                    $translatedCounts[$field]++;
+                    $changed = true;
+                    continue;
+                }
                 if ($this->isNormalizedTableCoordinateSpace($recordSpace)) {
                     $localizedRecords[] = $this->unnormalizedGeometryRecord($record, $size, $recordSpace);
                     $normalizedCounts[$field]++;
@@ -1563,6 +1591,18 @@ final class TableRecognizer
         }
 
         if (isset($table['ocr_grid_border_conflicts']) && is_array($table['ocr_grid_border_conflicts'])) {
+            if ($this->isNormalizedPageImageCoordinateSpace($spaces['conflicts']) || $this->recordSpacesIncludeNormalizedPageImage($recordSpaces['conflicts'])) {
+                $localizedConflicts = $this->localizedNormalizedPageImageOcrGridBorderConflicts(
+                    $table['ocr_grid_border_conflicts'],
+                    $pageImageNormalizationSize,
+                    $dx,
+                    $dy,
+                    $spaces['conflicts']
+                );
+                $normalizedCounts['conflicts'] += $localizedConflicts['count'];
+                $translatedCounts['conflicts'] += $localizedConflicts['count'];
+                $table['ocr_grid_border_conflicts'] = $localizedConflicts['conflicts'];
+            }
             if ($this->isNormalizedTableCoordinateSpace($spaces['conflicts']) || $this->recordSpacesIncludeNormalized($recordSpaces['conflicts'])) {
                 $localizedConflicts = $this->unnormalizedOcrGridBorderConflicts(
                     $table['ocr_grid_border_conflicts'],
@@ -1621,6 +1661,13 @@ final class TableRecognizer
                 'x' => (float) $size['width'] / 1000.0,
                 'y' => (float) $size['height'] / 1000.0,
             ];
+            if ($hasNormalizedPageImage) {
+                $review['page_image_normalization_size'] = $pageImageNormalizationSize;
+                $review['page_image_normalization_scale'] = [
+                    'x' => (float) $pageImageNormalizationSize['width'] / 1000.0,
+                    'y' => (float) $pageImageNormalizationSize['height'] / 1000.0,
+                ];
+            }
         }
         $recordSpaceReview = $this->recordCoordinateSpaceReview($recordSpaces);
         if ($recordSpaceReview !== []) {
@@ -1736,6 +1783,20 @@ final class TableRecognizer
     }
 
     /**
+     * @param list<string> $spaces
+     */
+    private function recordSpacesIncludeNormalizedPageImage(array $spaces): bool
+    {
+        foreach ($spaces as $space) {
+            if ($this->isNormalizedPageImageCoordinateSpace($space)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param array<string, list<string>> $recordSpaces
      * @return array<string, array<string, int>>
      */
@@ -1821,6 +1882,24 @@ final class TableRecognizer
         ], true);
     }
 
+    private function isNormalizedPageImageCoordinateSpace(string $space): bool
+    {
+        return in_array($this->normalizeCoordinateSpace($space), [
+            'normalized_page',
+            'page_normalized',
+            'normalized_page_image',
+            'page_image_normalized',
+            'normalized_rendered_page',
+            'rendered_page_normalized',
+            'normalized_full_page',
+            'full_page_normalized',
+            'normalized_pdf_page',
+            'pdf_page_normalized',
+            'normalized_highres_page',
+            'highres_page_normalized',
+        ], true);
+    }
+
     private function isNormalizedTableCoordinateSpace(string $space): bool
     {
         return in_array($this->normalizeCoordinateSpace($space), [
@@ -1867,6 +1946,34 @@ final class TableRecognizer
     }
 
     /**
+     * @param array<string, mixed> $table
+     * @param array{width?: int|float, height?: int|float}|list<int|float> $imageSize
+     * @param array{width: int, height: int} $fallback
+     * @return array{width: int, height: int}
+     */
+    private function pageImageNormalizationSize(array $table, array $imageSize, array $fallback): array
+    {
+        foreach (['image_bbox', 'page_image_bbox', 'rendered_image_bbox'] as $key) {
+            $bbox = isset($table[$key]) ? $this->bboxFromValue($table[$key]) : null;
+            if ($bbox === null && isset($imageSize[$key])) {
+                $bbox = $this->bboxFromValue($imageSize[$key]);
+            }
+            if ($bbox === null) {
+                continue;
+            }
+
+            $fromExtent = $this->imageSizeFromBboxExtent($bbox);
+            if ($fromExtent !== null) {
+                return $fromExtent;
+            }
+        }
+
+        $provided = $this->nullableImageSize($imageSize);
+
+        return $provided ?? $fallback;
+    }
+
+    /**
      * @param array<string, mixed> $record
      * @return array<string, mixed>
      */
@@ -1876,6 +1983,29 @@ final class TableRecognizer
         $record['source_bbox'] = $sourceBbox;
         $record['source_coordinate_space'] = $sourceCoordinateSpace;
         $record['bbox'] = $this->translatedBbox($sourceBbox, $dx, $dy);
+        $record = $this->withGeometryRecordCoordinateSpace($record, 'table_crop');
+
+        return $record;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @param array{width: int, height: int} $pageImageSize
+     * @return array<string, mixed>
+     */
+    private function localizedNormalizedPageImageGeometryRecord(
+        array $record,
+        array $pageImageSize,
+        float $dx,
+        float $dy,
+        string $sourceCoordinateSpace
+    ): array {
+        $sourceBbox = $this->bboxFromRecord($record);
+        $pageImageBbox = $this->unnormalizedTableBbox($sourceBbox, $pageImageSize);
+        $record['source_bbox'] = $sourceBbox;
+        $record['source_page_image_bbox'] = $pageImageBbox;
+        $record['source_coordinate_space'] = $sourceCoordinateSpace;
+        $record['bbox'] = $this->translatedBbox($pageImageBbox, $dx, $dy);
         $record = $this->withGeometryRecordCoordinateSpace($record, 'table_crop');
 
         return $record;
@@ -1958,6 +2088,67 @@ final class TableRecognizer
 
         return [
             'conflicts' => $translated,
+            'count' => $count,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $conflicts
+     * @param array{width: int, height: int} $pageImageSize
+     * @return array{conflicts: list<array<string, mixed>>, count: int}
+     */
+    private function localizedNormalizedPageImageOcrGridBorderConflicts(
+        array $conflicts,
+        array $pageImageSize,
+        float $dx,
+        float $dy,
+        string $sourceCoordinateSpace
+    ): array {
+        $localized = [];
+        $count = 0;
+        foreach (array_values($conflicts) as $conflict) {
+            if (!is_array($conflict)) {
+                continue;
+            }
+            $recordSpace = $this->geometryRecordCoordinateSpace($conflict, $sourceCoordinateSpace);
+            if (!$this->isNormalizedPageImageCoordinateSpace($recordSpace)) {
+                $localized[] = $conflict;
+                continue;
+            }
+
+            if (isset($conflict['bbox'])) {
+                $bbox = $this->bboxFromValue($conflict['bbox']);
+                if ($bbox !== null) {
+                    $pageImageBbox = $this->unnormalizedTableBbox($bbox, $pageImageSize);
+                    $conflict['source_bbox'] = $bbox;
+                    $conflict['source_page_image_bbox'] = $pageImageBbox;
+                    $conflict['bbox'] = $this->translatedBbox($pageImageBbox, $dx, $dy);
+                }
+            }
+            if (isset($conflict['candidate_cell_bboxes']) && is_array($conflict['candidate_cell_bboxes'])) {
+                $candidateBboxes = [];
+                $candidatePageImageBboxes = [];
+                foreach ($conflict['candidate_cell_bboxes'] as $bbox) {
+                    $normalizedBbox = $this->bboxFromValue($bbox);
+                    if ($normalizedBbox !== null) {
+                        $pageImageBbox = $this->unnormalizedTableBbox($normalizedBbox, $pageImageSize);
+                        $candidatePageImageBboxes[] = $pageImageBbox;
+                        $candidateBboxes[] = $this->translatedBbox($pageImageBbox, $dx, $dy);
+                    }
+                }
+                $conflict['source_candidate_cell_bboxes'] = $conflict['candidate_cell_bboxes'];
+                $conflict['source_candidate_page_image_bboxes'] = $candidatePageImageBboxes;
+                $conflict['candidate_cell_bboxes'] = $candidateBboxes;
+            }
+
+            $conflict['source_coordinate_space'] = $recordSpace;
+            $conflict = $this->withGeometryRecordCoordinateSpace($conflict, 'table_crop');
+            $localized[] = $conflict;
+            $count++;
+        }
+
+        return [
+            'conflicts' => $localized,
             'count' => $count,
         ];
     }
