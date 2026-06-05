@@ -80,6 +80,9 @@ final class PdfAnnotationExtractor
     /** @var array<int, array<int, string>> */
     private array $objectBodiesByGeneration = [];
 
+    /** @var array<int, true> */
+    private array $xrefFreeObjectNumbers = [];
+
     /**
      * Native boundary for PDF page /Annots presentation metadata.
      *
@@ -89,6 +92,11 @@ final class PdfAnnotationExtractor
     {
         $objects = $this->pdfObjects($pdfBytes);
         $this->objectBodiesByGeneration = $this->pdfObjectBodiesByGeneration($pdfBytes);
+        $this->xrefFreeObjectNumbers = PdfXrefFreeObjectMap::freeObjectNumbers($pdfBytes);
+        foreach (array_keys($this->xrefFreeObjectNumbers) as $objectNumber) {
+            unset($objects[$objectNumber], $this->objectBodiesByGeneration[$objectNumber]);
+        }
+
         $actionReviewer = new PdfActionReviewExtractor($pdfBytes);
         $actionTargetContext = $this->annotationActionTargetContext($pdfBytes);
         $structureParentReviewByKey = $this->annotationStructureParentReviewByKey($pdfBytes, $objects);
@@ -2840,6 +2848,10 @@ final class PdfAnnotationExtractor
      */
     private function objectBodyForReference(int $objectNumber, int $generation, array $objects): ?string
     {
+        if (isset($this->xrefFreeObjectNumbers[$objectNumber])) {
+            return null;
+        }
+
         if (array_key_exists($generation, $this->objectBodiesByGeneration[$objectNumber] ?? [])) {
             return $this->objectBodiesByGeneration[$objectNumber][$generation];
         }
