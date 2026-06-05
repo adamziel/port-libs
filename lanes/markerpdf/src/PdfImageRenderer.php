@@ -144,7 +144,8 @@ final class PdfImageRenderer
         $colorSpace = $this->imageColorSpace($imageDictionary) ?? 'DeviceRGB';
         $components = $this->jpegComponentCount($jpegBytes) ?? $this->componentCountForColorSpace($colorSpace);
         $adobeTransform = $this->jpegAdobeApp14Transform($jpegBytes);
-        $decodeParmsTransform = $this->dctDecodeParmsColorTransform($imageDictionary);
+        $dctFilter = $this->dctDecodeFilterName($imageDictionary, $objects);
+        $decodeParmsTransform = $this->dctDecodeParmsColorTransform($imageDictionary, $objects);
         $effectiveTransform = $adobeTransform ?? $decodeParmsTransform ?? ($components === 3 ? 1 : 0);
         $needsCmykToRgb = $colorSpace === 'DeviceCMYK' || $components === 4;
         $imageDecode = $this->imageDecodeDetails($imageDictionary, $objects, $components);
@@ -171,7 +172,7 @@ final class PdfImageRenderer
         }
 
         return [
-            'filter' => $this->imageFilterName($imageDictionary) ?? 'DCTDecode',
+            'filter' => $dctFilter ?? $this->imageFilterName($imageDictionary) ?? 'DCTDecode',
             'source_color_space' => $colorSpace,
             'components' => $components,
             'bits_per_component' => $this->imageBitsPerComponent($imageDictionary, $objects) ?? 8,
@@ -5028,20 +5029,75 @@ final class PdfImageRenderer
         ];
     }
 
-    private function dctDecodeParmsColorTransform(string $dictionary): ?int
+    /**
+     * @param array<int, string> $objects
+     */
+    private function dctDecodeFilterName(string $dictionary, array $objects): ?string
     {
-        $decodeParms = null;
-        if (preg_match('/\/DecodeParms\s*<<(.*?)>>/s', $dictionary, $match) === 1) {
-            $decodeParms = $match[1];
-        } elseif (preg_match('/\/DecodeParms\s*\[\s*<<(.*?)>>/s', $dictionary, $match) === 1) {
-            $decodeParms = $match[1];
+        foreach ($this->imageFilterValues($dictionary, $objects) as $filter) {
+            if ($filter === 'DCTDecode' || $filter === 'DCT') {
+                return $filter;
+            }
         }
 
-        if ($decodeParms === null || preg_match('/\/ColorTransform\s+(-?\d+)/', $decodeParms, $colorTransform) !== 1) {
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function dctDecodeParmsColorTransform(string $dictionary, array $objects = []): ?int
+    {
+        $filters = $this->imageFilterValues($dictionary, $objects);
+        $decodeParms = $this->imageDecodeParmsValues($dictionary, $objects);
+        foreach ($filters as $index => $filter) {
+            if ($filter !== 'DCTDecode' && $filter !== 'DCT') {
+                continue;
+            }
+
+            return $this->dctDecodeParmsColorTransformFromValue(
+                $this->decodeParmsValueForImageFilterIndex($filters, $decodeParms, $index),
+                $objects
+            );
+        }
+
+        return $this->dctDecodeParmsColorTransformFromValue(
+            $this->extractPdfNameValue($dictionary, 'DecodeParms'),
+            $objects
+        );
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function dctDecodeParmsColorTransformFromValue(?string $value, array $objects): ?int
+    {
+        if ($value === null) {
             return null;
         }
 
-        return max(0, min(2, (int) $colorTransform[1]));
+        $decodeParms = trim($this->resolvePdfValue($value, $objects));
+        if (str_starts_with($decodeParms, '[')) {
+            foreach ($this->pdfArrayValues($decodeParms) as $entry) {
+                $colorTransform = $this->dctDecodeParmsColorTransformFromValue($entry, $objects);
+                if ($colorTransform !== null) {
+                    return $colorTransform;
+                }
+            }
+
+            return null;
+        }
+
+        if (!str_starts_with($decodeParms, '<<')) {
+            return null;
+        }
+
+        $colorTransform = $this->integerNameValue($decodeParms, 'ColorTransform');
+        if ($colorTransform === null) {
+            return null;
+        }
+
+        return max(0, min(2, $colorTransform));
     }
 
     private function componentCountForColorSpace(string $colorSpace): ?int

@@ -29,6 +29,7 @@ $renderer = new PdfImageRenderer();
 $lines = $extractor->extractTextLines($pdf);
 $plainText = $extractor->extractPlainText($pdf);
 $imagePlan = $renderer->imageColorSpaceSoftMaskPlan($imageDictionary);
+$dctColorPlan = $renderer->dctDecodeImageColorPlan($imageDictionary, $jpegLikeNoise);
 $inlinePlan = $renderer->inlineImageReviewPlan('/W 1 /H 1 /CS /RGB /BPC 8 /F /DCT', $jpegLikeNoise);
 $imageReview = $extractor->extractImageXObjectBoundaryReview($pdf);
 $photoReview = $imageReview['entries'][0] ?? [];
@@ -41,9 +42,13 @@ $dctReviewOnly = $imagePlan['image_filter_boundary']['preview_only_filters'] ===
     && ($imagePlanDctDecodeParms['color_transform'] ?? null) === 1
     && ($photoDctDecodeParms['color_transform'] ?? null) === 0
     && ($photoReview['native_raster_decode'] ?? true) === false;
+$colorTransformAligned = ($dctColorPlan['filter'] ?? null) === 'DCTDecode'
+    && ($dctColorPlan['decode_parms_color_transform'] ?? null) === 1
+    && ($dctColorPlan['effective_color_transform'] ?? null) === 1
+    && ($dctColorPlan['uses_ycck_transform'] ?? false) === true;
 $noiseExcluded = !str_contains($plainText, 'Raster JPEG Noise');
 
-if ($lines !== ['DCT PDF Import', 'Clean Paragraphs'] || !$noiseExcluded || !$dctReviewOnly) {
+if ($lines !== ['DCT PDF Import', 'Clean Paragraphs'] || !$noiseExcluded || !$dctReviewOnly || !$colorTransformAligned) {
     throw new RuntimeException('DCTDecode filter boundary did not stay review-only before WordPress import.');
 }
 
@@ -54,6 +59,10 @@ echo '<!-- markerpdf:pdf-dctdecode-filter ' . htmlspecialchars(json_encode([
     'preview_only_filters' => $imagePlan['image_filter_boundary']['preview_only_filters'],
     'native_raster_decode' => $imagePlan['image_filter_boundary']['native_raster_decode'],
     'dct_decodeparms_color_transform' => $imagePlanDctDecodeParms['color_transform'] ?? null,
+    'dct_color_plan_filter' => $dctColorPlan['filter'] ?? null,
+    'dct_color_plan_color_transform' => $dctColorPlan['decode_parms_color_transform'] ?? null,
+    'dct_color_plan_uses_ycck_transform' => $dctColorPlan['uses_ycck_transform'] ?? null,
+    'dct_filter_stack_decodeparms_aligned' => $colorTransformAligned,
     'xobject_dct_decodeparms_color_transform' => $photoDctDecodeParms['color_transform'] ?? null,
     'xobject_preview_only_filters' => $photoReview['preview_only_filters'] ?? [],
     'inline_dct_review_only' => $inlinePlan['inline_image_review_only'],

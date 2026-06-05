@@ -272,6 +272,38 @@ return [
             ],
         ], $entry['filter_details']);
     },
+    'aligns DCTDecode ColorTransform DecodeParms after native prefix filters before RGB preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $segment = static fn (int $marker, string $payload): string => "\xff" . chr($marker) . pack('n', strlen($payload) + 2) . $payload;
+        $sofPayload = "\x08" . pack('n', 1) . pack('n', 1) . "\x04"
+            . "\x01\x11\x00"
+            . "\x02\x11\x00"
+            . "\x03\x11\x00"
+            . "\x04\x11\x00";
+        $jpegBytes = "\xff\xd8" . $segment(0xc0, $sofPayload) . "\xff\xd9";
+
+        $plan = $renderer->dctDecodeImageColorPlan(
+            '<< /Filter [/FlateDecode /DCTDecode] /ColorSpace /DeviceCMYK /BitsPerComponent 8 /DecodeParms [<< /Predictor 12 /Columns 16 /Colors 1 /BitsPerComponent 8 >> << /ColorTransform 1 >>] >>',
+            $jpegBytes
+        );
+        $compactNullPlan = $renderer->dctDecodeImageColorPlan(
+            '<< /Filter [null /DCT] /ColorSpace /DeviceCMYK /BitsPerComponent 8 /DecodeParms [<< /ColorTransform 2 >>] >>',
+            $jpegBytes
+        );
+
+        $t->same('DCTDecode', $plan['filter']);
+        $t->same(null, $plan['adobe_app14_transform']);
+        $t->same(1, $plan['decode_parms_color_transform']);
+        $t->same(1, $plan['effective_color_transform']);
+        $t->same(true, $plan['uses_ycck_transform']);
+        $t->same(['render_rgb_preview_from_cmyk', 'apply_ycck_to_cmyk_before_rgb'], $plan['notes']);
+        $t->same(['red' => 254, 'green' => 0, 'blue' => 0], $renderer->dctDecodeSampleToRgb([76, 85, 255, 0], $plan));
+
+        $t->same('DCT', $compactNullPlan['filter']);
+        $t->same(2, $compactNullPlan['decode_parms_color_transform']);
+        $t->same(2, $compactNullPlan['effective_color_transform']);
+        $t->same(true, $compactNullPlan['uses_ycck_transform']);
+    },
     'keeps direct renderer DCTDecode fake endstream bytes inside image stream previews' => static function (TestRunner $t) use ($pdfDctDecodeFilterBoundaryCurrentBaseZlibStored): void {
         $renderer = new PdfImageRenderer();
         $fakeObject = 'BT /F1 12 Tf 72 700 Td (Renderer DCT payload leak) Tj ET';
