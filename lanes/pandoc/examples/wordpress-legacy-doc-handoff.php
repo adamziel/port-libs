@@ -187,6 +187,9 @@ $firstPieceText = 'Legacy DOC import ΩЖ魚';
 $secondPieceText = "\rReviewer notes keep hard\vbreaks for block review with "
     . $fieldBegin . ' HYPERLINK "https://example.test/legacy-doc?source=42" \o "Source packet" '
     . $fieldSeparator . 'source dossier' . $fieldEnd
+    . ' and '
+    . $fieldBegin . ' HYPERLINK \l "legacy_anchor" '
+    . $fieldSeparator . 'opening bookmark' . $fieldEnd
     . ' on page '
     . $fieldBegin . ' PAGE \* Arabic ' . $fieldSeparator . '7' . $fieldEnd
     . ".\r";
@@ -210,8 +213,31 @@ $plcPcd = $u32(0)
     . $u16(0x0001) . $u32($firstPieceStart) . "\0\0"
     . $u16(0) . $u32($secondPieceStart) . "\0\0";
 $clx = "\x02" . $u32(strlen($plcPcd)) . $plcPcd;
+$bookmarkName = 'legacy_anchor';
+$bookmarkNameBytes = $utf16le($bookmarkName);
+$sttbfBkmk = $u16(0xffff)
+    . $u16(1)
+    . $u16(0)
+    . $u16(intdiv(strlen($bookmarkNameBytes), 2))
+    . $bookmarkNameBytes;
+$totalPieceCharacters = $firstPieceCharacters + $secondPieceCharacters;
+$plcfBkf = $u32(0)
+    . $u32($totalPieceCharacters + 1)
+    . $u16(0) . $u16(0);
+$plcfBkl = $u32($firstPieceCharacters)
+    . $u32($totalPieceCharacters + 1);
+$fcSttbfBkmk = strlen($clx);
+$fcPlcfBkf = $fcSttbfBkmk + strlen($sttbfBkmk);
+$fcPlcfBkl = $fcPlcfBkf + strlen($plcfBkf);
+$tableStream = $clx . $sttbfBkmk . $plcfBkf . $plcfBkl;
 $wordDocument = substr_replace($wordDocument, $u32(0), 0x01a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($clx)), 0x01a6, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcSttbfBkmk), 0x0142, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($sttbfBkmk)), 0x0146, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcPlcfBkf), 0x014a, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($plcfBkf)), 0x014e, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcPlcfBkl), 0x0152, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($plcfBkl)), 0x0156, 4);
 $docSummaryFmtid = hex2bin('02d5cdd59c2e1b10939708002b2cf9ae');
 $userDefinedFmtid = hex2bin('05d5cdd59c2e1b10939708002b2cf9ae');
 if (!is_string($docSummaryFmtid) || !is_string($userDefinedFmtid)) {
@@ -220,7 +246,7 @@ if (!is_string($docSummaryFmtid) || !is_string($userDefinedFmtid)) {
 
 $streams = [
     'WordDocument' => $wordDocument,
-    '1Table' => $clx,
+    '1Table' => $tableStream,
     "\x05SummaryInformation" => $typedPropertySet([
         2 => $typedLpstr('Legacy DOC import packet'),
         4 => $typedLpstr('Migration Desk'),
@@ -475,6 +501,7 @@ $summary = [
     'streams' => $result['streams'],
     'textSource' => $result['document']->attr('textSource'),
     'fib' => $result['fib'],
+    'bookmarks' => $result['bookmarks'],
     'embeddedObjects' => $result['embeddedObjects'],
     'macroProjects' => $result['macroProjects'],
     'blockCount' => count($result['document']->children),
@@ -512,6 +539,12 @@ if (($argv[1] ?? '') === '--self-test') {
         'Source Id' => 4242,
     ]) {
         throw new RuntimeException('Legacy DOC handoff self-test missing user-defined custom properties');
+    }
+    if (($summary['metadata']['bookmarkCount'] ?? null) !== 1) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing standard bookmark count');
+    }
+    if (($summary['bookmarks'][0]['name'] ?? '') !== 'legacy_anchor' || ($summary['bookmarks'][0]['canAnchor'] ?? null) !== true) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing standard bookmark anchor metadata');
     }
     if (($summary['metadata']['embeddedObjectCount'] ?? null) !== 1) {
         throw new RuntimeException('Legacy DOC handoff self-test missing embedded object count');
@@ -553,8 +586,8 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Legacy DOC handoff self-test missing CLX piece-table preflight');
     }
     foreach ([
-        '<p>Legacy DOC import ΩЖ魚</p>',
-        '<p>Reviewer notes keep hard<br/>breaks for block review with <a href="https://example.test/legacy-doc?source=42" title="Source packet">source dossier</a> on page <span class="legacy-doc-field legacy-doc-field-page" data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \* Arabic" data-legacy-doc-field-format="Arabic">7</span>.</p>',
+        '<p><span id="legacy_anchor" class="legacy-doc-bookmark" data-legacy-doc-bookmark="legacy_anchor" data-legacy-doc-bookmark-start-cp="0" data-legacy-doc-bookmark-end-cp="21">Legacy DOC import ΩЖ魚</span></p>',
+        '<p>Reviewer notes keep hard<br/>breaks for block review with <a href="https://example.test/legacy-doc?source=42" title="Source packet">source dossier</a> and <a href="#legacy_anchor">opening bookmark</a> on page <span class="legacy-doc-field legacy-doc-field-page" data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \* Arabic" data-legacy-doc-field-format="Arabic">7</span>.</p>',
     ] as $needle) {
         if (!str_contains($blocks, $needle)) {
             throw new RuntimeException('Legacy DOC handoff self-test missing: ' . $needle);

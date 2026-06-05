@@ -456,6 +456,44 @@ $buildPieceTableDocStreams = static function (
     ];
 };
 
+$buildBookmarkTableDocStreams = static function () use ($buildSimpleWordDocument, $utf16le, $u16, $u32): array {
+    $text = "Intro target text\rJump to anchor\r";
+    $wordDocument = $buildSimpleWordDocument($text);
+
+    $sttbf = $u16(0xffff) . $u16(2) . $u16(0);
+    foreach (['_HiddenMark', 'legacy_anchor'] as $name) {
+        $nameBytes = $utf16le($name);
+        $sttbf .= $u16(intdiv(strlen($nameBytes), 2)) . $nameBytes;
+    }
+
+    $textEndCp = strlen($text);
+    $plcfBkf = $u32(0)
+        . $u32(6)
+        . $u32($textEndCp + 1)
+        . $u16(0) . $u16(0)
+        . $u16(1) . $u16(0);
+    $plcfBkl = $u32(5)
+        . $u32(17)
+        . $u32($textEndCp + 1);
+
+    $fcSttbfBkmk = 0;
+    $fcPlcfBkf = strlen($sttbf);
+    $fcPlcfBkl = $fcPlcfBkf + strlen($plcfBkf);
+    $tableStream = $sttbf . $plcfBkf . $plcfBkl;
+
+    $wordDocument = substr_replace($wordDocument, $u32($fcSttbfBkmk), 0x0142, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($sttbf)), 0x0146, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlcfBkf), 0x014a, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfBkf)), 0x014e, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlcfBkl), 0x0152, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfBkl)), 0x0156, 4);
+
+    return [
+        'WordDocument' => $wordDocument,
+        '0Table' => $tableStream,
+    ];
+};
+
 return [
     'reads CFB directory streams including MiniFAT-backed legacy streams' => static function (TestRunner $t) use ($buildCfb): void {
         $bytes = $buildCfb([
@@ -967,6 +1005,47 @@ return [
         $t->contains('<a href="https://example.test/legacy?post=42&amp;step=doc" title="Source packet">source dossier</a>', $blocks);
         $t->contains('<a href="#legacy_anchor">anchor jump</a>', $blocks);
         $t->true(!str_contains($blocks, 'HYPERLINK'), 'Legacy DOC field instructions should not render to WordPress blocks');
+    },
+    'extracts standard legacy DOC bookmarks as review metadata and anchor spans' => static function (TestRunner $t) use ($buildCfb, $buildBookmarkTableDocStreams): void {
+        $result = (new LegacyDocReader())->readBytes($buildCfb($buildBookmarkTableDocStreams()));
+        $document = $result['document'];
+        $bookmarks = $result['bookmarks'];
+        $paragraph = $document->children[0];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($bookmarks));
+        $t->same($bookmarks, $document->attr('bookmarks'));
+        $t->same(2, $result['metadata']['bookmarkCount']);
+        $t->same($bookmarks, $result['metadata']['bookmarks']);
+        $t->same('_HiddenMark', $bookmarks[0]['name']);
+        $t->same(true, $bookmarks[0]['hidden']);
+        $t->same(0, $bookmarks[0]['startCp']);
+        $t->same(5, $bookmarks[0]['endCp']);
+        $t->same('legacy_anchor', $bookmarks[1]['name']);
+        $t->same(false, $bookmarks[1]['hidden']);
+        $t->same(6, $bookmarks[1]['startCp']);
+        $t->same(17, $bookmarks[1]['endCp']);
+        $t->same(true, $bookmarks[1]['canAnchor']);
+
+        $hidden = $paragraph->children[0];
+        $t->same('span', $hidden->type);
+        $t->same('_HiddenMark', $hidden->attr('id'));
+        $t->same(['legacy-doc-bookmark', 'legacy-doc-bookmark-hidden'], $hidden->attr('classes'));
+        $t->same('Intro', $hidden->children[0]->attr('text'));
+        $t->same(' ', $paragraph->children[1]->attr('text'));
+
+        $anchor = $paragraph->children[2];
+        $t->same('span', $anchor->type);
+        $t->same('legacy_anchor', $anchor->attr('id'));
+        $t->same(['legacy-doc-bookmark'], $anchor->attr('classes'));
+        $t->same('target text', $anchor->children[0]->attr('text'));
+        $t->same('legacy_anchor', $anchor->attr('attributes')['data-legacy-doc-bookmark']);
+        $t->same('6', $anchor->attr('attributes')['data-legacy-doc-bookmark-start-cp']);
+        $t->same('17', $anchor->attr('attributes')['data-legacy-doc-bookmark-end-cp']);
+
+        $t->contains('[target text]{#legacy_anchor .legacy-doc-bookmark data-legacy-doc-bookmark="legacy_anchor"', $markdown);
+        $t->contains('<span id="legacy_anchor" class="legacy-doc-bookmark" data-legacy-doc-bookmark="legacy_anchor" data-legacy-doc-bookmark-start-cp="6" data-legacy-doc-bookmark-end-cp="17">target text</span>', $blocks);
     },
     'preserves legacy DOC non-hyperlink field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $fieldBegin = "\x13";

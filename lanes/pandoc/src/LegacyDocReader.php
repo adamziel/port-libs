@@ -9,9 +9,15 @@ final class LegacyDocReader
     private const SUMMARY_INFORMATION = "\x05SummaryInformation";
     private const DOCUMENT_SUMMARY_INFORMATION = "\x05DocumentSummaryInformation";
     private const FMTID_USER_DEFINED_PROPERTIES = '05d5cdd59c2e1b10939708002b2cf9ae';
+    private const FIB_FC_STTBF_BKMK = 0x0142;
+    private const FIB_LCB_STTBF_BKMK = 0x0146;
+    private const FIB_FC_PLCF_BKF = 0x014a;
+    private const FIB_LCB_PLCF_BKF = 0x014e;
+    private const FIB_FC_PLCF_BKL = 0x0152;
+    private const FIB_LCB_PLCF_BKL = 0x0156;
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, fib:array<string,mixed>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, fib:array<string,mixed>, bookmarks:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readBytes(string $bytes): array
     {
@@ -19,7 +25,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, fib:array<string,mixed>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, fib:array<string,mixed>, bookmarks:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -47,6 +53,11 @@ final class LegacyDocReader
 
         $textResult = $this->extractText($wordDocument, $tableStream);
         $metadata = $this->readMetadata($compoundFile);
+        $bookmarks = $this->standardBookmarkReport($wordDocument, $tableStream, $textResult['text']);
+        if ($bookmarks !== []) {
+            $metadata['bookmarkCount'] = count($bookmarks);
+            $metadata['bookmarks'] = $bookmarks;
+        }
         $embeddedObjects = $this->embeddedObjectReport($compoundFile);
         if ($embeddedObjects !== []) {
             $metadata['embeddedObjectCount'] = count($embeddedObjects);
@@ -64,15 +75,17 @@ final class LegacyDocReader
             'textSource' => $textResult['source'],
             'tableStream' => $tableStreamName,
             'meta' => $metadata,
+            'bookmarks' => $bookmarks,
             'embeddedObjects' => $embeddedObjects,
             'macroProjects' => $macroProjects,
         ];
 
         return [
-            'document' => new AstNode('document', $attrs, $this->paragraphNodes($textResult['text'])),
+            'document' => new AstNode('document', $attrs, $this->paragraphNodes($textResult['text'], $bookmarks)),
             'metadata' => $metadata,
             'streams' => $compoundFile->streamNames(),
             'fib' => $fib + ['textSource' => $textResult['source']],
+            'bookmarks' => $bookmarks,
             'embeddedObjects' => $embeddedObjects,
             'macroProjects' => $macroProjects,
         ];
@@ -270,19 +283,24 @@ final class LegacyDocReader
     }
 
     /**
+     * @param list<array<string,mixed>> $bookmarks
      * @return list<AstNode>
      */
-    private function paragraphNodes(string $text): array
+    private function paragraphNodes(string $text, array $bookmarks = []): array
     {
         $normalized = str_replace(["\r\n", "\n"], "\r", $text);
         $paragraphs = explode("\r", $normalized);
         $nodes = [];
+        $paragraphStartCp = 0;
         foreach ($paragraphs as $paragraph) {
+            $paragraphLength = $this->textCharacterLength($paragraph);
             $paragraph = str_replace("\0", '', $paragraph);
             if (trim($paragraph) === '') {
+                $paragraphStartCp += $paragraphLength + 1;
                 continue;
             }
-            $nodes[] = new AstNode('paragraph', [], $this->inlineNodes($paragraph));
+            $nodes[] = new AstNode('paragraph', [], $this->inlineNodesWithBookmarks($paragraph, $paragraphStartCp, $bookmarks));
+            $paragraphStartCp += $paragraphLength + 1;
         }
 
         return $nodes;
@@ -583,6 +601,96 @@ final class LegacyDocReader
         }
 
         return $nodes;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $bookmarks
+     * @return list<AstNode>
+     */
+    private function inlineNodesWithBookmarks(string $text, int $paragraphStartCp, array $bookmarks): array
+    {
+        if ($bookmarks === []) {
+            return $this->inlineNodes($text);
+        }
+
+        $chars = $this->unicodeCharacters($text);
+        $paragraphLength = count($chars);
+        $paragraphEndCp = $paragraphStartCp + $paragraphLength;
+        $candidates = [];
+        foreach ($bookmarks as $bookmark) {
+            if (($bookmark['canAnchor'] ?? false) !== true) {
+                continue;
+            }
+
+            $startCp = (int) ($bookmark['startCp'] ?? -1);
+            $endCp = (int) ($bookmark['endCp'] ?? -1);
+            if ($startCp < $paragraphStartCp || $endCp > $paragraphEndCp || $startCp > $endCp) {
+                continue;
+            }
+
+            $candidates[] = $bookmark;
+        }
+        if ($candidates === []) {
+            return $this->inlineNodes($text);
+        }
+
+        usort(
+            $candidates,
+            static function (array $left, array $right): int {
+                $start = ((int) $left['startCp']) <=> ((int) $right['startCp']);
+                if ($start !== 0) {
+                    return $start;
+                }
+
+                return ((int) $right['endCp']) <=> ((int) $left['endCp']);
+            }
+        );
+
+        $nodes = [];
+        $cursor = 0;
+        foreach ($candidates as $bookmark) {
+            $start = (int) $bookmark['startCp'] - $paragraphStartCp;
+            $end = (int) $bookmark['endCp'] - $paragraphStartCp;
+            if ($start < $cursor || $start > $paragraphLength || $end > $paragraphLength) {
+                continue;
+            }
+            if ($start > $cursor) {
+                array_push($nodes, ...$this->inlineNodes($this->charactersToString(array_slice($chars, $cursor, $start - $cursor))));
+            }
+
+            $bookmarkText = $this->charactersToString(array_slice($chars, $start, $end - $start));
+            $bookmarkNodes = $bookmarkText === '' ? [] : $this->inlineNodes($bookmarkText);
+            $nodes[] = new AstNode('span', $this->bookmarkSpanAttrs($bookmark), $bookmarkNodes);
+            $cursor = $end;
+        }
+
+        if ($cursor < $paragraphLength) {
+            array_push($nodes, ...$this->inlineNodes($this->charactersToString(array_slice($chars, $cursor))));
+        }
+
+        return $nodes === [] ? $this->inlineNodes($text) : $nodes;
+    }
+
+    /**
+     * @param array<string,mixed> $bookmark
+     * @return array{id:string,classes:list<string>,attributes:array<string,string>}
+     */
+    private function bookmarkSpanAttrs(array $bookmark): array
+    {
+        $classes = ['legacy-doc-bookmark'];
+        if (($bookmark['hidden'] ?? false) === true) {
+            $classes[] = 'legacy-doc-bookmark-hidden';
+        }
+
+        return [
+            'id' => (string) ($bookmark['anchorId'] ?? $bookmark['name'] ?? ''),
+            'classes' => $classes,
+            'attributes' => [
+                'data-legacy-doc-bookmark' => (string) ($bookmark['name'] ?? ''),
+                'data-legacy-doc-bookmark-start-cp' => (string) ((int) ($bookmark['startCp'] ?? 0)),
+                'data-legacy-doc-bookmark-end-cp' => (string) ((int) ($bookmark['endCp'] ?? 0)),
+            ],
+        ];
     }
 
     /**
@@ -1585,6 +1693,212 @@ final class LegacyDocReader
         }
 
         return $pairs;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function standardBookmarkReport(string $wordDocument, ?string $tableStream, string $text): array
+    {
+        if ($tableStream === null || strlen($wordDocument) < self::FIB_LCB_PLCF_BKL + 4) {
+            return [];
+        }
+
+        $fcSttbfBkmk = self::u32($wordDocument, self::FIB_FC_STTBF_BKMK);
+        $lcbSttbfBkmk = self::u32($wordDocument, self::FIB_LCB_STTBF_BKMK);
+        $fcPlcfBkf = self::u32($wordDocument, self::FIB_FC_PLCF_BKF);
+        $lcbPlcfBkf = self::u32($wordDocument, self::FIB_LCB_PLCF_BKF);
+        $fcPlcfBkl = self::u32($wordDocument, self::FIB_FC_PLCF_BKL);
+        $lcbPlcfBkl = self::u32($wordDocument, self::FIB_LCB_PLCF_BKL);
+        if ($lcbSttbfBkmk === 0) {
+            return [];
+        }
+        if ($lcbPlcfBkf === 0 || $lcbPlcfBkl === 0) {
+            throw new \RuntimeException('Legacy DOC bookmark names are present without matching bookmark range PLCs');
+        }
+
+        $names = $this->parseSttbfBkmk($this->tableStreamSlice($tableStream, $fcSttbfBkmk, $lcbSttbfBkmk, 'SttbfBkmk'));
+        $starts = $this->parsePlcfBkf($this->tableStreamSlice($tableStream, $fcPlcfBkf, $lcbPlcfBkf, 'PlcfBkf'));
+        $endCps = $this->parsePlcfBkl($this->tableStreamSlice($tableStream, $fcPlcfBkl, $lcbPlcfBkl, 'PlcfBkl'));
+        if (count($names) !== count($starts) || count($starts) !== count($endCps)) {
+            throw new \RuntimeException('Legacy DOC bookmark tables do not contain parallel element counts');
+        }
+
+        $textLength = $this->textCharacterLength($text);
+        $bookmarks = [];
+        $seenIbkl = [];
+        foreach ($starts as $index => $start) {
+            $ibkl = (int) $start['ibkl'];
+            if ($ibkl < 0 || $ibkl >= count($endCps)) {
+                throw new \RuntimeException('Legacy DOC bookmark start points outside the bookmark end PLC');
+            }
+            if (isset($seenIbkl[$ibkl])) {
+                throw new \RuntimeException('Legacy DOC bookmark start records reuse a bookmark end index');
+            }
+            $seenIbkl[$ibkl] = true;
+
+            $startCp = (int) $start['startCp'];
+            $endCp = (int) $endCps[$ibkl];
+            if ($startCp > $endCp) {
+                throw new \RuntimeException('Legacy DOC bookmark start CP is after its end CP');
+            }
+
+            $name = $names[$index];
+            $bookmarks[] = [
+                'name' => $name,
+                'anchorId' => $name,
+                'startCp' => $startCp,
+                'endCp' => $endCp,
+                'hidden' => str_starts_with($name, '_'),
+                'bkc' => (int) $start['bkc'],
+                'canAnchor' => $startCp >= 0 && $endCp <= $textLength,
+            ];
+        }
+
+        return $bookmarks;
+    }
+
+    private function tableStreamSlice(string $tableStream, int $offset, int $length, string $label): string
+    {
+        if ($length <= 0 || $offset < 0 || $offset + $length > strlen($tableStream)) {
+            throw new \RuntimeException('Legacy DOC ' . $label . ' points outside the table stream');
+        }
+
+        return substr($tableStream, $offset, $length);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function parseSttbfBkmk(string $bytes): array
+    {
+        if (strlen($bytes) < 6) {
+            throw new \RuntimeException('Legacy DOC bookmark name table is truncated');
+        }
+        if (self::u16($bytes, 0) !== 0xffff) {
+            throw new \RuntimeException('Legacy DOC bookmark name table must use extended strings');
+        }
+        $count = self::u16($bytes, 2);
+        if ($count > 0x3ffb) {
+            throw new \RuntimeException('Legacy DOC bookmark name table exceeds the standard bookmark limit');
+        }
+        if (self::u16($bytes, 4) !== 0) {
+            throw new \RuntimeException('Legacy DOC bookmark name table must not contain extra data');
+        }
+
+        $cursor = 6;
+        $names = [];
+        $seen = [];
+        for ($index = 0; $index < $count; $index++) {
+            if ($cursor + 2 > strlen($bytes)) {
+                throw new \RuntimeException('Legacy DOC bookmark name table is truncated');
+            }
+
+            $characters = self::u16($bytes, $cursor);
+            $cursor += 2;
+            if ($characters <= 0 || $characters >= 40) {
+                throw new \RuntimeException('Legacy DOC bookmark name length is outside the supported range');
+            }
+
+            $byteLength = $characters * 2;
+            if ($cursor + $byteLength > strlen($bytes)) {
+                throw new \RuntimeException('Legacy DOC bookmark name table points outside its string data');
+            }
+
+            $name = $this->decodeUtf16Le(substr($bytes, $cursor, $byteLength));
+            $cursor += $byteLength;
+            if ($name === '') {
+                throw new \RuntimeException('Legacy DOC bookmark name table contains an empty decoded name');
+            }
+
+            $key = $this->normalizedBookmarkName($name);
+            if (isset($seen[$key])) {
+                throw new \RuntimeException('Legacy DOC bookmark name table contains duplicate names');
+            }
+            $seen[$key] = true;
+            $names[] = $name;
+        }
+
+        return $names;
+    }
+
+    /**
+     * @return list<array{startCp:int,ibkl:int,bkc:int}>
+     */
+    private function parsePlcfBkf(string $bytes): array
+    {
+        $length = strlen($bytes);
+        if ($length < 4 || (($length - 4) % 8) !== 0) {
+            throw new \RuntimeException('Legacy DOC bookmark start PLC has an invalid length');
+        }
+
+        $count = intdiv($length - 4, 8);
+        $dataOffset = ($count + 1) * 4;
+        $entries = [];
+        for ($index = 0; $index < $count; $index++) {
+            $fbkfOffset = $dataOffset + ($index * 4);
+            $entries[] = [
+                'startCp' => self::u32($bytes, $index * 4),
+                'ibkl' => self::u16($bytes, $fbkfOffset),
+                'bkc' => self::u16($bytes, $fbkfOffset + 2),
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function parsePlcfBkl(string $bytes): array
+    {
+        $length = strlen($bytes);
+        if ($length < 4 || ($length % 4) !== 0) {
+            throw new \RuntimeException('Legacy DOC bookmark end PLC has an invalid length');
+        }
+
+        $count = intdiv($length, 4) - 1;
+        $cps = [];
+        for ($index = 0; $index < $count; $index++) {
+            $cps[] = self::u32($bytes, $index * 4);
+        }
+
+        return $cps;
+    }
+
+    private function normalizedBookmarkName(string $name): string
+    {
+        return function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name);
+    }
+
+    private function textCharacterLength(string $text): int
+    {
+        return count($this->unicodeCharacters($text));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function unicodeCharacters(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+
+        $characters = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+        if (is_array($characters)) {
+            return array_values($characters);
+        }
+
+        return str_split($text);
+    }
+
+    /**
+     * @param list<string> $characters
+     */
+    private function charactersToString(array $characters): string
+    {
+        return implode('', $characters);
     }
 
     private function readVariantBool(string $bytes, int $offset): ?bool
