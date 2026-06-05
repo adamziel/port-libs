@@ -68,6 +68,47 @@ final class UnicodeText
         0x9f => 0x0178,
     ];
 
+    /** @var list<int> */
+    private const EAST_ASIAN_AMBIGUOUS_SINGLE_CODEPOINTS = [
+        0x00a1, 0x00a4, 0x00aa, 0x00c6, 0x00d0, 0x00d7, 0x00d8, 0x00e6,
+        0x00f0, 0x00fc, 0x00fe, 0x0101, 0x0111, 0x0113, 0x011b, 0x012b,
+        0x0138, 0x0144, 0x014d, 0x016b, 0x01ce, 0x01d0, 0x01d2, 0x01d4,
+        0x01d6, 0x01d8, 0x01da, 0x01dc, 0x0251, 0x0261, 0x02c4, 0x02c7,
+        0x02cd, 0x02d0, 0x02dd, 0x02df, 0x0401, 0x0451, 0x2010, 0x2030,
+        0x2035, 0x203b, 0x203e, 0x2074, 0x207f, 0x20ac, 0x2103, 0x2105,
+        0x2109, 0x2113, 0x2116, 0x2126, 0x212b, 0x2189, 0x21d2, 0x21d4,
+        0x21e7, 0x2200, 0x220b, 0x220f, 0x2211, 0x2215, 0x221a, 0x2223,
+        0x2225, 0x222e, 0x2248, 0x224c, 0x2252, 0x2295, 0x2299, 0x22a5,
+        0x22bf, 0x2312, 0x25cb, 0x25ef, 0x2609, 0x261e, 0x2642, 0x266f,
+        0x26e3, 0x26fe, 0x2776, 0x2777,
+    ];
+
+    /** @var list<array{0:int, 1:int}> */
+    private const EAST_ASIAN_AMBIGUOUS_RANGES = [
+        [0x00a7, 0x00a8], [0x00ad, 0x00ae], [0x00b0, 0x00b4], [0x00b6, 0x00ba],
+        [0x00bc, 0x00bf], [0x00de, 0x00e1], [0x00e8, 0x00ea], [0x00ec, 0x00ed],
+        [0x00f2, 0x00f3], [0x00f7, 0x00fa], [0x0126, 0x0127], [0x0131, 0x0133],
+        [0x013f, 0x0142], [0x0148, 0x014b], [0x0152, 0x0153], [0x0166, 0x0167],
+        [0x02c9, 0x02cb], [0x02d8, 0x02db], [0x0391, 0x03a1], [0x03a3, 0x03a9],
+        [0x03b1, 0x03c1], [0x03c3, 0x03c9], [0x0410, 0x044f], [0x2013, 0x2016],
+        [0x2018, 0x2019], [0x201c, 0x201d], [0x2020, 0x2022], [0x2024, 0x2027],
+        [0x2032, 0x2033], [0x2081, 0x2084], [0x2121, 0x2122], [0x2153, 0x2154],
+        [0x215b, 0x215e], [0x2160, 0x216b], [0x2170, 0x2179], [0x2190, 0x2199],
+        [0x21b8, 0x21b9], [0x2202, 0x2203], [0x2207, 0x2208], [0x221d, 0x2220],
+        [0x2227, 0x222c], [0x2234, 0x2237], [0x223c, 0x223d], [0x2260, 0x2261],
+        [0x2264, 0x2267], [0x226a, 0x226b], [0x226e, 0x226f], [0x2282, 0x2283],
+        [0x2286, 0x2287], [0x2460, 0x24e9], [0x24eb, 0x254b], [0x2550, 0x2573],
+        [0x2580, 0x258f], [0x2592, 0x2595], [0x25a0, 0x25a1], [0x25a3, 0x25a9],
+        [0x25b2, 0x25b3], [0x25b6, 0x25b7], [0x25bc, 0x25bd], [0x25c0, 0x25c1],
+        [0x25c6, 0x25c8], [0x25ce, 0x25d1], [0x25e2, 0x25e5], [0x2605, 0x2606],
+        [0x260e, 0x260f], [0x261c, 0x261c], [0x2640, 0x2640], [0x2660, 0x2661],
+        [0x2663, 0x2665], [0x2667, 0x266a], [0x266c, 0x266d], [0x269e, 0x269f],
+        [0x26bf, 0x26bf], [0x26c6, 0x26cd], [0x26cf, 0x26d3], [0x26d5, 0x26e1],
+        [0x26e8, 0x26e9], [0x26eb, 0x26f1], [0x26f4, 0x26f4], [0x26f6, 0x26f9],
+        [0x26fb, 0x26fc], [0x273d, 0x273d], [0x2778, 0x277f], [0x2b56, 0x2b59],
+        [0xe000, 0xf8ff], [0xfffd, 0xfffd],
+    ];
+
     /**
      * @return array{text:string, encoding:string, bom:string|null, repairs:int, lineEndings:array{normalized:bool, crlf:int, cr:int, conversions:int}, normalization?:array{form:string, changed:bool, implementation:string}}
      */
@@ -185,11 +226,12 @@ final class UnicodeText
         return $clusters;
     }
 
-    public static function displayWidth(string $text): int
+    public static function displayWidth(string $text, string $ambiguousWidth = 'narrow'): int
     {
+        $ambiguousColumns = self::ambiguousWidthColumns($ambiguousWidth);
         $width = 0;
         foreach (self::graphemes($text) as $cluster) {
-            $width += self::graphemeDisplayWidth($cluster);
+            $width += self::graphemeDisplayWidth($cluster, $ambiguousColumns);
         }
 
         return $width;
@@ -198,8 +240,9 @@ final class UnicodeText
     /**
      * @return array{0:string, 1:string}
      */
-    public static function splitAtDisplayWidth(string $text, int $width): array
+    public static function splitAtDisplayWidth(string $text, int $width, string $ambiguousWidth = 'narrow'): array
     {
+        $ambiguousColumns = self::ambiguousWidthColumns($ambiguousWidth);
         $text = self::repair($text);
         if ($width <= 0 || $text === '') {
             return ['', $text];
@@ -208,7 +251,7 @@ final class UnicodeText
         $head = '';
         $usedWidth = 0;
         foreach (self::graphemes($text) as $cluster) {
-            $clusterWidth = self::graphemeDisplayWidth($cluster);
+            $clusterWidth = self::graphemeDisplayWidth($cluster, $ambiguousColumns);
             $head .= $cluster;
             $usedWidth += $clusterWidth;
 
@@ -226,7 +269,7 @@ final class UnicodeText
      * @param list<int> $breakpoints
      * @return list<string>
      */
-    public static function splitByDisplayBreakpoints(string $text, array $breakpoints): array
+    public static function splitByDisplayBreakpoints(string $text, array $breakpoints, string $ambiguousWidth = 'narrow'): array
     {
         $segments = [];
         $remaining = self::repair($text);
@@ -234,7 +277,7 @@ final class UnicodeText
 
         foreach ($breakpoints as $breakpoint) {
             $relativeWidth = max(0, $breakpoint - $previous);
-            [$segment, $remaining] = self::splitAtDisplayWidth($remaining, $relativeWidth);
+            [$segment, $remaining] = self::splitAtDisplayWidth($remaining, $relativeWidth, $ambiguousWidth);
             $segments[] = $segment;
             $previous = $breakpoint;
         }
@@ -252,7 +295,7 @@ final class UnicodeText
      *
      * @return list<string>
      */
-    public static function wrapByDisplayWidth(string $text, int $width, string $subsequentIndent = ''): array
+    public static function wrapByDisplayWidth(string $text, int $width, string $subsequentIndent = '', string $ambiguousWidth = 'narrow'): array
     {
         [$text] = self::normalizeLineEndings(self::repair($text));
         if ($width <= 0) {
@@ -261,7 +304,7 @@ final class UnicodeText
 
         $wrapped = [];
         foreach (explode("\n", $text) as $line) {
-            foreach (self::wrapDisplayLine($line, $width, $subsequentIndent) as $wrappedLine) {
+            foreach (self::wrapDisplayLine($line, $width, $subsequentIndent, $ambiguousWidth) as $wrappedLine) {
                 $wrapped[] = $wrappedLine;
             }
         }
@@ -269,9 +312,9 @@ final class UnicodeText
         return $wrapped;
     }
 
-    public static function padDisplay(string $text, int $width, string $alignment = 'left'): string
+    public static function padDisplay(string $text, int $width, string $alignment = 'left', string $ambiguousWidth = 'narrow'): string
     {
-        $padding = max(0, $width - self::displayWidth($text));
+        $padding = max(0, $width - self::displayWidth($text, $ambiguousWidth));
 
         return match ($alignment) {
             'right' => str_repeat(' ', $padding) . $text,
@@ -333,7 +376,7 @@ final class UnicodeText
     /**
      * @return list<string>
      */
-    private static function wrapDisplayLine(string $line, int $width, string $subsequentIndent): array
+    private static function wrapDisplayLine(string $line, int $width, string $subsequentIndent, string $ambiguousWidth): array
     {
         $tokens = preg_split('/[ \t\f\v]+/u', trim($line), -1, PREG_SPLIT_NO_EMPTY);
         if ($tokens === false || $tokens === []) {
@@ -344,18 +387,18 @@ final class UnicodeText
         $current = '';
         foreach ($tokens as $token) {
             if ($current === '') {
-                [$lines, $current] = self::startWrappedToken($lines, $token, $width, $subsequentIndent);
+                [$lines, $current] = self::startWrappedToken($lines, $token, $width, $subsequentIndent, $ambiguousWidth);
                 continue;
             }
 
             $candidate = $current . ' ' . $token;
-            if (self::displayWidth($candidate) <= self::wrapContentWidth(count($lines), $width, $subsequentIndent)) {
+            if (self::displayWidth($candidate, $ambiguousWidth) <= self::wrapContentWidth(count($lines), $width, $subsequentIndent, $ambiguousWidth)) {
                 $current = $candidate;
                 continue;
             }
 
             $lines[] = self::wrapLinePrefix(count($lines), $subsequentIndent) . $current;
-            [$lines, $current] = self::startWrappedToken($lines, $token, $width, $subsequentIndent);
+            [$lines, $current] = self::startWrappedToken($lines, $token, $width, $subsequentIndent, $ambiguousWidth);
         }
 
         if ($current !== '') {
@@ -369,17 +412,17 @@ final class UnicodeText
      * @param list<string> $lines
      * @return array{0:list<string>, 1:string}
      */
-    private static function startWrappedToken(array $lines, string $token, int $width, string $subsequentIndent): array
+    private static function startWrappedToken(array $lines, string $token, int $width, string $subsequentIndent, string $ambiguousWidth): array
     {
         while ($token !== '') {
-            $limit = self::wrapContentWidth(count($lines), $width, $subsequentIndent);
-            if (self::displayWidth($token) <= $limit) {
+            $limit = self::wrapContentWidth(count($lines), $width, $subsequentIndent, $ambiguousWidth);
+            if (self::displayWidth($token, $ambiguousWidth) <= $limit) {
                 return [$lines, $token];
             }
 
-            [$segment, $token] = self::splitAtDisplayWidth($token, $limit);
+            [$segment, $token] = self::splitAtDisplayWidth($token, $limit, $ambiguousWidth);
             if ($segment === '') {
-                [$segment, $token] = self::splitAtDisplayWidth($token, 1);
+                [$segment, $token] = self::splitAtDisplayWidth($token, 1, $ambiguousWidth);
             }
             $lines[] = self::wrapLinePrefix(count($lines), $subsequentIndent) . $segment;
         }
@@ -387,13 +430,13 @@ final class UnicodeText
         return [$lines, ''];
     }
 
-    private static function wrapContentWidth(int $lineIndex, int $width, string $subsequentIndent): int
+    private static function wrapContentWidth(int $lineIndex, int $width, string $subsequentIndent, string $ambiguousWidth): int
     {
         if ($lineIndex === 0) {
             return max(1, $width);
         }
 
-        return max(1, $width - self::displayWidth($subsequentIndent));
+        return max(1, $width - self::displayWidth($subsequentIndent, $ambiguousWidth));
     }
 
     private static function wrapLinePrefix(int $lineIndex, string $subsequentIndent): string
@@ -712,7 +755,18 @@ final class UnicodeText
         return 0xfffd;
     }
 
-    private static function codepointDisplayWidth(int $codepoint): int
+    private static function ambiguousWidthColumns(string $ambiguousWidth): int
+    {
+        $key = strtolower(str_replace(['-', '_', ' '], '', trim($ambiguousWidth)));
+
+        return match ($key) {
+            'narrow', 'na', 'neutral', 'single', 'singlecolumn', '1' => 1,
+            'wide', 'w', 'cjk', 'eastasian', 'eastasianwide', 'double', 'doublecolumn', '2' => 2,
+            default => throw new \InvalidArgumentException("Unsupported East Asian ambiguous-width policy: {$ambiguousWidth}"),
+        };
+    }
+
+    private static function codepointDisplayWidth(int $codepoint, int $ambiguousColumns): int
     {
         if ($codepoint === 0 || $codepoint < 32 || ($codepoint >= 0x7f && $codepoint < 0xa0)) {
             return 0;
@@ -723,11 +777,14 @@ final class UnicodeText
         if (self::isWideCodepoint($codepoint)) {
             return 2;
         }
+        if (self::isAmbiguousWidthCodepoint($codepoint)) {
+            return $ambiguousColumns;
+        }
 
         return 1;
     }
 
-    private static function graphemeDisplayWidth(string $cluster): int
+    private static function graphemeDisplayWidth(string $cluster, int $ambiguousColumns): int
     {
         $width = 0;
         $hasJoiner = false;
@@ -738,7 +795,7 @@ final class UnicodeText
         $hasKeycapBase = false;
         foreach (self::characters($cluster) as $char) {
             $codepoint = self::codepoint($char);
-            $charWidth = self::codepointDisplayWidth($codepoint);
+            $charWidth = self::codepointDisplayWidth($codepoint, $ambiguousColumns);
             $width += $charWidth;
             $hasJoiner = $hasJoiner || $codepoint === 0x200d;
             $hasWide = $hasWide || $charWidth === 2;
@@ -812,6 +869,21 @@ final class UnicodeText
             || ($codepoint >= 0xfe00 && $codepoint <= 0xfe0f)
             || ($codepoint >= 0xfe20 && $codepoint <= 0xfe2f)
             || ($codepoint >= 0xe0100 && $codepoint <= 0xe01ef);
+    }
+
+    private static function isAmbiguousWidthCodepoint(int $codepoint): bool
+    {
+        if (in_array($codepoint, self::EAST_ASIAN_AMBIGUOUS_SINGLE_CODEPOINTS, true)) {
+            return true;
+        }
+
+        foreach (self::EAST_ASIAN_AMBIGUOUS_RANGES as [$start, $end]) {
+            if ($codepoint >= $start && $codepoint <= $end) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function isWideCodepoint(int $codepoint): bool

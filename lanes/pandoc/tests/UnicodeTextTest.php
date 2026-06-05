@@ -197,6 +197,34 @@ return [
         );
         $t->same($checkbox . '  ', UnicodeText::padDisplay($checkbox, 4));
     },
+    'applies east asian ambiguous width policy for display columns' => static function (TestRunner $t): void {
+        $ambiguous = "\u{00B7}\u{03A9}\u{2014}\u{2026}\u{2122}";
+        $combining = "A\u{0301}\u{00B7}";
+        $copyrightEmoji = "\u{00A9}\u{FE0F}";
+
+        $t->same(5, UnicodeText::displayWidth($ambiguous));
+        $t->same(5, UnicodeText::displayWidth($ambiguous, 'narrow'));
+        $t->same(10, UnicodeText::displayWidth($ambiguous, 'wide'));
+        $t->same(2, UnicodeText::displayWidth($combining));
+        $t->same(3, UnicodeText::displayWidth($combining, 'wide'));
+        $t->same(2, UnicodeText::displayWidth($copyrightEmoji));
+        $t->same(2, UnicodeText::displayWidth($copyrightEmoji, 'wide'));
+        $t->throws(\InvalidArgumentException::class, static fn (): int => UnicodeText::displayWidth('x', 'full'));
+    },
+    'splits pads and wraps ambiguous width text with a wide policy' => static function (TestRunner $t): void {
+        $text = "A\u{00B7}\u{03A9}B";
+
+        $t->same(["A\u{00B7}\u{03A9}", 'B'], UnicodeText::splitAtDisplayWidth($text, 3));
+        $t->same(["A\u{00B7}", "\u{03A9}B"], UnicodeText::splitAtDisplayWidth($text, 3, 'wide'));
+        $t->same(["A\u{00B7}", "\u{03A9}", 'B'], UnicodeText::splitByDisplayBreakpoints($text, [3, 5], 'wide'));
+        $t->same(" \u{00B7}\u{03A9}", UnicodeText::padDisplay("\u{00B7}\u{03A9}", 5, 'right', 'wide'));
+        $t->same([
+            'Review',
+            "  \u{00B7}\u{03A9}",
+            "  \u{2014}",
+            '  text',
+        ], UnicodeText::wrapByDisplayWidth("Review \u{00B7}\u{03A9} \u{2014} text", 8, '  ', 'wide'));
+    },
     'splits display width breakpoints without cutting unicode graphemes' => static function (TestRunner $t): void {
         $accent = "A\u{0301}";
         $emoji = "\u{1F469}\u{200D}\u{1F4BB}";
