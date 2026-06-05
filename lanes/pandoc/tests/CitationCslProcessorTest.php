@@ -1029,6 +1029,142 @@ XML
       <names variable="author"><name name-as-sort-order="sideways"/></names>
     </layout>
   </citation>
+            </style>
+XML
+        ));
+    },
+    'applies bounded csl layout text date group and names rendering elements' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'style-source',
+                'type' => 'article-journal',
+                'title' => 'Styled Source Packet',
+                'container-title' => 'Import Review',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la'],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026, 6, 5]]],
+                'page' => '12-18',
+                'DOI' => '10.5555/review',
+                'URL' => 'https://example.test/styled-source',
+                'accessed' => ['date-parts' => [[2026, 6, 6]]],
+            ],
+            [
+                'id' => 'undated-style',
+                'type' => 'report',
+                'title' => 'Undated Styled Packet',
+                'author' => [
+                    ['family' => 'Archive Team'],
+                ],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Direct Rendering Elements Review Style</title>
+    <id>https://example.test/styles/direct-rendering-elements</id>
+    <updated>2026-06-05T01:40:00+00:00</updated>
+  </info>
+  <locale xml:lang="en-US">
+    <terms>
+      <term name="accessed">Visited</term>
+      <term name="no date">undated</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author editor" delimiter=", ">
+          <name/>
+        </names>
+        <date variable="issued">
+          <date-part name="year"/>
+        </date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography hanging-indent="true">
+    <layout prefix="{" suffix="}" delimiter=" ">
+      <group delimiter=". " suffix=".">
+        <names variable="author editor" delimiter="; ">
+          <name initialize-with=". " name-as-sort-order="all"/>
+        </names>
+        <text variable="title"/>
+        <text variable="container-title"/>
+        <group delimiter=", ">
+          <text variable="publisher"/>
+          <date variable="issued">
+            <date-part name="year"/>
+          </date>
+        </group>
+        <text variable="page" prefix="pp. "/>
+        <text variable="DOI" prefix="doi:"/>
+        <text variable="URL" prefix="Available at "/>
+        <group delimiter=" ">
+          <text term="accessed"/>
+          <date variable="accessed"/>
+        </group>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Direct Rendering Elements Review Style', $summary['title'] ?? null);
+        $t->same('group', $summary['citationRendering'][0]['type'] ?? null);
+        $t->same('names', $summary['citationRendering'][0]['children'][0]['type'] ?? null);
+        $t->same('date', $summary['citationRendering'][0]['children'][1]['type'] ?? null);
+        $t->same('text', $summary['bibliographyRendering'][0]['children'][1]['type'] ?? null);
+        $t->same('accessed', $summary['bibliographyRendering'][0]['children'][7]['children'][0]['term'] ?? null);
+
+        $t->same('[de la Cruz and Ng 2026; Archive Team undated]', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'style-source', 'text' => '[@style-source]']),
+            new AstNode('citation', ['id' => 'undated-style', 'text' => '[@undated-style]']),
+        ]));
+        $t->same('{de la Cruz, A. M.; Ng, N. Styled Source Packet. Import Review. 2026. pp. 12-18. doi:10.5555/review. Available at https://example.test/styled-source. Visited 2026-06-06.}', $processor->renderBibliographyEntry('style-source'));
+        $t->same('{Archive Team. Undated Styled Packet.}', $processor->renderBibliographyEntry('undated-style'));
+
+        $document = (new MarkdownReader())->read('Review cites [see @style-source, pp. 12-18; @undated-style].');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $cluster = $processed->children[0]->children[1];
+        $bibliography = $processed->children[2];
+        $t->same('[see de la Cruz and Ng 2026, pp. 12-18; Archive Team undated]', $cluster->attr('rendered'));
+        $t->same(true, $bibliography->attr('hangingIndent'));
+
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Review cites [see de la Cruz and Ng 2026, pp. 12-18; Archive Team undated].', $markdown);
+        $t->contains('de la Cruz and Ng 2026' . "\n" . ':   {de la Cruz, A. M.; Ng, N. Styled Source Packet. Import Review. 2026. pp. 12-18. doi:10.5555/review. Available at https://example.test/styled-source. Visited 2026-06-06.}', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites [see de la Cruz and Ng 2026, pp. 12-18; Archive Team undated].</p>', $blocks);
+        $t->contains('<dt>de la Cruz and Ng 2026</dt><dd>{de la Cruz, A. M.; Ng, N. Styled Source Packet. Import Review. 2026. pp. 12-18. doi:10.5555/review. Available at https://example.test/styled-source. Visited 2026-06-06.}</dd>', $blocks);
+        $t->contains('<dt>Archive Team undated</dt><dd>{Archive Team. Undated Styled Packet.}</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <text variable="title" term="title"/>
+    </layout>
+  </citation>
+</style>
+XML
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <date variable="issued"><date-part name="season"/></date>
+    </layout>
+  </citation>
 </style>
 XML
         ));

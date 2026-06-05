@@ -79,7 +79,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function cslStyleSummary(): array
     {
@@ -267,6 +267,11 @@ final class CitationCslProcessor
         $item = $this->itemsById[$id] ?? null;
         if ($item === null) {
             throw new \InvalidArgumentException('Unknown CSL item id: ' . $id);
+        }
+
+        $customEntry = $this->renderCustomBibliographyEntry($item);
+        if ($customEntry !== null) {
+            return $customEntry;
         }
 
         $parts = [];
@@ -952,6 +957,11 @@ final class CitationCslProcessor
             return $this->sourceCitationText($citation);
         }
 
+        $customEntry = $this->renderCustomCitationEntry($citation, $item);
+        if ($customEntry !== null) {
+            return $customEntry;
+        }
+
         $mode = (string) $citation->attr('mode', 'normal');
         $year = $this->citationYear($item);
         $author = $this->citationAuthorLabel($item);
@@ -967,6 +977,77 @@ final class CitationCslProcessor
         }
 
         return $prefix === '' ? $entry : $prefix . ' ' . $entry;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function renderCustomBibliographyEntry(array $item): ?string
+    {
+        $elements = $this->style->bibliographyRenderingElements();
+        if (!$this->hasNonNameRenderingElement($elements)) {
+            return null;
+        }
+
+        return $this->style->formatBibliographyEntry(
+            $this->renderRenderingElements($elements, $item, 'bibliography', $this->style->bibliographyDelimiter())
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function renderCustomCitationEntry(AstNode $citation, array $item): ?string
+    {
+        if ((string) $citation->attr('mode', 'normal') !== 'normal') {
+            return null;
+        }
+
+        $elements = $this->style->citationRenderingElements();
+        if (!$this->hasNonNameRenderingElement($elements)) {
+            return null;
+        }
+
+        $entry = $this->renderRenderingElements($elements, $item, 'citation', '');
+        if ($entry === '') {
+            return null;
+        }
+
+        $suffix = $this->citationSuffix($citation);
+        if ($suffix !== '') {
+            $entry .= ', ' . $suffix;
+        }
+
+        $prefix = $this->citationPrefix($citation);
+
+        return $prefix === '' ? $entry : $prefix . ' ' . $entry;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $elements
+     */
+    private function hasNonNameRenderingElement(array $elements): bool
+    {
+        foreach ($elements as $element) {
+            if (!is_array($element)) {
+                continue;
+            }
+
+            $type = (string) ($element['type'] ?? '');
+            if ($type === 'group') {
+                if (isset($element['children']) && is_array($element['children']) && $this->hasNonNameRenderingElement($element['children'])) {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if ($type !== 'names') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1055,6 +1136,360 @@ final class CitationCslProcessor
         }
 
         return $this->renderNameList($names, $this->style->bibliographyNameRendering(), true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $elements
+     * @param array<string, mixed> $item
+     */
+    private function renderRenderingElements(array $elements, array $item, string $scope, string $delimiter): string
+    {
+        $rendered = [];
+        foreach ($elements as $element) {
+            if (!is_array($element)) {
+                continue;
+            }
+
+            $value = $this->renderRenderingElement($element, $item, $scope);
+            if ($value !== '') {
+                $rendered[] = $value;
+            }
+        }
+
+        return $this->joinRenderedElements($rendered, $delimiter);
+    }
+
+    /**
+     * @param list<string> $rendered
+     */
+    private function joinRenderedElements(array $rendered, string $delimiter): string
+    {
+        if ($rendered === []) {
+            return '';
+        }
+
+        if ($delimiter === '') {
+            return implode('', $rendered);
+        }
+
+        $output = array_shift($rendered);
+        foreach ($rendered as $value) {
+            $separator = $delimiter;
+            if ($separator !== '' && $output !== '' && preg_match('/^[.,;:!?]/', $separator) === 1) {
+                $punctuation = $separator[0];
+                if (str_ends_with($output, $punctuation)) {
+                    $rest = substr($separator, 1);
+                    $separator = trim($rest) === '' && $rest !== '' ? ' ' : ltrim($rest);
+                }
+            }
+
+            $output .= $separator . $value;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @param array<string, mixed> $item
+     */
+    private function renderRenderingElement(array $element, array $item, string $scope): string
+    {
+        $type = (string) ($element['type'] ?? '');
+        $value = match ($type) {
+            'group' => $this->renderGroupElement($element, $item, $scope),
+            'text' => $this->renderTextElement($element, $item, $scope),
+            'date' => $this->renderDateElement($element, $item, $scope),
+            'names' => $this->renderNamesElement($element, $item, $scope),
+            default => '',
+        };
+
+        return $this->applyRenderingAffixes($value, $element);
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @param array<string, mixed> $item
+     */
+    private function renderGroupElement(array $element, array $item, string $scope): string
+    {
+        $children = $element['children'] ?? [];
+        if (!is_array($children)) {
+            return '';
+        }
+
+        $rendered = [];
+        $hasVariableChild = false;
+        $hasRenderedVariableChild = false;
+        foreach ($children as $child) {
+            if (!is_array($child)) {
+                continue;
+            }
+
+            $isVariableChild = $this->isVariableRenderingElement($child);
+            $hasVariableChild = $hasVariableChild || $isVariableChild;
+            $value = $this->renderRenderingElement($child, $item, $scope);
+            if ($value === '') {
+                continue;
+            }
+
+            $rendered[] = $value;
+            $hasRenderedVariableChild = $hasRenderedVariableChild || $isVariableChild;
+        }
+
+        if ($hasVariableChild && !$hasRenderedVariableChild) {
+            return '';
+        }
+
+        return $this->joinRenderedElements($rendered, (string) ($element['delimiter'] ?? ''));
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     */
+    private function isVariableRenderingElement(array $element): bool
+    {
+        $type = (string) ($element['type'] ?? '');
+        if ($type === 'date' || $type === 'names') {
+            return true;
+        }
+
+        if ($type === 'text' && array_key_exists('variable', $element)) {
+            return true;
+        }
+
+        if ($type === 'group' && isset($element['children']) && is_array($element['children'])) {
+            foreach ($element['children'] as $child) {
+                if (is_array($child) && $this->isVariableRenderingElement($child)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @param array<string, mixed> $item
+     */
+    private function renderTextElement(array $element, array $item, string $scope): string
+    {
+        if (array_key_exists('variable', $element)) {
+            return $this->renderVariableValue($item, (string) $element['variable'], $scope);
+        }
+
+        if (array_key_exists('term', $element)) {
+            return $this->style->term(
+                (string) $element['term'],
+                (string) ($element['form'] ?? 'long'),
+                (bool) ($element['plural'] ?? false)
+            );
+        }
+
+        return (string) ($element['value'] ?? '');
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @param array<string, mixed> $item
+     */
+    private function renderDateElement(array $element, array $item, string $scope): string
+    {
+        $variable = strtolower((string) ($element['variable'] ?? ''));
+        $date = $this->dateVariableForRendering($item, $variable);
+        if ($date === null) {
+            return '';
+        }
+
+        $dateParts = $element['dateParts'] ?? [];
+        if (is_array($dateParts) && $dateParts !== []) {
+            return $this->renderSelectedDateParts($date, $dateParts, $scope, $variable);
+        }
+
+        return $this->renderDateVariable($date, $scope, $variable);
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @param array<string, mixed> $item
+     */
+    private function renderNamesElement(array $element, array $item, string $scope): string
+    {
+        $names = $this->namesForRenderingVariable($item, (string) ($element['variable'] ?? 'author editor'));
+        if ($names === []) {
+            if ($scope === 'citation') {
+                $title = (string) ($item['title'] ?? '');
+
+                return $title === '' ? (string) ($item['id'] ?? '') : $title;
+            }
+
+            return '';
+        }
+
+        return $this->renderNameList(
+            $names,
+            $scope === 'bibliography' ? $this->style->bibliographyNameRendering() : $this->style->citationNameRendering(),
+            $scope === 'bibliography'
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     */
+    private function applyRenderingAffixes(string $value, array $element): string
+    {
+        if ($value === '') {
+            return '';
+        }
+
+        return (string) ($element['prefix'] ?? '') . $value . (string) ($element['suffix'] ?? '');
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function renderVariableValue(array $item, string $variable, string $scope): string
+    {
+        $normalized = strtolower(trim($variable));
+
+        return match ($normalized) {
+            'id', 'citation-key' => (string) $item['id'],
+            'type' => (string) $item['type'],
+            'title' => (string) $item['title'],
+            'container-title' => (string) $item['containerTitle'],
+            'publisher' => (string) $item['publisher'],
+            'page' => (string) $item['page'],
+            'doi' => (string) $item['doi'],
+            'url' => (string) $item['url'],
+            'language' => (string) $item['language'],
+            'abstract' => (string) $item['abstract'],
+            'keyword' => implode(', ', is_array($item['keywords'] ?? null) ? $item['keywords'] : []),
+            'issued', 'date' => $this->renderDateVariable($item['issuedDate'] ?? null, $scope, 'issued'),
+            'accessed' => $this->renderDateVariable($item['accessedDate'] ?? null, $scope, 'accessed'),
+            'author' => $this->renderNamesElement(['variable' => 'author'], $item, $scope),
+            'editor' => $this->renderNamesElement(['variable' => 'editor'], $item, $scope),
+            default => $this->rawVariableValue($item, $variable),
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function rawVariableValue(array $item, string $variable): string
+    {
+        $raw = $item['raw'] ?? [];
+        if (!is_array($raw)) {
+            return '';
+        }
+
+        foreach ([$variable, strtolower($variable), strtoupper($variable)] as $key) {
+            $value = $raw[$key] ?? null;
+            if (is_scalar($value)) {
+                return trim((string) $value);
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return list<array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}>
+     */
+    private function namesForRenderingVariable(array $item, string $variable): array
+    {
+        $variables = preg_split('/\s+/', strtolower(trim($variable))) ?: [];
+        if ($variables === []) {
+            $variables = ['author', 'editor'];
+        }
+
+        foreach ($variables as $nameVariable) {
+            $names = match ($nameVariable) {
+                'author' => $item['authors'] ?? [],
+                'editor' => $item['editors'] ?? [],
+                default => [],
+            };
+            if (is_array($names) && $names !== []) {
+                return $names;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array{year:?int, parts:list<int>, display:string, literal:string}|null
+     */
+    private function dateVariableForRendering(array $item, string $variable): ?array
+    {
+        $normalized = strtolower(trim($variable));
+
+        return match ($normalized) {
+            'issued', 'date' => is_array($item['issuedDate'] ?? null) ? $item['issuedDate'] : null,
+            'accessed' => is_array($item['accessedDate'] ?? null) ? $item['accessedDate'] : null,
+            default => null,
+        };
+    }
+
+    /**
+     * @param array{year:?int, parts:list<int>, display:string, literal:string}|mixed $date
+     */
+    private function renderDateVariable(mixed $date, string $scope, string $variable): string
+    {
+        if (!is_array($date)) {
+            return $scope === 'citation' && ($variable === 'issued' || $variable === 'date')
+                ? $this->style->term('no date')
+                : '';
+        }
+
+        $display = (string) ($date['display'] ?? '');
+        if ($display !== '') {
+            return $display;
+        }
+
+        $literal = (string) ($date['literal'] ?? '');
+        if ($literal !== '') {
+            return $literal;
+        }
+
+        return $scope === 'citation' && ($variable === 'issued' || $variable === 'date')
+            ? $this->style->term('no date')
+            : '';
+    }
+
+    /**
+     * @param array{year:?int, parts:list<int>, display:string, literal:string} $date
+     * @param list<string> $dateParts
+     */
+    private function renderSelectedDateParts(array $date, array $dateParts, string $scope, string $variable): string
+    {
+        $parts = is_array($date['parts'] ?? null) ? $date['parts'] : [];
+        if ($parts === []) {
+            return $this->renderDateVariable($date, $scope, $variable);
+        }
+
+        $values = [];
+        foreach ($dateParts as $part) {
+            $value = match ($part) {
+                'year' => $parts[0] ?? null,
+                'month' => $parts[1] ?? null,
+                'day' => $parts[2] ?? null,
+                default => null,
+            };
+            if ($value === null) {
+                continue;
+            }
+
+            $values[] = $part === 'year' ? sprintf('%04d', (int) $value) : sprintf('%02d', (int) $value);
+        }
+
+        if ($values === []) {
+            return '';
+        }
+
+        return implode('-', $values);
     }
 
     /**

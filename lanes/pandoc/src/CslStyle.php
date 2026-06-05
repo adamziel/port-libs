@@ -43,6 +43,8 @@ final class CslStyle
      * @param array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string} $bibliographyOptions
      * @param list<array{sort:string, variable?:string, macro?:string}> $citationSortKeys
      * @param list<array{sort:string, variable?:string, macro?:string}> $bibliographySortKeys
+     * @param list<array<string, mixed>> $citationRenderingElements
+     * @param list<array<string, mixed>> $bibliographyRenderingElements
      * @param array{citation:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}, bibliography:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}} $nameRendering
      * @param array<string, array{single:string, multiple:string}> $terms
      * @param array{title:string, id:string, class:string, defaultLocale:string} $metadata
@@ -53,6 +55,8 @@ final class CslStyle
         private readonly array $bibliographyOptions,
         private readonly array $citationSortKeys,
         private readonly array $bibliographySortKeys,
+        private readonly array $citationRenderingElements,
+        private readonly array $bibliographyRenderingElements,
         private readonly array $nameRendering,
         private readonly array $terms,
         private readonly array $metadata,
@@ -65,6 +69,8 @@ final class CslStyle
             ['prefix' => '(', 'suffix' => ')', 'delimiter' => '; '],
             ['prefix' => '', 'suffix' => '', 'delimiter' => ' '],
             ['hangingIndent' => false, 'entrySpacing' => null, 'lineSpacing' => null, 'secondFieldAlign' => ''],
+            [],
+            [],
             [],
             [],
             self::DEFAULT_NAME_RENDERING,
@@ -145,6 +151,8 @@ final class CslStyle
                 : ['hangingIndent' => false, 'entrySpacing' => null, 'lineSpacing' => null, 'secondFieldAlign' => ''],
             self::sortKeys($citation, 'citation'),
             $bibliography instanceof \DOMElement ? self::sortKeys($bibliography, 'bibliography') : [],
+            self::renderingElements($layout, 'citation'),
+            $bibliographyLayoutElement instanceof \DOMElement ? self::renderingElements($bibliographyLayoutElement, 'bibliography') : [],
             [
                 'citation' => self::nameRenderingOptions($layout, 'citation'),
                 'bibliography' => $bibliographyLayoutElement instanceof \DOMElement
@@ -221,6 +229,22 @@ final class CslStyle
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public function citationRenderingElements(): array
+    {
+        return $this->citationRenderingElements;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function bibliographyRenderingElements(): array
+    {
+        return $this->bibliographyRenderingElements;
+    }
+
+    /**
      * @return array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}
      */
     public function citationNameRendering(): array
@@ -237,7 +261,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, nameRendering:array{citation:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}, bibliography:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, nameRendering:array{citation:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}, bibliography:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function summary(): array
     {
@@ -248,6 +272,8 @@ final class CslStyle
             'bibliographyOptions' => $this->bibliographyOptions,
             'citationSort' => $this->citationSortKeys,
             'bibliographySort' => $this->bibliographySortKeys,
+            'citationRendering' => $this->citationRenderingElements,
+            'bibliographyRendering' => $this->bibliographyRenderingElements,
             'nameRendering' => $this->nameRendering,
             'terms' => [
                 'and' => $this->term('and'),
@@ -386,6 +412,155 @@ final class CslStyle
         }
 
         return (int) $value;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function renderingElements(\DOMElement $container, string $scope): array
+    {
+        $elements = [];
+        foreach ($container->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $element = self::renderingElement($child, $scope);
+            if ($element !== null) {
+                $elements[] = $element;
+            }
+        }
+
+        return $elements;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function renderingElement(\DOMElement $element, string $scope): ?array
+    {
+        return match ($element->localName) {
+            'group' => self::groupRenderingElement($element, $scope),
+            'text' => self::textRenderingElement($element, $scope),
+            'date' => self::dateRenderingElement($element, $scope),
+            'names' => self::namesRenderingElement($element),
+            default => null,
+        };
+    }
+
+    /**
+     * @return array{type:string, prefix:string, suffix:string, delimiter:string, children:list<array<string, mixed>>}
+     */
+    private static function groupRenderingElement(\DOMElement $group, string $scope): array
+    {
+        return [
+            'type' => 'group',
+            'prefix' => self::optionalAttribute($group, 'prefix'),
+            'suffix' => self::optionalAttribute($group, 'suffix'),
+            'delimiter' => self::optionalAttribute($group, 'delimiter'),
+            'children' => self::renderingElements($group, $scope),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function textRenderingElement(\DOMElement $text, string $scope): array
+    {
+        $variable = trim($text->getAttribute('variable'));
+        $term = trim($text->getAttribute('term'));
+        $value = trim($text->getAttribute('value'));
+        $declared = array_filter([$variable, $term, $value], static fn (string $attribute): bool => $attribute !== '');
+        if (count($declared) !== 1) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' text element must declare exactly one variable, term, or value');
+        }
+
+        $element = [
+            'type' => 'text',
+            'prefix' => self::optionalAttribute($text, 'prefix'),
+            'suffix' => self::optionalAttribute($text, 'suffix'),
+            'form' => self::optionalAttribute($text, 'form') !== '' ? self::optionalAttribute($text, 'form') : 'long',
+            'plural' => self::booleanRenderingAttribute($text, 'plural', false, $scope),
+        ];
+        if ($variable !== '') {
+            $element['variable'] = $variable;
+        } elseif ($term !== '') {
+            $element['term'] = $term;
+        } else {
+            $element['value'] = $value;
+        }
+
+        return $element;
+    }
+
+    /**
+     * @return array{type:string, prefix:string, suffix:string, variable:string, dateParts:list<string>}
+     */
+    private static function dateRenderingElement(\DOMElement $date, string $scope): array
+    {
+        $variable = trim($date->getAttribute('variable'));
+        if ($variable === '') {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' date element must declare a variable');
+        }
+
+        $dateParts = [];
+        foreach (self::directChildren($date, 'date-part') as $datePart) {
+            $name = strtolower(trim($datePart->getAttribute('name')));
+            if (!in_array($name, ['year', 'month', 'day'], true)) {
+                throw new \InvalidArgumentException('CSL ' . $scope . ' date-part name must be year, month, or day');
+            }
+
+            $dateParts[] = $name;
+        }
+
+        return [
+            'type' => 'date',
+            'prefix' => self::optionalAttribute($date, 'prefix'),
+            'suffix' => self::optionalAttribute($date, 'suffix'),
+            'variable' => $variable,
+            'dateParts' => $dateParts,
+        ];
+    }
+
+    /**
+     * @return array{type:string, prefix:string, suffix:string, variable:string}
+     */
+    private static function namesRenderingElement(\DOMElement $names): array
+    {
+        $variable = trim($names->getAttribute('variable'));
+        if ($variable === '') {
+            $variable = 'author editor';
+        }
+
+        return [
+            'type' => 'names',
+            'prefix' => self::optionalAttribute($names, 'prefix'),
+            'suffix' => self::optionalAttribute($names, 'suffix'),
+            'variable' => $variable,
+        ];
+    }
+
+    private static function optionalAttribute(\DOMElement $element, string $name): string
+    {
+        return $element->hasAttribute($name) ? $element->getAttribute($name) : '';
+    }
+
+    private static function booleanRenderingAttribute(\DOMElement $element, string $name, bool $default, string $scope): bool
+    {
+        if (!$element->hasAttribute($name)) {
+            return $default;
+        }
+
+        $value = strtolower(trim($element->getAttribute($name)));
+        if ($value === 'true') {
+            return true;
+        }
+
+        if ($value === 'false') {
+            return false;
+        }
+
+        throw new \InvalidArgumentException('CSL ' . $scope . ' rendering attribute ' . $name . ' must be true or false');
     }
 
     /**

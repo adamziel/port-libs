@@ -91,9 +91,14 @@ $cslStyleXml = <<<'XML'
   </locale>
   <citation>
     <layout prefix="(" suffix=")" delimiter="; ">
-      <names variable="author editor" delimiter=", " et-al-min="3" et-al-use-first="2">
-        <name/>
-      </names>
+      <group delimiter=" ">
+        <names variable="author editor" delimiter=", " et-al-min="3" et-al-use-first="2">
+          <name/>
+        </names>
+        <date variable="issued">
+          <date-part name="year"/>
+        </date>
+      </group>
     </layout>
   </citation>
   <bibliography hanging-indent="true" entry-spacing="0" line-spacing="1">
@@ -102,9 +107,24 @@ $cslStyleXml = <<<'XML'
       <key variable="title"/>
     </sort>
     <layout prefix="[" suffix="]" delimiter=" ">
-      <names variable="author editor" delimiter="; ">
-        <name initialize-with=". " name-as-sort-order="all"/>
-      </names>
+      <group delimiter=". " suffix=".">
+        <names variable="author editor" delimiter="; ">
+          <name initialize-with=". " name-as-sort-order="all"/>
+        </names>
+        <text variable="title"/>
+        <group delimiter=", ">
+          <text variable="publisher"/>
+          <date variable="issued">
+            <date-part name="year"/>
+          </date>
+        </group>
+        <text variable="DOI" prefix="DOI "/>
+        <text variable="URL"/>
+        <group delimiter=" ">
+          <text term="accessed"/>
+          <date variable="accessed"/>
+        </group>
+      </group>
     </layout>
   </bibliography>
 </style>
