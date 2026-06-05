@@ -28,6 +28,9 @@ for $title$$~$</p>
 <p class="authors">$for(authors/pairs)$$it.value.name$$sep$, $endfor$</p>
 <p class="review-sources">${ reviewSources/rest/uppercase[ / ] }</p>
 <p class="review-meta">$for(reviewMeta/pairs)$$it.key$=$it.value$$sep$; $endfor$</p>
+<p class="comment-spacing">Before preserved comment whitespace</p>
+  $-- indented reviewer comments preserve their line ending upstream
+<p class="comment-spacing">After preserved comment whitespace</p>
 <p class="audit-flag" data-suppressed="$suppressed$">Suppressed: <$suppressed$></p>
 </header>
 HTML,
@@ -102,6 +105,7 @@ if (in_array('--self-test', $argv, true)) {
         '<p class="authors">Migration bot, Content editor</p>',
         '<p class="review-sources">LINKS / LAYOUT</p>',
         '<p class="review-meta">alpha=queued-first; review-id=PR-42; zeta=queued-last</p>',
+        "<p class=\"comment-spacing\">Before preserved comment whitespace</p>\n  \n<p class=\"comment-spacing\">After preserved comment whitespace</p>",
         '<p class="audit-flag" data-suppressed="">Suppressed: <></p>',
         '<p class="source-summary" data-état="prêt">Résumé de migration</p>',
         '<li data-index="1" data-source="media" data-review-title="Batch 42 Review"><span class="marker">A.</span> <span class="source">{MEDIA   }</span> <span class="priority">   I</span> Check &amp; confirm alt text</li>',

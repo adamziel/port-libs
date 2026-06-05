@@ -294,17 +294,17 @@ final class DocTemplate
             }
 
             if (substr($template, $index, 3) === '$--') {
-                $lineEnd = strpos($template, "\n", $index + 3);
-                if ($lineEnd === false) {
+                $lineEnding = $this->findCommentLineEnding($template, $index + 3);
+                if ($lineEnding === null) {
                     break;
                 }
 
-                if ($this->commentStartsStandaloneLine($buffer)) {
+                if ($this->commentStartsInFirstColumn($buffer)) {
                     $buffer = $this->dropStandaloneCommentLinePrefix($buffer);
                 } else {
-                    $buffer .= "\n";
+                    $buffer .= $lineEnding['value'];
                 }
-                $index = $lineEnd;
+                $index = $lineEnding['start'] + $lineEnding['length'] - 1;
                 continue;
             }
 
@@ -395,19 +395,62 @@ final class DocTemplate
         return null;
     }
 
-    private function commentStartsStandaloneLine(string $buffer): bool
+    /**
+     * @return array{start:int, length:int, value:string}|null
+     */
+    private function findCommentLineEnding(string $template, int $start): ?array
     {
-        $lineStart = strrpos($buffer, "\n");
-        $linePrefix = $lineStart === false ? $buffer : substr($buffer, $lineStart + 1);
+        $length = strlen($template);
+        for ($index = $start; $index < $length; $index++) {
+            $char = $template[$index];
+            if ($char === "\n") {
+                return ['start' => $index, 'length' => 1, 'value' => "\n"];
+            }
 
-        return trim($linePrefix, " \t") === '';
+            if ($char === "\r") {
+                if (($template[$index + 1] ?? '') === "\n") {
+                    return ['start' => $index, 'length' => 2, 'value' => "\r\n"];
+                }
+
+                return ['start' => $index, 'length' => 1, 'value' => "\r"];
+            }
+        }
+
+        return null;
+    }
+
+    private function commentStartsInFirstColumn(string $buffer): bool
+    {
+        $lineStart = $this->lastLineEndingByteOffset($buffer);
+        $linePrefix = $lineStart === null ? $buffer : substr($buffer, $lineStart + 1);
+
+        return $linePrefix === '';
     }
 
     private function dropStandaloneCommentLinePrefix(string $buffer): string
     {
-        $lineStart = strrpos($buffer, "\n");
+        $lineStart = $this->lastLineEndingByteOffset($buffer);
 
-        return $lineStart === false ? '' : substr($buffer, 0, $lineStart + 1);
+        return $lineStart === null ? '' : substr($buffer, 0, $lineStart + 1);
+    }
+
+    private function lastLineEndingByteOffset(string $buffer): ?int
+    {
+        $lastLf = strrpos($buffer, "\n");
+        $lastCr = strrpos($buffer, "\r");
+        if ($lastLf === false && $lastCr === false) {
+            return null;
+        }
+
+        if ($lastLf === false) {
+            return $lastCr;
+        }
+
+        if ($lastCr === false) {
+            return $lastLf;
+        }
+
+        return max($lastLf, $lastCr);
     }
 
     /**

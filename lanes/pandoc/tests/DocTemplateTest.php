@@ -36,6 +36,31 @@ TPL;
         ]), $output);
     },
 
+    'preserves pandoc doctemplate non-column-one comment line endings' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $output = $renderer->render(<<<'TPL'
+Before
+$-- column-one comment drops its line ending
+After column
+  $-- indented comment leaves the whitespace line intact
+After indent
+Inline $-- inline comment preserves the preceding text and line ending
+After inline
+TPL, []);
+
+        $t->same(implode("\n", [
+            'Before',
+            'After column',
+            '  ',
+            'After indent',
+            'Inline ',
+            'After inline',
+        ]), $output);
+
+        $t->same("A\r\n  \r\nB", $renderer->render("A\r\n  $-- CRLF comment\r\nB", []));
+    },
+
     'evaluates pandoc doctemplate conditionals elseif and truthiness' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 $if(title)$title:$title$$elseif(fallback)$fallback:$fallback$$else$untitled$endif$
