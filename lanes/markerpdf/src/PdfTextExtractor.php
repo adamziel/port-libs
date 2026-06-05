@@ -14134,12 +14134,13 @@ final class PdfTextExtractor
             return $direct;
         }
 
-        $objectNumber = $this->objectReferenceValueAfterName($body, $name);
-        if ($objectNumber === null || !isset($objects[$objectNumber])) {
+        $reference = $this->objectReferenceAfterName($body, $name);
+        if ($reference === null) {
             return null;
         }
 
-        return $this->pdfArrayAtStart(trim($objects[$objectNumber]));
+        $objectBody = $this->objectBodyForExactReference($objects, $reference['objectNumber'], $reference['generation']);
+        return $objectBody === null ? null : $this->pdfArrayAtStart(trim($objectBody));
     }
 
     /**

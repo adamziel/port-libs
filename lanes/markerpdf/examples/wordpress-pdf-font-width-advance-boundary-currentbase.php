@@ -123,6 +123,16 @@ $sparseWidthPdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Length " . strlen($sparseWidthContent) . " >>\nstream\n{$sparseWidthContent}\nendstream\nendobj\n"
     . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
 
+$exactGenerationWidthContent = 'BT /Fgen 12 Tf 1 0 0 1 72 720 Tm <41424344> Tj '
+    . '1 0 0 1 118 720 Tm <4546474849> Tj ET';
+$exactGenerationWidthPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fgen 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+GenerationWidths /Encoding 6 0 R /FirstChar 65 /LastChar 73 /Widths 20 0 R >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($exactGenerationWidthContent) . " >>\nstream\n{$exactGenerationWidthContent}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Type /Encoding /Differences [65 /W /i /d /e /B /l /o /c /k] >>\nendobj\n"
+    . "20 0 obj\n[1000 1000 1000 1000 1000 1000 1000 1000 1000]\nendobj\n"
+    . "20 1 obj\n[250 250 250 250 250 250 250 250 250]\nendobj\n%%EOF";
+
 $lastCharContent = 'BT /Flast 12 Tf '
     . '1 0 0 1 72 720 Tm <43> Tj 1 0 0 1 86 720 Tm <44> Tj '
     . 'T* 1 0 0 1 72 704 Tm <43> Tj 1 0 0 1 100 704 Tm <44> Tj ET';
@@ -382,6 +392,14 @@ $sparseWidthSpanBboxes = array_map(
     static fn (array $span): array => $span['bbox'] ?? [],
     $sparseWidthSpans
 );
+$exactGenerationWidthLines = $extractor->extractTextLines($exactGenerationWidthPdf);
+$exactGenerationWidthPlainText = implode("\n", $exactGenerationWidthLines);
+$exactGenerationWidthPages = $extractor->extractStyledTextPages($exactGenerationWidthPdf);
+$exactGenerationWidthLine = $exactGenerationWidthPages[0]['blocks'][0]['lines'][0] ?? [];
+$exactGenerationWidthSpanBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $exactGenerationWidthLine['spans'] ?? []
+);
 $lastCharLines = $extractor->extractTextLines($lastCharPdf);
 $lastCharPlainText = implode("\n", $lastCharLines);
 $lastCharPages = $extractor->extractStyledTextPages($lastCharPdf);
@@ -456,7 +474,7 @@ $type3FontMatrixVectorSpanBboxes = array_map(
 
 echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-font-width-advance-boundary-currentbase',
-    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-quote-relative-td-styled-gap-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-type3-fontmatrix-width-and-type3-fontmatrix-vector-advance',
+    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-exact-generation-widths-quote-relative-td-styled-gap-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-type3-fontmatrix-width-and-type3-fontmatrix-vector-advance',
     'average_width_preserves_joined_word' => str_contains($plainText, 'WideBlock'),
     'generic_500_width_gap_excluded' => !str_contains($plainText, 'Wide Block'),
     'narrow_positioned_gap_still_preserved' => str_contains($plainText, 'Blo ck'),
@@ -513,6 +531,10 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'unresolved_width_slot_preserved' => $sparseWidthLines === ['CD'],
     'unresolved_width_false_gap_excluded' => !str_contains($sparseWidthPlainText, 'C D'),
     'unresolved_width_slot_bboxes_preserved' => $sparseWidthSpanBboxes === [[0.0, 0.0, 9.0, 12.0], [9.0, 0.0, 12.0, 12.0]],
+    'exact_generation_width_array_resolved' => $exactGenerationWidthLines === ['WideBlock'],
+    'exact_generation_width_false_gap_excluded' => !str_contains($exactGenerationWidthPlainText, 'Wide Block'),
+    'exact_generation_width_stale_generation_excluded' => $exactGenerationWidthSpanBboxes !== [[0.0, 0.0, 12.0, 12.0], [46.0, 0.0, 61.0, 12.0]],
+    'exact_generation_width_bboxes_preserved' => $exactGenerationWidthSpanBboxes === [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 108.0, 12.0]],
     'lastchar_width_decoy_gap_excluded' => ($lastCharLines[0] ?? null) === 'CD',
     'lastchar_real_positioned_gap_preserved' => ($lastCharLines[1] ?? null) === 'C D',
     'lastchar_double_gap_output_excluded' => !str_contains($lastCharPlainText, 'C D' . "\n" . 'C D'),
@@ -581,6 +603,8 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'negative_tc_backtrack_line_bbox' => $negativeTcBacktrackLine['bbox'] ?? null,
     'sparse_width_lines' => $sparseWidthLines,
     'sparse_width_span_bboxes' => $sparseWidthSpanBboxes,
+    'exact_generation_width_lines' => $exactGenerationWidthLines,
+    'exact_generation_width_span_bboxes' => $exactGenerationWidthSpanBboxes,
     'lastchar_lines' => $lastCharLines,
     'lastchar_span_bboxes' => $lastCharSpanBboxes,
     'malformed_range_lines' => $malformedRangeLines,
@@ -601,7 +625,7 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $terminalTcLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $absoluteTmStyledGapLines, $negativeTcBacktrackLines, $sparseWidthLines, $lastCharLines, $malformedRangeLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $terminalTcLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $absoluteTmStyledGapLines, $negativeTcBacktrackLines, $sparseWidthLines, $exactGenerationWidthLines, $lastCharLines, $malformedRangeLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

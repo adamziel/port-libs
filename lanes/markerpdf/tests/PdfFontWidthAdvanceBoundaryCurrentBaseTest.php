@@ -162,6 +162,19 @@ $fontWidthUnresolvedSlotBoundaryCurrentBasePdf = static function (): string {
         . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
 };
 
+$fontWidthExactGenerationArrayBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /Fgen 12 Tf 1 0 0 1 72 720 Tm <41424344> Tj '
+        . '1 0 0 1 118 720 Tm <4546474849> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fgen 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+GenerationWidths /Encoding 6 0 R /FirstChar 65 /LastChar 73 /Widths 20 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /Encoding /Differences [65 /W /i /d /e /B /l /o /c /k] >>\nendobj\n"
+        . "20 0 obj\n[1000 1000 1000 1000 1000 1000 1000 1000 1000]\nendobj\n"
+        . "20 1 obj\n[250 250 250 250 250 250 250 250 250]\nendobj\n%%EOF";
+};
+
 $fontWidthLastCharBoundaryCurrentBasePdf = static function (): string {
     $content = 'BT /Flast 12 Tf '
         . '1 0 0 1 72 720 Tm <43> Tj 1 0 0 1 86 720 Tm <44> Tj '
@@ -770,6 +783,26 @@ return [
         $t->true(!str_contains($plainText, 'C D'));
         $t->true(!str_contains($plainText, 'SparseAdvance'));
         $t->true(!str_contains($plainText, 'Fsparse'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'resolves exact-generation simple-font Widths arrays before current advance gaps' => static function (TestRunner $t) use ($fontWidthExactGenerationArrayBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthExactGenerationArrayBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['WideBlock'], $extractor->extractTextLines($pdf));
+        $t->same(['Wide', 'Block'], $extractor->extractTextRuns($pdf));
+        $t->same('WideBlock', $plainText);
+        $t->same("WideBlock\n", $extractor->naiveGetText($pdf));
+        $t->same(['Wide', 'Block'], array_column($spans, 'text'));
+        $t->same([[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 108.0, 12.0]], array_column($spans, 'bbox'));
+        $t->same([0.0, 0.0, 108.0, 12.0], $line['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'Wide Block'));
+        $t->true(!str_contains($plainText, 'GenerationWidths'));
+        $t->true(!str_contains($plainText, 'Fgen'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'clips simple-font Widths entries to LastChar before positioned word gaps on current base' => static function (TestRunner $t) use ($fontWidthLastCharBoundaryCurrentBasePdf): void {
