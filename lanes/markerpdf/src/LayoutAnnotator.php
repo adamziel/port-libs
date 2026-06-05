@@ -181,7 +181,7 @@ final class LayoutAnnotator
             if (!is_array($box)) {
                 continue;
             }
-            $bbox = $this->bbox($box['bbox'] ?? null);
+            $bbox = $this->bbox($box);
             if ($bbox === null) {
                 continue;
             }
@@ -391,21 +391,145 @@ final class LayoutAnnotator
         if (!is_array($value)) {
             return null;
         }
-        if (isset($value['bbox'])) {
-            return $this->bbox($value['bbox']);
+
+        if (array_key_exists('bbox', $value)) {
+            return $this->bbox($value['bbox'])
+                ?? $this->bboxFromNamedFields($value)
+                ?? $this->polygonBbox($value['polygon'] ?? null);
         }
 
-        $values = array_values($value);
-        if (count($values) !== 4) {
+        return $this->bboxFromNamedFields($value)
+            ?? $this->polygonBbox($value['polygon'] ?? null)
+            ?? $this->bboxFromCoordinateList($value);
+    }
+
+    /**
+     * @param mixed $bbox
+     * @return list<float>|null
+     */
+    private function bboxFromCoordinateList(mixed $bbox): ?array
+    {
+        if (!is_array($bbox) || count($bbox) !== 4) {
             return null;
         }
 
-        foreach ($values as $item) {
-            if (!is_float($item) && !is_int($item)) {
-                return null;
+        $coordinates = $this->numericCoordinates(array_values($bbox));
+        if ($coordinates === null) {
+            return null;
+        }
+
+        return $this->canonicalBbox($coordinates);
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return list<float>|null
+     */
+    private function bboxFromNamedFields(array $record): ?array
+    {
+        foreach ([
+            ['x1', 'y1', 'x2', 'y2'],
+            ['x_start', 'y_start', 'x_end', 'y_end'],
+            ['left', 'top', 'right', 'bottom'],
+        ] as $keys) {
+            [$x1, $y1, $x2, $y2] = $keys;
+            if (
+                !array_key_exists($x1, $record)
+                || !array_key_exists($y1, $record)
+                || !array_key_exists($x2, $record)
+                || !array_key_exists($y2, $record)
+            ) {
+                continue;
+            }
+
+            $coordinates = $this->numericCoordinates([$record[$x1], $record[$y1], $record[$x2], $record[$y2]]);
+            if ($coordinates !== null) {
+                return $this->canonicalBbox($coordinates);
             }
         }
 
-        return array_map(static fn (float|int $item): float => (float) $item, $values);
+        return null;
+    }
+
+    /**
+     * @param mixed $polygon
+     * @return list<float>|null
+     */
+    private function polygonBbox(mixed $polygon): ?array
+    {
+        if (!is_array($polygon) || count($polygon) !== 4) {
+            return null;
+        }
+
+        $xs = [];
+        $ys = [];
+        foreach (array_values($polygon) as $point) {
+            if (!is_array($point) || count($point) !== 2) {
+                return null;
+            }
+
+            $coordinates = $this->numericCoordinates(array_values($point));
+            if ($coordinates === null) {
+                return null;
+            }
+            $xs[] = $coordinates[0];
+            $ys[] = $coordinates[1];
+        }
+
+        return [
+            min($xs),
+            min($ys),
+            max($xs),
+            max($ys),
+        ];
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @return list<float>|null
+     */
+    private function numericCoordinates(array $values): ?array
+    {
+        $out = [];
+        foreach ($values as $value) {
+            $number = $this->numericScalar($value);
+            if ($number === null) {
+                return null;
+            }
+            $out[] = $number;
+        }
+
+        return $out;
+    }
+
+    private function numericScalar(mixed $value): ?float
+    {
+        if (is_int($value) || is_float($value)) {
+            return is_finite((float) $value) ? (float) $value : null;
+        }
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if ($trimmed !== '' && is_numeric($trimmed)) {
+                $number = (float) $trimmed;
+
+                return is_finite($number) ? $number : null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @return list<float>
+     */
+    private function canonicalBbox(array $bbox): array
+    {
+        return [
+            min($bbox[0], $bbox[2]),
+            min($bbox[1], $bbox[3]),
+            max($bbox[0], $bbox[2]),
+            max($bbox[1], $bbox[3]),
+        ];
     }
 }
