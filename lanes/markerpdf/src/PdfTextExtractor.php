@@ -19897,11 +19897,17 @@ final class PdfTextExtractor
         if (preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+usecmap\b/s', $cmap, $useCMapMatches)) {
             foreach ($useCMapMatches[1] as $rawName) {
                 $name = $this->decodePdfName($rawName);
-                if (in_array($name, $seenCMaps, true) || !isset($namedCMapBodies[$name])) {
+                if (in_array($name, $seenCMaps, true)) {
                     continue;
                 }
 
-                $base = $this->parseToUnicodeCMap($namedCMapBodies[$name], $namedCMapBodies, [...$seenCMaps, $name]);
+                $base = isset($namedCMapBodies[$name])
+                    ? $this->parseToUnicodeCMap($namedCMapBodies[$name], $namedCMapBodies, [...$seenCMaps, $name])
+                    : $this->predefinedToUnicodeCMap($name);
+                if ($base === null) {
+                    continue;
+                }
+
                 $map = $base['map'] + $map;
                 if (isset($base['writingMode'])) {
                     $writingMode = (int) $base['writingMode'] === 1 ? 1 : 0;
@@ -19952,6 +19958,27 @@ final class PdfTextExtractor
         ];
         if ($writingMode !== null) {
             $result['writingMode'] = $writingMode;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, writingMode?: int}|null
+     */
+    private function predefinedToUnicodeCMap(string $name): ?array
+    {
+        $predefined = $this->predefinedCidCMap($name);
+        if ($predefined === null) {
+            return null;
+        }
+
+        $result = [
+            'map' => [],
+            'codeSpaceRanges' => $predefined['codeSpaceRanges'],
+        ];
+        if (isset($predefined['writingMode'])) {
+            $result['writingMode'] = (int) $predefined['writingMode'] === 1 ? 1 : 0;
         }
 
         return $result;
