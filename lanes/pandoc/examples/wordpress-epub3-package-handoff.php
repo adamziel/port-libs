@@ -26,6 +26,9 @@ $opfXml = <<<'XML'
     <dc:language>en</dc:language>
     <meta property="dcterms:modified">2026-06-04T21:45:00Z</meta>
     <meta name="cover" content="cover-image"/>
+    <link id="review-record" rel="record alternate" href="meta/review-record.json" media-type="application/ld+json" properties="schema-org reviewer" hreflang="en"/>
+    <link id="remote-onix" rel="record" href="https://metadata.example.test/onix/source.xml" media-type="application/xml" properties="onix"/>
+    <link id="creator-voicing" rel="voicing" refines="#creator" href="audio/creator-name.mp3" media-type="audio/mpeg"/>
   </metadata>
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
@@ -181,6 +184,7 @@ $package = ZipPackage::fromParts([
     ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
     ['name' => 'EPUB/package.opf', 'data' => $opfXml],
     ['name' => 'EPUB/fixed/package.opf', 'data' => $alternateOpfXml],
+    ['name' => 'EPUB/meta/review-record.json', 'data' => '{"@context":"https://schema.org","name":"WordPress EPUB review record"}'],
     ['name' => 'EPUB/nav.xhtml', 'data' => $navXhtml],
     ['name' => 'EPUB/text/chapter.xhtml', 'data' => $chapterXhtml],
     ['name' => 'EPUB/text/slideshow-fallback.xhtml', 'data' => $slideshowFallbackXhtml],
@@ -249,6 +253,21 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['collections'][0]['links'][1]['diagnostics'][0]['type'] ?? null) !== 'external-collection-link') {
         throw new RuntimeException('Expected EPUB OPF collection external link to be reported without fetching');
+    }
+    if (($result['metadata']['links'][0]['target'] ?? null) !== '/EPUB/meta/review-record.json') {
+        throw new RuntimeException('Expected EPUB OPF metadata link to resolve to the review record package part');
+    }
+    if (($result['metadata']['links'][0]['byteSha256'] ?? null) !== hash('sha256', '{"@context":"https://schema.org","name":"WordPress EPUB review record"}')) {
+        throw new RuntimeException('Expected EPUB OPF metadata linked record hash for review deduplication');
+    }
+    if (($result['metadata']['linksByRel']['record'][0]['id'] ?? null) !== 'review-record') {
+        throw new RuntimeException('Expected EPUB OPF metadata links to be indexed by rel');
+    }
+    if (($result['metadata']['links'][1]['diagnostics'][0]['type'] ?? null) !== 'external-metadata-reference') {
+        throw new RuntimeException('Expected remote EPUB OPF metadata link to stay unfetched');
+    }
+    if (($result['metadata']['links'][2]['diagnostics'][0]['type'] ?? null) !== 'missing-metadata-reference') {
+        throw new RuntimeException('Expected missing EPUB OPF metadata link to remain a review diagnostic');
     }
     if (($result['renditions']['count'] ?? null) !== 2 || ($result['renditions']['alternateCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB multiple rootfile renditions to be summarized');
@@ -335,6 +354,11 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['importReport']['assets']['unmanifestedItems'][0]['part'] ?? null) !== '/EPUB/images/unmanifested-review.png') {
         throw new RuntimeException('Expected unmanifested EPUB package image to stay visible for review');
     }
+    foreach ($result['importReport']['assets']['unmanifestedItems'] as $unmanifestedItem) {
+        if (($unmanifestedItem['part'] ?? null) === '/EPUB/meta/review-record.json') {
+            throw new RuntimeException('Expected EPUB metadata-linked record not to be reported as an undeclared package asset');
+        }
+    }
     if (($result['importReport']['assets']['unmanifestedItems'][0]['attachmentCandidate'] ?? null) !== true) {
         throw new RuntimeException('Expected unmanifested EPUB image to be marked as a review attachment candidate');
     }
@@ -360,6 +384,10 @@ echo 'guideReferences=' . count($result['guide']['items'] ?? []) . "\n";
 echo 'guideTextTarget=' . ($result['guide']['items'][0]['target'] ?? '') . "\n";
 echo 'collectionRole=' . ($result['collections'][0]['role'] ?? '') . "\n";
 echo 'collectionFirstTarget=' . ($result['collections'][0]['links'][0]['target'] ?? '') . "\n";
+echo 'metadataLinks=' . count($result['metadata']['links'] ?? []) . "\n";
+echo 'metadataRecordTarget=' . ($result['metadata']['links'][0]['target'] ?? '') . "\n";
+echo 'metadataRecordSha256=' . ($result['metadata']['links'][0]['byteSha256'] ?? '') . "\n";
+echo 'remoteMetadataLink=' . (($result['metadata']['links'][1]['external'] ?? false) ? 'yes' : 'no') . "\n";
 echo 'renditions=' . ($result['renditions']['count'] ?? 0) . "\n";
 echo 'alternateRenditionTitle=' . ($result['renditions']['items'][1]['metadata']['title'] ?? '') . "\n";
 echo 'alternateRenditionLayout=' . ($result['renditions']['items'][1]['renditionProperties']['layout'] ?? '') . "\n";

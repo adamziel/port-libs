@@ -622,6 +622,70 @@ return [
         $t->same(2, count($result['document']->children));
         $t->contains('Chapter XHTML stays available', $result['document']->children[0]->attr('html'));
     },
+    'parses OPF metadata link records without treating linked records as undeclared assets' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $reviewRecordBytes = '{"@context":"https://schema.org","name":"WordPress EPUB review record"}';
+        $opfWithMetadataLinks = str_replace(
+            '</metadata>',
+            '<link id="review-record" rel="record alternate" href="meta/review-record.json" media-type="application/ld+json" properties="schema-org reviewer" hreflang="en"/>'
+            . '<link id="remote-onix" rel="record" href="https://metadata.example.test/onix/source.xml" media-type="application/xml" properties="onix"/>'
+            . '<link id="creator-voicing" rel="voicing" refines="#creator" href="audio/creator-name.mp3" media-type="audio/mpeg"/>'
+            . '</metadata>',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithMetadataLinks,
+            null,
+            [
+                ['name' => 'OEBPS/meta/review-record.json', 'data' => $reviewRecordBytes],
+            ]
+        ));
+
+        $links = $result['metadata']['links'];
+        $t->same(3, count($links));
+        $t->same('review-record', $links[0]['id']);
+        $t->same(['record', 'alternate'], $links[0]['rel']);
+        $t->same('meta/review-record.json', $links[0]['href']);
+        $t->same('/OEBPS/meta/review-record.json', $links[0]['target']);
+        $t->same('/OEBPS/meta/review-record.json', $links[0]['part']);
+        $t->same(false, $links[0]['external']);
+        $t->same(true, $links[0]['exists']);
+        $t->same(strlen($reviewRecordBytes), $links[0]['byteLength']);
+        $t->same(hash('sha256', $reviewRecordBytes), $links[0]['byteSha256']);
+        $t->same('application/ld+json', $links[0]['mediaType']);
+        $t->same(null, $links[0]['manifestId']);
+        $t->same(['schema-org', 'reviewer'], $links[0]['properties']);
+        $t->same('en', $links[0]['hreflang']);
+        $t->same([], $links[0]['diagnostics']);
+
+        $t->same('remote-onix', $links[1]['id']);
+        $t->same(['record'], $links[1]['rel']);
+        $t->same('https://metadata.example.test/onix/source.xml', $links[1]['target']);
+        $t->same(null, $links[1]['part']);
+        $t->same(true, $links[1]['external']);
+        $t->same(false, $links[1]['exists']);
+        $t->same(null, $links[1]['byteSha256']);
+        $t->same('external-metadata-reference', $links[1]['diagnostics'][0]['type']);
+
+        $t->same('creator-voicing', $links[2]['id']);
+        $t->same(['voicing'], $links[2]['rel']);
+        $t->same('#creator', $links[2]['refines']);
+        $t->same('/OEBPS/audio/creator-name.mp3', $links[2]['target']);
+        $t->same(false, $links[2]['exists']);
+        $t->same('missing-metadata-reference', $links[2]['diagnostics'][0]['type']);
+
+        $t->same(2, count($result['metadata']['linksByRel']['record']));
+        $t->same($links[0], $result['metadata']['linksByRel']['record'][0]);
+        $t->same($links[2], $result['metadata']['linksByRel']['voicing'][0]);
+        $t->same($links, $result['importReport']['metadata']['links']);
+        $t->same($links, $result['document']->attr('metadata')['links']);
+
+        $unmanifestedParts = array_map(
+            static fn (array $item): ?string => $item['part'] ?? null,
+            $result['importReport']['assets']['unmanifestedItems']
+        );
+        $t->same(false, in_array('/OEBPS/meta/review-record.json', $unmanifestedParts, true));
+    },
     'reports cover image attachment candidates and unmanifested package assets' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $result = (new EpubReader())->readPackage($buildEpubPackage(
             null,

@@ -265,6 +265,7 @@ final class EpubReader
         $manifestById = $this->readManifest($package, $opfPart, $manifestElement);
         $encryption = $this->readEncryption($package, $manifestById);
         $manifestById = $this->attachEncryptionToManifest($manifestById, $encryption);
+        $metadata = $this->resolveMetadataLinks($package, $opfPart, $metadata, $manifestById);
         $guide = $this->readGuide($package, $opfPart, self::firstChildElement($root, 'guide', self::OPF_NS), $manifestById);
         $collections = $this->readCollections($package, $opfPart, $root, $manifestById);
         $bindings = $this->readBindings($package, self::firstChildElement($root, 'bindings', self::OPF_NS), $manifestById);
@@ -541,6 +542,7 @@ final class EpubReader
         $dc = [];
         $metaProperties = [];
         $metaNames = [];
+        $links = [];
         $raw = [];
         $uniqueIdentifierValue = null;
 
@@ -563,7 +565,27 @@ final class EpubReader
                 continue;
             }
 
-            if ($child->namespaceURI !== self::OPF_NS || $child->localName !== 'meta') {
+            if ($child->namespaceURI !== self::OPF_NS) {
+                continue;
+            }
+
+            if ($child->localName === 'link') {
+                $entry = [
+                    'index' => count($links),
+                    'id' => self::nullableAttribute($child, 'id'),
+                    'rel' => self::spaceDelimited($child->getAttribute('rel')),
+                    'href' => self::nullableAttribute($child, 'href'),
+                    'mediaType' => self::nullableAttribute($child, 'media-type'),
+                    'properties' => self::spaceDelimited($child->getAttribute('properties')),
+                    'refines' => self::nullableAttribute($child, 'refines'),
+                    'hreflang' => self::nullableAttribute($child, 'hreflang'),
+                ];
+                $links[] = $entry;
+                $raw[] = ['type' => 'link'] + $entry;
+                continue;
+            }
+
+            if ($child->localName !== 'meta') {
                 continue;
             }
 
@@ -608,8 +630,108 @@ final class EpubReader
             'dc' => $dc,
             'metaProperties' => $metaProperties,
             'metaNames' => $metaNames,
+            'links' => $links,
+            'linksByRel' => self::linksByRel($links),
             'raw' => $raw,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @param array<string, array<string, mixed>> $manifestById
+     *
+     * @return array<string, mixed>
+     */
+    private function resolveMetadataLinks(
+        ZipPackage $package,
+        string $opfPart,
+        array $metadata,
+        array $manifestById
+    ): array {
+        $manifestByPart = self::manifestByPart($manifestById);
+        $links = [];
+        foreach (($metadata['links'] ?? []) as $index => $link) {
+            if (!is_array($link)) {
+                continue;
+            }
+
+            $href = $link['href'] ?? null;
+            $reference = $this->packageReference($package, $opfPart, is_string($href) ? $href : '', $manifestByPart, 'metadata');
+            $diagnostics = $reference['diagnostics'];
+            $byteSha256 = null;
+            if (
+                ($reference['exists'] ?? false) === true
+                && ($reference['external'] ?? false) !== true
+                && ($reference['canExposeBytes'] ?? false) === true
+                && is_string($reference['part'] ?? null)
+            ) {
+                try {
+                    $byteSha256 = hash('sha256', $package->read((string) $reference['part']));
+                } catch (\Throwable $exception) {
+                    $diagnostics[] = [
+                        'type' => 'metadata-link-bytes-unavailable',
+                        'part' => (string) $reference['part'],
+                        'message' => $exception->getMessage(),
+                    ];
+                }
+            }
+
+            $declaredMediaType = $link['mediaType'] ?? null;
+            $links[] = [
+                'index' => $index,
+                'id' => is_string($link['id'] ?? null) ? $link['id'] : null,
+                'rel' => is_array($link['rel'] ?? null) ? array_values($link['rel']) : [],
+                'href' => is_string($href) && $href !== '' ? $href : null,
+                'target' => $reference['target'],
+                'part' => $reference['part'],
+                'external' => $reference['external'],
+                'exists' => $reference['exists'],
+                'byteLength' => $reference['byteLength'],
+                'crc32' => $reference['crc32'],
+                'byteSha256' => $byteSha256,
+                'mediaType' => is_string($declaredMediaType) && $declaredMediaType !== ''
+                    ? $declaredMediaType
+                    : $reference['mediaType'],
+                'manifestId' => $reference['manifestId'],
+                'manifestMediaType' => $reference['mediaType'],
+                'properties' => is_array($link['properties'] ?? null) ? array_values($link['properties']) : [],
+                'refines' => is_string($link['refines'] ?? null) ? $link['refines'] : null,
+                'hreflang' => is_string($link['hreflang'] ?? null) ? $link['hreflang'] : null,
+                'encrypted' => $reference['encrypted'],
+                'canExposeBytes' => $reference['canExposeBytes'],
+                'diagnostics' => $diagnostics,
+            ];
+        }
+
+        $metadata['links'] = $links;
+        $metadata['linksByRel'] = self::linksByRel($links);
+
+        return $metadata;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function linksByRel(array $links): array
+    {
+        $byRel = [];
+        foreach ($links as $link) {
+            if (!is_array($link['rel'] ?? null)) {
+                continue;
+            }
+
+            foreach ($link['rel'] as $rel) {
+                if (!is_string($rel) || $rel === '') {
+                    continue;
+                }
+
+                $byRel[$rel][] = $link;
+            }
+        }
+
+        return $byRel;
     }
 
     /**
@@ -2057,6 +2179,10 @@ final class EpubReader
             $assets,
             static fn (array $asset): bool => ($asset['attachmentCandidate'] ?? false) === true,
         ));
+        foreach (self::metadataLinkedParts($metadata) as $linkedPart) {
+            $manifestParts[$linkedPart] = true;
+        }
+
         $unmanifestedItems = $this->unmanifestedPackageAssets($package, $manifestParts, $opfPart);
         $diagnostics = [];
         if ($unmanifestedItems !== []) {
@@ -2129,6 +2255,28 @@ final class EpubReader
         }
 
         return $items;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     *
+     * @return list<string>
+     */
+    private static function metadataLinkedParts(array $metadata): array
+    {
+        $parts = [];
+        foreach (($metadata['links'] ?? []) as $link) {
+            if (!is_array($link)) {
+                continue;
+            }
+
+            $part = $link['part'] ?? null;
+            if (is_string($part) && $part !== '') {
+                $parts[$part] = $part;
+            }
+        }
+
+        return array_values($parts);
     }
 
     /**
