@@ -32,7 +32,7 @@ $pdf = "%PDF-1.7\n"
     . "8 0 obj\n<< /Type /Filespec /F (review-note.txt) /Desc (Editorial handoff) /EF << /F 9 0 R >> >>\nendobj\n"
     . "9 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fplain /Params << /Size " . strlen($notesPayload) . " >> /Length " . strlen($notesPayload) . " >>\n"
     . "stream\n{$notesPayload}\nendstream\nendobj\n"
-    . "10 0 obj\n<< /Limits [(review-notes.csv) (review-notes.csv)] /Names [(review-notes.csv) 5 0 R (zz-stale.csv) 11 0 R] >>\nendobj\n"
+    . "10 0 obj\n<< /Limits [(review-notes.csv) (review-notes.csv)] /Names 18 0 R >>\nendobj\n"
     . "11 0 obj\n<< /Type /Filespec /F (zz-stale.csv) /Desc (Stale out-of-limits import rows) /AFRelationship /Data /EF << /F 12 0 R >> >>\nendobj\n"
     . "12 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($stalePayload) . " /CheckSum <{$staleChecksum}> >> /Length " . strlen($stalePayload) . " >>\n"
     . "stream\n{$stalePayload}\nendstream\nendobj\n"
@@ -44,6 +44,7 @@ $pdf = "%PDF-1.7\n"
     . "16 0 obj\n<< /Type /Filespec /F (page-source.xml) /Desc (Page-associated source export) /AFRelationship /Source /EF << /F 17 0 R >> >>\nendobj\n"
     . "17 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($pagePayload) . " /CheckSum <{$pageChecksum}> /ModDate (D:20260604210100Z) >> /Length " . strlen($pagePayload) . " >>\n"
     . "stream\n{$pagePayload}\nendstream\nendobj\n"
+    . "18 0 obj\n[(review-notes.csv) 5 0 R (zz-stale.csv) 11 0 R]\nendobj\n"
     . "%%EOF\n"
     . "5 0 obj\n<< /Type /Filespec /F (post-eof-stale.csv) /Desc (Post EOF stale import rows) /AFRelationship /Alternative /EF << /F 6 0 R >> >>\nendobj\n"
     . "6 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($postEofPayload) . " /CheckSum <{$postEofChecksum}> >> /Length " . strlen($postEofPayload) . " >>\n"
@@ -100,6 +101,7 @@ echo "<!-- markerpdf-pdf-attachments-smoke " . htmlspecialchars(json_encode([
     'total_bytes' => $summary['total_bytes'],
     'filenames' => $summary['filenames'],
     'pruned_out_of_limits_name_tree_entry' => true,
+    'indirect_embeddedfiles_names_array_preflight' => ($csvAttachment['source'] ?? null) === 'embedded-files-name-tree',
     'terminal_eof_bounds_attachment_scan' => !str_contains($summaryJson, 'post-eof-stale.csv'),
     'catalog_associated_file_preflight' => ($catalogAttachment['associated_file'] ?? false) === true,
     'page_associated_file_preflight' => ($pageAttachment['page_associated_file'] ?? false) === true,

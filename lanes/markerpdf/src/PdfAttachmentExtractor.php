@@ -265,7 +265,7 @@ final class PdfAttachmentExtractor
         $entries = [];
         $limits = $this->nameTreeEffectiveLimits($dict, $objects, $inheritedLimits);
         $childLimits = $limits;
-        $names = $this->arrayValue($dict['Names'] ?? null);
+        $names = $this->arrayValue($this->resolveValue($dict['Names'] ?? null, $objects));
         if ($names !== null) {
             $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $limits)
                 ? $limits

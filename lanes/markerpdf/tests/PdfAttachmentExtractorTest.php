@@ -138,6 +138,53 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, 'zz-stale.csv'));
         $t->true(is_string($encoded) && !str_contains($encoded, 'Stale,Ignore'));
     },
+    'resolves indirect EmbeddedFiles name-tree Names arrays in attachment preflight' => static function (TestRunner $t): void {
+        $currentPayload = "Title,Status\nIndirect Names Array,Ready\n";
+        $stalePayload = "Title,Status\nIndirect Names Stale,Ignore\n";
+        $currentChecksum = md5($currentPayload);
+        $staleChecksum = md5($stalePayload);
+
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Names << /EmbeddedFiles 2 0 R >> /AF [4 0 R] >>\nendobj\n"
+            . "2 0 obj\n<< /Limits [(current-indirect.csv) (current-indirect.csv)] /Names 8 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Filespec /F (current-indirect.csv) /Desc (Current indirect Names array rows) /AFRelationship /Data /EF << /F 5 0 R >> >>\nendobj\n"
+            . "5 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($currentPayload) . " /CheckSum <{$currentChecksum}> /ModDate (D:20260605015055Z) >> /Length " . strlen($currentPayload) . " >>\n"
+            . "stream\n{$currentPayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /Filespec /F (zz-indirect-stale.csv) /Desc (Stale indirect Names array rows) /AFRelationship /Alternative /EF << /F 7 0 R >> >>\nendobj\n"
+            . "7 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($stalePayload) . " /CheckSum <{$staleChecksum}> >> /Length " . strlen($stalePayload) . " >>\n"
+            . "stream\n{$stalePayload}\nendstream\nendobj\n"
+            . "8 0 obj\n[(current-indirect.csv) 4 0 R (zz-indirect-stale.csv) 6 0 R]\nendobj\n"
+            . "%%EOF\n";
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $encoded = json_encode($summary, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(strlen($currentPayload), $summary['total_bytes']);
+        $t->same(['current-indirect.csv'], $summary['filenames']);
+
+        $attachment = $summary['attachments'][0];
+        $t->same('embedded-files-name-tree', $attachment['source']);
+        $t->same('current-indirect.csv', $attachment['name_key']);
+        $t->same('current-indirect.csv', $attachment['filename']);
+        $t->same('Current indirect Names array rows', $attachment['description']);
+        $t->same('Data', $attachment['relationship']);
+        $t->same('base_data_for_visual_presentation', $attachment['relationship_role']);
+        $t->same('text/csv', $attachment['content_type']);
+        $t->same(strlen($currentPayload), $attachment['byte_length']);
+        $t->same($currentChecksum, $attachment['checksum_hex']);
+        $t->same($currentChecksum, $attachment['computed_checksum_hex']);
+        $t->same(true, $attachment['checksum_matches']);
+        $t->same('D:20260605015055Z', $attachment['modified_at']);
+        $t->same(true, $attachment['associated_file']);
+        $t->same('catalog_af', $attachment['associated_file_source']);
+        $t->same(false, array_key_exists('bytes', $attachment));
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'zz-indirect-stale.csv'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Indirect Names Stale'));
+        $t->true(is_string($encoded) && !str_contains($encoded, $currentPayload));
+    },
     'summarizes catalog associated FileSpec attachments and dedupes EmbeddedFiles mirrors' => static function (TestRunner $t): void {
         $sourcePayload = '<wp-export><post id="catalog-af"/></wp-export>';
         $sourceChecksum = md5($sourcePayload);
