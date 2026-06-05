@@ -33,8 +33,9 @@ final class PdfAttachmentExtractor
             return [];
         }
 
+        $catalogObjectIds = $this->selectedCatalogObjectIds($pdfBytes, $objects);
         $attachments = [];
-        foreach ($this->embeddedFilesNameTreeEntries($objects) as $entry) {
+        foreach ($this->embeddedFilesNameTreeEntries($objects, $catalogObjectIds) as $entry) {
             $attachment = $this->attachmentFromFileSpecValue(
                 $entry['fileSpec'],
                 $objects,
@@ -48,7 +49,7 @@ final class PdfAttachmentExtractor
             }
         }
 
-        foreach ($this->catalogAssociatedFileEntries($objects) as $entry) {
+        foreach ($this->catalogAssociatedFileEntries($objects, $catalogObjectIds) as $entry) {
             $attachment = $this->attachmentFromFileSpecValue(
                 $entry['fileSpec'],
                 $objects,
@@ -75,7 +76,7 @@ final class PdfAttachmentExtractor
             $attachments[] = $attachment;
         }
 
-        foreach ($this->pageAssociatedFileEntries($objects) as $entry) {
+        foreach ($this->pageAssociatedFileEntries($objects, $catalogObjectIds) as $entry) {
             $attachment = $this->attachmentFromFileSpecValue(
                 $entry['fileSpec'],
                 $objects,
@@ -106,7 +107,7 @@ final class PdfAttachmentExtractor
             $attachments[] = $attachment;
         }
 
-        foreach ($this->fileAttachmentAnnotationEntries($objects) as $entry) {
+        foreach ($this->fileAttachmentAnnotationEntries($objects, $catalogObjectIds) as $entry) {
             $attachment = $this->attachmentFromFileSpecValue(
                 $entry['fileSpec'],
                 $objects,
@@ -227,12 +228,58 @@ final class PdfAttachmentExtractor
 
     /**
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return list<int>|null
+     */
+    private function selectedCatalogObjectIds(string $pdfBytes, array $objects): ?array
+    {
+        $catalogObjectId = $this->latestTrailerRootCatalogObjectId($pdfBytes);
+        if ($catalogObjectId === null || !isset($objects[$catalogObjectId])) {
+            return null;
+        }
+
+        $catalog = $this->dict($objects[$catalogObjectId]['value']);
+        if ($catalog === null || $this->nameValue($catalog['Type'] ?? null) !== 'Catalog') {
+            return null;
+        }
+
+        return [$catalogObjectId];
+    }
+
+    private function latestTrailerRootCatalogObjectId(string $pdfBytes): ?int
+    {
+        $pdfBytes = $this->bytesThroughTerminalEof($pdfBytes);
+        $offset = $this->latestStartxrefOffset($pdfBytes);
+        if ($offset === null) {
+            return null;
+        }
+
+        $table = $this->xrefTableSectionAt($pdfBytes, $offset);
+        if ($table !== null) {
+            return $this->refObjectId($table['trailer']['Root'] ?? null);
+        }
+
+        $definitions = $this->directObjectDefinitions($pdfBytes);
+        $stream = $this->xrefStreamSectionAt($offset, $definitions);
+        if ($stream !== null) {
+            return $this->refObjectId($stream['dictionary']['Root'] ?? null);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param list<int>|null $catalogObjectIds
      * @return list<array{name: string, fileSpec: mixed}>
      */
-    private function embeddedFilesNameTreeEntries(array $objects): array
+    private function embeddedFilesNameTreeEntries(array $objects, ?array $catalogObjectIds = null): array
     {
         $entries = [];
-        foreach ($objects as $object) {
+        foreach ($objects as $objectId => $object) {
+            if ($catalogObjectIds !== null && !in_array($objectId, $catalogObjectIds, true)) {
+                continue;
+            }
+
             $dict = $this->dict($object['value']);
             if ($dict === null || $this->nameValue($dict['Type'] ?? null) !== 'Catalog') {
                 continue;
@@ -253,12 +300,17 @@ final class PdfAttachmentExtractor
 
     /**
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param list<int>|null $catalogObjectIds
      * @return list<array{catalogObjectId: int, associatedFileIndex: int, fileSpec: mixed}>
      */
-    private function catalogAssociatedFileEntries(array $objects): array
+    private function catalogAssociatedFileEntries(array $objects, ?array $catalogObjectIds = null): array
     {
         $entries = [];
         foreach ($objects as $objectId => $object) {
+            if ($catalogObjectIds !== null && !in_array($objectId, $catalogObjectIds, true)) {
+                continue;
+            }
+
             $dict = $this->dict($object['value']);
             if ($dict === null || $this->nameValue($dict['Type'] ?? null) !== 'Catalog') {
                 continue;
@@ -434,12 +486,13 @@ final class PdfAttachmentExtractor
 
     /**
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param list<int>|null $catalogObjectIds
      * @return list<array{pageNumber: int, pageObjectId: int, associatedFileIndex: int, fileSpec: mixed}>
      */
-    private function pageAssociatedFileEntries(array $objects): array
+    private function pageAssociatedFileEntries(array $objects, ?array $catalogObjectIds = null): array
     {
         $entries = [];
-        foreach ($this->pageObjectIds($objects) as $pageIndex => $pageObjectId) {
+        foreach ($this->pageObjectIds($objects, $catalogObjectIds) as $pageIndex => $pageObjectId) {
             if (!isset($objects[$pageObjectId])) {
                 continue;
             }
@@ -469,12 +522,13 @@ final class PdfAttachmentExtractor
 
     /**
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param list<int>|null $catalogObjectIds
      * @return list<array{pageNumber: int, pageObjectId: int, annotationObjectId: int|null, contents: string|null, rect: list<float>, fileSpec: mixed}>
      */
-    private function fileAttachmentAnnotationEntries(array $objects): array
+    private function fileAttachmentAnnotationEntries(array $objects, ?array $catalogObjectIds = null): array
     {
         $entries = [];
-        foreach ($this->pageObjectIds($objects) as $pageIndex => $pageObjectId) {
+        foreach ($this->pageObjectIds($objects, $catalogObjectIds) as $pageIndex => $pageObjectId) {
             if (!isset($objects[$pageObjectId])) {
                 continue;
             }
@@ -506,11 +560,16 @@ final class PdfAttachmentExtractor
 
     /**
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param list<int>|null $catalogObjectIds
      * @return list<int>
      */
-    private function pageObjectIds(array $objects): array
+    private function pageObjectIds(array $objects, ?array $catalogObjectIds = null): array
     {
-        foreach ($objects as $object) {
+        foreach ($objects as $objectId => $object) {
+            if ($catalogObjectIds !== null && !in_array($objectId, $catalogObjectIds, true)) {
+                continue;
+            }
+
             $dict = $this->dict($object['value']);
             if ($dict === null || $this->nameValue($dict['Type'] ?? null) !== 'Catalog') {
                 continue;
@@ -523,6 +582,10 @@ final class PdfAttachmentExtractor
                     return $pages;
                 }
             }
+        }
+
+        if ($catalogObjectIds !== null) {
+            return [];
         }
 
         $pages = [];
