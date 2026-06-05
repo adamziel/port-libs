@@ -980,13 +980,18 @@ final class CslStyle
     }
 
     /**
-     * @return array{type:string, prefix:string, suffix:string, variable:string, delimiter:string, dateParts:list<array{name:string, prefix:string, suffix:string, form:string, rangeDelimiter:string, stripPeriods:bool, textCase:string}>}
+     * @return array{type:string, prefix:string, suffix:string, variable:string, form:string, delimiter:string, dateParts:list<array{name:string, prefix:string, suffix:string, form:string, rangeDelimiter:string, stripPeriods:bool, textCase:string}>}
      */
     private static function dateRenderingElement(\DOMElement $date, string $scope): array
     {
         $variable = trim($date->getAttribute('variable'));
         if ($variable === '') {
             throw new \InvalidArgumentException('CSL ' . $scope . ' date element must declare a variable');
+        }
+
+        $form = strtolower(trim($date->getAttribute('form')));
+        if ($form !== '' && !in_array($form, ['text', 'numeric'], true)) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' date form must be text or numeric');
         }
 
         $dateParts = [];
@@ -1017,6 +1022,7 @@ final class CslStyle
             'prefix' => self::optionalAttribute($date, 'prefix'),
             'suffix' => self::optionalAttribute($date, 'suffix'),
             'variable' => $variable,
+            'form' => $form,
             'delimiter' => self::optionalAttribute($date, 'delimiter'),
             'dateParts' => $dateParts,
             'textCase' => self::textCaseAttribute($date, $scope),

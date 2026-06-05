@@ -31,6 +31,8 @@ The name-part style checks @name-part-source reviewer names.
 
 The date-part bibliography includes [@date-part-source] for reviewer calendars.
 
+The date-form bibliography reviews @date-form-source with localized full dates.
+
 The source archive keeps [see @missing-source; @{https://example.com/bib?name=foobar&date=2000}, p. 33] visible for reviewer follow-up.
 MARKDOWN;
 
@@ -136,6 +138,16 @@ $cslJson = <<<'JSON'
     ],
     "issued": {"date-parts": [[2026, 6, 5]]},
     "accessed": {"date-parts": [[2026, 6, 6]]}
+  },
+  {
+    "id": "date-form-source",
+    "type": "speech",
+    "title": "Localized Date Form Packet",
+    "author": [
+      {"literal": "Date Form Desk"}
+    ],
+    "issued": {"date-parts": [[2027, 3, 9]]},
+    "accessed": {"date-parts": [[2027, 3, 10]]}
   },
   {
     "id": "https://example.com/bib?name=foobar&date=2000",
@@ -260,6 +272,14 @@ $cslStyleXml = <<<'XML'
       <text macro="review-date-part-accessed" prefix="reviewed "/>
     </group>
   </macro>
+  <macro name="review-date-form-bibliography-entry">
+    <group delimiter=". " suffix=".">
+      <names variable="author editor"/>
+      <text variable="title"/>
+      <date variable="issued" form="text"/>
+      <date variable="accessed" form="numeric" prefix="checked "/>
+    </group>
+  </macro>
   <macro name="review-source-locator">
     <choose>
       <if variable="DOI" match="any">
@@ -322,6 +342,9 @@ $cslStyleXml = <<<'XML'
         </if>
         <else-if type="personal_communication" match="any">
           <text macro="review-date-part-bibliography-entry"/>
+        </else-if>
+        <else-if type="speech" match="any">
+          <text macro="review-date-form-bibliography-entry"/>
         </else-if>
         <else>
           <text macro="review-bibliography-entry"/>
@@ -394,6 +417,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['macros']['review-date-part-issued'][0]['dateParts'][2]['prefix'] ?? null) !== "'") {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve issued year date-part prefix');
     }
+    if (($summary['macros']['review-date-form-bibliography-entry'][0]['children'][2]['form'] ?? null) !== 'text') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve issued text date form');
+    }
+    if (($summary['macros']['review-date-form-bibliography-entry'][0]['children'][3]['form'] ?? null) !== 'numeric') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve accessed numeric date form');
+    }
     if (($summary['macros']['review-bibliography-entry'][0]['children'][1]['branches'][0]['types'][0] ?? null) !== 'dataset') {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve the quoted dataset branch');
     }
@@ -422,6 +451,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>The quoted style checks Quote Desk (2026) title punctuation.</p>',
         '<p>The name-part style checks de la Cruz (1998) reviewer names.</p>',
         '<p>The date-part bibliography includes (Date Desk 2026) for reviewer calendars.</p>',
+        '<p>The date-form bibliography reviews Date Form Desk (2027) with localized full dates.</p>',
+        '<dt>Date Form Desk 2027</dt><dd>[Date Form Desk. Localized Date Form Packet. March 9, 2027. checked 3/10/2027.]</dd>',
         '<dt>Migration Desk 2026</dt><dd>[Migration Desk. Migration Review: Source Import and API. Review Press, 2026. No stable source locator.]</dd>',
         '<dt>Quote Desk 2026</dt><dd>[Quote Desk. “Source Packet”. Review Press, 2026. No stable source locator.]</dd>',
         '<dt>Editor Desk 2026</dt><dd>[Editor Desk. Edited Source Packet. 2026. No stable source locator.]</dd>',
@@ -438,6 +469,7 @@ if (($argv[1] ?? '') === '--self-test') {
     }
 
     $sortedTerms = [
+        '<dt>Date Form Desk 2027</dt>',
         '<dt>Date Desk 2026</dt>',
         '<dt>de la Cruz 2026</dt>',
         '<dt>Quote Desk 2026</dt>',

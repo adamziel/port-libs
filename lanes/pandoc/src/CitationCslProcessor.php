@@ -3464,6 +3464,11 @@ final class CitationCslProcessor
             );
         }
 
+        $form = strtolower(trim((string) ($element['form'] ?? '')));
+        if ($form === 'text' || $form === 'numeric') {
+            return $this->renderDateForm($date, $form, $scope, $variable);
+        }
+
         return $this->renderDateVariable($date, $scope, $variable);
     }
 
@@ -4268,6 +4273,93 @@ final class CitationCslProcessor
         $values = array_values(array_unique($values));
 
         return implode($this->dateRangeDelimiter($parts, $specs), $values);
+    }
+
+    /**
+     * @param array{year:?int, parts:list<int>, display:string, literal:string, rangeParts?:list<list<int>>} $date
+     */
+    private function renderDateForm(array $date, string $form, string $scope, string $variable): string
+    {
+        $rangeParts = is_array($date['rangeParts'] ?? null) ? $date['rangeParts'] : [];
+        $singleParts = is_array($date['parts'] ?? null) ? $date['parts'] : [];
+        if ($rangeParts === [] && $singleParts === []) {
+            return $this->renderDateVariable($date, $scope, $variable);
+        }
+
+        $parts = $rangeParts !== [] ? $rangeParts : [$singleParts];
+        $values = [];
+        foreach ($parts as $dateParts) {
+            if (!is_array($dateParts)) {
+                continue;
+            }
+
+            $value = $form === 'numeric'
+                ? $this->renderNumericDateFormParts($dateParts)
+                : $this->renderTextDateFormParts($dateParts);
+            if ($value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        if ($values === []) {
+            return '';
+        }
+
+        return implode('/', array_values(array_unique($values)));
+    }
+
+    /**
+     * @param list<int> $parts
+     */
+    private function renderTextDateFormParts(array $parts): string
+    {
+        $year = $parts[0] ?? null;
+        if ($year === null) {
+            return '';
+        }
+
+        $month = $parts[1] ?? null;
+        $day = $parts[2] ?? null;
+        $yearText = $this->formatCslDateYearPart((int) $year, 'long');
+        if ($month === null) {
+            return $yearText;
+        }
+
+        $monthText = $this->formatCslDateMonthPart((int) $month, 'long');
+        if ($monthText === '') {
+            return $yearText;
+        }
+
+        if ($day === null) {
+            return $monthText . ' ' . $yearText;
+        }
+
+        return $monthText . ' ' . $this->formatCslDateDayPart((int) $day, 'numeric') . ', ' . $yearText;
+    }
+
+    /**
+     * @param list<int> $parts
+     */
+    private function renderNumericDateFormParts(array $parts): string
+    {
+        $year = $parts[0] ?? null;
+        if ($year === null) {
+            return '';
+        }
+
+        $month = $parts[1] ?? null;
+        $day = $parts[2] ?? null;
+        $yearText = $this->formatCslDateYearPart((int) $year, 'long');
+        if ($month === null) {
+            return $yearText;
+        }
+
+        $monthText = $this->formatCslDateMonthPart((int) $month, 'numeric');
+        if ($day === null) {
+            return $monthText . '/' . $yearText;
+        }
+
+        return $monthText . '/' . $this->formatCslDateDayPart((int) $day, 'numeric') . '/' . $yearText;
     }
 
     /**

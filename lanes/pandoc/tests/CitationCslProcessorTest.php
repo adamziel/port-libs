@@ -908,6 +908,90 @@ XML);
 </style>
 XML));
     },
+    'applies bounded csl date element text and numeric forms' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'date-form-source',
+                'type' => 'report',
+                'title' => 'Date Form Packet',
+                'author' => [
+                    ['literal' => 'Date Form Desk'],
+                ],
+                'issued' => ['date-parts' => [[2027, 3, 9]]],
+                'accessed' => ['date-parts' => [[2027, 3, 10], [2027, 3, 11]]],
+                'event-date' => ['date-parts' => [[2026, 12]]],
+            ],
+            [
+                'id' => 'range-form-source',
+                'type' => 'report',
+                'title' => 'Range Form Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2020, 5], [2021, 6]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Date Form Review Style</title>
+    <id>https://example.test/styles/bounded-date-form-review</id>
+    <updated>2026-06-05T10:38:10+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued" form="text"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="issued" form="text"/>
+      <date variable="accessed" form="numeric"/>
+      <date variable="event-date" form="text" prefix="event "/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Date Form Review Style', $summary['title'] ?? null);
+        $t->same('text', $summary['citationRendering'][0]['children'][1]['form'] ?? null);
+        $t->same('text', $summary['bibliographyRendering'][1]['form'] ?? null);
+        $t->same('numeric', $summary['bibliographyRendering'][2]['form'] ?? null);
+        $t->same('event ', $summary['bibliographyRendering'][3]['prefix'] ?? null);
+
+        $t->same('(Date Form Desk March 9, 2027; Ng May 2020/June 2021)', $processor->renderCitationCluster([
+            $citation('date-form-source', '[@date-form-source]'),
+            $citation('range-form-source', '[@range-form-source]'),
+        ]));
+        $t->same('Date Form Packet :: March 9, 2027 :: 3/10/2027/3/11/2027 :: event December 2026', $processor->renderBibliographyEntry('date-form-source'));
+        $t->same('Range Form Packet :: May 2020/June 2021', $processor->renderBibliographyEntry('range-form-source'));
+
+        $document = (new MarkdownReader())->read('Date-form source [@date-form-source] and range [@range-form-source] stay reviewable.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Date-form source (Date Form Desk March 9, 2027) and range (Ng May 2020/June 2021) stay reviewable.', $markdown);
+        $t->contains('Date Form Desk 2027' . "\n" . ':   Date Form Packet :: March 9, 2027 :: 3/10/2027/3/11/2027 :: event December 2026', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Date-form source (Date Form Desk March 9, 2027) and range (Ng May 2020/June 2021) stay reviewable.</p>', $blocks);
+        $t->contains('<dt>Date Form Desk 2027</dt><dd>Date Form Packet :: March 9, 2027 :: 3/10/2027/3/11/2027 :: event December 2026</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <date variable="issued" form="roman"/>
+    </layout>
+  </citation>
+</style>
+XML));
+    },
     'maps bounded biblatex subtitle short title and title addon metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{title-review,
