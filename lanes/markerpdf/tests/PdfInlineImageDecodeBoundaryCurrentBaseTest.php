@@ -38,6 +38,106 @@ $ascii85Encode = static function (string $bytes, bool $includeTerminator = true)
     return $encoded . ($includeTerminator ? '~>' : '');
 };
 
+$lzwPackCodes = static function (array $codes, int $earlyChange = 1): string {
+    $earlyChange = $earlyChange === 0 ? 0 : 1;
+    $dictionary = [];
+    $nextCode = 258;
+    $codeSize = 9;
+    $bits = '';
+
+    $resetDictionary = static function () use (&$dictionary, &$nextCode, &$codeSize): void {
+        $dictionary = [];
+        for ($code = 0; $code < 256; $code++) {
+            $dictionary[$code] = chr($code);
+        }
+        $nextCode = 258;
+        $codeSize = 9;
+    };
+
+    $writeCode = static function (int $code) use (&$bits, &$codeSize): void {
+        if ($code < 0 || $code >= (1 << $codeSize)) {
+            throw new RuntimeException('Focused inline LZW fixture code does not fit the current code size.');
+        }
+
+        for ($shift = $codeSize - 1; $shift >= 0; $shift--) {
+            $bits .= (($code >> $shift) & 1) === 1 ? '1' : '0';
+        }
+    };
+
+    $resetDictionary();
+    $previous = null;
+    foreach ($codes as $code) {
+        if (!is_int($code) || $code < 0 || $code > 4095) {
+            throw new RuntimeException('Focused inline LZW fixture codes must be 12-bit integers.');
+        }
+
+        $writeCode($code);
+        if ($code === 256) {
+            $resetDictionary();
+            $previous = null;
+            continue;
+        }
+
+        if ($code === 257) {
+            break;
+        }
+
+        if (isset($dictionary[$code])) {
+            $entry = $dictionary[$code];
+        } elseif ($code === $nextCode && $previous !== null) {
+            $entry = $previous . $previous[0];
+        } else {
+            throw new RuntimeException('Focused inline LZW fixture references an unknown dictionary code.');
+        }
+
+        if ($previous !== null && $nextCode < 4096) {
+            $dictionary[$nextCode] = $previous . $entry[0];
+            $nextCode++;
+            if ($codeSize < 12 && $nextCode + $earlyChange >= (1 << $codeSize)) {
+                $codeSize++;
+            }
+        }
+        $previous = $entry;
+    }
+
+    $encoded = '';
+    for ($offset = 0, $length = strlen($bits); $offset < $length; $offset += 8) {
+        $byte = substr($bits, $offset, 8);
+        if (strlen($byte) < 8) {
+            $byte = str_pad($byte, 8, '0');
+        }
+        $encoded .= chr(bindec($byte));
+    }
+
+    return $encoded;
+};
+
+$lzwLiteralEncode = static function (string $bytes, int $earlyChange = 1) use ($lzwPackCodes): string {
+    return $lzwPackCodes([
+        256,
+        ...array_map('ord', str_split($bytes)),
+        257,
+    ], $earlyChange);
+};
+
+$tiffPredictorEncode = static function (string $bytes, int $columns): string {
+    $encoded = '';
+    for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += $columns) {
+        $row = substr($bytes, $offset, $columns);
+        if (strlen($row) !== $columns) {
+            throw new RuntimeException('Focused inline predictor rows must be fixed-width.');
+        }
+
+        $raw = $row;
+        for ($index = 1; $index < $columns; $index++) {
+            $row[$index] = chr((ord($raw[$index]) - ord($raw[$index - 1])) & 0xff);
+        }
+        $encoded .= $row;
+    }
+
+    return $encoded;
+};
+
 return [
     'requires ASCII85 inline image end marker before accepting delimiter-looking EI bytes' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
@@ -149,6 +249,51 @@ return [
         $t->true(!str_contains($plainText, 'X EI'));
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+    },
+    'decodes LZW DecodeParms inline image payload before Indexed RGB preview' => static function (TestRunner $t) use ($lzwLiteralEncode, $tiffPredictorEncode): void {
+        $renderer = new PdfImageRenderer();
+        $objects = [
+            91 => '<000000FF000000FF000000FF>',
+        ];
+        $decodedImageBytes = "\x00\x55\xff";
+        $predictedImageBytes = $tiffPredictorEncode($decodedImageBytes, 3);
+        $payload = $lzwLiteralEncode($predictedImageBytes, 0);
+
+        $preview = $renderer->inlineIndexedImageStreamPreviewRows(
+            '/W 3 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /F /LZW /DP << /Predictor 2 /Columns 3 /Colors 1 /BitsPerComponent 8 /EarlyChange 0 >> /D [0 3]',
+            $payload,
+            $objects,
+            3
+        );
+
+        $t->same(true, $preview['inline_image']['uses_abbreviations']);
+        $t->same('<< /Width 3 /Height 1 /ColorSpace [/Indexed /DeviceRGB 3 91 0 R] /BitsPerComponent 8 /Filter /LZWDecode /DecodeParms << /Predictor 2 /Columns 3 /Colors 1 /BitsPerComponent 8 /EarlyChange 0 >> /Decode [0 3] >>', $preview['inline_image']['canonical_dictionary']);
+        $t->same(['LZWDecode'], $preview['image_stream']['filters']);
+        $t->same([], $preview['image_stream']['preview_only_filters']);
+        $t->same([], $preview['image_stream']['unsupported_filters']);
+        $t->same(strlen($payload), $preview['image_stream']['raw_length']);
+        $t->same(3, $preview['image_stream']['decoded_length']);
+        $t->same(hash('sha256', $decodedImageBytes), $preview['image_stream']['decoded_sha256']);
+        $t->same('0055FF', $preview['image_stream']['decoded_preview_hex']);
+        $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $preview['image_stream']['decode_failed']);
+        $t->same(3, $preview['preview_pixel_count']);
+        $t->same(true, $preview['complete_image_sample_data']);
+        $t->same([0.0, 85.0, 255.0], array_column($preview['pixels'], 'raw_sample'));
+        $t->same([0, 1, 3], array_column($preview['pixels'], 'palette_index'));
+        $t->same([0.0, 0.0, 0.0], $preview['pixels'][0]['base_components']);
+        $t->same([1.0, 0.0, 0.0], $preview['pixels'][1]['base_components']);
+        $t->same([0.0, 0.0, 1.0], $preview['pixels'][2]['base_components']);
+        $t->contains('inline_indexed_image_stream_filters_decoded_before_rgb_conversion', implode(',', $preview['stream_notes']));
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineIndexedImageStreamPreviewRows(
+                '/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /F /LZW /DP << /EarlyChange 2 >> /D [0 3]',
+                $lzwLiteralEncode("\x00"),
+                $objects,
+                1
+            )
+        );
     },
     'resolves current indirect inline image decode operands before Indexed RGB preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();

@@ -5547,6 +5547,7 @@ final class PdfImageRenderer
                 'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $resolvedDecodeParms, $objects),
+                'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $resolvedDecodeParms, $objects),
                 default => null,
             };
 
@@ -5610,7 +5611,7 @@ final class PdfImageRenderer
             return true;
         }
 
-        foreach (['Predictor', 'Columns', 'Colors', 'BitsPerComponent'] as $name) {
+        foreach (['Predictor', 'Columns', 'Colors', 'BitsPerComponent', 'EarlyChange'] as $name) {
             if (
                 $this->extractPdfNameValue($decodeParms, $name) !== null
                 && $this->decodeParmsInt($decodeParms, $name, $objects) === null
@@ -5620,7 +5621,11 @@ final class PdfImageRenderer
         }
 
         $predictor = $this->decodeParmsInt($decodeParms, 'Predictor', $objects);
-        if ($predictor !== null && $predictor !== 1 && !in_array($filter, ['FlateDecode', 'Fl'], true)) {
+        if (
+            $predictor !== null
+            && $predictor !== 1
+            && !in_array($filter, ['FlateDecode', 'Fl', 'LZWDecode', 'LZW'], true)
+        ) {
             return false;
         }
 
@@ -5629,6 +5634,15 @@ final class PdfImageRenderer
             if ($value !== null && $value < 1) {
                 return false;
             }
+        }
+
+        $earlyChange = $this->decodeParmsInt($decodeParms, 'EarlyChange', $objects);
+        if (
+            in_array($filter, ['LZWDecode', 'LZW'], true)
+            && $earlyChange !== null
+            && !in_array($earlyChange, [0, 1], true)
+        ) {
+            return false;
         }
 
         return true;
@@ -5808,6 +5822,81 @@ final class PdfImageRenderer
         }
 
         return $this->applyDecodeParmsPredictor($inflated, $decodeParms, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodeLzwStream(string $stream, ?string $decodeParms = null, array $objects = []): ?string
+    {
+        $earlyChange = ($this->decodeParmsInt($decodeParms, 'EarlyChange', $objects) ?? 1) === 0 ? 0 : 1;
+        $bitOffset = 0;
+        $dictionary = [];
+        $nextCode = 258;
+        $codeSize = 9;
+
+        $resetDictionary = static function () use (&$dictionary, &$nextCode, &$codeSize): void {
+            $dictionary = [];
+            for ($code = 0; $code < 256; $code++) {
+                $dictionary[$code] = chr($code);
+            }
+            $nextCode = 258;
+            $codeSize = 9;
+        };
+        $resetDictionary();
+
+        $out = '';
+        $previous = null;
+        while (($code = $this->readLzwCode($stream, $bitOffset, $codeSize)) !== null) {
+            if ($code === 256) {
+                $resetDictionary();
+                $previous = null;
+                continue;
+            }
+
+            if ($code === 257) {
+                return $this->applyDecodeParmsPredictor($out, $decodeParms, $objects);
+            }
+
+            if (isset($dictionary[$code])) {
+                $entry = $dictionary[$code];
+            } elseif ($code === $nextCode && $previous !== null) {
+                $entry = $previous . $previous[0];
+            } else {
+                return null;
+            }
+
+            $out .= $entry;
+            if ($previous !== null && $nextCode < 4096) {
+                $dictionary[$nextCode] = $previous . $entry[0];
+                $nextCode++;
+                if ($codeSize < 12 && $nextCode + $earlyChange >= (1 << $codeSize)) {
+                    $codeSize++;
+                }
+            }
+            $previous = $entry;
+        }
+
+        return null;
+    }
+
+    private function readLzwCode(string $bytes, int &$bitOffset, int $codeSize): ?int
+    {
+        $totalBits = strlen($bytes) * 8;
+        if ($bitOffset + $codeSize > $totalBits) {
+            return null;
+        }
+
+        $code = 0;
+        for ($index = 0; $index < $codeSize; $index++) {
+            $absoluteBit = $bitOffset + $index;
+            $byte = ord($bytes[intdiv($absoluteBit, 8)]);
+            $shift = 7 - ($absoluteBit % 8);
+            $code = ($code << 1) | (($byte >> $shift) & 1);
+        }
+        $bitOffset += $codeSize;
+
+        return $code;
     }
 
     /**
