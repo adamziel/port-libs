@@ -94,6 +94,44 @@ $pdftextCharsPage = static function (): array {
     ];
 };
 
+$pdftextMinimalCharsPage = static function (): array {
+    $font = ['name' => 'Courier', 'flags' => 1 << 0, 'weight' => 400, 'size' => 10.0];
+
+    return [
+        'page' => 21,
+        'bbox' => [0.0, 0.0, 640.0, 480.0],
+        'width' => 640.0,
+        'height' => 480.0,
+        'rotation' => 0,
+        'blocks' => [[
+            'bbox' => [0.20, 0.30, 0.46, 0.34],
+            'lines' => [[
+                'bbox' => [0.20, 0.30, 0.46, 0.34],
+                'spans' => [[
+                    'text' => "Minimal chars\n",
+                    'bbox' => [0.20, 0.30, 0.46, 0.34],
+                    'font' => $font + ['raw_font_program' => 'hidden parent font payload'],
+                    'rotation' => 270,
+                    'char_start_idx' => 41,
+                    'char_end_idx' => 42,
+                    'chars' => [
+                        [
+                            'char' => 'M',
+                            'bbox' => [0.20, 0.30, 0.215, 0.34],
+                            'raw_pdf_bytes' => 'hidden minimal char payload',
+                        ],
+                        [
+                            'char' => 'i',
+                            'bbox' => [0.215, 0.30, 0.23, 0.34],
+                            'debug_payload' => ['stream' => 'hidden minimal debug payload'],
+                        ],
+                    ],
+                ]],
+            ]],
+        ]],
+    ];
+};
+
 $pdftextScriptPage = static function (): array {
     $font = ['name' => 'Helvetica', 'flags' => 0, 'weight' => 400, 'size' => 11.0];
 
@@ -288,6 +326,27 @@ return [
         $t->true(!str_contains($encoded, 'raw_pdf_bytes'), 'pdftext keep_chars=true should still drop arbitrary character payload keys.');
         $t->true(!str_contains($encoded, 'debug_payload'), 'pdftext keep_chars=true should still drop arbitrary character debug payloads.');
         $t->true(!str_contains($encoded, 'raw_image_bytes'), 'Arbitrary span payload bytes must not cross the dictionary core boundary.');
+    },
+    'accepts locked pdftext minimal keep chars dictionaries at the core boundary' => static function (TestRunner $t) use ($pdftextMinimalCharsPage): void {
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextMinimalCharsPage()], maxPages: 1, keepChars: true);
+        $span = $document['pages'][0]['blocks'][0]['lines'][0]['spans'][0];
+        $charSpan = $document['pages'][0]['char_blocks'][0]['lines'][0]['spans'][0];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same('Minimal chars', $span['text']);
+        $t->same("Minimal chars\n", $charSpan['text']);
+        $t->same([128.0, 144.0, 294.4, 163.2], $span['bbox']);
+        $t->same([128.0, 144.0, 137.6, 163.2], $span['chars'][0]['bbox']);
+        $t->same([137.6, 144.0, 147.2, 163.2], $charSpan['chars'][1]['bbox']);
+        $t->same(270, $span['chars'][0]['rotation']);
+        $t->same(['name' => 'Courier', 'flags' => 1 << 0, 'weight' => 400, 'size' => 10.0], $charSpan['chars'][0]['font']);
+        $t->same(41, $span['chars'][0]['char_idx']);
+        $t->same(42, $charSpan['chars'][1]['char_idx']);
+        $t->same('Minimal chars', $blocks[0]['text']);
+        $t->true(!str_contains($encoded, 'hidden parent font payload'));
+        $t->true(!str_contains($encoded, 'hidden minimal char payload'));
+        $t->true(!str_contains($encoded, 'hidden minimal debug payload'));
     },
     'keeps upstream-shaped character font dictionaries at the keep chars boundary' => static function (TestRunner $t) use ($pdftextCharsPage): void {
         $page = $pdftextCharsPage();

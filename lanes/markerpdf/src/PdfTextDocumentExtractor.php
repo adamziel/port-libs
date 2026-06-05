@@ -309,7 +309,7 @@ final class PdfTextDocumentExtractor
                     if (!array_key_exists('chars', $span)) {
                         throw new InvalidArgumentException('pdftext span chars are required when keep_chars=true.');
                     }
-                    $sanitizedSpan['chars'] = $this->sanitizeDictionaryOutputChars($span['chars'], $bboxScale);
+                    $sanitizedSpan['chars'] = $this->sanitizeDictionaryOutputChars($span['chars'], $bboxScale, $sanitizedSpan);
                 }
                 $span = $sanitizedSpan;
             }
@@ -322,9 +322,10 @@ final class PdfTextDocumentExtractor
     /**
      * @param mixed $chars
      * @param array{width: float, height: float}|null $bboxScale
+     * @param array<string, mixed> $span
      * @return list<array<string, mixed>>
      */
-    private function sanitizeDictionaryOutputChars(mixed $chars, ?array $bboxScale = null): array
+    private function sanitizeDictionaryOutputChars(mixed $chars, ?array $bboxScale = null, array $span = []): array
     {
         if (!is_array($chars) || !array_is_list($chars)) {
             throw new InvalidArgumentException('pdftext span chars must be a list when keep_chars=true.');
@@ -343,7 +344,7 @@ final class PdfTextDocumentExtractor
                 }
             }
 
-            $sanitizedChar = $this->validatedDictionaryOutputChar($sanitizedChar, $index, $bboxScale);
+            $sanitizedChar = $this->validatedDictionaryOutputChar($sanitizedChar, $index, $bboxScale, $span);
 
             $sanitizedChars[] = $sanitizedChar;
         }
@@ -370,11 +371,12 @@ final class PdfTextDocumentExtractor
     /**
      * @param array<string, mixed> $char
      * @param array{width: float, height: float}|null $bboxScale
+     * @param array<string, mixed> $span
      * @return array{char: string, bbox: list<float>, rotation: int, font: array<string, mixed>, char_idx: int}
      */
-    private function validatedDictionaryOutputChar(array $char, int $index, ?array $bboxScale): array
+    private function validatedDictionaryOutputChar(array $char, int $index, ?array $bboxScale, array $span = []): array
     {
-        foreach (['char', 'bbox', 'rotation', 'font', 'char_idx'] as $key) {
+        foreach (['char', 'bbox'] as $key) {
             if (!array_key_exists($key, $char)) {
                 throw new InvalidArgumentException("pdftext char {$index}.{$key} is required when keep_chars=true.");
             }
@@ -387,15 +389,28 @@ final class PdfTextDocumentExtractor
         $bbox = $this->unnormalizeDictionaryOutputBbox($char['bbox'], $bboxScale);
         $char['bbox'] = $this->dictionaryOutputRequiredBbox($bbox, "char {$index}.bbox");
 
+        if (!array_key_exists('rotation', $char)) {
+            $char['rotation'] = $span['rotation'] ?? 0;
+        }
         $this->assertNumeric($char['rotation'], "char {$index}.rotation");
         $char['rotation'] = (int) $char['rotation'];
 
+        if (!array_key_exists('font', $char)) {
+            $char['font'] = $span['font'] ?? null;
+        }
         if (!is_array($char['font'])) {
             throw new InvalidArgumentException("pdftext char {$index}.font must be a dictionary when keep_chars=true.");
         }
         $this->assertDictionaryOutputFont($char['font'], "char {$index}.font");
         $char['font'] = $this->sanitizeDictionaryOutputFont($char['font']);
 
+        if (!array_key_exists('char_idx', $char)) {
+            if (!array_key_exists('char_start_idx', $span)) {
+                throw new InvalidArgumentException("pdftext char {$index}.char_idx is required when keep_chars=true.");
+            }
+            $this->assertNumeric($span['char_start_idx'], 'span.char_start_idx');
+            $char['char_idx'] = (int) $span['char_start_idx'] + $index;
+        }
         $this->assertNumeric($char['char_idx'], "char {$index}.char_idx");
         $char['char_idx'] = (int) $char['char_idx'];
 
