@@ -14,7 +14,7 @@ final class DocTemplate
      */
     public function render(string $template, array $context, array $partials = []): string
     {
-        return $this->renderTemplate($template, $context, $partials, []);
+        return $this->renderTemplate($template, $context, $this->normalizePartialMap($partials), []);
     }
 
     /**
@@ -70,6 +70,28 @@ final class DocTemplate
         return $normalized;
     }
 
+    /**
+     * @param array<string, string> $partials
+     * @return array<string, string>
+     */
+    private function normalizePartialMap(array $partials): array
+    {
+        $normalized = [];
+        foreach ($partials as $name => $source) {
+            if (!is_string($name)) {
+                throw new \InvalidArgumentException('Doctemplate partial names must be strings');
+            }
+
+            if (!is_string($source)) {
+                throw new \InvalidArgumentException("Doctemplate partial {$name} must be a string");
+            }
+
+            $normalized[$this->normalizePartialName($name)] = $source;
+        }
+
+        return $normalized;
+    }
+
     private function normalizeTemplateResourcePath(string $path): string
     {
         if ($path === '' || str_contains($path, "\0")) {
@@ -98,6 +120,29 @@ final class DocTemplate
         return ($absolute ? '/' : '') . implode('/', $segments);
     }
 
+    private function normalizePartialName(string $name): string
+    {
+        if ($name === '' || str_contains($name, "\0")) {
+            throw new \InvalidArgumentException('Invalid doctemplate partial name');
+        }
+
+        $name = str_replace('\\', '/', $name);
+        if (str_starts_with($name, '/')) {
+            throw new \InvalidArgumentException('Doctemplate partial names must be relative paths');
+        }
+
+        $segments = [];
+        foreach (explode('/', $name) as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                throw new \InvalidArgumentException('Doctemplate partial names must not contain empty, current-directory, or parent-directory segments');
+            }
+
+            $segments[] = $segment;
+        }
+
+        return implode('/', $segments);
+    }
+
     /**
      * @param array<string, string> $resources
      * @return array<string, string>
@@ -121,12 +166,12 @@ final class DocTemplate
                     continue;
                 }
 
-                $basename = $this->directTemplateResourceChild($resourcePath, $directory);
-                if ($basename === null) {
+                $relativePath = $this->relativeTemplateResourceChild($resourcePath, $directory);
+                if ($relativePath === null) {
                     continue;
                 }
 
-                foreach ($this->partialAliasesForResourceBasename($basename, $mainExtension) as $alias) {
+                foreach ($this->partialAliasesForResourcePath($relativePath, $mainExtension) as $alias) {
                     if (!array_key_exists($alias, $partials)) {
                         $partials[$alias] = $source;
                     }
@@ -186,10 +231,10 @@ final class DocTemplate
         return $directory . '/' . $basename;
     }
 
-    private function directTemplateResourceChild(string $path, string $directory): ?string
+    private function relativeTemplateResourceChild(string $path, string $directory): ?string
     {
         if ($directory === '') {
-            return str_contains($path, '/') ? null : $path;
+            return $this->isAbsoluteTemplateResourcePath($path) ? null : $path;
         }
 
         if ($directory === '/') {
@@ -199,7 +244,7 @@ final class DocTemplate
 
             $relative = substr($path, 1);
 
-            return $relative !== '' && !str_contains($relative, '/') ? $relative : null;
+            return $relative !== '' ? $relative : null;
         }
 
         $prefix = $directory . '/';
@@ -209,22 +254,23 @@ final class DocTemplate
 
         $relative = substr($path, strlen($prefix));
 
-        return $relative !== '' && !str_contains($relative, '/') ? $relative : null;
+        return $relative !== '' ? $relative : null;
     }
 
     /**
      * @return list<string>
      */
-    private function partialAliasesForResourceBasename(string $basename, string $mainExtension): array
+    private function partialAliasesForResourcePath(string $relativePath, string $mainExtension): array
     {
+        $basename = $this->templateResourceBasename($relativePath);
         $extension = $this->templateResourceExtension($basename);
         if ($extension === '') {
-            return $mainExtension === '' ? [$basename] : [];
+            return $mainExtension === '' ? [$relativePath] : [];
         }
 
-        $aliases = [$basename];
+        $aliases = [$relativePath];
         if ($extension === $mainExtension) {
-            $aliases[] = substr($basename, 0, -strlen($extension));
+            $aliases[] = substr($relativePath, 0, -strlen($extension));
         }
 
         return $aliases;
@@ -767,17 +813,12 @@ final class DocTemplate
      */
     private function parsePartialDirective(string $expression): ?array
     {
-        $parts = $this->splitPipeExpression($expression);
-        $base = array_shift($parts);
-        if ($base === null || !preg_match('/^([A-Za-z][A-Za-z0-9_.-]*)\\(\\)(?:\\[(.*)\\])?$/s', $base, $matches)) {
+        $partial = $this->parsePartialCallExpression($expression);
+        if ($partial === null) {
             return null;
         }
 
-        return [
-            'name' => $matches[1],
-            'separator' => array_key_exists(2, $matches) ? $matches[2] : null,
-            'pipes' => $this->parsePipeSpecs($parts, $expression),
-        ];
+        return $partial;
     }
 
     /**
@@ -785,20 +826,96 @@ final class DocTemplate
      */
     private function parseAppliedPartialDirective(string $expression): ?array
     {
-        $parts = $this->splitPipeExpression($expression);
-        $base = array_shift($parts);
-        if ($base === null || !preg_match('/^((?:it|[A-Za-z][A-Za-z0-9_.-]*)(?:\\[(.*)\\])?):([A-Za-z][A-Za-z0-9_.-]*)\\(\\)(?:\\[(.*)\\])?$/s', $base, $matches)) {
+        $colon = $this->findAppliedPartialColon($expression);
+        if ($colon === null) {
+            return null;
+        }
+
+        $variableSource = trim(substr($expression, 0, $colon), " \t");
+        $partialSource = trim(substr($expression, $colon + 1), " \t");
+        if ($variableSource === '' || $partialSource === '') {
+            return null;
+        }
+
+        $partial = $this->parsePartialCallExpression($partialSource);
+        if ($partial === null) {
             return null;
         }
 
         return [
-            'variable' => $this->parseVariableExpression($matches[1]),
-            'partial' => [
-                'name' => $matches[3],
-                'separator' => array_key_exists(4, $matches) ? $matches[4] : null,
-                'pipes' => $this->parsePipeSpecs($parts, $expression),
-            ],
+            'variable' => $this->parseVariableExpression($variableSource),
+            'partial' => $partial,
         ];
+    }
+
+    /**
+     * @return array{name:string, separator:?string, pipes:list<array{name:string, args:list<int|string>}>>|null
+     */
+    private function parsePartialCallExpression(string $expression): ?array
+    {
+        if (!preg_match('/^([A-Za-z0-9_.\\/\\\\-]+)\\(\\)(?:\\[(.*)\\])?(?:\\/(.*))?$/s', $expression, $matches)) {
+            return null;
+        }
+
+        return [
+            'name' => $this->normalizePartialName($matches[1]),
+            'separator' => array_key_exists(2, $matches) ? $matches[2] : null,
+            'pipes' => $this->parsePipeSuffix($matches[3] ?? '', $expression),
+        ];
+    }
+
+    /**
+     * @return list<array{name:string, args:list<int|string>}>
+     */
+    private function parsePipeSuffix(string $pipeSource, string $expression): array
+    {
+        if ($pipeSource === '') {
+            return [];
+        }
+
+        return $this->parsePipeSpecs($this->splitPipeExpression($pipeSource), $expression);
+    }
+
+    private function findAppliedPartialColon(string $expression): ?int
+    {
+        $bracketDepth = 0;
+        $inQuote = false;
+        $escape = false;
+        $length = strlen($expression);
+
+        for ($index = 0; $index < $length; $index++) {
+            $char = $expression[$index];
+            if ($escape) {
+                $escape = false;
+                continue;
+            }
+
+            if ($inQuote && $char === '\\') {
+                $escape = true;
+                continue;
+            }
+
+            if ($char === '"') {
+                $inQuote = !$inQuote;
+                continue;
+            }
+
+            if (!$inQuote && $char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+
+            if (!$inQuote && $char === ']' && $bracketDepth > 0) {
+                $bracketDepth--;
+                continue;
+            }
+
+            if (!$inQuote && $char === ':' && $bracketDepth === 0) {
+                return $index;
+            }
+        }
+
+        return null;
     }
 
     /**

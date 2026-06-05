@@ -10,24 +10,29 @@ $templatePath = 'review-packets/review.html';
 $resources = [
     $templatePath => <<<'HTML'
 <article class="wp-import-review">
-${ review-header() }
-${ warning-list() }
+${ components/review-header() }
+${ components/warning-list() }
 ${ review-body() }
 </article>
 HTML,
-    'review-packets/review-header.html' => <<<'HTML'
+    'review-packets/components/review-header.html' => <<<'HTML'
 <header>
 <h1>$title/uppercase$</h1>
 <p class="summary">$~$$warnings/length$ warnings queued for $title$$~$</p>
+<p class="next-warning">${ warnings/rest/first:components/next-warning()/uppercase }</p>
 <p class="authors">$for(authors/pairs)$$it.value.name$$sep$, $endfor$</p>
 </header>
 HTML,
-    'review-packets/warning-list.html' => <<<'HTML'
+    'review-packets/components/next-warning.html' => '$it.source$: $it.message$',
+    'review-packets/components/warning-list.html' => <<<'HTML'
 $if(warnings)$
 <ul class="warnings">
-$for(warnings)$<li data-index="$it.index$" data-source="$it.source$" data-review-title="$title$">$~$<span class="marker">$it.index/alpha/uppercase$.</span> <span class="source">${ it.source/uppercase/left 8 "{" "}" }</span> <span class="priority">$it.priority/roman/uppercase/right 4$</span> $it.message$$~$</li>
+$for(warnings)$${ components/warning-row() }
 $endfor$</ul>
 $endif$
+HTML,
+    'review-packets/components/warning-row.html' => <<<'HTML'
+<li data-index="$it.index$" data-source="$it.source$" data-review-title="$title$">$~$<span class="marker">$it.index/alpha/uppercase$.</span> <span class="source">${ it.source/uppercase/left 8 "{" "}" }</span> <span class="priority">$it.priority/roman/uppercase/right 4$</span> $it.message$$~$</li>
 HTML,
     'wp-data/templates/review-body.html' => <<<'HTML'
 <section class="wp-import-body">
@@ -69,6 +74,7 @@ if (in_array('--self-test', $argv, true)) {
     foreach ([
         '<h1>BATCH 42 REVIEW</h1>',
         '<p class="summary">27 warnings queued for Batch 42 Review</p>',
+        '<p class="next-warning">LINKS: VERIFY EDIT LINKS BEFORE PUBLISH</p>',
         '<p class="authors">Migration bot, Content editor</p>',
         '<li data-index="1" data-source="media" data-review-title="Batch 42 Review"><span class="marker">A.</span> <span class="source">{MEDIA   }</span> <span class="priority">   I</span> Check &amp; confirm alt text</li>',
         '<li data-index="2" data-source="links" data-review-title="Batch 42 Review"><span class="marker">B.</span> <span class="source">{LINKS   }</span> <span class="priority">  IV</span> Verify edit links before publish</li>',

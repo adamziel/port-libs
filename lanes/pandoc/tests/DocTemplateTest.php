@@ -533,6 +533,42 @@ HTML,
         ]), $output);
     },
 
+    'renders pandoc doctemplate path partials and piped variables applied to partials' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->renderResource('review-packets/review.html', [
+            'review-packets/review.html' => <<<'HTML'
+<article>
+${ components/review-header() }
+<section>
+${ warnings/rest:components/warning-row()[
+] }
+</section>
+Next: ${ warnings/rest/first:components/warning-summary()/uppercase }
+</article>
+HTML,
+            'review-packets/components/review-header.html' => '<header><h1>$title$</h1></header>' . "\n",
+            'review-packets/components/warning-row.html' => '<p data-source="$it.source$">$it.message$</p>' . "\n",
+            'review-packets/components/warning-summary.html' => '$it.source$: $it.message$',
+        ], [
+            'title' => 'Batch 42 Review',
+            'warnings' => [
+                ['source' => 'media', 'message' => 'Confirm alt text'],
+                ['source' => 'links', 'message' => 'Review redirects'],
+                ['source' => 'layout', 'message' => 'Check columns'],
+            ],
+        ]);
+
+        $t->same(implode("\n", [
+            '<article>',
+            '<header><h1>Batch 42 Review</h1></header>',
+            '<section>',
+            '<p data-source="links">Review redirects</p>',
+            '<p data-source="layout">Check columns</p>',
+            '</section>',
+            'Next: LINKS: REVIEW REDIRECTS',
+            '</article>',
+        ]), $output);
+    },
+
     'uses pandoc user data template fallback only for relative template resources' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 
