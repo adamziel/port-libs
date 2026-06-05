@@ -273,6 +273,7 @@ final class PdfEngineHandoff
      *     pdfFormXObjects: list<array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, inherited:bool, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     pdfFormXObjectFilters: array<string, int>,
      *     pdfOutlineTitles: list<string>,
+     *     pdfOutlines: list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}>,
      *     pdfDocumentInfo: array<string, string>,
      *     pdfXmpMetadata: array<string, mixed>,
      *     pdfOutputIntents: list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
@@ -672,6 +673,7 @@ final class PdfEngineHandoff
         $pdfFormXObjects = [];
         $pdfFormXObjectFilters = [];
         $pdfOutlineTitles = [];
+        $pdfOutlines = [];
         $pdfDocumentInfo = [];
         $pdfXmpMetadata = [];
         $pdfOutputIntents = [];
@@ -729,6 +731,7 @@ final class PdfEngineHandoff
                 $pdfFormXObjects = $pdfInspection['formXObjects'];
                 $pdfFormXObjectFilters = $pdfInspection['formXObjectFilters'];
                 $pdfOutlineTitles = $pdfInspection['outlineTitles'];
+                $pdfOutlines = $pdfInspection['outlines'];
                 $pdfDocumentInfo = $pdfInspection['documentInfo'];
                 $pdfXmpMetadata = $pdfInspection['xmpMetadata'];
                 $pdfOutputIntents = $pdfInspection['outputIntents'];
@@ -936,6 +939,38 @@ final class PdfEngineHandoff
                 }
                 if ($pdfOutlineTitles !== []) {
                     $diagnostics[] = 'pdf-byte-outline-items:' . count($pdfOutlineTitles);
+                }
+                if ($pdfOutlines !== []) {
+                    $diagnostics[] = 'pdf-byte-outline-metadata:' . count($pdfOutlines);
+                    $outlineOpenCount = 0;
+                    $outlineClosedCount = 0;
+                    $outlineDestinationCount = 0;
+                    $outlineActionCount = 0;
+                    foreach ($pdfOutlines as $outline) {
+                        if (($outline['open'] ?? null) === true) {
+                            $outlineOpenCount++;
+                        } elseif (($outline['open'] ?? null) === false) {
+                            $outlineClosedCount++;
+                        }
+                        if (($outline['destPageObject'] ?? null) !== null || ($outline['destFit'] ?? null) !== null) {
+                            $outlineDestinationCount++;
+                        }
+                        if (($outline['actionType'] ?? null) !== null) {
+                            $outlineActionCount++;
+                        }
+                    }
+                    if ($outlineOpenCount > 0) {
+                        $diagnostics[] = 'pdf-byte-outline-open:' . $outlineOpenCount;
+                    }
+                    if ($outlineClosedCount > 0) {
+                        $diagnostics[] = 'pdf-byte-outline-closed:' . $outlineClosedCount;
+                    }
+                    if ($outlineDestinationCount > 0) {
+                        $diagnostics[] = 'pdf-byte-outline-destinations:' . $outlineDestinationCount;
+                    }
+                    if ($outlineActionCount > 0) {
+                        $diagnostics[] = 'pdf-byte-outline-actions:' . $outlineActionCount;
+                    }
                 }
                 if ($pdfDocumentInfo !== []) {
                     $diagnostics[] = 'pdf-byte-document-info:' . count($pdfDocumentInfo);
@@ -1306,6 +1341,7 @@ final class PdfEngineHandoff
             'pdfFormXObjects' => $pdfFormXObjects,
             'pdfFormXObjectFilters' => $pdfFormXObjectFilters,
             'pdfOutlineTitles' => $pdfOutlineTitles,
+            'pdfOutlines' => $pdfOutlines,
             'pdfDocumentInfo' => $pdfDocumentInfo,
             'pdfXmpMetadata' => $pdfXmpMetadata,
             'pdfOutputIntents' => $pdfOutputIntents,
@@ -1384,6 +1420,7 @@ final class PdfEngineHandoff
      *     finalPdfObjectStreams: list<array{object:string, objectCount:int|null, firstByteOffset:int|null, extends:string|null, objectNumbers:list<int>, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     finalPdfObjectStreamFilters: array<string, int>,
      *     finalPdfOutlineTitles: list<string>,
+     *     finalPdfOutlines: list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}>,
      *     finalPdfDocumentInfo: array<string, string>,
      *     finalPdfXmpMetadata: array<string, mixed>,
      *     finalPdfOutputIntents: list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
@@ -1576,6 +1613,7 @@ final class PdfEngineHandoff
             'finalPdfObjectStreams' => is_array($finalRun) && is_array($finalRun['pdfObjectStreams'] ?? null) ? $finalRun['pdfObjectStreams'] : [],
             'finalPdfObjectStreamFilters' => is_array($finalRun) && is_array($finalRun['pdfObjectStreamFilters'] ?? null) ? $finalRun['pdfObjectStreamFilters'] : [],
             'finalPdfOutlineTitles' => is_array($finalRun) && is_array($finalRun['pdfOutlineTitles'] ?? null) ? $finalRun['pdfOutlineTitles'] : [],
+            'finalPdfOutlines' => is_array($finalRun) && is_array($finalRun['pdfOutlines'] ?? null) ? $finalRun['pdfOutlines'] : [],
             'finalPdfDocumentInfo' => is_array($finalRun) && is_array($finalRun['pdfDocumentInfo'] ?? null) ? $finalRun['pdfDocumentInfo'] : [],
             'finalPdfXmpMetadata' => is_array($finalRun) && is_array($finalRun['pdfXmpMetadata'] ?? null) ? $finalRun['pdfXmpMetadata'] : [],
             'finalPdfOutputIntents' => is_array($finalRun) && is_array($finalRun['pdfOutputIntents'] ?? null) ? $finalRun['pdfOutputIntents'] : [],
@@ -2661,6 +2699,7 @@ final class PdfEngineHandoff
      *     formXObjects:list<array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, inherited:bool, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     formXObjectFilters:array<string, int>,
      *     outlineTitles:list<string>,
+     *     outlines:list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}>,
      *     documentInfo:array<string, string>,
      *     xmpMetadata:array<string, mixed>,
      *     language:string|null,
@@ -2743,6 +2782,7 @@ final class PdfEngineHandoff
             'formXObjects' => $formXObjects,
             'formXObjectFilters' => $this->summarizePdfFormXObjectFilters($formXObjects),
             'outlineTitles' => $this->extractPdfOutlineTitles($pdfBytes),
+            'outlines' => $this->extractPdfOutlines($pdfBytes, $catalog),
             'documentInfo' => $this->extractPdfDocumentInfo($pdfBytes),
             'xmpMetadata' => $this->extractPdfXmpMetadata($pdfBytes, $catalog),
             'outputIntents' => $this->extractPdfOutputIntents($pdfBytes, $catalog),
@@ -7204,6 +7244,237 @@ final class PdfEngineHandoff
         }
 
         return $titles;
+    }
+
+    /**
+     * @return list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}>
+     */
+    private function extractPdfOutlines(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $outlines = [];
+        $visited = [];
+        $outlinesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Outlines');
+        if ($outlinesReference !== null) {
+            $root = $objects[$this->pdfReferenceKey($outlinesReference)] ?? null;
+            if ($root !== null) {
+                $first = $this->extractPdfReferenceToken($root, 'First');
+                if ($first !== null) {
+                    $this->collectPdfOutlinesFromSiblingChain(
+                        $objects,
+                        $this->pdfReferenceKey($first),
+                        $outlines,
+                        $visited,
+                        0
+                    );
+                }
+            }
+        }
+
+        if ($outlines === []) {
+            foreach ($objects as $reference => $body) {
+                if (!str_contains($body, '/Title')) {
+                    continue;
+                }
+                if (preg_match('/\/(?:Parent|Dest|A|Next|Prev|First|Last)\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $summary = $this->summarizePdfOutlineItem($reference, $body, $objects);
+                if ($summary !== null) {
+                    $outlines[] = $summary;
+                }
+            }
+            usort($outlines, fn (array $a, array $b): int => $this->pdfReferenceSortKey($a['object']) <=> $this->pdfReferenceSortKey($b['object']));
+        }
+
+        return $outlines;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}> $outlines
+     * @param array<string, bool> $visited
+     */
+    private function collectPdfOutlinesFromSiblingChain(
+        array $objects,
+        string $reference,
+        array &$outlines,
+        array &$visited,
+        int $depth
+    ): void {
+        $cursor = $reference;
+        $siblingCount = 0;
+        while ($depth <= 32 && $siblingCount < 256 && isset($objects[$cursor]) && !isset($visited[$cursor])) {
+            $visited[$cursor] = true;
+            $summary = $this->summarizePdfOutlineItem($cursor, $objects[$cursor], $objects);
+            if ($summary !== null) {
+                $outlines[] = $summary;
+            }
+
+            $first = $this->extractPdfReferenceToken($objects[$cursor], 'First');
+            if ($first !== null) {
+                $this->collectPdfOutlinesFromSiblingChain(
+                    $objects,
+                    $this->pdfReferenceKey($first),
+                    $outlines,
+                    $visited,
+                    $depth + 1
+                );
+            }
+
+            $next = $this->extractPdfReferenceToken($objects[$cursor], 'Next');
+            if ($next === null) {
+                return;
+            }
+            $cursor = $this->pdfReferenceKey($next);
+            $siblingCount++;
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}|null
+     */
+    private function summarizePdfOutlineItem(string $reference, string $dictionary, array $objects): ?array
+    {
+        $title = null;
+        foreach ($this->extractPdfNamedStrings($dictionary, 'Title') as $value) {
+            $trimmed = trim($value);
+            if ($trimmed !== '') {
+                $title = $trimmed;
+                break;
+            }
+        }
+        if ($title === null) {
+            return null;
+        }
+
+        $count = $this->extractPdfIntegerToken($dictionary, 'Count');
+        $destination = $this->extractPdfOutlineDestination($dictionary, $objects);
+        $action = $this->extractPdfOutlineAction($dictionary, $objects);
+
+        return [
+            'object' => $reference . ' R',
+            'title' => $title,
+            'parent' => $this->extractPdfReferenceToken($dictionary, 'Parent'),
+            'prev' => $this->extractPdfReferenceToken($dictionary, 'Prev'),
+            'next' => $this->extractPdfReferenceToken($dictionary, 'Next'),
+            'first' => $this->extractPdfReferenceToken($dictionary, 'First'),
+            'last' => $this->extractPdfReferenceToken($dictionary, 'Last'),
+            'count' => $count,
+            'open' => $count === null ? null : $count >= 0,
+            'destPageObject' => $destination['pageObject'],
+            'destFit' => $destination['fit'],
+            'actionType' => $action['type'],
+            'actionTarget' => $action['target'],
+        ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{pageObject:string|null, fit:string|null}
+     */
+    private function extractPdfOutlineDestination(string $dictionary, array $objects): array
+    {
+        $destination = ['pageObject' => null, 'fit' => null];
+        $value = $this->extractPdfValueForName($dictionary, 'Dest');
+        if ($value === null) {
+            return $destination;
+        }
+
+        if ($value['kind'] === 'array') {
+            return $this->summarizePdfOutlineDestinationArray($value['value']);
+        }
+        if ($value['kind'] !== 'reference') {
+            return $destination;
+        }
+
+        $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+        if ($body === null) {
+            return $destination;
+        }
+
+        $resolved = $this->parsePdfValueAt($body, 0);
+        if ($resolved !== null && $resolved['kind'] === 'array') {
+            return $this->summarizePdfOutlineDestinationArray($resolved['value']);
+        }
+
+        $nested = $this->extractPdfArrayOrReferenceValue($body, 'D', $objects);
+        if ($nested !== null) {
+            return $this->summarizePdfOutlineDestinationArray($nested);
+        }
+
+        return $destination;
+    }
+
+    /**
+     * @return array{pageObject:string|null, fit:string|null}
+     */
+    private function summarizePdfOutlineDestinationArray(string $array): array
+    {
+        $pageObject = null;
+        $fit = null;
+        $cursor = str_starts_with($array, '[') ? 1 : 0;
+        $length = strlen($array);
+        if (str_ends_with($array, ']')) {
+            $length--;
+        }
+
+        while ($cursor < $length) {
+            $value = $this->parsePdfValueAt($array, $cursor);
+            if ($value === null) {
+                $cursor++;
+                continue;
+            }
+            if ($pageObject === null && $value['kind'] === 'reference') {
+                $pageObject = $value['value'];
+            } elseif ($fit === null && $value['kind'] === 'name') {
+                $fit = $value['value'];
+            }
+            if ($pageObject !== null && $fit !== null) {
+                break;
+            }
+
+            $cursor = max($cursor + 1, min($length, $value['next']));
+        }
+
+        return [
+            'pageObject' => $pageObject,
+            'fit' => $fit,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{type:string|null, target:string|null}
+     */
+    private function extractPdfOutlineAction(string $dictionary, array $objects): array
+    {
+        $action = ['type' => null, 'target' => null];
+        $actionDictionary = $this->extractPdfDictionaryOrReferenceValue($dictionary, 'A', $objects);
+        if ($actionDictionary === null) {
+            return $action;
+        }
+
+        $action['type'] = $this->extractPdfNameToken($actionDictionary, 'S');
+        if ($action['type'] === 'URI') {
+            $action['target'] = $this->extractPdfStringOrNameValue($actionDictionary, 'URI');
+        } elseif ($action['type'] === 'Launch') {
+            $action['target'] = $this->extractPdfStringOrNameValue($actionDictionary, 'F');
+        } elseif ($action['type'] === 'Named') {
+            $action['target'] = $this->extractPdfStringOrNameValue($actionDictionary, 'N');
+        } elseif ($action['type'] === 'GoTo') {
+            $destination = $this->extractPdfArrayOrReferenceValue($actionDictionary, 'D', $objects);
+            if ($destination !== null) {
+                $summary = $this->summarizePdfOutlineDestinationArray($destination);
+                $action['target'] = $summary['pageObject'];
+            } else {
+                $action['target'] = $this->extractPdfStringOrNameValue($actionDictionary, 'D');
+            }
+        }
+
+        return $action;
     }
 
     /**

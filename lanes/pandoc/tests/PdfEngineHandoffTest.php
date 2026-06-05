@@ -876,6 +876,116 @@ MARKDOWN);
         $t->same(['Migration packet', 'Final page'], $sequence['finalPdfOutlineTitles']);
     },
 
+    'fake runner extracts bounded pdf outline tree metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/outlines.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Outlines 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /Outlines /First 9 0 R /Last 11 0 R /Count 2 >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Title (Packet overview) /Parent 8 0 R /Dest [3 0 R /FitH 720] /Next 11 0 R /First 10 0 R /Last 10 0 R /Count 1 >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Title (Reviewer notes) /Parent 9 0 R /A << /S /URI /URI (https://example.test/review/notes) >> /Count 0 >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Title <FEFF0041007000700065006E006400690078> /Parent 8 0 R /Dest 12 0 R /Prev 9 0 R /Count -2 >>',
+            'endobj',
+            '12 0 obj',
+            '[4 0 R /XYZ 0 792 0]',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/outlines.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/outlines.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'object' => '9 0 R',
+                'title' => 'Packet overview',
+                'parent' => '8 0 R',
+                'prev' => null,
+                'next' => '11 0 R',
+                'first' => '10 0 R',
+                'last' => '10 0 R',
+                'count' => 1,
+                'open' => true,
+                'destPageObject' => '3 0 R',
+                'destFit' => 'FitH',
+                'actionType' => null,
+                'actionTarget' => null,
+            ],
+            [
+                'object' => '10 0 R',
+                'title' => 'Reviewer notes',
+                'parent' => '9 0 R',
+                'prev' => null,
+                'next' => null,
+                'first' => null,
+                'last' => null,
+                'count' => 0,
+                'open' => true,
+                'destPageObject' => null,
+                'destFit' => null,
+                'actionType' => 'URI',
+                'actionTarget' => 'https://example.test/review/notes',
+            ],
+            [
+                'object' => '11 0 R',
+                'title' => 'Appendix',
+                'parent' => '8 0 R',
+                'prev' => '9 0 R',
+                'next' => null,
+                'first' => null,
+                'last' => null,
+                'count' => -2,
+                'open' => false,
+                'destPageObject' => '4 0 R',
+                'destFit' => 'XYZ',
+                'actionType' => null,
+                'actionTarget' => null,
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfOutlines']);
+        $t->contains('pdf-byte-outline-metadata:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-outline-open:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-outline-closed:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-outline-destinations:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-outline-actions:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfOutlines']);
+    },
+
     'fake runner extracts bounded pdf page boxes and rotations from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/geometry.pdf']);
