@@ -631,6 +631,28 @@ TPL;
         ]), $output);
     },
 
+    'removes exactly one upstream LF from included pandoc doctemplate partials' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+One:<${ one() }>
+Double:<${ double() }>
+Crlf:<${ crlf() }>
+Cr:<${ cr() }>
+Applied:<${ items:row()[|] }>
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'items' => ['media', 'links'],
+        ], [
+            'one' => "alpha\n",
+            'double' => "alpha\n\n",
+            'crlf' => "alpha\r\n",
+            'cr' => "alpha\r",
+            'row' => '$it$' . "\n\n",
+        ]);
+
+        $t->same("One:<alpha>\nDouble:<alpha\n>\nCrlf:<alpha\r>\nCr:<alpha\r>\nApplied:<media\n|links\n>", $output);
+    },
+
     'applies pandoc doctemplate partials to variables arrays and pipes' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 Cards:

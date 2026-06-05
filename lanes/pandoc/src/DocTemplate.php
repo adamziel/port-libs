@@ -877,7 +877,7 @@ final class DocTemplate
             $value = $this->applyPipe($pipe, $value);
         }
 
-        return $this->renderValue($value, $partial['separator']);
+        return $this->renderPartialValue($value, $partial['separator']);
     }
 
     /**
@@ -902,7 +902,7 @@ final class DocTemplate
                 $value = $this->applyPipe($pipe, $value);
             }
 
-            $rendered[] = $this->renderValue($value, null);
+            $rendered[] = $this->renderPartialValue($value, null);
         }
 
         return implode($appliedPartial['partial']['separator'] ?? '', $rendered);
@@ -925,7 +925,12 @@ final class DocTemplate
 
         $rendered = $this->renderTemplate($partials[$name], $context, $partials, [...$partialStack, $name]);
 
-        return preg_replace('/(?:\r\n|\n|\r)+$/', '', $rendered) ?? $rendered;
+        return $this->stripIncludedPartialFinalNewline($rendered);
+    }
+
+    private function stripIncludedPartialFinalNewline(string $value): string
+    {
+        return str_ends_with($value, "\n") ? substr($value, 0, -1) : $value;
     }
 
     /**
@@ -1627,6 +1632,15 @@ final class DocTemplate
         }
 
         return '';
+    }
+
+    private function renderPartialValue(mixed $value, ?string $separator): string
+    {
+        if (is_string($value)) {
+            return $value;
+        }
+
+        return $this->renderValue($value, $separator);
     }
 
     private function stripSingleFinalNewline(string $value): string

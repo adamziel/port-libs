@@ -32,6 +32,7 @@ for $title$$~$</p>
   $-- indented reviewer comments preserve their line ending upstream
 <p class="comment-spacing">After preserved comment whitespace</p>
 <p class="audit-flag" data-suppressed="$suppressed$">Suppressed: <$suppressed$></p>
+${ components/trailing-note() }
 </header>
 HTML,
     'review-packets/components/admin-note.html' => <<<'HTML'
@@ -41,6 +42,7 @@ HTML,
 <p class="source-summary" data-état="$révision.état$">$révision.titre$</p>
 HTML,
     'review-packets/components/next-warning.html' => '$it.source$: $it.message$',
+    'review-packets/components/trailing-note.html' => '<p class="partial-spacing">Partial spacing survives reviewer packet boundaries</p>' . "\n\n",
     'review-packets/components/warning-list.html' => <<<'HTML'
 $if(warnings)$
 <ul class="warnings">
@@ -107,6 +109,7 @@ if (in_array('--self-test', $argv, true)) {
         '<p class="review-meta">alpha=queued-first; review-id=PR-42; zeta=queued-last</p>',
         "<p class=\"comment-spacing\">Before preserved comment whitespace</p>\n  \n<p class=\"comment-spacing\">After preserved comment whitespace</p>",
         '<p class="audit-flag" data-suppressed="">Suppressed: <></p>',
+        "<p class=\"partial-spacing\">Partial spacing survives reviewer packet boundaries</p>\n\n</header>",
         '<p class="source-summary" data-état="prêt">Résumé de migration</p>',
         '<li data-index="1" data-source="media" data-review-title="Batch 42 Review"><span class="marker">A.</span> <span class="source">{MEDIA   }</span> <span class="priority">   I</span> Check &amp; confirm alt text</li>',
         '<li data-index="2" data-source="links" data-review-title="Batch 42 Review"><span class="marker">B.</span> <span class="source">{LINKS   }</span> <span class="priority">  IV</span> Verify edit links before publish</li>',
