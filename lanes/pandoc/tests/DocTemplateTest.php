@@ -477,13 +477,21 @@ TPL;
         $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('$for(items)$missing endfor', ['items' => ['x']]));
     },
 
-    'throws on missing and recursive pandoc doctemplate partials' => static function (TestRunner $t): void {
+    'returns pandoc doctemplate loop literal at partial nesting limit' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $t->same('(loop)', $renderer->render('${ loop() }', [], [
+            'loop' => '${ loop() }',
+        ]));
+        $t->same(str_repeat('x', 50) . '(loop)', $renderer->render('${ loop() }', [], [
+            'loop' => 'x${ loop() }',
+        ]));
+    },
+
+    'throws on missing pandoc doctemplate partials' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 
         $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('${ missing() }', [], []));
-        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('${ loop() }', [], [
-            'loop' => '${ loop() }',
-        ]));
     },
 
     'throws on unsupported pandoc doctemplate pipes' => static function (TestRunner $t): void {

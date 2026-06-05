@@ -70,6 +70,14 @@ if (in_array('--self-test', $argv, true)) {
         }
     }
 
+    $loopGuard = (new DocTemplate())->render('${ loop() }', [], [
+        'loop' => '${ loop() }',
+    ]);
+    if ($loopGuard !== '(loop)') {
+        fwrite(STDERR, "Missing expected doctemplate partial loop guard\n");
+        exit(1);
+    }
+
     fwrite(STDOUT, "OK wordpress doctemplate review packet\n");
     exit(0);
 }

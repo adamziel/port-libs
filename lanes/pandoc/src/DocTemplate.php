@@ -6,7 +6,7 @@ namespace PortLibs\Pandoc;
 
 final class DocTemplate
 {
-    private const MAX_PARTIAL_DEPTH = 32;
+    private const MAX_PARTIAL_DEPTH = 50;
 
     /**
      * @param array<string, mixed> $context
@@ -648,12 +648,8 @@ final class DocTemplate
             throw new \UnexpectedValueException("Missing doctemplate partial {$name}");
         }
 
-        if (in_array($name, $partialStack, true)) {
-            throw new \UnexpectedValueException("Recursive doctemplate partial {$name}");
-        }
-
         if (count($partialStack) >= self::MAX_PARTIAL_DEPTH) {
-            throw new \UnexpectedValueException('Doctemplate partial nesting limit exceeded');
+            return '(loop)';
         }
 
         $rendered = $this->renderTemplate($partials[$name], $context, $partials, [...$partialStack, $name]);
