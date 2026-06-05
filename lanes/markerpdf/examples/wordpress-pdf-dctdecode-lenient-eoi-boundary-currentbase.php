@@ -20,27 +20,50 @@ if ($falseEoiEndOffset === false) {
 $staleLength = $falseEoiEndOffset + 2;
 
 $content = $before . "\nq 24 0 0 24 72 680 cm /Photo Do Q\n" . $after;
-$pdf = "%PDF-1.4\n"
+$staleLengthPdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Photo 5 0 R >> >> >>\nendobj\n"
     . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
     . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length {$staleLength} >>\nstream\n{$jpegPayload}\nendstream\nendobj\n"
     . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+$missingLengthPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Photo 5 0 R >> >> >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode >>\nstream\n{$jpegPayload}\nendstream\nendobj\n"
+    . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
 
 $extractor = new PdfTextExtractor();
-$lines = $extractor->extractTextLines($pdf);
-$plainText = $extractor->extractPlainText($pdf);
-$review = $extractor->extractImageXObjectBoundaryReview($pdf);
+$lines = $extractor->extractTextLines($staleLengthPdf);
+$plainText = $extractor->extractPlainText($staleLengthPdf);
+$review = $extractor->extractImageXObjectBoundaryReview($staleLengthPdf);
 $photoReview = $review['entries'][0] ?? [];
+$missingLengthLines = $extractor->extractTextLines($missingLengthPdf);
+$missingLengthPlainText = $extractor->extractPlainText($missingLengthPdf);
+$missingLengthReview = $extractor->extractImageXObjectBoundaryReview($missingLengthPdf);
+$missingLengthPhotoReview = $missingLengthReview['entries'][0] ?? [];
 $expected = ['Before Lenient DCT Import', 'After Lenient DCT Import'];
 $payloadExcluded = !str_contains($plainText, 'WordPress Lenient DCT Leak')
     && !str_contains($plainText, 'bad segment before false EOI')
     && !str_contains($plainText, 'endstream');
+$missingLengthPayloadExcluded = !str_contains($missingLengthPlainText, 'WordPress Lenient DCT Leak')
+    && !str_contains($missingLengthPlainText, 'bad segment before false EOI')
+    && !str_contains($missingLengthPlainText, 'endstream');
 $recoveredLength = ($photoReview['raw_length'] ?? null) === strlen($jpegPayload)
     && ($photoReview['raw_length'] ?? 0) > $staleLength;
+$missingLengthRecoveredLength = ($missingLengthPhotoReview['raw_length'] ?? null) === strlen($jpegPayload)
+    && ($missingLengthPhotoReview['raw_length'] ?? 0) > $staleLength;
 
-if ($lines !== $expected || !$payloadExcluded || !$recoveredLength) {
+if (
+    $lines !== $expected
+    || $missingLengthLines !== $expected
+    || !$payloadExcluded
+    || !$missingLengthPayloadExcluded
+    || !$recoveredLength
+    || !$missingLengthRecoveredLength
+) {
     throw new RuntimeException('DCTDecode lenient EOI boundary leaked image bytes into WordPress import.');
 }
 
@@ -51,12 +74,15 @@ echo '<!-- markerpdf:pdf-dctdecode-lenient-eoi-boundary-currentbase ' . htmlspec
     'malformed_jfif_lenient_scan' => true,
     'false_eoi_before_fake_endstream_ignored' => true,
     'declared_length_stopped_at_false_eoi' => $staleLength,
+    'missing_length_false_eoi_before_fake_endstream_ignored' => true,
     'raw_length_after_boundary_recovery' => $photoReview['raw_length'] ?? null,
-    'dctdecode_image_payload_excluded_from_text' => $payloadExcluded,
+    'missing_length_raw_length_after_boundary_recovery' => $missingLengthPhotoReview['raw_length'] ?? null,
+    'dctdecode_image_payload_excluded_from_text' => $payloadExcluded && $missingLengthPayloadExcluded,
     'xobject_preview_only_filters' => $photoReview['preview_only_filters'] ?? [],
     'xobject_native_raster_decode' => $photoReview['native_raster_decode'] ?? null,
     'xobject_decoded_with_current_filters' => $photoReview['decoded_with_current_filters'] ?? null,
     'paragraphs' => $lines,
+    'missing_length_paragraphs' => $missingLengthLines,
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
     'executes_pypdfium_or_pil' => false,
