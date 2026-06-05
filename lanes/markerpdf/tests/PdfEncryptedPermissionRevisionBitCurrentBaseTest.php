@@ -10,13 +10,14 @@ $standardPermissionPdf = static function (int $revision, int $version, int $perm
     $content = "BT /F1 12 Tf 72 720 Td ({$label} encrypted permission text leak) Tj ET";
     $ownerKey = "{$label}_OWNER_KEY_SHOULD_NOT_LEAK";
     $userKey = "{$label}_USER_KEY_SHOULD_NOT_LEAK";
+    $keyLength = $version === 1 ? 40 : 128;
 
     $pdf = "%PDF-1.7\n"
         . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
         . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
         . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
         . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
-        . "5 0 obj\n<< /Filter /Standard /V {$version} /R {$revision} /Length 128"
+        . "5 0 obj\n<< /Filter /Standard /V {$version} /R {$revision} /Length {$keyLength}"
         . " /O <" . strtoupper(bin2hex(str_pad($ownerKey, 32, 'O'))) . ">"
         . " /U <" . strtoupper(bin2hex(str_pad($userKey, 32, 'U'))) . ">"
         . " /P {$permissionWord} /EncryptMetadata true >>\nendobj\n"

@@ -4341,6 +4341,11 @@ final class PdfMetadataExtractor
             $metadata['standard_authentication_review'] = $authReview;
         }
 
+        $standardParameterReview = $this->standardSecurityHandlerParameterReview($metadata);
+        if ($standardParameterReview !== []) {
+            $metadata['standard_security_handler_parameter_review'] = $standardParameterReview;
+        }
+
         return $metadata;
     }
 
@@ -4563,6 +4568,136 @@ final class PdfMetadataExtractor
             6 => 'standard_handler_revision_6',
             default => 'standard_handler_revision_unknown',
         };
+    }
+
+    /**
+     * The Standard handler's version, revision, and top-level key length gate
+     * whether the permission word can be interpreted as reliable review data.
+     *
+     * @param array<string, mixed> $metadata
+     * @return array<string, mixed>
+     */
+    private function standardSecurityHandlerParameterReview(array $metadata): array
+    {
+        if (($metadata['filter'] ?? null) !== 'Standard') {
+            return [];
+        }
+
+        $version = is_int($metadata['version'] ?? null) ? $metadata['version'] : null;
+        $revision = is_int($metadata['revision'] ?? null) ? $metadata['revision'] : null;
+        $keyLengthBits = is_int($metadata['key_length_bits'] ?? null) ? $metadata['key_length_bits'] : null;
+        $supportedVersions = [1, 2, 4, 5];
+        $supportedRevisions = [2, 3, 4, 5, 6];
+        $versionSupported = $version === null ? null : in_array($version, $supportedVersions, true);
+        $revisionSupported = $revision === null ? null : in_array($revision, $supportedRevisions, true);
+        $compatible = $versionSupported === true && $revisionSupported === true
+            ? $this->standardSecurityHandlerVersionRevisionCompatible($version, $revision)
+            : null;
+        $keyLength = $this->standardSecurityHandlerKeyLengthReview($version, $keyLengthBits);
+
+        $violations = [];
+        if ($version === null) {
+            $violations[] = 'missing_standard_security_handler_version';
+        } elseif ($versionSupported !== true) {
+            $violations[] = 'unsupported_standard_security_handler_version';
+        }
+        if ($revision === null) {
+            $violations[] = 'missing_standard_security_handler_revision';
+        } elseif ($revisionSupported !== true) {
+            $violations[] = 'unsupported_standard_security_handler_revision';
+        }
+        if ($compatible === false) {
+            $violations[] = 'standard_security_handler_version_revision_mismatch';
+        }
+        if (($keyLength['valid'] ?? null) === false) {
+            $violations[] = 'invalid_standard_security_handler_key_length';
+        }
+
+        return [
+            'source' => 'standard_security_handler_parameter_review',
+            'handler' => 'Standard',
+            'version' => $version,
+            'revision' => $revision,
+            'revision_label' => $metadata['revision_label'] ?? null,
+            'key_length_bits' => $keyLengthBits,
+            'version_present' => $version !== null,
+            'revision_present' => $revision !== null,
+            'key_length_present' => array_key_exists('key_length_bits', $metadata),
+            'version_supported' => $versionSupported,
+            'revision_supported' => $revisionSupported,
+            'version_revision_compatible' => $compatible,
+            'key_length_valid' => $keyLength['valid'],
+            'key_length_status' => $keyLength['status'],
+            'minimum_key_length_bits' => $keyLength['minimum_key_length_bits'],
+            'maximum_key_length_bits' => $keyLength['maximum_key_length_bits'],
+            'parameters_well_formed' => $violations === [],
+            'status' => $violations === []
+                ? 'standard_security_handler_parameters_well_formed'
+                : 'malformed_standard_security_handler_parameters_review',
+            'violations' => $violations,
+            'review_only' => true,
+            'password_validation_performed' => false,
+            'permissions_authenticated' => false,
+            'executes_decryption' => false,
+            'executes_permission_enforcement' => false,
+        ];
+    }
+
+    private function standardSecurityHandlerVersionRevisionCompatible(int $version, int $revision): bool
+    {
+        return match ($revision) {
+            2 => $version === 1,
+            3 => $version === 2,
+            4 => $version === 4,
+            5, 6 => $version === 5,
+            default => false,
+        };
+    }
+
+    /**
+     * @return array{valid: bool|null, status: string, minimum_key_length_bits: int|null, maximum_key_length_bits: int|null}
+     */
+    private function standardSecurityHandlerKeyLengthReview(?int $version, ?int $keyLengthBits): array
+    {
+        $range = match ($version) {
+            1 => ['minimum' => 40, 'maximum' => 40],
+            2, 4 => ['minimum' => 40, 'maximum' => 128],
+            5 => ['minimum' => 256, 'maximum' => 256],
+            default => null,
+        };
+
+        if ($range === null) {
+            return [
+                'valid' => null,
+                'status' => 'standard_security_handler_key_length_not_reviewed',
+                'minimum_key_length_bits' => null,
+                'maximum_key_length_bits' => null,
+            ];
+        }
+
+        if ($keyLengthBits === null) {
+            return [
+                'valid' => $version === 1 ? false : null,
+                'status' => $version === 1
+                    ? 'standard_security_handler_key_length_missing'
+                    : 'standard_security_handler_key_length_default_or_unavailable_review',
+                'minimum_key_length_bits' => $range['minimum'],
+                'maximum_key_length_bits' => $range['maximum'],
+            ];
+        }
+
+        $valid = $keyLengthBits >= $range['minimum']
+            && $keyLengthBits <= $range['maximum']
+            && $keyLengthBits % 8 === 0;
+
+        return [
+            'valid' => $valid,
+            'status' => $valid
+                ? 'standard_security_handler_key_length_supported'
+                : 'invalid_standard_security_handler_key_length_review',
+            'minimum_key_length_bits' => $range['minimum'],
+            'maximum_key_length_bits' => $range['maximum'],
+        ];
     }
 
     /**
