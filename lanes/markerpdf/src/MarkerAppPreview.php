@@ -914,7 +914,7 @@ final class MarkerAppPreview
      */
     private function latestStartxrefTokenOffset(string $pdfBytes, array $bodyRanges): ?int
     {
-        if (preg_match_all('/\bstartxref\s+[+-]?\d+/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+        if (preg_match_all('/\bstartxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
             return null;
         }
 
@@ -929,10 +929,42 @@ final class MarkerAppPreview
                 continue;
             }
 
+            if ($this->startxrefDeclaredOffsetFromOperand(substr($pdfBytes, $tokenOffset + strlen('startxref'), 64)) === null) {
+                continue;
+            }
+
             return $tokenOffset;
         }
 
         return null;
+    }
+
+    private function startxrefDeclaredOffsetFromOperand(string $operandBytes): ?int
+    {
+        $offset = 0;
+        $length = strlen($operandBytes);
+        while ($offset < $length && (ctype_space($operandBytes[$offset]) || $operandBytes[$offset] === "\0")) {
+            $offset++;
+        }
+
+        if (preg_match('/\G[+-]?\d+/s', $operandBytes, $match, 0, $offset) !== 1) {
+            return 0;
+        }
+
+        $after = $offset + strlen($match[0]);
+        while ($after < $length) {
+            $char = $operandBytes[$after];
+            if ($char === "\n" || $char === "\r" || $char === '%') {
+                return (int) $match[0];
+            }
+            if (!ctype_space($char) && $char !== "\0") {
+                return null;
+            }
+
+            $after++;
+        }
+
+        return (int) $match[0];
     }
 
     /**

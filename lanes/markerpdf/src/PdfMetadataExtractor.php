@@ -11961,10 +11961,10 @@ final class PdfMetadataExtractor
                 continue;
             }
 
-            $declaredOffset = 0;
             $operandBytes = substr($pdfBytes, $tokenOffset + strlen('startxref'), 64);
-            if (preg_match('/^\s*([+-]?\d+)/', $operandBytes, $operandMatch) === 1) {
-                $declaredOffset = (int) $operandMatch[1];
+            $declaredOffset = $this->startxrefDeclaredOffsetFromOperand($operandBytes);
+            if ($declaredOffset === null) {
+                continue;
             }
 
             return [
@@ -11974,6 +11974,34 @@ final class PdfMetadataExtractor
         }
 
         return null;
+    }
+
+    private function startxrefDeclaredOffsetFromOperand(string $operandBytes): ?int
+    {
+        $offset = 0;
+        $length = strlen($operandBytes);
+        while ($offset < $length && $this->isPdfWhitespace($operandBytes[$offset])) {
+            $offset++;
+        }
+
+        if (preg_match('/\G[+-]?\d+/s', $operandBytes, $match, 0, $offset) !== 1) {
+            return 0;
+        }
+
+        $after = $offset + strlen($match[0]);
+        while ($after < $length) {
+            $char = $operandBytes[$after];
+            if ($char === "\n" || $char === "\r" || $char === '%') {
+                return (int) $match[0];
+            }
+            if (!$this->isPdfWhitespace($char)) {
+                return null;
+            }
+
+            $after++;
+        }
+
+        return (int) $match[0];
     }
 
     /**
