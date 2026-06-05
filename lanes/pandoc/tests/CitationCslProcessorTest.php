@@ -1623,6 +1623,113 @@ XML
 XML
         ));
     },
+    'applies bounded csl text-case transforms for rendered text elements' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'case-source',
+                'type' => 'report',
+                'title' => 'migration review: source import and API',
+                'short-title' => 'source guide',
+                'title-addon' => 'import queue follow-up',
+                'container-title' => 'journal of imported sources',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'abstract' => 'Mixed CASE Abstract',
+                'genre' => 'working paper',
+                'language' => 'en-US',
+            ],
+            [
+                'id' => 'non-english-title',
+                'type' => 'book',
+                'title' => 'manual de migración y datos',
+                'short-title' => 'guía de datos',
+                'author' => [
+                    ['family' => 'García', 'given' => 'Gia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'language' => 'es',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Text Case Review Style</title>
+    <id>https://example.test/styles/bounded-text-case-review</id>
+    <updated>2026-06-05T04:45:00+00:00</updated>
+  </info>
+  <locale xml:lang="en-US">
+    <terms>
+      <term name="accessed">Accessed</term>
+    </terms>
+  </locale>
+  <macro name="review-status">
+    <group delimiter=": ">
+      <text value="review status"/>
+      <text variable="title-addon"/>
+    </group>
+  </macro>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title" text-case="title"/>
+        <text variable="short-title" text-case="uppercase"/>
+        <text value="review note" text-case="capitalize-first"/>
+        <text term="accessed" text-case="lowercase"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout>
+      <group delimiter=". " suffix=".">
+        <text variable="title" text-case="sentence"/>
+        <text variable="container-title" text-case="capitalize-all"/>
+        <text variable="abstract" text-case="lowercase"/>
+        <text variable="genre" text-case="uppercase"/>
+        <text macro="review-status" text-case="title"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Text Case Review Style', $summary['title'] ?? null);
+        $t->same('title', $summary['citationRendering'][0]['children'][0]['textCase'] ?? null);
+        $t->same('uppercase', $summary['citationRendering'][0]['children'][1]['textCase'] ?? null);
+        $t->same('lowercase', $summary['citationRendering'][0]['children'][3]['textCase'] ?? null);
+        $t->same('title', $summary['bibliographyRendering'][0]['children'][4]['textCase'] ?? null);
+
+        $t->same('(Migration Review: Source Import and API | SOURCE GUIDE | Review note | accessed; manual de migración y datos | GUÍA DE DATOS | Review note | accessed)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'case-source', 'text' => '[@case-source]']),
+            new AstNode('citation', ['id' => 'non-english-title', 'text' => '[@non-english-title]']),
+        ]));
+        $t->same('Migration review: source import and API. Journal Of Imported Sources. mixed case abstract. WORKING PAPER. Review Status: Import Queue Follow-Up.', $processor->renderBibliographyEntry('case-source'));
+        $t->same('Manual de migración y datos.', $processor->renderBibliographyEntry('non-english-title'));
+
+        $document = (new MarkdownReader())->read('Review cites [@case-source] and [@non-english-title] for title casing.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Review cites (Migration Review: Source Import and API | SOURCE GUIDE | Review note | accessed) and (manual de migración y datos | GUÍA DE DATOS | Review note | accessed) for title casing.', $markdown);
+        $t->contains('de la Cruz 2026' . "\n" . ':   Migration review: source import and API. Journal Of Imported Sources. mixed case abstract. WORKING PAPER. Review Status: Import Queue Follow-Up.', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites (Migration Review: Source Import and API | SOURCE GUIDE | Review note | accessed) and (manual de migración y datos | GUÍA DE DATOS | Review note | accessed) for title casing.</p>', $blocks);
+        $t->contains('<dt>de la Cruz 2026</dt><dd>Migration review: source import and API. Journal Of Imported Sources. mixed case abstract. WORKING PAPER. Review Status: Import Queue Follow-Up.</dd>', $blocks);
+        $t->contains('<dt>García 2025</dt><dd>Manual de migración y datos.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><text variable="title" text-case="sideways"/></layout></citation>
+</style>
+XML
+        ));
+    },
     'applies bounded csl macro rendering references for citations and bibliography' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

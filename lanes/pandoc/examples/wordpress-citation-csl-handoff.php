@@ -21,6 +21,8 @@ The local style renders @committee-source when source dates are missing.
 
 The numbered style preserves @numbered-source issue ranges for reviewer packets.
 
+The title-case style reviews @title-case-source source titles.
+
 The source archive keeps [see @missing-source; @{https://example.com/bib?name=foobar&date=2000}, p. 33] visible for reviewer follow-up.
 MARKDOWN;
 
@@ -77,6 +79,16 @@ $cslJson = <<<'JSON'
     ],
     "issued": {"date-parts": [[2025]]},
     "number": "2 - 4"
+  },
+  {
+    "id": "title-case-source",
+    "type": "report",
+    "title": "migration review: source import and API",
+    "author": [
+      {"literal": "Migration Desk"}
+    ],
+    "issued": {"date-parts": [[2026]]},
+    "publisher": "Review Press"
   },
   {
     "id": "https://example.com/bib?name=foobar&date=2000",
@@ -153,6 +165,9 @@ $cslStyleXml = <<<'XML'
       </if>
     </choose>
   </macro>
+  <macro name="review-title-case">
+    <text variable="title" text-case="title"/>
+  </macro>
   <macro name="review-source-locator">
     <choose>
       <if variable="DOI" match="any">
@@ -171,7 +186,7 @@ $cslStyleXml = <<<'XML'
       <names variable="author editor" delimiter="; ">
         <name initialize-with=". " name-as-sort-order="all"/>
       </names>
-      <text variable="title"/>
+      <text macro="review-title-case"/>
       <text macro="review-publication"/>
       <text macro="review-number"/>
       <text macro="review-source-locator"/>
@@ -233,6 +248,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['macros']['review-number'][0]['branches'][0]['children'][0]['children'][1]['form'] ?? null) !== 'ordinal') {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve the ordinal number form');
     }
+    if (($summary['macros']['review-title-case'][0]['textCase'] ?? null) !== 'title') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve the title text-case transform');
+    }
     if (($summary['bibliographyRendering'][0]['macro'] ?? null) !== 'review-bibliography-entry') {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve the bibliography macro reference');
     }
@@ -247,6 +265,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>The position style cites (ibid, p. 2), then (ibid, p. 3), and then (ibid).</p>',
         '<p>The local style renders Adams, Baker, and others (undated) when source dates are missing.</p>',
         '<p>The numbered style preserves Review Board (2025) issue ranges for reviewer packets.</p>',
+        '<p>The title-case style reviews Migration Desk (2026) source titles.</p>',
+        '<dt>Migration Desk 2026</dt><dd>[Migration Desk. Migration Review: Source Import and API. Review Press, 2026. No stable source locator.]</dd>',
         '<dt>de la Cruz 2026</dt><dd>[de la Cruz, A. M., Jr. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.]</dd>',
         '<dt>Review Board 2025</dt><dd>[Review Board. Numbered Review Packet. 2025. nos. 2nd-4th. No stable source locator.]</dd>',
         '<dt>Adams, Baker, and others undated</dt><dd>[Adams, A.; Baker, B.; Clark, C. Undated Committee Packet. No stable source locator.]</dd>',
@@ -259,6 +279,7 @@ if (($argv[1] ?? '') === '--self-test') {
 
     $sortedTerms = [
         '<dt>de la Cruz 2026</dt>',
+        '<dt>Migration Desk 2026</dt>',
         '<dt>Review Board 2025</dt>',
         '<dt>WordPress Migration Team 2024</dt>',
         '<dt>URL Key Source 2000</dt>',

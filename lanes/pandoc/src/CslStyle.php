@@ -333,6 +333,11 @@ final class CslStyle
         return $this->nameRendering['bibliography'];
     }
 
+    public function defaultLocale(): string
+    {
+        return $this->metadata['defaultLocale'];
+    }
+
     /**
      * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}, bibliography:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
@@ -760,6 +765,7 @@ final class CslStyle
             'suffix' => self::optionalAttribute($text, 'suffix'),
             'form' => self::optionalAttribute($text, 'form') !== '' ? self::optionalAttribute($text, 'form') : 'long',
             'plural' => self::booleanRenderingAttribute($text, 'plural', false, $scope),
+            'textCase' => self::textCaseAttribute($text, $scope),
         ];
         if ($variable !== '') {
             $element['variable'] = $variable;
@@ -800,6 +806,7 @@ final class CslStyle
             'suffix' => self::optionalAttribute($date, 'suffix'),
             'variable' => $variable,
             'dateParts' => $dateParts,
+            'textCase' => self::textCaseAttribute($date, $scope),
         ];
     }
 
@@ -831,6 +838,7 @@ final class CslStyle
             'suffix' => self::optionalAttribute($number, 'suffix'),
             'variable' => $variable,
             'form' => $form,
+            'textCase' => self::textCaseAttribute($number, $scope),
         ];
     }
 
@@ -895,6 +903,7 @@ final class CslStyle
             'variable' => $variable,
             'form' => $form,
             'plural' => $plural,
+            'textCase' => self::textCaseAttribute($label, $scope),
         ];
     }
 
@@ -1057,6 +1066,20 @@ final class CslStyle
         }
 
         throw new \InvalidArgumentException('CSL ' . $scope . ' rendering attribute ' . $name . ' must be true or false');
+    }
+
+    private static function textCaseAttribute(\DOMElement $element, string $scope): string
+    {
+        $value = strtolower(trim($element->getAttribute('text-case')));
+        if ($value === '') {
+            return '';
+        }
+
+        if (!in_array($value, ['lowercase', 'uppercase', 'capitalize-first', 'capitalize-all', 'sentence', 'title'], true)) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' text-case must be lowercase, uppercase, capitalize-first, capitalize-all, sentence, or title');
+        }
+
+        return $value;
     }
 
     /**

@@ -1803,6 +1803,8 @@ final class CitationCslProcessor
             default => '',
         };
 
+        $value = $this->applyTextCase($value, $element, $item);
+
         return $this->applyRenderingAffixes($value, $element);
     }
 
@@ -2366,6 +2368,171 @@ final class CitationCslProcessor
         }
 
         return (string) ($element['prefix'] ?? '') . $value . (string) ($element['suffix'] ?? '');
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @param array<string, mixed> $item
+     */
+    private function applyTextCase(string $value, array $element, array $item): string
+    {
+        if ($value === '') {
+            return '';
+        }
+
+        $textCase = strtolower(trim((string) ($element['textCase'] ?? '')));
+
+        return match ($textCase) {
+            'lowercase' => mb_strtolower($value, 'UTF-8'),
+            'uppercase' => mb_strtoupper($value, 'UTF-8'),
+            'capitalize-first' => $this->capitalizeFirstLowercaseWord($value),
+            'capitalize-all' => $this->capitalizeAllLowercaseWords($value),
+            'sentence' => $this->sentenceCaseText($value),
+            'title' => $this->titleCaseText($value, $item),
+            default => $value,
+        };
+    }
+
+    private function capitalizeFirstLowercaseWord(string $value): string
+    {
+        return preg_replace_callback(
+            '/[\p{L}\p{N}][\p{L}\p{M}\p{N}\']*/u',
+            fn (array $matches): string => $this->wordIsLowercase($matches[0])
+                ? $this->capitalizeWord($matches[0])
+                : $matches[0],
+            $value,
+            1
+        ) ?? $value;
+    }
+
+    private function capitalizeAllLowercaseWords(string $value): string
+    {
+        return preg_replace_callback(
+            '/[\p{L}\p{N}][\p{L}\p{M}\p{N}\']*/u',
+            fn (array $matches): string => $this->wordIsLowercase($matches[0])
+                ? $this->capitalizeWord($matches[0])
+                : $matches[0],
+            $value
+        ) ?? $value;
+    }
+
+    private function sentenceCaseText(string $value): string
+    {
+        if ($this->textIsUppercase($value)) {
+            return $this->capitalizeWord(mb_strtolower($value, 'UTF-8'));
+        }
+
+        return $this->capitalizeFirstLowercaseWord($value);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function titleCaseText(string $value, array $item): string
+    {
+        if (!$this->titleCaseAppliesToItem($item)) {
+            return $value;
+        }
+
+        $uppercase = $this->textIsUppercase($value);
+        $source = $uppercase ? mb_strtolower($value, 'UTF-8') : $value;
+        $matchCount = preg_match_all('/[\p{L}\p{N}][\p{L}\p{M}\p{N}\']*/u', $source, $matches, PREG_OFFSET_CAPTURE);
+        if ($matchCount === false || $matchCount === 0) {
+            return $source;
+        }
+
+        $words = $matches[0];
+        $output = '';
+        $offset = 0;
+        $count = count($words);
+        foreach ($words as $index => $match) {
+            $word = (string) $match[0];
+            $wordOffset = (int) $match[1];
+            $separator = substr($source, $offset, $wordOffset - $offset);
+            $output .= $separator;
+
+            $isFirst = $index === 0;
+            $isLast = $index === $count - 1;
+            $followsColon = str_contains($separator, ':');
+            $lowerWord = mb_strtolower($word, 'UTF-8');
+            if (!$isFirst && !$isLast && !$followsColon && $this->isEnglishTitleStopWord($lowerWord)) {
+                $output .= $lowerWord;
+            } elseif ($uppercase || $this->wordIsLowercase($word)) {
+                $output .= $this->capitalizeWord($lowerWord);
+            } else {
+                $output .= $word;
+            }
+
+            $offset = $wordOffset + strlen($word);
+        }
+
+        return $output . substr($source, $offset);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function titleCaseAppliesToItem(array $item): bool
+    {
+        $language = strtolower(trim((string) ($item['language'] ?? '')));
+        if ($language !== '') {
+            return str_starts_with($language, 'en');
+        }
+
+        $defaultLocale = strtolower(trim($this->style->defaultLocale()));
+
+        return $defaultLocale === '' || str_starts_with($defaultLocale, 'en');
+    }
+
+    private function isEnglishTitleStopWord(string $word): bool
+    {
+        return in_array($word, [
+            'a',
+            'an',
+            'and',
+            'as',
+            'at',
+            'but',
+            'by',
+            'for',
+            'from',
+            'in',
+            'into',
+            'nor',
+            'of',
+            'on',
+            'or',
+            'over',
+            'so',
+            'the',
+            'to',
+            'up',
+            'v',
+            'via',
+            'vs',
+            'with',
+            'yet',
+        ], true);
+    }
+
+    private function wordIsLowercase(string $word): bool
+    {
+        return $word === mb_strtolower($word, 'UTF-8') && $word !== mb_strtoupper($word, 'UTF-8');
+    }
+
+    private function textIsUppercase(string $value): bool
+    {
+        return $value === mb_strtoupper($value, 'UTF-8') && $value !== mb_strtolower($value, 'UTF-8');
+    }
+
+    private function capitalizeWord(string $word): string
+    {
+        return preg_replace_callback(
+            '/\p{L}/u',
+            static fn (array $matches): string => mb_strtoupper($matches[0], 'UTF-8'),
+            $word,
+            1
+        ) ?? $word;
     }
 
     /**
