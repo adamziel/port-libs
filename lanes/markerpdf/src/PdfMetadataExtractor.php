@@ -4357,22 +4357,37 @@ final class PdfMetadataExtractor
         $word = $this->standardPermissionWordValues($declared);
         $signed = $word['signed'];
         $unsigned = $word['unsigned'];
+        $rangeValid = (bool) $word['range_valid'];
         $effectiveRevision = $revision ?? 6;
-        $permissionBits = $this->standardPermissionBitReview($unsigned, $effectiveRevision);
+        $permissionBits = $rangeValid && is_int($unsigned)
+            ? $this->standardPermissionBitReview($unsigned, $effectiveRevision)
+            : [];
         $allowed = $this->standardPermissionNamesByStatus($permissionBits, 'allowed_by_permission_bit');
         $denied = $this->standardPermissionNamesByStatus($permissionBits, 'denied_by_permission_bit');
 
         $canPrint = in_array('print', $allowed, true);
         $highQuality = in_array('high_quality_print', $allowed, true);
-        $reserved = $this->standardPermissionReservedBitsMetadata($unsigned, $effectiveRevision);
+        $reserved = $this->standardPermissionReservedBitsMetadata($unsigned ?? 0, $effectiveRevision, $rangeValid);
 
         return array_merge([
             'declared' => $declared,
             'declared_form' => $word['declared_form'],
             'normalized_from_unsigned_decimal' => $word['normalized_from_unsigned_decimal'],
+            'permission_word_range_valid' => $rangeValid,
+            'permission_word_range_status' => $word['range_status'],
+            'word_range' => [
+                'source' => 'standard_permission_word_range_review',
+                'valid' => $rangeValid,
+                'status' => $word['range_status'],
+                'declared' => $declared,
+                'signed_min' => -2147483648,
+                'signed_max' => 2147483647,
+                'unsigned_max' => 4294967295,
+                'review_only' => true,
+            ],
             'signed' => $signed,
             'unsigned' => $unsigned,
-            'hex' => strtoupper(sprintf('%08X', $unsigned)),
+            'hex' => $rangeValid && is_int($unsigned) ? strtoupper(sprintf('%08X', $unsigned)) : null,
             'effective_revision' => $effectiveRevision,
             'allowed' => $allowed,
             'denied' => $denied,
@@ -4381,7 +4396,7 @@ final class PdfMetadataExtractor
             'permission_bit_review_count' => count($permissionBits),
             'permission_bit_statuses' => $this->standardPermissionBitStatuses($permissionBits),
             'permission_bits' => $permissionBits,
-            'print_quality' => !$canPrint ? 'disallowed' : ($effectiveRevision >= 3 && !$highQuality ? 'low_resolution' : 'high_resolution'),
+            'print_quality' => !$rangeValid ? null : (!$canPrint ? 'disallowed' : ($effectiveRevision >= 3 && !$highQuality ? 'low_resolution' : 'high_resolution')),
         ], $reserved);
     }
 
@@ -4431,6 +4446,9 @@ final class PdfMetadataExtractor
                 'integer' => true,
                 'declared' => $metadata['declared'],
                 'declared_form' => $metadata['declared_form'],
+                'permission_word_range_valid' => $metadata['permission_word_range_valid'],
+                'permission_word_range_status' => $metadata['permission_word_range_status'],
+                'word_range' => $metadata['word_range'],
                 'signed' => $metadata['signed'],
                 'unsigned' => $metadata['unsigned'],
                 'hex' => $metadata['hex'],
@@ -4476,11 +4494,17 @@ final class PdfMetadataExtractor
             'entry_statuses' => $entryStatuses,
             'unsigned_values' => array_values(array_map(
                 static fn (array $entry): int => (int) $entry['unsigned'],
-                $integerEntries
+                array_values(array_filter(
+                    $integerEntries,
+                    static fn (array $entry): bool => is_int($entry['unsigned'] ?? null)
+                ))
             )),
             'hex_values' => array_values(array_map(
                 static fn (array $entry): string => (string) $entry['hex'],
-                $integerEntries
+                array_values(array_filter(
+                    $integerEntries,
+                    static fn (array $entry): bool => is_string($entry['hex'] ?? null)
+                ))
             )),
             'conflicting_permission_names' => array_keys($conflicts),
             'conflicting_statuses' => $conflicts,
@@ -4620,18 +4644,32 @@ final class PdfMetadataExtractor
      * Standard permission words are signed 32-bit integers, but some writers
      * serialize the same bit pattern as an unsigned decimal.
      *
-     * @return array{signed: int, unsigned: int, declared_form: string, normalized_from_unsigned_decimal: bool}
+     * @return array{signed: int|null, unsigned: int|null, declared_form: string, normalized_from_unsigned_decimal: bool, range_valid: bool, range_status: string}
      */
     private function standardPermissionWordValues(int $declared): array
     {
+        $signed32Min = -2147483648;
         $unsigned32Max = 4294967295;
         $signed32Max = 2147483647;
+        if ($declared < $signed32Min || $declared > $unsigned32Max) {
+            return [
+                'signed' => null,
+                'unsigned' => null,
+                'declared_form' => 'out_of_range_decimal',
+                'normalized_from_unsigned_decimal' => false,
+                'range_valid' => false,
+                'range_status' => 'permission_word_out_of_range_review',
+            ];
+        }
+
         if ($declared > $signed32Max && $declared <= $unsigned32Max) {
             return [
                 'signed' => $declared - ($unsigned32Max + 1),
                 'unsigned' => $declared,
                 'declared_form' => 'unsigned_decimal',
                 'normalized_from_unsigned_decimal' => true,
+                'range_valid' => true,
+                'range_status' => 'permission_word_in_32bit_range',
             ];
         }
 
@@ -4640,16 +4678,34 @@ final class PdfMetadataExtractor
             'unsigned' => $declared < 0 ? $declared + ($unsigned32Max + 1) : $declared,
             'declared_form' => 'signed_decimal',
             'normalized_from_unsigned_decimal' => false,
+            'range_valid' => true,
+            'range_status' => 'permission_word_in_32bit_range',
         ];
     }
 
     /**
      * @return array{reserved_bits_valid: bool, permission_word_status: string, reserved_bits: array<string, mixed>}
      */
-    private function standardPermissionReservedBitsMetadata(int $unsigned, int $effectiveRevision): array
+    private function standardPermissionReservedBitsMetadata(int $unsigned, int $effectiveRevision, bool $rangeValid): array
     {
         $expectedSetMask = $effectiveRevision < 3 ? 0xFFFFFFC0 : 0xFFFFF0C0;
         $expectedClearMask = 0x00000003;
+        if (!$rangeValid) {
+            return [
+                'reserved_bits_valid' => false,
+                'permission_word_status' => 'permission_word_out_of_range_review',
+                'reserved_bits' => [
+                    'expected_set_mask_hex' => strtoupper(sprintf('%08X', $expectedSetMask)),
+                    'expected_clear_mask_hex' => strtoupper(sprintf('%08X', $expectedClearMask)),
+                    'set_bits_ok' => null,
+                    'clear_bits_ok' => null,
+                    'word_range_valid' => false,
+                    'word_range_status' => 'permission_word_out_of_range_review',
+                    'violations' => ['permission_word_out_of_32bit_range'],
+                ],
+            ];
+        }
+
         $setBitsOk = ($unsigned & $expectedSetMask) === $expectedSetMask;
         $clearBitsOk = ($unsigned & $expectedClearMask) === 0;
         $violations = [];
@@ -4678,6 +4734,8 @@ final class PdfMetadataExtractor
                 'expected_clear_mask_hex' => strtoupper(sprintf('%08X', $expectedClearMask)),
                 'set_bits_ok' => $setBitsOk,
                 'clear_bits_ok' => $clearBitsOk,
+                'word_range_valid' => true,
+                'word_range_status' => 'permission_word_in_32bit_range',
                 'violations' => $violations,
             ],
         ];
