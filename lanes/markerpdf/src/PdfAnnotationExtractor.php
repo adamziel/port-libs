@@ -102,7 +102,7 @@ final class PdfAnnotationExtractor
                 continue;
             }
 
-            $records = $this->annotationRecordsForPage($pageBody, $objects);
+            $records = $this->annotationRecordsForPage($pageObjectNumber, $pageBody, $objects);
             if ($records === []) {
                 continue;
             }
@@ -1786,14 +1786,14 @@ final class PdfAnnotationExtractor
      * @param array<int, string> $objects
      * @return list<array{body: string, object: int|null, generation?: int|null}>
      */
-    private function annotationRecordsForPage(string $pageBody, array $objects): array
+    private function annotationRecordsForPage(int $pageObjectNumber, string $pageBody, array $objects): array
     {
         $annots = $this->pageDictionaryValueAfterName($pageBody, 'Annots');
         if ($annots === null) {
             return [];
         }
 
-        return $this->annotationRecordsFromValue($annots, $objects);
+        return $this->annotationRecordsFromValue($annots, $objects, $pageObjectNumber);
     }
 
     private function pageDictionaryValueAfterName(string $pageBody, string $name): ?string
@@ -1810,7 +1810,7 @@ final class PdfAnnotationExtractor
      * @param array<int, string> $objects
      * @return list<array{body: string, object: int|null, generation?: int|null}>
      */
-    private function annotationRecordsFromValue(string $value, array $objects): array
+    private function annotationRecordsFromValue(string $value, array $objects, int $pageObjectNumber): array
     {
         $value = trim($value);
         if ($value === '') {
@@ -1819,12 +1819,14 @@ final class PdfAnnotationExtractor
 
         if (str_starts_with($value, '[')) {
             $body = $this->arrayBodyFromValue($value);
-            return $body === null ? [] : $this->annotationRecordsFromArrayBody($body, $objects);
+            return $body === null ? [] : $this->annotationRecordsFromArrayBody($body, $objects, $pageObjectNumber);
         }
 
         if (str_starts_with($value, '<<')) {
             $dictionary = $this->readPdfDictionaryAt($value, 0);
-            return $dictionary === null ? [] : [['body' => $dictionary, 'object' => null, 'generation' => null]];
+            return $dictionary === null || !$this->annotationBelongsToPage($dictionary, $pageObjectNumber)
+                ? []
+                : [['body' => $dictionary, 'object' => null, 'generation' => null]];
         }
 
         $reference = $this->objectReferenceWithGenerationFromValue($value);
@@ -1839,11 +1841,11 @@ final class PdfAnnotationExtractor
 
         if (str_starts_with($objectBody, '[')) {
             $body = $this->arrayBodyFromValue($objectBody);
-            return $body === null ? [] : $this->annotationRecordsFromArrayBody($body, $objects);
+            return $body === null ? [] : $this->annotationRecordsFromArrayBody($body, $objects, $pageObjectNumber);
         }
 
         $dictionary = $this->dictionaryObjectBody($objectBody);
-        return $dictionary === null ? [] : [[
+        return $dictionary === null || !$this->annotationBelongsToPage($dictionary, $pageObjectNumber) ? [] : [[
             'body' => $dictionary,
             'object' => $reference['object'],
             'generation' => $reference['generation'],
@@ -1854,7 +1856,7 @@ final class PdfAnnotationExtractor
      * @param array<int, string> $objects
      * @return list<array{body: string, object: int|null, generation?: int|null}>
      */
-    private function annotationRecordsFromArrayBody(string $body, array $objects): array
+    private function annotationRecordsFromArrayBody(string $body, array $objects, int $pageObjectNumber): array
     {
         $records = [];
         $offset = 0;
@@ -1876,7 +1878,7 @@ final class PdfAnnotationExtractor
             $value = trim($value);
             if (str_starts_with($value, '<<')) {
                 $dictionary = $this->readPdfDictionaryAt($value, 0);
-                if ($dictionary !== null) {
+                if ($dictionary !== null && $this->annotationBelongsToPage($dictionary, $pageObjectNumber)) {
                     $records[] = ['body' => $dictionary, 'object' => null, 'generation' => null];
                 }
                 $offset = $endOffset;
@@ -1887,7 +1889,7 @@ final class PdfAnnotationExtractor
             if ($reference !== null) {
                 $objectBody = $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
                 $dictionary = $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
-                if ($dictionary !== null) {
+                if ($dictionary !== null && $this->annotationBelongsToPage($dictionary, $pageObjectNumber)) {
                     $records[] = [
                         'body' => $dictionary,
                         'object' => $reference['object'],
@@ -1902,6 +1904,13 @@ final class PdfAnnotationExtractor
         }
 
         return $records;
+    }
+
+    private function annotationBelongsToPage(string $annotationBody, int $pageObjectNumber): bool
+    {
+        $annotationPageObject = $this->objectReferenceValueAfterName($annotationBody, 'P');
+
+        return $annotationPageObject === null || $annotationPageObject === $pageObjectNumber;
     }
 
     /**
