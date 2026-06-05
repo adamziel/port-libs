@@ -3219,6 +3219,10 @@ final class PdfMetadataExtractor
             $row['text_color_hex'] = $this->rgbUnitColorToHex($textColor);
         }
 
+        foreach ($this->documentOutlineActionChainMetadata($this->dictionaryTopLevelRawValue($dictionary, 'A'), $objects) as $key => $value) {
+            $row[$key] = $value;
+        }
+
         $structureElement = $this->documentOutlineItemStructureElementMetadata(
             $this->dictionaryTopLevelRawValue($dictionary, 'SE'),
             $objects,
@@ -3260,6 +3264,115 @@ final class PdfMetadataExtractor
         }
 
         return $row;
+    }
+
+    /**
+     * Outline action dictionaries may include chained /Next actions. Keep a
+     * payload-free document metadata summary in parity with navigation review.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function documentOutlineActionChainMetadata(?string $value, array $objects): array
+    {
+        $seen = [];
+        $actions = $this->documentOutlineActionChainRows($value, $objects, $seen);
+        if ($actions === []) {
+            return [];
+        }
+
+        $types = [];
+        $objectNumbers = [];
+        foreach ($actions as $action) {
+            $type = $action['action_type'] ?? null;
+            if (is_string($type) && $type !== '') {
+                $types[] = $type;
+            }
+
+            $objectNumber = $action['action_object'] ?? null;
+            if (is_int($objectNumber)) {
+                $objectNumbers[] = $objectNumber;
+            }
+        }
+
+        $types = $this->uniqueStrings($types);
+        $metadata = [
+            'action_review_only' => true,
+            'action_payload_included' => false,
+            'executes_action' => false,
+            'action_chain_count' => count($actions),
+            'action_chain_types' => $types,
+            'action_chain_has_next' => count($actions) > 1,
+            'action_chain_has_javascript' => in_array('JavaScript', $types, true),
+            'action_chain_has_launch' => in_array('Launch', $types, true),
+        ];
+
+        if ($objectNumbers !== []) {
+            $metadata['action_chain_objects'] = array_values(array_unique($objectNumbers));
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     * @return list<array{action_type?: string, action_object?: int}>
+     */
+    private function documentOutlineActionChainRows(
+        ?string $value,
+        array $objects,
+        array &$seen,
+        int $depth = 0
+    ): array {
+        if ($value === null || $depth > 20) {
+            return [];
+        }
+
+        $arrayItems = $this->arrayItemsFromValue($value, $objects);
+        if ($arrayItems !== []) {
+            $rows = [];
+            foreach ($arrayItems as $item) {
+                foreach ($this->documentOutlineActionChainRows($item, $objects, $seen, $depth + 1) as $row) {
+                    $rows[] = $row;
+                }
+            }
+
+            return $rows;
+        }
+
+        $dictionary = $this->resolveDictionaryFromValue($value, $objects);
+        if ($dictionary === null) {
+            return [];
+        }
+
+        $actionObject = $this->objectNumberFromReference($value) ?? $dictionary['object'];
+        $identity = $actionObject === null ? 'dict:' . md5($dictionary['body']) : 'obj:' . $actionObject;
+        if (isset($seen[$identity])) {
+            return [];
+        }
+        $seen[$identity] = true;
+
+        $rows = [];
+        $type = $this->dictionaryNameValue($dictionary['body'], 'S', $objects);
+        if ($type !== null && $type !== '') {
+            $row = ['action_type' => $type];
+            if ($actionObject !== null) {
+                $row['action_object'] = $actionObject;
+            }
+            $rows[] = $row;
+        }
+
+        foreach ($this->documentOutlineActionChainRows(
+            $this->dictionaryTopLevelRawValue($dictionary['body'], 'Next'),
+            $objects,
+            $seen,
+            $depth + 1
+        ) as $nextRow) {
+            $rows[] = $nextRow;
+        }
+
+        return $rows;
     }
 
     /**
