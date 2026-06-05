@@ -17068,10 +17068,9 @@ final class PdfTextExtractor
             return [];
         }
 
-        preg_match_all('/\/[^\s\[\]()<>{}\/%]+|[+-]?\d+/', $differences, $tokens);
         $glyphNames = [];
         $code = null;
-        foreach ($tokens[0] ?? [] as $token) {
+        foreach ($this->pdfArrayItems($differences) as $token) {
             if (preg_match('/^[+-]?\d+$/', $token) === 1) {
                 $code = max(0, min(255, (int) $token));
                 continue;
@@ -19800,11 +19799,10 @@ final class PdfTextExtractor
      */
     private function encodingDifferencesMap(string $differences): array
     {
-        preg_match_all('/\/[^\s\[\]()<>{}\/%]+|[+-]?\d+/', $differences, $matches);
         $map = [];
         $code = null;
 
-        foreach ($matches[0] ?? [] as $token) {
+        foreach ($this->pdfArrayItems($differences) as $token) {
             if (preg_match('/^[+-]?\d+$/', $token) === 1) {
                 $code = max(0, min(255, (int) $token));
                 continue;
