@@ -15250,6 +15250,27 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function directObjectDefinitionForGenerationBeforeOffset(array $definitions, int $generation, ?int $beforeOffset): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if ($definition['generation'] !== $generation) {
+                continue;
+            }
+            if ($beforeOffset !== null && $definition['offset'] >= $beforeOffset) {
+                continue;
+            }
+
+            $candidates[] = $definition;
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
+    }
+
+    /**
      * @param array<int, string> $objects
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @return array<int, string>
@@ -18866,7 +18887,11 @@ final class PdfTextExtractor
             }
             $seen[$key] = true;
 
-            $definition = $this->directObjectDefinitionForGeneration($definitions[$objectNumber] ?? [], $generation);
+            $definition = $this->directObjectDefinitionForGenerationBeforeOffset(
+                $definitions[$objectNumber] ?? [],
+                $generation,
+                $beforeOffset
+            );
             $compressed = $this->compressedStreamDictionaryOperandHelperBeforeOffset(
                 $definitions,
                 $resolved,

@@ -2122,6 +2122,27 @@ final class PdfEmbeddedFileExtractor
     }
 
     /**
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function directObjectDefinitionForGenerationBeforeOffset(array $definitions, int $generation, int $beforeOffset): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if (
+                $definition['generation'] !== $generation
+                || $definition['offset'] >= $beforeOffset
+            ) {
+                continue;
+            }
+
+            $candidates[] = $definition;
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
+    }
+
+    /**
      * @param array<int, string> $objects
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
@@ -2705,8 +2726,8 @@ final class PdfEmbeddedFileExtractor
     }
 
     /**
-     * Resolve only safe compressed scalar helpers referenced by xref-stream
-     * /Prev before decoding current rows for metadata attachment selection.
+     * Resolve only safe direct or compressed scalar helpers referenced by
+     * xref-stream /Prev before decoding current rows for attachments.
      *
      * @param array<int, string> $objects
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
@@ -2719,21 +2740,45 @@ final class PdfEmbeddedFileExtractor
         int $beforeOffset
     ): array {
         $reference = $this->objectReferenceFromValue($this->dictionaryRawValue($xrefBody, 'Prev'));
-        if ($reference === null || $reference['generation'] !== 0) {
+        if ($reference === null) {
             return $objects;
         }
 
-        $body = $this->compressedObjectStreamHelperBodyBeforeOffset(
-            $definitions,
-            $objects,
-            $reference['objectNumber'],
+        $definition = $this->directObjectDefinitionForGenerationBeforeOffset(
+            $definitions[$reference['objectNumber']] ?? [],
+            $reference['generation'],
             $beforeOffset
         );
-        if ($body === null || !$this->safeXrefOperandHelperBody($body)) {
+        $helper = $reference['generation'] === 0
+            ? $this->compressedObjectStreamHelperBodyBeforeOffset(
+                $definitions,
+                $objects,
+                $reference['objectNumber'],
+                $beforeOffset
+            )
+            : null;
+
+        $directBody = $definition === null ? null : trim($definition['body']);
+        $helperBody = $helper === null ? null : trim($helper['body']);
+        if (
+            $helperBody !== null
+            && $this->safeXrefOperandHelperBody($helperBody)
+            && ($definition === null || $helper['carrierOffset'] > $definition['offset'])
+        ) {
+            $objects[$reference['objectNumber']] = $helperBody;
             return $objects;
         }
 
-        $objects[$reference['objectNumber']] = $body;
+        if ($directBody !== null && $this->safeXrefOperandHelperBody($directBody)) {
+            $objects[$reference['objectNumber']] = $directBody;
+            return $objects;
+        }
+
+        if ($helperBody === null || !$this->safeXrefOperandHelperBody($helperBody)) {
+            return $objects;
+        }
+
+        $objects[$reference['objectNumber']] = $helperBody;
         return $objects;
     }
 
@@ -2750,13 +2795,14 @@ final class PdfEmbeddedFileExtractor
     /**
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @param array<int, string> $objects
+     * @return array{body: string, carrierOffset: int}|null
      */
     private function compressedObjectStreamHelperBodyBeforeOffset(
         array $definitions,
         array $objects,
         int $objectNumber,
         int $beforeOffset
-    ): ?string {
+    ): ?array {
         if ($objectNumber <= 0) {
             return null;
         }
@@ -2802,7 +2848,7 @@ final class PdfEmbeddedFileExtractor
             }
         }
 
-        return is_array($selected) ? $selected['body'] : null;
+        return $selected;
     }
 
     /**

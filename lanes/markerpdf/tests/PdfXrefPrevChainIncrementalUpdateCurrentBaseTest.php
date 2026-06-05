@@ -1249,6 +1249,100 @@ $xrefPrevChainLatestInfoNullPdf = static function (): string {
     return $pdf;
 };
 
+$xrefPrevChainDirectPrevOperandOwnerPdf = static function () use ($xrefPrevChainIncrementalUpdateCurrentBaseXmp): string {
+    $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale direct Prev owner page) Tj ET';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current direct Prev owner page) Tj T* (Direct Prev helper selected) Tj ET';
+    $staleAttachment = '<wp-export><post id="stale-direct-prev-owner"/></wp-export>';
+    $currentAttachment = '<wp-export><post id="current-direct-prev-owner"/></wp-export>';
+    $staleXmp = gzcompress($xrefPrevChainIncrementalUpdateCurrentBaseXmp(
+        'Stale Direct Prev Owner XMP Title',
+        'Stale direct Prev owner metadata'
+    ));
+    $currentXmp = gzcompress($xrefPrevChainIncrementalUpdateCurrentBaseXmp(
+        'Current Direct Prev Owner XMP Title',
+        'Current xref-stream direct Prev helper selected before decoy'
+    ));
+    if (!is_string($staleXmp) || !is_string($currentXmp)) {
+        throw new RuntimeException('Unable to compress direct Prev owner XMP fixture streams.');
+    }
+
+    $pdf = "%PDF-1.7\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): int {
+        $offset = strlen($pdf);
+        $offsets[$objectNumber . ':' . $generation . ':' . count($offsets)] = $offset;
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $xrefTableRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+    $xrefStreamRow = static fn (int $type, int $fieldTwo, int $fieldThree): string => chr($type) . pack('N', $fieldTwo) . chr($fieldThree);
+
+    $staleCatalogOffset = $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $stalePagesOffset = $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $stalePageOffset = $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+    $staleContentOffset = $addObject(4, 0, "<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream");
+    $fontOffset = $addObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $staleInfoOffset = $addObject(6, 0, '<< /Title (Stale Direct Prev Owner Info Title) /Author (Stale Direct Prev Author) /Producer (Stale Direct Prev Producer) >>');
+    $staleMetadataOffset = $addObject(7, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($staleXmp) . " >>\nstream\n{$staleXmp}\nendstream");
+    $staleNameTreeOffset = $addObject(8, 0, '<< /Names [(stale-direct-prev-owner.xml) 9 0 R] >>');
+    $staleFileSpecOffset = $addObject(9, 0, '<< /Type /Filespec /F (stale-direct-prev-owner.xml) /Desc (Stale direct Prev owner attachment) /AFRelationship /Data /EF << /F 10 0 R >> >>');
+    $staleEmbeddedFileOffset = $addObject(10, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($staleAttachment) . " >>\nstream\n{$staleAttachment}\nendstream");
+
+    $previousXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 11\n"
+        . $xrefTableRow(0, 65535, 'f')
+        . $xrefTableRow($staleCatalogOffset)
+        . $xrefTableRow($stalePagesOffset)
+        . $xrefTableRow($stalePageOffset)
+        . $xrefTableRow($staleContentOffset)
+        . $xrefTableRow($fontOffset)
+        . $xrefTableRow($staleInfoOffset)
+        . $xrefTableRow($staleMetadataOffset)
+        . $xrefTableRow($staleNameTreeOffset)
+        . $xrefTableRow($staleFileSpecOffset)
+        . $xrefTableRow($staleEmbeddedFileOffset)
+        . "trailer\n<< /Size 11 /Root 1 0 R /Info 6 0 R >>\n"
+        . "startxref\n{$previousXrefOffset}\n%%EOF\n";
+
+    $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+    $addObject(4, 0, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+    $addObject(6, 0, '<< /Title (Current Direct Prev Owner Info Title) /Author (Current Direct Prev Author) /Producer (Current Direct Prev Producer) >>');
+    $addObject(7, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($currentXmp) . " >>\nstream\n{$currentXmp}\nendstream");
+    $addObject(8, 0, '<< /Names [(current-direct-prev-owner.xml) 9 0 R] >>');
+    $addObject(9, 0, '<< /Type /Filespec /F (current-direct-prev-owner.xml) /Desc (Current direct Prev owner attachment) /AFRelationship /Data /EF << /F 10 0 R >> >>');
+    $addObject(10, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($currentAttachment) . " >>\nstream\n{$currentAttachment}\nendstream");
+    $addObject(30, 0, (string) $previousXrefOffset);
+
+    $currentRows = ''
+        . $xrefStreamRow(1, 0, 0)
+        . $xrefStreamRow(1, 0, 0)
+        . $xrefStreamRow(1, 0, 0)
+        . $xrefStreamRow(1, 0, 0)
+        . $xrefStreamRow(1, $fontOffset, 0)
+        . $xrefStreamRow(1, 0, 0)
+        . $xrefStreamRow(1, 0, 0)
+        . $xrefStreamRow(1, 0, 0)
+        . $xrefStreamRow(1, 0, 0)
+        . $xrefStreamRow(1, 0, 0);
+    $compressedRows = gzcompress($currentRows);
+    if (!is_string($compressedRows)) {
+        throw new RuntimeException('Unable to compress direct Prev owner xref rows.');
+    }
+
+    $currentXrefOffset = strlen($pdf);
+    $pdf .= "20 0 obj\n"
+        . '<< /Type /XRef /Size 31 /Root 1 0 R /Info 6 0 R /Prev 30 0 R /Index [1 10] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedRows) . " >>\n"
+        . "stream\n{$compressedRows}\nendstream\nendobj\n"
+        . "30 0 obj\n(post-xref direct Prev helper decoy)\nendobj\n"
+        . "startxref\n{$currentXrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
 return [
     'repairs current metadata generation objects through damaged xref Prev chain offsets' => static function (
         TestRunner $t
@@ -1524,6 +1618,37 @@ return [
         $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Previous Compressed Prev'));
         $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'previous-compressed-prev'));
         $t->true(!str_contains($text, 'Previous compressed Prev metadata page'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'repairs current xref-stream rows when direct Prev helper is shadowed after startxref target' => static function (
+        TestRunner $t
+    ) use ($xrefPrevChainDirectPrevOperandOwnerPdf): void {
+        $pdf = $xrefPrevChainDirectPrevOperandOwnerPdf();
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $extractor = new PdfTextExtractor();
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $text = $extractor->extractPlainText($pdf);
+        $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['Current direct Prev owner page', 'Direct Prev helper selected'], $extractor->extractTextLines($pdf));
+        $t->same("Current direct Prev owner page\nDirect Prev helper selected", $text);
+        $t->same(['xmp', 'info', 'catalog'], $metadata['source']);
+        $t->same('Current Direct Prev Owner XMP Title', $metadata['title']);
+        $t->same('Current xref-stream direct Prev helper selected before decoy', $metadata['description']);
+        $t->same('Current Direct Prev Owner Info Title', $metadata['info']['Title']);
+        $t->same(['Current Direct Prev Author'], $metadata['authors']);
+        $t->same('Current Direct Prev Producer', $metadata['producer']);
+        $t->same('en-US', $metadata['language']);
+        $t->same(1, count($files));
+        $t->same('current-direct-prev-owner.xml', $files[0]['filename']);
+        $t->same('Current direct Prev owner attachment', $files[0]['description']);
+        $t->same('<wp-export><post id="current-direct-prev-owner"/></wp-export>', $files[0]['content']);
+        $t->true(str_contains($pdf, '/Prev 30 0 R'));
+        $t->true(str_contains($pdf, 'post-xref direct Prev helper decoy'));
+        $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Stale Direct Prev Owner'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'stale-direct-prev-owner'));
+        $t->true(!str_contains($text, 'Stale direct Prev owner page'));
         $t->true(!str_contains($text, "\0"));
     },
     'resolves xref-stream W and Index helpers before stale post-xref direct objects' => static function (
