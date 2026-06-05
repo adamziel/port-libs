@@ -359,3 +359,27 @@ func NormalizeTitle(ctx context.Context, packet *ReviewPacket) (string, error) {
     return packet.Title, nil
 }
 ```
+
+``` {.ps1 #powershell-review .numberLines startFrom=150}
+# WordPress Windows import review
+[CmdletBinding()]
+param(
+    [string]$SourcePath,
+    [switch]$DryRun
+)
+
+$packet = Get-Content -LiteralPath $SourcePath | ConvertFrom-Json
+if ($null -eq $packet.title -or $packet.title.Trim() -eq "") {
+    Write-Warning "Missing title in $SourcePath"
+    return
+}
+
+$blocks = @(
+    "<!-- wp:paragraph --><p>$($packet.title)</p><!-- /wp:paragraph -->"
+)
+$meta = @{
+    source = $SourcePath
+    dryRun = $DryRun
+}
+$blocks | ForEach-Object { $_.Trim() } | Set-Content -LiteralPath ".\review.html"
+```

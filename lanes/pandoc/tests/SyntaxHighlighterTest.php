@@ -71,6 +71,13 @@ return [
         $t->same('perl', SyntaxHighlighter::normalizeLanguage('pl'));
         $t->same('perl', SyntaxHighlighter::normalizeLanguage('PL'));
         $t->same('perl', SyntaxHighlighter::normalizeLanguage('pm'));
+        $t->same('powershell', SyntaxHighlighter::normalizeLanguage('powershell'));
+        $t->same('powershell', SyntaxHighlighter::normalizeLanguage('posh'));
+        $t->same('powershell', SyntaxHighlighter::normalizeLanguage('ps1'));
+        $t->same('powershell', SyntaxHighlighter::normalizeLanguage('psd1'));
+        $t->same('powershell', SyntaxHighlighter::normalizeLanguage('psm1'));
+        $t->same('powershell', SyntaxHighlighter::normalizeLanguage('pwsh'));
+        $t->same('powershell', SyntaxHighlighter::normalizeLanguage('language-ps1'));
         $t->same('java', SyntaxHighlighter::normalizeLanguage('java'));
         $t->same('xml', SyntaxHighlighter::normalizeLanguage('xml'));
         $t->same('xml', SyntaxHighlighter::normalizeLanguage('svg'));
@@ -460,6 +467,49 @@ return [
         $t->contains('<span class="kw">go</span> <span class="kw">func</span><span class="op">()</span>', $directGo['html']);
         $t->contains('<span class="kw">defer</span> <span class="fu">close</span><span class="op">(</span><span class="va">done</span><span class="op">);</span>', $directGo['html']);
         $t->contains('<span class="va">done</span> <span class="op">&lt;-</span> <span class="st">&quot;ok&quot;</span>', $directGo['html']);
+    },
+    'highlights powershell migration review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[26] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a PowerShell code block');
+        }
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'breezedark');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'breezedark');
+        $directPowerShell = (new SyntaxHighlighter())->highlight('Get-Content -LiteralPath $Env:WP_IMPORT | ConvertFrom-Json', 'pwsh');
+
+        $t->same('ps1', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('powershell', $highlighted['language']);
+        $t->same('ps1', $highlighted['requestedLanguage']);
+        $t->same('breezedark', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(150, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource ps1 numberLines"><code class="sourceCode powershell" style="counter-reset: source-line 149;">', $highlighted['html']);
+        $t->contains('<span id="powershell-review-150"><a href="#powershell-review-150"></a><span class="co"># WordPress Windows import review</span></span>', $highlighted['html']);
+        $t->contains('<span class="ot">[CmdletBinding()]</span>', $highlighted['html']);
+        $t->contains('<span class="kw">param</span><span class="op">(</span>', $highlighted['html']);
+        $t->contains('<span class="dt">[string]</span><span class="va">$SourcePath</span><span class="op">,</span>', $highlighted['html']);
+        $t->contains('<span class="dt">[switch]</span><span class="va">$DryRun</span>', $highlighted['html']);
+        $t->contains('<span class="va">$packet</span> <span class="op">=</span> <span class="fu">Get-Content</span> <span class="ot">-LiteralPath</span> <span class="va">$SourcePath</span> <span class="op">|</span> <span class="fu">ConvertFrom-Json</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="op">(</span><span class="cn">$null</span> <span class="op">-eq</span> <span class="va">$packet</span><span class="op">.</span><span class="va">title</span> <span class="op">-or</span>', $highlighted['html']);
+        $t->contains('<span class="va">$packet</span><span class="op">.</span><span class="va">title</span><span class="op">.</span><span class="fu">Trim</span><span class="op">()</span> <span class="op">-eq</span> <span class="st">&quot;&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="fu">Write-Warning</span> <span class="st">&quot;Missing title in $SourcePath&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="va">$blocks</span> <span class="op">=</span> <span class="op">@(</span>', $highlighted['html']);
+        $t->contains('<span class="st">&quot;&lt;!-- wp:paragraph --&gt;&lt;p&gt;$($packet.title)&lt;/p&gt;&lt;!-- /wp:paragraph --&gt;&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="va">$meta</span> <span class="op">=</span> <span class="op">@{</span>', $highlighted['html']);
+        $t->contains('<span class="ot">source</span> <span class="op">=</span> <span class="va">$SourcePath</span>', $highlighted['html']);
+        $t->contains('<span class="va">$blocks</span> <span class="op">|</span> <span class="fu">ForEach-Object</span> <span class="op">{</span> <span class="va">$_</span><span class="op">.</span><span class="fu">Trim</span><span class="op">()</span> <span class="op">}</span> <span class="op">|</span> <span class="fu">Set-Content</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="breezedark">', $wordpressBlock);
+        $t->contains('<span class="fu">Set-Content</span> <span class="ot">-LiteralPath</span> <span class="st">&quot;.\\review.html&quot;</span>', $wordpressBlock);
+        $t->same('powershell', $directPowerShell['language']);
+        $t->same('pwsh', $directPowerShell['requestedLanguage']);
+        $t->contains('<span class="fu">Get-Content</span> <span class="ot">-LiteralPath</span> <span class="va">$Env:WP_IMPORT</span> <span class="op">|</span> <span class="fu">ConvertFrom-Json</span>', $directPowerShell['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

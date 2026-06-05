@@ -196,6 +196,12 @@ if (!$goCodeBlock instanceof PortLibs\Pandoc\AstNode || $goCodeBlock->type !== '
 }
 $go = $highlighter->highlightCodeBlock($goCodeBlock, 'tango');
 $goWordpressBlock = $highlighter->wordpressHtmlBlock($goCodeBlock, 'tango');
+$powershellCodeBlock = $document->children[26] ?? null;
+if (!$powershellCodeBlock instanceof PortLibs\Pandoc\AstNode || $powershellCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a PowerShell code block');
+}
+$powershell = $highlighter->highlightCodeBlock($powershellCodeBlock, 'breezedark');
+$powershellWordpressBlock = $highlighter->wordpressHtmlBlock($powershellCodeBlock, 'breezedark');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -785,6 +791,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($goWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
         throw new RuntimeException('Expected Go WordPress style metadata');
     }
+    if (($powershell['language'] ?? '') !== 'powershell') {
+        throw new RuntimeException('Expected PowerShell alias to normalize to PowerShell highlighting');
+    }
+    if (($powershell['lineNumbering']['start'] ?? null) !== 150) {
+        throw new RuntimeException('Expected PowerShell source startFrom line-number handoff');
+    }
+    if (!str_contains($powershell['html'], '<span class="fu">Get-Content</span> <span class="ot">-LiteralPath</span> <span class="va">$SourcePath</span>')) {
+        throw new RuntimeException('Expected PowerShell Get-Content command and parameter token handoff');
+    }
+    if (!str_contains($powershell['html'], '<span class="cn">$null</span> <span class="op">-eq</span>')) {
+        throw new RuntimeException('Expected PowerShell null comparison token handoff');
+    }
+    if (!str_contains($powershell['html'], '<span class="op">@{</span>')) {
+        throw new RuntimeException('Expected PowerShell hashtable token handoff');
+    }
+    if (!str_contains($powershellWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
+        throw new RuntimeException('Expected PowerShell WordPress style metadata');
+    }
+    if (!str_contains($powershellWordpressBlock, '<span class="fu">Set-Content</span> <span class="ot">-LiteralPath</span>')) {
+        throw new RuntimeException('Expected PowerShell Set-Content token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -835,6 +862,7 @@ echo "rustHighlightedHtml:\n" . $rust['html'] . "\n";
 echo "nixHighlightedHtml:\n" . $nix['html'] . "\n";
 echo "scssHighlightedHtml:\n" . $scss['html'] . "\n";
 echo "goHighlightedHtml:\n" . $go['html'] . "\n";
+echo "powershellHighlightedHtml:\n" . $powershell['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -856,4 +884,5 @@ echo "rustWordpressBlock:\n" . $rustWordpressBlock . "\n";
 echo "nixWordpressBlock:\n" . $nixWordpressBlock . "\n";
 echo "scssWordpressBlock:\n" . $scssWordpressBlock . "\n";
 echo "goWordpressBlock:\n" . $goWordpressBlock . "\n";
+echo "powershellWordpressBlock:\n" . $powershellWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

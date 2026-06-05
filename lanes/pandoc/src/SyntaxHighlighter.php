@@ -104,9 +104,15 @@ final class SyntaxHighlighter
         'perl' => 'perl',
         'pl' => 'perl',
         'pm' => 'perl',
+        'posh' => 'powershell',
+        'powershell' => 'powershell',
         'php' => 'php',
         'postgres' => 'sql',
         'postgresql' => 'sql',
+        'ps1' => 'powershell',
+        'psd1' => 'powershell',
+        'psm1' => 'powershell',
+        'pwsh' => 'powershell',
         'py' => 'python',
         'py3' => 'python',
         'python' => 'python',
@@ -569,6 +575,7 @@ final class SyntaxHighlighter
             'nix' => $this->tokenizeNix($code),
             'perl' => $this->tokenizePerl($code),
             'php' => $this->tokenizePhp($code),
+            'powershell' => $this->tokenizePowerShell($code),
             'python' => $this->tokenizePython($code),
             'r' => $this->tokenizeR($code),
             'ruby' => $this->tokenizeRuby($code),
@@ -730,6 +737,35 @@ final class SyntaxHighlighter
             ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[({*\\[]|\\b))/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:\\.\\.\\.|:=|<-|&\\^=?|<<=?|>>=?|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|[{}()[\\];,.+*\\/%=!<>?:&|^~-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizePowerShell(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^<#[\\s\\S]*?#>/'],
+            ['comment', '/^#[^\\n]*/'],
+            ['string', '/^@"[\\s\\S]*?(?:\\r?\\n)"@/'],
+            ['string', "/^@'[\\s\\S]*?(?:\\r?\\n)'@/"],
+            ['string', '/^"(?:`.|[^"`])*"/s'],
+            ['string', "/^'(?:''|[^'])*'/s"],
+            ['constant', '/^\\$(?:false|null|true)\\b/i'],
+            ['datatype', '/^\\[(?:bool|byte|char|datetime|decimal|double|float|hashtable|int|long|object|pscustomobject|regex|sbyte|scriptblock|short|string|switch|uint|ulong|ushort|void|xml|[A-Za-z_][A-Za-z0-9_.]*(?:\\[\\])?)\\]/i'],
+            ['attribute', '/^\\[[A-Za-z_][A-Za-z0-9_.]*(?:\\([^\\]\\n]*\\))?\\]/'],
+            ['function', '/^\\b[A-Za-z][A-Za-z0-9]*-[A-Za-z][A-Za-z0-9]*\\b/'],
+            ['keyword', '/^\\b(?:begin|break|catch|class|continue|data|do|dynamicparam|else|elseif|end|exit|filter|finally|for|foreach|from|function|if|in|inlineScript|parallel|param|process|return|sequence|switch|throw|trap|try|until|using|var|while|workflow)\\b/i'],
+            ['operator', '/^(?:@\\{|@\\(|::|=>|\\.\\.|&&|\\|\\||-(?:and|contains|eq|f|ge|gt|in|is|isnot|join|le|like|lt|match|ne|not|notcontains|notin|notlike|notmatch|or|replace|split)\\b)/i'],
+            ['attribute', '/^-{1,2}[A-Za-z][A-Za-z0-9_-]*/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f]+|\\d+(?:\\.\\d+)?)\\b/'],
+            ['variable', '/^\\$(?:Alias|Env|Function|Global|Local|Private|Script|Using|Variable|Workflow):[A-Za-z_][A-Za-z0-9_:-]*/i'],
+            ['variable', '/^\\$\\{[^}\\n]+\\}|^\\$[_?^$]|^\\$[A-Za-z_][A-Za-z0-9_]*/'],
+            ['attribute', '/^[A-Za-z_][A-Za-z0-9_-]*(?=\\s*=)/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^[{}()[\\];,.+*\\/%=!<>?:|&@`-]/'],
         ]);
     }
 
