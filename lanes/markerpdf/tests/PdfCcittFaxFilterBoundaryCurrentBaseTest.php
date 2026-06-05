@@ -885,4 +885,86 @@ return [
         $t->same(false, str_contains($encodedReview, $maskPayload));
         $t->same(false, str_contains($encodedReview, $alternatePayload));
     },
+    'records CCITT Fax coding mode and terminal marker boundaries without raster decode' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $defaultPlan = $renderer->inlineImageReviewPlan(
+            '/W 1728 /H 1 /IM true /F /CCF',
+            "\x00\x10\x01\x00\x10\x01\x00\x10\x01"
+        );
+        $g4Plan = $renderer->inlineImageReviewPlan(
+            '/W 16 /H 0 /IM true /F /CCF /DP << /K -1 /EndOfBlock true >>',
+            "\x00\x10\x01"
+        );
+        $mixedPlan = $renderer->inlineImageReviewPlan(
+            '/W 24 /H 4 /IM true /F /CCF /DP << /K 4 /EndOfBlock false >>',
+            "\x80\x40\x20\x10"
+        );
+
+        $t->same([
+            'filter' => 'CCITTFaxDecode',
+            'review_only' => true,
+            'native_raster_decode' => false,
+            'decode_parms_present' => false,
+            'invalid_decode_parms' => false,
+            'effective_k' => 0,
+            'coding_mode' => 'group3_one_dimensional',
+            'uses_two_dimensional_coding' => false,
+            'two_dimensional_line_interval' => null,
+            'end_of_block' => true,
+            'end_of_block_marker' => 'rtc',
+        ], $defaultPlan['ccitt_fax_coding_boundary'] ?? null);
+        $t->same([
+            'filter' => 'CCITTFaxDecode',
+            'review_only' => true,
+            'native_raster_decode' => false,
+            'decode_parms_present' => true,
+            'invalid_decode_parms' => false,
+            'effective_k' => -1,
+            'coding_mode' => 'group4_two_dimensional',
+            'uses_two_dimensional_coding' => true,
+            'two_dimensional_line_interval' => null,
+            'end_of_block' => true,
+            'end_of_block_marker' => 'eofb',
+        ], $g4Plan['ccitt_fax_coding_boundary'] ?? null);
+        $t->same([
+            'filter' => 'CCITTFaxDecode',
+            'review_only' => true,
+            'native_raster_decode' => false,
+            'decode_parms_present' => true,
+            'invalid_decode_parms' => false,
+            'effective_k' => 4,
+            'coding_mode' => 'group3_mixed_two_dimensional',
+            'uses_two_dimensional_coding' => true,
+            'two_dimensional_line_interval' => 4,
+            'end_of_block' => false,
+            'end_of_block_marker' => null,
+        ], $mixedPlan['ccitt_fax_coding_boundary'] ?? null);
+
+        $extractor = new PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before coding mode CCITT) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After coding mode CCITT) Tj ET';
+        $g4Payload = "\x11\x22\x00\x10\x01";
+        $mixedPayload = "\x80\x40\x20\x10";
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /FaxG4 5 0 R /FaxMixed 6 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 7 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 0 /ImageMask true /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns 16 /Rows 0 /EndOfBlock true >> /Length " . strlen($g4Payload) . " >>\nstream\n{$g4Payload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 24 /Height 4 /ImageMask true /BitsPerComponent 1 /Filter /CCF /DecodeParms << /K 4 /Columns 24 /Rows 4 /EndOfBlock false >> /Length " . strlen($mixedPayload) . " >>\nstream\n{$mixedPayload}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $g4 = $review['entries'][0] ?? [];
+        $mixed = $review['entries'][1] ?? [];
+
+        $t->same(['Before coding mode CCITT', 'After coding mode CCITT'], $extractor->extractTextLines($pdf));
+        $t->same('group4_two_dimensional', $g4['ccitt_fax_coding_boundary']['coding_mode'] ?? null);
+        $t->same('eofb', $g4['ccitt_fax_coding_boundary']['end_of_block_marker'] ?? null);
+        $t->same('group3_mixed_two_dimensional', $mixed['ccitt_fax_coding_boundary']['coding_mode'] ?? null);
+        $t->same(4, $mixed['ccitt_fax_coding_boundary']['two_dimensional_line_interval'] ?? null);
+        $t->same(null, $mixed['ccitt_fax_coding_boundary']['end_of_block_marker'] ?? null);
+        $t->same(false, $g4['decoded_with_current_filters'] ?? null);
+        $t->same(false, $mixed['decoded_with_current_filters'] ?? null);
+    },
 ];

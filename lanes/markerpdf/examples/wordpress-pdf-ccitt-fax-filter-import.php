@@ -48,6 +48,10 @@ $inlineReview = (new PdfImageRenderer())->inlineImageReviewPlan(
     '/W 16 /H 1 /IM true /F /CCF /DP << /K 0 /Columns 16 /Rows 1 /BlackIs1 false /EncodedByteAlign true /EndOfLine false /EndOfBlock true >> /D [1 0]',
     "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline CCITT fax payload noise) Tj ET final"
 );
+$defaultInlineReview = (new PdfImageRenderer())->inlineImageReviewPlan(
+    '/W 1728 /H 1 /IM true /F /CCF',
+    "\x00\x10\x01\x00\x10\x01\x00\x10\x01"
+);
 $invalidInlinePayload = "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline invalid CCITT fax payload noise) Tj ET final";
 $invalidInlineReview = (new PdfImageRenderer())->inlineImageReviewPlan(
     '/W 8 /H 1 /IM true /F /CCF /DP << /K /TwoD /Columns 0 /Rows -1 /BlackIs1 /Maybe /EncodedByteAlign true /EndOfLine /No /EndOfBlock true /DamagedRowsBeforeError -2 >> /D [1 0]',
@@ -172,6 +176,8 @@ $compactXobjectReview = $boundaryExtractor->extractImageXObjectBoundaryReview($c
 $compactXobjectEntry = $compactXobjectReview['entries'][0] ?? [];
 $compactXobjectParms = $compactXobjectEntry['filter_details'][1]['decode_parms'] ?? [];
 $compactXobjectBoundary = $compactXobjectEntry['ccitt_fax_decode_boundary'] ?? [];
+$inlineCodingBoundary = $inlineReview['ccitt_fax_coding_boundary'] ?? [];
+$defaultInlineCodingBoundary = $defaultInlineReview['ccitt_fax_coding_boundary'] ?? [];
 $inlineNotes = $inlineReview['notes'] ?? [];
 $invalidInlineParms = $invalidInlineReview['image_filter_details'][0]['decode_parms'] ?? [];
 $inlineGeometryBoundary = $inlineGeometryReview['ccitt_fax_decode_boundary'] ?? [];
@@ -211,12 +217,19 @@ if (
     || str_contains($boundaryExtractor->extractPlainText($directBoundaryPdf), 'WordPress direct RTC CCITT leak')
     || (($directG4Entry['raw_length'] ?? null) !== strlen($directG4Payload))
     || (($directRtcEntry['raw_length'] ?? null) !== strlen($directRtcPayload))
+    || (($directG4Entry['ccitt_fax_coding_boundary']['end_of_block_marker'] ?? null) !== 'eofb')
+    || (($directRtcEntry['ccitt_fax_coding_boundary']['end_of_block_marker'] ?? null) !== 'rtc')
 ) {
     throw new RuntimeException('Direct CCITT Fax EOFB/RTC stream boundary smoke failed.');
 }
 if (
     ($inlineGeometryBoundary['effective_decode_parms']['end_of_block'] ?? null) !== true
     || ($inlineGeometryBoundary['dimension_mismatch'] ?? null) !== true
+    || ($inlineCodingBoundary['coding_mode'] ?? null) !== 'group3_one_dimensional'
+    || ($inlineCodingBoundary['end_of_block_marker'] ?? null) !== 'rtc'
+    || ($defaultInlineCodingBoundary['decode_parms_present'] ?? null) !== false
+    || ($defaultInlineCodingBoundary['coding_mode'] ?? null) !== 'group3_one_dimensional'
+    || ($defaultInlineCodingBoundary['end_of_block_marker'] ?? null) !== 'rtc'
     || ($geometryBoundary['effective_width'] ?? null) !== 16
     || ($geometryBoundary['effective_height'] ?? null) !== 4
     || ($geometryBoundary['width_source'] ?? null) !== 'decodeparms_columns'
@@ -263,6 +276,11 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'inline_review_only_filters' => $inlineReview['inline_image']['review_only_filters'] ?? [],
     'inline_ccitt_review_only' => $inlineReview['inline_image_review_only'] ?? null,
     'inline_ccitt_note' => 'inline_ccitt_fax_image_filter_review_only',
+    'inline_ccitt_coding_mode' => $inlineCodingBoundary['coding_mode'] ?? null,
+    'inline_ccitt_end_of_block_marker' => $inlineCodingBoundary['end_of_block_marker'] ?? null,
+    'inline_default_decode_parms_present' => $defaultInlineCodingBoundary['decode_parms_present'] ?? null,
+    'inline_default_coding_mode' => $defaultInlineCodingBoundary['coding_mode'] ?? null,
+    'inline_default_end_of_block_marker' => $defaultInlineCodingBoundary['end_of_block_marker'] ?? null,
     'inline_invalid_decode_parms_valid' => $invalidInlineParms['valid_decode_parms'] ?? null,
     'inline_invalid_decode_parms_fields' => $invalidInlineParms['invalid_decode_parms_fields'] ?? [],
     'inline_invalid_payload_excluded_from_review' => !str_contains(json_encode($invalidInlineReview, JSON_UNESCAPED_SLASHES) ?: '', $invalidInlinePayload),
@@ -329,6 +347,8 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
         && !str_contains($boundaryExtractor->extractPlainText($directBoundaryPdf), 'WordPress direct RTC CCITT leak'),
     'direct_ccitt_eofb_effective_k' => $directG4Entry['ccitt_fax_decode_boundary']['effective_decode_parms']['k'] ?? null,
     'direct_ccitt_rtc_effective_k' => $directRtcEntry['ccitt_fax_decode_boundary']['effective_decode_parms']['k'] ?? null,
+    'direct_ccitt_eofb_marker' => $directG4Entry['ccitt_fax_coding_boundary']['end_of_block_marker'] ?? null,
+    'direct_ccitt_rtc_marker' => $directRtcEntry['ccitt_fax_coding_boundary']['end_of_block_marker'] ?? null,
     'decode_parms' => [
         ['K' => -1, 'Columns' => 1728, 'Rows' => 1, 'BlackIs1' => true],
         ['K' => 0, 'Columns' => 8, 'Rows' => 1, 'EncodedByteAlign' => true],

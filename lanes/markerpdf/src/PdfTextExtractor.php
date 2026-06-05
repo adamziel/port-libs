@@ -4321,6 +4321,7 @@ final class PdfTextExtractor
             'preview_only_filters' => $previewOnlyFilters,
             'filter_details' => $filterDetails,
             'ccitt_fax_decode_boundary' => $this->ccittFaxDecodeBoundaryReview($filterDetails, $imageWidth, $imageHeight),
+            'ccitt_fax_coding_boundary' => $this->ccittFaxCodingBoundaryReview($filterDetails),
             'native_raster_decode' => $previewOnlyFilters === [],
             'raw_length' => strlen($stream['stream']),
             'decoded_with_current_filters' => $decoded !== null,
@@ -4847,7 +4848,7 @@ final class PdfTextExtractor
     /**
      * @param list<string|null>|null $filters
      * @param array<int, string> $objects
-     * @return array{filter_details: list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null|list<string>>|null}>, ccitt_fax_decode_boundary: array<string, mixed>}|array{}
+     * @return array{filter_details: list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null|list<string>>|null}>, ccitt_fax_decode_boundary: array<string, mixed>, ccitt_fax_coding_boundary: array<string, mixed>|null}|array{}
      */
     private function nestedImageXObjectCcittFilterReview(
         ?array $filters,
@@ -4870,6 +4871,7 @@ final class PdfTextExtractor
         return [
             'filter_details' => $filterDetails,
             'ccitt_fax_decode_boundary' => $boundary,
+            'ccitt_fax_coding_boundary' => $this->ccittFaxCodingBoundaryReview($filterDetails),
         ];
     }
 
@@ -5082,6 +5084,60 @@ final class PdfTextExtractor
             'rows_match_height' => $rowsMatchHeight,
             'dimension_mismatch' => $columnsMatchWidth === false || $rowsMatchHeight === false,
         ];
+    }
+
+    /**
+     * @param list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null|list<string>>|null}> $filterDetails
+     * @return array<string, mixed>|null
+     */
+    private function ccittFaxCodingBoundaryReview(array $filterDetails): ?array
+    {
+        $boundary = $this->ccittFaxDecodeBoundaryReview($filterDetails, null, null);
+        if ($boundary === null) {
+            return null;
+        }
+
+        $effective = is_array($boundary['effective_decode_parms'] ?? null)
+            ? $boundary['effective_decode_parms']
+            : [];
+        $k = is_int($effective['k'] ?? null) ? $effective['k'] : 0;
+        $endOfBlock = is_bool($effective['end_of_block'] ?? null) ? $effective['end_of_block'] : true;
+
+        return [
+            'filter' => (string) ($boundary['filter'] ?? 'CCITTFaxDecode'),
+            'review_only' => true,
+            'native_raster_decode' => false,
+            'decode_parms_present' => ($boundary['decode_parms_present'] ?? false) === true,
+            'invalid_decode_parms' => ($boundary['invalid_decode_parms'] ?? false) === true,
+            'effective_k' => $k,
+            'coding_mode' => $this->ccittFaxCodingMode($k),
+            'uses_two_dimensional_coding' => $k !== 0,
+            'two_dimensional_line_interval' => $k > 0 ? $k : null,
+            'end_of_block' => $endOfBlock,
+            'end_of_block_marker' => $this->ccittFaxEndOfBlockMarkerName($k, $endOfBlock),
+        ];
+    }
+
+    private function ccittFaxCodingMode(int $k): string
+    {
+        if ($k < 0) {
+            return 'group4_two_dimensional';
+        }
+
+        if ($k > 0) {
+            return 'group3_mixed_two_dimensional';
+        }
+
+        return 'group3_one_dimensional';
+    }
+
+    private function ccittFaxEndOfBlockMarkerName(int $k, bool $endOfBlock): ?string
+    {
+        if (!$endOfBlock) {
+            return null;
+        }
+
+        return $k < 0 ? 'eofb' : 'rtc';
     }
 
     /**
