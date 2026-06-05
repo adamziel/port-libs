@@ -29061,7 +29061,8 @@ final class PdfTextExtractor
         $boundedStream = substr($candidate, 0, $endOffset);
         $decoded = $this->decodeFlateStream($boundedStream, $filterDecodeParms, []);
         if ($decoded !== null) {
-            return strlen($decoded) >= $expectedLength;
+            // Boundary ownership only: image preview still rejects short decoded sample data.
+            return strlen($decoded) >= $expectedLength || $decoded !== '';
         }
 
         // Ownership boundary only: RGB preview still rejects malformed predictor rows.

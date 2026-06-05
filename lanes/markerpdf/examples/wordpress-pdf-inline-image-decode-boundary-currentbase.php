@@ -162,6 +162,14 @@ if (!is_string($predictorShortRowCompressed)) {
 $predictorShortRowSurplusPayload = $predictorShortRowCompressed
     . 'ZZ EI BT /F1 12 Tf 72 642 Td (Predictor Short Row Inline Noise) Tj ET rawtail';
 $predictorShortRowDictionary = '/W 3 /H 1 /CS /G /BPC 8 /F /Fl /DP << /Predictor 12 /Columns 3 /Colors 1 /BitsPerComponent 8 >> /D [0 1]';
+$shortFlateDecodedSamples = 'AB';
+$shortFlateCompressed = gzcompress($shortFlateDecodedSamples, 0);
+if (!is_string($shortFlateCompressed)) {
+    throw new RuntimeException('Unable to build short decoded Flate inline image fixture.');
+}
+$shortFlatePostStreamSurplusPayload = $shortFlateCompressed
+    . 'ZZ EI BT /F1 12 Tf 72 638 Td (Flate Short Sample Inline Noise) Tj ET rawtail';
+$shortFlateDictionary = '/W 3 /H 1 /CS /G /BPC 8 /F /Fl /D [0 1]';
 $ascii85PostEodSurplusPayload = 'z~>ZZ EI BT /F1 12 Tf 72 652 Td (A85 Post EOD Inline Noise) Tj ET rawtail';
 $asciiHexSurplusPayload = '414243 EI BT /F1 12 Tf 72 635 Td (ASCIIHex Surplus Inline Noise) Tj ET >';
 $runLengthImageRow = 'RL EI BT /F1 12 Tf 72 618 Td (RunLength Inline Noise) Tj ET';
@@ -220,6 +228,10 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BI {$predictorShortRowDictionary} ID "
     . $predictorShortRowSurplusPayload . "\nEI\n"
     . "BT /F1 12 Tf 72 641 Td (After Predictor Short Row Inline) Tj ET\n"
+    . "BT /F1 12 Tf 72 640 Td (Before Flate Short Sample Inline) Tj ET\n"
+    . "BI {$shortFlateDictionary} ID "
+    . $shortFlatePostStreamSurplusPayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 637 Td (After Flate Short Sample Inline) Tj ET\n"
     . "BT /F1 12 Tf 72 636 Td (Before AHx Surplus Inline Image) Tj ET\n"
     . "BI /W 3 /H 1 /CS /G /BPC 8 /F /AHx ID\n"
     . $asciiHexSurplusPayload . "\nEI\n"
@@ -419,6 +431,28 @@ try {
 } catch (InvalidArgumentException) {
     $predictorShortRowSurplusPreviewRejected = true;
 }
+$shortFlatePreviewRejected = false;
+try {
+    $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+        $shortFlateDictionary,
+        $shortFlateCompressed,
+        [],
+        3
+    );
+} catch (InvalidArgumentException) {
+    $shortFlatePreviewRejected = true;
+}
+$shortFlateSurplusPreviewRejected = false;
+try {
+    $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+        $shortFlateDictionary,
+        $shortFlatePostStreamSurplusPayload,
+        [],
+        3
+    );
+} catch (InvalidArgumentException) {
+    $shortFlateSurplusPreviewRejected = true;
+}
 $runLengthIndexedReview = $renderer->inlineIndexedImageStreamPreviewRows(
     '/W 3 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 2 /F /RL /D [0 3]',
     $runLengthLiteralEncode("\x1c", true),
@@ -613,6 +647,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'fake_ei_inside_ascii85_payload' => true,
     'fake_ei_inside_oversized_filtered_payload' => str_contains($oversizedCompressedImage, ' EI '),
     'fake_ei_inside_predictor_short_row_surplus_payload' => str_contains($predictorShortRowSurplusPayload, ' EI '),
+    'fake_ei_inside_short_flate_post_stream_surplus_payload' => str_contains($shortFlatePostStreamSurplusPayload, ' EI '),
     'fake_ei_inside_ascii85_post_eod_surplus_payload' => str_contains($ascii85PostEodSurplusPayload, ' EI '),
     'fake_ei_inside_asciihex_surplus_payload' => str_contains($asciiHexSurplusPayload, ' EI '),
     'fake_ei_inside_wrapped_jpx_prefix_surplus_payload' => str_contains($wrappedJpxPrefixSurplusPayload, ' EI '),
@@ -633,6 +668,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After Oversized Inline Image',
         'Before Predictor Short Row Inline',
         'After Predictor Short Row Inline',
+        'Before Flate Short Sample Inline',
+        'After Flate Short Sample Inline',
         'Before AHx Surplus Inline Image',
         'After AHx Surplus Inline Image',
         'Before Space Sample Inline Image',
@@ -707,6 +744,13 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'rawtail'),
     'predictor_short_row_preview_rejected' => $predictorShortRowPreviewRejected,
     'predictor_short_row_surplus_preview_rejected' => $predictorShortRowSurplusPreviewRejected,
+    'short_flate_decoded_byte_count' => strlen($shortFlateDecodedSamples),
+    'short_flate_post_stream_payload_excluded_until_real_ei' => in_array('After Flate Short Sample Inline', $lines, true)
+        && !str_contains($plainText, 'Flate Short Sample Inline Noise')
+        && !str_contains($plainText, 'ZZ EI')
+        && !str_contains($plainText, 'rawtail'),
+    'short_flate_preview_rejected' => $shortFlatePreviewRejected,
+    'short_flate_surplus_preview_rejected' => $shortFlateSurplusPreviewRejected,
     'resolves_current_indirect_inline_preview_operands' => ($indirectIndexedReview['width'] ?? null) === 3
         && ($indirectIndexedReview['height'] ?? null) === 1
         && ($indirectIndexedReview['bits_per_component'] ?? null) === 2
@@ -802,6 +846,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'Oversized Flate Inline Noise')
         && !str_contains($plainText, 'X EI')
         && !str_contains($plainText, 'Predictor Short Row Inline Noise')
+        && !str_contains($plainText, 'Flate Short Sample Inline Noise')
         && !str_contains($plainText, 'ASCIIHex Surplus Inline Noise')
         && !str_contains($plainText, '414243 EI')
         && !str_contains($plainText, 'DeviceN Array Inline Noise')
