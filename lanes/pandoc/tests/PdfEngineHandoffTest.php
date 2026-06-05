@@ -945,6 +945,85 @@ MARKDOWN);
         $t->same([1 => 90, 2 => 270], $sequence['finalPdfPageRotations']);
     },
 
+    'fake runner extracts bounded pdf page durations and transitions from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/slides.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /PageMode /FullScreen >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Dur 6.5 /Trans << /Type /Trans /S /Fade /D 1.25 >> >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Trans 5 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Trans /S /Wipe /D 0.75 /Di 90 /Dm /H /M /I /SS 0.8 /B true >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/slides.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/slides.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'duration' => 6.5,
+                'transitionType' => 'Fade',
+                'transitionDuration' => 1.25,
+                'direction' => null,
+                'dimension' => null,
+                'motion' => null,
+                'scale' => null,
+                'background' => null,
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'duration' => null,
+                'transitionType' => 'Wipe',
+                'transitionDuration' => 0.75,
+                'direction' => '90',
+                'dimension' => 'H',
+                'motion' => 'I',
+                'scale' => 0.8,
+                'background' => true,
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same('FullScreen', $result['pdfPageMode']);
+        $t->same($expected, $result['pdfPageTimings']);
+        $t->contains('pdf-byte-page-mode:FullScreen', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-timings:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-durations:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-transitions:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-transition-type:Fade:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-transition-type:Wipe:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfPageTimings']);
+    },
+
     'fake runner extracts bounded pdf font resources and embedded font streams from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/fonts.pdf']);

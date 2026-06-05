@@ -262,6 +262,7 @@ final class PdfEngineHandoff
      *     pdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     pdfPageRotations: array<int, int>,
      *     pdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
+     *     pdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
      *     pdfFonts: list<array{page:int, pageObject:string|null, resourceName:string, fontObject:string|null, inherited:bool, subtype:string|null, baseFont:string|null, encoding:string|null, toUnicode:string|null, descendantFonts:list<string>, descriptor:string|null, descriptorFontName:string|null, descriptorFontFamily:string|null, descriptorFlags:int|null, descriptorItalicAngle:float|null, descriptorFontWeight:int|null, embedded:bool, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSubtype:string|null, embeddedFileBytes:int|null, embeddedFileSha256:string|null, embeddedFileSkipped:string|null}>,
      *     pdfFontSubtypes: array<string, int>,
      *     pdfImages: list<array{page:int, pageObject:string|null, resourceName:string, imageObject:string|null, inherited:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
@@ -654,6 +655,7 @@ final class PdfEngineHandoff
         $pdfPageBoxes = [];
         $pdfPageRotations = [];
         $pdfPageLabels = [];
+        $pdfPageTimings = [];
         $pdfFonts = [];
         $pdfFontSubtypes = [];
         $pdfImages = [];
@@ -704,6 +706,7 @@ final class PdfEngineHandoff
                 $pdfPageBoxes = $pdfInspection['pageBoxes'];
                 $pdfPageRotations = $pdfInspection['pageRotations'];
                 $pdfPageLabels = $pdfInspection['pageLabels'];
+                $pdfPageTimings = $pdfInspection['pageTimings'];
                 $pdfFonts = $pdfInspection['fonts'];
                 $pdfFontSubtypes = $pdfInspection['fontSubtypes'];
                 $pdfImages = $pdfInspection['images'];
@@ -749,6 +752,28 @@ final class PdfEngineHandoff
                 }
                 if ($pdfPageLabels !== []) {
                     $diagnostics[] = 'pdf-byte-page-labels:' . count($pdfPageLabels);
+                }
+                if ($pdfPageTimings !== []) {
+                    $diagnostics[] = 'pdf-byte-page-timings:' . count($pdfPageTimings);
+                    $pageDurationCount = 0;
+                    $pageTransitionCount = 0;
+                    foreach ($pdfPageTimings as $pageTiming) {
+                        if (($pageTiming['duration'] ?? null) !== null) {
+                            $pageDurationCount++;
+                        }
+                        if ($this->pdfPageTimingHasTransition($pageTiming)) {
+                            $pageTransitionCount++;
+                        }
+                    }
+                    if ($pageDurationCount > 0) {
+                        $diagnostics[] = 'pdf-byte-page-durations:' . $pageDurationCount;
+                    }
+                    if ($pageTransitionCount > 0) {
+                        $diagnostics[] = 'pdf-byte-page-transitions:' . $pageTransitionCount;
+                    }
+                    foreach ($this->summarizePdfPageTransitionTypes($pdfPageTimings) as $transitionType => $transitionCount) {
+                        $diagnostics[] = 'pdf-byte-page-transition-type:' . $transitionType . ':' . $transitionCount;
+                    }
                 }
                 if ($pdfFonts !== []) {
                     $diagnostics[] = 'pdf-byte-font-resources:' . count($pdfFonts);
@@ -1149,6 +1174,7 @@ final class PdfEngineHandoff
             'pdfPageBoxes' => $pdfPageBoxes,
             'pdfPageRotations' => $pdfPageRotations,
             'pdfPageLabels' => $pdfPageLabels,
+            'pdfPageTimings' => $pdfPageTimings,
             'pdfFonts' => $pdfFonts,
             'pdfFontSubtypes' => $pdfFontSubtypes,
             'pdfImages' => $pdfImages,
@@ -1212,6 +1238,7 @@ final class PdfEngineHandoff
      *     finalPdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     finalPdfPageRotations: array<int, int>,
      *     finalPdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
+     *     finalPdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
      *     finalPdfFonts: list<array{page:int, pageObject:string|null, resourceName:string, fontObject:string|null, inherited:bool, subtype:string|null, baseFont:string|null, encoding:string|null, toUnicode:string|null, descendantFonts:list<string>, descriptor:string|null, descriptorFontName:string|null, descriptorFontFamily:string|null, descriptorFlags:int|null, descriptorItalicAngle:float|null, descriptorFontWeight:int|null, embedded:bool, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSubtype:string|null, embeddedFileBytes:int|null, embeddedFileSha256:string|null, embeddedFileSkipped:string|null}>,
      *     finalPdfFontSubtypes: array<string, int>,
      *     finalPdfImages: list<array{page:int, pageObject:string|null, resourceName:string, imageObject:string|null, inherited:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
@@ -1397,6 +1424,7 @@ final class PdfEngineHandoff
             'finalPdfPageBoxes' => is_array($finalRun) && is_array($finalRun['pdfPageBoxes'] ?? null) ? $finalRun['pdfPageBoxes'] : [],
             'finalPdfPageRotations' => is_array($finalRun) && is_array($finalRun['pdfPageRotations'] ?? null) ? $finalRun['pdfPageRotations'] : [],
             'finalPdfPageLabels' => is_array($finalRun) && is_array($finalRun['pdfPageLabels'] ?? null) ? $finalRun['pdfPageLabels'] : [],
+            'finalPdfPageTimings' => is_array($finalRun) && is_array($finalRun['pdfPageTimings'] ?? null) ? $finalRun['pdfPageTimings'] : [],
             'finalPdfFonts' => is_array($finalRun) && is_array($finalRun['pdfFonts'] ?? null) ? $finalRun['pdfFonts'] : [],
             'finalPdfFontSubtypes' => is_array($finalRun) && is_array($finalRun['pdfFontSubtypes'] ?? null) ? $finalRun['pdfFontSubtypes'] : [],
             'finalPdfImages' => is_array($finalRun) && is_array($finalRun['pdfImages'] ?? null) ? $finalRun['pdfImages'] : [],
@@ -2483,6 +2511,7 @@ final class PdfEngineHandoff
      *     pageBoxes:list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     pageRotations:array<int, int>,
      *     pageLabels:list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
+     *     pageTimings:list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
      *     fonts:list<array{page:int, pageObject:string|null, resourceName:string, fontObject:string|null, inherited:bool, subtype:string|null, baseFont:string|null, encoding:string|null, toUnicode:string|null, descendantFonts:list<string>, descriptor:string|null, descriptorFontName:string|null, descriptorFontFamily:string|null, descriptorFlags:int|null, descriptorItalicAngle:float|null, descriptorFontWeight:int|null, embedded:bool, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSubtype:string|null, embeddedFileBytes:int|null, embeddedFileSha256:string|null, embeddedFileSkipped:string|null}>,
      *     fontSubtypes:array<string, int>,
      *     images:list<array{page:int, pageObject:string|null, resourceName:string, imageObject:string|null, inherited:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
@@ -2527,6 +2556,7 @@ final class PdfEngineHandoff
         $xrefStreams = $this->extractPdfXrefStreams($pdfBytes);
         $objectStreams = $this->extractPdfObjectStreams($pdfBytes);
         $pageBoxes = $this->extractPdfPageBoxes($pdfBytes, $catalog);
+        $pageTimings = $this->extractPdfPageTimings($pdfBytes, $catalog);
         $fonts = $this->extractPdfFonts($pdfBytes, $catalog);
         $images = $this->extractPdfImages($pdfBytes, $catalog);
         $activeActions = $this->extractPdfActiveActions($pdfBytes, $catalog);
@@ -2556,6 +2586,7 @@ final class PdfEngineHandoff
             'pageBoxes' => $pageBoxes,
             'pageRotations' => $this->summarizePdfPageRotations($pageBoxes),
             'pageLabels' => $this->extractPdfPageLabels($pdfBytes, $catalog),
+            'pageTimings' => $pageTimings,
             'fonts' => $fonts,
             'fontSubtypes' => $this->summarizePdfFontSubtypes($fonts),
             'images' => $images,
@@ -5088,6 +5119,170 @@ final class PdfEngineHandoff
         }
 
         return $rotations;
+    }
+
+    /**
+     * @return list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>
+     */
+    private function extractPdfPageTimings(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $timings = [];
+        $visited = [];
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfPageTimingsFromTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                $visited,
+                $timings,
+                0
+            );
+        }
+
+        if ($timings === []) {
+            foreach ($objects as $reference => $body) {
+                if (preg_match('/\/Type\s*\/Page\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $timings[] = $this->summarizePdfPageTiming($body, $reference, $objects);
+            }
+        }
+
+        foreach ($timings as $index => &$timing) {
+            $timing['page'] = $index + 1;
+        }
+        unset($timing);
+
+        return array_values(array_filter(
+            $timings,
+            fn (array $timing): bool => ($timing['duration'] ?? null) !== null || $this->pdfPageTimingHasTransition($timing)
+        ));
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}> $timings
+     */
+    private function collectPdfPageTimingsFromTree(
+        array $objects,
+        string $reference,
+        array &$visited,
+        array &$timings,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $timings[] = $this->summarizePdfPageTiming($body, $reference, $objects);
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfPageTimingsFromTree(
+                $objects,
+                $kidReference,
+                $visited,
+                $timings,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}
+     */
+    private function summarizePdfPageTiming(string $dictionary, ?string $reference, array $objects): array
+    {
+        $transition = $this->extractPdfDictionaryOrReferenceValue($dictionary, 'Trans', $objects);
+
+        return [
+            'page' => 0,
+            'pageObject' => $reference === null ? null : $reference . ' R',
+            'duration' => $this->extractPdfNumberToken($dictionary, 'Dur'),
+            'transitionType' => $transition === null ? null : $this->extractPdfNameToken($transition, 'S'),
+            'transitionDuration' => $transition === null ? null : $this->extractPdfNumberToken($transition, 'D'),
+            'direction' => $transition === null ? null : $this->extractPdfTransitionDirection($transition),
+            'dimension' => $transition === null ? null : $this->extractPdfNameToken($transition, 'Dm'),
+            'motion' => $transition === null ? null : $this->extractPdfNameToken($transition, 'M'),
+            'scale' => $transition === null ? null : $this->extractPdfNumberToken($transition, 'SS'),
+            'background' => $transition === null ? null : $this->extractPdfBooleanToken($transition, 'B'),
+        ];
+    }
+
+    private function extractPdfTransitionDirection(string $dictionary): ?string
+    {
+        $value = $this->extractPdfValueForName($dictionary, 'Di');
+        if ($value === null) {
+            return null;
+        }
+        if ($value['kind'] === 'number') {
+            return $this->normalizePdfNumberString($value['value']);
+        }
+        if (in_array($value['kind'], ['name', 'literal', 'hex'], true)) {
+            $direction = trim($value['value']);
+
+            return $direction === '' ? null : $direction;
+        }
+
+        return null;
+    }
+
+    private function normalizePdfNumberString(string $number): string
+    {
+        $number = trim($number);
+        if ($number === '') {
+            return '';
+        }
+        $float = (float) $number;
+        if (fmod($float, 1.0) === 0.0) {
+            return (string) (int) $float;
+        }
+
+        return rtrim(rtrim(sprintf('%.12F', $float), '0'), '.');
+    }
+
+    /**
+     * @param array<string, mixed> $timing
+     */
+    private function pdfPageTimingHasTransition(array $timing): bool
+    {
+        foreach (['transitionType', 'transitionDuration', 'direction', 'dimension', 'motion', 'scale', 'background'] as $key) {
+            if (($timing[$key] ?? null) !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}> $pageTimings
+     * @return array<string, int>
+     */
+    private function summarizePdfPageTransitionTypes(array $pageTimings): array
+    {
+        $types = [];
+        foreach ($pageTimings as $pageTiming) {
+            $type = $pageTiming['transitionType'] ?? null;
+            if (!is_string($type) || $type === '') {
+                continue;
+            }
+
+            $types[$type] = ($types[$type] ?? 0) + 1;
+        }
+        ksort($types);
+
+        return $types;
     }
 
     /**
