@@ -9374,6 +9374,11 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($lastAcceptedPageIndex !== null && $pageIndex <= $lastAcceptedPageIndex) {
+                continue;
+            }
+
+            $lastAcceptedPageIndex = $pageIndex;
             if (
                 $pageIndex < 0
                 || $pageIndex >= $pageCount
@@ -9382,11 +9387,6 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if ($lastAcceptedPageIndex !== null && $pageIndex <= $lastAcceptedPageIndex) {
-                continue;
-            }
-
-            $lastAcceptedPageIndex = $pageIndex;
             if (!array_key_exists($pageIndex, $entries)) {
                 $entries[$pageIndex] = $this->parsePageLabelDictionary($labelDictionary, $objects);
             }

@@ -1707,10 +1707,6 @@ final class MarkerAppPreview
                 continue;
             }
 
-            if ($limits !== null && ($pageIndexValue < $limits[0] || $pageIndexValue > $limits[1])) {
-                continue;
-            }
-
             $section = $this->parsePageLabelDictionary($elements[$index + 1], $objects, $seen);
             if ($section === null) {
                 continue;
@@ -1721,6 +1717,10 @@ final class MarkerAppPreview
             }
 
             $lastAcceptedPageIndex = $pageIndexValue;
+            if ($limits !== null && ($pageIndexValue < $limits[0] || $pageIndexValue > $limits[1])) {
+                continue;
+            }
+
             if (isset($seenPageIndexes[$pageIndexValue])) {
                 continue;
             }
