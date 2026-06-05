@@ -6545,25 +6545,44 @@ final class PdfMetadataExtractor
      */
     private function xmpTopLevelDescriptions(DOMDocument $document): array
     {
-        $descriptions = [];
-        foreach ($document->getElementsByTagNameNS(self::NS_RDF, 'Description') as $description) {
-            if (!$description instanceof DOMElement) {
+        $nodes = [];
+        foreach ($document->getElementsByTagNameNS(self::NS_RDF, 'RDF') as $rdf) {
+            if (!$rdf instanceof DOMElement || !$this->isDocumentLevelXmpRdfElement($rdf)) {
                 continue;
             }
 
-            $parent = $description->parentNode;
-            if (
-                !$parent instanceof DOMElement
-                || $parent->namespaceURI !== self::NS_RDF
-                || $parent->localName !== 'RDF'
-            ) {
-                continue;
-            }
+            foreach ($rdf->childNodes as $child) {
+                if (!$child instanceof DOMElement) {
+                    continue;
+                }
 
-            $descriptions[] = $description;
+                if ($child->namespaceURI === self::NS_RDF) {
+                    if ($child->localName === 'Description') {
+                        $nodes[] = $child;
+                    }
+                    continue;
+                }
+
+                if (is_string($child->namespaceURI) && $child->namespaceURI !== '') {
+                    $nodes[] = $child;
+                }
+            }
         }
 
-        return $descriptions;
+        return $nodes;
+    }
+
+    private function isDocumentLevelXmpRdfElement(DOMElement $rdf): bool
+    {
+        $parent = $rdf->parentNode;
+        if ($parent instanceof DOMDocument) {
+            return true;
+        }
+
+        return $parent instanceof DOMElement
+            && $parent->namespaceURI === 'adobe:ns:meta/'
+            && $parent->localName === 'xmpmeta'
+            && $parent->parentNode instanceof DOMDocument;
     }
 
     /**
