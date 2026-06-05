@@ -1146,6 +1146,7 @@ final class CslStyle
             'citation-number',
             'locator',
             'page',
+            'page-first',
             'number',
             'edition',
             'volume',

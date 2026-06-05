@@ -1111,6 +1111,102 @@ XML);
         $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Detailed Field Notes. Journal of Imports. Vol. 12, no. 3. 2026. 20-30. DOI 10.5555/detail. ISSN 1234-5678. Archive: arXiv cs.DL 2401.01234.</dd>', $blocks);
         $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Review Handbook. 2nd ed. Source Review Series, no. 7. Review Press, 2025. ISBN 978-1-2345-6789-0.</dd>', $blocks);
     },
+    'maps bounded biblatex page first metadata for page ranges' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{range-detail,
+  author       = {Doe, Jane},
+  title        = {Paged Field Notes},
+  journaltitle = {Journal of Imports},
+  date         = {2026},
+  pages        = {A12--A18}
+}
+
+@incollection{single-page-detail,
+  author    = {Ng, Nia},
+  title     = {Single Page Checklist},
+  booktitle = {Migration Handbook},
+  date      = {2025},
+  page      = {77}
+}
+
+@inproceedings{frontmatter-detail,
+  author    = {Curator, Eli},
+  title     = {Front Matter Review},
+  booktitle = {Proceedings},
+  date      = {2024},
+  pages     = {ii--iv}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('A12', $items[0]['page-first'] ?? null);
+        $t->same('77', $items[1]['page-first'] ?? null);
+        $t->same('ii', $items[2]['page-first'] ?? null);
+        $t->same('A12-A18', $items[0]['page']);
+        $t->same('ii-iv', $items[2]['page']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $range = $processor->item('range-detail');
+        $single = $processor->item('single-page-detail');
+        $frontmatter = $processor->item('frontmatter-detail');
+        $t->same('A12', $range['pageFirst'] ?? null);
+        $t->same('77', $single['pageFirst'] ?? null);
+        $t->same('ii', $frontmatter['pageFirst'] ?? null);
+        $t->same('(Doe 2026; Ng 2025; Curator 2024)', $processor->renderCitationCluster([
+            $citation('range-detail', '[@range-detail]'),
+            $citation('single-page-detail', '[@single-page-detail]'),
+            $citation('frontmatter-detail', '[@frontmatter-detail]'),
+        ]));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <label variable="page-first" form="short"/>
+        <text variable="page-first"/>
+        <text variable="page"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <number variable="page-first"/>
+      <text variable="page"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Doe p. A12 A12-A18; Ng p. 77 77; Curator p. ii ii-iv]', $styled->renderCitationCluster([
+            $citation('range-detail', '[@range-detail]'),
+            $citation('single-page-detail', '[@single-page-detail]'),
+            $citation('frontmatter-detail', '[@frontmatter-detail]'),
+        ]));
+        $t->same('Paged Field Notes :: A12 :: A12-A18', $styled->renderBibliographyEntry('range-detail'));
+        $t->same('Single Page Checklist :: 77 :: 77', $styled->renderBibliographyEntry('single-page-detail'));
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-first-page',
+            'title' => 'Manual First Page',
+            'page' => '22-29',
+        ], [
+            'id' => 'explicit-first-page',
+            'title' => 'Explicit First Page',
+            'page' => 'C1-C3',
+            'page-first' => 'C2',
+        ]]);
+        $t->same('22', $manual->item('manual-first-page')['pageFirst'] ?? null);
+        $t->same('C2', $manual->item('explicit-first-page')['pageFirst'] ?? null);
+
+        $document = (new MarkdownReader())->read('Page range source @range-detail and single page [@single-page-detail] keep first-page metadata.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Page range source Doe (2026) and single page (Ng 2025) keep first-page metadata.</p>', $blocks);
+        $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Paged Field Notes. Journal of Imports. 2026. A12-A18.</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Single Page Checklist. Migration Handbook. 2025. 77.</dd>', $blocks);
+    },
     'maps bounded biblatex main title and multi volume metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @inbook{volume-chapter,

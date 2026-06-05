@@ -550,6 +550,7 @@ final class CitationCslProcessor
             ...$sourceFilePolicy['diagnostics'],
             ...self::sourceFileDiagnostics($item['sourceFileDiagnostics'] ?? [], $id),
         ];
+        $page = self::stringField($item, 'page');
 
         return [
             'id' => $id,
@@ -571,7 +572,8 @@ final class CitationCslProcessor
             'eventType' => self::firstStringField($item, ['event-type', 'eventType']),
             'publisher' => self::stringField($item, 'publisher'),
             'publisherPlace' => self::stringField($item, 'publisher-place'),
-            'page' => self::stringField($item, 'page'),
+            'page' => $page,
+            'pageFirst' => self::firstStringField($item, ['page-first', 'pageFirst']) ?: self::firstPageFromRange($page),
             'number' => self::stringField($item, 'number'),
             'volume' => self::stringField($item, 'volume'),
             'issue' => self::stringField($item, 'issue'),
@@ -652,6 +654,18 @@ final class CitationCslProcessor
         }
 
         return trim((string) $value);
+    }
+
+    private static function firstPageFromRange(string $pages): string
+    {
+        $pages = trim($pages);
+        if ($pages === '') {
+            return '';
+        }
+
+        $parts = preg_split('/\s*(?:[-\x{2010}-\x{2015}]|,|&|\band\b)\s*/u', $pages, 2);
+
+        return trim((string) ($parts[0] ?? $pages));
     }
 
     /**
@@ -3631,6 +3645,7 @@ final class CitationCslProcessor
     private function labelTermName(string $variable): string
     {
         return match ($variable) {
+            'page-first' => 'page',
             'number-of-pages' => 'page',
             'number-of-volumes' => 'volume',
             'chapter-number' => 'chapter',
@@ -3927,6 +3942,7 @@ final class CitationCslProcessor
             'publisher' => (string) $item['publisher'],
             'publisher-place' => (string) $item['publisherPlace'],
             'page' => (string) $item['page'],
+            'page-first' => (string) $item['pageFirst'],
             'number' => (string) $item['number'],
             'volume' => (string) $item['volume'],
             'issue' => (string) $item['issue'],

@@ -565,6 +565,7 @@ final class BibtexCslParser
      */
     private static function entryToCslItem(string $type, string $key, array $fields): array
     {
+        $page = self::normalizePages(self::firstField($fields, ['pages', 'page']));
         $item = [
             'id' => $key,
             'type' => self::cslType($type),
@@ -586,7 +587,8 @@ final class BibtexCslParser
             'event-type' => self::firstField($fields, ['eventtype']),
             'publisher' => self::firstField($fields, ['publisher', 'institution', 'school', 'organization']),
             'publisher-place' => self::firstField($fields, ['location', 'address', 'venue']),
-            'page' => self::normalizePages(self::firstField($fields, ['pages', 'page'])),
+            'page' => $page,
+            'page-first' => self::firstPageFromRange($page),
             'number' => self::firstField($fields, ['number']),
             'volume' => self::firstField($fields, ['volume']),
             'issue' => self::issueField($type, $fields),
@@ -1672,6 +1674,18 @@ final class BibtexCslParser
     private static function normalizePages(string $pages): string
     {
         return trim(preg_replace('/\s*--+\s*/', '-', $pages) ?? $pages);
+    }
+
+    private static function firstPageFromRange(string $pages): string
+    {
+        $pages = trim($pages);
+        if ($pages === '') {
+            return '';
+        }
+
+        $parts = preg_split('/\s*(?:[-\x{2010}-\x{2015}]|,|&|\band\b)\s*/u', $pages, 2);
+
+        return trim((string) ($parts[0] ?? $pages));
     }
 
     private static function cleanBibtexText(string $value): string
