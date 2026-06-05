@@ -2519,6 +2519,13 @@ final class PdfEmbeddedFileExtractor
         }
 
         $offset = $this->skipWhitespace($pdfBytes, $offset);
+        if (
+            $this->tokenStartsInPdfCommentLine($pdfBytes, $offset)
+            || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $offset, $definitions)
+        ) {
+            return null;
+        }
+
         if (!$this->pdfKeywordAt($pdfBytes, $offset, 'xref')) {
             return null;
         }

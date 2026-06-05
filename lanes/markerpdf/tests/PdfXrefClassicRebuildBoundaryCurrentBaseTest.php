@@ -1024,6 +1024,94 @@ $xrefClassicRebuildMalformedRowBoundaryCurrentBasePdf = static function (): arra
     return [$pdf, $currentPayload, strtolower($currentChecksum), $currentXrefOffset, $malformedXrefOffset];
 };
 
+$xrefClassicRebuildLiteralStringDecoyBoundaryCurrentBasePdf = static function (): array {
+    $currentXmp = '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Current Literal XRef Title</rdf:li></rdf:Alt></dc:title>'
+        . '</rdf:Description></rdf:RDF></x:xmpmeta>';
+    $decoyXmp = '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Literal String XRef Decoy Title</rdf:li></rdf:Alt></dc:title>'
+        . '</rdf:Description></rdf:RDF></x:xmpmeta>';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current literal-string xref page) Tj T* (Literal xref decoy skipped) Tj ET';
+    $decoyContent = 'BT /F1 12 Tf 72 720 Td (Literal xref decoy page) Tj T* (String xref root leak) Tj ET';
+    $currentPayload = '<wp-export><post id="current-literal-string-xref"/></wp-export>';
+    $decoyPayload = '<wp-export><post id="decoy-literal-string-xref"/></wp-export>';
+    $currentChecksum = strtoupper(hash('md5', $currentPayload));
+
+    $pdf = "%PDF-1.7\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, string $body) use (&$pdf, &$offsets): int {
+        $offset = strlen($pdf);
+        $offsets[$objectNumber] = $offset;
+        $pdf .= "{$objectNumber} 0 obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $streamObject = static fn (string $content): string => "<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream";
+    $xrefRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+
+    $addObject(1, '<< /Type /Catalog /Pages 2 0 R /Metadata 6 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $addObject(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>');
+    $addObject(4, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $addObject(5, $streamObject($currentContent));
+    $addObject(6, "<< /Type /Metadata /Subtype /XML /Length " . strlen($currentXmp) . " >>\nstream\n{$currentXmp}\nendstream");
+    $addObject(7, '<< /Title (Current Literal XRef Info) /Author (Current Literal Importer) >>');
+    $addObject(8, '<< /Names [(current-literal-string-xref.xml) 9 0 R] >>');
+    $addObject(9, '<< /Type /Filespec /F (current-literal-string-xref.xml) /Desc (Current literal-string xref attachment) /AFRelationship /Source /EF << /F 10 0 R >> >>');
+    $addObject(10, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size ' . strlen($currentPayload) . ' /CheckSum <' . $currentChecksum . "> >> /Length " . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+    $currentXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 11\n"
+        . $xrefRow(0, 65535, 'f')
+        . $xrefRow($offsets[1])
+        . $xrefRow($offsets[2])
+        . $xrefRow($offsets[3])
+        . $xrefRow($offsets[4])
+        . $xrefRow($offsets[5])
+        . $xrefRow($offsets[6])
+        . $xrefRow($offsets[7])
+        . $xrefRow($offsets[8])
+        . $xrefRow($offsets[9])
+        . $xrefRow($offsets[10])
+        . "trailer\n<< /Size 32 /Root 1 0 R /Info 7 0 R >>\n";
+
+    $addObject(20, '<< /Type /Catalog /Pages 21 0 R /Metadata 26 0 R /Names << /EmbeddedFiles 28 0 R >> >>');
+    $addObject(21, '<< /Type /Pages /Kids [22 0 R] /Count 1 >>');
+    $addObject(22, '<< /Type /Page /Parent 21 0 R /Resources << /Font << /F1 23 0 R >> >> /Contents 24 0 R >>');
+    $addObject(23, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $addObject(24, $streamObject($decoyContent));
+    $addObject(26, "<< /Type /Metadata /Subtype /XML /Length " . strlen($decoyXmp) . " >>\nstream\n{$decoyXmp}\nendstream");
+    $addObject(27, '<< /Title (Literal String XRef Decoy Info) /Author (Literal Decoy Importer) >>');
+    $addObject(28, '<< /Names [(decoy-literal-string-xref.xml) 30 0 R] >>');
+    $addObject(30, '<< /Type /Filespec /F (decoy-literal-string-xref.xml) /Desc (Decoy literal-string xref attachment) /AFRelationship /Source /EF << /F 31 0 R >> >>');
+    $addObject(31, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($decoyPayload) . " >>\nstream\n{$decoyPayload}\nendstream");
+
+    $literalXrefOffset = strlen($pdf) + 1;
+    $pdf .= "(xref\n"
+        . "20 12\n"
+        . $xrefRow($offsets[20])
+        . $xrefRow($offsets[21])
+        . $xrefRow($offsets[22])
+        . $xrefRow($offsets[23])
+        . $xrefRow($offsets[24])
+        . $xrefRow(0, 65535, 'f')
+        . $xrefRow($offsets[26])
+        . $xrefRow($offsets[27])
+        . $xrefRow($offsets[28])
+        . $xrefRow(0, 65535, 'f')
+        . $xrefRow($offsets[30])
+        . $xrefRow($offsets[31])
+        . "trailer\n<< /Size 32 /Root 20 0 R /Info 27 0 R >>)\n"
+        . "startxref\n{$literalXrefOffset}\n%%EOF";
+
+    return [$pdf, $currentPayload, strtolower($currentChecksum), $currentXrefOffset, $literalXrefOffset];
+};
+
 return [
     'rebuilds damaged startxref from the latest classic xref trailer boundary before WordPress text extraction' => static function (
         TestRunner $t
@@ -1463,6 +1551,48 @@ return [
         $t->true(!str_contains($encodedMetadata, 'Malformed Row Decoy'));
         $t->true(!str_contains($encodedFiles, 'decoy-malformed-row-xref'));
         $t->true(!str_contains($encodedAttachmentSummary, 'decoy-malformed-row-xref'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'skips literal-string xref table decoys when startxref points inside a PDF string before WordPress imports' => static function (
+        TestRunner $t
+    ) use ($xrefClassicRebuildLiteralStringDecoyBoundaryCurrentBasePdf): void {
+        [$pdf, $currentPayload, $currentChecksum, $currentXrefOffset, $literalXrefOffset] = $xrefClassicRebuildLiteralStringDecoyBoundaryCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $text = $extractor->extractPlainText($pdf);
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $attachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES) ?: '';
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES) ?: '';
+        $encodedAttachmentSummary = json_encode($attachmentSummary, JSON_UNESCAPED_SLASHES) ?: '';
+
+        $t->true($currentXrefOffset > 0);
+        $t->true($literalXrefOffset > $currentXrefOffset);
+        $t->same(['Current literal-string xref page', 'Literal xref decoy skipped'], $extractor->extractTextLines($pdf));
+        $t->same(['Current literal-string xref page', 'Literal xref decoy skipped'], $extractor->extractTextRuns($pdf));
+        $t->same("Current literal-string xref page\nLiteral xref decoy skipped", $text);
+        $t->same("Current literal-string xref page\nLiteral xref decoy skipped\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same('Current Literal XRef Title', $metadata['title']);
+        $t->same('Current Literal XRef Info', $metadata['info']['Title']);
+        $t->same('Current Literal Importer', $metadata['info']['Author']);
+        $t->same(1, count($files));
+        $t->same('current-literal-string-xref.xml', $files[0]['name']);
+        $t->same('current-literal-string-xref.xml', $files[0]['filename']);
+        $t->same('Current literal-string xref attachment', $files[0]['description']);
+        $t->same('Source', $files[0]['relationship']);
+        $t->same($currentPayload, $files[0]['content']);
+        $t->same($currentChecksum, $files[0]['checksum']);
+        $t->same(true, $files[0]['checksum_matches']);
+        $t->same(1, $attachmentSummary['attachment_count']);
+        $t->same(['current-literal-string-xref.xml'], $attachmentSummary['filenames']);
+        $t->same(false, $attachmentSummary['executes_python_or_models']);
+        $t->same(false, $attachmentSummary['executes_external_pdf_tools']);
+        $t->true(!str_contains($text, 'Literal xref decoy page'));
+        $t->true(!str_contains($text, 'String xref root leak'));
+        $t->true(!str_contains($encodedMetadata, 'Literal String XRef Decoy'));
+        $t->true(!str_contains($encodedFiles, 'decoy-literal-string-xref'));
+        $t->true(!str_contains($encodedAttachmentSummary, 'decoy-literal-string-xref'));
         $t->true(!str_contains($text, "\0"));
     },
 ];
