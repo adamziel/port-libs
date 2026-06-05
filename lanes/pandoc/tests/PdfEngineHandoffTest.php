@@ -904,6 +904,94 @@ MARKDOWN);
         $t->same('en-US', $sequence['finalPdfLanguage']);
     },
 
+    'fake runner extracts bounded pdf xmp metadata and pdfa identification from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/xmp.pdf']);
+        $xmp = implode("\n", [
+            '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>',
+            '<x:xmpmeta xmlns:x="adobe:ns:meta/">',
+            '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">',
+            '<rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">',
+            '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">PDF Review Packet</rdf:li></rdf:Alt></dc:title>',
+            '<dc:creator><rdf:Seq><rdf:li>Migration Desk</rdf:li><rdf:li>Content Reviewer</rdf:li></rdf:Seq></dc:creator>',
+            '<dc:description><rdf:Alt><rdf:li xml:lang="x-default">Migration review metadata</rdf:li></rdf:Alt></dc:description>',
+            '<dc:format>application/pdf</dc:format>',
+            '<xmp:CreatorTool>Pandoc native handoff</xmp:CreatorTool>',
+            '<xmp:CreateDate>2026-06-05T07:41:23Z</xmp:CreateDate>',
+            '<xmp:ModifyDate>2026-06-05T07:42:00Z</xmp:ModifyDate>',
+            '<xmp:MetadataDate>2026-06-05T07:42:10Z</xmp:MetadataDate>',
+            '<xmpMM:DocumentID>uuid:pdf-review-packet</xmpMM:DocumentID>',
+            '<xmpMM:InstanceID>uuid:pdf-review-packet-v2</xmpMM:InstanceID>',
+            '<pdfaid:part>2</pdfaid:part>',
+            '<pdfaid:conformance>B</pdfaid:conformance>',
+            '</rdf:Description>',
+            '</rdf:RDF>',
+            '</x:xmpmeta>',
+            '<?xpacket end="w"?>',
+        ]);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Metadata 9 0 R /Lang (en-US) >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /Metadata /Subtype /XML /Length ' . strlen($xmp) . ' >>',
+            'stream',
+            $xmp,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/xmp.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/xmp.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            'packetBytes' => strlen($xmp),
+            'packetSha256' => hash('sha256', $xmp),
+            'title' => 'PDF Review Packet',
+            'description' => 'Migration review metadata',
+            'format' => 'application/pdf',
+            'creatorTool' => 'Pandoc native handoff',
+            'createDate' => '2026-06-05T07:41:23Z',
+            'modifyDate' => '2026-06-05T07:42:00Z',
+            'metadataDate' => '2026-06-05T07:42:10Z',
+            'documentId' => 'uuid:pdf-review-packet',
+            'instanceId' => 'uuid:pdf-review-packet-v2',
+            'creators' => ['Migration Desk', 'Content Reviewer'],
+            'pdfaIdentification' => [
+                'part' => '2',
+                'conformance' => 'B',
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfXmpMetadata']);
+        $t->contains('pdf-byte-xmp-metadata:13', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-pdfa:2:B', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfXmpMetadata']);
+    },
+
     'fake runner extracts bounded pdf catalog presentation preferences from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/presentation.pdf']);

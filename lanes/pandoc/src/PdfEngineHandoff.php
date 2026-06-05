@@ -9,6 +9,7 @@ final class PdfEngineHandoff
     private const MAX_SOURCE_MAP_BYTES = 1048576;
     private const MAX_DEPENDENCY_FILE_BYTES = 1048576;
     private const MAX_PDF_OUTPUT_INSPECTION_BYTES = 1048576;
+    private const MAX_XMP_METADATA_BYTES = 262144;
     private const MAX_TRANSCRIPT_BYTES = 1048576;
 
     /**
@@ -252,6 +253,7 @@ final class PdfEngineHandoff
      *     pdfPageRotations: array<int, int>,
      *     pdfOutlineTitles: list<string>,
      *     pdfDocumentInfo: array<string, string>,
+     *     pdfXmpMetadata: array<string, mixed>,
      *     pdfLanguage: string|null,
      *     pdfPageLayout: string|null,
      *     pdfPageMode: string|null,
@@ -626,6 +628,7 @@ final class PdfEngineHandoff
         $pdfPageRotations = [];
         $pdfOutlineTitles = [];
         $pdfDocumentInfo = [];
+        $pdfXmpMetadata = [];
         $pdfLanguage = null;
         $pdfPageLayout = null;
         $pdfPageMode = null;
@@ -658,6 +661,7 @@ final class PdfEngineHandoff
                 $pdfPageRotations = $pdfInspection['pageRotations'];
                 $pdfOutlineTitles = $pdfInspection['outlineTitles'];
                 $pdfDocumentInfo = $pdfInspection['documentInfo'];
+                $pdfXmpMetadata = $pdfInspection['xmpMetadata'];
                 $pdfLanguage = $pdfInspection['language'];
                 $pdfPageLayout = $pdfInspection['pageLayout'];
                 $pdfPageMode = $pdfInspection['pageMode'];
@@ -700,6 +704,26 @@ final class PdfEngineHandoff
                 }
                 if ($pdfDocumentInfo !== []) {
                     $diagnostics[] = 'pdf-byte-document-info:' . count($pdfDocumentInfo);
+                }
+                if ($pdfXmpMetadata !== []) {
+                    if (($pdfXmpMetadata['skipped'] ?? null) === 'filtered') {
+                        $diagnostics[] = 'pdf-byte-xmp-metadata-skipped:filtered';
+                    } elseif (($pdfXmpMetadata['skipped'] ?? null) === 'too-large') {
+                        $diagnostics[] = 'pdf-byte-xmp-metadata-skipped:too-large';
+                    } else {
+                        $diagnostics[] = 'pdf-byte-xmp-metadata:' . count($pdfXmpMetadata);
+                        if (isset($pdfXmpMetadata['pdfaIdentification']) && is_array($pdfXmpMetadata['pdfaIdentification'])) {
+                            $part = is_string($pdfXmpMetadata['pdfaIdentification']['part'] ?? null)
+                                ? $pdfXmpMetadata['pdfaIdentification']['part']
+                                : '';
+                            $conformance = is_string($pdfXmpMetadata['pdfaIdentification']['conformance'] ?? null)
+                                ? $pdfXmpMetadata['pdfaIdentification']['conformance']
+                                : '';
+                            if ($part !== '' || $conformance !== '') {
+                                $diagnostics[] = 'pdf-byte-pdfa:' . $part . ':' . $conformance;
+                            }
+                        }
+                    }
                 }
                 if ($pdfLanguage !== null) {
                     $diagnostics[] = 'pdf-byte-language:' . $pdfLanguage;
@@ -878,6 +902,7 @@ final class PdfEngineHandoff
             'pdfPageRotations' => $pdfPageRotations,
             'pdfOutlineTitles' => $pdfOutlineTitles,
             'pdfDocumentInfo' => $pdfDocumentInfo,
+            'pdfXmpMetadata' => $pdfXmpMetadata,
             'pdfLanguage' => $pdfLanguage,
             'pdfPageLayout' => $pdfPageLayout,
             'pdfPageMode' => $pdfPageMode,
@@ -931,6 +956,7 @@ final class PdfEngineHandoff
      *     finalPdfIncrementalUpdates: bool,
      *     finalPdfOutlineTitles: list<string>,
      *     finalPdfDocumentInfo: array<string, string>,
+     *     finalPdfXmpMetadata: array<string, mixed>,
      *     finalPdfLanguage: string|null,
      *     finalPdfPageLayout: string|null,
      *     finalPdfPageMode: string|null,
@@ -1098,6 +1124,7 @@ final class PdfEngineHandoff
             'finalPdfIncrementalUpdates' => is_array($finalRun) && ($finalRun['pdfIncrementalUpdates'] ?? false) === true,
             'finalPdfOutlineTitles' => is_array($finalRun) && is_array($finalRun['pdfOutlineTitles'] ?? null) ? $finalRun['pdfOutlineTitles'] : [],
             'finalPdfDocumentInfo' => is_array($finalRun) && is_array($finalRun['pdfDocumentInfo'] ?? null) ? $finalRun['pdfDocumentInfo'] : [],
+            'finalPdfXmpMetadata' => is_array($finalRun) && is_array($finalRun['pdfXmpMetadata'] ?? null) ? $finalRun['pdfXmpMetadata'] : [],
             'finalPdfLanguage' => is_array($finalRun) && is_string($finalRun['pdfLanguage'] ?? null) ? $finalRun['pdfLanguage'] : null,
             'finalPdfPageLayout' => is_array($finalRun) && is_string($finalRun['pdfPageLayout'] ?? null) ? $finalRun['pdfPageLayout'] : null,
             'finalPdfPageMode' => is_array($finalRun) && is_string($finalRun['pdfPageMode'] ?? null) ? $finalRun['pdfPageMode'] : null,
@@ -2158,6 +2185,7 @@ final class PdfEngineHandoff
      *     pageRotations:array<int, int>,
      *     outlineTitles:list<string>,
      *     documentInfo:array<string, string>,
+     *     xmpMetadata:array<string, mixed>,
      *     language:string|null,
      *     pageLayout:string|null,
      *     pageMode:string|null,
@@ -2197,6 +2225,7 @@ final class PdfEngineHandoff
             'pageRotations' => $this->summarizePdfPageRotations($pageBoxes),
             'outlineTitles' => $this->extractPdfOutlineTitles($pdfBytes),
             'documentInfo' => $this->extractPdfDocumentInfo($pdfBytes),
+            'xmpMetadata' => $this->extractPdfXmpMetadata($pdfBytes, $catalog),
             'language' => $this->extractPdfCatalogLanguage($pdfBytes, $catalog),
             'pageLayout' => $this->extractPdfCatalogName($catalog, 'PageLayout'),
             'pageMode' => $this->extractPdfCatalogName($catalog, 'PageMode'),
@@ -2398,6 +2427,244 @@ final class PdfEngineHandoff
         }
 
         return $info;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function extractPdfXmpMetadata(string $pdfBytes, ?string $catalog): array
+    {
+        $stream = $this->extractPdfMetadataStream($pdfBytes, $catalog);
+        if ($stream === null) {
+            return [];
+        }
+
+        if ($stream['filtered']) {
+            return [
+                'packetBytes' => strlen($stream['bytes']),
+                'skipped' => 'filtered',
+            ];
+        }
+        if (strlen($stream['bytes']) > self::MAX_XMP_METADATA_BYTES) {
+            return [
+                'packetBytes' => strlen($stream['bytes']),
+                'skipped' => 'too-large',
+            ];
+        }
+
+        $xml = $stream['bytes'];
+        if (
+            !str_contains($xml, '<rdf:RDF')
+            && !str_contains($xml, '<x:xmpmeta')
+            && !str_contains($xml, '<?xpacket')
+        ) {
+            return [];
+        }
+
+        $metadata = [
+            'packetBytes' => strlen($xml),
+            'packetSha256' => hash('sha256', $xml),
+        ];
+
+        foreach ([
+            'title' => 'title',
+            'description' => 'description',
+            'format' => 'format',
+            'creatorTool' => 'CreatorTool',
+            'createDate' => 'CreateDate',
+            'modifyDate' => 'ModifyDate',
+            'metadataDate' => 'MetadataDate',
+            'documentId' => 'DocumentID',
+            'instanceId' => 'InstanceID',
+        ] as $target => $name) {
+            $value = in_array($name, ['title', 'description'], true)
+                ? $this->xmpLocalizedText($xml, $name)
+                : $this->xmpScalarText($xml, $name);
+            if ($value !== null && $value !== '') {
+                $metadata[$target] = $value;
+            }
+        }
+
+        $creators = $this->xmpListText($xml, 'creator');
+        if ($creators !== []) {
+            $metadata['creators'] = $creators;
+        }
+
+        $pdfaPart = $this->xmpScalarText($xml, 'part');
+        $pdfaConformance = $this->xmpScalarText($xml, 'conformance');
+        if ($pdfaPart !== null || $pdfaConformance !== null) {
+            $metadata['pdfaIdentification'] = [
+                'part' => $pdfaPart,
+                'conformance' => $pdfaConformance,
+            ];
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array{bytes:string, filtered:bool}|null
+     */
+    private function extractPdfMetadataStream(string $pdfBytes, ?string $catalog): ?array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $candidates = [];
+        $metadataReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Metadata');
+        if ($metadataReference !== null) {
+            $reference = $this->pdfReferenceKey($metadataReference);
+            if (isset($objects[$reference])) {
+                $candidates[] = $objects[$reference];
+            }
+        }
+
+        foreach ($this->pdfObjectBodies($pdfBytes) as $body) {
+            if (
+                !str_contains($body, '/Metadata')
+                && !str_contains($body, '/Subtype /XML')
+                && !str_contains($body, '/Subtype/XML')
+            ) {
+                continue;
+            }
+            $candidates[] = $body;
+        }
+
+        foreach ($candidates as $body) {
+            $bytes = $this->extractPdfStreamBytes($body);
+            if ($bytes === null) {
+                continue;
+            }
+
+            return [
+                'bytes' => $bytes,
+                'filtered' => preg_match('/\/Filter\b/s', $body) === 1,
+            ];
+        }
+
+        return null;
+    }
+
+    private function extractPdfStreamBytes(string $objectBody): ?string
+    {
+        $streamPosition = strpos($objectBody, 'stream');
+        if ($streamPosition === false) {
+            return null;
+        }
+
+        $start = $streamPosition + strlen('stream');
+        if (substr($objectBody, $start, 2) === "\r\n") {
+            $start += 2;
+        } elseif (isset($objectBody[$start]) && ($objectBody[$start] === "\n" || $objectBody[$start] === "\r")) {
+            $start++;
+        }
+
+        $end = strpos($objectBody, 'endstream', $start);
+        if ($end === false || $end < $start) {
+            return null;
+        }
+
+        $bytes = substr($objectBody, $start, $end - $start);
+        if (str_ends_with($bytes, "\r\n")) {
+            return substr($bytes, 0, -2);
+        }
+        if (str_ends_with($bytes, "\n") || str_ends_with($bytes, "\r")) {
+            return substr($bytes, 0, -1);
+        }
+
+        return $bytes;
+    }
+
+    private function xmpLocalizedText(string $xml, string $name): ?string
+    {
+        $block = $this->xmpElementBlock($xml, $name);
+        if ($block === null) {
+            return $this->xmpScalarText($xml, $name);
+        }
+
+        if (preg_match('/<[^:>]*(?::)?li\b[^>]*\bxml:lang\s*=\s*["\']x-default["\'][^>]*>(.*?)<\/[^:>]*(?::)?li>/s', $block, $matches) === 1) {
+            return $this->normalizeXmpText($matches[1]);
+        }
+
+        foreach ($this->xmpElementTextsFromBlock($block, 'li') as $value) {
+            return $value;
+        }
+
+        return $this->normalizeXmpText($block);
+    }
+
+    private function xmpScalarText(string $xml, string $name): ?string
+    {
+        $block = $this->xmpElementBlock($xml, $name);
+        if ($block !== null) {
+            return $this->normalizeXmpText($block);
+        }
+
+        if (preg_match('/\b(?:[A-Za-z_][A-Za-z0-9_.-]*:)?' . preg_quote($name, '/') . '\s*=\s*(["\'])(.*?)\1/s', $xml, $matches) === 1) {
+            return $this->normalizeXmpText($matches[2]);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function xmpListText(string $xml, string $name): array
+    {
+        $block = $this->xmpElementBlock($xml, $name);
+        if ($block === null) {
+            $scalar = $this->xmpScalarText($xml, $name);
+
+            return $scalar === null || $scalar === '' ? [] : [$scalar];
+        }
+
+        $values = $this->xmpElementTextsFromBlock($block, 'li');
+        if ($values === []) {
+            $scalar = $this->normalizeXmpText($block);
+            if ($scalar !== null && $scalar !== '') {
+                $values[] = $scalar;
+            }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    private function xmpElementBlock(string $xml, string $name): ?string
+    {
+        if (preg_match('/<(?:[A-Za-z_][A-Za-z0-9_.-]*:)?' . preg_quote($name, '/') . '\b[^>]*>(.*?)<\/(?:[A-Za-z_][A-Za-z0-9_.-]*:)?' . preg_quote($name, '/') . '>/s', $xml, $matches) !== 1) {
+            return null;
+        }
+
+        return $matches[1];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function xmpElementTextsFromBlock(string $block, string $name): array
+    {
+        if (preg_match_all('/<(?:[A-Za-z_][A-Za-z0-9_.-]*:)?' . preg_quote($name, '/') . '\b[^>]*>(.*?)<\/(?:[A-Za-z_][A-Za-z0-9_.-]*:)?' . preg_quote($name, '/') . '>/s', $block, $matches) < 1) {
+            return [];
+        }
+
+        $values = [];
+        foreach ($matches[1] as $rawValue) {
+            $value = $this->normalizeXmpText($rawValue);
+            if ($value !== null && $value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        return $values;
+    }
+
+    private function normalizeXmpText(string $text): ?string
+    {
+        $text = preg_replace('/<[^>]+>/', ' ', $text) ?? $text;
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_XML1, 'UTF-8');
+        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+        $text = trim($text);
+
+        return $text === '' ? null : $text;
     }
 
     private function extractPdfInfoDictionary(string $pdfBytes): ?string
