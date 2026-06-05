@@ -417,7 +417,7 @@ final class TableRecognizer
         $cols = $geometryBands['cols'];
         $rowOrder = $this->bandOrderMap($rows, 'row_id');
         $colOrder = $this->bandOrderMap($cols, 'col_id');
-        $cells = $this->sortCells($this->normalizeAssignedCells($cells), $rowOrder, $colOrder);
+        $cells = $this->sortCells($this->normalizeAssignedCells($cells, $rows, $cols), $rowOrder, $colOrder);
         $rowBboxes = $this->bboxesById($rows, 'row_id');
         $colBboxes = $this->bboxesById($cols, 'col_id');
         $rotated = $rows !== [] && $cols !== [] && $this->isRotated($rows, $cols);
@@ -479,7 +479,7 @@ final class TableRecognizer
         $cols = $geometryBands['cols'];
         $rowOrder = $this->bandOrderMap($rows, 'row_id');
         $colOrder = $this->bandOrderMap($cols, 'col_id');
-        $cells = $this->sortCells($this->normalizeAssignedCells($cells), $rowOrder, $colOrder);
+        $cells = $this->sortCells($this->normalizeAssignedCells($cells, $rows, $cols), $rowOrder, $colOrder);
         if ($cells === []) {
             return $this->emptySpanningGridReview();
         }
@@ -699,7 +699,6 @@ final class TableRecognizer
      */
     public function gridBorderConflictReview(array $conflicts, array $assignedCells, array $rows = [], array $cols = [], ?array $imageSize = null): array
     {
-        $assignedCells = $this->normalizeAssignedCells($assignedCells);
         $rows = $this->normalizeRowsOrCols($rows, 'row_id');
         $cols = $this->normalizeRowsOrCols($cols, 'col_id');
         $geometryBands = $this->tableGridGeometryBoundary($rows, $cols, $imageSize);
@@ -708,6 +707,7 @@ final class TableRecognizer
         $geometryBoundaryReview = $geometryBands['review'];
         $rowOrder = $this->bandOrderMap($rows, 'row_id');
         $colOrder = $this->bandOrderMap($cols, 'col_id');
+        $assignedCells = $this->normalizeAssignedCells($assignedCells, $rows, $cols);
         $rowBboxes = $this->bboxesById($rows, 'row_id');
         $colBboxes = $this->bboxesById($cols, 'col_id');
         $rotated = $rows !== [] && $cols !== [] && $this->isRotated($rows, $cols);
@@ -1411,6 +1411,11 @@ final class TableRecognizer
      * the same table-crop positive-area boundary used by assignRowsColumns().
      * Raw detector cells still flow through assignRowsColumns().
      *
+     * Current upstream table handoffs may serialize assignments as scalar
+     * row_id/col_id plus rowspan/colspan instead of row_ids/col_ids arrays.
+     * Normalize that shape into the canonical span arrays before filtering so
+     * arbitrary detector band ids survive crop/band boundary review.
+     *
      * @param array<string, mixed> $table
      * @return list<array<string, mixed>>|null
      */
@@ -1428,7 +1433,14 @@ final class TableRecognizer
             }
         }
 
-        return $this->normalizeAssignedCells($cells);
+        $rows = isset($table['rows']) && is_array($table['rows'])
+            ? $this->normalizeRowsOrCols($table['rows'], 'row_id')
+            : [];
+        $cols = isset($table['cols']) && is_array($table['cols'])
+            ? $this->normalizeRowsOrCols($table['cols'], 'col_id')
+            : [];
+
+        return $this->normalizeAssignedCells($cells, $rows, $cols);
     }
 
     /**
@@ -1439,12 +1451,17 @@ final class TableRecognizer
         $rowIds = $cell['row_ids'] ?? null;
         $colIds = $cell['col_ids'] ?? null;
 
-        return is_array($rowIds)
+        if (is_array($rowIds)
             && is_array($colIds)
             && array_key_exists(0, $rowIds)
             && array_key_exists(0, $colIds)
             && $rowIds[0] !== null
-            && $colIds[0] !== null;
+            && $colIds[0] !== null) {
+            return true;
+        }
+
+        return $this->nullableInteger($cell['row_id'] ?? null) !== null
+            && $this->nullableInteger($cell['col_id'] ?? null) !== null;
     }
 
     /**
@@ -3364,26 +3381,30 @@ final class TableRecognizer
 
     /**
      * @param list<array<string, mixed>> $cells
+     * @param list<array<string, mixed>> $rows
+     * @param list<array<string, mixed>> $cols
      * @return list<array{bbox: list<float>, text: string, row_ids: list<int|null>, col_ids: list<int|null>, order?: int}>
      */
-    private function normalizeAssignedCells(array $cells): array
+    private function normalizeAssignedCells(array $cells, array $rows = [], array $cols = []): array
     {
+        $rowOrder = $this->bandOrderMap($rows, 'row_id');
+        $colOrder = $this->bandOrderMap($cols, 'col_id');
         $normalized = [];
         foreach ($cells as $cell) {
             if (!is_array($cell)) {
                 throw new InvalidArgumentException('Assigned table cells must be arrays.');
             }
-            $rowIds = $cell['row_ids'] ?? null;
-            $colIds = $cell['col_ids'] ?? null;
-            if (!is_array($rowIds) || !is_array($colIds) || ($rowIds[0] ?? null) === null || ($colIds[0] ?? null) === null) {
-                throw new InvalidArgumentException('Assigned table cells must include non-null first row_ids and col_ids.');
+            $rowIds = $this->assignedRowIds($cell, $rowOrder);
+            $colIds = $this->assignedColIds($cell, $colOrder);
+            if (($rowIds[0] ?? null) === null || ($colIds[0] ?? null) === null) {
+                throw new InvalidArgumentException('Assigned table cells must include non-null row/column assignment anchors.');
             }
 
             $entry = [
                 'bbox' => $this->bboxFromRecord($cell),
                 'text' => (string) ($cell['text'] ?? ''),
-                'row_ids' => array_map(static fn (mixed $id): ?int => $id === null ? null : (int) $id, array_values($rowIds)),
-                'col_ids' => array_map(static fn (mixed $id): ?int => $id === null ? null : (int) $id, array_values($colIds)),
+                'row_ids' => $rowIds,
+                'col_ids' => $colIds,
             ];
             if (isset($cell['order'])) {
                 $entry['order'] = (int) $cell['order'];
@@ -3407,6 +3428,84 @@ final class TableRecognizer
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $cell
+     * @param array<int, int> $rowOrder
+     * @return list<int|null>
+     */
+    private function assignedRowIds(array $cell, array $rowOrder): array
+    {
+        $rowIds = $cell['row_ids'] ?? null;
+        if (is_array($rowIds) && ($rowIds[0] ?? null) !== null) {
+            return array_map(
+                static fn (mixed $id): ?int => $id === null ? null : (int) $id,
+                array_values($rowIds)
+            );
+        }
+
+        $rowId = $this->nullableInteger($cell['row_id'] ?? null);
+        if ($rowId === null) {
+            return [];
+        }
+
+        return $this->spanIdsFromAnchor($rowId, $this->positiveSpan($cell['rowspan'] ?? null), $rowOrder);
+    }
+
+    /**
+     * @param array<string, mixed> $cell
+     * @param array<int, int> $colOrder
+     * @return list<int|null>
+     */
+    private function assignedColIds(array $cell, array $colOrder): array
+    {
+        $colIds = $cell['col_ids'] ?? null;
+        if (is_array($colIds) && ($colIds[0] ?? null) !== null) {
+            return array_map(
+                static fn (mixed $id): ?int => $id === null ? null : (int) $id,
+                array_values($colIds)
+            );
+        }
+
+        $colId = $this->nullableInteger($cell['col_id'] ?? null);
+        if ($colId === null) {
+            return [];
+        }
+
+        return $this->spanIdsFromAnchor($colId, $this->positiveSpan($cell['colspan'] ?? null), $colOrder);
+    }
+
+    /**
+     * @param array<int, int> $bandOrder
+     * @return list<int>
+     */
+    private function spanIdsFromAnchor(int $anchorId, int $span, array $bandOrder): array
+    {
+        if ($bandOrder !== [] && array_key_exists($anchorId, $bandOrder)) {
+            $bandIds = array_map('intval', array_keys($bandOrder));
+            $start = $bandOrder[$anchorId];
+            $ids = [];
+            for ($position = $start; $position < count($bandIds) && count($ids) < $span; $position++) {
+                $ids[] = $bandIds[$position];
+            }
+
+            return $ids === [] ? [$anchorId] : $ids;
+        }
+
+        $ids = [];
+        for ($offset = 0; $offset < $span; $offset++) {
+            $ids[] = $anchorId + $offset;
+        }
+
+        return $ids;
+    }
+
+    private function positiveSpan(mixed $value): int
+    {
+        $span = $this->nullableInteger($value);
+
+        return $span === null || $span < 1 ? 1 : $span;
     }
 
     /**
