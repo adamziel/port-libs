@@ -1364,6 +1364,18 @@ $latin1GzipTarInspection = ArchiveCompressionStream::inspectTarStream(
     strlen($tarPacketBytes),
     $tarPacketUnpackedBytes
 );
+$reproducibleGzipTarPacket = GzipStream::build($tarPacketBytes, [
+    'modifiedAt' => 0,
+    'extraFlags' => 4,
+    'operatingSystem' => 3,
+    'filename' => 'wordpress-reproducible-import-packet.tar',
+]);
+$reproducibleGzipTarInspection = ArchiveCompressionStream::inspectTarStream(
+    $reproducibleGzipTarPacket,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($tarPacketBytes),
+    $tarPacketUnpackedBytes
+);
 $tarPacketRoundTrip = TarArchive::fromString(GzipStream::decode($compressedTarPacket));
 $streamDetectedTarFormat = ArchiveCompressionStream::detectTarFormat(
     $compressedTarPacket,
@@ -2031,6 +2043,23 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected Latin-1 gzip tar packet manifest bytes to round-trip');
     }
 
+    $reproducibleGzipMember = $reproducibleGzipTarInspection['stream']['members'][0] ?? [];
+    if (($reproducibleGzipMember['modifiedAtKnown'] ?? null) !== false) {
+        throw new RuntimeException('Expected reproducible gzip tar packet to mark zero MTIME as absent');
+    }
+
+    if (!array_key_exists('modifiedAtText', $reproducibleGzipMember) || $reproducibleGzipMember['modifiedAtText'] !== null) {
+        throw new RuntimeException('Expected reproducible gzip tar packet to omit timestamp review text');
+    }
+
+    if (($reproducibleGzipMember['extraFlagsMeaning'] ?? null) !== 'fastest-compression') {
+        throw new RuntimeException('Expected gzip XFL review label to identify fastest compression');
+    }
+
+    if (($reproducibleGzipMember['operatingSystemName'] ?? null) !== 'unix') {
+        throw new RuntimeException('Expected gzip OS review label to identify Unix provenance');
+    }
+
     if (!$tarPacketRoundTrip->has('/packet/word/document.xml')) {
         throw new RuntimeException('Expected tar packet document part to be discoverable');
     }
@@ -2087,12 +2116,28 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected split gzip tar packet member XFL values to be inspectable');
     }
 
+    $splitGzipMemberExtraFlagMeanings = array_map(
+        static fn (array $member): string => $member['extraFlagsMeaning'],
+        $splitGzipTarInspection['stream']['members'] ?? []
+    );
+    if ($splitGzipMemberExtraFlagMeanings !== ['fastest-compression', 'maximum-compression']) {
+        throw new RuntimeException('Expected split gzip tar packet member XFL labels to be inspectable');
+    }
+
     $splitGzipMemberOperatingSystems = array_map(
         static fn (array $member): int => $member['operatingSystem'],
         $splitGzipTarInspection['stream']['members'] ?? []
     );
     if ($splitGzipMemberOperatingSystems !== [3, 255]) {
         throw new RuntimeException('Expected split gzip tar packet member OS values to be inspectable');
+    }
+
+    $splitGzipMemberOperatingSystemNames = array_map(
+        static fn (array $member): string => $member['operatingSystemName'],
+        $splitGzipTarInspection['stream']['members'] ?? []
+    );
+    if ($splitGzipMemberOperatingSystemNames !== ['unix', 'unknown']) {
+        throw new RuntimeException('Expected split gzip tar packet member OS labels to be inspectable');
     }
 
     $splitGzipMemberExtraFields = array_map(

@@ -680,6 +680,57 @@ return [
         $t->same("# GZIP Latin-1 provenance\n\nReady for review.\n", $inspection['archive']->read('/packet/content.md'));
     },
 
+    'labels gzip timestamp compression and platform provenance for review packets' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"gzip-review-labels","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# GZIP review labels\n\nReady for archive review.\n",
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $reproducibleGzip = GzipStream::build($tarBytes, [
+            'filename' => 'reproducible-review.tar',
+            'modifiedAt' => 0,
+            'extraFlags' => 4,
+            'operatingSystem' => 3,
+        ]);
+        $timestampedGzip = GzipStream::build($tarBytes, [
+            'filename' => 'timestamped-review.tar',
+            'modifiedAt' => 1780479042,
+            'extraFlags' => 2,
+            'operatingSystem' => 255,
+        ]);
+
+        $reproducibleMember = GzipStream::members($reproducibleGzip)[0];
+        $timestampedMember = GzipStream::members($timestampedGzip)[0];
+        $inspection = ArchiveCompressionStream::inspectTarStreamAuto($reproducibleGzip, strlen($tarBytes));
+        $inspectionMember = $inspection['stream']['members'][0];
+
+        $t->same(0, $reproducibleMember['modifiedAt']);
+        $t->same(false, $reproducibleMember['modifiedAtKnown']);
+        $t->same(null, $reproducibleMember['modifiedAtText']);
+        $t->same('fastest-compression', $reproducibleMember['extraFlagsMeaning']);
+        $t->same('unix', $reproducibleMember['operatingSystemName']);
+        $t->same('reproducible-review.tar', $reproducibleMember['filename']);
+        $t->same('gzip-tar', $inspection['format']);
+        $t->same(false, $inspectionMember['modifiedAtKnown']);
+        $t->same(null, $inspectionMember['modifiedAtText']);
+        $t->same('fastest-compression', $inspectionMember['extraFlagsMeaning']);
+        $t->same('unix', $inspectionMember['operatingSystemName']);
+        $t->same('{"source":"gzip-review-labels","target":"wordpress"}', $inspection['archive']->read('/packet/manifest.json'));
+
+        $t->same(1780479042, $timestampedMember['modifiedAt']);
+        $t->true($timestampedMember['modifiedAtKnown']);
+        $t->same('2026-06-03T09:30:42Z', $timestampedMember['modifiedAtText']);
+        $t->same('maximum-compression', $timestampedMember['extraFlagsMeaning']);
+        $t->same('unknown', $timestampedMember['operatingSystemName']);
+        $t->same('timestamped-review.tar', $timestampedMember['filename']);
+    },
+
     'rejects malformed gzip extra subfields before package bytes are exposed' => static function (TestRunner $t): void {
         $valid = GzipStream::build('review packet', [
             'filename' => 'packet.txt',

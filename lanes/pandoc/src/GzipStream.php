@@ -146,7 +146,11 @@ final class GzipStream
      *     crc32:int,
      *     uncompressedSize:int,
      *     compressedSize:int,
-     *     memberSize:int
+     *     memberSize:int,
+     *     modifiedAtKnown:bool,
+     *     modifiedAtText:?string,
+     *     extraFlagsMeaning:string,
+     *     operatingSystemName:string
      * }>
      */
     public static function members(string $bytes, ?int $maxUncompressedBytes = null): array
@@ -258,8 +262,12 @@ final class GzipStream
             $members[] = [
                 'data' => $data,
                 'modifiedAt' => $modifiedAt,
+                'modifiedAtKnown' => $modifiedAt !== 0,
+                'modifiedAtText' => self::modifiedAtText($modifiedAt),
                 'extraFlags' => $extraFlags,
+                'extraFlagsMeaning' => self::extraFlagsMeaning($extraFlags),
                 'operatingSystem' => $operatingSystem,
+                'operatingSystemName' => self::operatingSystemName($operatingSystem),
                 'extraFieldData' => $extraFieldData,
                 'extraFields' => $extraFields,
                 'filename' => $filename,
@@ -317,6 +325,47 @@ final class GzipStream
         }
 
         return $fields;
+    }
+
+    private static function modifiedAtText(int $modifiedAt): ?string
+    {
+        if ($modifiedAt === 0) {
+            return null;
+        }
+
+        return gmdate('Y-m-d\TH:i:s\Z', $modifiedAt);
+    }
+
+    private static function extraFlagsMeaning(int $extraFlags): string
+    {
+        return match ($extraFlags) {
+            0 => 'unspecified',
+            2 => 'maximum-compression',
+            4 => 'fastest-compression',
+            default => 'unknown',
+        };
+    }
+
+    private static function operatingSystemName(int $operatingSystem): string
+    {
+        return match ($operatingSystem) {
+            0 => 'fat-filesystem',
+            1 => 'amiga',
+            2 => 'vms',
+            3 => 'unix',
+            4 => 'vm-cms',
+            5 => 'atari-tos',
+            6 => 'hpfs-filesystem',
+            7 => 'macintosh',
+            8 => 'z-system',
+            9 => 'cp-m',
+            10 => 'tops-20',
+            11 => 'ntfs-filesystem',
+            12 => 'qdos',
+            13 => 'acorn-riscos',
+            255 => 'unknown',
+            default => 'reserved-or-unknown',
+        };
     }
 
     /**
