@@ -2348,6 +2348,30 @@ return [
         $t->true(!str_contains($text, 'Previous compressed Prev metadata page'));
         $t->true(!str_contains($text, "\0"));
     },
+    'repairs attachment summary when xref-stream Prev is a compressed object-stream numeric helper' => static function (
+        TestRunner $t
+    ) use ($xrefPrevChainCompressedPrevOperandPdf): void {
+        $pdf = $xrefPrevChainCompressedPrevOperandPdf();
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $payload = '<wp-export><post id="current-compressed-prev"/></wp-export>';
+        $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES);
+
+        $t->true(str_contains($pdf, '/Prev 30 0 R'));
+        $t->true(str_contains($pdf, '/Type /ObjStm'));
+        $t->same(1, $summary['attachment_count']);
+        $t->same(strlen($payload), $summary['total_bytes']);
+        $t->same(['current-compressed-prev.xml'], $summary['filenames']);
+        $t->same('current-compressed-prev.xml', $summary['attachments'][0]['filename']);
+        $t->same('Current compressed Prev attachment', $summary['attachments'][0]['description']);
+        $t->same('embedded-files-name-tree', $summary['attachments'][0]['source']);
+        $t->same(strlen($payload), $summary['attachments'][0]['byte_length']);
+        $t->same(hash('sha256', $payload), $summary['attachments'][0]['sha256']);
+        $t->same(false, array_key_exists('bytes', $summary['attachments'][0]));
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'previous-compressed-prev'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'Previous compressed Prev'));
+    },
     'repairs current xref-stream rows when direct Prev helper is shadowed after startxref target' => static function (
         TestRunner $t
     ) use ($xrefPrevChainDirectPrevOperandOwnerPdf): void {

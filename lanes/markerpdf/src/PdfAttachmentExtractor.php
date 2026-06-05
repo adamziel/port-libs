@@ -5382,6 +5382,15 @@ final class PdfAttachmentExtractor
             return $value;
         }
 
+        if ($name === 'Prev') {
+            $resolved = $this->xrefStreamPrevDictionaryValue($value, $reference, (int) $section['offset'], $definitions);
+            if ($resolved !== null) {
+                return $resolved;
+            }
+
+            return $value;
+        }
+
         $definition = $this->directObjectDefinitionForGenerationBeforeOffset(
             $definitions[$reference['objectNumber']] ?? [],
             $reference['generation'],
@@ -5395,6 +5404,156 @@ final class PdfAttachmentExtractor
         $resolved = $this->parseValue(trim($definition['body']), $index);
 
         return $resolved ?? $value;
+    }
+
+    /**
+     * @param array{objectNumber: int, generation: int} $reference
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     */
+    private function xrefStreamPrevDictionaryValue(
+        mixed $value,
+        array $reference,
+        int $beforeOffset,
+        array $definitions
+    ): mixed {
+        $definition = $this->directObjectDefinitionForGenerationBeforeOffset(
+            $definitions[$reference['objectNumber']] ?? [],
+            $reference['generation'],
+            $beforeOffset
+        );
+        $helper = $reference['generation'] === 0
+            ? $this->compressedObjectStreamHelperBodyBeforeOffset(
+                $definitions,
+                $reference['objectNumber'],
+                $reference['generation'],
+                $beforeOffset
+            )
+            : null;
+
+        $directBody = $definition === null ? null : trim($definition['body']);
+        $helperBody = $helper === null ? null : trim($helper['body']);
+        if (
+            $helperBody !== null
+            && $this->safeXrefPrevOperandHelperBody($helperBody)
+            && ($definition === null || $helper['carrierOffset'] > $definition['offset'])
+        ) {
+            return $this->parsedXrefPrevOperandHelperBody($helperBody) ?? $value;
+        }
+
+        if ($directBody !== null && $this->safeXrefPrevOperandHelperBody($directBody)) {
+            return $this->parsedXrefPrevOperandHelperBody($directBody) ?? $value;
+        }
+
+        if ($helperBody !== null && $this->safeXrefPrevOperandHelperBody($helperBody)) {
+            return $this->parsedXrefPrevOperandHelperBody($helperBody) ?? $value;
+        }
+
+        return null;
+    }
+
+    private function parsedXrefPrevOperandHelperBody(string $body): mixed
+    {
+        $index = 0;
+        return $this->parseValue($body, $index);
+    }
+
+    private function safeXrefPrevOperandHelperBody(string $body): bool
+    {
+        if ($body === '' || preg_match('/\b(?:obj|endobj|stream|endstream|xref|trailer|startxref)\b/s', $body) === 1) {
+            return false;
+        }
+
+        $offset = $this->skipPdfWhitespaceOffset($body, 0);
+        return preg_match('/\G[+-]?\d+\s*\z/s', $body, $match, 0, $offset) === 1;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{body: string, carrierOffset: int}|null
+     */
+    private function compressedObjectStreamHelperBodyBeforeOffset(
+        array $definitions,
+        int $objectNumber,
+        int $generation,
+        int $beforeOffset
+    ): ?array {
+        if ($objectNumber <= 0 || $generation !== 0) {
+            return null;
+        }
+
+        $objects = $this->parsedDirectObjectsBeforeOffset($definitions, $beforeOffset);
+        $selected = null;
+        foreach ($definitions as $carrierObjectNumber => $carrierDefinitions) {
+            foreach ($carrierDefinitions as $definition) {
+                if ($definition['offset'] >= $beforeOffset || !$this->objectBodyHasTypeName($definition['body'], 'ObjStm')) {
+                    continue;
+                }
+
+                $body = $this->objectStreamMemberBody(
+                    $objects,
+                    [
+                        'type' => 2,
+                        'objectStream' => (int) $carrierObjectNumber,
+                        'indexIsExplicit' => false,
+                    ],
+                    $objectNumber
+                );
+                if ($body === null) {
+                    continue;
+                }
+
+                $body = trim($body);
+                if (!$this->safeXrefPrevOperandHelperBody($body)) {
+                    continue;
+                }
+
+                if ($selected === null || $definition['offset'] > $selected['carrierOffset']) {
+                    $selected = [
+                        'body' => $body,
+                        'carrierOffset' => $definition['offset'],
+                    ];
+                }
+            }
+        }
+
+        return $selected;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, array{generation: int, body: string, value: mixed, stream: string|null}>
+     */
+    private function parsedDirectObjectsBeforeOffset(array $definitions, int $beforeOffset): array
+    {
+        $objects = [];
+        foreach ($definitions as $objectNumber => $candidates) {
+            $definition = $this->latestDirectObjectDefinitionBeforeOffset($candidates, $beforeOffset);
+            if ($definition === null) {
+                continue;
+            }
+
+            $objects[(int) $objectNumber] = $this->parsedObjectFromDefinition($definition);
+        }
+
+        return $objects;
+    }
+
+    /**
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function latestDirectObjectDefinitionBeforeOffset(array $definitions, int $beforeOffset): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if ($definition['offset'] >= $beforeOffset) {
+                continue;
+            }
+
+            $candidates[] = $definition;
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
     }
 
     /**

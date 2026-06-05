@@ -3467,11 +3467,13 @@ final class PdfEmbeddedFileExtractor
             && ($definition === null || $helper['carrierOffset'] > $definition['offset'])
         ) {
             $objects[$reference['objectNumber']] = $helperBody;
+            $this->objectGenerations[$reference['objectNumber']] = $reference['generation'];
             return $objects;
         }
 
         if ($directBody !== null && $this->safeXrefOperandHelperBody($directBody)) {
             $objects[$reference['objectNumber']] = $directBody;
+            $this->objectGenerations[$reference['objectNumber']] = $reference['generation'];
             return $objects;
         }
 
@@ -3480,6 +3482,7 @@ final class PdfEmbeddedFileExtractor
         }
 
         $objects[$reference['objectNumber']] = $helperBody;
+        $this->objectGenerations[$reference['objectNumber']] = $reference['generation'];
         return $objects;
     }
 
