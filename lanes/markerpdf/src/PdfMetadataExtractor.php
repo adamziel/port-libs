@@ -6986,18 +6986,43 @@ final class PdfMetadataExtractor
      */
     private function boundedXmpXmlRootCandidates(string $xml): array
     {
-        $candidate = $this->boundedXmlRootCandidate($xml, 'xmpmeta');
+        $skippedEmptyWrappers = [];
+        $offset = 0;
+        while (true) {
+            $entry = $this->boundedXmlRootCandidateEntry($xml, 'xmpmeta', $offset);
+            if ($entry === null) {
+                break;
+            }
+
+            if (!$entry['self_closing']) {
+                return [$entry['xml']];
+            }
+
+            $skippedEmptyWrappers[] = $entry['xml'];
+            $offset = max($entry['end_offset'], $entry['start_offset'] + 1);
+        }
+
+        $candidate = $this->boundedXmlRootCandidate($xml, 'RDF', $offset);
         if ($candidate !== null) {
             return [$candidate];
         }
 
-        $candidate = $this->boundedXmlRootCandidate($xml, 'RDF');
-        return $candidate === null ? [] : [$candidate];
+        return $skippedEmptyWrappers === [] ? [] : [$skippedEmptyWrappers[0]];
     }
 
-    private function boundedXmlRootCandidate(string $xml, string $localName): ?string
+    private function boundedXmlRootCandidate(string $xml, string $localName, int $offset = 0): ?string
     {
-        $root = $this->xmlRootStartForLocalName($xml, $localName);
+        $entry = $this->boundedXmlRootCandidateEntry($xml, $localName, $offset);
+
+        return $entry['xml'] ?? null;
+    }
+
+    /**
+     * @return array{xml: string, start_offset: int, end_offset: int, self_closing: bool}|null
+     */
+    private function boundedXmlRootCandidateEntry(string $xml, string $localName, int $offset = 0): ?array
+    {
+        $root = $this->xmlRootStartForLocalName($xml, $localName, $offset);
         if ($root === null) {
             return null;
         }
@@ -7011,7 +7036,12 @@ final class PdfMetadataExtractor
 
         $openTag = substr($xml, $start, $openEnd - $start);
         if (str_ends_with(rtrim($openTag), '/>')) {
-            return substr($xml, $start, $openEnd - $start);
+            return [
+                'xml' => substr($xml, $start, $openEnd - $start),
+                'start_offset' => $start,
+                'end_offset' => $openEnd,
+                'self_closing' => true,
+            ];
         }
 
         $end = $this->matchingXmlRootEndOffset($xml, $openEnd, $tagName);
@@ -7020,7 +7050,12 @@ final class PdfMetadataExtractor
         }
 
         $bounded = substr($xml, $start, $end - $start);
-        return $bounded === $xml ? null : $bounded;
+        return $bounded === $xml ? null : [
+            'xml' => $bounded,
+            'start_offset' => $start,
+            'end_offset' => $end,
+            'self_closing' => false,
+        ];
     }
 
     /**
@@ -7030,9 +7065,9 @@ final class PdfMetadataExtractor
      *
      * @return array{offset: int, tag_name: string}|null
      */
-    private function xmlRootStartForLocalName(string $xml, string $localName): ?array
+    private function xmlRootStartForLocalName(string $xml, string $localName, int $offset = 0): ?array
     {
-        $offset = 0;
+        $offset = max(0, $offset);
         $length = strlen($xml);
         while ($offset < $length) {
             $tagStart = strpos($xml, '<', $offset);
