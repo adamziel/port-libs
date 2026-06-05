@@ -545,6 +545,82 @@ XML;
         $t->contains('<td class="odf-table-cell-value" data-odf-cell-value-type="date" data-odf-cell-date-value="2026-06-05"><p>Review date</p></td>', $blocksHtml);
         $t->contains('<td class="odf-table-cell-value" data-odf-cell-value-type="boolean" data-odf-cell-boolean-value="true"><p>Ready</p></td>', $blocksHtml);
     },
+    'maps ODT table templates into table review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithTableTemplate = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:styles>
+    <table:table-template
+      table:name="ReviewTemplate"
+      table:first-row-start-column="HeaderStart"
+      table:first-row-end-column="HeaderEnd"
+      table:first-column="FirstColumn"
+      table:last-column="LastColumn"
+      table:first-row="HeaderRow"
+      table:last-row="SummaryRow"
+      table:body="BodyCell"
+      table:odd-rows="OddRow"
+      table:even-rows="EvenRow"/>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithTemplatedTable = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:table table:name="Templated Review" table:template-name="ReviewTemplate">
+        <table:table-row>
+          <table:table-cell><text:p>Area</text:p></table:table-cell>
+          <table:table-cell><text:p>Status</text:p></table:table-cell>
+        </table:table-row>
+        <table:table-row>
+          <table:table-cell><text:p>Media</text:p></table:table-cell>
+          <table:table-cell><text:p>Ready</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithTemplatedTable, null, $stylesWithTableTemplate));
+        $table = $result['document']->children[0];
+        $template = $result['tableTemplates']['ReviewTemplate'];
+
+        $t->same(1, $result['document']->attr('tableTemplates')['count']);
+        $t->same(1, $result['importReport']['tableTemplates']['count']);
+        $t->same(1, $result['importReport']['styles']['tableTemplateCount']);
+        $t->same('ReviewTemplate', $template['name']);
+        $t->same('HeaderStart', $template['styles']['firstRowStartColumn']);
+        $t->same('HeaderEnd', $template['styles']['firstRowEndColumn']);
+        $t->same('FirstColumn', $template['styles']['firstColumn']);
+        $t->same('LastColumn', $template['styles']['lastColumn']);
+        $t->same('HeaderRow', $template['styles']['firstRow']);
+        $t->same('SummaryRow', $template['styles']['lastRow']);
+        $t->same('BodyCell', $template['styles']['body']);
+        $t->same('OddRow', $template['styles']['oddRows']);
+        $t->same('EvenRow', $template['styles']['evenRows']);
+
+        $t->same('table', $table->type);
+        $t->same('ReviewTemplate', $table->attr('templateName'));
+        $t->same(['odf-table-template'], $table->attr('classes'));
+        $t->same('ReviewTemplate', $table->attr('tableTemplate')['name']);
+        $t->same('BodyCell', $table->attr('tableTemplate')['styles']['body']);
+        $t->same('ReviewTemplate', $table->attr('htmlAttributes')['data-odf-table-template-name']);
+        $t->same('true', $table->attr('htmlAttributes')['data-odf-table-template-exists']);
+        $t->same('9', $table->attr('htmlAttributes')['data-odf-table-template-style-count']);
+        $t->same(1, $result['importReport']['content']['tableTemplateReferenceCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains(': Templated Review', $markdown);
+        $t->contains('<table class="odf-table-template" data-odf-table-name="Templated Review" data-odf-table-template-name="ReviewTemplate" data-odf-table-template-exists="true" data-odf-table-template-style-count="9">', $blocksHtml);
+    },
     'maps ODT text-position styles into superscript and subscript spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithVerticalText = <<<'XML'
 <office:document-styles

@@ -35,6 +35,7 @@ $stylesXml = <<<'XML'
   xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
   xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
   xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
   xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
   <office:automatic-styles>
     <style:page-layout style:name="pmReview" style:page-usage="all">
@@ -56,6 +57,17 @@ $stylesXml = <<<'XML'
       <text:list-level-style-number text:level="1" style:num-format="1" text:start-value="1"/>
       <text:list-level-style-number text:level="2" style:num-format="a" text:start-value="4"/>
     </text:list-style>
+    <table:table-template
+      table:name="ReviewTemplate"
+      table:first-row-start-column="ReviewHeaderStart"
+      table:first-row-end-column="ReviewHeaderEnd"
+      table:first-column="ReviewFirstColumn"
+      table:last-column="ReviewLastColumn"
+      table:first-row="ReviewHeaderRow"
+      table:last-row="ReviewSummaryRow"
+      table:body="ReviewBody"
+      table:odd-rows="ReviewOddRow"
+      table:even-rows="ReviewEvenRow"/>
   </office:styles>
   <office:master-styles>
     <style:master-page style:name="ReviewPage" style:display-name="Review Page" style:page-layout-name="pmReview">
@@ -152,7 +164,7 @@ $contentXml = <<<'XML'
           <svg:desc>ODT source hero alt</svg:desc>
         </draw:image>
       </draw:frame>
-      <table:table table:name="Review" table:style-name="ReviewTable" table:protected="true" table:protection-key="opaque-review-key" table:protection-key-digest-algorithm="urn:odf:sha1">
+      <table:table table:name="Review" table:style-name="ReviewTable" table:template-name="ReviewTemplate" table:protected="true" table:protection-key="opaque-review-key" table:protection-key-digest-algorithm="urn:odf:sha1">
         <table:table-row>
           <table:table-cell><text:p>Item</text:p></table:table-cell>
           <table:table-cell><text:p>Status</text:p></table:table-cell>
@@ -292,6 +304,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['importReport']['styles']['masterPageCount'] ?? 0) !== 1) {
         throw new RuntimeException('Expected ODT master page metadata to be counted in the import report');
+    }
+    if (($result['importReport']['styles']['tableTemplateCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT table template metadata to be counted in the import report');
+    }
+    if (($result['importReport']['content']['tableTemplateReferenceCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT table template reference to be counted in the import report');
+    }
+    if (($result['tableTemplates']['ReviewTemplate']['styles']['body'] ?? '') !== 'ReviewBody') {
+        throw new RuntimeException('Expected ODT table template style slots to survive style parsing');
     }
     if (($result['pageLayouts']['pmReview']['properties']['pageWidth'] ?? '') !== '8.5in') {
         throw new RuntimeException('Expected ODT page width to survive style parsing');
@@ -470,7 +491,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($calculatedCellAttributes['data-odf-cell-formula'] ?? '') !== 'of:=COUNT([.A2:.B2])' || ($calculatedCellAttributes['data-odf-cell-value'] ?? '') !== '2') {
         throw new RuntimeException('Expected ODT calculated cell metadata to survive table geometry review packets');
     }
-    if (!str_contains($blocks, '<table data-odf-table-name="Review" data-odf-table-style-name="ReviewTable" data-odf-table-protected="true" data-odf-table-protection-key-present="true" data-odf-table-protection-key-digest-algorithm="urn:odf:sha1">')) {
+    if (!str_contains($blocks, '<table class="odf-table-template" data-odf-table-name="Review" data-odf-table-style-name="ReviewTable" data-odf-table-template-name="ReviewTemplate" data-odf-table-template-exists="true" data-odf-table-template-style-count="9" data-odf-table-protected="true" data-odf-table-protection-key-present="true" data-odf-table-protection-key-digest-algorithm="urn:odf:sha1">')) {
         throw new RuntimeException('Expected ODT named protected table metadata to render in WordPress blocks');
     }
     if (!str_contains($blocks, '<figcaption class="wp-element-caption">Review</figcaption>')) {

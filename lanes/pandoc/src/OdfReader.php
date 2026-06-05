@@ -48,6 +48,7 @@ final class OdfReader
      *     manifest:list<array<string, mixed>>,
      *     styles:array<string, mixed>,
      *     listStyles:array<string, mixed>,
+     *     tableTemplates:array<string, mixed>,
      *     pageLayouts:array<string, mixed>,
      *     masterPages:array<string, mixed>,
      *     contentDeclarations:array<string, mixed>,
@@ -86,6 +87,10 @@ final class OdfReader
                 'count' => count($styleCatalog['listStyles']),
                 'items' => array_values($styleCatalog['listStyles']),
             ],
+            'tableTemplates' => [
+                'count' => count($styleCatalog['tableTemplates']),
+                'items' => array_values($styleCatalog['tableTemplates']),
+            ],
             'pageLayouts' => [
                 'count' => count($styleCatalog['pageLayouts']),
                 'items' => array_values($styleCatalog['pageLayouts']),
@@ -107,6 +112,7 @@ final class OdfReader
             'manifest' => $manifest,
             'styles' => $styleCatalog['styles'],
             'listStyles' => $styleCatalog['listStyles'],
+            'tableTemplates' => $styleCatalog['tableTemplates'],
             'pageLayouts' => $styleCatalog['pageLayouts'],
             'masterPages' => $styleCatalog['masterPages'],
             'contentDeclarations' => $content['contentDeclarations'],
@@ -130,10 +136,15 @@ final class OdfReader
                     'items' => array_values($styleCatalog['styles']),
                     'pageLayoutCount' => count($styleCatalog['pageLayouts']),
                     'masterPageCount' => count($styleCatalog['masterPages']),
+                    'tableTemplateCount' => count($styleCatalog['tableTemplates']),
                 ],
                 'listStyles' => [
                     'count' => count($styleCatalog['listStyles']),
                     'items' => array_values($styleCatalog['listStyles']),
+                ],
+                'tableTemplates' => [
+                    'count' => count($styleCatalog['tableTemplates']),
+                    'items' => array_values($styleCatalog['tableTemplates']),
                 ],
                 'pageLayouts' => [
                     'count' => count($styleCatalog['pageLayouts']),
@@ -186,6 +197,7 @@ final class OdfReader
                     'tableOfContentsCount' => $contentStats['tableOfContentsCount'],
                     'continuedListCount' => $contentStats['continuedListCount'],
                     'listHeaderCount' => $contentStats['listHeaderCount'],
+                    'tableTemplateReferenceCount' => $contentStats['tableTemplateReferenceCount'],
                 ],
             ],
         ];
@@ -313,13 +325,14 @@ final class OdfReader
     }
 
     /**
-     * @return array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}
+     * @return array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}
      */
     private function readStyles(ZipPackage $package): array
     {
         $catalog = [
             'styles' => [],
             'listStyles' => [],
+            'tableTemplates' => [],
             'pageLayouts' => [],
             'masterPages' => [],
         ];
@@ -340,8 +353,8 @@ final class OdfReader
     }
 
     /**
-     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $styleCatalog
-     * @return array{blocks:list<AstNode>, styleCatalog:array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}, automaticStyleCount:int, trackedChanges:list<array<string, mixed>>, contentDeclarations:array<string, mixed>}
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $styleCatalog
+     * @return array{blocks:list<AstNode>, styleCatalog:array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}, automaticStyleCount:int, trackedChanges:list<array<string, mixed>>, contentDeclarations:array<string, mixed>}
      */
     private function readContent(ZipPackage $package, array $styleCatalog): array
     {
@@ -373,7 +386,7 @@ final class OdfReader
         return [
             'blocks' => $this->blockNodes($text, $package, $styleCatalog),
             'styleCatalog' => $styleCatalog,
-            'automaticStyleCount' => count($contentStyles['styles']) + count($contentStyles['listStyles']) + count($contentStyles['pageLayouts']) + count($contentStyles['masterPages']),
+            'automaticStyleCount' => count($contentStyles['styles']) + count($contentStyles['listStyles']) + count($contentStyles['tableTemplates']) + count($contentStyles['pageLayouts']) + count($contentStyles['masterPages']),
             'trackedChanges' => array_values($this->trackedChanges),
             'contentDeclarations' => $this->contentDeclarations,
         ];
@@ -1094,7 +1107,7 @@ final class OdfReader
     }
 
     /**
-     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>} $catalog
      */
     private function tableNode(\DOMElement $table, ZipPackage $package, array $catalog): AstNode
     {
@@ -1136,6 +1149,21 @@ final class OdfReader
         if ($styleName !== '') {
             $attrs['styleName'] = $styleName;
             $attrs['htmlAttributes']['data-odf-table-style-name'] = $styleName;
+        }
+
+        $templateName = self::attr($table, self::TABLE_NS, 'template-name');
+        if ($templateName !== '') {
+            $template = $catalog['tableTemplates'][$templateName] ?? null;
+            $attrs['templateName'] = $templateName;
+            $attrs['htmlAttributes']['data-odf-table-template-name'] = $templateName;
+            $attrs['htmlAttributes']['data-odf-table-template-exists'] = is_array($template) ? 'true' : 'false';
+            $attrs['classes'] = ['odf-table-template'];
+            if (is_array($template)) {
+                $attrs['tableTemplate'] = $template;
+                $attrs['htmlAttributes']['data-odf-table-template-style-count'] = (string) count($this->tableTemplateStyleNames($template));
+            } else {
+                $attrs['classes'][] = 'odf-missing-table-template';
+            }
         }
 
         $protectedValue = strtolower(self::attr($table, self::TABLE_NS, 'protected'));
@@ -3145,7 +3173,7 @@ final class OdfReader
     }
 
     /**
-     * @return array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}
+     * @return array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}
      */
     private function styleCollectionsFromRoot(\DOMElement $root): array
     {
@@ -3171,6 +3199,18 @@ final class OdfReader
                 continue;
             }
             $listStyles[$name] = $this->listStyleDefinition($listStyle);
+        }
+
+        $tableTemplates = [];
+        foreach ($root->getElementsByTagNameNS(self::TABLE_NS, 'table-template') as $tableTemplate) {
+            if (!$tableTemplate instanceof \DOMElement) {
+                continue;
+            }
+            $name = self::attr($tableTemplate, self::TABLE_NS, 'name');
+            if ($name === '') {
+                continue;
+            }
+            $tableTemplates[$name] = $this->tableTemplateDefinition($tableTemplate);
         }
 
         $pageLayouts = [];
@@ -3200,6 +3240,7 @@ final class OdfReader
         return [
             'styles' => $styles,
             'listStyles' => $listStyles,
+            'tableTemplates' => $tableTemplates,
             'pageLayouts' => $pageLayouts,
             'masterPages' => $masterPages,
         ];
@@ -3414,8 +3455,56 @@ final class OdfReader
     }
 
     /**
-     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $target
-     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $source
+     * @return array{name:string, styles:array<string, string>}
+     */
+    private function tableTemplateDefinition(\DOMElement $tableTemplate): array
+    {
+        $styles = [];
+        foreach ([
+            'first-row-start-column' => 'firstRowStartColumn',
+            'first-row-end-column' => 'firstRowEndColumn',
+            'first-column' => 'firstColumn',
+            'last-column' => 'lastColumn',
+            'first-row' => 'firstRow',
+            'last-row' => 'lastRow',
+            'body' => 'body',
+            'odd-rows' => 'oddRows',
+            'even-rows' => 'evenRows',
+            'odd-columns' => 'oddColumns',
+            'even-columns' => 'evenColumns',
+        ] as $attribute => $name) {
+            $value = self::attr($tableTemplate, self::TABLE_NS, $attribute);
+            if ($value !== '') {
+                $styles[$name] = $value;
+            }
+        }
+
+        return [
+            'name' => self::attr($tableTemplate, self::TABLE_NS, 'name'),
+            'styles' => $styles,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $template
+     * @return list<string>
+     */
+    private function tableTemplateStyleNames(array $template): array
+    {
+        $styles = $template['styles'] ?? [];
+        if (!is_array($styles)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map(static fn (mixed $value): string => (string) $value, $styles),
+            static fn (string $value): bool => $value !== ''
+        ));
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $target
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $source
      */
     private function mergeStyleCollections(array &$target, array $source): void
     {
@@ -3424,6 +3513,9 @@ final class OdfReader
         }
         foreach ($source['listStyles'] as $name => $style) {
             $target['listStyles'][$name] = $style;
+        }
+        foreach ($source['tableTemplates'] as $name => $template) {
+            $target['tableTemplates'][$name] = $template;
         }
         foreach ($source['pageLayouts'] as $name => $layout) {
             $target['pageLayouts'][$name] = $layout;
@@ -3606,7 +3698,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, continuedListCount:int, listHeaderCount:int}
+     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -3634,6 +3726,7 @@ final class OdfReader
             'tableOfContentsCount' => 0,
             'continuedListCount' => 0,
             'listHeaderCount' => 0,
+            'tableTemplateReferenceCount' => 0,
         ];
         foreach ($nodes as $node) {
             if ($node->type === 'note') {
@@ -3650,6 +3743,9 @@ final class OdfReader
             }
             if ($node->type === 'div' && $this->nodeHasClass($node, 'odf-table-of-contents')) {
                 $stats['tableOfContentsCount']++;
+            }
+            if ($node->type === 'table' && (string) $node->attr('templateName', '') !== '') {
+                $stats['tableTemplateReferenceCount']++;
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-bookmark')) {
                 $stats['bookmarkCount']++;
