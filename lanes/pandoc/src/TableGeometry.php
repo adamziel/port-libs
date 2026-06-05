@@ -1933,6 +1933,65 @@ final class TableGeometry
     {
         $writer = self::normalizeWriterName($writer);
         if ($writer !== 'markdown') {
+            if ($writer === 'latex') {
+                $diagnostics = [];
+                foreach ($coverage as $record) {
+                    $rawColspan = max(1, (int) ($record['rawColspan'] ?? 1));
+                    $rawRowspan = max(1, (int) ($record['rawRowspan'] ?? 1));
+                    if ($rawColspan > 1) {
+                        $diagnostics[] = self::writerRequirementRecord(
+                            'latex-multicolumn-required',
+                            $writer,
+                            $record,
+                            'colspan',
+                            'multicolumn',
+                            self::flattenedSlotRecords($record, 'colspan')
+                        );
+                    }
+
+                    if ($rawRowspan > 1) {
+                        $diagnostics[] = self::writerRequirementRecord(
+                            'latex-multirow-required',
+                            $writer,
+                            $record,
+                            'rowspan',
+                            'multirow',
+                            self::flattenedSlotRecords($record, 'rowspan')
+                        );
+                    }
+
+                    $node = $record['node'] ?? null;
+                    if (!$node instanceof AstNode) {
+                        continue;
+                    }
+
+                    $nestedTables = self::nestedTableSummaries($node);
+                    if ($nestedTables !== []) {
+                        $diagnostics[] = self::writerNestedTableRequirementRecord(
+                            'latex-nested-table-required',
+                            $writer,
+                            $record,
+                            $nestedTables,
+                            'nested-tabular-minipage'
+                        );
+                        continue;
+                    }
+
+                    $content = self::cellContentSummary($node);
+                    if ($content !== []) {
+                        $diagnostics[] = self::writerCellBlockRequirementRecord(
+                            'latex-cell-block-required',
+                            $writer,
+                            $record,
+                            $content,
+                            'parbox-or-minipage-cell'
+                        );
+                    }
+                }
+
+                return $diagnostics;
+            }
+
             if ($writer === 'asciidoc') {
                 $diagnostics = [];
                 foreach ($coverage as $record) {
@@ -2045,6 +2104,10 @@ final class TableGeometry
             return 'asciidoc';
         }
 
+        if (in_array($writer, ['latex', 'tex', 'pdflatex', 'xelatex', 'lualatex', 'latexmk'], true)) {
+            return 'latex';
+        }
+
         return in_array($writer, ['markdown', 'markdown-pipe-table', 'pipe-table'], true) ? 'markdown' : $writer;
     }
 
@@ -2104,12 +2167,13 @@ final class TableGeometry
         string $code,
         string $writer,
         array $record,
-        array $nestedTables
+        array $nestedTables,
+        string $requiredFeature = 'raw-html-table-passthrough'
     ): array {
         $writerRecord = self::writerDowngradeRecord($code, $writer, $record, []);
         unset($writerRecord['flattenedSlots']);
         $writerRecord['reason'] = 'nested-table';
-        $writerRecord['requiredFeature'] = 'raw-html-table-passthrough';
+        $writerRecord['requiredFeature'] = $requiredFeature;
         $writerRecord['nestedTableCount'] = count($nestedTables);
         $writerRecord['nestedTables'] = $nestedTables;
 

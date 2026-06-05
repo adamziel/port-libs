@@ -262,6 +262,55 @@ $blockContentTable = new AstNode('table', [
     ]),
 ]);
 
+$latexNestedTable = new AstNode('table', [
+    'caption' => 'Nested LaTeX audit',
+    'alignments' => ['left', 'right'],
+    'widths' => [0.5, 0.5],
+], [
+    new AstNode('table_head'),
+    new AstNode('table_body', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Inner scope'], [new AstNode('text', ['text' => 'Inner scope'])]),
+            new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+        ]),
+    ]),
+]);
+
+$latexRequirementTable = new AstNode('table', [
+    'caption' => 'LaTeX table requirement audit',
+    'alignments' => ['left', 'right', 'center'],
+], [
+    new AstNode('table_head', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Document', 'colspan' => 2], [new AstNode('text', ['text' => 'Document'])]),
+            new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+        ]),
+    ]),
+    new AstNode('table_body', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Posts', 'rowspan' => 2], [new AstNode('text', ['text' => 'Posts'])]),
+            new AstNode('table_cell', ['text' => 'Review source', 'colspan' => 2], [
+                new AstNode('paragraph', [], [
+                    new AstNode('text', ['text' => 'Review ']),
+                    new AstNode('emph', [], [new AstNode('text', ['text' => 'source'])]),
+                ]),
+                new AstNode('bullet_list', [], [
+                    new AstNode('list_item', [], [
+                        new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Resolve media'])]),
+                    ]),
+                ]),
+            ]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+            new AstNode('table_cell', ['text' => 'Nested packet'], [
+                new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Nested packet'])]),
+                $latexNestedTable,
+            ]),
+        ]),
+    ]),
+]);
+
 $document = new AstNode('document', [], [
     new AstNode('table', [
         'caption' => 'Migration review grid',
@@ -589,6 +638,7 @@ $document = new AstNode('document', [], [
     $underfullWidthTable,
     $invalidWidthTable,
     $blockContentTable,
+    $latexRequirementTable,
 ]);
 
 $blocks = (new WordPressBlockWriter())->write($document);
@@ -1165,6 +1215,28 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing WordPress output for block-level table cell content');
     }
     json_encode($blockContentPacket, JSON_THROW_ON_ERROR);
+
+    $latexRequirementPacket = TableGeometry::reviewPacket($latexRequirementTable, [
+        'accessibility' => false,
+        'writers' => ['latex'],
+    ]);
+    if (
+        ($latexRequirementPacket['summary']['writerDowngradeCodes'] ?? null) !== [
+            'latex-multicolumn-required',
+            'latex-multirow-required',
+            'latex-cell-block-required',
+            'latex-nested-table-required',
+        ]
+        || ($latexRequirementPacket['writerDowngrades']['latex'][3]['requiredFeature'] ?? null) !== 'parbox-or-minipage-cell'
+        || ($latexRequirementPacket['writerDowngrades']['latex'][4]['requiredFeature'] ?? null) !== 'nested-tabular-minipage'
+        || ($latexRequirementPacket['writerDowngrades']['latex'][4]['nestedTableCaptions'] ?? null) !== ['Nested LaTeX audit']
+    ) {
+        throw new RuntimeException('Table geometry self-test missing LaTeX table writer requirement diagnostics');
+    }
+    if (!str_contains($blocks, '<figcaption class="wp-element-caption">LaTeX table requirement audit</figcaption>')) {
+        throw new RuntimeException('Table geometry self-test missing LaTeX requirement review table output');
+    }
+    json_encode($latexRequirementPacket, JSON_THROW_ON_ERROR);
 
     echo "table geometry handoff self-test ok\n";
     return;

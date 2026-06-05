@@ -1716,6 +1716,110 @@ return [
         $t->same(false, array_key_exists('node', $content['blocks'][0] ?? []));
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'reports latex table writer requirements for spans block cells and nested tables' => static function (TestRunner $t): void {
+        $nestedTable = new AstNode('table', [
+            'caption' => 'Nested LaTeX audit',
+            'alignments' => ['left', 'right'],
+            'widths' => [0.5, 0.5],
+        ], [
+            new AstNode('table_head'),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Inner scope'], [new AstNode('text', ['text' => 'Inner scope'])]),
+                    new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                ]),
+            ]),
+        ]);
+        $table = new AstNode('table', [
+            'caption' => 'LaTeX table requirement audit',
+            'alignments' => ['left', 'right', 'center'],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Document', 'colspan' => 2], [new AstNode('text', ['text' => 'Document'])]),
+                    new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts', 'rowspan' => 2], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => 'Review source', 'colspan' => 2], [
+                        new AstNode('paragraph', [], [
+                            new AstNode('text', ['text' => 'Review ']),
+                            new AstNode('emph', [], [new AstNode('text', ['text' => 'source'])]),
+                        ]),
+                        new AstNode('bullet_list', [], [
+                            new AstNode('list_item', [], [
+                                new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Resolve media'])]),
+                            ]),
+                        ]),
+                    ]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                    new AstNode('table_cell', ['text' => 'Nested packet'], [
+                        new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Nested packet'])]),
+                        $nestedTable,
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $diagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'xelatex');
+        $packet = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['latex'],
+        ]);
+
+        $t->same([
+            'latex-multicolumn-required',
+            'latex-multirow-required',
+            'latex-multicolumn-required',
+            'latex-cell-block-required',
+            'latex-nested-table-required',
+        ], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $diagnostics));
+        $t->same(['latex'], array_values(array_unique(array_map(static fn (array $diagnostic): string => (string) $diagnostic['writer'], $diagnostics))));
+        $t->same('head', $diagnostics[0]['section'] ?? null);
+        $t->same(0, $diagnostics[0]['row'] ?? null);
+        $t->same([0, 1], $diagnostics[0]['columns'] ?? null);
+        $t->same('colspan', $diagnostics[0]['reason'] ?? null);
+        $t->same('multicolumn', $diagnostics[0]['requiredFeature'] ?? null);
+        $t->same([['row' => 0, 'column' => 1, 'covering' => 'colspan']], $diagnostics[0]['requiredSlots'] ?? null);
+        $t->same('body', $diagnostics[1]['section'] ?? null);
+        $t->same(0, $diagnostics[1]['row'] ?? null);
+        $t->same(0, $diagnostics[1]['column'] ?? null);
+        $t->same('rowspan', $diagnostics[1]['reason'] ?? null);
+        $t->same('multirow', $diagnostics[1]['requiredFeature'] ?? null);
+        $t->same([['row' => 1, 'column' => 0, 'covering' => 'rowspan']], $diagnostics[1]['requiredSlots'] ?? null);
+        $t->same([1, 2], $diagnostics[2]['columns'] ?? null);
+        $t->same('multicolumn', $diagnostics[2]['requiredFeature'] ?? null);
+        $t->same('block-content', $diagnostics[3]['reason'] ?? null);
+        $t->same('parbox-or-minipage-cell', $diagnostics[3]['requiredFeature'] ?? null);
+        $t->same(2, $diagnostics[3]['blockCount'] ?? null);
+        $t->same(['paragraph', 'bullet_list'], $diagnostics[3]['blockTypes'] ?? null);
+        $t->same(1, $diagnostics[4]['nestedTableCount'] ?? null);
+        $t->same('nested-tabular-minipage', $diagnostics[4]['requiredFeature'] ?? null);
+        $t->same(['Nested LaTeX audit'], $diagnostics[4]['nestedTableCaptions'] ?? null);
+        $t->same([1], $diagnostics[4]['nestedTables'][0]['path'] ?? null);
+        $t->same(2, $diagnostics[4]['nestedTables'][0]['cellCount'] ?? null);
+        $t->same(false, array_key_exists('node', $diagnostics[4]['nestedTables'][0] ?? []));
+
+        $t->same($diagnostics, TableGeometry::writerDowngradeDiagnostics($table, 'tex'));
+        $t->same($diagnostics, $packet['writerDowngrades']['latex'] ?? null);
+        $t->same(5, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same([
+            'latex-multicolumn-required',
+            'latex-multirow-required',
+            'latex-cell-block-required',
+            'latex-nested-table-required',
+        ], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same(['latex'], $packet['summary']['writerDowngradeWriters'] ?? null);
+        $t->same(true, $packet['summary']['hasSpans'] ?? null);
+        $t->same(true, $packet['summary']['hasBlockContentCells'] ?? null);
+        $t->same(1, $packet['summary']['nestedTableCount'] ?? null);
+        json_encode($diagnostics, JSON_THROW_ON_ERROR);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'reports asciidoc nested table passthrough requirements for writer handoff' => static function (TestRunner $t): void {
         $innerTable = new AstNode('table', [
             'caption' => 'Nested source audit',
