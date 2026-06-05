@@ -124,10 +124,14 @@ final class LayoutOrderer
     private function sanitizeSuppliedOrderResult(array $orderResult): array
     {
         $sanitized = [];
-        foreach (['image_bbox', 'bboxes'] as $key) {
-            if (array_key_exists($key, $orderResult)) {
-                $sanitized[$key] = $orderResult[$key];
-            }
+
+        $imageBbox = $this->bboxValue($orderResult['image_bbox'] ?? null);
+        if ($imageBbox !== null) {
+            $sanitized['image_bbox'] = $imageBbox;
+        }
+
+        if (array_key_exists('bboxes', $orderResult)) {
+            $sanitized['bboxes'] = $this->sanitizeSuppliedOrderBboxes($orderResult['bboxes']);
         }
 
         foreach ($this->orderResultPageMarkerSources($orderResult) as $source) {
@@ -141,6 +145,45 @@ final class LayoutOrderer
                     $sanitized[$key] = $value;
                 }
             }
+        }
+
+        return $sanitized;
+    }
+
+    /**
+     * @param mixed $boxes
+     * @return list<array{position: int, bbox: list<float>}>
+     */
+    private function sanitizeSuppliedOrderBboxes(mixed $boxes): array
+    {
+        if (!is_array($boxes) || !array_is_list($boxes)) {
+            return [];
+        }
+
+        $sanitized = [];
+        foreach ($boxes as $box) {
+            if (!is_array($box)) {
+                continue;
+            }
+
+            $bbox = $this->bboxValue($box['bbox'] ?? (array_is_list($box) ? $box : null));
+            if ($bbox === null) {
+                continue;
+            }
+
+            $position = 0;
+            if (array_key_exists('position', $box)) {
+                $positionValue = $this->integerValue($box['position']);
+                if ($positionValue === null) {
+                    continue;
+                }
+                $position = $positionValue;
+            }
+
+            $sanitized[] = [
+                'position' => $position,
+                'bbox' => $bbox,
+            ];
         }
 
         return $sanitized;
@@ -412,10 +455,10 @@ final class LayoutOrderer
     {
         $order = $page['order'] ?? [];
         if (is_array($order) && isset($order['bboxes']) && is_array($order['bboxes'])) {
-            return array_values(array_filter($order['bboxes'], static fn (mixed $box): bool => is_array($box)));
+            return $this->sanitizeSuppliedOrderBboxes($order['bboxes']);
         }
         if (isset($page['order_bboxes']) && is_array($page['order_bboxes'])) {
-            return array_values(array_filter($page['order_bboxes'], static fn (mixed $box): bool => is_array($box)));
+            return $this->sanitizeSuppliedOrderBboxes($page['order_bboxes']);
         }
 
         return [];
@@ -465,13 +508,32 @@ final class LayoutOrderer
             return null;
         }
 
-        foreach ($value as $item) {
-            if (!is_float($item) && !is_int($item)) {
+        $bbox = [];
+        foreach (array_values($value) as $item) {
+            $number = $this->numericValue($item);
+            if ($number === null) {
                 return null;
+            }
+            $bbox[] = $number;
+        }
+
+        return $this->normalizeRect($bbox);
+    }
+
+    private function numericValue(mixed $value): ?float
+    {
+        if (is_int($value) || is_float($value)) {
+            return (float) $value;
+        }
+
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if ($trimmed !== '' && is_numeric($trimmed)) {
+                return (float) $trimmed;
             }
         }
 
-        return array_map(static fn (float|int $item): float => (float) $item, array_values($value));
+        return null;
     }
 
     /**
@@ -600,14 +662,20 @@ final class LayoutOrderer
      */
     private function bbox(array $block): array
     {
-        if (isset($block['bbox']) && is_array($block['bbox']) && count($block['bbox']) === 4) {
-            return $this->normalizeRect(array_map(static fn (float|int $value): float => (float) $value, array_values($block['bbox'])));
+        $bbox = $this->bboxValue($block['bbox'] ?? (array_is_list($block) ? $block : null));
+        if ($bbox !== null) {
+            return $bbox;
         }
 
         $lineBoxes = [];
         foreach (($block['lines'] ?? []) as $line) {
-            if (is_array($line) && isset($line['bbox']) && is_array($line['bbox']) && count($line['bbox']) === 4) {
-                $lineBoxes[] = $this->normalizeRect(array_map(static fn (float|int $value): float => (float) $value, array_values($line['bbox'])));
+            if (!is_array($line)) {
+                continue;
+            }
+
+            $lineBbox = $this->bboxValue($line['bbox'] ?? null);
+            if ($lineBbox !== null) {
+                $lineBoxes[] = $lineBbox;
             }
         }
 
