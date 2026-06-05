@@ -741,6 +741,44 @@ return [
         $t->same('<img src="https://example.test/import/assets/cover.png" srcset="https://example.test/import/assets/cover.png 1x, https://example.test/import/assets/cover@2x.png 2x" alt="Cover">', $relativeHtml);
         $t->throws(InvalidArgumentException::class, static fn (): Html5DomFragment => Html5DomFragment::fromHtml('<a href="/review">review</a>', 'file:///tmp/source.html'));
     },
+    'filters obsolete media URL attributes while preserving local image map references' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<p>'
+            . '<img src="/media/cover.png" dynsrc="javascript:alert(1)" lowsrc="mailto:cover@example.test" usemap="javascript:alert(1)" alt="Cover">'
+            . '<img src="./safe.png" dynsrc="./intro.avi" lowsrc="../low.jpg" usemap=" #review-map " alt="Safe">'
+            . '<map name="review-map"><area href="/review" alt="Review"></map>'
+            . '</p>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/obsolete-media-url-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<p>'
+            . '<img src="https://source.example.test/media/cover.png" alt="Cover">'
+            . '<img src="https://source.example.test/import/posts/safe.png" dynsrc="https://source.example.test/import/posts/intro.avi" lowsrc="https://source.example.test/import/low.jpg" usemap="#review-map" alt="Safe">'
+            . '<map name="review-map"><area href="https://source.example.test/review" alt="Review"></map>'
+            . '</p>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same(['dynsrc', 'lowsrc', 'usemap'], $summary['filteredAttributes']);
+        $t->same(['unsafe-url', 'unsafe-url', 'unsafe-url', 'normalized-url'], $fragment->diagnosticCodes());
+        $t->same('https://source.example.test/media/cover.png', $nodes[0]['children'][0]['attrs']['src']);
+        $t->same(['src' => 'https://source.example.test/media/cover.png', 'alt' => 'Cover'], $nodes[0]['children'][0]['attrs']);
+        $t->same('https://source.example.test/import/posts/intro.avi', $nodes[0]['children'][1]['attrs']['dynsrc']);
+        $t->same('https://source.example.test/import/low.jpg', $nodes[0]['children'][1]['attrs']['lowsrc']);
+        $t->same('#review-map', $nodes[0]['children'][1]['attrs']['usemap']);
+        $t->same('/migration/obsolete-media-url-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe obsolete media URLs to be stripped');
+        $t->true(!str_contains($html, 'mailto:cover@example.test'), 'Expected mailto lowsrc fetch URL to be stripped');
+        $t->true(!str_contains($html, 'https://source.example.test/import/posts/post.html#review-map'), 'Expected local usemap references to avoid base URL expansion');
+    },
     'rejects unsafe fragment declarations before libxml can repair them away' => static function (TestRunner $t): void {
         $safe = Html5DomFragment::fromHtml('<p data-source="review">Safe &amp; bounded</p>');
 

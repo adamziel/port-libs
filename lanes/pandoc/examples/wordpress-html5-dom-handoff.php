@@ -16,6 +16,7 @@ $sourceHtml = <<<'HTML'
   <p><a href="/wp-admin/post.php?post=42" ping="https://tracker.example.test/ping javascript:alert(1)" data-source="legacy">Tracked source link</a></p>
   <div action="/safe-submit" formaction="javascript:alert(1)" longdesc="https://example.test/longdesc" background="mailto:review@example.test">Extended URL attributes</div>
   <p><img src="https://example.test/preview.png" srcset="https://example.test/preview.png 1x, /uploads/preview@2x.png 02.00x, javascript:alert(1) 3x, /uploads/bad.png 0w" alt="Preview"></p>
+  <p><img src="/uploads/legacy-preview.png" dynsrc="javascript:alert(1)" lowsrc="mailto:cover@example.test" usemap="https://tracker.example.test/review-map" alt="Legacy preview"><img src="/uploads/mapped-preview.png" dynsrc="/uploads/clip.avi" lowsrc="https://example.test/preview-low.jpg" usemap="#review-map" alt="Mapped preview"><map name="review-map"><area href="/review" alt="Review map"></map></p>
   <p><a href="mailto:review@example.test">Mail reviewer</a><img src="mailto:review@example.test" alt="Unsafe media link"></p>
   <form action="/submit" onsubmit="alert(1)"><p>Reviewer choice <input name="status" value="draft"><button formaction="javascript:alert(1)">Keep visible label</button></p><p><select><option>Draft</option><option>Final</option></select></p><textarea>Visible reviewer note</textarea></form>
   <iframe src="javascript:alert(1)">Iframe fallback <b>caption</b><script>drop()</script></iframe>
@@ -45,6 +46,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<a href="/wp-admin/post.php?post=42" data-source="legacy">Tracked source link</a>',
         '<div action="/safe-submit" longdesc="https://example.test/longdesc">Extended URL attributes</div>',
         '<img src="https://example.test/preview.png" srcset="https://example.test/preview.png 1x, /uploads/preview@2x.png 2x" alt="Preview">',
+        '<img src="/uploads/legacy-preview.png" alt="Legacy preview">',
+        '<img src="/uploads/mapped-preview.png" dynsrc="/uploads/clip.avi" lowsrc="https://example.test/preview-low.jpg" usemap="#review-map" alt="Mapped preview">',
+        '<map name="review-map"><area href="/review" alt="Review map"></map>',
         '<a href="mailto:review@example.test">Mail reviewer</a><img alt="Unsafe media link">',
         '<p>Reviewer choice Keep visible label</p><p>DraftFinal</p>Visible reviewer note',
         'Iframe fallback <b>caption</b>',
@@ -66,7 +70,7 @@ if (($argv[1] ?? '') === '--self-test') {
         }
     }
 
-    foreach (['onclick=', 'ping=', 'formaction=', 'background="mailto:', 'javascript:', 'src="mailto:', 'poster="tel:', 'href="mailto:cover@example.test"', 'href="tel:+15550100"', '<form', '<input', '<button', '<select', '<textarea', '<iframe', '<object', '<applet', '<noscript', '<template', '<param', '<xmp', '<plaintext', '<script>', '<p>suppressed tail</p>', 'open="open"', 'controls=""', 'viewBox="html attr"', '<textPath>HTML text</textPath>'] as $blocked) {
+    foreach (['onclick=', 'ping=', 'formaction=', 'background="mailto:', 'javascript:', 'src="mailto:', 'lowsrc="mailto:', 'poster="tel:', 'href="mailto:cover@example.test"', 'href="tel:+15550100"', 'usemap="https://tracker.example.test/review-map"', '<form', '<input', '<button', '<select', '<textarea', '<iframe', '<object', '<applet', '<noscript', '<template', '<param', '<xmp', '<plaintext', '<script>', '<p>suppressed tail</p>', 'open="open"', 'controls=""', 'viewBox="html attr"', '<textPath>HTML text</textPath>'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM handoff self-test retained blocked content: ' . $blocked);
         }
@@ -78,7 +82,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!in_array('srcset', $fragment->summary()['filteredAttributes'], true)) {
         throw new RuntimeException('HTML5 DOM handoff self-test did not report filtered srcset attribute');
     }
-    foreach (['ping', 'formaction', 'background'] as $filteredAttribute) {
+    foreach (['ping', 'formaction', 'background', 'dynsrc', 'lowsrc', 'usemap'] as $filteredAttribute) {
         if (!in_array($filteredAttribute, $fragment->summary()['filteredAttributes'], true)) {
             throw new RuntimeException('HTML5 DOM handoff self-test did not report filtered ' . $filteredAttribute . ' attribute');
         }

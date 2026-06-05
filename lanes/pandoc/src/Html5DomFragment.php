@@ -712,6 +712,7 @@ final class Html5DomFragment
                 $value = $mode === 'html'
                     && $baseUrl !== null
                     && !self::isLocalSvgReferenceUrl($tagName, $name, $normalizedUrl, $foreignContext)
+                    && !self::isLocalImageMapReferenceUrl($name, $normalizedUrl)
                     ? self::resolveRelativeUrl($baseUrl, $normalizedUrl)
                     : $normalizedUrl;
             }
@@ -865,20 +866,27 @@ final class Html5DomFragment
             'cite',
             'codebase',
             'data',
+            'dynsrc',
             'formaction',
             'href',
             'longdesc',
+            'lowsrc',
             'manifest',
             'poster',
             'profile',
             'src',
             'srcset',
+            'usemap',
             'xlink:href',
         ], true);
     }
 
     private static function isSafeUrlAttributeValue(string $tagName, string $name, string $value, ?string $foreignContext): bool
     {
+        if (strtolower($name) === 'usemap') {
+            return self::isSafeImageMapReference($value);
+        }
+
         if (self::isSvgResourceReferenceAttribute($tagName, $name, $foreignContext)) {
             return self::isSafeFetchUrl($value);
         }
@@ -888,8 +896,10 @@ final class Html5DomFragment
             'background',
             'codebase',
             'data',
+            'dynsrc',
             'formaction',
             'longdesc',
+            'lowsrc',
             'manifest',
             'poster',
             'profile',
@@ -912,6 +922,18 @@ final class Html5DomFragment
     {
         return self::isSvgResourceReferenceAttribute($tagName, $name, $foreignContext)
             && str_starts_with($value, '#');
+    }
+
+    private static function isLocalImageMapReferenceUrl(string $name, string $value): bool
+    {
+        return strtolower($name) === 'usemap' && str_starts_with($value, '#');
+    }
+
+    private static function isSafeImageMapReference(string $value): bool
+    {
+        $normalized = self::normalizeUrlAttributeValue($value);
+
+        return preg_match('/^#[A-Za-z0-9_.:-]+$/', $normalized) === 1;
     }
 
     private static function isSafeFetchUrl(string $value): bool
