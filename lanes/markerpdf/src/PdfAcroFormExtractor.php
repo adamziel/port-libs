@@ -8924,7 +8924,7 @@ final class PdfAcroFormExtractor
             $candidate = null;
             $parentObject = $this->validObjectReferenceValueAfterName($widgetBody, 'Parent', $objects);
             if ($parentObject !== null && isset($objects[$parentObject]) && !isset($reachable[$parentObject])) {
-                $candidate = $this->pageWidgetRootFieldCandidate($parentObject, $objects, $reachable);
+                $candidate = $this->pageWidgetParentFieldCandidate($parentObject, $objects);
                 if ($candidate !== null && !$this->fieldTreeContainsObject($candidate, $widgetObject, $objects)) {
                     $candidate = null;
                 }
@@ -8964,9 +8964,9 @@ final class PdfAcroFormExtractor
                 $body = $this->dictionaryObjectBody($objects[$fieldRef]) ?? trim($objects[$fieldRef]);
                 if ($this->isPureWidget($body)) {
                     $parentObject = $this->validObjectReferenceValueAfterName($body, 'Parent', $objects);
-                    $rootField = $parentObject === null ? null : $this->pageWidgetRootFieldCandidate($parentObject, $objects, []);
-                    if ($rootField !== null) {
-                        $candidate = $rootField;
+                    $parentField = $parentObject === null ? null : $this->pageWidgetParentFieldCandidate($parentObject, $objects);
+                    if ($parentField !== null && $this->fieldTreeContainsObject($parentField, $fieldRef, $objects)) {
+                        $candidate = $parentField;
                     }
                 }
             }
@@ -8981,37 +8981,15 @@ final class PdfAcroFormExtractor
 
     /**
      * @param array<int, string> $objects
-     * @param array<int, true> $reachable
      */
-    private function pageWidgetRootFieldCandidate(int $objectNumber, array $objects, array $reachable): ?int
+    private function pageWidgetParentFieldCandidate(int $objectNumber, array $objects): ?int
     {
-        $candidate = $objectNumber;
-        $seen = [];
-
-        while (isset($objects[$candidate]) && !isset($seen[$candidate])) {
-            $seen[$candidate] = true;
-            $body = $this->dictionaryObjectBody($objects[$candidate]) ?? trim($objects[$candidate]);
-            if (!$this->isFieldDictionaryCandidate($body)) {
-                return null;
-            }
-
-            $parentObject = $this->validObjectReferenceValueAfterName($body, 'Parent', $objects);
-            if ($parentObject === null || !isset($objects[$parentObject]) || isset($reachable[$parentObject])) {
-                return $candidate;
-            }
-
-            $parentBody = $this->dictionaryObjectBody($objects[$parentObject]) ?? trim($objects[$parentObject]);
-            if (!$this->isFieldDictionaryCandidate($parentBody)) {
-                return $candidate;
-            }
-            if (!$this->fieldParentOwnsChild($parentObject, $candidate, $objects)) {
-                return $candidate;
-            }
-
-            $candidate = $parentObject;
+        if (!isset($objects[$objectNumber])) {
+            return null;
         }
 
-        return $candidate;
+        $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
+        return $this->isFieldDictionaryCandidate($body) ? $objectNumber : null;
     }
 
     /**
