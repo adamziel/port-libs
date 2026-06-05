@@ -64,6 +64,44 @@ $pdfDctDecodeFilterBoundaryCurrentBaseIndirectFilterFixture = static function ()
     ];
 };
 
+$pdfDctDecodeFilterBoundaryCurrentBaseUnsupportedPrefixFixture = static function (): array {
+    $before = 'BT /F1 12 Tf 72 720 Td (Before Crypt DCT filter) Tj ET';
+    $after = 'BT /F1 12 Tf 72 680 Td (After Crypt DCT filter) Tj ET';
+    $fakeObject = 'BT /F1 12 Tf 72 700 Td (Crypt DCT unsupported leak) Tj ET';
+    $jpegPayload = "\xff\xd8\xff\xe0JFIF\0JPEG bytes\n"
+        . "endstream\nendobj\n"
+        . "9 0 obj\n<< /Length " . strlen($fakeObject) . " >>\nstream\n{$fakeObject}\nendstream\nendobj\n"
+        . "\xff\xd9";
+    $fakeTerminatorOffset = strpos($jpegPayload, "\nendstream\n");
+    if ($fakeTerminatorOffset === false) {
+        throw new RuntimeException('Focused unsupported-prefix DCT fixture must contain a fake endstream marker.');
+    }
+
+    $filterStack = '[/Crypt /DCTDecode]';
+    $streamOnlyPdf = "%PDF-1.4\n"
+        . "1 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+        . "2 0 obj\n<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter {$filterStack} /Length {$fakeTerminatorOffset} >>\nstream\n{$jpegPayload}\nendstream\nendobj\n"
+        . "3 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n%%EOF";
+
+    $pageContent = $before . "\nq 24 0 0 24 72 680 cm /Photo Do Q\n" . $after;
+    $pagePdf = "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Photo 5 0 R >> >> >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter {$filterStack} /Length {$fakeTerminatorOffset} >>\nstream\n{$jpegPayload}\nendstream\nendobj\n"
+        . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+    return [
+        'before' => $before,
+        'after' => $after,
+        'jpeg_payload' => $jpegPayload,
+        'fake_terminator_offset' => $fakeTerminatorOffset,
+        'stream_only_pdf' => $streamOnlyPdf,
+        'page_pdf' => $pagePdf,
+    ];
+};
+
 return [
     'marks DCTDecode image filters review-only before RGB preview metadata' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
@@ -460,6 +498,45 @@ return [
         $t->same(strlen($fixture['jpeg_payload']), $entry['raw_length'] ?? null);
         $t->true(($entry['raw_length'] ?? 0) > $fixture['fake_terminator_offset']);
         $t->same(['DCTDecode'], $entry['filters'] ?? null);
+        $t->same(['DCTDecode'], $entry['preview_only_filters'] ?? null);
+        $t->same(false, $entry['native_raster_decode'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'keeps unsupported DCTDecode prefix filters closed around visible JPEG boundaries' => static function (TestRunner $t) use ($pdfDctDecodeFilterBoundaryCurrentBaseUnsupportedPrefixFixture): void {
+        $fixture = $pdfDctDecodeFilterBoundaryCurrentBaseUnsupportedPrefixFixture();
+        $extractor = new PortLibs\MarkerPDF\PdfTextExtractor();
+        $streamOnlyPdf = $fixture['stream_only_pdf'];
+        $pagePdf = $fixture['page_pdf'];
+        $expected = [
+            'Before Crypt DCT filter',
+            'After Crypt DCT filter',
+        ];
+
+        $streamText = $extractor->extractPlainText($streamOnlyPdf);
+        $pageText = $extractor->extractPlainText($pagePdf);
+        $review = $extractor->extractImageXObjectBoundaryReview($pagePdf);
+        $entry = $review['entries'][0] ?? null;
+
+        $t->same($expected, $extractor->extractTextLines($streamOnlyPdf));
+        $t->same($expected, $extractor->extractTextRuns($streamOnlyPdf));
+        $t->same("Before Crypt DCT filter\nAfter Crypt DCT filter", $streamText);
+        $t->same("Before Crypt DCT filter\nAfter Crypt DCT filter\n", $extractor->naiveGetText($streamOnlyPdf));
+        $t->true(!str_contains($streamText, 'Crypt DCT unsupported leak'));
+        $t->true(!str_contains($streamText, 'JFIF'));
+        $t->true(!str_contains($streamText, 'endstream'));
+
+        $t->same($expected, $extractor->extractTextLines($pagePdf));
+        $t->same($expected, $extractor->extractTextRuns($pagePdf));
+        $t->same("Before Crypt DCT filter\nAfter Crypt DCT filter", $pageText);
+        $t->same("Before Crypt DCT filter\nAfter Crypt DCT filter\n", $extractor->naiveGetText($pagePdf));
+        $t->true(!str_contains($pageText, 'Crypt DCT unsupported leak'));
+        $t->true(is_array($entry), 'Image XObject review row should be present.');
+        $t->same(strlen($fixture['jpeg_payload']), $entry['raw_length'] ?? null);
+        $t->true(($entry['raw_length'] ?? 0) > $fixture['fake_terminator_offset']);
+        $t->same(['Crypt', 'DCTDecode'], $entry['filters'] ?? null);
         $t->same(['DCTDecode'], $entry['preview_only_filters'] ?? null);
         $t->same(false, $entry['native_raster_decode'] ?? null);
         $t->same(false, $entry['decoded_with_current_filters'] ?? null);

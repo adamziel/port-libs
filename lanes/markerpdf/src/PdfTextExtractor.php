@@ -8411,7 +8411,31 @@ final class PdfTextExtractor
             }
         }
 
-        return $fallbackTerminator;
+        if ($fallbackTerminator !== null) {
+            return $fallbackTerminator;
+        }
+
+        if ($this->dctPrefixFilterCanUseRawJpegBoundaryFallback($firstFilter)) {
+            return $this->rawDctPreviewEndstreamTerminatorOffset($value, $streamStart);
+        }
+
+        return null;
+    }
+
+    private function dctPrefixFilterCanUseRawJpegBoundaryFallback(string $firstFilter): bool
+    {
+        return !in_array($firstFilter, [
+            'ASCIIHexDecode',
+            'AHx',
+            'ASCII85Decode',
+            'A85',
+            'RunLengthDecode',
+            'RL',
+            'LZWDecode',
+            'LZW',
+            'FlateDecode',
+            'Fl',
+        ], true);
     }
 
     /**
