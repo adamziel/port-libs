@@ -1747,7 +1747,12 @@ final class PdfAttachmentExtractor
             $metadata['sort'] = $sort;
         }
 
-        if (array_key_exists('Folders', $collection)) {
+        $folders = $this->collectionFolderReviewRows($collection['Folders'] ?? null, $objects);
+        if ($folders !== []) {
+            $metadata['has_folders'] = true;
+            $metadata['folder_count'] = count($folders);
+            $metadata['folders'] = $folders;
+        } elseif (array_key_exists('Folders', $collection)) {
             $metadata['has_folders'] = true;
         }
 
@@ -1820,6 +1825,176 @@ final class PdfAttachmentExtractor
         }
 
         return $metadata;
+    }
+
+    /**
+     * PDF Portfolio folder dictionaries are review-only navigation metadata
+     * for attachment import. Keep folder names, file references, and sibling
+     * structure bounded; never inspect arbitrary private streams here.
+     *
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function collectionFolderReviewRows(mixed $folderValue, array $objects): array
+    {
+        if ($folderValue === null) {
+            return [];
+        }
+
+        $rows = [];
+        $this->collectCollectionFolderReviewRows($folderValue, $objects, $rows);
+
+        return $rows;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param list<array<string, mixed>> $rows
+     * @param array<int, true> $seen
+     */
+    private function collectCollectionFolderReviewRows(
+        mixed $folderValue,
+        array $objects,
+        array &$rows,
+        array $seen = [],
+        int $depth = 0,
+        int $siblingIndex = 0,
+        ?int $parentObjectId = null
+    ): void {
+        if ($depth > 20) {
+            return;
+        }
+
+        $folderObjectId = $this->refObjectId($folderValue);
+        if ($folderObjectId !== null) {
+            if (isset($seen[$folderObjectId])) {
+                return;
+            }
+            $seen[$folderObjectId] = true;
+        }
+
+        $folder = $this->dict($this->resolveValue($folderValue, $objects));
+        if ($folder === null) {
+            return;
+        }
+
+        $row = [
+            'source' => 'collection_folder_tree',
+            'review_only' => true,
+            'payload_bytes_included' => false,
+            'depth' => $depth,
+            'sibling_index' => $siblingIndex,
+        ];
+
+        if ($folderObjectId !== null) {
+            $row['folder_object_id'] = $folderObjectId;
+        }
+        if ($parentObjectId !== null) {
+            $row['parent_folder_object_id'] = $parentObjectId;
+        }
+
+        foreach ([
+            'type' => $this->nameOrStringValue($folder['Type'] ?? null, $objects),
+            'name' => $this->collectionReviewScalar($folder['Name'] ?? null, $objects),
+            'description' => $this->collectionReviewScalar($folder['Desc'] ?? null, $objects),
+            'folder_id' => $this->collectionReviewScalar($folder['ID'] ?? null, $objects),
+            'created_at' => $this->collectionReviewScalar($folder['CreationDate'] ?? null, $objects),
+            'modified_at' => $this->collectionReviewScalar($folder['ModDate'] ?? null, $objects),
+        ] as $key => $value) {
+            if ($value !== null && $value !== '') {
+                $row[$key] = $value;
+            }
+        }
+        $this->addUtcDateReview($row, 'created_at', is_string($row['created_at'] ?? null) ? $row['created_at'] : null);
+        $this->addUtcDateReview($row, 'modified_at', is_string($row['modified_at'] ?? null) ? $row['modified_at'] : null);
+
+        $files = $this->collectionFolderFileRows($folder['F'] ?? null, $objects);
+        if ($files !== []) {
+            $row['file_count'] = count($files);
+            $row['files'] = $files;
+        }
+
+        $childObjectId = $this->refObjectId($folder['Child'] ?? null);
+        if ($childObjectId !== null) {
+            $row['child_folder_object_id'] = $childObjectId;
+        }
+        $nextObjectId = $this->refObjectId($folder['Next'] ?? null);
+        if ($nextObjectId !== null) {
+            $row['next_folder_object_id'] = $nextObjectId;
+        }
+
+        $rows[] = $row;
+
+        if (array_key_exists('Child', $folder)) {
+            $this->collectCollectionFolderReviewRows($folder['Child'], $objects, $rows, $seen, $depth + 1, 0, $folderObjectId);
+        }
+        if (array_key_exists('Next', $folder)) {
+            $this->collectCollectionFolderReviewRows($folder['Next'], $objects, $rows, $seen, $depth, $siblingIndex + 1, $parentObjectId);
+        }
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function collectionFolderFileRows(mixed $filesValue, array $objects): array
+    {
+        if ($filesValue === null) {
+            return [];
+        }
+
+        $resolved = $this->resolveValue($filesValue, $objects);
+        $items = $this->arrayValue($resolved) ?? [$filesValue];
+        $rows = [];
+        foreach ($items as $index => $item) {
+            $fileSpec = $this->dict($this->resolveValue($item, $objects));
+            $fileSpecObjectId = $this->refObjectId($item);
+            $row = [
+                'source' => 'collection_folder_file_reference',
+                'file_index' => $index,
+                'review_only' => true,
+                'payload_bytes_included' => false,
+            ];
+            if ($fileSpecObjectId !== null) {
+                $row['file_spec_object_id'] = $fileSpecObjectId;
+            }
+
+            if ($fileSpec !== null) {
+                [$filename, $filenameSource] = $this->filenameWithSource($fileSpec, $objects, null, null);
+                if ($filename !== '') {
+                    $row['filename'] = $filename;
+                    $row['filename_source'] = $filenameSource;
+                    foreach ($this->filenamePathReview($filename) as $key => $metadataValue) {
+                        $row[$key] = $metadataValue;
+                    }
+                }
+
+                foreach ([
+                    'description' => $this->stringValue($this->resolveValue($fileSpec['Desc'] ?? null, $objects)),
+                    'relationship' => $this->nameValue($this->resolveValue($fileSpec['AFRelationship'] ?? null, $objects)),
+                ] as $key => $value) {
+                    if ($value !== null && $value !== '') {
+                        $row[$key] = $value;
+                    }
+                }
+            } else {
+                $filename = $this->stringValue($this->resolveValue($item, $objects));
+                if ($filename === null || $filename === '') {
+                    continue;
+                }
+                $row['filename'] = $filename;
+                $row['filename_source'] = 'collection_folder_file_name';
+                foreach ($this->filenamePathReview($filename) as $key => $metadataValue) {
+                    $row[$key] = $metadataValue;
+                }
+            }
+
+            if (count($row) > 4) {
+                $rows[] = $row;
+            }
+        }
+
+        return $rows;
     }
 
     /**

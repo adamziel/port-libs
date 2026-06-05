@@ -1712,7 +1712,12 @@ final class PdfEmbeddedFileExtractor
             $metadata['sort'] = $sort;
         }
 
-        if ($this->dictionaryRawValue($body, 'Folders') !== null) {
+        $folders = $this->collectionFolderMetadata($this->dictionaryRawValue($body, 'Folders'), $objects);
+        if ($folders !== []) {
+            $metadata['has_folders'] = true;
+            $metadata['folder_count'] = count($folders);
+            $metadata['folders'] = $folders;
+        } elseif ($this->dictionaryRawValue($body, 'Folders') !== null) {
             $metadata['has_folders'] = true;
         }
 
@@ -1782,6 +1787,177 @@ final class PdfEmbeddedFileExtractor
         }
 
         return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function collectionFolderMetadata(?string $folderValue, array $objects): array
+    {
+        if ($folderValue === null) {
+            return [];
+        }
+
+        $rows = [];
+        $this->collectCollectionFolderMetadata($folderValue, $objects, $rows);
+
+        return $rows;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<array<string, mixed>> $rows
+     * @param array<int, true> $seen
+     */
+    private function collectCollectionFolderMetadata(
+        string $folderValue,
+        array $objects,
+        array &$rows,
+        array $seen = [],
+        int $depth = 0,
+        int $siblingIndex = 0,
+        ?int $parentObjectId = null
+    ): void {
+        if ($depth > 20) {
+            return;
+        }
+
+        $folderObjectId = $this->objectNumberFromReference($folderValue);
+        if ($folderObjectId !== null) {
+            if (isset($seen[$folderObjectId])) {
+                return;
+            }
+            $seen[$folderObjectId] = true;
+        }
+
+        $folder = $this->resolveDictionaryFromValue($folderValue, $objects);
+        if ($folder === null) {
+            return;
+        }
+
+        $body = $folder['body'];
+        $row = [
+            'source' => 'collection_folder_tree',
+            'review_only' => true,
+            'payload_bytes_included' => false,
+            'depth' => $depth,
+            'sibling_index' => $siblingIndex,
+        ];
+
+        if ($folder['object'] !== null) {
+            $row['folder_object_id'] = $folder['object'];
+        }
+        if ($parentObjectId !== null) {
+            $row['parent_folder_object_id'] = $parentObjectId;
+        }
+
+        foreach ([
+            'type' => $this->dictionaryNameValue($body, 'Type', $objects),
+            'name' => $this->reviewValueFromRaw($this->dictionaryRawValue($body, 'Name'), $objects),
+            'description' => $this->reviewValueFromRaw($this->dictionaryRawValue($body, 'Desc'), $objects),
+            'folder_id' => $this->reviewValueFromRaw($this->dictionaryRawValue($body, 'ID'), $objects),
+            'created_at' => $this->reviewValueFromRaw($this->dictionaryRawValue($body, 'CreationDate'), $objects),
+            'modified_at' => $this->reviewValueFromRaw($this->dictionaryRawValue($body, 'ModDate'), $objects),
+        ] as $key => $value) {
+            if ($value !== null && $value !== '') {
+                $row[$key] = $value;
+            }
+        }
+
+        $files = $this->collectionFolderFileMetadata($this->dictionaryRawValue($body, 'F'), $objects);
+        if ($files !== []) {
+            $row['file_count'] = count($files);
+            $row['files'] = $files;
+        }
+
+        $childValue = $this->dictionaryRawValue($body, 'Child');
+        $childObjectId = $childValue === null ? null : $this->objectNumberFromReference($childValue);
+        if ($childObjectId !== null) {
+            $row['child_folder_object_id'] = $childObjectId;
+        }
+        $nextValue = $this->dictionaryRawValue($body, 'Next');
+        $nextObjectId = $nextValue === null ? null : $this->objectNumberFromReference($nextValue);
+        if ($nextObjectId !== null) {
+            $row['next_folder_object_id'] = $nextObjectId;
+        }
+
+        $rows[] = $row;
+
+        if ($childValue !== null) {
+            $this->collectCollectionFolderMetadata($childValue, $objects, $rows, $seen, $depth + 1, 0, $folder['object']);
+        }
+        if ($nextValue !== null) {
+            $this->collectCollectionFolderMetadata($nextValue, $objects, $rows, $seen, $depth, $siblingIndex + 1, $parentObjectId);
+        }
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function collectionFolderFileMetadata(?string $filesValue, array $objects): array
+    {
+        if ($filesValue === null) {
+            return [];
+        }
+
+        $items = $this->arrayItemsFromValue($filesValue, $objects);
+        if ($items === []) {
+            $items = [$filesValue];
+        }
+
+        $rows = [];
+        foreach ($items as $index => $item) {
+            $fileSpec = $this->resolveDictionaryFromValue($item, $objects);
+            $row = [
+                'source' => 'collection_folder_file_reference',
+                'file_index' => $index,
+                'review_only' => true,
+                'payload_bytes_included' => false,
+            ];
+
+            $fileSpecObjectId = $this->objectNumberFromReference($item);
+            if ($fileSpecObjectId !== null) {
+                $row['file_spec_object_id'] = $fileSpecObjectId;
+            }
+
+            if ($fileSpec !== null) {
+                [$filename, $filenameSource] = $this->fileSpecFilenameWithSource($fileSpec['body'], $objects, null);
+                if ($filename !== '') {
+                    $row['filename'] = $filename;
+                    $row['filename_source'] = $filenameSource;
+                    foreach ($this->filenamePathReview($filename) as $key => $metadataValue) {
+                        $row[$key] = $metadataValue;
+                    }
+                }
+
+                foreach ([
+                    'description' => $this->dictionaryStringValue($fileSpec['body'], 'Desc', $objects),
+                    'relationship' => $this->dictionaryNameValue($fileSpec['body'], 'AFRelationship', $objects),
+                ] as $key => $value) {
+                    if ($value !== null && $value !== '') {
+                        $row[$key] = $value;
+                    }
+                }
+            } else {
+                $filename = $this->reviewValueFromRaw($item, $objects);
+                if (!is_string($filename) || $filename === '') {
+                    continue;
+                }
+                $row['filename'] = $filename;
+                $row['filename_source'] = 'collection_folder_file_name';
+                foreach ($this->filenamePathReview($filename) as $key => $metadataValue) {
+                    $row[$key] = $metadataValue;
+                }
+            }
+
+            if (count($row) > 4) {
+                $rows[] = $row;
+            }
+        }
+
+        return $rows;
     }
 
     /**
