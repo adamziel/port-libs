@@ -8867,6 +8867,12 @@ final class PdfAcroFormExtractor
                     if ($rootField !== null) {
                         $candidate = $rootField;
                     }
+                } else {
+                    $parentObject = $this->validObjectReferenceValueAfterName($body, 'Parent', $objects);
+                    $rootField = $parentObject === null ? null : $this->pageWidgetRootFieldCandidate($parentObject, $objects, []);
+                    if ($rootField !== null) {
+                        $candidate = $rootField;
+                    }
                 }
             }
 

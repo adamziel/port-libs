@@ -11,9 +11,9 @@ $pageText = 'BT /F1 12 Tf 72 720 Td (Visible AcroForm page widget boundary body)
 $pdf = "%PDF-1.7\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
-    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R (90 0 R) [91 0 R] << /Nested 92 0 R >> % 93 0 R stays a comment\n12 0 R 14 0 R 18 0 R 24 0 R 110 0 R] >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R (90 0 R) [91 0 R] << /Nested 92 0 R >> % 93 0 R stays a comment\n12 0 R 14 0 R 18 0 R 24 0 R 110 0 R 120 0 R 124 0 R] >>\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
-    . "5 0 obj\n<< /Fields [6 0 R 23 0 R (94 0 R) [95 0 R] << /Nested 96 0 R >> % 97 0 R stays a comment\n] /NeedAppearances true /DA (/Helv 9 Tf 0 0 0 rg) /DR << /Font << /Helv 40 0 R >> >> >>\nendobj\n"
+    . "5 0 obj\n<< /Fields [6 0 R 23 0 R 122 0 R 124 0 R (94 0 R) [95 0 R] << /Nested 96 0 R >> % 97 0 R stays a comment\n] /NeedAppearances true /DA (/Helv 9 Tf 0 0 0 rg) /DR << /Font << /Helv 40 0 R >> >> >>\nendobj\n"
     . "6 0 obj\n<< /FT /Tx /T (listed.email) /V (listed@example.test) /Kids [8 0 R (98 0 R) [99 0 R] << /Nested 100 0 R >> % 101 0 R stays a comment\n112 0 R] >>\nendobj\n"
     . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 300 664] /P 3 0 R /F 4 >>\nendobj\n"
     . "10 0 obj\n<< /FT /Ch /T (omitted.category) /V (page) /Opt [(post) (page)] /Kids [12 0 R] >>\nendobj\n"
@@ -45,6 +45,11 @@ $pdf = "%PDF-1.7\n"
     . "101 0 obj\n<< /FT /Tx /T (decoy.kids.comment) /V (Kids comment decoy) >>\nendobj\n"
     . "110 0 obj\n<< /Type /Annot\n% /Subtype /Widget should not promote this text annotation into an AcroForm field\n/Subtype /Text /FT /Tx /T (decoy.comment_subtype.promoted) /V (Comment subtype page decoy) /Rect [72 340 320 364] /P 3 0 R /F 4 /Contents (Comment page widget marker decoy) >>\nendobj\n"
     . "112 0 obj\n<< /Type /Annot\n% /Subtype /Widget /Parent 6 0 R stays a comment-only child widget marker\n/Subtype /Text /Rect [72 300 320 324] /P 3 0 R /F 4 /Contents (Comment child widget marker decoy) >>\nendobj\n"
+    . "118 0 obj\n<< /FT /Tx /T (childroot) /TU (Child root parent label) /TM (childroot-parent-map) /V (parent childroot review) /DV (default childroot value) /MaxLen 72 /Kids [122 0 R] >>\nendobj\n"
+    . "120 0 obj\n<< /Subtype /Widget /Parent 122 0 R /Rect [72 260 320 284] /P 3 0 R /F 4 >>\nendobj\n"
+    . "122 0 obj\n<< /Parent 118 0 R /T (email) /TU (Child root editor email) /TM (childroot.email.export) /V (childroot@example.test) /Kids [120 0 R] >>\nendobj\n"
+    . "124 0 obj\n<< /Subtype /Widget /Parent 126 0 R /T (status) /TU (Workflow status label) /TM (workflow.status.export) /V (publish) /Rect [72 220 280 244] /P 3 0 R /F 4 >>\nendobj\n"
+    . "126 0 obj\n<< /FT /Ch /T (workflow) /TU (Workflow parent label) /V (draft) /Opt [(draft) (publish)] /Kids [124 0 R] >>\nendobj\n"
     . "%%EOF";
 
 $form = (new PdfAcroFormExtractor())->extractForm($pdf);
@@ -54,7 +59,7 @@ foreach ($form['fields'] as $field) {
     $fieldsByName[(string) ($field['name'] ?? '')] = $field;
 }
 
-foreach (['listed.email', 'omitted.category', 'inline.note', 'indirect.geometry', 'review.label'] as $name) {
+foreach (['listed.email', 'omitted.category', 'inline.note', 'indirect.geometry', 'review.label', 'childroot.email', 'workflow.status'] as $name) {
     if (!isset($fieldsByName[$name])) {
         throw new RuntimeException("Missing expected AcroForm field {$name}.");
     }
@@ -113,6 +118,28 @@ if (in_array(112, array_column($fieldsByName['listed.email']['widgets'] ?? [], '
     throw new RuntimeException('Comment-only child Widget subtype marker must not attach as an AcroForm widget.');
 }
 
+$childRoot = $fieldsByName['childroot.email'];
+if (($childRoot['object'] ?? null) !== 122 || ($childRoot['field_type_label'] ?? null) !== 'text') {
+    throw new RuntimeException('Child AcroForm Fields entries must normalize to their parent field root.');
+}
+if (($childRoot['name'] ?? null) !== 'childroot.email' || ($childRoot['value'] ?? null) !== 'childroot@example.test') {
+    throw new RuntimeException('Child AcroForm field root normalization lost the qualified name or terminal value.');
+}
+if (array_column($childRoot['field_hierarchy']['path'] ?? [], 'object') !== [118, 122]) {
+    throw new RuntimeException('Child AcroForm field root hierarchy was not preserved.');
+}
+
+$workflowStatus = $fieldsByName['workflow.status'];
+if (($workflowStatus['object'] ?? null) !== 124 || ($workflowStatus['field_type_label'] ?? null) !== 'choice') {
+    throw new RuntimeException('Merged Widget AcroForm Fields entries must normalize to their parent field root.');
+}
+if (($workflowStatus['name'] ?? null) !== 'workflow.status' || ($workflowStatus['value'] ?? null) !== 'publish') {
+    throw new RuntimeException('Merged Widget AcroForm field root normalization lost the qualified name or terminal value.');
+}
+if (array_column($workflowStatus['field_hierarchy']['path'] ?? [], 'object') !== [126, 124]) {
+    throw new RuntimeException('Merged Widget AcroForm field hierarchy was not preserved.');
+}
+
 $rows = [];
 foreach ($form['fields'] as $field) {
     $widgets = is_array($field['widgets'] ?? null) ? $field['widgets'] : [];
@@ -152,6 +179,12 @@ echo '<!-- markerpdf:pdf-acroform-fields-boundary-currentbase ' . htmlspecialcha
     'array_decoy_sources' => ['annots_literal_nested_comment', 'fields_literal_nested_comment', 'kids_literal_nested_comment'],
     'comment_widget_subtype_decoys_excluded' => !isset($fieldsByName['decoy.comment_subtype.promoted'])
         && !in_array(112, array_column($fieldsByName['listed.email']['widgets'] ?? [], 'object'), true),
+    'child_field_entries_normalized_to_parent_roots' => ($childRoot['name'] ?? null) === 'childroot.email'
+        && array_column($childRoot['field_hierarchy']['path'] ?? [], 'object') === [118, 122]
+        && ($childRoot['field_type_label'] ?? null) === 'text',
+    'merged_widget_field_entries_normalized_to_parent_roots' => ($workflowStatus['name'] ?? null) === 'workflow.status'
+        && array_column($workflowStatus['field_hierarchy']['path'] ?? [], 'object') === [126, 124]
+        && ($workflowStatus['field_type_label'] ?? null) === 'choice',
     'detached_widget_excluded' => !isset($fieldsByName['detached.secret']),
     'executes_form_actions' => false,
     'executes_javascript' => false,

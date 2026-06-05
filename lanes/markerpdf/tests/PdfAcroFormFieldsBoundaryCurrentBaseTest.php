@@ -53,6 +53,25 @@ $directWidgetFieldsRootBoundaryPdf = static function (): string {
         . "%%EOF";
 };
 
+$acroFormChildFieldRootBoundaryPdf = static function (): string {
+    $pageText = 'BT /F1 12 Tf 72 720 Td (Visible AcroForm child field root boundary body) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [14 0 R 24 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Fields [12 0 R 24 0 R] /NeedAppearances true /DA (/Helv 9 Tf 0 0 0 rg) >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Tx /T (profile) /TU (Profile parent label) /TM (profile-parent-map) /V (parent@example.test) /DV (profile@example.test) /MaxLen 64 /Kids [12 0 R] /DA (/Helv 10 Tf 0 0 0 rg) >>\nendobj\n"
+        . "12 0 obj\n<< /Parent 10 0 R /T (email) /TU (Editor email label) /TM (profile.email.export) /V (editor@example.test) /Kids [14 0 R] >>\nendobj\n"
+        . "14 0 obj\n<< /Subtype /Widget /Parent 12 0 R /Rect [72 640 320 664] /P 3 0 R /F 4 >>\nendobj\n"
+        . "20 0 obj\n<< /FT /Ch /T (settings) /TU (Settings parent label) /V (public) /Opt [(private) (public)] /Kids [24 0 R] >>\nendobj\n"
+        . "24 0 obj\n<< /Subtype /Widget /Parent 20 0 R /T (visibility) /TU (Visibility label) /TM (settings.visibility.export) /V (private) /Rect [72 600 280 624] /P 3 0 R /F 4 >>\nendobj\n"
+        . "30 0 obj\n<< /FT /Tx /T (detached.parent.decoy) /V (Detached parent decoy) /Kids [32 0 R] >>\nendobj\n"
+        . "32 0 obj\n<< /Parent 30 0 R /T (child) /V (Detached child decoy) >>\nendobj\n"
+        . "%%EOF";
+};
+
 $tokenAwareAcroFormFieldsBoundaryPdf = static function (): string {
     $pageText = 'BT /F1 12 Tf 72 720 Td (Visible token-aware AcroForm field body) Tj ET';
 
@@ -387,6 +406,75 @@ return [
         $t->true(!str_contains($visibleText, 'Detached direct widget decoy'));
         $t->true(is_string($encoded) && !str_contains($encoded, '"name":"#8"'));
         $t->true(is_string($encoded) && !str_contains($encoded, '"name":"#14"'));
+    },
+    'normalizes child AcroForm Fields entries to their parent field roots' => static function (
+        TestRunner $t
+    ) use ($acroFormChildFieldRootBoundaryPdf, $fieldsByName): void {
+        $pdf = $acroFormChildFieldRootBoundaryPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $visibleText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($form, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['profile.email', 'settings.visibility'], array_keys($fields));
+        $t->same(2, count($form['fields']));
+        $t->same(true, $form['need_appearances']);
+
+        $email = $fields['profile.email'];
+        $t->same(12, $email['object']);
+        $t->same('profile.email', $email['name']);
+        $t->same('email', $email['partial_name']);
+        $t->same('Editor email label', $email['alternate_name']);
+        $t->same('profile.email.export', $email['mapping_name']);
+        $t->same('Tx', $email['field_type']);
+        $t->same('text', $email['field_type_label']);
+        $t->same('editor@example.test', $email['value']);
+        $t->same('profile@example.test', $email['default_value']);
+        $t->same([10, 12], array_column($email['field_hierarchy']['path'], 'object'));
+        $t->same(['profile', 'email'], array_column($email['field_hierarchy']['path'], 'partial_name'));
+        $t->same(['Profile parent label', 'Editor email label'], array_column($email['field_hierarchy']['path'], 'alternate_name'));
+        $t->same(['profile-parent-map', 'profile.email.export'], array_column($email['field_hierarchy']['path'], 'mapping_name'));
+        $t->same(['FT', 'DV', 'DA', 'MaxLen'], $email['field_hierarchy']['inherited_attributes']);
+        $t->same(['V'], $email['field_hierarchy']['local_value_attributes']);
+        $t->same('field_terminal_override', $email['value_state']['hierarchy_boundary']['current_value_source']);
+        $t->same(true, $email['value_state']['hierarchy_boundary']['terminal_overrides_parent_value']);
+        $t->same(true, $email['max_length_review']['max_length_inherited']);
+        $t->same(10, $email['max_length_review']['max_length_source_object']);
+        $t->same([14], array_column($email['widgets'], 'object'));
+        $t->same([0], array_column($email['widgets'], 'page_annotation_index'));
+        $t->same([true], array_column($email['widgets'], 'referenced_from_page_annots'));
+
+        $visibility = $fields['settings.visibility'];
+        $t->same(24, $visibility['object']);
+        $t->same('settings.visibility', $visibility['name']);
+        $t->same('visibility', $visibility['partial_name']);
+        $t->same('Visibility label', $visibility['alternate_name']);
+        $t->same('settings.visibility.export', $visibility['mapping_name']);
+        $t->same('Ch', $visibility['field_type']);
+        $t->same('choice', $visibility['field_type_label']);
+        $t->same('private', $visibility['value']);
+        $t->same([
+            ['export' => 'private', 'label' => 'private'],
+            ['export' => 'public', 'label' => 'public'],
+        ], $visibility['options']);
+        $t->same([20, 24], array_column($visibility['field_hierarchy']['path'], 'object'));
+        $t->same(['settings', 'visibility'], array_column($visibility['field_hierarchy']['path'], 'partial_name'));
+        $t->same(['FT', 'DA', 'Opt'], $visibility['field_hierarchy']['inherited_attributes']);
+        $t->same(['V'], $visibility['field_hierarchy']['local_value_attributes']);
+        $t->same('field_terminal_override', $visibility['value_state']['hierarchy_boundary']['current_value_source']);
+        $t->same([['index' => 0, 'export' => 'private', 'label' => 'private']], $visibility['value_state']['selected_options']);
+        $t->same([24], array_column($visibility['widgets'], 'object'));
+        $t->same([1], array_column($visibility['widgets'], 'page_annotation_index'));
+        $t->same([true], array_column($visibility['widgets'], 'referenced_from_page_annots'));
+
+        $t->true(!isset($fields['email']));
+        $t->true(!isset($fields['visibility']));
+        $t->true(!isset($fields['detached.parent.decoy.child']));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Detached child decoy'));
+        $t->true(str_contains($visibleText, 'Visible AcroForm child field root boundary body'));
+        $t->true(!str_contains($visibleText, 'editor@example.test'));
+        $t->true(!str_contains($visibleText, 'parent@example.test'));
+        $t->true(!str_contains($visibleText, 'Detached parent decoy'));
     },
     'uses token aware AcroForm field keys before WordPress review metadata' => static function (TestRunner $t) use ($tokenAwareAcroFormFieldsBoundaryPdf, $fieldsByName): void {
         $pdf = $tokenAwareAcroFormFieldsBoundaryPdf();
