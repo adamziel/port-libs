@@ -19627,7 +19627,7 @@ final class PdfTextExtractor
         foreach ($ranges as $range) {
             $start = $this->normalizeHexKey($range[1]);
             $end = $this->normalizeHexKey($range[2]);
-            if ($start === '' || $end === '') {
+            if ($start === '' || $end === '' || strlen($start) !== strlen($end)) {
                 continue;
             }
 
