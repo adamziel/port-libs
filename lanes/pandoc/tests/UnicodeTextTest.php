@@ -124,6 +124,27 @@ return [
         $t->contains('<h1 id="mac-import">Mac Import</h1>', $blocks);
         $t->contains("<p>Classic \u{201C}quoted\u{201D} source \u{2014} price \u{20AC}10; caf\u{00E9} and \u{FB01}le.</p>", $blocks);
     },
+    'decodes shift jis japanese source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = (string) hex2bin('23208c7689e60a0a967b95b682c694bc8a70b6c0b6c581418adb874094678160fbfc8de88142');
+        $decoded = UnicodeText::decodeBytes($bytes, 'windows-31j');
+        $document = (new MarkdownReader())->readBytes($bytes, 'shift-jis');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $malformed = UnicodeText::decodeBytes("\x82\"A", 'sjis');
+
+        $t->same('shift_jis', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# 計画\n\n本文と半角ｶﾀｶﾅ、丸①波～髙崎。", $decoded['text']);
+        $t->same(['encoding' => 'shift_jis', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('計画', $document->children[0]->attr('text'));
+        $t->same("本文と半角ｶﾀｶﾅ、丸①波～髙崎。", $document->children[1]->attr('text'));
+        $t->same(29, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(30, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="計画">計画</h1>', $blocks);
+        $t->contains("<p>本文と半角ｶﾀｶﾅ、丸①波～髙崎。</p>", $blocks);
+        $t->same('shift_jis', $malformed['encoding']);
+        $t->same("\u{FFFD}\"A", $malformed['text']);
+        $t->same(1, $malformed['repairs']);
+    },
     'lets unicode byte order marks override stale source encoding hints' => static function (TestRunner $t) use ($utf16le): void {
         $utf8 = UnicodeText::decodeBytes("\xEF\xBB\xBF# Cafe\xCC\x81\n\nUTF-8 source", 'windows-1252');
         $utf16 = UnicodeText::decodeBytes("\xFF\xFE" . $utf16le([

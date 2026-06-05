@@ -26,6 +26,9 @@ $latin9Source = (new MarkdownReader())->readBytes("# Latin9 Import\n\nPrice \xA4
 $latin9Text = (string) $latin9Source->children[1]->attr('text');
 $macRomanSource = (new MarkdownReader())->readBytes("# Mac Import\n\nClassic \xD2quoted\xD3 source \xD1 price \xDB10; caf\x8E and \xDEle.", 'mac-roman');
 $macRomanText = (string) $macRomanSource->children[1]->attr('text');
+$shiftJisBytes = (string) hex2bin('23208c7689e60a0a967b95b682c694bc8a70b6c0b6c581418adb874094678160fbfc8de88142');
+$shiftJisSource = (new MarkdownReader())->readBytes($shiftJisBytes, 'windows-31j');
+$shiftJisText = (string) $shiftJisSource->children[1]->attr('text');
 $displaySlices = UnicodeText::splitByDisplayBreakpoints("\u{9B5A}A\u{0301}\u{1F469}\u{200D}\u{1F4BB}B", [2, 3, 5]);
 $wrappedAuditLines = UnicodeText::wrapByDisplayWidth(
     "Import \u{9B5A}\u{9B5A} emoji \u{1F44D}\u{1F3FD} flag \u{1F1FA}\u{1F1F8} Cafe\u{0301} trail",
@@ -259,6 +262,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($macRomanSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($macRomanText)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Shift_JIS source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $shiftJisText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($shiftJisSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($shiftJisText) . '/' . UnicodeText::displayWidth($shiftJisText, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Line endings'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'CRLF and CR normalized'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => (string) $lineEndingConversions])]),
@@ -393,6 +401,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>MacRoman source</td><td>Classic “quoted” source — price €10; café and ﬁle.</td><td>macintosh:50</td>")) {
         throw new RuntimeException('charset handoff self-test missing MacRoman decode audit row');
+    }
+    if (($shiftJisSource->attr('sourceEncoding')['encoding'] ?? '') !== 'shift_jis') {
+        throw new RuntimeException('charset handoff self-test missing Shift_JIS source encoding');
+    }
+    if (!str_contains($blocks, "<td>Shift_JIS source</td><td>本文と半角ｶﾀｶﾅ、丸①波～髙崎。</td><td>shift_jis:29/30</td>")) {
+        throw new RuntimeException('charset handoff self-test missing Shift_JIS decode audit row');
     }
     if (!str_contains($blocks, '<td>Line endings</td><td>CRLF and CR normalized</td><td>3</td>')) {
         throw new RuntimeException('charset handoff self-test missing line ending table audit');

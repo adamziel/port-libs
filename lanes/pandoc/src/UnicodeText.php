@@ -340,6 +340,28 @@ final class UnicodeText
         0xff => 0x02c7,
     ];
 
+    /** @var array<int, int> */
+    private const SHIFT_JIS_JIS0208_POINTERS = [
+        1 => 0x3001,
+        2 => 0x3002,
+        28 => 0x2015,
+        32 => 0xff5e,
+        60 => 0xff0d,
+        78 => 0xffe5,
+        321 => 0x3068,
+        1128 => 0x2460,
+        1669 => 0x753b,
+        1740 => 0x89d2,
+        1846 => 0x4e38,
+        2122 => 0x8a08,
+        2423 => 0x5d0e,
+        3611 => 0x6ce2,
+        3695 => 0x534a,
+        3877 => 0x6587,
+        4007 => 0x672c,
+        11091 => 0x9ad9,
+    ];
+
     /** @var list<int> */
     private const EAST_ASIAN_AMBIGUOUS_SINGLE_CODEPOINTS = [
         0x00a1, 0x00a4, 0x00aa, 0x00c6, 0x00d0, 0x00d7, 0x00d8, 0x00e6,
@@ -432,6 +454,11 @@ final class UnicodeText
 
         if ($normalized === 'windows-1252' || $normalized === 'iso-8859-1' || $normalized === 'iso-8859-15' || $normalized === 'macintosh') {
             [$text, $repairs] = self::decodeSingleByte($bytes, $normalized);
+
+            return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
+        }
+        if ($normalized === 'shift_jis') {
+            [$text, $repairs] = self::decodeShiftJis($bytes);
 
             return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
         }
@@ -873,6 +900,7 @@ final class UnicodeText
             'iso88591', 'latin1', 'latin-1' => 'iso-8859-1',
             'iso885915', 'iso8859151999', 'latin9', 'latin-9' => 'iso-8859-15',
             'macintosh', 'macroman', 'mac-roman', 'xmacroman', 'x-mac-roman', 'mac' => 'macintosh',
+            'csshiftjis', 'ms932', 'mskanji', 'shiftjis', 'sjis', 'windows31j', 'xsjis', 'cp932' => 'shift_jis',
             default => 'utf-8',
         };
     }
@@ -1240,6 +1268,72 @@ final class UnicodeText
         }
 
         return [$out, $repairs];
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private static function decodeShiftJis(string $bytes): array
+    {
+        $out = '';
+        $repairs = 0;
+        $length = strlen($bytes);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $byte = ord($bytes[$offset]);
+            if ($byte <= 0x7f || $byte === 0x80) {
+                $out .= self::fromCodepoint($byte);
+                continue;
+            }
+            if ($byte >= 0xa1 && $byte <= 0xdf) {
+                $out .= self::fromCodepoint(0xff61 + $byte - 0xa1);
+                continue;
+            }
+            if (($byte >= 0x81 && $byte <= 0x9f) || ($byte >= 0xe0 && $byte <= 0xfc)) {
+                if ($offset + 1 >= $length) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    continue;
+                }
+
+                $trail = ord($bytes[$offset + 1]);
+                $pointer = self::shiftJisPointer($byte, $trail);
+                if ($pointer === null) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    if ($trail > 0x7f) {
+                        $offset++;
+                    }
+                    continue;
+                }
+                if (!isset(self::SHIFT_JIS_JIS0208_POINTERS[$pointer])) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    $offset++;
+                    continue;
+                }
+
+                $out .= self::fromCodepoint(self::SHIFT_JIS_JIS0208_POINTERS[$pointer]);
+                $offset++;
+                continue;
+            }
+
+            $out .= self::REPLACEMENT;
+            $repairs++;
+        }
+
+        return [$out, $repairs];
+    }
+
+    private static function shiftJisPointer(int $leading, int $trailing): ?int
+    {
+        if (!(($trailing >= 0x40 && $trailing <= 0x7e) || ($trailing >= 0x80 && $trailing <= 0xfc))) {
+            return null;
+        }
+
+        $offset = $trailing < 0x7f ? 0x40 : 0x41;
+        $leadingOffset = $leading < 0xa0 ? 0x81 : 0xc1;
+
+        return (($leading - $leadingOffset) * 188) + $trailing - $offset;
     }
 
     private static function fromCodepoint(int $codepoint): string
