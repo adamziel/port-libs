@@ -968,7 +968,7 @@ final class PdfAttachmentExtractor
                 : 'stable_file_spec_review';
         }
 
-        $relatedFiles = $this->relatedFileRows($fileSpec['RF'] ?? null, $objects);
+        $relatedFiles = $this->relatedFileRows($fileSpec['RF'] ?? null, $objects, $encryptionPolicy);
         if ($relatedFiles !== []) {
             $attachment['related_file_count'] = count($relatedFiles);
             $attachment['related_files'] = $relatedFiles;
@@ -1390,7 +1390,7 @@ final class PdfAttachmentExtractor
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
      * @return list<array<string, mixed>>
      */
-    private function relatedFileRows(mixed $relatedFilesValue, array $objects): array
+    private function relatedFileRows(mixed $relatedFilesValue, array $objects, ?array $encryptionPolicy = null): array
     {
         $relatedFiles = $this->dict($this->resolveValue($relatedFilesValue, $objects));
         if ($relatedFiles === null) {
@@ -1417,7 +1417,8 @@ final class PdfAttachmentExtractor
                         $objects,
                         $rfKey,
                         $relatedFileIndex,
-                        $relatedFilename
+                        $relatedFilename,
+                        $encryptionPolicy
                     );
                     if ($row !== null) {
                         $rows[] = $row;
@@ -1427,7 +1428,14 @@ final class PdfAttachmentExtractor
                     }
                 }
 
-                $row = $this->relatedFileRowFromStreamValue($items[$index], $objects, $rfKey, $relatedFileIndex);
+                $row = $this->relatedFileRowFromStreamValue(
+                    $items[$index],
+                    $objects,
+                    $rfKey,
+                    $relatedFileIndex,
+                    null,
+                    $encryptionPolicy
+                );
                 if ($row !== null) {
                     $rows[] = $row;
                     $relatedFileIndex++;
@@ -1447,7 +1455,8 @@ final class PdfAttachmentExtractor
         array $objects,
         string $rfKey,
         int $relatedFileIndex,
-        ?string $relatedFilename = null
+        ?string $relatedFilename = null,
+        ?array $encryptionPolicy = null
     ): ?array
     {
         $streamObjectId = $this->refObjectId($streamValue);
@@ -1458,6 +1467,24 @@ final class PdfAttachmentExtractor
 
         if ($streamObject['stream'] === null) {
             return null;
+        }
+
+        if ($this->attachmentPolicySuppressesEmbeddedPayload($encryptionPolicy)) {
+            $row = [
+                'source' => 'filespec_related_files',
+                'rf_key' => $rfKey,
+                'related_file_index' => $relatedFileIndex,
+                'stream_object_id' => $streamObjectId,
+                'executes_python_or_models' => false,
+                'executes_external_pdf_tools' => false,
+            ];
+
+            if ($relatedFilename !== null && $relatedFilename !== '') {
+                $row['related_filename'] = $relatedFilename;
+                $row['related_filename_source'] = 'rf_name_pair';
+            }
+
+            return $row;
         }
 
         $bytes = $this->decodedStreamBytes($streamObject, $objects);
