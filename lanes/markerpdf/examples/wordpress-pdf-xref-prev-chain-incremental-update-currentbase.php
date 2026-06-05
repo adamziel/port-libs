@@ -497,6 +497,77 @@ $classicTablePdf .= "xref\n"
     . "trailer\n<< /Size 21 /Root 1 0 R /Info 6 0 R /Prev {$classicTablePreviousXrefOffset} >>\n"
     . "startxref\n{$classicTableCurrentXrefOffset}\n%%EOF";
 
+$damagedPrevClassicTableStaleText = 'BT /F1 12 Tf 72 720 Td (Stale damaged Prev classic table smoke page) Tj ET';
+$damagedPrevClassicTableCurrentText = 'BT /F1 12 Tf 72 720 Td (Current damaged Prev classic table smoke page) Tj T* (Damaged Prev classic rows repaired) Tj ET';
+$damagedPrevClassicTableStalePayload = '<wp-export><post id="stale-damaged-prev-classic-smoke"/></wp-export>';
+$damagedPrevClassicTableCurrentPayload = '<wp-export><post id="current-damaged-prev-classic-smoke"/></wp-export>';
+$damagedPrevClassicTableStaleXmp = $xmpPacket('Stale Damaged Prev Classic Smoke Title', 'Stale damaged Prev classic metadata');
+$damagedPrevClassicTableCurrentXmp = $xmpPacket('Current Damaged Prev Classic Smoke Title', 'Current damaged Prev classic metadata');
+$damagedPrevClassicTablePdf = "%PDF-1.7\n";
+$addDamagedPrevClassicTableObject = static function (int $objectNumber, int $generation, string $body) use (&$damagedPrevClassicTablePdf): int {
+    $offset = strlen($damagedPrevClassicTablePdf);
+    $damagedPrevClassicTablePdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+
+$damagedPrevClassicTableStaleCatalogOffset = $addDamagedPrevClassicTableObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+$damagedPrevClassicTableStalePagesOffset = $addDamagedPrevClassicTableObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$damagedPrevClassicTableStalePageOffset = $addDamagedPrevClassicTableObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$damagedPrevClassicTableStaleContentOffset = $addDamagedPrevClassicTableObject(4, 0, "<< /Length " . strlen($damagedPrevClassicTableStaleText) . " >>\nstream\n{$damagedPrevClassicTableStaleText}\nendstream");
+$damagedPrevClassicTableFontOffset = $addDamagedPrevClassicTableObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+$damagedPrevClassicTableStaleInfoOffset = $addDamagedPrevClassicTableObject(6, 0, '<< /Title (Stale Damaged Prev Classic Smoke Info) /Author (Stale Damaged Prev Classic Author) >>');
+$damagedPrevClassicTableStaleMetadataOffset = $addDamagedPrevClassicTableObject(7, 0, '<< /Type /Metadata /Subtype /XML /Length ' . strlen($damagedPrevClassicTableStaleXmp) . " >>\nstream\n{$damagedPrevClassicTableStaleXmp}\nendstream");
+$damagedPrevClassicTableStaleNameTreeOffset = $addDamagedPrevClassicTableObject(8, 0, '<< /Names [(stale-damaged-prev-classic-smoke.xml) 10 0 R] >>');
+$damagedPrevClassicTableStaleFileSpecOffset = $addDamagedPrevClassicTableObject(10, 0, '<< /Type /Filespec /F (stale-damaged-prev-classic-smoke.xml) /Desc (Stale damaged Prev classic attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$damagedPrevClassicTableStaleEmbeddedOffset = $addDamagedPrevClassicTableObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($damagedPrevClassicTableStalePayload) . " >>\nstream\n{$damagedPrevClassicTableStalePayload}\nendstream");
+
+$damagedPrevClassicTablePreviousXrefOffset = strlen($damagedPrevClassicTablePdf);
+$damagedPrevClassicTablePdf .= "xref\n"
+    . "0 12\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($damagedPrevClassicTableStaleCatalogOffset)
+    . $xrefTableRow($damagedPrevClassicTableStalePagesOffset)
+    . $xrefTableRow($damagedPrevClassicTableStalePageOffset)
+    . $xrefTableRow($damagedPrevClassicTableStaleContentOffset)
+    . $xrefTableRow($damagedPrevClassicTableFontOffset)
+    . $xrefTableRow($damagedPrevClassicTableStaleInfoOffset)
+    . $xrefTableRow($damagedPrevClassicTableStaleMetadataOffset)
+    . $xrefTableRow($damagedPrevClassicTableStaleNameTreeOffset)
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($damagedPrevClassicTableStaleFileSpecOffset)
+    . $xrefTableRow($damagedPrevClassicTableStaleEmbeddedOffset)
+    . "trailer\n<< /Size 12 /Root 1 0 R /Info 6 0 R >>\n"
+    . "startxref\n{$damagedPrevClassicTablePreviousXrefOffset}\n%%EOF\n";
+
+$addDamagedPrevClassicTableObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+$addDamagedPrevClassicTableObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$addDamagedPrevClassicTableObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$addDamagedPrevClassicTableObject(4, 0, "<< /Length " . strlen($damagedPrevClassicTableCurrentText) . " >>\nstream\n{$damagedPrevClassicTableCurrentText}\nendstream");
+$addDamagedPrevClassicTableObject(6, 0, '<< /Title (Current Damaged Prev Classic Smoke Info) /Author (Current Damaged Prev Classic Author) /Producer (Current Damaged Prev Classic Producer) >>');
+$addDamagedPrevClassicTableObject(7, 0, '<< /Type /Metadata /Subtype /XML /Length ' . strlen($damagedPrevClassicTableCurrentXmp) . " >>\nstream\n{$damagedPrevClassicTableCurrentXmp}\nendstream");
+$addDamagedPrevClassicTableObject(8, 0, '<< /Names [(current-damaged-prev-classic-smoke.xml) 10 0 R] >>');
+$addDamagedPrevClassicTableObject(10, 0, '<< /Type /Filespec /F (current-damaged-prev-classic-smoke.xml) /Desc (Current damaged Prev classic attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$damagedPrevClassicTableCurrentEmbeddedOffset = $addDamagedPrevClassicTableObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($damagedPrevClassicTableCurrentPayload) . " >>\nstream\n{$damagedPrevClassicTableCurrentPayload}\nendstream");
+
+$damagedPrevClassicTableCurrentXrefOffset = strlen($damagedPrevClassicTablePdf);
+$damagedPrevClassicTableBrokenPrevOffset = $damagedPrevClassicTableCurrentEmbeddedOffset + 5;
+$damagedPrevClassicTablePdf .= "xref\n"
+    . "1 4\n"
+    . $xrefTableRow($damagedPrevClassicTableStaleCatalogOffset)
+    . $xrefTableRow($damagedPrevClassicTableStalePagesOffset)
+    . $xrefTableRow($damagedPrevClassicTableStalePageOffset)
+    . $xrefTableRow($damagedPrevClassicTableStaleContentOffset)
+    . "6 3\n"
+    . $xrefTableRow($damagedPrevClassicTableStaleInfoOffset)
+    . $xrefTableRow($damagedPrevClassicTableStaleMetadataOffset)
+    . $xrefTableRow($damagedPrevClassicTableStaleNameTreeOffset)
+    . "10 2\n"
+    . $xrefTableRow($damagedPrevClassicTableStaleFileSpecOffset)
+    . $xrefTableRow($damagedPrevClassicTableStaleEmbeddedOffset)
+    . "trailer\n<< /Size 21 /Root 1 0 R /Info 6 0 R /Prev {$damagedPrevClassicTableBrokenPrevOffset} >>\n"
+    . "startxref\n{$damagedPrevClassicTableCurrentXrefOffset}\n%%EOF";
+
 $sparseInfoStaleText = 'BT /F1 12 Tf 72 720 Td (Stale sparse latest smoke page) Tj ET';
 $sparseInfoCurrentText = 'BT /F1 12 Tf 72 720 Td (Current sparse latest Info smoke page) Tj T* (Latest xref stream omits Info) Tj ET';
 $sparseInfoStalePayload = '<wp-export><post id="stale-sparse-latest-info-smoke"/></wp-export>';
@@ -678,6 +749,14 @@ $classicTableEncoded = json_encode([
     'text' => $classicTablePlainText,
     'files' => $classicTableFiles,
 ], JSON_UNESCAPED_SLASHES);
+$damagedPrevClassicTableMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($damagedPrevClassicTablePdf);
+$damagedPrevClassicTablePlainText = $extractor->extractPlainText($damagedPrevClassicTablePdf);
+$damagedPrevClassicTableFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($damagedPrevClassicTablePdf);
+$damagedPrevClassicTableEncoded = json_encode([
+    'metadata' => $damagedPrevClassicTableMetadata,
+    'text' => $damagedPrevClassicTablePlainText,
+    'files' => $damagedPrevClassicTableFiles,
+], JSON_UNESCAPED_SLASHES);
 $sparseInfoMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($sparseInfoPdf);
 $sparseInfoPlainText = $extractor->extractPlainText($sparseInfoPdf);
 $sparseInfoFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($sparseInfoPdf);
@@ -738,6 +817,14 @@ echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialcha
     'classic_table_same_generation_stale_prev_excluded' => is_string($classicTableEncoded)
         && !str_contains($classicTableEncoded, 'Stale Classic')
         && !str_contains($classicTableEncoded, 'stale-classic-prev-smoke'),
+    'classic_table_damaged_prev_current_xmp_selected' => ($damagedPrevClassicTableMetadata['title'] ?? null) === 'Current Damaged Prev Classic Smoke Title',
+    'classic_table_damaged_prev_current_info_selected' => ($damagedPrevClassicTableMetadata['info']['Title'] ?? null) === 'Current Damaged Prev Classic Smoke Info',
+    'classic_table_damaged_prev_current_language_selected' => ($damagedPrevClassicTableMetadata['language'] ?? null) === 'en-US',
+    'classic_table_damaged_prev_current_text_selected' => str_contains($damagedPrevClassicTablePlainText, 'Damaged Prev classic rows repaired'),
+    'classic_table_damaged_prev_current_attachment_selected' => ($damagedPrevClassicTableFiles[0]['filename'] ?? null) === 'current-damaged-prev-classic-smoke.xml',
+    'classic_table_damaged_prev_stale_prev_excluded' => is_string($damagedPrevClassicTableEncoded)
+        && !str_contains($damagedPrevClassicTableEncoded, 'Stale Damaged Prev Classic')
+        && !str_contains($damagedPrevClassicTableEncoded, 'stale-damaged-prev-classic-smoke'),
     'sparse_latest_xref_stream_prev_info_selected' => ($sparseInfoMetadata['info']['Title'] ?? null) === 'Current Sparse Latest Smoke Info',
     'sparse_latest_xref_stream_prev_language_selected' => ($sparseInfoMetadata['language'] ?? null) === 'en-US',
     'sparse_latest_xref_stream_current_text_selected' => str_contains($sparseInfoPlainText, 'Current sparse latest Info smoke page'),

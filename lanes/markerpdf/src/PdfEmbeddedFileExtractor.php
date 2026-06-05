@@ -2476,7 +2476,7 @@ final class PdfEmbeddedFileExtractor
      */
     private function xrefSectionExistsAtOffset(string $pdfBytes, int $offset, array $definitions): bool
     {
-        return $this->xrefTableSectionAt($pdfBytes, $offset, $definitions) !== null
+        return $this->xrefTableSectionAt($pdfBytes, $offset, $definitions, [], false) !== null
             || $this->xrefStreamSectionAtOffset($offset, $definitions) !== null;
     }
 
@@ -2512,7 +2512,13 @@ final class PdfEmbeddedFileExtractor
      * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
      * @return array{entries: array<int, array{type: int, generation: int, offset: int, offsetIsExplicit: bool}>, trailer: string}|null
      */
-    private function xrefTableSectionAt(string $pdfBytes, int $offset, ?array $definitions = null, array $objects = []): ?array
+    private function xrefTableSectionAt(
+        string $pdfBytes,
+        int $offset,
+        ?array $definitions = null,
+        array $objects = [],
+        bool $repairCurrentRows = true
+    ): ?array
     {
         if ($definitions !== null && $this->offsetOwnedByDirectObjectBody($offset, $definitions)) {
             return null;
@@ -2556,8 +2562,8 @@ final class PdfEmbeddedFileExtractor
             return null;
         }
 
-        if ($definitions !== null) {
-            $entries = $this->repairCurrentUpdateXrefTableRows($entries, $definitions, $trailerBody, $offset, $objects);
+        if ($definitions !== null && $repairCurrentRows) {
+            $entries = $this->repairCurrentUpdateXrefTableRows($pdfBytes, $entries, $definitions, $trailerBody, $offset, $objects);
         }
 
         return [
@@ -2637,15 +2643,16 @@ final class PdfEmbeddedFileExtractor
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @return array<int, array{type: int, generation: int, offset: int, offsetIsExplicit: bool}>
      */
-    private function repairCurrentUpdateXrefTableRows(array $entries, array $definitions, string $trailer, int $xrefOffset, array $objects = []): array
+    private function repairCurrentUpdateXrefTableRows(
+        string $pdfBytes,
+        array $entries,
+        array $definitions,
+        string $trailer,
+        int $xrefOffset,
+        array $objects = []
+    ): array
     {
-        $previousOffset = $this->dictionaryIntegerValue($trailer, 'Prev', $objects === [] ? null : $objects);
-        if ($previousOffset === null && $objects !== []) {
-            $helperObjects = $this->objectsWithCompressedXrefPrevOperandHelpers($trailer, $objects, $definitions, $xrefOffset);
-            if ($helperObjects !== $objects) {
-                $previousOffset = $this->dictionaryIntegerValue($trailer, 'Prev', $helperObjects);
-            }
-        }
+        $previousOffset = $this->previousXrefOffsetForSectionBody($pdfBytes, $trailer, $xrefOffset, $definitions, $objects);
 
         if ($previousOffset === null || $previousOffset < 0) {
             return $entries;

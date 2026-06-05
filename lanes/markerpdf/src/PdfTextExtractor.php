@@ -16880,7 +16880,7 @@ final class PdfTextExtractor
      */
     private function xrefSectionExistsAtOffset(string $pdfBytes, int $offset, array $definitions): bool
     {
-        return $this->xrefTableSectionAt($pdfBytes, $offset, $definitions) !== null
+        return $this->xrefTableSectionAt($pdfBytes, $offset, $definitions, [], false) !== null
             || $this->xrefStreamSectionAtOffset($offset, $definitions, $pdfBytes) !== null;
     }
 
@@ -17532,8 +17532,13 @@ final class PdfTextExtractor
      * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>>|null $definitions
      * @return array{entries: array<int, array{type: int, generation: int, offset: int, offsetIsExplicit: bool}>, trailer: string}|null
      */
-    private function xrefTableSectionAt(string $pdfBytes, int $offset, ?array $definitions = null, array $objects = []): ?array
-    {
+    private function xrefTableSectionAt(
+        string $pdfBytes,
+        int $offset,
+        ?array $definitions = null,
+        array $objects = [],
+        bool $repairCurrentRows = true
+    ): ?array {
         if ($definitions !== null && $this->offsetOwnedByDirectObjectBody($offset, $definitions)) {
             return null;
         }
@@ -17575,7 +17580,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        if ($definitions !== null) {
+        if ($definitions !== null && $repairCurrentRows) {
             $entries = $this->repairCurrentUpdateXrefTableRows($pdfBytes, $entries, $definitions, $trailer, $offset, $objects);
         }
 
@@ -17724,13 +17729,7 @@ final class PdfTextExtractor
         int $xrefOffset,
         array $objects = []
     ): array {
-        $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $trailer, $objects);
-        if ($previousOffset === null && $objects !== []) {
-            $helperObjects = $this->objectsWithCompressedXrefPrevOperandHelper($trailer, $objects, $definitions, $xrefOffset);
-            if ($helperObjects !== $objects) {
-                $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $trailer, $helperObjects);
-            }
-        }
+        $previousOffset = $this->previousXrefOffsetForSectionBody($pdfBytes, $trailer, $xrefOffset, $definitions, $objects);
 
         if ($previousOffset === null || $previousOffset < 0) {
             return $entries;

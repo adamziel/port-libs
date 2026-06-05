@@ -688,6 +688,89 @@ $xrefPrevChainClassicTableDamagedOffsetPdf = static function () use ($xrefPrevCh
     return $pdf;
 };
 
+$xrefPrevChainClassicTableDamagedPrevStaleOffsetPdf = static function () use ($xrefPrevChainIncrementalUpdateCurrentBaseXmp): string {
+    $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale damaged Prev table page) Tj ET';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current damaged Prev table page) Tj T* (Damaged Prev repaired rows) Tj ET';
+    $stalePayload = '<wp-export><post id="stale-damaged-prev-table"/></wp-export>';
+    $currentPayload = '<wp-export><post id="current-damaged-prev-table"/></wp-export>';
+    $staleXmp = $xrefPrevChainIncrementalUpdateCurrentBaseXmp(
+        'Stale Damaged Prev Table XMP Title',
+        'Stale damaged Prev table metadata must not win'
+    );
+    $currentXmp = $xrefPrevChainIncrementalUpdateCurrentBaseXmp(
+        'Current Damaged Prev Table XMP Title',
+        'Current classic table rows repaired after damaged Prev'
+    );
+
+    $pdf = "%PDF-1.7\n";
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf): int {
+        $offset = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $xrefTableRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+
+    $staleCatalogOffset = $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $stalePagesOffset = $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $stalePageOffset = $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+    $staleContentOffset = $addObject(4, 0, "<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream");
+    $fontOffset = $addObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $staleInfoOffset = $addObject(6, 0, '<< /Title (Stale Damaged Prev Table Info Title) /Author (Stale Damaged Prev Author) /Producer (Stale Damaged Prev Producer) >>');
+    $staleMetadataOffset = $addObject(7, 0, '<< /Type /Metadata /Subtype /XML /Length ' . strlen($staleXmp) . " >>\nstream\n{$staleXmp}\nendstream");
+    $staleNameTreeOffset = $addObject(8, 0, '<< /Names [(stale-damaged-prev-table.xml) 10 0 R] >>');
+    $staleFileSpecOffset = $addObject(10, 0, '<< /Type /Filespec /F (stale-damaged-prev-table.xml) /Desc (Stale damaged Prev table attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+    $staleEmbeddedFileOffset = $addObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($stalePayload) . " >>\nstream\n{$stalePayload}\nendstream");
+
+    $previousXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 12\n"
+        . $xrefTableRow(0, 65535, 'f')
+        . $xrefTableRow($staleCatalogOffset)
+        . $xrefTableRow($stalePagesOffset)
+        . $xrefTableRow($stalePageOffset)
+        . $xrefTableRow($staleContentOffset)
+        . $xrefTableRow($fontOffset)
+        . $xrefTableRow($staleInfoOffset)
+        . $xrefTableRow($staleMetadataOffset)
+        . $xrefTableRow($staleNameTreeOffset)
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow($staleFileSpecOffset)
+        . $xrefTableRow($staleEmbeddedFileOffset)
+        . "trailer\n<< /Size 12 /Root 1 0 R /Info 6 0 R >>\n"
+        . "startxref\n{$previousXrefOffset}\n%%EOF\n";
+
+    $currentCatalogOffset = $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $currentPagesOffset = $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $currentPageOffset = $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+    $currentContentOffset = $addObject(4, 0, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+    $currentInfoOffset = $addObject(6, 0, '<< /Title (Current Damaged Prev Table Info Title) /Author (Current Damaged Prev Author) /Producer (Current Damaged Prev Producer) >>');
+    $currentMetadataOffset = $addObject(7, 0, '<< /Type /Metadata /Subtype /XML /Length ' . strlen($currentXmp) . " >>\nstream\n{$currentXmp}\nendstream");
+    $currentNameTreeOffset = $addObject(8, 0, '<< /Names [(current-damaged-prev-table.xml) 10 0 R] >>');
+    $currentFileSpecOffset = $addObject(10, 0, '<< /Type /Filespec /F (current-damaged-prev-table.xml) /Desc (Current damaged Prev table attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+    $currentEmbeddedFileOffset = $addObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+    $currentXrefOffset = strlen($pdf);
+    $damagedPrevOffset = $currentEmbeddedFileOffset + 5;
+    $pdf .= "xref\n"
+        . "1 4\n"
+        . $xrefTableRow($staleCatalogOffset)
+        . $xrefTableRow($stalePagesOffset)
+        . $xrefTableRow($stalePageOffset)
+        . $xrefTableRow($staleContentOffset)
+        . "6 3\n"
+        . $xrefTableRow($staleInfoOffset)
+        . $xrefTableRow($staleMetadataOffset)
+        . $xrefTableRow($staleNameTreeOffset)
+        . "10 2\n"
+        . $xrefTableRow($staleFileSpecOffset)
+        . $xrefTableRow($staleEmbeddedFileOffset)
+        . "trailer\n<< /Size 21 /Root 1 0 R /Info 6 0 R /Prev {$damagedPrevOffset} >>\n"
+        . "startxref\n{$currentXrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
 $xrefPrevChainClassicTableIndirectPrevOffsetPdf = static function () use ($xrefPrevChainIncrementalUpdateCurrentBaseXmp): string {
     $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale indirect Prev helper page) Tj ET';
     $currentContent = 'BT /F1 12 Tf 72 720 Td (Current indirect Prev helper page) Tj T* (Indirect Prev offset repaired) Tj ET';
@@ -1552,6 +1635,36 @@ return [
         $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Stale Classic'));
         $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'stale-classic-prev'));
         $t->true(!str_contains($text, 'Stale classic Prev table page'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'repairs latest classic xref-table stale rows after damaged Prev pointer recovery' => static function (
+        TestRunner $t
+    ) use ($xrefPrevChainClassicTableDamagedPrevStaleOffsetPdf): void {
+        $pdf = $xrefPrevChainClassicTableDamagedPrevStaleOffsetPdf();
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $extractor = new PdfTextExtractor();
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $text = $extractor->extractPlainText($pdf);
+        $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['Current damaged Prev table page', 'Damaged Prev repaired rows'], $extractor->extractTextLines($pdf));
+        $t->same("Current damaged Prev table page\nDamaged Prev repaired rows", $text);
+        $t->same(['xmp', 'info', 'catalog'], $metadata['source']);
+        $t->same('Current Damaged Prev Table XMP Title', $metadata['title']);
+        $t->same('Current classic table rows repaired after damaged Prev', $metadata['description']);
+        $t->same('Current Damaged Prev Table Info Title', $metadata['info']['Title']);
+        $t->same(['Current Damaged Prev Author'], $metadata['authors']);
+        $t->same('Current Damaged Prev Producer', $metadata['producer']);
+        $t->same('en-US', $metadata['language']);
+        $t->same(1, count($files));
+        $t->same('current-damaged-prev-table.xml', $files[0]['filename']);
+        $t->same('Current damaged Prev table attachment', $files[0]['description']);
+        $t->same('<wp-export><post id="current-damaged-prev-table"/></wp-export>', $files[0]['content']);
+        $t->true(str_contains($pdf, '/Prev '));
+        $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Stale Damaged Prev'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'stale-damaged-prev-table'));
+        $t->true(!str_contains($text, 'Stale damaged Prev table page'));
         $t->true(!str_contains($text, "\0"));
     },
     'repairs classic xref-table current update rows when Prev is an indirect numeric helper' => static function (
