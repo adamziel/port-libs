@@ -79,6 +79,39 @@ $boundaryPdf = "%PDF-1.4\n"
 $boundaryExtractor = new PdfTextExtractor();
 $boundaryLines = $boundaryExtractor->extractTextLines($boundaryPdf);
 $boundaryReview = $boundaryExtractor->extractImageXObjectBoundaryReview($boundaryPdf);
+$directBefore = 'BT /F1 12 Tf 72 720 Td (Before direct CCITT EOB import) Tj ET';
+$directBetween = 'BT /F1 12 Tf 72 690 Td (Between direct CCITT EOB import) Tj ET';
+$directAfter = 'BT /F1 12 Tf 72 660 Td (After direct CCITT EOB import) Tj ET';
+$directFakeG4 = 'BT /F1 12 Tf 72 700 Td (WordPress direct G4 CCITT leak) Tj ET';
+$directFakeRtc = 'BT /F1 12 Tf 72 680 Td (WordPress direct RTC CCITT leak) Tj ET';
+$ccittEofb = "\x00\x10\x01";
+$ccittRtc = $ccittEofb . $ccittEofb . $ccittEofb;
+$directG4Payload = "\x11\x22\n"
+    . "endstream\nendobj\n"
+    . "50 0 obj\n<< /Length " . strlen($directFakeG4) . " >>\nstream\n{$directFakeG4}\nendstream\nendobj\n"
+    . "\x33\x44{$ccittEofb}";
+$directRtcPayload = "\x55\x66\n"
+    . "endstream\nendobj\n"
+    . "51 0 obj\n<< /Length " . strlen($directFakeRtc) . " >>\nstream\n{$directFakeRtc}\nendstream\nendobj\n"
+    . "\x77\x88{$ccittRtc}";
+$directRtcStaleLength = strpos($directRtcPayload, "\nendstream\n");
+if ($directRtcStaleLength === false) {
+    throw new RuntimeException('Unable to build direct CCITT RTC stale-length fixture.');
+}
+$directBoundaryPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /FaxG4 5 0 R /FaxRtc 6 0 R >> >> >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 7 0 R 8 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($directBefore) . " >>\nstream\n{$directBefore}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 0 /ImageMask true /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns 16 /Rows 0 /EndOfBlock true >> >>\nstream\n{$directG4Payload}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /ImageMask true /BitsPerComponent 1 /Filter /CCF /DecodeParms << /K 0 /Columns 16 /Rows 0 /EndOfBlock true >> /Length {$directRtcStaleLength} >>\nstream\n{$directRtcPayload}\nendstream\nendobj\n"
+    . "7 0 obj\n<< /Length " . strlen($directBetween) . " >>\nstream\n{$directBetween}\nendstream\nendobj\n"
+    . "8 0 obj\n<< /Length " . strlen($directAfter) . " >>\nstream\n{$directAfter}\nendstream\nendobj\n"
+    . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+$directBoundaryLines = $boundaryExtractor->extractTextLines($directBoundaryPdf);
+$directBoundaryReview = $boundaryExtractor->extractImageXObjectBoundaryReview($directBoundaryPdf);
+$directG4Entry = $directBoundaryReview['entries'][0] ?? [];
+$directRtcEntry = $directBoundaryReview['entries'][1] ?? [];
 $geometryBefore = 'BT /F1 12 Tf 72 720 Td (Before CCITT geometry import) Tj ET';
 $geometryAfter = 'BT /F1 12 Tf 72 680 Td (After CCITT geometry import) Tj ET';
 $geometryPayload = 'BT /F1 12 Tf 72 700 Td (WordPress CCITT geometry payload noise) Tj ET';
@@ -113,6 +146,15 @@ if (
     throw new RuntimeException('Flate-wrapped CCITT Fax stale-length boundary smoke failed.');
 }
 if (
+    $directBoundaryLines !== ['Before direct CCITT EOB import', 'Between direct CCITT EOB import', 'After direct CCITT EOB import']
+    || str_contains($boundaryExtractor->extractPlainText($directBoundaryPdf), 'WordPress direct G4 CCITT leak')
+    || str_contains($boundaryExtractor->extractPlainText($directBoundaryPdf), 'WordPress direct RTC CCITT leak')
+    || (($directG4Entry['raw_length'] ?? null) !== strlen($directG4Payload))
+    || (($directRtcEntry['raw_length'] ?? null) !== strlen($directRtcPayload))
+) {
+    throw new RuntimeException('Direct CCITT Fax EOFB/RTC stream boundary smoke failed.');
+}
+if (
     ($inlineGeometryBoundary['effective_decode_parms']['end_of_block'] ?? null) !== true
     || ($inlineGeometryBoundary['dimension_mismatch'] ?? null) !== true
     || ($geometryBoundary['effective_width'] ?? null) !== 16
@@ -143,6 +185,12 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'flate_wrapped_ccitt_stale_length_repaired' => true,
     'flate_wrapped_ccitt_payload_excluded' => !str_contains($boundaryExtractor->extractPlainText($boundaryPdf), 'WordPress Flate CCITT prefix leak'),
     'flate_wrapped_ccitt_raw_length' => $boundaryReview['entries'][0]['raw_length'] ?? null,
+    'direct_ccitt_eofb_boundary_repaired' => ($directG4Entry['raw_length'] ?? null) === strlen($directG4Payload),
+    'direct_ccitt_rtc_boundary_repaired' => ($directRtcEntry['raw_length'] ?? null) === strlen($directRtcPayload),
+    'direct_ccitt_payload_excluded' => !str_contains($boundaryExtractor->extractPlainText($directBoundaryPdf), 'WordPress direct G4 CCITT leak')
+        && !str_contains($boundaryExtractor->extractPlainText($directBoundaryPdf), 'WordPress direct RTC CCITT leak'),
+    'direct_ccitt_eofb_effective_k' => $directG4Entry['ccitt_fax_decode_boundary']['effective_decode_parms']['k'] ?? null,
+    'direct_ccitt_rtc_effective_k' => $directRtcEntry['ccitt_fax_decode_boundary']['effective_decode_parms']['k'] ?? null,
     'decode_parms' => [
         ['K' => -1, 'Columns' => 1728, 'Rows' => 1, 'BlackIs1' => true],
         ['K' => 0, 'Columns' => 8, 'Rows' => 1, 'EncodedByteAlign' => true],

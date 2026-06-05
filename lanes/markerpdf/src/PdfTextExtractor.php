@@ -7696,8 +7696,19 @@ final class PdfTextExtractor
             }
         }
 
-        if ($ccittFilterIndex === null || $ccittFilterIndex === $firstFilterIndex) {
+        if ($ccittFilterIndex === null) {
             return null;
+        }
+
+        if ($ccittFilterIndex === $firstFilterIndex) {
+            return $this->directCcittFaxEndstreamTerminatorOffset(
+                $value,
+                $streamStart,
+                $dict,
+                $objects,
+                $filters,
+                $ccittFilterIndex
+            );
         }
 
         $payloadEnd = match ($firstFilter) {
@@ -7729,6 +7740,92 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string|null> $filters
+     */
+    private function directCcittFaxEndstreamTerminatorOffset(
+        string $value,
+        int $streamStart,
+        string $dict,
+        array $objects,
+        array $filters,
+        int $ccittFilterIndex
+    ): ?int {
+        $decodeParms = $this->streamDecodeParms($dict, $objects);
+        if ($decodeParms === null) {
+            return null;
+        }
+
+        $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $ccittFilterIndex);
+        if (!$this->ccittFaxDecodeParmsUsesEndOfBlock($filterDecodeParms, $objects)) {
+            return null;
+        }
+
+        $markers = $this->ccittFaxEndOfBlockMarkers($filterDecodeParms, $objects);
+        if ($markers === []) {
+            return null;
+        }
+
+        foreach ($markers as $marker) {
+            $offset = $streamStart;
+            while (($markerOffset = strpos($value, $marker, $offset)) !== false) {
+                $afterMarker = $markerOffset + strlen($marker);
+                $terminator = $this->skipPdfWhitespace($value, $afterMarker);
+                if ($this->endstreamKeywordAt($value, $terminator)) {
+                    return $terminator;
+                }
+
+                $offset = $markerOffset + 1;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function ccittFaxDecodeParmsUsesEndOfBlock(?string $decodeParms, array $objects): bool
+    {
+        if ($decodeParms === null || trim($decodeParms) === '') {
+            return true;
+        }
+
+        if ($this->decodeParmsHasName($decodeParms, 'EndOfBlock')) {
+            $endOfBlock = $this->decodeParmsBool($decodeParms, 'EndOfBlock', $objects);
+            if ($endOfBlock === null) {
+                return false;
+            }
+
+            if (!$endOfBlock) {
+                return false;
+            }
+        }
+
+        if ($this->decodeParmsHasName($decodeParms, 'K') && $this->decodeParmsInt($decodeParms, 'K', $objects) === null) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function ccittFaxEndOfBlockMarkers(?string $decodeParms, array $objects): array
+    {
+        $k = $this->decodeParmsInt($decodeParms, 'K', $objects) ?? 0;
+        $eolPair = "\x00\x10\x01";
+
+        if ($k < 0) {
+            return [$eolPair];
+        }
+
+        return [$eolPair . $eolPair . $eolPair];
     }
 
     private function firstFilterEndMarkerOffset(string $value, int $streamStart, string $marker): ?int

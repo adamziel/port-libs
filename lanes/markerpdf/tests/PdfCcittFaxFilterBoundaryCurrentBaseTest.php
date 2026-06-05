@@ -67,6 +67,41 @@ $ccittFaxInvalidDecodeParmsPdf = static function (): array {
     return [$pdf, $faxPayload, $aliasPayload];
 };
 
+$ccittFaxDirectEndBlockBoundaryPdf = static function (): array {
+    $before = 'BT /F1 12 Tf 72 720 Td (Before direct CCITT EOB) Tj ET';
+    $between = 'BT /F1 12 Tf 72 690 Td (Between direct CCITT EOB) Tj ET';
+    $after = 'BT /F1 12 Tf 72 660 Td (After direct CCITT EOB) Tj ET';
+    $fakeG4Object = 'BT /F1 12 Tf 72 700 Td (Fake direct CCITT G4 owner leak) Tj ET';
+    $fakeRtcObject = 'BT /F1 12 Tf 72 680 Td (Fake direct CCITT RTC owner leak) Tj ET';
+    $eofb = "\x00\x10\x01";
+    $rtc = $eofb . $eofb . $eofb;
+    $g4Payload = "\x11\x22\n"
+        . "endstream\nendobj\n"
+        . "50 0 obj\n<< /Length " . strlen($fakeG4Object) . " >>\nstream\n{$fakeG4Object}\nendstream\nendobj\n"
+        . "\x33\x44{$eofb}";
+    $rtcPayload = "\x55\x66\n"
+        . "endstream\nendobj\n"
+        . "51 0 obj\n<< /Length " . strlen($fakeRtcObject) . " >>\nstream\n{$fakeRtcObject}\nendstream\nendobj\n"
+        . "\x77\x88{$rtc}";
+    $rtcStaleLength = strpos($rtcPayload, "\nendstream\n");
+    if ($rtcStaleLength === false) {
+        throw new RuntimeException('Focused RTC CCITT fixture must expose a stale endstream marker.');
+    }
+
+    $pdf = "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /FaxG4 5 0 R /FaxRtc 6 0 R >> >> >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 7 0 R 8 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 0 /ImageMask true /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns 16 /Rows 0 /EndOfBlock true >> >>\nstream\n{$g4Payload}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /ImageMask true /BitsPerComponent 1 /Filter /CCF /DecodeParms << /K 0 /Columns 16 /Rows 0 /EndOfBlock true >> /Length {$rtcStaleLength} >>\nstream\n{$rtcPayload}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Length " . strlen($between) . " >>\nstream\n{$between}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n"
+        . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+    return [$pdf, $g4Payload, $rtcPayload];
+};
+
 return [
     'records CCITT Fax image DecodeParms without rasterizing or leaking payload text' => static function (TestRunner $t) use ($ccittFaxFilterBoundaryPdf): void {
         [$pdf, $faxPayload, $aliasPayload] = $ccittFaxFilterBoundaryPdf();
@@ -371,6 +406,38 @@ return [
             $t->same(strlen($compressedPayload), $entry['raw_length'] ?? null);
             $t->same(false, $entry['payload_in_visible_text'] ?? null);
         }
+    },
+    'uses direct CCITT EOFB and RTC markers before accepting fake endstream owners' => static function (TestRunner $t) use ($ccittFaxDirectEndBlockBoundaryPdf): void {
+        [$pdf, $g4Payload, $rtcPayload] = $ccittFaxDirectEndBlockBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+        $g4 = $review['entries'][0] ?? [];
+        $rtc = $review['entries'][1] ?? [];
+
+        $t->same(['Before direct CCITT EOB', 'Between direct CCITT EOB', 'After direct CCITT EOB'], $extractor->extractTextLines($pdf));
+        $t->same("Before direct CCITT EOB\nBetween direct CCITT EOB\nAfter direct CCITT EOB", $plainText);
+        $t->same("Before direct CCITT EOB\nBetween direct CCITT EOB\nAfter direct CCITT EOB\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Fake direct CCITT G4 owner leak'));
+        $t->true(!str_contains($plainText, 'Fake direct CCITT RTC owner leak'));
+        $t->true(!str_contains($plainText, 'endstream'));
+        $t->same(['CCITTFaxDecode'], $g4['filters'] ?? null);
+        $t->same(['CCITTFaxDecode'], $g4['preview_only_filters'] ?? null);
+        $t->same(strlen($g4Payload), $g4['raw_length'] ?? null);
+        $t->same(false, $g4['decoded_with_current_filters'] ?? null);
+        $t->same(false, $g4['payload_in_visible_text'] ?? null);
+        $t->same(-1, $g4['ccitt_fax_decode_boundary']['effective_decode_parms']['k'] ?? null);
+        $t->same(true, $g4['ccitt_fax_decode_boundary']['effective_decode_parms']['end_of_block'] ?? null);
+        $t->same(['CCF'], $rtc['filters'] ?? null);
+        $t->same(['CCF'], $rtc['preview_only_filters'] ?? null);
+        $t->same(strlen($rtcPayload), $rtc['raw_length'] ?? null);
+        $t->same(false, $rtc['decoded_with_current_filters'] ?? null);
+        $t->same(false, $rtc['payload_in_visible_text'] ?? null);
+        $t->same(0, $rtc['ccitt_fax_decode_boundary']['effective_decode_parms']['k'] ?? null);
+        $t->same(true, $rtc['ccitt_fax_decode_boundary']['effective_decode_parms']['end_of_block'] ?? null);
+        $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encodedReview, 'Fake direct CCITT G4 owner leak'));
+        $t->true(!str_contains($encodedReview, 'Fake direct CCITT RTC owner leak'));
     },
     'records effective CCITT Fax DecodeParms defaults and geometry boundaries before RGB preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
