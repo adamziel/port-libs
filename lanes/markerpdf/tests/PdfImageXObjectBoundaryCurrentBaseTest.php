@@ -607,6 +607,53 @@ return [
         $t->true(!str_contains($plainText, 'Outside Clip Image Payload Noise'));
         $t->true(!str_contains($plainText, 'Nested Clipped Image Payload Noise'));
     },
+    'applies moveto lineto clipping paths to image XObject placement review' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before path clipped image) Tj ET\n"
+            . "q 10 10 m 40 10 l 40 30 l 10 30 l h W n 50 0 0 40 0 0 cm /Path#20Clip#20Image Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After path clipped image) Tj ET';
+        $imagePayload = 'BT /F1 12 Tf 72 720 Td (Path Clip Image Payload Noise) Tj ET';
+        $compressedImagePayload = gzcompress($imagePayload);
+        if (!is_string($compressedImagePayload)) {
+            throw new RuntimeException('Unable to compress path clip image fixture payload.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Path#20Clip#20Image 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 50 /Height 40 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($compressedImagePayload) . " >>\nstream\n{$compressedImagePayload}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+        $entry = $review['entries'][0];
+
+        $t->same(1, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+        $t->same('Path Clip Image', $entry['resource_name']);
+        $t->same([[50.0, 0.0, 0.0, 40.0, 0.0, 0.0]], $entry['invocation_matrices']);
+        $t->same([[0.0, 0.0, 50.0, 40.0]], $entry['invocation_bboxes']);
+        $t->same([[10.0, 10.0, 40.0, 30.0]], $entry['invocation_clip_bboxes']);
+        $t->same([[10.0, 10.0, 40.0, 30.0]], $entry['invocation_visible_bboxes']);
+        $t->same([0.0, 0.0, 50.0, 40.0], $entry['image_unit_bbox']);
+        $t->same([10.0, 10.0, 40.0, 30.0], $entry['image_visible_bbox']);
+        $t->same(true, $entry['clip_applied']);
+        $t->same(true, $entry['clip_reduces_painted_bbox']);
+        $t->same(false, $entry['clip_excludes_image']);
+        $t->same(1, $entry['painted_invocation_count']);
+        $t->same(0, $entry['clip_excluded_invocation_count']);
+        $t->same(true, $entry['decoded_with_current_filters']);
+        $t->same(hash('sha256', $imagePayload), $entry['decoded_sha256']);
+        $t->same(['Before path clipped image', 'After path clipped image'], $extractor->extractTextLines($pdf));
+        $t->same("Before path clipped image\nAfter path clipped image", $plainText);
+        $t->true(!str_contains($plainText, 'Path Clip Image Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $imagePayload));
+    },
     'records image XObject dictionary metadata without leaking metadata streams into text' => static function (TestRunner $t): void {
         $pageContent = "BT /F1 12 Tf 72 720 Td (Before image metadata) Tj ET\n"
             . "q 18 0 0 9 72 690 cm /Meta#20Image Do Q\n"

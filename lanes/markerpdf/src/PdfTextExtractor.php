@@ -3235,6 +3235,8 @@ final class PdfTextExtractor
         $currentTransformationMatrix = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
         $clipRectangle = null;
         $currentPathRectangle = null;
+        $currentPathPoint = null;
+        $currentSubpathStartPoint = null;
         $clipStateStack = [];
 
         foreach ($this->contentTokens($stream) as $token) {
@@ -3318,6 +3320,8 @@ final class PdfTextExtractor
                 $clipStateStack[] = [
                     'clipRectangle' => $clipRectangle,
                     'currentPathRectangle' => $currentPathRectangle,
+                    'currentPathPoint' => $currentPathPoint,
+                    'currentSubpathStartPoint' => $currentSubpathStartPoint,
                     'currentTransformationMatrix' => $currentTransformationMatrix,
                 ];
                 $operands = [];
@@ -3329,6 +3333,8 @@ final class PdfTextExtractor
                 if (is_array($clipState)) {
                     $clipRectangle = $clipState['clipRectangle'];
                     $currentPathRectangle = $clipState['currentPathRectangle'];
+                    $currentPathPoint = $clipState['currentPathPoint'];
+                    $currentSubpathStartPoint = $clipState['currentSubpathStartPoint'];
                     $currentTransformationMatrix = $clipState['currentTransformationMatrix'];
                 }
                 $operands = [];
@@ -3340,7 +3346,9 @@ final class PdfTextExtractor
                 $operands,
                 $clipRectangle,
                 $currentPathRectangle,
-                $currentTransformationMatrix
+                $currentTransformationMatrix,
+                $currentPathPoint,
+                $currentSubpathStartPoint
             )) {
                 $operands = [];
                 continue;
@@ -4259,16 +4267,22 @@ final class PdfTextExtractor
                 $matrix = $state['matrix'];
                 $clipRectangle = $state['clip_bbox'];
                 $currentPathRectangle = $state['path_bbox'];
+                $currentPathPoint = $state['path_current_point'];
+                $currentSubpathStartPoint = $state['path_start_point'];
                 if ($this->applyClipPathStateOperator(
                     $token,
                     $operands,
                     $clipRectangle,
                     $currentPathRectangle,
-                    $matrix
+                    $matrix,
+                    $currentPathPoint,
+                    $currentSubpathStartPoint
                 )) {
                     $currentStates[$index]['matrix'] = $matrix;
                     $currentStates[$index]['clip_bbox'] = $clipRectangle;
                     $currentStates[$index]['path_bbox'] = $currentPathRectangle;
+                    $currentStates[$index]['path_current_point'] = $currentPathPoint;
+                    $currentStates[$index]['path_start_point'] = $currentSubpathStartPoint;
                     $clipPathOperatorHandled = true;
                 }
             }
@@ -4326,7 +4340,7 @@ final class PdfTextExtractor
 
     /**
      * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>}> $baseStates
-     * @return list<array{matrix: list<float>, clip_bbox: list<float>|null, path_bbox: list<float>|null, graphics_state: array<string, mixed>}>
+     * @return list<array{matrix: list<float>, clip_bbox: list<float>|null, path_bbox: list<float>|null, path_current_point: array{0: float, 1: float}|null, path_start_point: array{0: float, 1: float}|null, graphics_state: array<string, mixed>}>
      */
     private function normalizedInvocationBaseStates(array $baseStates): array
     {
@@ -4335,6 +4349,8 @@ final class PdfTextExtractor
                 'matrix' => [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
                 'clip_bbox' => null,
                 'path_bbox' => null,
+                'path_current_point' => null,
+                'path_start_point' => null,
                 'graphics_state' => $this->defaultInvocationGraphicsState(),
             ]];
         }
@@ -4355,6 +4371,8 @@ final class PdfTextExtractor
                 'matrix' => $matrix,
                 'clip_bbox' => $this->normalizedPdfRectangleOrNull($state['clip_bbox'] ?? null),
                 'path_bbox' => null,
+                'path_current_point' => null,
+                'path_start_point' => null,
                 'graphics_state' => $this->normalizeInvocationGraphicsState($state['graphics_state'] ?? null),
             ];
         }
@@ -4363,6 +4381,8 @@ final class PdfTextExtractor
             'matrix' => [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             'clip_bbox' => null,
             'path_bbox' => null,
+            'path_current_point' => null,
+            'path_start_point' => null,
             'graphics_state' => $this->defaultInvocationGraphicsState(),
         ]] : $normalized;
     }
@@ -14729,13 +14749,17 @@ final class PdfTextExtractor
      * @param list<float>|null $clipRectangle
      * @param list<float>|null $currentPathRectangle
      * @param list<float> $currentTransformationMatrix
+     * @param array{0: float, 1: float}|null $currentPathPoint
+     * @param array{0: float, 1: float}|null $currentSubpathStartPoint
      */
     private function applyClipPathStateOperator(
         string $operator,
         array $operands,
         ?array &$clipRectangle,
         ?array &$currentPathRectangle,
-        array &$currentTransformationMatrix
+        array &$currentTransformationMatrix,
+        ?array &$currentPathPoint,
+        ?array &$currentSubpathStartPoint
     ): bool {
         if ($operator === 'cm') {
             $matrix = $this->contentMatrixOperand($operands);
@@ -14755,6 +14779,59 @@ final class PdfTextExtractor
             return true;
         }
 
+        if ($operator === 'm') {
+            $point = $this->pathPointOperand($operands, $currentTransformationMatrix);
+            if ($point !== null) {
+                $currentPathPoint = $point;
+                $currentSubpathStartPoint = $point;
+                $currentPathRectangle = $this->pdfRectangleUnion($currentPathRectangle, [
+                    $point[0],
+                    $point[1],
+                    $point[0],
+                    $point[1],
+                ]);
+            }
+
+            return true;
+        }
+
+        if ($operator === 'l') {
+            $point = $this->pathPointOperand($operands, $currentTransformationMatrix);
+            if ($point !== null) {
+                $currentPathRectangle = $this->pdfRectangleUnionPathSegment(
+                    $currentPathRectangle,
+                    $currentPathPoint,
+                    $point
+                );
+                $currentPathPoint = $point;
+            }
+
+            return true;
+        }
+
+        if ($operator === 'c' || $operator === 'v' || $operator === 'y') {
+            $points = $this->curvePathOperandPoints($operator, $operands, $currentTransformationMatrix, $currentPathPoint);
+            if ($points !== []) {
+                $currentPathRectangle = $this->pdfRectangleUnionPathPoints($currentPathRectangle, $points);
+                $currentPathPoint = $points[count($points) - 1];
+            }
+
+            return true;
+        }
+
+        if ($operator === 'h') {
+            if ($currentSubpathStartPoint !== null) {
+                $currentPathRectangle = $this->pdfRectangleUnionPathSegment(
+                    $currentPathRectangle,
+                    $currentPathPoint,
+                    $currentSubpathStartPoint
+                );
+                $currentPathPoint = $currentSubpathStartPoint;
+            }
+
+            return true;
+        }
+
         if ($operator === 'W' || $operator === 'W*') {
             if ($currentPathRectangle !== null) {
                 $clipRectangle = $this->pdfRectangleIntersection($clipRectangle, $currentPathRectangle);
@@ -14765,6 +14842,8 @@ final class PdfTextExtractor
 
         if ($this->pathOperatorClearsCurrentPath($operator)) {
             $currentPathRectangle = null;
+            $currentPathPoint = null;
+            $currentSubpathStartPoint = null;
 
             return true;
         }
@@ -14812,6 +14891,79 @@ final class PdfTextExtractor
             max($xs),
             max($ys),
         ];
+    }
+
+    /**
+     * @param list<string> $operands
+     * @param list<float> $matrix
+     * @return array{0: float, 1: float}|null
+     */
+    private function pathPointOperand(array $operands, array $matrix): ?array
+    {
+        if (count($operands) < 2) {
+            return null;
+        }
+
+        $x = $this->numericOperand($operands[count($operands) - 2]);
+        $y = $this->numericOperand($operands[count($operands) - 1]);
+        if ($x === null || $y === null) {
+            return null;
+        }
+
+        return $this->pdfMatrixTransformPoint($matrix, $x, $y);
+    }
+
+    /**
+     * @param list<string> $operands
+     * @param list<float> $matrix
+     * @param array{0: float, 1: float}|null $currentPathPoint
+     * @return list<array{0: float, 1: float}>
+     */
+    private function curvePathOperandPoints(
+        string $operator,
+        array $operands,
+        array $matrix,
+        ?array $currentPathPoint
+    ): array {
+        $requiredOperands = $operator === 'c' ? 6 : 4;
+        if (count($operands) < $requiredOperands) {
+            return [];
+        }
+
+        $numbers = [];
+        foreach (array_slice($operands, -$requiredOperands) as $operand) {
+            $number = $this->numericOperand($operand);
+            if ($number === null) {
+                return [];
+            }
+            $numbers[] = $number;
+        }
+
+        $points = [];
+        if ($currentPathPoint !== null) {
+            $points[] = $currentPathPoint;
+        }
+
+        if ($operator === 'c') {
+            for ($index = 0; $index < 6; $index += 2) {
+                $points[] = $this->pdfMatrixTransformPoint($matrix, $numbers[$index], $numbers[$index + 1]);
+            }
+
+            return $points;
+        }
+
+        if ($operator === 'v') {
+            for ($index = 0; $index < 4; $index += 2) {
+                $points[] = $this->pdfMatrixTransformPoint($matrix, $numbers[$index], $numbers[$index + 1]);
+            }
+
+            return $points;
+        }
+
+        $points[] = $this->pdfMatrixTransformPoint($matrix, $numbers[0], $numbers[1]);
+        $points[] = $this->pdfMatrixTransformPoint($matrix, $numbers[2], $numbers[3]);
+
+        return $points;
     }
 
     /**
@@ -14867,6 +15019,45 @@ final class PdfTextExtractor
             max($left[2], $right[2]),
             max($left[3], $right[3]),
         ];
+    }
+
+    /**
+     * @param list<float>|null $rectangle
+     * @param array{0: float, 1: float}|null $start
+     * @param array{0: float, 1: float} $end
+     * @return list<float>
+     */
+    private function pdfRectangleUnionPathSegment(?array $rectangle, ?array $start, array $end): array
+    {
+        if ($start === null) {
+            return $this->pdfRectangleUnion($rectangle, [$end[0], $end[1], $end[0], $end[1]]);
+        }
+
+        return $this->pdfRectangleUnion($rectangle, [
+            min($start[0], $end[0]),
+            min($start[1], $end[1]),
+            max($start[0], $end[0]),
+            max($start[1], $end[1]),
+        ]);
+    }
+
+    /**
+     * @param list<float>|null $rectangle
+     * @param list<array{0: float, 1: float}> $points
+     * @return list<float>|null
+     */
+    private function pdfRectangleUnionPathPoints(?array $rectangle, array $points): ?array
+    {
+        foreach ($points as $point) {
+            $rectangle = $this->pdfRectangleUnion($rectangle, [
+                $point[0],
+                $point[1],
+                $point[0],
+                $point[1],
+            ]);
+        }
+
+        return $rectangle;
     }
 
     /**
@@ -23170,6 +23361,8 @@ final class PdfTextExtractor
         $currentTransformationMatrix = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
         $clipRectangle = null;
         $currentPathRectangle = null;
+        $currentPathPoint = null;
+        $currentSubpathStartPoint = null;
         $clipStateStack = [];
         foreach ($this->contentTokens($stream) as $token) {
             if ($this->isTextShowingOperator($token)) {
@@ -23229,6 +23422,8 @@ final class PdfTextExtractor
                 $clipStateStack[] = [
                     'clipRectangle' => $clipRectangle,
                     'currentPathRectangle' => $currentPathRectangle,
+                    'currentPathPoint' => $currentPathPoint,
+                    'currentSubpathStartPoint' => $currentSubpathStartPoint,
                     'currentTransformationMatrix' => $currentTransformationMatrix,
                 ];
                 $operands = [];
@@ -23251,6 +23446,8 @@ final class PdfTextExtractor
                 if (is_array($clipState)) {
                     $clipRectangle = $clipState['clipRectangle'];
                     $currentPathRectangle = $clipState['currentPathRectangle'];
+                    $currentPathPoint = $clipState['currentPathPoint'];
+                    $currentSubpathStartPoint = $clipState['currentSubpathStartPoint'];
                     $currentTransformationMatrix = $clipState['currentTransformationMatrix'];
                 }
                 $operands = [];
@@ -23374,7 +23571,9 @@ final class PdfTextExtractor
                 $operands,
                 $clipRectangle,
                 $currentPathRectangle,
-                $currentTransformationMatrix
+                $currentTransformationMatrix,
+                $currentPathPoint,
+                $currentSubpathStartPoint
             )) {
                 $operands = [];
                 continue;
@@ -23429,6 +23628,8 @@ final class PdfTextExtractor
         $currentTransformationMatrix = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
         $clipRectangle = null;
         $currentPathRectangle = null;
+        $currentPathPoint = null;
+        $currentSubpathStartPoint = null;
         $clipStateStack = [];
 
         foreach ($this->contentTokens($stream) as $token) {
@@ -23613,6 +23814,8 @@ final class PdfTextExtractor
                 $clipStateStack[] = [
                     'clipRectangle' => $clipRectangle,
                     'currentPathRectangle' => $currentPathRectangle,
+                    'currentPathPoint' => $currentPathPoint,
+                    'currentSubpathStartPoint' => $currentSubpathStartPoint,
                     'currentTransformationMatrix' => $currentTransformationMatrix,
                 ];
                 $operands = [];
@@ -23635,6 +23838,8 @@ final class PdfTextExtractor
                 if (is_array($clipState)) {
                     $clipRectangle = $clipState['clipRectangle'];
                     $currentPathRectangle = $clipState['currentPathRectangle'];
+                    $currentPathPoint = $clipState['currentPathPoint'];
+                    $currentSubpathStartPoint = $clipState['currentSubpathStartPoint'];
                     $currentTransformationMatrix = $clipState['currentTransformationMatrix'];
                 }
                 $operands = [];
@@ -23794,7 +23999,9 @@ final class PdfTextExtractor
                 $operands,
                 $clipRectangle,
                 $currentPathRectangle,
-                $currentTransformationMatrix
+                $currentTransformationMatrix,
+                $currentPathPoint,
+                $currentSubpathStartPoint
             )) {
                 $operands = [];
                 continue;
@@ -24447,6 +24654,8 @@ final class PdfTextExtractor
         $currentTransformationMatrix = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
         $clipRectangle = null;
         $currentPathRectangle = null;
+        $currentPathPoint = null;
+        $currentSubpathStartPoint = null;
         $clipStateStack = [];
 
         foreach ($this->contentTokens($stream) as $token) {
@@ -24599,6 +24808,8 @@ final class PdfTextExtractor
                 $clipStateStack[] = [
                     'clipRectangle' => $clipRectangle,
                     'currentPathRectangle' => $currentPathRectangle,
+                    'currentPathPoint' => $currentPathPoint,
+                    'currentSubpathStartPoint' => $currentSubpathStartPoint,
                     'currentTransformationMatrix' => $currentTransformationMatrix,
                 ];
                 $operands = [];
@@ -24620,6 +24831,8 @@ final class PdfTextExtractor
                 if (is_array($clipState)) {
                     $clipRectangle = $clipState['clipRectangle'];
                     $currentPathRectangle = $clipState['currentPathRectangle'];
+                    $currentPathPoint = $clipState['currentPathPoint'];
+                    $currentSubpathStartPoint = $clipState['currentSubpathStartPoint'];
                     $currentTransformationMatrix = $clipState['currentTransformationMatrix'];
                 }
                 $operands = [];
@@ -24766,7 +24979,9 @@ final class PdfTextExtractor
                 $operands,
                 $clipRectangle,
                 $currentPathRectangle,
-                $currentTransformationMatrix
+                $currentTransformationMatrix,
+                $currentPathPoint,
+                $currentSubpathStartPoint
             )) {
                 $operands = [];
                 continue;
