@@ -1030,6 +1030,9 @@ final class PdfAttachmentExtractor
         $portfolioItem = $this->collectionItemReview($fileSpec['CI'] ?? null, $objects);
         $macFileInfo = $this->embeddedFileMacInfoReview($params['Mac'] ?? null, $objects, $encryptionPolicy);
 
+        $createdAt = $this->stringValue($this->resolveValue($params['CreationDate'] ?? null, $objects));
+        $modifiedAt = $this->stringValue($this->resolveValue($params['ModDate'] ?? null, $objects));
+
         $attachment = [
             ...$context,
             'source' => $source,
@@ -1042,11 +1045,13 @@ final class PdfAttachmentExtractor
             'content_type' => $this->nameValue($this->resolveValue($streamDict['Subtype'] ?? null, $objects)),
             'declared_size' => $declaredSize,
             'checksum_hex' => $checksum,
-            'created_at' => $this->stringValue($this->resolveValue($params['CreationDate'] ?? null, $objects)),
-            'modified_at' => $this->stringValue($this->resolveValue($params['ModDate'] ?? null, $objects)),
+            'created_at' => $createdAt,
+            'modified_at' => $modifiedAt,
             'executes_python_or_models' => false,
             'executes_external_pdf_tools' => false,
         ];
+        $this->addUtcDateReview($attachment, 'created_at', $createdAt);
+        $this->addUtcDateReview($attachment, 'modified_at', $modifiedAt);
         foreach ($filenameReview as $key => $metadataValue) {
             $attachment[$key] = $metadataValue;
         }
@@ -1318,7 +1323,9 @@ final class PdfAttachmentExtractor
                 'computed_checksum_hex',
                 'checksum_matches',
                 'created_at',
+                'created_at_utc',
                 'modified_at',
+                'modified_at_utc',
                 'filters',
                 'bytes',
             ] as $key) {
@@ -1383,7 +1390,9 @@ final class PdfAttachmentExtractor
                     'computed_checksum_hex',
                     'checksum_matches',
                     'created_at',
+                    'created_at_utc',
                     'modified_at',
+                    'modified_at_utc',
                     'filters',
                 ] as $key) {
                     unset($row[$key]);
@@ -2142,6 +2151,9 @@ final class PdfAttachmentExtractor
         $checksum = $this->stringBytesHex($this->resolveValue($params['CheckSum'] ?? null, $objects));
         $macFileInfo = $this->embeddedFileMacInfoReview($params['Mac'] ?? null, $objects, $encryptionPolicy);
 
+        $createdAt = $this->stringValue($this->resolveValue($params['CreationDate'] ?? null, $objects));
+        $modifiedAt = $this->stringValue($this->resolveValue($params['ModDate'] ?? null, $objects));
+
         $row = [
             'source' => 'filespec_related_files',
             'rf_key' => $rfKey,
@@ -2150,11 +2162,13 @@ final class PdfAttachmentExtractor
             'content_type' => $this->nameValue($this->resolveValue($streamDict['Subtype'] ?? null, $objects)),
             'byte_length' => strlen($bytes),
             'sha256' => hash('sha256', $bytes),
-            'created_at' => $this->stringValue($this->resolveValue($params['CreationDate'] ?? null, $objects)),
-            'modified_at' => $this->stringValue($this->resolveValue($params['ModDate'] ?? null, $objects)),
+            'created_at' => $createdAt,
+            'modified_at' => $modifiedAt,
             'executes_python_or_models' => false,
             'executes_external_pdf_tools' => false,
         ];
+        $this->addUtcDateReview($row, 'created_at', $createdAt);
+        $this->addUtcDateReview($row, 'modified_at', $modifiedAt);
 
         if ($relatedFilename !== null && $relatedFilename !== '') {
             $row['related_filename'] = $relatedFilename;
@@ -2296,11 +2310,16 @@ final class PdfAttachmentExtractor
         $decodedLength = $this->intValue($this->resolveValue($streamDict['DL'] ?? null, $objects));
         $checksum = $this->stringBytesHex($this->resolveValue($params['CheckSum'] ?? null, $objects));
 
+        $createdAt = $this->stringValue($this->resolveValue($params['CreationDate'] ?? null, $objects));
+        $modifiedAt = $this->stringValue($this->resolveValue($params['ModDate'] ?? null, $objects));
+
         $review['content_type'] = $this->nameValue($this->resolveValue($streamDict['Subtype'] ?? null, $objects));
         $review['byte_length'] = strlen($bytes);
         $review['sha256'] = hash('sha256', $bytes);
-        $review['created_at'] = $this->stringValue($this->resolveValue($params['CreationDate'] ?? null, $objects));
-        $review['modified_at'] = $this->stringValue($this->resolveValue($params['ModDate'] ?? null, $objects));
+        $review['created_at'] = $createdAt;
+        $review['modified_at'] = $modifiedAt;
+        $this->addUtcDateReview($review, 'created_at', $createdAt);
+        $this->addUtcDateReview($review, 'modified_at', $modifiedAt);
         if ($filters !== []) {
             $review['filters'] = $filters;
         }
@@ -2320,6 +2339,17 @@ final class PdfAttachmentExtractor
         }
 
         return $review;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function addUtcDateReview(array &$metadata, string $field, ?string $value): void
+    {
+        $normalized = PdfDateTimeNormalizer::toUtc($value);
+        if ($normalized !== null) {
+            $metadata[$field . '_utc'] = $normalized;
+        }
     }
 
     /**

@@ -1526,11 +1526,19 @@ final class PdfEmbeddedFileExtractor
         $createdAt = $this->dictionaryStringValue($paramsBody, 'CreationDate', $objects);
         if ($createdAt !== null && $createdAt !== '') {
             $metadata['created_at'] = $createdAt;
+            $createdAtUtc = PdfDateTimeNormalizer::toUtc($createdAt);
+            if ($createdAtUtc !== null) {
+                $metadata['created_at_utc'] = $createdAtUtc;
+            }
         }
 
         $modifiedAt = $this->dictionaryStringValue($paramsBody, 'ModDate', $objects);
         if ($modifiedAt !== null && $modifiedAt !== '') {
             $metadata['modified_at'] = $modifiedAt;
+            $modifiedAtUtc = PdfDateTimeNormalizer::toUtc($modifiedAt);
+            if ($modifiedAtUtc !== null) {
+                $metadata['modified_at_utc'] = $modifiedAtUtc;
+            }
         }
 
         return $metadata;
