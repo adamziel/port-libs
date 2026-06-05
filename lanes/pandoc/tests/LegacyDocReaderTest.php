@@ -944,6 +944,55 @@ return [
         $t->same(['passwordProtected', 'readOnlyRecommended'], $metadata['documentSecurityFlags']);
         $t->same('Unicode Legacy Packet Ω', $result['document']->attr('meta')['title']);
     },
+    'surfaces legacy DOC FibBase language and document-state flags for review' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u16): void {
+        $wordDocument = $buildSimpleWordDocument("FibBase review packet\r", 0x2c33);
+        $wordDocument = substr_replace($wordDocument, $u16(0x0409), 6, 2);
+        $wordDocument = substr_replace($wordDocument, $u16(0x00bf), 12, 2);
+        $docBytes = $buildCfb([
+            'WordDocument' => $wordDocument,
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $fib = $result['fib'];
+        $fibBase = $result['metadata']['fibBase'];
+
+        $t->same(0x0409, $fib['languageId']);
+        $t->same('en-US', $fib['languageTag']);
+        $t->same(0x00bf, $fib['nFibBack']);
+        $t->same(0, $fib['lKey']);
+        $t->same(3, $fib['quickSaveCount']);
+        $t->same([
+            'template',
+            'glossary',
+            'readOnlyRecommended',
+            'writeReservation',
+            'loadOverride',
+        ], $fib['flagNames']);
+        $t->same(true, $fib['template']);
+        $t->same(true, $fib['glossary']);
+        $t->same(true, $fib['readOnlyRecommended']);
+        $t->same(true, $fib['writeReservation']);
+        $t->same(true, $fib['loadOverride']);
+        $t->same(false, $fib['encrypted']);
+        $t->same($fibBase, $result['document']->attr('meta')['fibBase']);
+        $t->same(0x0409, $fibBase['languageId']);
+        $t->same('en-US', $fibBase['languageTag']);
+        $t->same(0x00bf, $fibBase['nFibBack']);
+        $t->same('0Table', $fibBase['tableStream']);
+        $t->same(3, $fibBase['quickSaveCount']);
+        $t->same([
+            'template',
+            'glossary',
+            'readOnlyRecommended',
+            'writeReservation',
+            'loadOverride',
+        ], $fibBase['flags']);
+        $t->same(true, $fibBase['template']);
+        $t->same(true, $fibBase['glossary']);
+        $t->same(true, $fibBase['readOnlyRecommended']);
+        $t->same(true, $fibBase['writeReservation']);
+        $t->same(true, $fibBase['loadOverride']);
+    },
     'decodes legacy DOC LPSTR metadata using the property-set code page' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedLpstrBytes, $typedI2): void {
         $titleBytes = hex2bin('c8ecefeef0f220eef2e7fbe2eee2');
         $creatorBytes = hex2bin('d0e5e4e0eaf2eef0');
@@ -1578,6 +1627,15 @@ return [
 
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb([
             'WordDocument' => $buildSimpleWordDocument("Encrypted payload should stay opaque\r", 0x0100),
+        ])));
+    },
+    'rejects unencrypted legacy DOC FIBs with nonzero lKey before exposing text' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32): void {
+        $reader = new LegacyDocReader();
+        $wordDocument = $buildSimpleWordDocument("Nonzero lKey payload should stay opaque\r");
+        $wordDocument = substr_replace($wordDocument, $u32(0x12345678), 14, 4);
+
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb([
+            'WordDocument' => $wordDocument,
         ])));
     },
     'rejects malformed legacy DOC containers without shelling out to Word' => static function (TestRunner $t) use ($buildCfb): void {

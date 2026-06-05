@@ -48,6 +48,9 @@ final class LegacyDocReader
         if ($fib['encrypted'] === true) {
             throw new \RuntimeException('Legacy DOC encrypted streams are not supported by the native reader');
         }
+        if ((int) $fib['lKey'] !== 0) {
+            throw new \RuntimeException('Legacy DOC unencrypted FIB contains a nonzero lKey encryption verifier');
+        }
 
         $tableStreamName = (string) $fib['tableStream'];
         $tableStream = null;
@@ -65,6 +68,7 @@ final class LegacyDocReader
         $streamDirectory = $this->streamDirectoryReport($compoundFile);
         $directoryEntries = $this->directoryEntryReport($compoundFile);
         $metadata = $this->readMetadata($compoundFile);
+        $metadata['fibBase'] = $this->fibBaseReviewMetadata($fib);
         if ($streamDirectory !== []) {
             $metadata['cfbStreamCount'] = count($streamDirectory);
         }
@@ -177,20 +181,122 @@ final class LegacyDocReader
         }
 
         $flags = self::u16($wordDocument, 10);
+        $languageId = self::u16($wordDocument, 6);
+        $pnNext = self::u16($wordDocument, 8);
+        $nFibBack = self::u16($wordDocument, 12);
+        $lKey = self::u32($wordDocument, 14);
         $fcMin = self::u32($wordDocument, 24);
         $fcMac = self::u32($wordDocument, 28);
 
         return [
             'wIdent' => $wIdent,
             'nFib' => self::u16($wordDocument, 2),
+            'nFibBack' => $nFibBack,
+            'languageId' => $languageId,
+            'languageTag' => $this->legacyLanguageTag($languageId),
+            'pnNext' => $pnNext,
+            'lKey' => $lKey,
             'flags' => $flags,
+            'flagNames' => $this->fibFlagNames($flags),
+            'quickSaveCount' => ($flags >> 4) & 0x0f,
             'fcMin' => $fcMin,
             'fcMac' => $fcMac,
             'tableStream' => ($flags & 0x0200) !== 0 ? '1Table' : '0Table',
+            'template' => ($flags & 0x0001) !== 0,
+            'glossary' => ($flags & 0x0002) !== 0,
             'complex' => ($flags & 0x0004) !== 0,
+            'hasPictures' => ($flags & 0x0008) !== 0,
             'encrypted' => ($flags & 0x0100) !== 0,
+            'readOnlyRecommended' => ($flags & 0x0400) !== 0,
+            'writeReservation' => ($flags & 0x0800) !== 0,
             'extendedCharacters' => ($flags & 0x1000) !== 0,
+            'loadOverride' => ($flags & 0x2000) !== 0,
+            'farEast' => ($flags & 0x4000) !== 0,
+            'obfuscated' => ($flags & 0x8000) !== 0,
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $fib
+     * @return array<string,mixed>
+     */
+    private function fibBaseReviewMetadata(array $fib): array
+    {
+        $metadata = [
+            'nFib' => (int) ($fib['nFib'] ?? 0),
+            'nFibBack' => (int) ($fib['nFibBack'] ?? 0),
+            'languageId' => (int) ($fib['languageId'] ?? 0),
+            'pnNext' => (int) ($fib['pnNext'] ?? 0),
+            'tableStream' => (string) ($fib['tableStream'] ?? ''),
+            'quickSaveCount' => (int) ($fib['quickSaveCount'] ?? 0),
+            'flags' => is_array($fib['flagNames'] ?? null) ? $fib['flagNames'] : [],
+            'template' => ($fib['template'] ?? false) === true,
+            'glossary' => ($fib['glossary'] ?? false) === true,
+            'complex' => ($fib['complex'] ?? false) === true,
+            'hasPictures' => ($fib['hasPictures'] ?? false) === true,
+            'readOnlyRecommended' => ($fib['readOnlyRecommended'] ?? false) === true,
+            'writeReservation' => ($fib['writeReservation'] ?? false) === true,
+            'extendedCharacters' => ($fib['extendedCharacters'] ?? false) === true,
+            'loadOverride' => ($fib['loadOverride'] ?? false) === true,
+            'farEast' => ($fib['farEast'] ?? false) === true,
+        ];
+
+        if (($fib['languageTag'] ?? null) !== null) {
+            $metadata['languageTag'] = (string) $fib['languageTag'];
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function fibFlagNames(int $flags): array
+    {
+        $map = [
+            0x0001 => 'template',
+            0x0002 => 'glossary',
+            0x0004 => 'complex',
+            0x0008 => 'hasPictures',
+            0x0100 => 'encrypted',
+            0x0200 => 'tableStream1',
+            0x0400 => 'readOnlyRecommended',
+            0x0800 => 'writeReservation',
+            0x1000 => 'extendedCharacters',
+            0x2000 => 'loadOverride',
+            0x4000 => 'farEast',
+            0x8000 => 'obfuscated',
+        ];
+
+        $names = [];
+        foreach ($map as $bit => $name) {
+            if (($flags & $bit) !== 0) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
+    }
+
+    private function legacyLanguageTag(int $languageId): ?string
+    {
+        return match ($languageId) {
+            0x0404 => 'zh-TW',
+            0x0407 => 'de-DE',
+            0x0409 => 'en-US',
+            0x040c => 'fr-FR',
+            0x0410 => 'it-IT',
+            0x0411 => 'ja-JP',
+            0x0412 => 'ko-KR',
+            0x0413 => 'nl-NL',
+            0x0416 => 'pt-BR',
+            0x0419 => 'ru-RU',
+            0x0804 => 'zh-CN',
+            0x0809 => 'en-GB',
+            0x0816 => 'pt-PT',
+            0x0c0a => 'es-ES',
+            default => null,
+        };
     }
 
     /**

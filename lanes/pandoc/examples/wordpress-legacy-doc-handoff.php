@@ -295,7 +295,9 @@ $sepxFc = strlen($wordDocument) + 64;
 $wordDocument = str_pad($wordDocument, $sepxFc, "\0") . $u16(4) . "\x34\x12\x00\x00";
 $wordDocument = substr_replace($wordDocument, $u16(0xa5ec), 0, 2);
 $wordDocument = substr_replace($wordDocument, $u16(0x00c1), 2, 2);
-$wordDocument = substr_replace($wordDocument, $u16(0x1204), 10, 2);
+$wordDocument = substr_replace($wordDocument, $u16(0x0409), 6, 2);
+$wordDocument = substr_replace($wordDocument, $u16(0x3e34), 10, 2);
+$wordDocument = substr_replace($wordDocument, $u16(0x00bf), 12, 2);
 $wordDocument = substr_replace($wordDocument, $u32(0), 24, 4);
 $wordDocument = substr_replace($wordDocument, $u32($mainTextByteEnd), 28, 4);
 
@@ -694,6 +696,22 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['metadata']['documentSecurityFlags'] ?? []) !== ['readOnlyRecommended']) {
         throw new RuntimeException('Legacy DOC handoff self-test missing document security flags');
+    }
+    if (($summary['metadata']['fibBase']['languageTag'] ?? '') !== 'en-US' || ($summary['metadata']['fibBase']['languageId'] ?? null) !== 0x0409) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing FIB language provenance');
+    }
+    if (($summary['metadata']['fibBase']['nFibBack'] ?? null) !== 0x00bf || ($summary['metadata']['fibBase']['quickSaveCount'] ?? null) !== 3) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing FIB version/quick-save provenance');
+    }
+    if (($summary['metadata']['fibBase']['flags'] ?? []) !== [
+        'complex',
+        'tableStream1',
+        'readOnlyRecommended',
+        'writeReservation',
+        'extendedCharacters',
+        'loadOverride',
+    ]) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing FIB state flags');
     }
     if (($summary['metadata']['cfbStreamCount'] ?? null) !== 14 || ($summary['metadata']['cfbTimestampedDirectoryEntryCount'] ?? null) !== 2) {
         throw new RuntimeException('Legacy DOC handoff self-test missing CFB directory counts');
