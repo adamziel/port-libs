@@ -435,6 +435,23 @@ return [
         $t->same(["Pre {$leadingBom}"], UnicodeText::wrapByDisplayWidth("Pre {$leadingBom}", 9, '  '));
         $t->same(3, UnicodeText::displayWidth("A\u{00AD}\u{00B7}", 'wide'));
     },
+    'keeps prepended format controls zero width for multilingual display accounting' => static function (TestRunner $t): void {
+        $arabicNumber = "\u{0600}";
+        $arabicEnd = "\u{06DD}";
+        $syriacAbbrev = "\u{070F}";
+        $arabicPound = "\u{0890}";
+        $kaithiNumber = "\u{110BD}";
+        $kaithiNumberJoiner = "\u{110CD}";
+        $label = "{$arabicNumber}رقم {$syriacAbbrev}ܣܘܪܝܝܐ {$kaithiNumber}kaithi";
+
+        $t->same(17, UnicodeText::displayWidth($label));
+        $t->same(2, UnicodeText::displayWidth("A{$arabicNumber}{$arabicEnd}B"));
+        $t->same(2, UnicodeText::displayWidth("A{$arabicPound}{$kaithiNumberJoiner}B"));
+        $t->same(["{$arabicNumber}ر", 'ق', 'م'], UnicodeText::splitByDisplayBreakpoints("{$arabicNumber}رقم", [1, 2]));
+        $t->same(["A{$arabicPound}", 'B'], UnicodeText::splitAtDisplayWidth("A{$arabicPound}B", 1));
+        $t->same(["Audit {$arabicNumber}رقم", '  tail'], UnicodeText::wrapByDisplayWidth("Audit {$arabicNumber}رقم tail", 9, '  '));
+        $t->same(" {$arabicNumber}رقم", UnicodeText::padDisplay("{$arabicNumber}رقم", 4, 'right'));
+    },
     'writes markdown pipe table padding with unicode display widths' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('table', [

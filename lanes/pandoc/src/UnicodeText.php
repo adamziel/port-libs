@@ -1050,6 +1050,7 @@ final class UnicodeText
     private static function isCombiningOrZeroWidth(int $codepoint): bool
     {
         return self::isUnicodeCombiningMark($codepoint)
+            || self::isUnicodeFormatControl($codepoint)
             || ($codepoint >= 0x0300 && $codepoint <= 0x036f)
             || $codepoint === 0x00ad
             || ($codepoint >= 0x0483 && $codepoint <= 0x0489)
@@ -1118,6 +1119,33 @@ final class UnicodeText
         }
 
         return self::isBoundedIndicSpacingMark($codepoint);
+    }
+
+    private static function isUnicodeFormatControl(int $codepoint): bool
+    {
+        if (class_exists(\IntlChar::class)) {
+            return \IntlChar::charType($codepoint) === \IntlChar::CHAR_CATEGORY_FORMAT_CHAR;
+        }
+
+        return self::isBoundedZeroWidthFormatControl($codepoint);
+    }
+
+    private static function isBoundedZeroWidthFormatControl(int $codepoint): bool
+    {
+        return ($codepoint >= 0x0600 && $codepoint <= 0x0605)
+            || $codepoint === 0x061c
+            || $codepoint === 0x06dd
+            || $codepoint === 0x070f
+            || ($codepoint >= 0x0890 && $codepoint <= 0x0891)
+            || $codepoint === 0x08e2
+            || $codepoint === 0x180e
+            || ($codepoint >= 0x200b && $codepoint <= 0x200f)
+            || ($codepoint >= 0x202a && $codepoint <= 0x202e)
+            || ($codepoint >= 0x2060 && $codepoint <= 0x206f)
+            || $codepoint === 0xfeff
+            || $codepoint === 0x110bd
+            || $codepoint === 0x110cd
+            || ($codepoint >= 0x13430 && $codepoint <= 0x1343f);
     }
 
     private static function isBoundedIndicSpacingMark(int $codepoint): bool
