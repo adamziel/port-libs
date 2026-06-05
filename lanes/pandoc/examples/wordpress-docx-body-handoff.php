@@ -181,6 +181,16 @@ XML],
       <w:r><w:t>ملف المصدر paragraph direction remains labeled.</w:t></w:r>
     </w:p>
     <w:p>
+      <w:pPr>
+        <w:jc w:val="center"/>
+        <w:spacing w:before="240" w:after="120" w:line="360" w:lineRule="auto"/>
+        <w:ind w:left="720" w:firstLine="240"/>
+        <w:keepNext/>
+        <w:pageBreakBefore/>
+      </w:pPr>
+      <w:r><w:t>Centered source packet layout remains labeled.</w:t></w:r>
+    </w:p>
+    <w:p>
       <w:r><w:t xml:space="preserve">Textbox lead </w:t></w:r>
       <w:r>
         <w:pict>
@@ -507,6 +517,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Reviewer marks <span class="docx-highlight docx-highlight-yellow" data-docx-highlight="yellow">priority update</span> and <span class="docx-shading" data-docx-shading-val="clear" data-docx-shading-fill="D9EAF7">source shading</span>.</p>',
         '<p>Multilingual source note <span class="docx-language" data-docx-lang="es-ES" lang="es-ES">Resumen</span> and <span class="docx-language docx-rtl" data-docx-lang="ar-SA" data-docx-lang-bidi="ar-SA" lang="ar-SA" dir="rtl">ملف المصدر</span> remain labeled.</p>',
         '<p><span class="docx-paragraph-bidi docx-rtl docx-text-direction docx-text-direction-tbrl" data-docx-paragraph-bidi="true" dir="rtl" data-docx-text-direction="tbRl">ملف المصدر paragraph direction remains labeled.</span></p>',
+        '<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-paragraph-indent docx-keep-next docx-page-break-before" data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-spacing-line="360" data-docx-spacing-line-rule="auto" data-docx-indent-left-twips="720" data-docx-indent-first-line-twips="240" data-docx-keep-next="true" data-docx-page-break-before="true">Centered source packet layout remains labeled.</span></p>',
         '<p>Textbox lead </p>',
         '<p>Source textbox note from VML shape.</p>',
         '<p>Fallback textbox reminder.</p>',

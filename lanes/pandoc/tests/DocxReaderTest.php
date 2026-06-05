@@ -935,6 +935,39 @@ $paragraphBidiDirectionDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$paragraphLayoutDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr>
+        <w:jc w:val="center"/>
+        <w:spacing w:before="240" w:after="120" w:line="360" w:lineRule="auto"/>
+        <w:ind w:left="720" w:right="360" w:firstLine="240" w:hanging="120"/>
+        <w:keepNext/>
+        <w:pageBreakBefore/>
+      </w:pPr>
+      <w:r><w:t>Centered review paragraph.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:jc w:val="both"/>
+        <w:spacing w:beforeLines="100" w:afterLines="50"/>
+        <w:ind w:start="480" w:end="240"/>
+      </w:pPr>
+      <w:r><w:t>Justified source packet paragraph.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:jc w:val="end"/><w:keepNext w:val="0"/><w:pageBreakBefore w:val="false"/></w:pPr>
+      <w:r><w:t>Trailing aligned paragraph.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Heading2"/><w:jc w:val="right"/></w:pPr>
+      <w:r><w:t>Aligned review heading</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $sectionPropertiesDocumentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
@@ -1259,6 +1292,14 @@ $buildParagraphBidiDirectionPackage = static function () use ($contentTypesXml, 
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $paragraphBidiDirectionDocumentXml],
+    ]);
+};
+
+$buildParagraphLayoutPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $paragraphLayoutDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $paragraphLayoutDocumentXml],
     ]);
 };
 
@@ -2428,6 +2469,74 @@ return [
         $t->contains('<h2 id="rtl-review-heading"><span class="docx-paragraph-bidi docx-rtl" data-docx-paragraph-bidi="true" dir="rtl">RTL Review Heading</span></h2>', $blocks);
         $t->true(!str_contains($markdown, 'Disabled bidi stays plain.]{'), 'Disabled DOCX paragraph bidi should not create Markdown attributes');
         $t->true(!str_contains($blocks, 'Disabled bidi stays plain.</span>'), 'Disabled DOCX paragraph bidi should not create WordPress span metadata');
+    },
+    'preserves DOCX paragraph layout metadata as reviewer spans' => static function (TestRunner $t) use ($buildParagraphLayoutPackage): void {
+        $document = (new DocxReader())->readDocument($buildParagraphLayoutPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(4, count($document->children));
+
+        $centered = $document->children[0]->children[0];
+        $t->same('span', $centered->type);
+        $t->same([
+            'docx-paragraph-align',
+            'docx-align-center',
+            'docx-paragraph-spacing',
+            'docx-paragraph-indent',
+            'docx-keep-next',
+            'docx-page-break-before',
+        ], $centered->attr('classes'));
+        $centeredAttrs = $centered->attr('attributes');
+        $t->same('center', $centeredAttrs['data-docx-paragraph-align']);
+        $t->same('240', $centeredAttrs['data-docx-spacing-before-twips']);
+        $t->same('120', $centeredAttrs['data-docx-spacing-after-twips']);
+        $t->same('360', $centeredAttrs['data-docx-spacing-line']);
+        $t->same('auto', $centeredAttrs['data-docx-spacing-line-rule']);
+        $t->same('720', $centeredAttrs['data-docx-indent-left-twips']);
+        $t->same('360', $centeredAttrs['data-docx-indent-right-twips']);
+        $t->same('240', $centeredAttrs['data-docx-indent-first-line-twips']);
+        $t->same('120', $centeredAttrs['data-docx-indent-hanging-twips']);
+        $t->same('true', $centeredAttrs['data-docx-keep-next']);
+        $t->same('true', $centeredAttrs['data-docx-page-break-before']);
+        $t->same('Centered review paragraph.', $centered->children[0]->attr('text'));
+
+        $justified = $document->children[1]->children[0];
+        $t->same('span', $justified->type);
+        $t->same(['docx-paragraph-align', 'docx-align-both', 'docx-paragraph-spacing', 'docx-paragraph-indent'], $justified->attr('classes'));
+        $justifiedAttrs = $justified->attr('attributes');
+        $t->same('both', $justifiedAttrs['data-docx-paragraph-align']);
+        $t->same('100', $justifiedAttrs['data-docx-spacing-before-lines']);
+        $t->same('50', $justifiedAttrs['data-docx-spacing-after-lines']);
+        $t->same('480', $justifiedAttrs['data-docx-indent-start-twips']);
+        $t->same('240', $justifiedAttrs['data-docx-indent-end-twips']);
+
+        $endAligned = $document->children[2]->children[0];
+        $t->same('span', $endAligned->type);
+        $t->same(['docx-paragraph-align', 'docx-align-end'], $endAligned->attr('classes'));
+        $t->same('end', $endAligned->attr('attributes')['data-docx-paragraph-align']);
+        $t->true(!isset($endAligned->attr('attributes')['data-docx-keep-next']), 'Disabled keepNext should not create metadata');
+        $t->true(!isset($endAligned->attr('attributes')['data-docx-page-break-before']), 'Disabled pageBreakBefore should not create metadata');
+
+        $heading = $document->children[3];
+        $t->same('heading', $heading->type);
+        $t->same(2, $heading->attr('level'));
+        $t->same('aligned-review-heading', $heading->attr('id'));
+        $headingSpan = $heading->children[0];
+        $t->same('span', $headingSpan->type);
+        $t->same(['docx-paragraph-align', 'docx-align-right'], $headingSpan->attr('classes'));
+        $t->same('right', $headingSpan->attr('attributes')['data-docx-paragraph-align']);
+        $t->same('Aligned review heading', $headingSpan->children[0]->attr('text'));
+
+        $t->contains('[Centered review paragraph.]{.docx-paragraph-align .docx-align-center .docx-paragraph-spacing .docx-paragraph-indent .docx-keep-next .docx-page-break-before data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-spacing-line="360" data-docx-spacing-line-rule="auto" data-docx-indent-left-twips="720" data-docx-indent-right-twips="360" data-docx-indent-first-line-twips="240" data-docx-indent-hanging-twips="120" data-docx-keep-next="true" data-docx-page-break-before="true"}', $markdown);
+        $t->contains('[Justified source packet paragraph.]{.docx-paragraph-align .docx-align-both .docx-paragraph-spacing .docx-paragraph-indent data-docx-paragraph-align="both" data-docx-spacing-before-lines="100" data-docx-spacing-after-lines="50" data-docx-indent-start-twips="480" data-docx-indent-end-twips="240"}', $markdown);
+        $t->contains('[Trailing aligned paragraph.]{.docx-paragraph-align .docx-align-end data-docx-paragraph-align="end"}', $markdown);
+        $t->contains('## [Aligned review heading]{.docx-paragraph-align .docx-align-right data-docx-paragraph-align="right"}', $markdown);
+
+        $t->contains('<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-paragraph-indent docx-keep-next docx-page-break-before" data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-spacing-line="360" data-docx-spacing-line-rule="auto" data-docx-indent-left-twips="720" data-docx-indent-right-twips="360" data-docx-indent-first-line-twips="240" data-docx-indent-hanging-twips="120" data-docx-keep-next="true" data-docx-page-break-before="true">Centered review paragraph.</span></p>', $blocks);
+        $t->contains('<p><span class="docx-paragraph-align docx-align-both docx-paragraph-spacing docx-paragraph-indent" data-docx-paragraph-align="both" data-docx-spacing-before-lines="100" data-docx-spacing-after-lines="50" data-docx-indent-start-twips="480" data-docx-indent-end-twips="240">Justified source packet paragraph.</span></p>', $blocks);
+        $t->contains('<p><span class="docx-paragraph-align docx-align-end" data-docx-paragraph-align="end">Trailing aligned paragraph.</span></p>', $blocks);
+        $t->contains('<h2 id="aligned-review-heading"><span class="docx-paragraph-align docx-align-right" data-docx-paragraph-align="right">Aligned review heading</span></h2>', $blocks);
     },
     'reports DOCX section page geometry margins columns and header footer relationships' => static function (TestRunner $t) use ($buildSectionPropertiesPackage): void {
         $reader = new DocxReader();

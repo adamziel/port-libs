@@ -1341,6 +1341,20 @@ final class DocxReader
             }
         }
 
+        $this->appendParagraphAlignmentMetadata($properties, $classes, $attributes);
+        $this->appendParagraphSpacingMetadata($properties, $classes, $attributes);
+        $this->appendParagraphIndentMetadata($properties, $classes, $attributes);
+
+        if ($this->hasOnOffChild($properties, 'keepNext')) {
+            $classes[] = 'docx-keep-next';
+            $attributes['data-docx-keep-next'] = 'true';
+        }
+
+        if ($this->hasOnOffChild($properties, 'pageBreakBefore')) {
+            $classes[] = 'docx-page-break-before';
+            $attributes['data-docx-page-break-before'] = 'true';
+        }
+
         if ($classes === [] && $attributes === []) {
             return null;
         }
@@ -1349,6 +1363,102 @@ final class DocxReader
             'classes' => array_values(array_unique($classes)),
             'attributes' => $attributes,
         ];
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     */
+    private function appendParagraphAlignmentMetadata(\DOMElement $properties, array &$classes, array &$attributes): void
+    {
+        $alignment = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'jc');
+        if (!$alignment instanceof \DOMElement) {
+            return;
+        }
+
+        $value = trim((string) ($this->wordAttr($alignment, 'val') ?? ''));
+        if ($value === '') {
+            return;
+        }
+
+        $classes[] = 'docx-paragraph-align';
+        $suffix = $this->metadataClassSuffix($value);
+        if ($suffix !== null) {
+            $classes[] = 'docx-align-' . $suffix;
+        }
+        $attributes['data-docx-paragraph-align'] = $value;
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     */
+    private function appendParagraphSpacingMetadata(\DOMElement $properties, array &$classes, array &$attributes): void
+    {
+        $spacing = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'spacing');
+        if (!$spacing instanceof \DOMElement) {
+            return;
+        }
+
+        $spacingAttributes = [];
+        foreach ([
+            'before' => 'data-docx-spacing-before-twips',
+            'after' => 'data-docx-spacing-after-twips',
+            'line' => 'data-docx-spacing-line',
+            'beforeLines' => 'data-docx-spacing-before-lines',
+            'afterLines' => 'data-docx-spacing-after-lines',
+        ] as $source => $target) {
+            $value = $this->optionalIntWordAttr($spacing, $source);
+            if ($value !== null) {
+                $spacingAttributes[$target] = (string) $value;
+            }
+        }
+
+        $lineRule = trim((string) ($this->wordAttr($spacing, 'lineRule') ?? ''));
+        if ($lineRule !== '') {
+            $spacingAttributes['data-docx-spacing-line-rule'] = $lineRule;
+        }
+
+        if ($spacingAttributes === []) {
+            return;
+        }
+
+        $classes[] = 'docx-paragraph-spacing';
+        $attributes += $spacingAttributes;
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     */
+    private function appendParagraphIndentMetadata(\DOMElement $properties, array &$classes, array &$attributes): void
+    {
+        $indent = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'ind');
+        if (!$indent instanceof \DOMElement) {
+            return;
+        }
+
+        $indentAttributes = [];
+        foreach ([
+            'left' => 'data-docx-indent-left-twips',
+            'right' => 'data-docx-indent-right-twips',
+            'start' => 'data-docx-indent-start-twips',
+            'end' => 'data-docx-indent-end-twips',
+            'firstLine' => 'data-docx-indent-first-line-twips',
+            'hanging' => 'data-docx-indent-hanging-twips',
+        ] as $source => $target) {
+            $value = $this->optionalIntWordAttr($indent, $source);
+            if ($value !== null) {
+                $indentAttributes[$target] = (string) $value;
+            }
+        }
+
+        if ($indentAttributes === []) {
+            return;
+        }
+
+        $classes[] = 'docx-paragraph-indent';
+        $attributes += $indentAttributes;
     }
 
     /**
