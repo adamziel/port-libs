@@ -381,6 +381,25 @@ HTML;
 
         $t->same(true, is_array($packet));
         $packet = is_array($packet) ? $packet : [];
+        $t->same(2, count($packet['columnGroups'] ?? []));
+        $t->same([0, 1], $packet['columnGroups'][0]['columns'] ?? null);
+        $t->same(0, $packet['columnGroups'][0]['startColumn'] ?? null);
+        $t->same(2, $packet['columnGroups'][0]['endColumn'] ?? null);
+        $t->same(2, $packet['columnGroups'][0]['span'] ?? null);
+        $t->same('col', $packet['columnGroups'][0]['kind'] ?? null);
+        $t->same(0, $packet['columnGroups'][0]['colgroupIndex'] ?? null);
+        $t->same(0, $packet['columnGroups'][0]['colIndex'] ?? null);
+        $t->same([0, 1], $packet['columnGroups'][0]['spanOffsets'] ?? null);
+        $t->same([0.25, 0.25], $packet['columnGroups'][0]['widths'] ?? null);
+        $t->same(['right', 'right'], $packet['columnGroups'][0]['alignments'] ?? null);
+        $t->same('legacy-doc', $packet['columnGroups'][0]['source']['colgroupAttributes']['htmlAttributes']['data-source'] ?? null);
+        $t->same('col-a', $packet['columnGroups'][0]['source']['colAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->same([2], $packet['columnGroups'][1]['columns'] ?? null);
+        $t->same(1, $packet['columnGroups'][1]['colIndex'] ?? null);
+        $t->same([0], $packet['columnGroups'][1]['spanOffsets'] ?? null);
+        $t->same('col-b', $packet['columnGroups'][1]['source']['colAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->same(2, $packet['summary']['columnGroupCount'] ?? null);
+        $t->same(true, $packet['summary']['hasColumnGroups'] ?? null);
         $t->same('col', $packet['columns'][0]['source']['kind'] ?? null);
         $t->same(0, $packet['columns'][1]['source']['colIndex'] ?? null);
         $t->same(1, $packet['columns'][1]['source']['spanOffset'] ?? null);
@@ -388,6 +407,53 @@ HTML;
         $t->same('col-a', $packet['coverage'][3]['columnSources'][0]['colAttributes']['htmlAttributes']['data-origin'] ?? null);
         $t->same('col-b', $packet['coverage'][5]['columnSources'][0]['colAttributes']['htmlAttributes']['data-origin'] ?? null);
         $t->contains('<colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:50%"/></colgroup>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'groups html colgroup element span runs in table geometry packets' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="colgroup-span-grid" data-source="html-reader">
+<caption>Colgroup span review</caption>
+<colgroup span="2" style="width: 30%; text-align: right" data-origin="group-span"></colgroup>
+<colgroup data-origin="single-group">
+<col style="width: 40%; text-align: center" data-origin="single-col" />
+</colgroup>
+<tbody>
+<tr><td>Posts</td><td>Media</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same(3, TableGeometry::columnCount($table));
+        $t->same(['right', 'right', 'center'], $table->attr('alignments'));
+        $t->same([0.3, 0.3, 0.4], $table->attr('widths'));
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same(2, count($packet['columnGroups'] ?? []));
+        $t->same('colgroup', $packet['columnGroups'][0]['kind'] ?? null);
+        $t->same([0, 1], $packet['columnGroups'][0]['columns'] ?? null);
+        $t->same(0, $packet['columnGroups'][0]['startColumn'] ?? null);
+        $t->same(2, $packet['columnGroups'][0]['endColumn'] ?? null);
+        $t->same(2, $packet['columnGroups'][0]['span'] ?? null);
+        $t->same(2, $packet['columnGroups'][0]['sourceSpan'] ?? null);
+        $t->same([0, 1], $packet['columnGroups'][0]['spanOffsets'] ?? null);
+        $t->same('group-span', $packet['columnGroups'][0]['source']['colgroupAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->true(!array_key_exists('colIndex', $packet['columnGroups'][0]), 'Element-level colgroup spans should not invent child col indexes');
+        $t->same('col', $packet['columnGroups'][1]['kind'] ?? null);
+        $t->same([2], $packet['columnGroups'][1]['columns'] ?? null);
+        $t->same('single-col', $packet['columnGroups'][1]['source']['colAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->same(2, $packet['summary']['columnGroupCount'] ?? null);
+        $t->same(true, $packet['summary']['hasColumnGroups'] ?? null);
+        $t->same('group-span', $packet['coverage'][0]['columnSources'][0]['colgroupAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->same('single-col', $packet['coverage'][2]['columnSources'][0]['colAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->same([], $packet['summary']['diagnosticCodes'] ?? null);
+        $t->contains('<colgroup><col style="width:30%"/><col style="width:30%"/><col style="width:40%"/></colgroup>', $blocks);
+        $t->contains('<tbody><tr><td style="text-align:right">Posts</td><td style="text-align:right">Media</td><td style="text-align:center">Ready</td></tr></tbody>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'reports html colgroup count mismatches while preserving usable geometry metadata' => static function (TestRunner $t): void {
@@ -454,6 +520,10 @@ HTML;
         $t->same(true, is_array($overPacket));
         $overPacket = is_array($overPacket) ? $overPacket : [];
         $t->same(['html-colgroup-overdeclares-columns'], $overPacket['summary']['diagnosticCodes'] ?? null);
+        $t->same([[0, 1, 2]], array_map(static fn (array $group): array => $group['columns'], $overPacket['columnGroups'] ?? []));
+        $t->same([0, 1, 2], $overPacket['columnGroups'][0]['spanOffsets'] ?? null);
+        $t->same(3, $overPacket['columnGroups'][0]['sourceSpan'] ?? null);
+        $t->same(1, $overPacket['summary']['columnGroupCount'] ?? null);
         $t->same(3, $overPacket['diagnostics'][0]['sourceColumns'] ?? null);
         $t->same(2, $overPacket['diagnostics'][0]['tableColumns'] ?? null);
         $t->same([2], $overPacket['diagnostics'][0]['extraColumns'] ?? null);

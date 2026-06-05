@@ -684,6 +684,50 @@ final class TableGeometry
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function columnGroups(AstNode $table, ?int $columnCount = null): array
+    {
+        $columnCount = max(0, $columnCount ?? self::columnCount($table));
+        if ($columnCount === 0) {
+            return [];
+        }
+
+        $groups = [];
+        $activeGroup = null;
+        $activeKey = '';
+        foreach (self::columnSpecs($table, $columnCount) as $spec) {
+            $source = $spec['source'] ?? null;
+            if (!is_array($source)) {
+                if (is_array($activeGroup)) {
+                    $groups[] = $activeGroup;
+                    $activeGroup = null;
+                    $activeKey = '';
+                }
+                continue;
+            }
+
+            $key = self::columnGroupSourceKey($source);
+            if (!is_array($activeGroup) || $key !== $activeKey) {
+                if (is_array($activeGroup)) {
+                    $groups[] = $activeGroup;
+                }
+                $activeGroup = self::columnGroupFromSpec($spec, $source);
+                $activeKey = $key;
+                continue;
+            }
+
+            self::appendColumnGroupSpec($activeGroup, $spec, $source);
+        }
+
+        if (is_array($activeGroup)) {
+            $groups[] = $activeGroup;
+        }
+
+        return $groups;
+    }
+
+    /**
      * @return array{
      *     columnCount:int,
      *     hasExplicitWidths:bool,
@@ -791,6 +835,7 @@ final class TableGeometry
      *     columnCount:int,
      *     declaredColumnCount:int,
      *     columns:list<array{column:int,alignment:string,width:?float,declared:bool}>,
+     *     columnGroups:list<array<string, mixed>>,
      *     captions:array<string, array<string, mixed>>,
      *     sections:list<array<string, mixed>>,
      *     coverage:list<array<string, mixed>>,
@@ -808,6 +853,7 @@ final class TableGeometry
         $diagnostics = self::diagnostics($table);
         $captions = self::captionMetadata($table);
         $widthSummary = self::columnWidthSummary($table, $columnCount);
+        $columnGroups = self::columnGroups($table, $columnCount);
         $writerDowngrades = [];
         foreach (self::reviewPacketWriters($options['writers'] ?? ['markdown']) as $writer) {
             $writerDowngrades[$writer] = self::writerDowngradeDiagnosticsFromCoverage($coverageRecords, $writer);
@@ -823,13 +869,21 @@ final class TableGeometry
             'columnCount' => $columnCount,
             'declaredColumnCount' => self::declaredColumnCount($table),
             'columns' => self::columnSpecs($table, $columnCount),
+            'columnGroups' => $columnGroups,
             'widthSummary' => $widthSummary,
             'sections' => self::serializableSectionGrids($sections),
             'coverage' => $coverage,
             'diagnostics' => $diagnostics,
             'writerDowngrades' => $writerDowngrades,
             'accessibility' => $accessibility,
-            'summary' => self::reviewPacketSummary($sections, $coverage, $diagnostics, $writerDowngrades, $captions),
+            'summary' => self::reviewPacketSummary(
+                $sections,
+                $coverage,
+                $diagnostics,
+                $writerDowngrades,
+                $captions,
+                $columnGroups
+            ),
         ];
 
         $sourceAttributes = self::sourceAttributeSummary($table);
@@ -1339,6 +1393,7 @@ final class TableGeometry
      * @param list<array<string, mixed>> $diagnostics
      * @param array<string, list<array<string, mixed>>> $writerDowngrades
      * @param array{long:array<string, mixed>,short:array<string, mixed>} $captions
+     * @param list<array<string, mixed>> $columnGroups
      * @return array<string, mixed>
      */
     private static function reviewPacketSummary(
@@ -1346,7 +1401,8 @@ final class TableGeometry
         array $coverage,
         array $diagnostics,
         array $writerDowngrades,
-        array $captions
+        array $captions,
+        array $columnGroups
     ): array
     {
         $rowCount = 0;
@@ -1446,6 +1502,8 @@ final class TableGeometry
             'maxVisualShift' => $maxVisualShift,
             'nestedTableCount' => $nestedTableCount,
             'nestedTableCellCount' => $nestedTableCellCount,
+            'columnGroupCount' => count($columnGroups),
+            'hasColumnGroups' => $columnGroups !== [],
             'writerDowngradeCount' => $writerDowngradeCount,
             'writerDowngradeCodes' => array_values(array_unique($writerDowngradeCodes)),
             'writerDowngradeWriters' => array_values(array_unique($writerDowngradeWriters)),
@@ -1898,6 +1956,86 @@ final class TableGeometry
     private static function roundWidth(float $width): float
     {
         return round($width, 6);
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     */
+    private static function columnGroupSourceKey(array $source): string
+    {
+        return implode('|', [
+            (string) ($source['kind'] ?? ''),
+            (string) ($source['colgroupIndex'] ?? ''),
+            (string) ($source['colIndex'] ?? ''),
+            (string) ($source['sourceSpan'] ?? ''),
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $spec
+     * @param array<string, mixed> $source
+     * @return array<string, mixed>
+     */
+    private static function columnGroupFromSpec(array $spec, array $source): array
+    {
+        $column = (int) ($spec['column'] ?? 0);
+        $group = [
+            'kind' => (string) ($source['kind'] ?? 'column'),
+            'startColumn' => $column,
+            'endColumn' => $column + 1,
+            'columns' => [$column],
+            'span' => 1,
+            'spanOffsets' => [self::columnSourceOffset($source)],
+            'alignments' => [(string) ($spec['alignment'] ?? 'default')],
+            'widths' => [$spec['width'] ?? null],
+            'declaredColumns' => [(bool) ($spec['declared'] ?? false)],
+            'source' => self::columnGroupSource($source),
+        ];
+
+        foreach (['colgroupIndex', 'colIndex', 'sourceSpan'] as $key) {
+            if (isset($source[$key]) && is_numeric($source[$key])) {
+                $group[$key] = (int) $source[$key];
+            }
+        }
+
+        return $group;
+    }
+
+    /**
+     * @param array<string, mixed> $group
+     * @param array<string, mixed> $spec
+     * @param array<string, mixed> $source
+     */
+    private static function appendColumnGroupSpec(array &$group, array $spec, array $source): void
+    {
+        $column = (int) ($spec['column'] ?? 0);
+        $group['endColumn'] = $column + 1;
+        $group['columns'][] = $column;
+        $group['span'] = count($group['columns']);
+        $group['spanOffsets'][] = self::columnSourceOffset($source);
+        $group['alignments'][] = (string) ($spec['alignment'] ?? 'default');
+        $group['widths'][] = $spec['width'] ?? null;
+        $group['declaredColumns'][] = (bool) ($spec['declared'] ?? false);
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     */
+    private static function columnSourceOffset(array $source): int
+    {
+        return isset($source['spanOffset']) && is_numeric($source['spanOffset']) ? (int) $source['spanOffset'] : 0;
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     * @return array<string, mixed>
+     */
+    private static function columnGroupSource(array $source): array
+    {
+        $record = $source;
+        unset($record['column'], $record['spanOffset'], $record['alignment'], $record['width']);
+
+        return $record;
     }
 
     /**
