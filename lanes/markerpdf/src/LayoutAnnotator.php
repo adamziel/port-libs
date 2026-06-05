@@ -184,6 +184,9 @@ final class LayoutAnnotator
             if (preg_match('/^-?\d+$/', $trimmed) === 1) {
                 return (int) $trimmed;
             }
+            if (preg_match('/^-?\d+\.0+$/', $trimmed) === 1) {
+                return (int) $trimmed;
+            }
         }
 
         return null;

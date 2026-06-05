@@ -709,6 +709,61 @@ return [
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'normalizes decimal string page markers before selected pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(230, [
+                    ['text' => 'Decimal marker cover page skipped', 'bbox' => [72.0, 80.0, 320.0, 94.0]],
+                ]),
+                $pdftextLinesPage(231, [
+                    ['text' => 'Second decimal-marker selected column', 'bbox' => [330.0, 112.0, 540.0, 126.0]],
+                    ['text' => 'First decimal-marker selected column', 'bbox' => [72.0, 112.0, 270.0, 126.0]],
+                ]),
+                $pdftextLinesPage(232, [
+                    ['text' => 'Decimal marker appendix page skipped', 'bbox' => [72.0, 80.0, 320.0, 94.0]],
+                ]),
+            ],
+            [
+                [
+                    'page' => '230.0',
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 96.0, 560.0, 144.0]],
+                        ['position' => 2, 'bbox' => [60.0, 96.0, 286.0, 144.0]],
+                    ],
+                ],
+                [
+                    'page' => '231.000',
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 286.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 560.0, 144.0]],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['page' => '230.0', 'image' => 'decimal-cover-order-render'],
+                ['page' => '231.000', 'image' => 'decimal-selected-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $processor = new MarkdownPostProcessor();
+        $blocks = $processor->mergeBlocks($processor->mergeSpans($result['pages']));
+
+        $t->same([1], $result['page_range']);
+        $t->same(231, $result['pages'][0]['pnum']);
+        $t->same(['First decimal-marker selected column', 'Second decimal-marker selected column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First decimal-marker selected column Second decimal-marker selected column', $blocks[0]['text']);
+        $t->same(231, $result['pages'][0]['order']['page']);
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
     'prefers exact page markers over weaker page_number collisions before layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
         $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
             [

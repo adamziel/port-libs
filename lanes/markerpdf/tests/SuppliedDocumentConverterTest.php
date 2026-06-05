@@ -646,6 +646,97 @@ return [
             unlink($path);
         }
     },
+    'normalizes decimal string page markers before supplied layout and order alignment' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-supplied-layout-order-decimal-page-marker-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% supplied decimal page-marker layout order boundary\n%%EOF");
+        try {
+            $coverPage = $pdftextPage(230, [
+                ['text' => 'Decimal keyed cover page artifact.', 'bbox' => [72.0, 80.0, 300.0, 94.0]],
+            ]);
+            $selectedPage = $pdftextPage(231, [
+                ['text' => 'Second decimal marker column carries review notes.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                ['text' => 'First decimal marker column starts the import.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+            ]);
+            $appendixPage = $pdftextPage(232, [
+                ['text' => 'Decimal keyed appendix page artifact.', 'bbox' => [72.0, 80.0, 320.0, 94.0]],
+            ]);
+
+            $layoutResults = [
+                [
+                    'page' => '230.0',
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['label' => 'Picture', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                        ['label' => 'Picture', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                    ],
+                ],
+                [
+                    'page' => '231.000',
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                        ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                    ],
+                ],
+            ];
+            $orderResults = [
+                [
+                    'page' => '230.0',
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                        ['position' => 2, 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                    ],
+                ],
+                [
+                    'page' => '231.000',
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                        ['position' => 2, 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                    ],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$coverPage, $selectedPage, $appendixPage],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['page' => '230.0', 'image' => 'decimal-cover-layout-render'],
+                        ['page' => '231.000', 'image' => 'decimal-selected-layout-render'],
+                    ],
+                    'layout_results' => $layoutResults,
+                    'order_images' => [
+                        ['page' => '230.0', 'image' => 'decimal-cover-order-render'],
+                        ['page' => '231.000', 'image' => 'decimal-selected-order-render'],
+                    ],
+                    'order_results' => $orderResults,
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $text = $result['text'];
+            $t->same([1], $result['metadata']['page_range']);
+            $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries']);
+            $t->same(1, $result['metadata']['layout_plan']['image_count']);
+            $t->same(1, $result['metadata']['layout_plan']['layout_result_count']);
+            $t->same(1, $result['metadata']['layout_plan']['assigned_pages']);
+            $t->same(1, $result['metadata']['order_plan']['image_count']);
+            $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+            $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+            $t->contains('First decimal marker column starts the import.', $text);
+            $t->contains('Second decimal marker column carries review notes.', $text);
+            $t->true(strpos($text, 'First decimal marker column starts the import.') < strpos($text, 'Second decimal marker column carries review notes.'));
+            $t->true(!str_contains($text, 'Decimal keyed cover page artifact.'));
+            $t->true(!str_contains($text, 'Decimal keyed appendix page artifact.'));
+        } finally {
+            unlink($path);
+        }
+    },
     'prefers exact page markers over one-based page_number collisions in supplied layout and order artifacts' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-supplied-layout-order-marker-precedence-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% supplied layout order marker precedence boundary\n%%EOF");
