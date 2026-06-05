@@ -9,6 +9,9 @@ final class PdfMarkupAnnotationExtractor
     private const DEFAULT_PAGE_BBOX = [0.0, 0.0, 612.0, 792.0];
     private const TEXT_MARKUP_SUBTYPES = ['Highlight', 'Underline', 'Squiggly', 'StrikeOut'];
 
+    /** @var array<int, array<int, string>> */
+    private array $objectBodiesByGeneration = [];
+
     /**
      * Native boundary for PDF text-markup review annotations.
      *
@@ -17,6 +20,7 @@ final class PdfMarkupAnnotationExtractor
     public function extractPageMarkups(string $pdfBytes): array
     {
         $objects = $this->pdfObjects($pdfBytes);
+        $this->objectBodiesByGeneration = $this->pdfObjectBodiesByGeneration($pdfBytes);
         $actionReviewer = new PdfActionReviewExtractor($pdfBytes);
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
         $pages = [];
@@ -470,19 +474,19 @@ final class PdfMarkupAnnotationExtractor
             return [];
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1) {
-            $objectNumber = (int) $match[1];
-            if (!isset($objects[$objectNumber])) {
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference !== null) {
+            $objectBody = $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
+            if ($objectBody === null) {
                 return [];
             }
 
-            $objectBody = trim($objects[$objectNumber]);
             if (str_starts_with($objectBody, '[')) {
                 return $this->annotationBodiesFromArray($this->arrayBodyFromValue($objectBody), $objects);
             }
 
             $dictionary = $this->dictionaryObjectBody($objectBody);
-            return $dictionary === null ? [] : [['body' => $dictionary, 'object' => $objectNumber]];
+            return $dictionary === null ? [] : [['body' => $dictionary, 'object' => $reference['object']]];
         }
 
         if (str_starts_with($value, '[')) {
@@ -534,11 +538,12 @@ final class PdfMarkupAnnotationExtractor
                 continue;
             }
 
-            if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) === 1) {
-                $objectNumber = (int) $match[1];
-                $dictionary = $this->dictionaryObjectBody($objects[$objectNumber] ?? '');
+            $reference = $this->objectReferenceFromValue($value);
+            if ($reference !== null) {
+                $objectBody = $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
+                $dictionary = $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
                 if ($dictionary !== null) {
-                    $annotations[] = ['body' => $dictionary, 'object' => $objectNumber];
+                    $annotations[] = ['body' => $dictionary, 'object' => $reference['object']];
                 }
                 $offset = $endOffset;
                 continue;
@@ -1114,6 +1119,54 @@ final class PdfMarkupAnnotationExtractor
         }
 
         return $objects;
+    }
+
+    /**
+     * @return array<int, array<int, string>>
+     */
+    private function pdfObjectBodiesByGeneration(string $pdfBytes): array
+    {
+        $objects = [];
+        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
+            return $objects;
+        }
+
+        foreach ($matches as $match) {
+            $objects[(int) $match[1]][(int) $match[2]] = trim($match[3]);
+        }
+
+        return $objects;
+    }
+
+    /**
+     * @return array{object: int, generation: int}|null
+     */
+    private function objectReferenceFromValue(string $value): ?array
+    {
+        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/', trim($value), $match) !== 1) {
+            return null;
+        }
+
+        return [
+            'object' => (int) $match[1],
+            'generation' => (int) $match[2],
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function objectBodyForReference(int $objectNumber, int $generation, array $objects): ?string
+    {
+        if (array_key_exists($generation, $this->objectBodiesByGeneration[$objectNumber] ?? [])) {
+            return $this->objectBodiesByGeneration[$objectNumber][$generation];
+        }
+
+        if ($generation === 0 && isset($objects[$objectNumber])) {
+            return trim($objects[$objectNumber]);
+        }
+
+        return null;
     }
 
     /**
