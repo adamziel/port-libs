@@ -901,7 +901,7 @@ final class PdfTextExtractor
             $invalidFilterOperandCount = $this->invalidStreamFilterOperandCount($operandGroups['Filter']);
             $dictionaryFilterOperandCount = $this->dictionaryStreamFilterOperandCount($operandGroups['Filter']);
             $malformedFilterOperandCount = $this->malformedStreamFilterOperandCount($operandGroups['Filter']);
-            $unsupportedFilterCount = $this->unsupportedTextStreamFilterCount($filters);
+            $unsupportedFilterCount = $this->unsupportedTextStreamFilterCount($filters, $decodeParms, $objects);
             $invalidDecodeParmsOperandCount = $this->invalidStreamDecodeParmsOperandCount($operandGroups['DecodeParms'], $filters);
             $malformedDecodeParmsOperandCount = $this->malformedStreamDecodeParmsOperandCount($operandGroups['DecodeParms'], $filters);
             $invalidDecodeParmsParameterCount = $this->invalidDecodeParmsParameterCount($filters, $decodeParms, $objects);
@@ -17638,19 +17638,22 @@ final class PdfTextExtractor
     /**
      * @param list<string|null>|null $filters
      */
-    private function unsupportedTextStreamFilterCount(?array $filters): int
+    private function unsupportedTextStreamFilterCount(?array $filters, ?array $decodeParms = null, array $objects = []): int
     {
         if ($filters === null) {
             return 0;
         }
 
         $count = 0;
-        foreach ($filters as $filter) {
+        foreach ($filters as $index => $filter) {
             if ($filter === null) {
                 continue;
             }
 
-            if (!$this->textStreamFilterIsSupported($filter)) {
+            $filterDecodeParms = $decodeParms === null
+                ? null
+                : $this->decodeParmsForFilterIndex($filters, $decodeParms, $index);
+            if (!$this->textStreamFilterIsSupported($filter, $filterDecodeParms, $objects)) {
                 $count++;
             }
         }
@@ -17658,13 +17661,22 @@ final class PdfTextExtractor
         return $count;
     }
 
-    private function textStreamFilterIsSupported(string $filter): bool
+    private function textStreamFilterIsSupported(string $filter, ?string $decodeParms = null, array $objects = []): bool
     {
-        return in_array(
+        if (in_array(
             $filter,
             ['ASCIIHexDecode', 'AHx', 'ASCII85Decode', 'A85', 'RunLengthDecode', 'RL', 'LZWDecode', 'LZW', 'FlateDecode', 'Fl'],
             true
-        );
+        )) {
+            return true;
+        }
+
+        if ($filter !== 'Crypt') {
+            return false;
+        }
+
+        return $this->canApplyDecodeParms($filter, $decodeParms, $objects)
+            && $this->decodeCryptIdentityStream('', $decodeParms) !== null;
     }
 
     /**

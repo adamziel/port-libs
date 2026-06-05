@@ -745,6 +745,82 @@ $parserMalformedCMapUnsupportedFilterBoundaryCurrentBasePdf = static function ()
         . "%%EOF";
 };
 
+$parserMalformedCMapCryptIdentityFilterBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $mappedText = 'Identity Crypt CMap Import';
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /CryptIdentityBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex($mappedText) . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /CryptIdentityBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /CryptIdentityBoundary-H /Filter /Crypt /DecodeParms << /Name /Identity >> /Length " . strlen($cMap) . " >>\nstream\n{$cMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserMalformedCMapCryptPrivateFilterBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $safeText = 'Private Crypt Safe Import';
+    $leakingText = 'Private Crypt CMap Leak';
+    $safeHex = $utf16beHex($safeText);
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /CryptPrivateBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<" . substr($safeHex, 0, 4) . "> <" . $utf16beHex($leakingText) . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /CryptPrivateBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /CryptPrivateBoundary-H /Filter /Crypt /DecodeParms << /Name /PrivateCF >> /Length " . strlen($cMap) . " >>\nstream\n{$cMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'fails closed on malformed CMap Filter array operands before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapFilterBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -1403,6 +1479,95 @@ return [
         $t->true(($entry['parser_bounded_cmap_length'] ?? 0) < ($entry['bounded_cmap_length'] ?? 0));
         $t->same(false, $review['executes_python_or_models']);
         $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'treats identity Crypt CMap filters as pass-through while rejecting named crypt filters' => static function (TestRunner $t) use (
+        $parserMalformedCMapCryptIdentityFilterBoundaryCurrentBasePdf,
+        $parserMalformedCMapCryptPrivateFilterBoundaryCurrentBasePdf
+    ): void {
+        $extractor = new PdfTextExtractor();
+        $identityPdf = $parserMalformedCMapCryptIdentityFilterBoundaryCurrentBasePdf();
+        $privatePdf = $parserMalformedCMapCryptPrivateFilterBoundaryCurrentBasePdf();
+        $identityText = $extractor->extractPlainText($identityPdf);
+        $privateText = $extractor->extractPlainText($privatePdf);
+        $identityReview = $extractor->extractCMapStreamFilterLengthOwnerReview($identityPdf);
+        $privateReview = $extractor->extractCMapStreamFilterLengthOwnerReview($privatePdf);
+        $identityEntry = $identityReview['entries'][0] ?? [];
+        $privateEntry = $privateReview['entries'][0] ?? [];
+
+        $t->same(['Identity Crypt CMap Import'], $extractor->extractTextLines($identityPdf));
+        $t->same(['Identity Crypt CMap Import'], $extractor->extractTextRuns($identityPdf));
+        $t->same('Identity Crypt CMap Import', $identityText);
+        $t->same("Identity Crypt CMap Import\n", $extractor->naiveGetText($identityPdf));
+        $t->same(1, $extractor->extractOutlineMetadata($identityPdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($identityPdf));
+        $t->true(!str_contains($identityText, 'CryptIdentityBoundary-H'));
+        $t->true(!str_contains($identityText, '/Name'));
+        $t->true(!str_contains($identityText, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $identityReview['source']);
+        $t->true($identityReview['review_only']);
+        $t->same(false, $identityReview['encrypted']);
+        $t->same(1, $identityReview['cmap_stream_count']);
+        $t->same(1, $identityReview['to_unicode_cmap_stream_count']);
+        $t->same(1, $identityReview['decoded_cmap_count']);
+        $t->same(0, $identityReview['invalid_filter_operand_count']);
+        $t->same(0, $identityReview['malformed_filter_operand_count']);
+        $t->same(0, $identityReview['unsupported_filter_count']);
+        $t->same(0, $identityReview['invalid_decodeparms_parameter_count']);
+        $t->same(6, $identityEntry['object_number'] ?? null);
+        $t->same('CryptIdentityBoundary-H', $identityEntry['cmap_name'] ?? null);
+        $t->same(['Crypt'], $identityEntry['filters'] ?? null);
+        $t->same(false, $identityEntry['filter_resolution_failed'] ?? null);
+        $t->same(false, $identityEntry['decodeparms_resolution_failed'] ?? null);
+        $t->same(0, $identityEntry['unsupported_filter_count'] ?? null);
+        $t->same('filters_resolved', $identityEntry['filter_operand_policy'] ?? null);
+        $t->same('decodeparms_resolved', $identityEntry['decodeparms_operand_policy'] ?? null);
+        $t->same(true, $identityEntry['decoded_with_current_operands'] ?? null);
+        $t->true(($identityEntry['decoded_cmap_length'] ?? 0) > 0);
+        $t->true(is_string($identityEntry['decoded_cmap_sha256'] ?? null));
+        $t->same('direct_operands', $identityEntry['owner_policy'] ?? null);
+        $t->same('Crypt', $identityEntry['filter_operands'][0]['value'] ?? null);
+        $t->same('<< /Name /Identity >>', $identityEntry['decodeparms_operands'][0]['value'] ?? null);
+
+        $t->same(['Private Crypt Safe Import'], $extractor->extractTextLines($privatePdf));
+        $t->same(['Private Crypt Safe Import'], $extractor->extractTextRuns($privatePdf));
+        $t->same('Private Crypt Safe Import', $privateText);
+        $t->same("Private Crypt Safe Import\n", $extractor->naiveGetText($privatePdf));
+        $t->same(1, $extractor->extractOutlineMetadata($privatePdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($privatePdf));
+        $t->true(!str_contains($privateText, 'Private Crypt CMap Leak'));
+        $t->true(!str_contains($privateText, 'CryptPrivateBoundary-H'));
+        $t->true(!str_contains($privateText, 'PrivateCF'));
+        $t->true(!str_contains($privateText, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $privateReview['source']);
+        $t->true($privateReview['review_only']);
+        $t->same(false, $privateReview['encrypted']);
+        $t->same(1, $privateReview['cmap_stream_count']);
+        $t->same(1, $privateReview['to_unicode_cmap_stream_count']);
+        $t->same(0, $privateReview['decoded_cmap_count']);
+        $t->same(0, $privateReview['invalid_filter_operand_count']);
+        $t->same(0, $privateReview['malformed_filter_operand_count']);
+        $t->same(1, $privateReview['unsupported_filter_count']);
+        $t->same(0, $privateReview['invalid_decodeparms_parameter_count']);
+        $t->same(6, $privateEntry['object_number'] ?? null);
+        $t->same('CryptPrivateBoundary-H', $privateEntry['cmap_name'] ?? null);
+        $t->same(['Crypt'], $privateEntry['filters'] ?? null);
+        $t->same(false, $privateEntry['filter_resolution_failed'] ?? null);
+        $t->same(false, $privateEntry['decodeparms_resolution_failed'] ?? null);
+        $t->same(1, $privateEntry['unsupported_filter_count'] ?? null);
+        $t->same('reject_unsupported_filter_names', $privateEntry['filter_operand_policy'] ?? null);
+        $t->same('decodeparms_resolved', $privateEntry['decodeparms_operand_policy'] ?? null);
+        $t->same(null, $privateEntry['decoded_cmap_length'] ?? null);
+        $t->same(null, $privateEntry['decoded_cmap_sha256'] ?? null);
+        $t->same(false, $privateEntry['decoded_with_current_operands'] ?? null);
+        $t->same('direct_operands', $privateEntry['owner_policy'] ?? null);
+        $t->same('Crypt', $privateEntry['filter_operands'][0]['value'] ?? null);
+        $t->same('<< /Name /PrivateCF >>', $privateEntry['decodeparms_operands'][0]['value'] ?? null);
+        $t->same(false, $identityReview['executes_python_or_models']);
+        $t->same(false, $identityReview['executes_external_pdf_tools']);
+        $t->same(false, $privateReview['executes_python_or_models']);
+        $t->same(false, $privateReview['executes_external_pdf_tools']);
     },
     'classifies unsupported CMap Filter names as fail-closed before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapUnsupportedFilterBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();

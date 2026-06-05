@@ -559,6 +559,63 @@ $buildUnsupportedCMapFilterPdf = static function () use ($utf16beHex): string {
         . "%%EOF";
 };
 
+$buildCryptIdentityCMapFilterPdf = static function () use ($utf16beHex): string {
+    $mappedText = 'Identity Crypt CMap Import';
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /WPCryptIdentityBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex($mappedText) . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /WPCryptIdentityBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /WPCryptIdentityBoundary-H /Filter /Crypt /DecodeParms << /Name /Identity >> /Length " . strlen($cMap) . " >>\nstream\n{$cMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$buildCryptPrivateCMapFilterPdf = static function () use ($utf16beHex): string {
+    $safeText = 'Private Crypt Safe Import';
+    $safeHex = $utf16beHex($safeText);
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /WPCryptPrivateBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<" . substr($safeHex, 0, 4) . "> <" . $utf16beHex('Private Crypt CMap Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /WPCryptPrivateBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /WPCryptPrivateBoundary-H /Filter /Crypt /DecodeParms << /Name /PrivateCF >> /Length " . strlen($cMap) . " >>\nstream\n{$cMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $dictionaryPdf = $buildMalformedCMapFilterPdf(
     'WPMalformedFilterBoundary-H',
     'WPMalformedFilterBoundary',
@@ -583,6 +640,8 @@ $staleReferencePdf = $buildStaleReferenceCMapFilterPdf();
 $postEndPdf = $buildPostEndCMapOperatorPdf();
 $secondProgramPdf = $buildSecondProgramCMapPdf();
 $unsupportedFilterPdf = $buildUnsupportedCMapFilterPdf();
+$cryptIdentityPdf = $buildCryptIdentityCMapFilterPdf();
+$cryptPrivatePdf = $buildCryptPrivateCMapFilterPdf();
 
 $extractor = new PdfTextExtractor();
 $dictionaryLines = $extractor->extractTextLines($dictionaryPdf);
@@ -597,6 +656,8 @@ $staleReferenceLines = $extractor->extractTextLines($staleReferencePdf);
 $postEndLines = $extractor->extractTextLines($postEndPdf);
 $secondProgramLines = $extractor->extractTextLines($secondProgramPdf);
 $unsupportedFilterLines = $extractor->extractTextLines($unsupportedFilterPdf);
+$cryptIdentityLines = $extractor->extractTextLines($cryptIdentityPdf);
+$cryptPrivateLines = $extractor->extractTextLines($cryptPrivatePdf);
 $dictionaryPlainText = implode("\n", $dictionaryLines);
 $literalPlainText = implode("\n", $literalLines);
 $indirectLiteralPlainText = implode("\n", $indirectLiteralLines);
@@ -609,6 +670,8 @@ $staleReferencePlainText = implode("\n", $staleReferenceLines);
 $postEndPlainText = implode("\n", $postEndLines);
 $secondProgramPlainText = implode("\n", $secondProgramLines);
 $unsupportedFilterPlainText = implode("\n", $unsupportedFilterLines);
+$cryptIdentityPlainText = implode("\n", $cryptIdentityLines);
+$cryptPrivatePlainText = implode("\n", $cryptPrivateLines);
 $dictionaryReview = $extractor->extractCMapStreamFilterLengthOwnerReview($dictionaryPdf);
 $literalReview = $extractor->extractCMapStreamFilterLengthOwnerReview($literalPdf);
 $indirectLiteralReview = $extractor->extractCMapStreamFilterLengthOwnerReview($indirectLiteralPdf);
@@ -621,6 +684,8 @@ $staleReferenceReview = $extractor->extractCMapStreamFilterLengthOwnerReview($st
 $postEndReview = $extractor->extractCMapStreamFilterLengthOwnerReview($postEndPdf);
 $secondProgramReview = $extractor->extractCMapStreamFilterLengthOwnerReview($secondProgramPdf);
 $unsupportedFilterReview = $extractor->extractCMapStreamFilterLengthOwnerReview($unsupportedFilterPdf);
+$cryptIdentityReview = $extractor->extractCMapStreamFilterLengthOwnerReview($cryptIdentityPdf);
+$cryptPrivateReview = $extractor->extractCMapStreamFilterLengthOwnerReview($cryptPrivatePdf);
 $dictionaryEntry = $dictionaryReview['entries'][0] ?? [];
 $literalEntry = $literalReview['entries'][0] ?? [];
 $indirectLiteralEntry = $indirectLiteralReview['entries'][0] ?? [];
@@ -633,6 +698,8 @@ $staleReferenceEntry = $staleReferenceReview['entries'][0] ?? [];
 $postEndEntry = $postEndReview['entries'][0] ?? [];
 $secondProgramEntry = $secondProgramReview['entries'][0] ?? [];
 $unsupportedFilterEntry = $unsupportedFilterReview['entries'][0] ?? [];
+$cryptIdentityEntry = $cryptIdentityReview['entries'][0] ?? [];
+$cryptPrivateEntry = $cryptPrivateReview['entries'][0] ?? [];
 
 if ($dictionaryLines !== ['Safe Import']) {
     throw new RuntimeException('Expected malformed dictionary CMap filter fallback text.');
@@ -682,6 +749,14 @@ if ($unsupportedFilterLines !== ['Unsupported Filter Safe Import']) {
     throw new RuntimeException('Expected unsupported CMap filter fallback text.');
 }
 
+if ($cryptIdentityLines !== ['Identity Crypt CMap Import']) {
+    throw new RuntimeException('Expected identity Crypt CMap filter text to decode.');
+}
+
+if ($cryptPrivateLines !== ['Private Crypt Safe Import']) {
+    throw new RuntimeException('Expected private Crypt CMap filter fallback text.');
+}
+
 if (
     str_contains($dictionaryPlainText, 'Dictionary Filter Leak')
     || str_contains($dictionaryPlainText, 'Filter dictionary is not a decoder')
@@ -709,6 +784,11 @@ if (
     || str_contains($unsupportedFilterPlainText, 'Unsupported Filter CMap Leak')
     || str_contains($unsupportedFilterPlainText, 'WPUnsupportedFilterBoundary-H')
     || str_contains($unsupportedFilterPlainText, 'DCTDecode')
+    || str_contains($cryptIdentityPlainText, 'WPCryptIdentityBoundary-H')
+    || str_contains($cryptIdentityPlainText, '/Name')
+    || str_contains($cryptPrivatePlainText, 'Private Crypt CMap Leak')
+    || str_contains($cryptPrivatePlainText, 'WPCryptPrivateBoundary-H')
+    || str_contains($cryptPrivatePlainText, 'PrivateCF')
 ) {
     throw new RuntimeException('Expected malformed CMap filter payloads to stay excluded.');
 }
@@ -901,6 +981,38 @@ if (($unsupportedFilterEntry['filters'][0] ?? null) !== 'DCTDecode') {
     throw new RuntimeException('Expected unsupported CMap filter name to remain review-visible metadata.');
 }
 
+if (($cryptIdentityReview['decoded_cmap_count'] ?? null) !== 1) {
+    throw new RuntimeException('Expected identity Crypt CMap stream to decode.');
+}
+
+if (($cryptIdentityReview['unsupported_filter_count'] ?? null) !== 0) {
+    throw new RuntimeException('Expected identity Crypt CMap filter not to be counted as unsupported.');
+}
+
+if (($cryptIdentityEntry['filter_operand_policy'] ?? null) !== 'filters_resolved') {
+    throw new RuntimeException('Expected identity Crypt CMap filter to remain resolved review metadata.');
+}
+
+if (($cryptIdentityEntry['decodeparms_operands'][0]['value'] ?? null) !== '<< /Name /Identity >>') {
+    throw new RuntimeException('Expected identity Crypt DecodeParms to remain review-visible.');
+}
+
+if (($cryptPrivateReview['decoded_cmap_count'] ?? null) !== 0) {
+    throw new RuntimeException('Expected named Crypt CMap stream not to decode.');
+}
+
+if (($cryptPrivateReview['unsupported_filter_count'] ?? null) !== 1) {
+    throw new RuntimeException('Expected named Crypt CMap filter to be counted as unsupported.');
+}
+
+if (($cryptPrivateEntry['filter_operand_policy'] ?? null) !== 'reject_unsupported_filter_names') {
+    throw new RuntimeException('Expected named Crypt CMap filter operand review metadata.');
+}
+
+if (($cryptPrivateEntry['decodeparms_operands'][0]['value'] ?? null) !== '<< /Name /PrivateCF >>') {
+    throw new RuntimeException('Expected named Crypt DecodeParms to remain review-visible.');
+}
+
 $lines = array_merge(
     $dictionaryLines,
     $literalLines,
@@ -913,13 +1025,15 @@ $lines = array_merge(
     $staleReferenceLines,
     $postEndLines,
     $secondProgramLines,
+    $cryptIdentityLines,
+    $cryptPrivateLines,
     $unsupportedFilterLines
 );
 
 echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'malformed and unsupported ToUnicode CMap Filter operands, null-filter DecodeParms slots, and post-endcmap decoded operators stay bounded before WordPress text import',
+    'native_boundary' => 'malformed, unsupported, and identity Crypt ToUnicode CMap Filter operands, null-filter DecodeParms slots, and post-endcmap decoded operators stay bounded before WordPress text import',
     'fallback_text' => implode(' | ', $lines),
     'dictionary_decoded_cmap_count' => $dictionaryReview['decoded_cmap_count'] ?? null,
     'dictionary_invalid_filter_operand_count' => $dictionaryReview['invalid_filter_operand_count'] ?? null,
@@ -1008,6 +1122,25 @@ echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlsp
     'unsupported_filter_payload_excluded' => !str_contains($unsupportedFilterPlainText, 'Unsupported Filter CMap Leak')
         && !str_contains($unsupportedFilterPlainText, 'WPUnsupportedFilterBoundary-H')
         && !str_contains($unsupportedFilterPlainText, 'DCTDecode'),
+    'crypt_identity_decoded_cmap_count' => $cryptIdentityReview['decoded_cmap_count'] ?? null,
+    'crypt_identity_unsupported_filter_count' => $cryptIdentityReview['unsupported_filter_count'] ?? null,
+    'crypt_identity_filter_operand_policy' => $cryptIdentityEntry['filter_operand_policy'] ?? null,
+    'crypt_identity_decodeparms' => $cryptIdentityEntry['decodeparms_operands'][0]['value'] ?? null,
+    'crypt_identity_filter_supported' => ($cryptIdentityReview['decoded_cmap_count'] ?? null) === 1
+        && (($cryptIdentityReview['unsupported_filter_count'] ?? null) === 0)
+        && (($cryptIdentityEntry['filter_operand_policy'] ?? null) === 'filters_resolved'),
+    'crypt_identity_payload_excluded' => !str_contains($cryptIdentityPlainText, 'WPCryptIdentityBoundary-H')
+        && !str_contains($cryptIdentityPlainText, '/Name'),
+    'crypt_private_decoded_cmap_count' => $cryptPrivateReview['decoded_cmap_count'] ?? null,
+    'crypt_private_unsupported_filter_count' => $cryptPrivateReview['unsupported_filter_count'] ?? null,
+    'crypt_private_filter_operand_policy' => $cryptPrivateEntry['filter_operand_policy'] ?? null,
+    'crypt_private_decodeparms' => $cryptPrivateEntry['decodeparms_operands'][0]['value'] ?? null,
+    'crypt_private_filter_rejected' => ($cryptPrivateReview['decoded_cmap_count'] ?? null) === 0
+        && (($cryptPrivateReview['unsupported_filter_count'] ?? null) === 1)
+        && (($cryptPrivateEntry['filter_operand_policy'] ?? null) === 'reject_unsupported_filter_names'),
+    'crypt_private_payload_excluded' => !str_contains($cryptPrivatePlainText, 'Private Crypt CMap Leak')
+        && !str_contains($cryptPrivatePlainText, 'WPCryptPrivateBoundary-H')
+        && !str_contains($cryptPrivatePlainText, 'PrivateCF'),
     'leaking_cmap_text_excluded' => !str_contains($dictionaryPlainText, 'Dictionary Filter Leak')
         && !str_contains($literalPlainText, 'Literal Filter Leak')
         && !str_contains($indirectLiteralPlainText, 'Indirect Literal Filter Leak')
@@ -1020,6 +1153,8 @@ echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlsp
         && !str_contains($staleReferencePlainText, 'Stale Reference CMap Leak')
         && !str_contains($postEndPlainText, 'PostEnd CMap Leak')
         && !str_contains($secondProgramPlainText, 'Second Program CMap Leak')
+        && !str_contains($cryptIdentityPlainText, 'WPCryptIdentityBoundary-H')
+        && !str_contains($cryptPrivatePlainText, 'Private Crypt CMap Leak')
         && !str_contains($unsupportedFilterPlainText, 'Unsupported Filter CMap Leak'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
