@@ -18650,7 +18650,7 @@ final class PdfTextExtractor
             return '';
         }
         if (strlen($normalized) % 2 === 1) {
-            $normalized = '0' . $normalized;
+            $normalized .= '0';
         }
 
         return $normalized;

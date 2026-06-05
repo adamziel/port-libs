@@ -131,6 +131,13 @@ $oddHexPdf = "%PDF-1.4\n"
     . "3 0 obj\n<< /Length " . strlen($oddHexCmap) . " >>\nstream\n{$oddHexCmap}\nendstream\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($oddHexContent) . " >>\nstream\n{$oddHexContent}\nendstream\nendobj\n"
     . "5 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /OddHexSourceWidthFallback /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 500 /W [64 67 1000 69 72 250] >>\nendobj\n%%EOF";
+$oddCMapSourceKeyCmap = str_replace('<40> <0044>', '<4> <0044>', $oddHexCmap);
+$oddCMapSourceKeyPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /OddCMapSourceKeyPadding /Encoding /Identity-H /DescendantFonts [5 0 R] /ToUnicode 3 0 R >>\nendobj\n"
+    . "3 0 obj\n<< /Length " . strlen($oddCMapSourceKeyCmap) . " >>\nstream\n{$oddCMapSourceKeyCmap}\nendstream\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($oddHexContent) . " >>\nstream\n{$oddHexContent}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /OddCMapSourceKeyPadding /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 500 /W [64 67 1000 69 72 250] >>\nendobj\n%%EOF";
 $codespacePaddingContent = 'BT /Fcid 12 Tf '
     . '1 0 0 1 72 720 Tm <0041004200430044> Tj '
     . '1 0 0 1 132 720 Tm <0045004600470048> Tj ET';
@@ -168,6 +175,9 @@ $verticalTjGapSpans = $verticalTjGapPages[0]['blocks'][0]['lines'][0]['spans'] ?
 $oddHexLines = $extractor->extractTextLines($oddHexPdf);
 $oddHexPages = $extractor->extractStyledTextPages($oddHexPdf);
 $oddHexSpans = $oddHexPages[0]['blocks'][0]['lines'][0]['spans'] ?? [];
+$oddCMapSourceKeyLines = $extractor->extractTextLines($oddCMapSourceKeyPdf);
+$oddCMapSourceKeyPages = $extractor->extractStyledTextPages($oddCMapSourceKeyPdf);
+$oddCMapSourceKeySpans = $oddCMapSourceKeyPages[0]['blocks'][0]['lines'][0]['spans'] ?? [];
 $codespacePaddingLines = $extractor->extractTextLines($codespacePaddingPdf);
 $codespacePaddingRuns = $extractor->extractTextRuns($codespacePaddingPdf);
 $codespacePaddingPages = $extractor->extractStyledTextPages($codespacePaddingPdf);
@@ -176,7 +186,7 @@ $codespacePaddingSpans = $codespacePaddingPages[0]['blocks'][0]['lines'][0]['spa
 echo "<!-- markerpdf-cmap-source-width-fallback-smoke " . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'predefined Identity-H/UCS2-H source-width fallback with CIDFont default, metric-miss ToUnicode width fallback, partial metric-miss chunk fallback, DW-only metric-miss fallback, horizontal and vertical TJ adjustment gap recovery, odd hex right-padding, and one-byte ToUnicode codespace padding fallback before Gutenberg paragraph rendering',
+    'native_boundary' => 'predefined Identity-H/UCS2-H source-width fallback with CIDFont default, metric-miss ToUnicode width fallback, partial metric-miss chunk fallback, DW-only metric-miss fallback, horizontal and vertical TJ adjustment gap recovery, odd hex operand and CMap source-key right-padding, and one-byte ToUnicode codespace padding fallback before Gutenberg paragraph rendering',
     'default_width_source_fallback_applied' => $lines === ['ABCD EFGH'],
     'predefined_identity_source_width_applied' => $lines === ['ABCD EFGH'],
     'padding_bytes_not_counted_as_glyphs' => ($spans[0]['bbox'][2] ?? null) === 48.0,
@@ -206,13 +216,17 @@ echo "<!-- markerpdf-cmap-source-width-fallback-smoke " . htmlspecialchars(json_
     'odd_hex_operand_right_padding_applied' => $oddHexLines === ['ABCDEFGH'],
     'odd_hex_operand_false_gap_excluded' => !in_array('ABCD EFGH', $oddHexLines, true),
     'odd_hex_operand_span_widths' => array_column($oddHexSpans, 'bbox') === [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 60.0, 12.0]],
+    'odd_cmap_source_key_right_padding_applied' => $oddCMapSourceKeyLines === ['ABCDEFGH'],
+    'odd_cmap_source_key_false_at_sign_excluded' => !in_array('ABC@ EFGH', $oddCMapSourceKeyLines, true),
+    'odd_cmap_source_key_false_gap_excluded' => !in_array('ABCD EFGH', $oddCMapSourceKeyLines, true),
+    'odd_cmap_source_key_span_widths' => array_column($oddCMapSourceKeySpans, 'bbox') === [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 60.0, 12.0]],
     'codespace_padding_tounicode_source_widths_applied' => $codespacePaddingLines === ['ABCD EFGH'],
     'codespace_padding_runs_preserved' => $codespacePaddingRuns === ['ABCD', 'EFGH'],
     'codespace_padding_false_join_excluded' => !in_array('ABCDEFGH', $codespacePaddingLines, true),
     'codespace_padding_span_widths' => array_column($codespacePaddingSpans, 'bbox') === [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 60.0, 12.0]],
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $predefinedUcs2Lines, $metricMissLines, $defaultMetricMissLines, $partialMetricMissLines, $tjGapLines, $verticalTjGapLines, $oddHexLines, $codespacePaddingLines) as $line) {
+foreach (array_merge($lines, $predefinedUcs2Lines, $metricMissLines, $defaultMetricMissLines, $partialMetricMissLines, $tjGapLines, $verticalTjGapLines, $oddHexLines, $oddCMapSourceKeyLines, $codespacePaddingLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";
