@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\SyntaxHighlighter;
+use PortLibs\Pandoc\WordPressBlockWriter;
 
 return [
     'normalizes pandoc and skylighting language aliases and styles' => static function (TestRunner $t): void {
@@ -187,6 +188,33 @@ return [
         $t->contains('<span class="cn">Just</span> <span class="dv">42</span>', $highlighted['html']);
         $t->contains('<style data-pandoc-highlight-style="zenburn">', $wordpressBlock);
         $t->contains('<span class="kw">import</span> <span class="dt">Text.Pandoc</span>', $wordpressBlock);
+    },
+    'writes highlighted wordpress blocks through writer opt in' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '``` {.php #migration-review .numberLines .lineAnchors startFrom=42}',
+            '<?php',
+            'function render_title($post) {',
+            "    return esc_html(\$post['title']);",
+            '}',
+            '```',
+        ]));
+
+        $plainBlocks = (new WordPressBlockWriter())->write($document);
+        $highlightedBlocks = (new WordPressBlockWriter([
+            'highlightCodeBlocks' => true,
+            'highlightStyle' => 'kate',
+        ]))->write($document);
+
+        $t->contains('<!-- wp:code -->', $plainBlocks);
+        $t->contains('<pre class="wp-block-code"><code class="language-php">&lt;?php', $plainBlocks);
+        $t->contains('<!-- wp:html -->', $highlightedBlocks);
+        $t->contains('<style data-pandoc-highlight-style="kate">', $highlightedBlocks);
+        $t->contains('.sourceCode .kw', $highlightedBlocks);
+        $t->contains('<div class="sourceCode"><pre class="sourceCode numberSource php numberLines lineAnchors"><code class="sourceCode php" style="counter-reset: source-line 41;">', $highlightedBlocks);
+        $t->contains('<span id="migration-review-42"><a href="#migration-review-42"></a><span class="pp">&lt;?php</span></span>', $highlightedBlocks);
+        $t->contains('<span id="migration-review-43"><a href="#migration-review-43"></a><span class="kw">function</span> <span class="fu">render_title</span>', $highlightedBlocks);
+        $t->contains('<span class="va">$post</span><span class="op">[</span><span class="st">&#039;title&#039;</span><span class="op">]);</span>', $highlightedBlocks);
+        $t->same(false, str_contains($highlightedBlocks, '<!-- wp:code -->'));
     },
     'falls back safely for unsupported languages' => static function (TestRunner $t): void {
         $highlighted = (new SyntaxHighlighter())->highlight('<danger>& text', 'brainfuck');

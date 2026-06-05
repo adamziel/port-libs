@@ -9,6 +9,19 @@ final class WordPressBlockWriter
     /** @var list<AstNode> */
     private array $footnotes = [];
 
+    private bool $highlightCodeBlocks;
+
+    private string $highlightStyle;
+
+    /**
+     * @param array{highlightCodeBlocks?: bool, highlightStyle?: string} $options
+     */
+    public function __construct(array $options = [])
+    {
+        $this->highlightCodeBlocks = ($options['highlightCodeBlocks'] ?? false) === true;
+        $this->highlightStyle = (string) ($options['highlightStyle'] ?? 'pygments');
+    }
+
     public function write(AstNode $document): string
     {
         if ($document->type !== 'document') {
@@ -722,6 +735,10 @@ final class WordPressBlockWriter
 
     private function renderCodeBlock(AstNode $node): string
     {
+        if ($this->highlightCodeBlocks) {
+            return (new SyntaxHighlighter())->wordpressHtmlBlock($node, $this->highlightStyle);
+        }
+
         return '<!-- wp:code -->'
             . "\n" . $this->renderCodeBlockHtml($node)
             . "\n" . '<!-- /wp:code -->';
