@@ -851,6 +851,88 @@ XML;
         $t->same(['invalid-relationship-content-type', 'orphan-relationship-part'], $parts['/word/_rels/missing.xml.rels']['issues']);
         $t->same(false, $parts['/word/_rels/missing.xml.rels']['valid']);
     },
+    'preflights DOCX officeDocument relationship cardinality and content type' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $validGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $valid = $validGraph->preflightOfficeDocumentRoot(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES);
+        $t->same(1, $valid['relationshipCount']);
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES, $valid['expectedContentTypes']);
+        $t->same(true, $valid['valid']);
+        $t->same([], $valid['issues']);
+        $t->same(1, count($valid['relationships']));
+        $t->same('rIdDocument', $valid['relationships'][0]['id']);
+        $t->same('/word/document.xml', $valid['relationships'][0]['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $valid['relationships'][0]['contentType']);
+        $t->same(false, $valid['relationships'][0]['external']);
+        $t->same(true, $valid['relationships'][0]['exists']);
+        $t->same(true, $valid['relationships'][0]['valid']);
+        $t->same([], $valid['relationships'][0]['issues']);
+
+        $missingRootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+</Relationships>
+XML;
+        $missingGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $missingRootRelationshipsXml],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+        $missing = $missingGraph->preflightOfficeDocumentRoot(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES);
+        $t->same(0, $missing['relationshipCount']);
+        $t->same(false, $missing['valid']);
+        $t->same(['missing-office-document-relationship'], $missing['issues']);
+        $t->same([], $missing['relationships']);
+
+        $multiContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/alt.xml" ContentType="application/xml"/>
+</Types>
+XML;
+        $multiRootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdAlt" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/alt.xml"/>
+  <Relationship Id="rIdExternalDoc" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="https://example.test/reviewer-source.docx" TargetMode="External"/>
+</Relationships>
+XML;
+        $multiGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $multiContentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $multiRootRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/alt.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+        ]));
+
+        $multi = $multiGraph->preflightOfficeDocumentRoot(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES);
+        $byId = [];
+        foreach ($multi['relationships'] as $relationship) {
+            $byId[$relationship['id']] = $relationship;
+        }
+
+        $t->same(3, $multi['relationshipCount']);
+        $t->same(false, $multi['valid']);
+        $t->same(['multiple-office-document-relationships'], $multi['issues']);
+        $t->same(['rIdDocument', 'rIdAlt', 'rIdExternalDoc'], array_keys($byId));
+        $t->same(true, $byId['rIdDocument']['valid']);
+        $t->same([], $byId['rIdDocument']['issues']);
+        $t->same('/word/alt.xml', $byId['rIdAlt']['targetPart']);
+        $t->same('application/xml', $byId['rIdAlt']['contentType']);
+        $t->same(false, $byId['rIdAlt']['valid']);
+        $t->same(['invalid-office-document-content-type'], $byId['rIdAlt']['issues']);
+        $t->same(true, $byId['rIdExternalDoc']['external']);
+        $t->same(null, $byId['rIdExternalDoc']['targetPart']);
+        $t->same('https', $byId['rIdExternalDoc']['externalTargetScheme']);
+        $t->same(false, $byId['rIdExternalDoc']['valid']);
+        $t->same(['external-office-document-target'], $byId['rIdExternalDoc']['issues']);
+    },
     'flags nested OPC relationship parts without loading them as sources' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $documentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">

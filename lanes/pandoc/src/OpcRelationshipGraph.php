@@ -11,6 +11,12 @@ final class OpcRelationshipGraph
     public const DIGITAL_SIGNATURE_SIGNATURE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
     public const EMBEDDED_PACKAGE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
     public const EMBEDDED_OBJECT_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
+    public const WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES = [
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+        'application/vnd.ms-word.document.macroEnabled.main+xml',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml',
+        'application/vnd.ms-word.template.macroEnabledTemplate.main+xml',
+    ];
 
     private const RELATIONSHIP_PART_CONTENT_TYPE = 'application/vnd.openxmlformats-package.relationships+xml';
     private const DIGITAL_SIGNATURE_ORIGIN_CONTENT_TYPE = 'application/vnd.openxmlformats-package.digital-signature-origin';
@@ -305,6 +311,74 @@ final class OpcRelationshipGraph
         }
 
         return $preflight;
+    }
+
+    /**
+     * @param list<string> $expectedContentTypes
+     * @return array{relationshipCount:int, expectedContentTypes:list<string>, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, valid:bool, issues:list<string>}>}
+     */
+    public function preflightOfficeDocumentRoot(array $expectedContentTypes = []): array
+    {
+        $expectedContentTypes = array_values(array_unique($expectedContentTypes));
+        $targets = $this->preflightTargetsForSource('/', self::OFFICE_DOCUMENT_RELATIONSHIP_TYPE);
+        $relationshipCount = count($targets);
+        $issues = [];
+        if ($relationshipCount === 0) {
+            $issues[] = 'missing-office-document-relationship';
+        } elseif ($relationshipCount > 1) {
+            $issues[] = 'multiple-office-document-relationships';
+        }
+
+        $relationships = [];
+        foreach ($targets as $target) {
+            $targetIssues = $target['issues'];
+            if ($target['external']) {
+                $targetIssues[] = 'external-office-document-target';
+            }
+
+            if (
+                $expectedContentTypes !== []
+                && !$target['external']
+                && $target['contentType'] !== null
+                && !in_array($target['contentType'], $expectedContentTypes, true)
+            ) {
+                $targetIssues[] = 'invalid-office-document-content-type';
+            }
+
+            $targetIssues = array_values(array_unique($targetIssues));
+            $relationships[] = [
+                'source' => '/',
+                'id' => $target['id'],
+                'type' => $target['type'],
+                'relationshipTypeKind' => $target['relationshipTypeKind'],
+                'relationshipTypeScheme' => $target['relationshipTypeScheme'],
+                'relationshipTypeValid' => $target['relationshipTypeValid'],
+                'relationshipTypeIssues' => $target['relationshipTypeIssues'],
+                'target' => $target['target'],
+                'targetPart' => self::targetPartFromPreflightTarget($target),
+                'contentType' => $target['contentType'],
+                'external' => $target['external'],
+                'exists' => $target['exists'],
+                'relationshipPartTarget' => $target['relationshipPartTarget'],
+                'externalTargetKind' => $target['externalTargetKind'],
+                'externalTargetScheme' => $target['externalTargetScheme'],
+                'externalTargetAllowed' => $target['externalTargetAllowed'],
+                'valid' => $targetIssues === [],
+                'issues' => $targetIssues,
+            ];
+        }
+
+        return [
+            'relationshipCount' => $relationshipCount,
+            'expectedContentTypes' => $expectedContentTypes,
+            'valid' => $issues === [] && array_reduce(
+                $relationships,
+                static fn (bool $valid, array $relationship): bool => $valid && $relationship['valid'],
+                true,
+            ),
+            'issues' => $issues,
+            'relationships' => $relationships,
+        ];
     }
 
     /**

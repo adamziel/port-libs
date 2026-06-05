@@ -79,9 +79,10 @@ $package = ZipPackage::fromParts([
 
 $graph = OpcRelationshipGraph::fromPackage($package);
 $types = $graph->contentTypes();
-$documentPart = $graph->firstTargetOfType(OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE);
-if ($documentPart === null) {
-    throw new RuntimeException('DOCX package does not contain an officeDocument relationship');
+$officeDocumentRoot = $graph->preflightOfficeDocumentRoot(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES);
+$documentPart = $officeDocumentRoot['relationships'][0]['targetPart'] ?? null;
+if ($documentPart === null || $officeDocumentRoot['valid'] !== true) {
+    throw new RuntimeException('DOCX package does not contain one valid WordprocessingML officeDocument relationship');
 }
 
 $documentRelationships = $graph->requireRelationshipsForSource($documentPart);
@@ -193,6 +194,7 @@ $summary = [
         'part' => $corePropertiesPart,
         'contentType' => $corePropertiesPart === null ? null : $types->contentTypeForPart($corePropertiesPart),
     ],
+    'officeDocumentRoot' => $officeDocumentRoot,
     'digitalSignatures' => $digitalSignatures,
     'embeddedPackages' => $embeddedPackages,
     'packageParts' => $packagePartPreflight,
@@ -290,6 +292,12 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['embeddedPackages'][1]['kind'] ?? null) !== 'embedded-object'
         || ($summary['embeddedPackages'][1]['valid'] ?? null) !== true
         || ($summary['embeddedPackages'][1]['issues'] ?? null) !== []
+        || ($summary['officeDocumentRoot']['relationshipCount'] ?? null) !== 1
+        || ($summary['officeDocumentRoot']['valid'] ?? null) !== true
+        || ($summary['officeDocumentRoot']['issues'] ?? null) !== []
+        || ($summary['officeDocumentRoot']['relationships'][0]['id'] ?? null) !== 'rIdDocument'
+        || ($summary['officeDocumentRoot']['relationships'][0]['targetPart'] ?? null) !== '/word/document.xml'
+        || ($summary['officeDocumentRoot']['relationships'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
         || ($summary['digitalSignatures'][0]['relationshipPartName'] ?? null) !== '/_xmlsignatures/_rels/origin.sigs.rels'
         || ($summary['digitalSignatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-origin'
         || ($summary['digitalSignatures'][0]['signatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml'
