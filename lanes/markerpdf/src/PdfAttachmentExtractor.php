@@ -169,15 +169,35 @@ final class PdfAttachmentExtractor
                 continue;
             }
 
-            if (($attachment['file_spec_object_id'] ?? null) !== null
-                && ($attachment['file_spec_object_id'] ?? null) === ($candidate['file_spec_object_id'] ?? null)
-                && ($attachment['stream_object_id'] ?? null) === ($candidate['stream_object_id'] ?? null)
-            ) {
+            if ($this->sameAttachmentFileSpecMirror($attachment, $candidate)) {
                 return $index;
             }
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $attachment
+     * @param array<string, mixed> $candidate
+     */
+    private function sameAttachmentFileSpecMirror(array $attachment, array $candidate): bool
+    {
+        $attachmentStreamId = $attachment['stream_object_id'] ?? null;
+        $candidateStreamId = $candidate['stream_object_id'] ?? null;
+        if (!is_int($attachmentStreamId) || !is_int($candidateStreamId) || $attachmentStreamId !== $candidateStreamId) {
+            return false;
+        }
+
+        $attachmentFileSpecId = $attachment['file_spec_object_id'] ?? null;
+        $candidateFileSpecId = $candidate['file_spec_object_id'] ?? null;
+        if (is_int($attachmentFileSpecId) && is_int($candidateFileSpecId)) {
+            return $attachmentFileSpecId === $candidateFileSpecId;
+        }
+
+        return ($attachment['filename'] ?? null) === ($candidate['filename'] ?? null)
+            && ($attachment['byte_length'] ?? null) === ($candidate['byte_length'] ?? null)
+            && ($attachment['sha256'] ?? null) === ($candidate['sha256'] ?? null);
     }
 
     /**

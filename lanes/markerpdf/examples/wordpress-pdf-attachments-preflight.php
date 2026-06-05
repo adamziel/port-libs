@@ -12,6 +12,7 @@ $stalePayload = "Title,Status\nStale,Ignore\n";
 $postEofPayload = "Title,Status\nPost EOF Stale,Ignore\n";
 $sourcePayload = '<wp-export><post id="catalog-af"/></wp-export>';
 $pagePayload = '<wp-page><attachment role="page-associated"/></wp-page>';
+$directPayload = '<wp-export><post id="direct-filespec-mirror"/></wp-export>';
 $relatedPayload = '{"manifest":"catalog-related"}';
 $compressedCsv = gzcompress($csvPayload);
 $csvChecksum = md5($csvPayload);
@@ -19,11 +20,13 @@ $staleChecksum = md5($stalePayload);
 $postEofChecksum = md5($postEofPayload);
 $sourceChecksum = md5($sourcePayload);
 $pageChecksum = md5($pagePayload);
+$directChecksum = md5($directPayload);
+$directFileSpec = '<< /Type /Filespec /F (direct-source.xml) /Desc (Direct FileSpec mirror export) /AFRelationship /Source /EF << /F 21 0 R >> >>';
 $relatedChecksum = md5($relatedPayload);
 $pdf = "%PDF-1.7\n"
-    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names 7 0 R /AF [13 0 R] >>\nendobj\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names 7 0 R /AF [13 0 R {$directFileSpec}] >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
-    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /AF [16 0 R] /Annots [4 0 R 19 0 R] >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /AF [16 0 R {$directFileSpec}] /Annots [4 0 R 19 0 R 20 0 R] >>\nendobj\n"
     . "4 0 obj\n<< /Type /Annot /Subtype /FileAttachment /Rect [72 700 90 718] /Contents (Reviewer notes) /FS 8 0 R >>\nendobj\n"
     . "5 0 obj\n<< /Type /Filespec /F (review-notes.csv) /Desc (WordPress import rows) /AFRelationship /Data /EF << /F 6 0 R >> >>\nendobj\n"
     . "6 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter /FlateDecode /Params << /Size " . strlen($csvPayload) . " /ModDate (D:20260603082617Z) /CheckSum <{$csvChecksum}> >> /Length " . strlen($compressedCsv) . " >>\n"
@@ -32,7 +35,7 @@ $pdf = "%PDF-1.7\n"
     . "8 0 obj\n<< /Type /Filespec /F (review-note.txt) /Desc (Editorial handoff) /EF << /F 9 0 R >> >>\nendobj\n"
     . "9 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fplain /Params << /Size " . strlen($notesPayload) . " >> /Length " . strlen($notesPayload) . " >>\n"
     . "stream\n{$notesPayload}\nendstream\nendobj\n"
-    . "10 0 obj\n<< /Limits [(review-notes.csv) (review-notes.csv)] /Names 18 0 R >>\nendobj\n"
+    . "10 0 obj\n<< /Limits [(direct-source.xml) (review-notes.csv)] /Names 18 0 R >>\nendobj\n"
     . "11 0 obj\n<< /Type /Filespec /F (zz-stale.csv) /Desc (Stale out-of-limits import rows) /AFRelationship /Data /EF << /F 12 0 R >> >>\nendobj\n"
     . "12 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($stalePayload) . " /CheckSum <{$staleChecksum}> >> /Length " . strlen($stalePayload) . " >>\n"
     . "stream\n{$stalePayload}\nendstream\nendobj\n"
@@ -44,14 +47,26 @@ $pdf = "%PDF-1.7\n"
     . "16 0 obj\n<< /Type /Filespec /F (page-source.xml) /Desc (Page-associated source export) /AFRelationship /Source /EF << /F 17 0 R >> >>\nendobj\n"
     . "17 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($pagePayload) . " /CheckSum <{$pageChecksum}> /ModDate (D:20260604210100Z) >> /Length " . strlen($pagePayload) . " >>\n"
     . "stream\n{$pagePayload}\nendstream\nendobj\n"
-    . "18 0 obj\n[(review-notes.csv) 5 0 R (zz-stale.csv) 11 0 R]\nendobj\n"
+    . "18 0 obj\n[(review-notes.csv) 5 0 R (direct-source.xml) {$directFileSpec} (zz-stale.csv) 11 0 R]\nendobj\n"
     . "19 0 obj\n<< /Type /Annot /Subtype /FileAttachment /Rect [144 660 168 684] /Contents (Mirrored attachment review note) /FS 5 0 R >>\nendobj\n"
+    . "20 0 obj\n<< /Type /Annot /Subtype /FileAttachment /Rect [180 640 202 662] /Contents (Direct FileSpec mirrored note) /FS {$directFileSpec} >>\nendobj\n"
+    . "21 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($directPayload) . " /CheckSum <{$directChecksum}> /ModDate (D:20260605025837Z) >> /Length " . strlen($directPayload) . " >>\n"
+    . "stream\n{$directPayload}\nendstream\nendobj\n"
     . "%%EOF\n"
     . "5 0 obj\n<< /Type /Filespec /F (post-eof-stale.csv) /Desc (Post EOF stale import rows) /AFRelationship /Alternative /EF << /F 6 0 R >> >>\nendobj\n"
     . "6 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($postEofPayload) . " /CheckSum <{$postEofChecksum}> >> /Length " . strlen($postEofPayload) . " >>\n"
     . "stream\n{$postEofPayload}\nendstream\nendobj\n";
 
 $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+$findAttachment = static function (array $summary, string $filename): ?array {
+    foreach ($summary['attachments'] ?? [] as $attachment) {
+        if (is_array($attachment) && ($attachment['filename'] ?? null) === $filename) {
+            return $attachment;
+        }
+    }
+
+    return null;
+};
 $csvAttachment = $summary['attachments'][0] ?? null;
 if (!is_array($csvAttachment)
     || ($csvAttachment['filename'] ?? null) !== 'review-notes.csv'
@@ -64,7 +79,7 @@ if (!is_array($csvAttachment)
 ) {
     throw new RuntimeException('Expected checksum-matched Data relationship attachment review metadata with mirrored FileAttachment annotation state.');
 }
-$catalogAttachment = $summary['attachments'][1] ?? null;
+$catalogAttachment = $findAttachment($summary, 'source.xml');
 if (!is_array($catalogAttachment)
     || ($catalogAttachment['source'] ?? null) !== 'catalog-associated-file'
     || ($catalogAttachment['relationship'] ?? null) !== 'Source'
@@ -79,6 +94,20 @@ $summaryJson = json_encode($summary, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERRO
 if (str_contains($summaryJson, 'post-eof-stale.csv') || str_contains($summaryJson, 'Post EOF Stale')) {
     throw new RuntimeException('Expected post-EOF stale FileSpec objects to be ignored by attachment preflight.');
 }
+$directAttachment = $findAttachment($summary, 'direct-source.xml');
+if (!is_array($directAttachment)
+    || ($directAttachment['source'] ?? null) !== 'embedded-files-name-tree'
+    || ($directAttachment['file_spec_object_id'] ?? null) !== null
+    || ($directAttachment['stream_object_id'] ?? null) !== 21
+    || ($directAttachment['associated_file_source'] ?? null) !== 'catalog_af'
+    || ($directAttachment['page_associated_file_source'] ?? null) !== 'page_af'
+    || ($directAttachment['file_attachment_annotation_source'] ?? null) !== 'page_annotation'
+    || ($directAttachment['annotation_object_id'] ?? null) !== 20
+    || ($directAttachment['checksum_matches'] ?? null) !== true
+    || str_contains($summaryJson, $directPayload)
+) {
+    throw new RuntimeException('Expected direct FileSpec mirrors to merge without exposing attachment payload bytes.');
+}
 if (($catalogAttachment['related_file_count'] ?? null) !== 1
     || ($catalogAttachment['related_files'][0]['checksum_matches'] ?? null) !== true
     || ($catalogAttachment['related_files'][0]['related_filename'] ?? null) !== 'catalog-related.json'
@@ -86,7 +115,7 @@ if (($catalogAttachment['related_file_count'] ?? null) !== 1
 ) {
     throw new RuntimeException('Expected named related files to be summarized without exposing related payload bytes.');
 }
-$pageAttachment = $summary['attachments'][2] ?? null;
+$pageAttachment = $findAttachment($summary, 'page-source.xml');
 if (!is_array($pageAttachment)
     || ($pageAttachment['source'] ?? null) !== 'page-associated-file'
     || ($pageAttachment['page_associated_file'] ?? null) !== true
@@ -108,10 +137,15 @@ echo "<!-- markerpdf-pdf-attachments-smoke " . htmlspecialchars(json_encode([
     'pruned_out_of_limits_name_tree_entry' => true,
     'indirect_embeddedfiles_names_array_preflight' => ($csvAttachment['source'] ?? null) === 'embedded-files-name-tree',
     'file_attachment_annotation_mirror_preflight' => ($csvAttachment['file_attachment_annotation'] ?? false) === true,
-    'file_attachment_annotation_duplicate_payload_omitted' => $summary['attachment_count'] === 4
+    'file_attachment_annotation_duplicate_payload_omitted' => $summary['attachment_count'] === 5
         && substr_count($summaryJson, 'review-notes.csv') >= 1
         && !str_contains($summaryJson, $csvPayload),
     'terminal_eof_bounds_attachment_scan' => !str_contains($summaryJson, 'post-eof-stale.csv'),
+    'direct_filespec_mirror_deduped' => ($directAttachment['associated_file_source'] ?? null) === 'catalog_af'
+        && ($directAttachment['page_associated_file_source'] ?? null) === 'page_af'
+        && ($directAttachment['file_attachment_annotation_source'] ?? null) === 'page_annotation'
+        && $summary['attachment_count'] === 5,
+    'direct_filespec_payload_omitted' => !str_contains($summaryJson, $directPayload),
     'catalog_associated_file_preflight' => ($catalogAttachment['associated_file'] ?? false) === true,
     'page_associated_file_preflight' => ($pageAttachment['page_associated_file'] ?? false) === true,
     'related_file_preflight' => ($catalogAttachment['related_file_count'] ?? 0) === 1,
