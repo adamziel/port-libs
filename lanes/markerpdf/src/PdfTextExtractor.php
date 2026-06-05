@@ -27171,8 +27171,8 @@ final class PdfTextExtractor
             ?? [];
 
         $cursorX = $startX;
-        $minX = min($startX, $endX);
-        $maxX = max($startX, $endX);
+        $minX = $startX;
+        $maxX = $startX;
         for ($index = 0; $index < $glyphCount; $index++) {
             $glyphAdvance = $glyphWidths !== null && $glyphWidths !== []
                 ? ((float) ($glyphWidths[$index] ?? 500.0) / 1000.0) * $fontSize

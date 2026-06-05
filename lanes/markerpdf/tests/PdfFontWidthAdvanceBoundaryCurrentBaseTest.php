@@ -40,6 +40,18 @@ $fontWidthTerminalCharacterSpacingAdvanceBoundaryCurrentBasePdf = static functio
         . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
 };
 
+$fontWidthTerminalWordSpacingAdvanceBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /Ftw 12 Tf 24 Tw '
+        . '1 0 0 1 72 720 Tm (AB ) Tj 1 0 0 1 120 720 Tm (CD) Tj '
+        . 'T* 1 0 0 1 72 704 Tm (AB ) Tj 1 0 0 1 114 704 Tm (CD) Tj ET';
+    $widths = implode(' ', array_fill(0, 37, '1000'));
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Ftw 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+TerminalTwAdvance /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 68 /Widths [{$widths}] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+};
+
 $fontWidthRelativeTdAdvanceBoundaryCurrentBasePdf = static function (): string {
     $content = 'BT /Ftd 12 Tf '
         . '1 0 0 1 72 720 Tm <4142> Tj 24 0 Td <4344> Tj '
@@ -694,6 +706,35 @@ return [
         $t->true(str_contains($plainText, 'AB CD'));
         $t->true(!str_contains($plainText, 'TerminalTcAdvance'));
         $t->true(!str_contains($plainText, 'Ftc'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'keeps terminal word spacing in current advance but out of styled drawn bboxes on current base' => static function (TestRunner $t) use ($fontWidthTerminalWordSpacingAdvanceBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthTerminalWordSpacingAdvanceBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $styledLines = [];
+        foreach (($pages[0]['blocks'] ?? []) as $block) {
+            foreach (($block['lines'] ?? []) as $line) {
+                $styledLines[] = $line;
+            }
+        }
+        $firstLine = $styledLines[0] ?? [];
+        $secondLine = $styledLines[1] ?? [];
+
+        $t->same(['AB CD', 'AB CD'], $extractor->extractTextLines($pdf));
+        $t->same(['AB ', 'CD', 'AB ', 'CD'], $extractor->extractTextRuns($pdf));
+        $t->same("AB CD\nAB CD", $plainText);
+        $t->same("AB CD\nAB CD\n", $extractor->naiveGetText($pdf));
+        $t->same(['AB ', 'CD'], array_column($firstLine['spans'] ?? [], 'text'));
+        $t->same([[0.0, 0.0, 36.0, 12.0], [48.0, 0.0, 72.0, 12.0]], array_column($firstLine['spans'] ?? [], 'bbox'));
+        $t->same([0.0, 0.0, 72.0, 12.0], $firstLine['bbox'] ?? null);
+        $t->same(['AB ', 'CD'], array_column($secondLine['spans'] ?? [], 'text'));
+        $t->same([[0.0, 0.0, 36.0, 12.0], [36.0, 0.0, 60.0, 12.0]], array_column($secondLine['spans'] ?? [], 'bbox'));
+        $t->same([0.0, 0.0, 60.0, 12.0], $secondLine['bbox'] ?? null);
+        $t->true(array_column($firstLine['spans'] ?? [], 'bbox') !== [[0.0, 0.0, 60.0, 12.0], [60.0, 0.0, 84.0, 12.0]]);
+        $t->true(!str_contains($plainText, 'TerminalTwAdvance'));
+        $t->true(!str_contains($plainText, 'Ftw'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'uses font-width current text advance before relative Td word-gap decisions on current base' => static function (TestRunner $t) use ($fontWidthRelativeTdAdvanceBoundaryCurrentBasePdf): void {
