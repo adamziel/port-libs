@@ -121,4 +121,92 @@ return [
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
     },
+    'resolves current indirect inline image decode operands before Indexed RGB preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $imageBytes = "\x1c";
+        $compressedImage = gzcompress($imageBytes);
+        if (!is_string($compressedImage)) {
+            throw new RuntimeException('Unable to compress indirect inline image fixture.');
+        }
+
+        $payload = strtoupper(bin2hex($compressedImage)) . '>';
+        $objects = [
+            91 => '<000000FF000000FF000000FF>',
+            101 => '3',
+            102 => '1',
+            103 => '2',
+            104 => '[0 3]',
+        ];
+        $preview = $renderer->inlineIndexedImageStreamPreviewRows(
+            '/W 101 0 R /H 102 0 R /CS [/I /RGB 3 91 0 R] /BPC 103 0 R /F [/AHx /Fl] /D 104 0 R',
+            $payload,
+            $objects,
+            3
+        );
+
+        $t->same(true, $preview['inline_image']['uses_abbreviations']);
+        $t->same('<< /Width 101 0 R /Height 102 0 R /ColorSpace [/Indexed /DeviceRGB 3 91 0 R] /BitsPerComponent 103 0 R /Filter [/ASCIIHexDecode /FlateDecode] /Decode 104 0 R >>', $preview['inline_image']['canonical_dictionary']);
+        $t->same(3, $preview['width']);
+        $t->same(1, $preview['height']);
+        $t->same(2, $preview['bits_per_component']);
+        $t->same(3, $preview['expected_pixel_count']);
+        $t->same(3, $preview['preview_pixel_count']);
+        $t->same(true, $preview['complete_image_sample_data']);
+        $t->same(hash('sha256', $imageBytes), $preview['image_stream']['decoded_sha256']);
+        $t->same('1C', $preview['image_stream']['decoded_preview_hex']);
+        $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
+        $t->same([
+            'ranges' => [
+                ['min' => 0.0, 'max' => 3.0],
+            ],
+            'component_count' => 1,
+            'expected_components' => 1,
+            'valid_for_components' => true,
+            'identity' => false,
+            'inverted_components' => [],
+            'source' => 'explicit',
+        ], $preview['image_decode']);
+        $t->same([0.0, 1.0, 3.0], array_column($preview['pixels'], 'raw_sample'));
+        $t->same([0, 1, 3], array_column($preview['pixels'], 'palette_index'));
+        $t->same([0.0, 0.0, 0.0], $preview['pixels'][0]['base_components']);
+        $t->same([1.0, 0.0, 0.0], $preview['pixels'][1]['base_components']);
+        $t->same([0.0, 0.0, 1.0], $preview['pixels'][2]['base_components']);
+    },
+    'resolves current indirect inline ImageMask geometry before stencil preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $objects = [
+            101 => '4',
+            102 => '1',
+            103 => '[1 0]',
+            104 => '1',
+        ];
+        $preview = $renderer->inlineImageMaskPreviewRows(
+            '/W 101 0 R /H 102 0 R /IM true /D 103 0 R /BPC 104 0 R',
+            "\xa0",
+            $objects,
+            4
+        );
+
+        $t->same('ImageMask', $preview['source_color_space']);
+        $t->same(4, $preview['width']);
+        $t->same(1, $preview['height']);
+        $t->same(1, $preview['bits_per_component']);
+        $t->same(4, $preview['expected_pixel_count']);
+        $t->same(4, $preview['preview_pixel_count']);
+        $t->same(true, $preview['complete_image_sample_data']);
+        $t->same([
+            'ranges' => [
+                ['min' => 1.0, 'max' => 0.0],
+            ],
+            'component_count' => 1,
+            'expected_components' => 1,
+            'valid_for_components' => true,
+            'identity' => false,
+            'inverted_components' => [0],
+            'source' => 'explicit',
+        ], $preview['image_mask']['decode']);
+        $t->same([1.0, 0.0, 1.0, 0.0], array_column($preview['pixels'], 'raw_sample'));
+        $t->same([0.0, 1.0, 0.0, 1.0], array_column($preview['pixels'], 'opacity'));
+        $t->contains('image_mask_decode_inverts_stencil', implode(',', $preview['notes']));
+    },
 ];

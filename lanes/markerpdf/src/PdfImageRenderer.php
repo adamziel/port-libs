@@ -172,7 +172,7 @@ final class PdfImageRenderer
             'filter' => $this->imageFilterName($imageDictionary) ?? 'DCTDecode',
             'source_color_space' => $colorSpace,
             'components' => $components,
-            'bits_per_component' => $this->imageBitsPerComponent($imageDictionary) ?? 8,
+            'bits_per_component' => $this->imageBitsPerComponent($imageDictionary, $objects) ?? 8,
             'adobe_app14_transform' => $adobeTransform,
             'decode_parms_color_transform' => $decodeParmsTransform,
             'effective_color_transform' => $effectiveTransform,
@@ -448,7 +448,7 @@ final class PdfImageRenderer
             && ($jpxSoftMaskInData['uses_embedded_soft_mask'] ?? false) === true;
         $imageMask = $this->imageMaskDetails($imageDictionary, $objects);
         $imageMaskPresent = $imageMask !== null && $imageMask['present'] === true;
-        $bitsPerComponent = $imageMaskPresent ? ($this->imageBitsPerComponent($imageDictionary) ?? 1) : ($this->imageBitsPerComponent($imageDictionary) ?? 8);
+        $bitsPerComponent = $imageMaskPresent ? ($this->imageBitsPerComponent($imageDictionary, $objects) ?? 1) : ($this->imageBitsPerComponent($imageDictionary, $objects) ?? 8);
         $expectedDecodeComponents = $imageMaskPresent ? 1 : $colorSpace['components'];
         $imageDecode = $this->imageDecodeDetails($imageDictionary, $objects, $expectedDecodeComponents, $imageMaskPresent);
         if (
@@ -1032,8 +1032,8 @@ final class PdfImageRenderer
         }
 
         $canonical = (string) $plan['inline_image']['canonical_dictionary'];
-        $width = $this->integerNameValue($canonical, 'Width');
-        $height = $this->integerNameValue($canonical, 'Height');
+        $width = $this->integerNameValue($canonical, 'Width', $objects);
+        $height = $this->integerNameValue($canonical, 'Height', $objects);
         $bitsPerComponent = max(1, (int) ($plan['bits_per_component'] ?? 8));
         if (!is_int($width) || !is_int($height) || $width < 1 || $height < 1) {
             throw new InvalidArgumentException('Inline Indexed image preview requires positive Width and Height.');
@@ -1528,8 +1528,8 @@ final class PdfImageRenderer
         }
 
         $canonical = (string) $plan['inline_image']['canonical_dictionary'];
-        $width = $this->integerNameValue($canonical, 'Width');
-        $height = $this->integerNameValue($canonical, 'Height');
+        $width = $this->integerNameValue($canonical, 'Width', $objects);
+        $height = $this->integerNameValue($canonical, 'Height', $objects);
         $components = (int) $plan['components'];
         $bitsPerComponent = max(1, (int) ($plan['bits_per_component'] ?? 8));
         if (!is_int($width) || !is_int($height) || $width < 1 || $height < 1) {
@@ -1645,8 +1645,8 @@ final class PdfImageRenderer
         }
 
         $canonical = (string) $plan['inline_image']['canonical_dictionary'];
-        $width = $this->integerNameValue($canonical, 'Width');
-        $height = $this->integerNameValue($canonical, 'Height');
+        $width = $this->integerNameValue($canonical, 'Width', $objects);
+        $height = $this->integerNameValue($canonical, 'Height', $objects);
         $components = $plan['components'] ?? null;
         $bitsPerComponent = max(1, (int) ($plan['bits_per_component'] ?? 8));
         if (!is_int($width) || !is_int($height) || $width < 1 || $height < 1) {
@@ -4225,13 +4225,16 @@ final class PdfImageRenderer
         return $this->decodePdfName($match[1] !== '' ? $match[1] : $match[2]);
     }
 
-    private function imageBitsPerComponent(string $dictionary): ?int
+    private function imageBitsPerComponent(string $dictionary, array $objects = []): ?int
     {
-        if (preg_match('/\/(?:BitsPerComponent|BPC)\s+(\d+)/', $dictionary, $match) !== 1) {
+        $value = $this->extractPdfNameValue($dictionary, 'BitsPerComponent')
+            ?? $this->extractPdfNameValue($dictionary, 'BPC');
+        if ($value === null) {
             return null;
         }
 
-        return max(1, (int) $match[1]);
+        $integer = $this->integerFromPdfValue($value, $objects);
+        return $integer === null ? null : max(1, $integer);
     }
 
     /**
@@ -4308,7 +4311,7 @@ final class PdfImageRenderer
             return null;
         }
 
-        $bitsPerComponent = $this->imageBitsPerComponent($dictionary) ?? 1;
+        $bitsPerComponent = $this->imageBitsPerComponent($dictionary, $objects) ?? 1;
         $decode = $decodePlan ?? $this->imageDecodeDetails($dictionary, $objects, 1, true);
         if ($decode === null) {
             $decode = $this->buildImageDecodeDetails([0.0, 1.0], 1, 'default');
@@ -4323,8 +4326,8 @@ final class PdfImageRenderer
 
         return [
             'present' => true,
-            'width' => $this->integerNameValue($dictionary, 'Width'),
-            'height' => $this->integerNameValue($dictionary, 'Height'),
+            'width' => $this->integerNameValue($dictionary, 'Width', $objects),
+            'height' => $this->integerNameValue($dictionary, 'Height', $objects),
             'bits_per_component' => $bitsPerComponent,
             'decode' => $decode,
             'opacity_for_zero' => max(0.0, min(1.0, $opacityForZero)),
@@ -5837,14 +5840,14 @@ final class PdfImageRenderer
         return $value === null ? null : $this->pdfNameValue($value);
     }
 
-    private function integerNameValue(string $dictionary, string $name): ?int
+    private function integerNameValue(string $dictionary, string $name, array $objects = []): ?int
     {
         $value = $this->extractPdfNameValue($dictionary, $name);
-        if ($value === null || preg_match('/^[+-]?\d+/', trim($value), $match) !== 1) {
+        if ($value === null) {
             return null;
         }
 
-        return (int) $match[0];
+        return $this->integerFromPdfValue($value, $objects);
     }
 
     private function floatNameValue(string $dictionary, string $name): ?float

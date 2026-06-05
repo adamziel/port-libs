@@ -63,6 +63,34 @@ $completeInlineReview = $renderer->inlineIndexedImageStreamPreviewRows(
     $inlineReviewObjects,
     3
 );
+$indirectInlineObjects = [
+    91 => '<000000FF000000FF000000FF>',
+    101 => '3',
+    102 => '1',
+    103 => '2',
+    104 => '[0 3]',
+];
+$indirectCompressedImage = gzcompress("\x1c");
+if (!is_string($indirectCompressedImage)) {
+    throw new RuntimeException('Unable to build indirect inline image preview fixture.');
+}
+$indirectIndexedReview = $renderer->inlineIndexedImageStreamPreviewRows(
+    '/W 101 0 R /H 102 0 R /CS [/I /RGB 3 91 0 R] /BPC 103 0 R /F [/AHx /Fl] /D 104 0 R',
+    strtoupper(bin2hex($indirectCompressedImage)) . '>',
+    $indirectInlineObjects,
+    3
+);
+$indirectMaskReview = $renderer->inlineImageMaskPreviewRows(
+    '/W 101 0 R /H 102 0 R /IM true /D 103 0 R /BPC 104 0 R',
+    "\xa0",
+    [
+        101 => '4',
+        102 => '1',
+        103 => '[1 0]',
+        104 => '1',
+    ],
+    4
+);
 $incompleteAscii85ReviewDecodeFailed = false;
 try {
     $renderer->inlineIndexedImageStreamPreviewRows(
@@ -93,6 +121,16 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'complete_ascii85_review_preview_pixels' => $completeInlineReview['preview_pixel_count'] ?? null,
     'incomplete_ascii85_review_decode_failed' => $incompleteAscii85ReviewDecodeFailed,
     'requires_ascii85_review_end_marker_before_rgb_preview' => true,
+    'resolves_current_indirect_inline_preview_operands' => ($indirectIndexedReview['width'] ?? null) === 3
+        && ($indirectIndexedReview['height'] ?? null) === 1
+        && ($indirectIndexedReview['bits_per_component'] ?? null) === 2
+        && ($indirectIndexedReview['preview_pixel_count'] ?? null) === 3,
+    'indirect_inline_decode_source' => $indirectIndexedReview['image_decode']['source'] ?? null,
+    'indirect_inline_palette_indexes' => array_column($indirectIndexedReview['pixels'] ?? [], 'palette_index'),
+    'resolves_current_indirect_inline_imagemask_geometry' => ($indirectMaskReview['width'] ?? null) === 4
+        && ($indirectMaskReview['height'] ?? null) === 1
+        && ($indirectMaskReview['preview_pixel_count'] ?? null) === 4,
+    'indirect_inline_imagemask_opacity' => array_column($indirectMaskReview['pixels'] ?? [], 'opacity'),
     'excluded_inline_image_text' => !str_contains($plainText, 'Inline DP Image Noise')
         && !str_contains($plainText, 'raw EI')
         && !str_contains($plainText, 'ASCII85 Inline Noise')
