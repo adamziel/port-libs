@@ -686,6 +686,62 @@ MARKDOWN);
         $t->same(['Migration packet', 'Final page'], $sequence['finalPdfOutlineTitles']);
     },
 
+    'fake runner extracts bounded pdf document info and catalog language metadata' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/metadata.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Title (PDF Review Packet) /Author <FEFF004D006900670072006100740069006F006E0020004400650073006B> /Subject (Migration review) /Keywords (wordpress, migration) /Creator (Pandoc native handoff) /Producer (LuaHBTeX) /CreationDate (D:20260605050300Z) /ModDate (D:20260605050400Z) /Trapped /False >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R /Info 8 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/metadata.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/metadata.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same([
+            'Title' => 'PDF Review Packet',
+            'Author' => 'Migration Desk',
+            'Subject' => 'Migration review',
+            'Keywords' => 'wordpress, migration',
+            'Creator' => 'Pandoc native handoff',
+            'Producer' => 'LuaHBTeX',
+            'CreationDate' => 'D:20260605050300Z',
+            'ModDate' => 'D:20260605050400Z',
+            'Trapped' => 'False',
+        ], $result['pdfDocumentInfo']);
+        $t->same('en-US', $result['pdfLanguage']);
+        $t->contains('pdf-byte-document-info:9', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-language:en-US', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($result['pdfDocumentInfo'], $sequence['finalPdfDocumentInfo']);
+        $t->same('en-US', $sequence['finalPdfLanguage']);
+    },
+
     'fake runner extracts bounded pdf annotation links and embedded file names from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/review.pdf']);
