@@ -105,6 +105,37 @@ return [
         $t->true(!str_contains($html, 'javascript:'), 'Expected javascript URLs to be stripped from extended attributes');
         $t->true(!str_contains($html, 'background="mailto:'), 'Expected mailto image-fetch URL to be stripped');
     },
+    'unwraps visible form content while dropping active controls before review handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<form action="/submit" onsubmit="alert(1)">'
+            . '<p>Name <input name="name" value="Ada"><button formaction="javascript:alert(1)">Send review</button></p>'
+            . '<p><select name="status"><option selected>Draft</option><option>Final</option></select></p>'
+            . '<textarea name="notes">Visible reviewer note</textarea>'
+            . '</form><p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/form-review-fragment.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('<p>Name Send review</p><p>DraftFinal</p>Visible reviewer note<p>after</p>', $html);
+        $t->same('Name Send reviewDraftFinalVisible reviewer noteafter', $fragment->textContent());
+        $t->same(['p'], $summary['elementNames']);
+        $t->same(['button', 'form', 'input', 'option', 'select', 'textarea'], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same(7, $summary['diagnostics']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag'], $fragment->diagnosticCodes());
+        $t->contains('Visible reviewer note', $blocks);
+        $t->same('/migration/form-review-fragment.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, '<form'), 'Expected form wrapper to be stripped');
+        $t->true(!str_contains($html, '<input'), 'Expected input control to be dropped');
+        $t->true(!str_contains($html, '<button'), 'Expected button wrapper to be stripped');
+        $t->true(!str_contains($html, '<select'), 'Expected select wrapper to be stripped');
+        $t->true(!str_contains($html, '<textarea'), 'Expected textarea wrapper to be stripped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected form-side javascript URLs to be stripped');
+    },
     'filters mixed unsafe srcset candidates before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<p>'

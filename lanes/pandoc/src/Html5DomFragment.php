@@ -314,6 +314,15 @@ final class Html5DomFragment
             return null;
         }
 
+        if ($mode === 'html' && self::isUnwrappedElement($name)) {
+            $diagnostics[] = [
+                'code' => 'blocked-tag',
+                'tag' => $name,
+            ];
+
+            return self::normalizeChildren($node, $mode, $diagnostics, self::childForeignContext($node, $rawName, $elementForeignContext));
+        }
+
         if (self::isBlockedElement($name)) {
             $diagnostics[] = [
                 'code' => 'blocked-tag',
@@ -406,6 +415,18 @@ final class Html5DomFragment
             'script',
             'select',
             'style',
+            'textarea',
+        ], true);
+    }
+
+    private static function isUnwrappedElement(string $name): bool
+    {
+        return in_array(strtolower($name), [
+            'button',
+            'form',
+            'optgroup',
+            'option',
+            'select',
             'textarea',
         ], true);
     }

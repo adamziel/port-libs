@@ -16,6 +16,7 @@ $sourceHtml = <<<'HTML'
   <div action="/safe-submit" formaction="javascript:alert(1)" longdesc="https://example.test/longdesc" background="mailto:review@example.test">Extended URL attributes</div>
   <p><img src="https://example.test/preview.png" srcset="https://example.test/preview.png 1x, /uploads/preview@2x.png 02.00x, javascript:alert(1) 3x, /uploads/bad.png 0w" alt="Preview"></p>
   <p><a href="mailto:review@example.test">Mail reviewer</a><img src="mailto:review@example.test" alt="Unsafe media link"></p>
+  <form action="/submit" onsubmit="alert(1)"><p>Reviewer choice <input name="status" value="draft"><button formaction="javascript:alert(1)">Keep visible label</button></p><p><select><option>Draft</option><option>Final</option></select></p><textarea>Visible reviewer note</textarea></form>
   <details open="open"><summary>Media review</summary><video controls="" muted playsinline loop poster="tel:+15550100"><source src="mailto:review@example.test" type="video/mp4"><source src="/uploads/preview.mp4" type="video/mp4"></video></details>
   <figure class="foreign-content"><svg><foreignObject><div viewBox="html attr"><linearGradient>HTML child</linearGradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject></svg><math><annotation-xml encoding="text/html"><div viewBox="math html"><textPath>HTML text</textPath></div></annotation-xml><annotation-xml encoding="MathML-Content"><ci definitionURL="#x">x</ci></annotation-xml></math></figure>
   <script>alert("legacy embed")</script>
@@ -36,6 +37,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<div action="/safe-submit" longdesc="https://example.test/longdesc">Extended URL attributes</div>',
         '<img src="https://example.test/preview.png" srcset="https://example.test/preview.png 1x, /uploads/preview@2x.png 2x" alt="Preview">',
         '<a href="mailto:review@example.test">Mail reviewer</a><img alt="Unsafe media link">',
+        '<p>Reviewer choice Keep visible label</p><p>DraftFinal</p>Visible reviewer note',
         '<details open><summary>Media review</summary><video controls muted playsinline loop><source type="video/mp4"><source src="/uploads/preview.mp4" type="video/mp4"></video></details>',
         '<foreignObject><div viewbox="html attr"><lineargradient>HTML child</lineargradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject>',
         '<annotation-xml encoding="text/html"><div viewbox="math html"><textpath>HTML text</textpath></div></annotation-xml>',
@@ -46,14 +48,14 @@ if (($argv[1] ?? '') === '--self-test') {
         }
     }
 
-    foreach (['onclick=', 'ping=', 'formaction=', 'background="mailto:', 'javascript:', 'src="mailto:', 'poster="tel:', '<script>', 'open="open"', 'controls=""', 'viewBox="html attr"', '<textPath>HTML text</textPath>'] as $blocked) {
+    foreach (['onclick=', 'ping=', 'formaction=', 'background="mailto:', 'javascript:', 'src="mailto:', 'poster="tel:', '<form', '<input', '<button', '<select', '<textarea', '<script>', 'open="open"', 'controls=""', 'viewBox="html attr"', '<textPath>HTML text</textPath>'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM handoff self-test retained blocked content: ' . $blocked);
         }
     }
 
-    if ($fragment->summary()['blockedTags'] !== ['script']) {
-        throw new RuntimeException('HTML5 DOM handoff self-test did not report blocked script tag');
+    if ($fragment->summary()['blockedTags'] !== ['button', 'form', 'input', 'option', 'script', 'select', 'textarea']) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not report blocked form/script tags');
     }
     if (!in_array('srcset', $fragment->summary()['filteredAttributes'], true)) {
         throw new RuntimeException('HTML5 DOM handoff self-test did not report filtered srcset attribute');
