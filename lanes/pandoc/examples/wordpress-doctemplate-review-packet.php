@@ -21,6 +21,7 @@ HTML,
 <p class="summary">$~$$warnings/length$ warnings queued for $title$$~$</p>
 <p class="next-warning">${ warnings/rest/first:components/next-warning()/uppercase }</p>
 <p class="authors">$for(authors/pairs)$$it.value.name$$sep$, $endfor$</p>
+<p class="audit-flag" data-suppressed="$suppressed$">Suppressed: <$suppressed$></p>
 </header>
 HTML,
     'review-packets/components/next-warning.html' => '$it.source$: $it.message$',
@@ -47,6 +48,7 @@ $context = [
         ['name' => 'Migration bot'],
         ['name' => 'Content editor'],
     ],
+    'suppressed' => false,
     'warnings' => [
         ['index' => 1, 'title' => 'Media warning', 'source' => 'media', 'priority' => 1, 'message' => 'Check &amp; confirm alt text'],
         ['index' => 2, 'title' => 'Link warning', 'source' => 'links', 'priority' => 4, 'message' => 'Verify edit links before publish'],
@@ -76,6 +78,7 @@ if (in_array('--self-test', $argv, true)) {
         '<p class="summary">27 warnings queued for Batch 42 Review</p>',
         '<p class="next-warning">LINKS: VERIFY EDIT LINKS BEFORE PUBLISH</p>',
         '<p class="authors">Migration bot, Content editor</p>',
+        '<p class="audit-flag" data-suppressed="">Suppressed: <></p>',
         '<li data-index="1" data-source="media" data-review-title="Batch 42 Review"><span class="marker">A.</span> <span class="source">{MEDIA   }</span> <span class="priority">   I</span> Check &amp; confirm alt text</li>',
         '<li data-index="2" data-source="links" data-review-title="Batch 42 Review"><span class="marker">B.</span> <span class="source">{LINKS   }</span> <span class="priority">  IV</span> Verify edit links before publish</li>',
         '<li data-index="3" data-source="魚" data-review-title="Batch 42 Review"><span class="marker">C.</span> <span class="source">{魚      }</span> <span class="priority">  IX</span> Confirm multilingual source label spacing</li>',

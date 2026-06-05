@@ -1334,7 +1334,7 @@ final class DocTemplate
         }
 
         if (is_bool($value)) {
-            return $value ? 'true' : 'false';
+            return $value ? 'true' : '';
         }
 
         if (is_string($value)) {

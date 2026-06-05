@@ -64,6 +64,32 @@ TPL;
         ]), $output);
     },
 
+    'renders pandoc doctemplate false booleans as empty text' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+False: <$flag$>
+List: <$items[, ]$>
+Loop: $for(items)$[$it$]$endfor$
+Map: <$meta$>
+Block: <$flag/left 8 "| " " |"$>
+$if(flag)$unexpected$else$false branch$endif$
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'flag' => false,
+            'items' => [true, false, 'kept'],
+            'meta' => ['present' => false],
+        ]);
+
+        $t->same(implode("\n", [
+            'False: <>',
+            'List: <true, , kept>',
+            'Loop: [true][][kept]',
+            'Map: <true>',
+            'Block: <>',
+            'false branch',
+        ]), $output);
+    },
+
     'renders pandoc doctemplate for loops arrays maps scalars and separators' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 Authors: $for(authors)$$authors.name$ <$it.role$>$sep$; $endfor$
@@ -414,7 +440,7 @@ TPL;
 
         $t->same(implode("\n", [
             'Meta: true',
-            'Flags: true, false',
+            'Flags: true, ',
         ]), $output);
     },
 
