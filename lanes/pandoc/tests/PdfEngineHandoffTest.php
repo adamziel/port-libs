@@ -2395,6 +2395,113 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfCollectionMetadata']);
     },
 
+    'fake runner extracts bounded pdf article thread bead metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/threaded.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Threads [8 0 R 12 0 R] >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /Thread /F 9 0 R /I 11 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /Bead /T 8 0 R /P 3 0 R /R [72 648 540 720] /N 10 0 R /V 10 0 R >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /Bead /T 8 0 R /P 4 0 R /R [72 96 540 144] /N 9 0 R /V 9 0 R >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Title (Review reading order) /Author (Migration Desk) /Subject <FEFF0050004400460020007400680072006500610064> >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Type /Thread /F 13 0 R /I << /Title (Sidebar notes) >> >>',
+            'endobj',
+            '13 0 obj',
+            '<< /Type /Bead /T 12 0 R /P 3 0 R /R [36 36 180 120] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/threaded.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/threaded.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'object' => '8 0 R',
+                'infoTitle' => 'Review reading order',
+                'infoAuthor' => 'Migration Desk',
+                'infoSubject' => 'PDF thread',
+                'firstBead' => '9 0 R',
+                'beadCount' => 2,
+                'beads' => [
+                    [
+                        'object' => '9 0 R',
+                        'pageObject' => '3 0 R',
+                        'rect' => [72.0, 648.0, 540.0, 720.0],
+                        'next' => '10 0 R',
+                        'prev' => '10 0 R',
+                    ],
+                    [
+                        'object' => '10 0 R',
+                        'pageObject' => '4 0 R',
+                        'rect' => [72.0, 96.0, 540.0, 144.0],
+                        'next' => '9 0 R',
+                        'prev' => '9 0 R',
+                    ],
+                ],
+            ],
+            [
+                'object' => '12 0 R',
+                'infoTitle' => 'Sidebar notes',
+                'infoAuthor' => null,
+                'infoSubject' => null,
+                'firstBead' => '13 0 R',
+                'beadCount' => 1,
+                'beads' => [
+                    [
+                        'object' => '13 0 R',
+                        'pageObject' => '3 0 R',
+                        'rect' => [36.0, 36.0, 180.0, 120.0],
+                        'next' => null,
+                        'prev' => null,
+                    ],
+                ],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfThreads']);
+        $t->contains('pdf-byte-threads:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-thread-beads:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-thread-info-titles:2', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfThreads']);
+    },
+
     'fake runner extracts bounded pdf acroform field metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/forms.pdf']);

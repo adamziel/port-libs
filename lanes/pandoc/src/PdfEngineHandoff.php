@@ -289,6 +289,7 @@ final class PdfEngineHandoff
      *     pdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{},
      *     pdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     pdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
+     *     pdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
      *     pdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     pdfSignatureSubFilters: array<string, int>,
      *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
@@ -691,6 +692,7 @@ final class PdfEngineHandoff
         $pdfOptionalContentConfig = [];
         $pdfCollectionMetadata = [];
         $pdfAcroFormMetadata = [];
+        $pdfThreads = [];
         $pdfSignatures = [];
         $pdfSignatureSubFilters = [];
         $pdfActiveActions = [];
@@ -751,6 +753,7 @@ final class PdfEngineHandoff
                 $pdfOptionalContentConfig = $pdfInspection['optionalContentConfig'];
                 $pdfCollectionMetadata = $pdfInspection['collectionMetadata'];
                 $pdfAcroFormMetadata = $pdfInspection['acroFormMetadata'];
+                $pdfThreads = $pdfInspection['threads'];
                 $pdfSignatures = $pdfInspection['signatures'];
                 $pdfSignatureSubFilters = $pdfInspection['signatureSubFilters'];
                 $pdfActiveActions = $pdfInspection['activeActions'];
@@ -1154,6 +1157,25 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-acroform-xfa-packets:' . count($pdfAcroFormMetadata['xfaPacketNames']);
                     }
                 }
+                if ($pdfThreads !== []) {
+                    $diagnostics[] = 'pdf-byte-threads:' . count($pdfThreads);
+                    $beadCount = 0;
+                    $titleCount = 0;
+                    foreach ($pdfThreads as $thread) {
+                        if (isset($thread['beadCount']) && is_int($thread['beadCount'])) {
+                            $beadCount += $thread['beadCount'];
+                        }
+                        if (is_string($thread['infoTitle'] ?? null) && $thread['infoTitle'] !== '') {
+                            $titleCount++;
+                        }
+                    }
+                    if ($beadCount > 0) {
+                        $diagnostics[] = 'pdf-byte-thread-beads:' . $beadCount;
+                    }
+                    if ($titleCount > 0) {
+                        $diagnostics[] = 'pdf-byte-thread-info-titles:' . $titleCount;
+                    }
+                }
                 if ($pdfSignatures !== []) {
                     $diagnostics[] = 'pdf-byte-signatures:' . count($pdfSignatures);
                     $byteRangeCount = 0;
@@ -1411,6 +1433,7 @@ final class PdfEngineHandoff
             'pdfOptionalContentConfig' => $pdfOptionalContentConfig,
             'pdfCollectionMetadata' => $pdfCollectionMetadata,
             'pdfAcroFormMetadata' => $pdfAcroFormMetadata,
+            'pdfThreads' => $pdfThreads,
             'pdfSignatures' => $pdfSignatures,
             'pdfSignatureSubFilters' => $pdfSignatureSubFilters,
             'pdfActiveActions' => $pdfActiveActions,
@@ -1492,6 +1515,7 @@ final class PdfEngineHandoff
      *     finalPdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{},
      *     finalPdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     finalPdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
+     *     finalPdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
      *     finalPdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     finalPdfSignatureSubFilters: array<string, int>,
      *     finalPdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
@@ -1687,6 +1711,7 @@ final class PdfEngineHandoff
             'finalPdfOptionalContentConfig' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentConfig'] ?? null) ? $finalRun['pdfOptionalContentConfig'] : [],
             'finalPdfCollectionMetadata' => is_array($finalRun) && is_array($finalRun['pdfCollectionMetadata'] ?? null) ? $finalRun['pdfCollectionMetadata'] : [],
             'finalPdfAcroFormMetadata' => is_array($finalRun) && is_array($finalRun['pdfAcroFormMetadata'] ?? null) ? $finalRun['pdfAcroFormMetadata'] : [],
+            'finalPdfThreads' => is_array($finalRun) && is_array($finalRun['pdfThreads'] ?? null) ? $finalRun['pdfThreads'] : [],
             'finalPdfSignatures' => is_array($finalRun) && is_array($finalRun['pdfSignatures'] ?? null) ? $finalRun['pdfSignatures'] : [],
             'finalPdfSignatureSubFilters' => is_array($finalRun) && is_array($finalRun['pdfSignatureSubFilters'] ?? null) ? $finalRun['pdfSignatureSubFilters'] : [],
             'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
@@ -2771,6 +2796,7 @@ final class PdfEngineHandoff
      *     taggingMetadata:array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     structureElements:list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     collectionMetadata:array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
+     *     threads:list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
      *     signatures:list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     signatureSubFilters:array<string, int>,
      *     activeActions:list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
@@ -2859,6 +2885,7 @@ final class PdfEngineHandoff
             'optionalContentConfig' => $optionalContent['config'],
             'collectionMetadata' => $this->extractPdfCollectionMetadata($pdfBytes, $catalog),
             'acroFormMetadata' => $this->extractPdfAcroFormMetadata($pdfBytes, $catalog),
+            'threads' => $this->extractPdfThreads($pdfBytes, $catalog),
             'signatures' => $signatures,
             'signatureSubFilters' => $this->summarizePdfSignatureSubFilters($signatures),
             'activeActions' => $activeActions,
@@ -4915,6 +4942,187 @@ final class PdfEngineHandoff
             'order' => $this->collectPdfReferencesFromArray($this->extractPdfArrayOrReferenceValue($configuration, 'Order', $objects)),
             'orderLabels' => $this->collectPdfStringsFromArray($this->extractPdfArrayOrReferenceValue($configuration, 'Order', $objects)),
         ];
+    }
+
+    /**
+     * @return list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>
+     */
+    private function extractPdfThreads(string $pdfBytes, ?string $catalog): array
+    {
+        if ($catalog === null || !str_contains($catalog, '/Threads')) {
+            return [];
+        }
+
+        $value = $this->extractPdfValueForName($catalog, 'Threads');
+        if ($value === null) {
+            return [];
+        }
+
+        $threads = [];
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $this->addPdfThreadsFromValue($threads, $value, $objects);
+        usort(
+            $threads,
+            fn (array $left, array $right): int => $this->pdfReferenceSortKey($left['object'])
+                <=> $this->pdfReferenceSortKey($right['object'])
+                ?: strcmp($left['object'], $right['object'])
+        );
+
+        return array_values($threads);
+    }
+
+    /**
+     * @param list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}> $threads
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     */
+    private function addPdfThreadsFromValue(array &$threads, array $value, array $objects, int $depth = 0): void
+    {
+        if ($depth > 8) {
+            return;
+        }
+
+        if ($value['kind'] === 'array') {
+            $cursor = str_starts_with($value['value'], '[') ? 1 : 0;
+            $length = strlen($value['value']);
+            if (str_ends_with($value['value'], ']')) {
+                $length--;
+            }
+            while ($cursor < $length) {
+                $item = $this->parsePdfValueAt($value['value'], $cursor);
+                if ($item === null) {
+                    $cursor++;
+                    continue;
+                }
+                if (in_array($item['kind'], ['array', 'dictionary', 'reference'], true)) {
+                    $this->addPdfThreadsFromValue($threads, $item, $objects, $depth + 1);
+                }
+                $cursor = max($cursor + 1, min($length, $item['next']));
+            }
+
+            return;
+        }
+
+        if ($value['kind'] === 'reference') {
+            $reference = $value['value'];
+            $body = $objects[$this->pdfReferenceKey($reference)] ?? null;
+            if ($body === null) {
+                return;
+            }
+
+            $resolved = $this->parsePdfValueAt($body, 0);
+            if ($resolved !== null && $resolved['kind'] === 'array') {
+                $this->addPdfThreadsFromValue($threads, $resolved, $objects, $depth + 1);
+                return;
+            }
+
+            $this->addPdfThreadSummary($threads, $this->summarizePdfThread($reference, $body, $objects));
+            return;
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            $this->addPdfThreadSummary($threads, $this->summarizePdfThread('inline', $value['value'], $objects));
+        }
+    }
+
+    /**
+     * @param list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}> $threads
+     * @param array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>} $summary
+     */
+    private function addPdfThreadSummary(array &$threads, array $summary): void
+    {
+        if ($summary['object'] !== 'inline') {
+            foreach ($threads as $thread) {
+                if ($thread['object'] === $summary['object']) {
+                    return;
+                }
+            }
+        }
+
+        $threads[] = $summary;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}
+     */
+    private function summarizePdfThread(string $reference, string $dictionary, array $objects): array
+    {
+        $info = $this->extractPdfThreadInfoMetadata($dictionary, $objects);
+        $firstBead = $this->extractPdfReferenceToken($dictionary, 'F');
+        $beads = $firstBead === null ? [] : $this->extractPdfThreadBeads($firstBead, $objects);
+
+        return [
+            'object' => $reference,
+            'infoTitle' => $info['title'],
+            'infoAuthor' => $info['author'],
+            'infoSubject' => $info['subject'],
+            'firstBead' => $firstBead,
+            'beadCount' => count($beads),
+            'beads' => $beads,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{title:string|null, author:string|null, subject:string|null}
+     */
+    private function extractPdfThreadInfoMetadata(string $thread, array $objects): array
+    {
+        $info = $this->extractPdfDictionaryOrReferenceValue($thread, 'I', $objects);
+        if ($info === null) {
+            $info = $thread;
+        }
+
+        return [
+            'title' => $this->extractPdfStringOrNameValue($info, 'Title'),
+            'author' => $this->extractPdfStringOrNameValue($info, 'Author'),
+            'subject' => $this->extractPdfStringOrNameValue($info, 'Subject'),
+        ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>
+     */
+    private function extractPdfThreadBeads(string $firstBead, array $objects): array
+    {
+        $beads = [];
+        $visited = [];
+        $firstKey = $this->pdfReferenceKey($firstBead);
+        $cursor = $firstKey;
+        for ($depth = 0; $depth < 64; $depth++) {
+            if (isset($visited[$cursor])) {
+                break;
+            }
+            $body = $objects[$cursor] ?? null;
+            if ($body === null) {
+                break;
+            }
+
+            $visited[$cursor] = true;
+            $next = $this->extractPdfReferenceToken($body, 'N');
+            $beads[] = [
+                'object' => $cursor . ' R',
+                'pageObject' => $this->extractPdfReferenceToken($body, 'P'),
+                'rect' => $this->extractPdfNumberArrayToken($body, 'R', 4),
+                'next' => $next,
+                'prev' => $this->extractPdfReferenceToken($body, 'V'),
+            ];
+
+            if ($next === null) {
+                break;
+            }
+
+            $nextKey = $this->pdfReferenceKey($next);
+            if ($nextKey === $firstKey || isset($visited[$nextKey])) {
+                break;
+            }
+
+            $cursor = $nextKey;
+        }
+
+        return $beads;
     }
 
     /**
