@@ -77,6 +77,9 @@ final class SyntaxHighlighter
         'make' => 'makefile',
         'makefile' => 'makefile',
         'mk' => 'makefile',
+        'perl' => 'perl',
+        'pl' => 'perl',
+        'pm' => 'perl',
         'php' => 'php',
         'postgres' => 'sql',
         'postgresql' => 'sql',
@@ -523,6 +526,7 @@ final class SyntaxHighlighter
             'lua' => $this->tokenizeLua($code),
             'makefile' => $this->tokenizeMakefile($code),
             'markdown' => $this->tokenizeMarkdown($code),
+            'perl' => $this->tokenizePerl($code),
             'php' => $this->tokenizePhp($code),
             'python' => $this->tokenizePython($code),
             'r' => $this->tokenizeR($code),
@@ -576,6 +580,34 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
             ['operator', '/^(?:=>|->|::|===|!==|==|!=|<=|>=|&&|\\|\\||[{}()[\\];,.+*\\/%=!<>?:-])/'],
         ];
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizePerl(string $code): array
+    {
+        return $this->scan($code, [
+            ['keyword', '/^#![^\\n]*/'],
+            ['comment', '/^=(?:head[1-6]|over|back|item|for|begin|end|pod|cut)\\b[^\\n]*/'],
+            ['comment', '/^#[^\\n]*/'],
+            ['string', '/^s\\/(?:\\\\.|[^\\/\\\\])*\\/(?:\\\\.|[^\\/\\\\])*\\/[msixpadluncgeor]*/'],
+            ['string', '/^q[qwxr]?\\{(?:\\\\.|[^}\\\\])*\\}/s'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['keyword', '/^\\b(?:BEGIN|END|__DATA__|__END__|__FILE__|__LINE__|__PACKAGE__|break|continue|default|defer|do|each|else|elsif|for|foreach|given|if|last|local|my|next|our|package|redo|return|state|sub|unless|until|when|while)\\b/'],
+            ['keyword', '/^\\b(?:bytes|constant|diagnostics|english|filetest|integer|less|locale|open|sigtrap|strict|subs|utf8|vars|warnings)\\b/'],
+            ['constant', '/^\\b(?:undef)\\b/'],
+            ['number', '/^-?\\b(?:0[xX]_?[0-9A-Fa-f](?:_?[0-9A-Fa-f])*|0[bB]_?[01](?:_?[01])*|0[0-7](?:_?[0-7])*|\\d(?:_?\\d)*(?:\\.\\d(?:_?\\d)*)?(?:[eE][+-]?_?\\d(?:_?\\d)*)?)\\b/'],
+            ['operator', '/^\\b(?:and|cmp|eq|ge|gt|le|lt|ne|not|or)\\b/'],
+            ['function', '/^\\b(?:bless|chomp|close|defined|delete|die|exists|grep|join|keys|lc|map|open|print|printf|push|require|say|shift|sort|split|uc|use|values|warn)\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?:::[A-Z][A-Za-z0-9_]*)*/'],
+            ['variable', '/^(?:\\$[#_]?[A-Za-z_][A-Za-z0-9_]*|[@%][A-Za-z_][A-Za-z0-9_]*|\\$\\d+|[@%]_|\\$_|[$@%]\\{[^}\\n]+\\})/'],
+            ['attribute', '/^[A-Za-z_][A-Za-z0-9_]*(?=\\})/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*(?:\\(|\\{))/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:::|=>|->|=~|!~|==|!=|<=|>=|&&|\\|\\||\\/\\/|\\.\\.\\.?|\\+=|-=|\\*=|\\/=|%=|[{}()[\\];,.+*\\/%=!<>?:&|^~-])/'],
+        ]);
     }
 
     /**

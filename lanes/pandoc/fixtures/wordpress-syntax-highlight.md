@@ -190,3 +190,20 @@ media_paths = ["uploads", "assets"]
 [theme.variation]
 palette = { primary = "#005cc5", contrast = "#ffffff" }
 ```
+
+``` {.pl #perl-review .numberLines startFrom=14}
+#!/usr/bin/env perl
+use strict;
+use warnings;
+package WP::ImportReview;
+sub normalize_title {
+    my ($packet) = @_;
+    my ($title) = $packet->{title} // 'Untitled';
+    $title =~ s/^\s+|\s+$//g;
+    if ($title eq '') {
+        warn "empty title for $packet->{id}";
+        return undef;
+    }
+    return lc $title;
+}
+```

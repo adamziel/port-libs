@@ -61,6 +61,10 @@ return [
         $t->same('makefile', SyntaxHighlighter::normalizeLanguage('makefile'));
         $t->same('makefile', SyntaxHighlighter::normalizeLanguage('GNUmakefile'));
         $t->same('makefile', SyntaxHighlighter::normalizeLanguage('mk'));
+        $t->same('perl', SyntaxHighlighter::normalizeLanguage('perl'));
+        $t->same('perl', SyntaxHighlighter::normalizeLanguage('pl'));
+        $t->same('perl', SyntaxHighlighter::normalizeLanguage('PL'));
+        $t->same('perl', SyntaxHighlighter::normalizeLanguage('pm'));
         $t->same('ruby', SyntaxHighlighter::normalizeLanguage('rb'));
         $t->same('ruby', SyntaxHighlighter::normalizeLanguage('rake'));
         $t->same('lua', SyntaxHighlighter::normalizeLanguage('lua'));
@@ -806,6 +810,47 @@ return [
         $t->same('toml', $cargoLock['language']);
         $t->contains('<span class="kw">[[package]]</span>', $cargoLock['html']);
         $t->contains('<span class="dt">name</span> <span class="op">=</span> <span class="st">&quot;wp-import&quot;</span>', $cargoLock['html']);
+    },
+    'highlights perl migration review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[16] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Perl code block');
+        }
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'zenburn');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'zenburn');
+        $module = (new SyntaxHighlighter())->highlight("package WP::Import;\nuse utf8;\n1;", 'pm');
+
+        $t->same('pl', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('perl', $highlighted['language']);
+        $t->same('pl', $highlighted['requestedLanguage']);
+        $t->same('zenburn', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(14, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource pl numberLines"><code class="sourceCode perl" style="counter-reset: source-line 13;">', $highlighted['html']);
+        $t->contains('<span id="perl-review-14"><a href="#perl-review-14"></a><span class="kw">#!/usr/bin/env perl</span></span>', $highlighted['html']);
+        $t->contains('<span class="fu">use</span> <span class="kw">strict</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="fu">use</span> <span class="kw">warnings</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">package</span> <span class="dt">WP::ImportReview</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">sub</span> <span class="fu">normalize_title</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="kw">my</span> <span class="op">(</span><span class="va">$packet</span><span class="op">)</span> <span class="op">=</span> <span class="va">@_</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">my</span> <span class="op">(</span><span class="va">$title</span><span class="op">)</span> <span class="op">=</span> <span class="va">$packet</span><span class="op">-&gt;{</span><span class="ot">title</span><span class="op">}</span> <span class="op">//</span> <span class="st">&#039;Untitled&#039;</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="va">$title</span> <span class="op">=~</span> <span class="st">s/^\\s+|\\s+$//g</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="op">(</span><span class="va">$title</span> <span class="op">eq</span> <span class="st">&#039;&#039;</span><span class="op">)</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="fu">warn</span> <span class="st">&quot;empty title for $packet-&gt;{id}&quot;</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="cn">undef</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="fu">lc</span> <span class="va">$title</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="zenburn">', $wordpressBlock);
+        $t->contains('<span class="kw">package</span> <span class="dt">WP::ImportReview</span>', $wordpressBlock);
+        $t->same('perl', $module['language']);
+        $t->contains('<span class="kw">package</span> <span class="dt">WP::Import</span><span class="op">;</span>', $module['html']);
+        $t->contains('<span class="fu">use</span> <span class="kw">utf8</span><span class="op">;</span>', $module['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

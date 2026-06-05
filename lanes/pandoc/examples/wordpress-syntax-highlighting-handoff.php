@@ -132,6 +132,12 @@ if (!$tomlCodeBlock instanceof PortLibs\Pandoc\AstNode || $tomlCodeBlock->type !
 }
 $toml = $highlighter->highlightCodeBlock($tomlCodeBlock, 'kate');
 $tomlWordpressBlock = $highlighter->wordpressHtmlBlock($tomlCodeBlock, 'kate');
+$perlCodeBlock = $document->children[16] ?? null;
+if (!$perlCodeBlock instanceof PortLibs\Pandoc\AstNode || $perlCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Perl code block');
+}
+$perl = $highlighter->highlightCodeBlock($perlCodeBlock, 'zenburn');
+$perlWordpressBlock = $highlighter->wordpressHtmlBlock($perlCodeBlock, 'zenburn');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -499,6 +505,33 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($tomlWordpressBlock, '<span class="dt">palette</span> <span class="op">=</span> <span class="op">{</span> <span class="dt">primary</span>')) {
         throw new RuntimeException('Expected TOML inline table token handoff');
     }
+    if (($perl['language'] ?? '') !== 'perl') {
+        throw new RuntimeException('Expected pl alias to normalize to Perl highlighting');
+    }
+    if (($perl['lineNumbering']['start'] ?? null) !== 14) {
+        throw new RuntimeException('Expected Perl source startFrom line-number handoff');
+    }
+    if (!str_contains($perl['html'], '<span class="kw">#!/usr/bin/env perl</span>')) {
+        throw new RuntimeException('Expected Perl shebang token handoff');
+    }
+    if (!str_contains($perl['html'], '<span class="fu">use</span> <span class="kw">strict</span>')) {
+        throw new RuntimeException('Expected Perl pragma token handoff');
+    }
+    if (!str_contains($perl['html'], '<span class="kw">package</span> <span class="dt">WP::ImportReview</span>')) {
+        throw new RuntimeException('Expected Perl package token handoff');
+    }
+    if (!str_contains($perl['html'], '<span class="va">$title</span> <span class="op">=~</span> <span class="st">s/^\\s+|\\s+$//g</span>')) {
+        throw new RuntimeException('Expected Perl substitution token handoff');
+    }
+    if (!str_contains($perl['html'], '<span class="fu">warn</span> <span class="st">&quot;empty title for $packet-&gt;{id}&quot;</span>')) {
+        throw new RuntimeException('Expected Perl warn string token handoff');
+    }
+    if (!str_contains($perlWordpressBlock, '<style data-pandoc-highlight-style="zenburn">')) {
+        throw new RuntimeException('Expected Perl WordPress style metadata');
+    }
+    if (!str_contains($perlWordpressBlock, '<span class="kw">return</span> <span class="fu">lc</span> <span class="va">$title</span>')) {
+        throw new RuntimeException('Expected Perl return/function token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -538,6 +571,7 @@ echo "jsxHighlightedHtml:\n" . $jsx['html'] . "\n";
 echo "rHighlightedHtml:\n" . $rScript['html'] . "\n";
 echo "iniHighlightedHtml:\n" . $ini['html'] . "\n";
 echo "tomlHighlightedHtml:\n" . $toml['html'] . "\n";
+echo "perlHighlightedHtml:\n" . $perl['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -549,4 +583,5 @@ echo "jsxWordpressBlock:\n" . $jsxWordpressBlock . "\n";
 echo "rWordpressBlock:\n" . $rWordpressBlock . "\n";
 echo "iniWordpressBlock:\n" . $iniWordpressBlock . "\n";
 echo "tomlWordpressBlock:\n" . $tomlWordpressBlock . "\n";
+echo "perlWordpressBlock:\n" . $perlWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";
