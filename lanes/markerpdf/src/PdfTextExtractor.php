@@ -13836,6 +13836,11 @@ final class PdfTextExtractor
 
             $widthList = $this->pdfArrayFromValue($next, $objects);
             if ($widthList !== null) {
+                if ($firstCid < 0 || $firstCid > 0xffff) {
+                    $index++;
+                    continue;
+                }
+
                 foreach ($this->nullableNumbersFromPdfArrayResolvingObjects($widthList, $objects) as $offset => $width) {
                     if ($width === null) {
                         continue;
@@ -13907,6 +13912,11 @@ final class PdfTextExtractor
 
             $metricsList = $this->pdfArrayFromValue($next, $objects);
             if ($metricsList !== null) {
+                if ($firstCid < 0 || $firstCid > 0xffff) {
+                    $index++;
+                    continue;
+                }
+
                 $metrics = $this->nullableNumbersFromPdfArrayResolvingObjects($metricsList, $objects);
                 for ($offset = 0, $metricCount = count($metrics); $offset + 2 < $metricCount; $offset += 3) {
                     if ($metrics[$offset] === null || $metrics[$offset + 1] === null || $metrics[$offset + 2] === null) {

@@ -415,6 +415,78 @@ $fontWidthIndirectW2ArrayAdvanceBoundaryCurrentBasePdf = static function (): str
         . "7 0 obj\n[-500 500 880 -500 500 880 -500 500 880 -500 500 880]\nendobj\n%%EOF";
 };
 
+$fontWidthNegativeFirstCidArrayAdvanceBoundaryCurrentBasePdf = static function (): string {
+    $toUnicode = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "4 beginbfchar\n"
+        . "<0000> <0057>\n"
+        . "<0001> <0069>\n"
+        . "<0002> <0064>\n"
+        . "<0003> <0065>\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $content = 'BT /Fcid 12 Tf 1 0 0 1 72 720 Tm <00000001> Tj 1 0 0 1 100 720 Tm <00020003> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /NegativeFirstCid /Encoding /Identity-H /DescendantFonts [4 0 R] /ToUnicode 3 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /NegativeFirstCid /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 1000 /W [-1 [250 250 250 250]] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+};
+
+$fontWidthNegativeFirstW2ArrayAdvanceBoundaryCurrentBasePdf = static function (): string {
+    $encodingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/WMode 1 def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 begincidrange\n"
+        . "<0000> <0003> 0\n"
+        . "endcidrange\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $toUnicode = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "4 beginbfchar\n"
+        . "<0000> <0056>\n"
+        . "<0001> <0065>\n"
+        . "<0002> <0072>\n"
+        . "<0003> <0074>\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $content = 'BT /Fv 12 Tf 1 0 0 1 72 720 Tm <00000001> Tj 0 -24 Td <00020003> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fv 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /NegativeVerticalFirstCid /Encoding 3 0 R /DescendantFonts [4 0 R] /ToUnicode 6 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Type /CMap /CMapName /NegativeVerticalFirstCid-V /Length " . strlen($encodingCMap) . " >>\nstream\n{$encodingCMap}\nendstream\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /NegativeVerticalFirstCid /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW2 [880 -1000] /W2 [-1 [-250 500 880 -250 500 880 -250 500 880 -250 500 880]] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n%%EOF";
+};
+
 $fontWidthType3FontMatrixWidthsBoundaryCurrentBasePdf = static function (): string {
     $toUnicode = "/CIDInit /ProcSet findresource begin\n"
         . "12 dict begin\n"
@@ -976,6 +1048,46 @@ return [
         $t->true(array_column($spans, 'bbox') !== [[0.0, 0.0, 12.0, 48.0], [12.0, 0.0, 24.0, 72.0]]);
         $t->true(!str_contains($plainText, 'Vert Import'));
         $t->true(!str_contains($plainText, 'IndirectVerticalArrayCID'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'rejects negative first CID array-form W segments before current advance gaps on current base' => static function (TestRunner $t) use ($fontWidthNegativeFirstCidArrayAdvanceBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthNegativeFirstCidArrayAdvanceBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['Wide'], $extractor->extractTextLines($pdf));
+        $t->same(['Wi', 'de'], $extractor->extractTextRuns($pdf));
+        $t->same('Wide', $plainText);
+        $t->same("Wide\n", $extractor->naiveGetText($pdf));
+        $t->same(['Wi', 'de'], array_column($spans, 'text'));
+        $t->same([[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]], array_column($spans, 'bbox'));
+        $t->same([0.0, 0.0, 48.0, 12.0], $line['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'Wi de'));
+        $t->true(array_column($spans, 'bbox') !== [[0.0, 0.0, 6.0, 12.0], [6.0, 0.0, 21.0, 12.0]]);
+        $t->true(!str_contains($plainText, 'NegativeFirstCid'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'rejects negative first CID array-form W2 segments before vertical styled span bboxes on current base' => static function (TestRunner $t) use ($fontWidthNegativeFirstW2ArrayAdvanceBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthNegativeFirstW2ArrayAdvanceBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['Vert'], $extractor->extractTextLines($pdf));
+        $t->same(['Ve', 'rt'], $extractor->extractTextRuns($pdf));
+        $t->same('Vert', $plainText);
+        $t->same("Vert\n", $extractor->naiveGetText($pdf));
+        $t->same(['Ve', 'rt'], array_column($spans, 'text'));
+        $t->same([[0.0, 0.0, 12.0, 24.0], [12.0, 0.0, 24.0, 24.0]], array_column($spans, 'bbox'));
+        $t->same([0.0, 0.0, 24.0, 24.0], $line['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'Ve rt'));
+        $t->true(array_column($spans, 'bbox') !== [[0.0, 0.0, 12.0, 6.0], [12.0, 0.0, 24.0, 15.0]]);
+        $t->true(!str_contains($plainText, 'NegativeVerticalFirstCid'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'normalizes Type3 Widths through FontMatrix before current advance gaps on current base' => static function (TestRunner $t) use ($fontWidthType3FontMatrixWidthsBoundaryCurrentBasePdf): void {

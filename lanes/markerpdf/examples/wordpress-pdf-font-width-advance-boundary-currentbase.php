@@ -221,6 +221,67 @@ $verticalTjPdf = "%PDF-1.4\n"
     . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /VerticalBacktrackCID /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW2 [880 -1000] /W2 [40 43 -500 500 880] >>\nendobj\n"
     . "5 0 obj\n<< /Length " . strlen($verticalTjContent) . " >>\nstream\n{$verticalTjContent}\nendstream\nendobj\n"
     . "6 0 obj\n<< /Length " . strlen($verticalToUnicode) . " >>\nstream\n{$verticalToUnicode}\nendstream\nendobj\n%%EOF";
+$negativeFirstCidToUnicode = "/CIDInit /ProcSet findresource begin\n"
+    . "12 dict begin\n"
+    . "begincmap\n"
+    . "1 begincodespacerange\n"
+    . "<0000> <FFFF>\n"
+    . "endcodespacerange\n"
+    . "4 beginbfchar\n"
+    . "<0000> <0057>\n"
+    . "<0001> <0069>\n"
+    . "<0002> <0064>\n"
+    . "<0003> <0065>\n"
+    . "endbfchar\n"
+    . "endcmap\n"
+    . "CMapName currentdict /CMap defineresource pop\n"
+    . "end\n"
+    . "end\n";
+$negativeFirstCidContent = 'BT /Fcid 12 Tf 1 0 0 1 72 720 Tm <00000001> Tj 1 0 0 1 100 720 Tm <00020003> Tj ET';
+$negativeFirstCidPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /NegativeFirstCid /Encoding /Identity-H /DescendantFonts [4 0 R] /ToUnicode 3 0 R >>\nendobj\n"
+    . "3 0 obj\n<< /Length " . strlen($negativeFirstCidToUnicode) . " >>\nstream\n{$negativeFirstCidToUnicode}\nendstream\nendobj\n"
+    . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /NegativeFirstCid /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 1000 /W [-1 [250 250 250 250]] >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($negativeFirstCidContent) . " >>\nstream\n{$negativeFirstCidContent}\nendstream\nendobj\n%%EOF";
+$negativeFirstVerticalEncodingCMap = "/CIDInit /ProcSet findresource begin\n"
+    . "12 dict begin\n"
+    . "begincmap\n"
+    . "/WMode 1 def\n"
+    . "1 begincodespacerange\n"
+    . "<0000> <FFFF>\n"
+    . "endcodespacerange\n"
+    . "1 begincidrange\n"
+    . "<0000> <0003> 0\n"
+    . "endcidrange\n"
+    . "endcmap\n"
+    . "CMapName currentdict /CMap defineresource pop\n"
+    . "end\n"
+    . "end\n";
+$negativeFirstVerticalToUnicode = "/CIDInit /ProcSet findresource begin\n"
+    . "12 dict begin\n"
+    . "begincmap\n"
+    . "1 begincodespacerange\n"
+    . "<0000> <FFFF>\n"
+    . "endcodespacerange\n"
+    . "4 beginbfchar\n"
+    . "<0000> <0056>\n"
+    . "<0001> <0065>\n"
+    . "<0002> <0072>\n"
+    . "<0003> <0074>\n"
+    . "endbfchar\n"
+    . "endcmap\n"
+    . "CMapName currentdict /CMap defineresource pop\n"
+    . "end\n"
+    . "end\n";
+$negativeFirstW2Content = 'BT /Fv 12 Tf 1 0 0 1 72 720 Tm <00000001> Tj 0 -24 Td <00020003> Tj ET';
+$negativeFirstW2Pdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fv 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /NegativeVerticalFirstCid /Encoding 3 0 R /DescendantFonts [4 0 R] /ToUnicode 6 0 R >>\nendobj\n"
+    . "3 0 obj\n<< /Type /CMap /CMapName /NegativeVerticalFirstCid-V /Length " . strlen($negativeFirstVerticalEncodingCMap) . " >>\nstream\n{$negativeFirstVerticalEncodingCMap}\nendstream\nendobj\n"
+    . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /NegativeVerticalFirstCid /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW2 [880 -1000] /W2 [-1 [-250 500 880 -250 500 880 -250 500 880 -250 500 880]] >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($negativeFirstW2Content) . " >>\nstream\n{$negativeFirstW2Content}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Length " . strlen($negativeFirstVerticalToUnicode) . " >>\nstream\n{$negativeFirstVerticalToUnicode}\nendstream\nendobj\n%%EOF";
 $type3FontMatrixWidthsToUnicode = "/CIDInit /ProcSet findresource begin\n"
     . "12 dict begin\n"
     . "begincmap\n"
@@ -455,6 +516,22 @@ $verticalTjSpanBboxes = array_map(
     static fn (array $span): array => $span['bbox'] ?? [],
     $verticalTjLine['spans'] ?? []
 );
+$negativeFirstCidLines = $extractor->extractTextLines($negativeFirstCidPdf);
+$negativeFirstCidPlainText = implode("\n", $negativeFirstCidLines);
+$negativeFirstCidPages = $extractor->extractStyledTextPages($negativeFirstCidPdf);
+$negativeFirstCidLine = $negativeFirstCidPages[0]['blocks'][0]['lines'][0] ?? [];
+$negativeFirstCidSpanBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $negativeFirstCidLine['spans'] ?? []
+);
+$negativeFirstW2Lines = $extractor->extractTextLines($negativeFirstW2Pdf);
+$negativeFirstW2PlainText = implode("\n", $negativeFirstW2Lines);
+$negativeFirstW2Pages = $extractor->extractStyledTextPages($negativeFirstW2Pdf);
+$negativeFirstW2Line = $negativeFirstW2Pages[0]['blocks'][0]['lines'][0] ?? [];
+$negativeFirstW2SpanBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $negativeFirstW2Line['spans'] ?? []
+);
 $type3FontMatrixWidthsLines = $extractor->extractTextLines($type3FontMatrixWidthsPdf);
 $type3FontMatrixWidthsPlainText = implode("\n", $type3FontMatrixWidthsLines);
 $type3FontMatrixWidthsPages = $extractor->extractStyledTextPages($type3FontMatrixWidthsPdf);
@@ -474,7 +551,7 @@ $type3FontMatrixVectorSpanBboxes = array_map(
 
 echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-font-width-advance-boundary-currentbase',
-    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-exact-generation-widths-quote-relative-td-styled-gap-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-type3-fontmatrix-width-and-type3-fontmatrix-vector-advance',
+    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-exact-generation-widths-quote-relative-td-styled-gap-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-negative-first-cid-array-type3-fontmatrix-width-and-type3-fontmatrix-vector-advance',
     'average_width_preserves_joined_word' => str_contains($plainText, 'WideBlock'),
     'generic_500_width_gap_excluded' => !str_contains($plainText, 'Wide Block'),
     'narrow_positioned_gap_still_preserved' => str_contains($plainText, 'Blo ck'),
@@ -558,6 +635,14 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'vertical_tj_backtrack_bbox_preserved' => $verticalTjSpanBboxes === [[0.0, 0.0, 12.0, 36.0]],
     'vertical_tj_backtrack_line_bbox_preserved' => ($verticalTjLine['bbox'] ?? null) === [0.0, 0.0, 12.0, 36.0],
     'vertical_tj_final_cursor_collapse_excluded' => $verticalTjSpanBboxes !== [[0.0, 0.0, 12.0, 12.0]],
+    'negative_first_cid_w_array_segment_rejected' => $negativeFirstCidLines === ['Wide'],
+    'negative_first_cid_w_false_gap_excluded' => !str_contains($negativeFirstCidPlainText, 'Wi de'),
+    'negative_first_cid_w_shifted_bboxes_excluded' => $negativeFirstCidSpanBboxes !== [[0.0, 0.0, 6.0, 12.0], [6.0, 0.0, 21.0, 12.0]],
+    'negative_first_cid_w_bboxes_preserved' => $negativeFirstCidSpanBboxes === [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]],
+    'negative_first_cid_w2_array_segment_rejected' => $negativeFirstW2Lines === ['Vert'],
+    'negative_first_cid_w2_false_gap_excluded' => !str_contains($negativeFirstW2PlainText, 'Ve rt'),
+    'negative_first_cid_w2_shifted_bboxes_excluded' => $negativeFirstW2SpanBboxes !== [[0.0, 0.0, 12.0, 6.0], [12.0, 0.0, 24.0, 15.0]],
+    'negative_first_cid_w2_bboxes_preserved' => $negativeFirstW2SpanBboxes === [[0.0, 0.0, 12.0, 24.0], [12.0, 0.0, 24.0, 24.0]],
     'type3_fontmatrix_widths_false_gap_excluded' => ($type3FontMatrixWidthsLines[0] ?? null) === 'ABCD',
     'type3_fontmatrix_widths_real_gap_preserved' => ($type3FontMatrixWidthsLines[1] ?? null) === 'AB CD',
     'type3_fontmatrix_widths_double_gap_output_excluded' => !str_contains($type3FontMatrixWidthsPlainText, 'AB CD' . "\n" . 'AB CD'),
@@ -617,6 +702,10 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'vertical_span_bboxes' => $verticalSpanBboxes,
     'vertical_tj_lines' => $verticalTjLines,
     'vertical_tj_span_bboxes' => $verticalTjSpanBboxes,
+    'negative_first_cid_lines' => $negativeFirstCidLines,
+    'negative_first_cid_span_bboxes' => $negativeFirstCidSpanBboxes,
+    'negative_first_w2_lines' => $negativeFirstW2Lines,
+    'negative_first_w2_span_bboxes' => $negativeFirstW2SpanBboxes,
     'type3_fontmatrix_widths_lines' => $type3FontMatrixWidthsLines,
     'type3_fontmatrix_widths_span_bboxes' => $type3FontMatrixWidthsSpanBboxes,
     'type3_fontmatrix_vector_lines' => $type3FontMatrixVectorLines,
@@ -625,7 +714,7 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $terminalTcLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $absoluteTmStyledGapLines, $negativeTcBacktrackLines, $sparseWidthLines, $exactGenerationWidthLines, $lastCharLines, $malformedRangeLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $terminalTcLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $absoluteTmStyledGapLines, $negativeTcBacktrackLines, $sparseWidthLines, $exactGenerationWidthLines, $lastCharLines, $malformedRangeLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";
