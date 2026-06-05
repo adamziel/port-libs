@@ -205,6 +205,31 @@ XML;
             $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml($xml));
         }
     },
+    'rejects OPC XML package roots with unexpected attributes or text content' => static function (TestRunner $t): void {
+        $validContentTypes = OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" xmlns:review="urn:wordpress-review">  <Default Extension="xml" ContentType="application/xml"/></Types>');
+        $t->same('application/xml', $validContentTypes->contentTypeForPart('/word/document.xml'));
+
+        $validRelationships = OpcRelationships::fromXml('<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '" xmlns:review="urn:wordpress-review">  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>', '/word/document.xml');
+        $t->same('/word/media/image.png', $validRelationships->resolveTarget('rId1'));
+
+        foreach ([
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" Extra="1"><Default Extension="xml" ContentType="application/xml"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" review:Extra="1" xmlns:review="urn:wordpress-review"><Default Extension="xml" ContentType="application/xml"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '">text<Default Extension="xml" ContentType="application/xml"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><![CDATA[text]]><Default Extension="xml" ContentType="application/xml"/></Types>',
+        ] as $xml) {
+            $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml($xml));
+        }
+
+        foreach ([
+            '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '" Extra="1"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>',
+            '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '" review:Extra="1" xmlns:review="urn:wordpress-review"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>',
+            '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '">text<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>',
+            '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><![CDATA[text]]><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>',
+        ] as $xml) {
+            $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => OpcRelationships::fromXml($xml, '/word/document.xml'));
+        }
+    },
     'maps OPC source parts and relationship part names' => static function (TestRunner $t): void {
         $t->same('/_rels/.rels', OpcRelationships::relationshipPartNameForSource('/'));
         $t->same('/_rels/.rels', OpcRelationships::relationshipPartNameForSource('/.'));

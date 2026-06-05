@@ -187,7 +187,9 @@ $digitalSignatureParts = array_values(array_unique($digitalSignatureParts));
 $corePropertiesPart = $graph->firstTargetOfType('http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties');
 $strictXmlShapeGuards = [
     'contentTypeUnexpectedAttributeRejected' => false,
+    'contentTypeRootAttributeRejected' => false,
     'relationshipChildContentRejected' => false,
+    'relationshipRootTextRejected' => false,
 ];
 try {
     OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension="xml" ContentType="application/xml" Extra="1"/></Types>');
@@ -195,9 +197,19 @@ try {
     $strictXmlShapeGuards['contentTypeUnexpectedAttributeRejected'] = true;
 }
 try {
+    OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" Extra="1"><Default Extension="xml" ContentType="application/xml"/></Types>');
+} catch (InvalidArgumentException) {
+    $strictXmlShapeGuards['contentTypeRootAttributeRejected'] = true;
+}
+try {
     OpcRelationships::fromXml('<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdBad" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"><Child/></Relationship></Relationships>', '/word/document.xml');
 } catch (InvalidArgumentException) {
     $strictXmlShapeGuards['relationshipChildContentRejected'] = true;
+}
+try {
+    OpcRelationships::fromXml('<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '">text<Relationship Id="rIdBad" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>', '/word/document.xml');
+} catch (InvalidArgumentException) {
+    $strictXmlShapeGuards['relationshipRootTextRejected'] = true;
 }
 
 $summary = [
@@ -321,7 +333,9 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['digitalSignatures'][0]['valid'] ?? null) !== true
         || $summary['integrity']['packagePartsValid'] !== true
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeUnexpectedAttributeRejected'] ?? null) !== true
+        || ($summary['integrity']['strictXmlShapeGuards']['contentTypeRootAttributeRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['relationshipChildContentRejected'] ?? null) !== true
+        || ($summary['integrity']['strictXmlShapeGuards']['relationshipRootTextRejected'] ?? null) !== true
         || $summary['packageParts']['/_rels/.rels']['relationshipSource'] !== '/'
         || $summary['packageParts']['/_rels/.rels']['relationshipSourceIsRelationshipPart'] !== false
         || $summary['packageParts']['/word/_rels/document.xml.rels']['relationshipSource'] !== '/word/document.xml'

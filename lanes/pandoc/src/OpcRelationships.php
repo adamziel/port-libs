@@ -28,6 +28,8 @@ final class OpcRelationships
             throw new \InvalidArgumentException('OPC relationships XML must use the package relationships namespace');
         }
 
+        self::assertRootShape($root);
+
         $relationships = new self($sourcePartName);
         foreach ($root->childNodes as $child) {
             if (!$child instanceof \DOMElement) {
@@ -205,6 +207,27 @@ final class OpcRelationships
         }
 
         return $xml;
+    }
+
+    private static function assertRootShape(\DOMElement $root): void
+    {
+        foreach ($root->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            if ($attribute->namespaceURI === 'http://www.w3.org/2000/xmlns/') {
+                continue;
+            }
+
+            throw new \InvalidArgumentException('OPC relationships XML root contains unsupported attribute: ' . $attribute->name);
+        }
+
+        foreach ($root->childNodes as $child) {
+            if (($child instanceof \DOMText || $child instanceof \DOMCdataSection) && trim($child->nodeValue ?? '') !== '') {
+                throw new \InvalidArgumentException('OPC relationships XML root may not contain text content');
+            }
+        }
     }
 
     private static function loadXml(string $xml): \DOMDocument
