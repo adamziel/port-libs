@@ -13555,6 +13555,12 @@ final class PdfTextExtractor
                 continue;
             }
 
+            $compositeEnd = $this->skipPdfCompositeTokenAt($pdfBytes, $index);
+            if ($compositeEnd !== null) {
+                $index = $compositeEnd;
+                continue;
+            }
+
             if ($char === '<' && ($pdfBytes[$index + 1] ?? '') !== '<') {
                 $end = strpos($pdfBytes, '>', $index + 1);
                 $index = $end === false ? $length : $end + 1;
@@ -14774,6 +14780,12 @@ final class PdfTextExtractor
                 continue;
             }
 
+            $compositeEnd = $this->skipPdfCompositeTokenAt($pdfBytes, $index);
+            if ($compositeEnd !== null) {
+                $index = $compositeEnd;
+                continue;
+            }
+
             if ($char === '<' && ($pdfBytes[$index + 1] ?? '') !== '<') {
                 $end = strpos($pdfBytes, '>', $index + 1);
                 $index = $end === false ? $length : $end + 1;
@@ -14788,6 +14800,25 @@ final class PdfTextExtractor
             }
 
             $index++;
+        }
+
+        return null;
+    }
+
+    private function skipPdfCompositeTokenAt(string $pdfBytes, int $offset): ?int
+    {
+        if ($offset < 0 || $offset >= strlen($pdfBytes)) {
+            return null;
+        }
+
+        if ($pdfBytes[$offset] === '[') {
+            $array = $this->readPdfArrayAt($pdfBytes, $offset);
+            return $array === null ? null : $offset + strlen($array) + 2;
+        }
+
+        if (substr($pdfBytes, $offset, 2) === '<<') {
+            $dictionaryEnd = $this->pdfDictionaryEndOffset($pdfBytes, $offset);
+            return $dictionaryEnd === null ? null : $dictionaryEnd + 1;
         }
 
         return null;

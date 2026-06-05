@@ -7133,6 +7133,12 @@ final class PdfMetadataExtractor
                 continue;
             }
 
+            $compositeEnd = $this->skipPdfCompositeTokenAt($pdfBytes, $index);
+            if ($compositeEnd !== null) {
+                $index = $compositeEnd;
+                continue;
+            }
+
             if ($char === '<' && ($pdfBytes[$index + 1] ?? '') !== '<') {
                 $end = strpos($pdfBytes, '>', $index + 1);
                 $index = $end === false ? $length : $end + 1;
@@ -7752,6 +7758,12 @@ final class PdfMetadataExtractor
                 continue;
             }
 
+            $compositeEnd = $this->skipPdfCompositeTokenAt($pdfBytes, $index);
+            if ($compositeEnd !== null) {
+                $index = $compositeEnd;
+                continue;
+            }
+
             if ($char === '<' && ($pdfBytes[$index + 1] ?? '') !== '<') {
                 $end = strpos($pdfBytes, '>', $index + 1);
                 $index = $end === false ? $length : $end + 1;
@@ -7768,6 +7780,25 @@ final class PdfMetadataExtractor
         }
 
         return $offsets;
+    }
+
+    private function skipPdfCompositeTokenAt(string $pdfBytes, int $offset): ?int
+    {
+        if ($offset < 0 || $offset >= strlen($pdfBytes)) {
+            return null;
+        }
+
+        if ($pdfBytes[$offset] === '[') {
+            $array = $this->readPdfArrayAt($pdfBytes, $offset);
+            return $array === null ? null : $offset + strlen($array) + 2;
+        }
+
+        if (substr($pdfBytes, $offset, 2) === '<<') {
+            $dictionary = $this->readPdfDictionaryAt($pdfBytes, $offset);
+            return $dictionary === null ? null : $offset + strlen($dictionary) + 4;
+        }
+
+        return null;
     }
 
     private function trailerDictionaryBodyAtOffset(string $pdfBytes, int $offset): ?string
