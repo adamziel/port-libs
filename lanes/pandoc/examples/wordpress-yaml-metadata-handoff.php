@@ -38,6 +38,12 @@ typed-review:
   confidence: !!float "0.75"
   approved: !!bool "true"
   withdrawn: !!null "not carried"
+source-captured-at: !!timestamp 2026-06-05 06:46:51Z
+review-binary:
+  note-bytes: !!binary "UmV2aWV3IG1ldGFkYXRh"
+  digest-bytes: !!binary |
+    U291cmNl
+    IFBhY2tldA==
 optional-deadline:
 blank-note: # intentionally blank in source packet
 explicit-empty: ""
@@ -196,6 +202,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!array_key_exists('withdrawn', $meta['typed-review'] ?? []) || $meta['typed-review']['withdrawn'] !== null) {
         throw new RuntimeException('YAML metadata self-test missing explicit null tag coercion');
+    }
+    if (($meta['source-captured-at'] ?? '') !== '2026-06-05T06:46:51Z') {
+        throw new RuntimeException('YAML metadata self-test missing explicit timestamp tag normalization');
+    }
+    if (($meta['review-binary']['note-bytes'] ?? '') !== 'Review metadata') {
+        throw new RuntimeException('YAML metadata self-test missing explicit binary scalar decoding');
+    }
+    if (($meta['review-binary']['digest-bytes'] ?? '') !== 'Source Packet') {
+        throw new RuntimeException('YAML metadata self-test missing explicit binary block-scalar decoding');
     }
     if (!array_key_exists('optional-deadline', $meta) || $meta['optional-deadline'] !== null) {
         throw new RuntimeException('YAML metadata self-test missing empty scalar deadline null');
@@ -393,6 +408,8 @@ echo 'Explicit key review: ' . ($meta['explicit-review']['status'] ?? '') . ' / 
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
 echo 'Typed review revision: ' . ($meta['typed-review']['typed-revision'] ?? '') . ' / confidence ' . ($meta['typed-review']['confidence'] ?? '') . "\n";
+echo 'Source captured at: ' . ($meta['source-captured-at'] ?? '') . "\n";
+echo 'Review binary bytes: ' . ($meta['review-binary']['note-bytes'] ?? '') . ' / ' . ($meta['review-binary']['digest-bytes'] ?? '') . "\n";
 echo 'Multiline flow labels: ' . implode(', ', $meta['multiline-flow-labels'] ?? []) . "\n";
 echo 'Flow comment labels: ' . implode(', ', $meta['flow-comment-labels'] ?? []) . "\n";
 echo 'Escaped source title: ' . ($meta['escaped-source-title'] ?? '') . "\n";

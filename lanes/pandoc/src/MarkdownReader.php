@@ -583,6 +583,7 @@ final class MarkdownReader
 
         $blockScalarHeader = $this->parseYamlBlockScalarHeader($sourceValue);
         $multilineFlow = $this->parseYamlMultilineFlowCollection($sourceValue, $children);
+        $tagsApplied = false;
 
         if ($multilineFlow !== null) {
             $value = $multilineFlow;
@@ -598,9 +599,17 @@ final class MarkdownReader
         } else {
             $multiline = $this->parseYamlMultilineDoubleQuotedScalar($sourceValue, $children)
                 ?? $this->parseYamlMultilineSingleQuotedScalar($sourceValue, $children);
-            $value = $multiline ?? $this->parseYamlScalarValueFromDirectives($sourceValue, null, $tags);
+            if ($multiline !== null) {
+                $value = $multiline;
+            } else {
+                $value = $this->parseYamlScalarValueFromDirectives($sourceValue, null, $tags);
+                $tagsApplied = true;
+            }
         }
 
+        if (!$tagsApplied) {
+            $value = $this->applyYamlExplicitScalarTagToParsedValue($value, $tags);
+        }
         $this->rememberYamlAnchor($anchorName, $value);
 
         return [$value, $anchorName];
@@ -773,6 +782,7 @@ final class MarkdownReader
             $blockScalarHeader = $this->parseYamlBlockScalarHeader($sourceValue);
             $multilineFlow = $this->parseYamlMultilineFlowCollection($sourceValue, $children);
             if ($multilineFlow !== null) {
+                $multilineFlow = $this->applyYamlExplicitScalarTagToParsedValue($multilineFlow, $tags);
                 $this->rememberYamlAnchor($anchorName, $multilineFlow);
                 $items[] = $multilineFlow;
                 continue;
@@ -785,6 +795,7 @@ final class MarkdownReader
                     $blockScalarHeader['chomp'],
                     $blockScalarHeader['indent']
                 );
+                $value = $this->applyYamlExplicitScalarTagToParsedValue($value, $tags);
                 $this->rememberYamlAnchor($anchorName, $value);
                 $items[] = $value;
                 continue;
@@ -793,6 +804,7 @@ final class MarkdownReader
             $multiline = $this->parseYamlMultilineDoubleQuotedScalar($sourceValue, $children)
                 ?? $this->parseYamlMultilineSingleQuotedScalar($sourceValue, $children);
             if ($multiline !== null) {
+                $multiline = $this->applyYamlExplicitScalarTagToParsedValue($multiline, $tags);
                 $this->rememberYamlAnchor($anchorName, $multiline);
                 $items[] = $multiline;
                 continue;
@@ -800,6 +812,7 @@ final class MarkdownReader
 
             if ($sourceValue === '') {
                 $value = $this->parseYamlIndentedValue($children);
+                $value = $this->applyYamlExplicitScalarTagToParsedValue($value, $tags);
                 $this->rememberYamlAnchor($anchorName, $value);
                 $items[] = $value;
                 continue;
@@ -1865,7 +1878,7 @@ final class MarkdownReader
         foreach ($tags as $tag) {
             $normalized = $this->normalizeYamlTag($tag);
 
-            if (in_array($normalized, ['str', 'int', 'float', 'bool', 'null'], true)) {
+            if (in_array($normalized, ['str', 'int', 'float', 'bool', 'null', 'timestamp', 'binary'], true)) {
                 return $normalized;
             }
         }
@@ -1917,8 +1930,27 @@ final class MarkdownReader
             'float' => $this->parseYamlExplicitFloatScalar($scalar),
             'bool' => $this->parseYamlExplicitBooleanScalar($scalar),
             'null' => null,
+            'timestamp' => $this->parseYamlExplicitTimestampScalar($scalar),
+            'binary' => $this->parseYamlExplicitBinaryScalar($scalar),
             default => $scalar,
         };
+    }
+
+    /**
+     * @param list<string> $tags
+     */
+    private function applyYamlExplicitScalarTagToParsedValue(mixed $value, array $tags): mixed
+    {
+        if (!is_string($value)) {
+            return $value;
+        }
+
+        $tag = $this->yamlExplicitScalarTag($tags);
+        if ($tag === null) {
+            return $value;
+        }
+
+        return $this->parseYamlExplicitTaggedScalar($value, $tag);
     }
 
     private function parseYamlExplicitIntegerScalar(string $value): int|string
@@ -1948,6 +1980,82 @@ final class MarkdownReader
             'false' => false,
             default => $value,
         };
+    }
+
+    private function parseYamlExplicitTimestampScalar(string $value): string
+    {
+        $scalar = trim($value);
+        if (preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})$/', $scalar, $m) === 1) {
+            $year = (int) $m[1];
+            $month = (int) $m[2];
+            $day = (int) $m[3];
+            if (!checkdate($month, $day, $year)) {
+                return $value;
+            }
+
+            return sprintf('%04d-%02d-%02d', $year, $month, $day);
+        }
+
+        if (
+            preg_match(
+                '/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[Tt]|[ \t]+)(\d{1,2}):(\d{2}):(\d{2})(\.[0-9]+)?(?:[ \t]*(Z|z|[+-]\d{1,2}(?::?\d{2})?))?$/',
+                $scalar,
+                $m
+            ) !== 1
+        ) {
+            return $value;
+        }
+
+        $year = (int) $m[1];
+        $month = (int) $m[2];
+        $day = (int) $m[3];
+        $hour = (int) $m[4];
+        $minute = (int) $m[5];
+        $second = (int) $m[6];
+        if (!checkdate($month, $day, $year) || $hour > 23 || $minute > 59 || $second > 59) {
+            return $value;
+        }
+
+        $offset = $this->normalizeYamlTimestampOffset($m[8] ?? '');
+        if ($offset === null) {
+            return $value;
+        }
+
+        return sprintf('%04d-%02d-%02dT%02d:%02d:%02d', $year, $month, $day, $hour, $minute, $second)
+            . ($m[7] ?? '')
+            . $offset;
+    }
+
+    private function normalizeYamlTimestampOffset(string $offset): ?string
+    {
+        $offset = trim($offset);
+        if ($offset === '') {
+            return '';
+        }
+
+        if (strcasecmp($offset, 'z') === 0) {
+            return 'Z';
+        }
+
+        if (preg_match('/^([+-])(\d{1,2})(?::?(\d{2}))?$/', $offset, $m) !== 1) {
+            return null;
+        }
+
+        $hour = (int) $m[2];
+        $minute = isset($m[3]) && $m[3] !== '' ? (int) $m[3] : 0;
+        if ($hour > 23 || $minute > 59) {
+            return null;
+        }
+
+        return $m[1] . sprintf('%02d:%02d', $hour, $minute);
+    }
+
+    private function parseYamlExplicitBinaryScalar(string $value): string
+    {
+        $compact = preg_replace('/\s+/', '', $value) ?? $value;
+        $decoded = base64_decode($compact, true);
+
+        return $decoded === false ? $value : $decoded;
     }
 
     private function isYamlAliasScalar(string $value): bool

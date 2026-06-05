@@ -1497,6 +1497,46 @@ return [
         $t->same('set-tag-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="set-tag-yaml-body">Set tag YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml timestamp and binary explicit tags in metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Tagged scalar **Packet**',
+            'published-at: !!timestamp 2026-06-05 06:46:51Z',
+            'review:',
+            '  embargo: !<tag:yaml.org,2002:timestamp> "2026-06-05 6:46:51 -05:00"',
+            '  asset-bytes: !!binary "U291cmNlIG1ldGFkYXRh"',
+            '  flow: {generated: !!timestamp 2026-06-05, payload: !!binary "V29yZFByZXNz"}',
+            'attachments:',
+            '  - name: front-matter.txt',
+            '    captured-at: !!timestamp 2026-06-05 06:46:51.25 +00:00',
+            '    digest-bytes: !!binary |',
+            '      U291cmNl',
+            '      IFBhY2tldA==',
+            '  - !!binary "bG9vc2UgcGF5bG9hZA=="',
+            '...',
+            '',
+            '# Tagged YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Tagged scalar **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same('2026-06-05T06:46:51Z', $meta['published-at']);
+        $t->same('2026-06-05T06:46:51-05:00', $meta['review']['embargo']);
+        $t->same('Source metadata', $meta['review']['asset-bytes']);
+        $t->same('2026-06-05', $meta['review']['flow']['generated']);
+        $t->same('WordPress', $meta['review']['flow']['payload']);
+        $t->same('front-matter.txt', $meta['attachments'][0]['name']);
+        $t->same('2026-06-05T06:46:51.25+00:00', $meta['attachments'][0]['captured-at']);
+        $t->same('Source Packet', $meta['attachments'][0]['digest-bytes']);
+        $t->same('loose payload', $meta['attachments'][1]);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('tagged-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="tagged-yaml-body">Tagged YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml multiline double quoted metadata scalars' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
