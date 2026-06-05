@@ -504,6 +504,7 @@ final class PdfImageRenderer
             $this->integerNameValue($imageDictionary, 'Width', $objects),
             $this->integerNameValue($imageDictionary, 'Height', $objects)
         );
+        $ccittFilterBoundary = $this->ccittFaxFilterBoundaryReview($imageFilterDetails);
         $ccittCodingBoundary = $this->ccittFaxCodingBoundaryReview($imageFilterDetails);
         $ccittImageMaskPolarityBoundary = $this->ccittFaxImageMaskPolarityBoundary($ccittDecodeBoundary, $imageMask);
         $notes = [];
@@ -658,6 +659,7 @@ final class PdfImageRenderer
                 'jbig2_globals_present' => $this->jbig2GlobalsPresent($imageDictionary, $objects),
                 'native_raster_decode' => $previewOnlyFilters === [] && $operandBoundaryFilters === [],
             ],
+            'ccitt_fax_filter_boundary' => $ccittFilterBoundary,
             'ccitt_fax_decode_boundary' => $ccittDecodeBoundary,
             'ccitt_fax_coding_boundary' => $ccittCodingBoundary,
             'ccitt_fax_imagemask_polarity_boundary' => $ccittImageMaskPolarityBoundary,
@@ -4619,6 +4621,47 @@ final class PdfImageRenderer
             'rows_match_height' => $rowsMatchHeight,
             'dimension_mismatch' => $columnsMatchWidth === false || $rowsMatchHeight === false,
         ];
+    }
+
+    /**
+     * @param list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null|list<string>>|null}> $filterDetails
+     * @return array<string, mixed>|null
+     */
+    private function ccittFaxFilterBoundaryReview(array $filterDetails): ?array
+    {
+        $filters = [];
+        $previewOnly = [];
+        $nativePrefix = [];
+        foreach ($filterDetails as $detail) {
+            $filter = $detail['filter'] ?? null;
+            if (!is_string($filter)) {
+                continue;
+            }
+
+            if ($filter === 'CCITTFaxDecode' || $filter === 'CCF') {
+                return [
+                    'declared_filter' => $filter,
+                    'canonical_filter' => 'CCITTFaxDecode',
+                    'alias_used' => $filter === 'CCF',
+                    'non_null_filter_index' => count($filters),
+                    'filters_before_ccitt' => $filters,
+                    'native_prefix_filters' => $nativePrefix,
+                    'preview_only_filters_before_ccitt' => $previewOnly,
+                    'source_filter_preserved' => true,
+                    'review_only' => true,
+                    'native_raster_decode' => false,
+                ];
+            }
+
+            $filters[] = $filter;
+            if (($detail['preview_only'] ?? false) === true) {
+                $previewOnly[] = $filter;
+            } else {
+                $nativePrefix[] = $filter;
+            }
+        }
+
+        return null;
     }
 
     /**

@@ -180,6 +180,7 @@ $compactXobjectPdf = "%PDF-1.4\n"
 $compactXobjectReview = $boundaryExtractor->extractImageXObjectBoundaryReview($compactXobjectPdf);
 $compactXobjectEntry = $compactXobjectReview['entries'][0] ?? [];
 $compactXobjectParms = $compactXobjectEntry['filter_details'][1]['decode_parms'] ?? [];
+$compactXobjectFilterBoundary = $compactXobjectEntry['ccitt_fax_filter_boundary'] ?? [];
 $compactXobjectBoundary = $compactXobjectEntry['ccitt_fax_decode_boundary'] ?? [];
 $compactXobjectPolarityBoundary = $compactXobjectEntry['ccitt_fax_imagemask_polarity_boundary'] ?? [];
 $unresolvedXobjectBefore = 'BT /F1 12 Tf 72 720 Td (Before unresolved CCITT import) Tj ET';
@@ -331,6 +332,10 @@ if (
     || ($compactXobjectParms['columns'] ?? null) !== 24
     || ($compactXobjectParms['rows'] ?? null) !== 2
     || ($compactXobjectParms['end_of_block'] ?? null) !== false
+    || ($compactXobjectFilterBoundary['declared_filter'] ?? null) !== 'CCF'
+    || ($compactXobjectFilterBoundary['canonical_filter'] ?? null) !== 'CCITTFaxDecode'
+    || ($compactXobjectFilterBoundary['alias_used'] ?? null) !== true
+    || ($compactXobjectFilterBoundary['native_prefix_filters'] ?? null) !== ['ASCIIHexDecode']
     || ($compactXobjectBoundary['dimension_mismatch'] ?? null) !== false
     || ($compactXobjectPolarityBoundary['black_sample_value'] ?? null) !== 1
     || ($compactXobjectPolarityBoundary['white_sample_value'] ?? null) !== 0
@@ -432,6 +437,11 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
         && ($compactXobjectParms['rows'] ?? null) === 2
         && ($compactXobjectParms['end_of_block'] ?? null) === false,
     'xobject_compact_filter_details' => $compactXobjectEntry['filter_details'] ?? [],
+    'xobject_compact_ccf_alias_filter_boundary' => $compactXobjectFilterBoundary,
+    'xobject_compact_declared_alias_preserved' => ($compactXobjectFilterBoundary['declared_filter'] ?? null) === 'CCF'
+        && ($compactXobjectFilterBoundary['canonical_filter'] ?? null) === 'CCITTFaxDecode'
+        && ($compactXobjectFilterBoundary['alias_used'] ?? null) === true,
+    'xobject_compact_native_prefix_filters' => $compactXobjectFilterBoundary['native_prefix_filters'] ?? [],
     'xobject_compact_imagemask_polarity' => [
         'black_sample_value' => $compactXobjectPolarityBoundary['black_sample_value'] ?? null,
         'white_sample_value' => $compactXobjectPolarityBoundary['white_sample_value'] ?? null,

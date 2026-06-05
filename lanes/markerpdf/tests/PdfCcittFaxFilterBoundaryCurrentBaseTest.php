@@ -1329,4 +1329,62 @@ return [
         $t->same(2, $entry['ccitt_fax_decode_boundary']['effective_height'] ?? null);
         $t->true(!str_contains($plainText, 'Escaped CCITT payload noise'));
     },
+    'preserves declared CCF aliases while exposing canonical CCITT filter metadata' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 16 /Height 2 /ImageMask true /BitsPerComponent 1 '
+            . '/Filter [/ASCIIHexDecode /CCF] '
+            . '/DecodeParms [null << /K -1 /Columns 16 /Rows 2 /BlackIs1 true /EndOfBlock false >>] >>'
+        );
+
+        $t->same(['ASCIIHexDecode', 'CCF'], $plan['image_filters']);
+        $t->same(['CCF'], $plan['image_filter_boundary']['preview_only_filters']);
+        $t->same([
+            'declared_filter' => 'CCF',
+            'canonical_filter' => 'CCITTFaxDecode',
+            'alias_used' => true,
+            'non_null_filter_index' => 1,
+            'filters_before_ccitt' => ['ASCIIHexDecode'],
+            'native_prefix_filters' => ['ASCIIHexDecode'],
+            'preview_only_filters_before_ccitt' => [],
+            'source_filter_preserved' => true,
+            'review_only' => true,
+            'native_raster_decode' => false,
+        ], $plan['ccitt_fax_filter_boundary']);
+        $t->same('CCF', $plan['ccitt_fax_decode_boundary']['filter'] ?? null);
+        $t->same('CCF', $plan['ccitt_fax_coding_boundary']['filter'] ?? null);
+        $t->same('group4_two_dimensional', $plan['ccitt_fax_coding_boundary']['coding_mode'] ?? null);
+        $t->same(false, $plan['ccitt_fax_coding_boundary']['end_of_block'] ?? null);
+
+        $extractor = new PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before CCF alias review) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After CCF alias review) Tj ET';
+        $payload = 'BT /F1 12 Tf 72 700 Td (CCF alias payload noise) Tj ET';
+        $encodedPayload = strtoupper(bin2hex($payload)) . '>';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /AliasFax 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 2 /ImageMask true /BitsPerComponent 1 /Filter [/ASCIIHexDecode /CCF] /DecodeParms [null << /K -1 /Columns 16 /Rows 2 /BlackIs1 true /EndOfBlock false >>] /Length " . strlen($encodedPayload) . " >>\nstream\n{$encodedPayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Before CCF alias review', 'After CCF alias review'], $extractor->extractTextLines($pdf));
+        $t->same("Before CCF alias review\nAfter CCF alias review", $plainText);
+        $t->true(!str_contains($plainText, 'CCF alias payload noise'));
+        $t->same(['ASCIIHexDecode', 'CCF'], $entry['filters'] ?? null);
+        $t->same(['CCF'], $entry['preview_only_filters'] ?? null);
+        $t->same($plan['ccitt_fax_filter_boundary'], $entry['ccitt_fax_filter_boundary'] ?? null);
+        $t->same(false, $entry['native_raster_decode'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encodedReview, $payload));
+        $t->true(!str_contains($encodedReview, $encodedPayload));
+    },
 ];
