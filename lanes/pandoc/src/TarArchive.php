@@ -650,6 +650,10 @@ final class TarArchive
 
     private static function parseGnuLongName(string $bytes): string
     {
+        if (!str_ends_with($bytes, "\0")) {
+            throw new \RuntimeException('TAR GNU long-name metadata must end with a NUL terminator');
+        }
+
         $name = rtrim($bytes, "\0");
         self::assertUtf8($name, 'TAR GNU long name metadata');
         self::assertSafePath($name, 'TAR GNU long name');

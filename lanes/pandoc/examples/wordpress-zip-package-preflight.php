@@ -2148,6 +2148,17 @@ try {
 } catch (RuntimeException $exception) {
     $tarGnuLongNameUtf8Rejected = str_contains($exception->getMessage(), 'GNU long name metadata');
 }
+$tarGnuLongNameTerminatorRejected = false;
+try {
+    $unterminatedGnuLongName = 'packet/' . str_repeat('unterminated-review-', 5) . 'word/document.xml';
+    TarArchive::fromString(
+        $buildRawTarRecord('././@LongLink', 'L', $unterminatedGnuLongName, $documentModifiedAt)
+        . $buildRawTarRecord('placeholder.xml', '0', '<w:document/>', $documentModifiedAt)
+        . str_repeat("\0", 1024)
+    );
+} catch (RuntimeException $exception) {
+    $tarGnuLongNameTerminatorRejected = str_contains($exception->getMessage(), 'NUL terminator');
+}
 $tarOwnerUtf8Rejected = false;
 $tarUstarOwnerUtf8Rejected = false;
 try {
@@ -2997,6 +3008,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected TAR GNU long names with invalid UTF-8 to be rejected before import');
     }
 
+    if (!$tarGnuLongNameTerminatorRejected) {
+        throw new RuntimeException('Expected TAR GNU long names without NUL terminators to be rejected before import');
+    }
+
     if (!$tarOwnerUtf8Rejected) {
         throw new RuntimeException('Expected TAR owner metadata with invalid UTF-8 to be rejected before import');
     }
@@ -3133,6 +3148,7 @@ echo 'tarGnuLongLinkPolicy=' . ($tarGnuLongLinkRejected ? 'rejected' : 'not-reje
 echo 'tarPaxUtf8PathPolicy=' . ($tarPaxUtf8PathRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarUstarPathUtf8Policy=' . ($tarUstarPathUtf8Rejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarGnuLongNameUtf8Policy=' . ($tarGnuLongNameUtf8Rejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'tarGnuLongNameTerminatorPolicy=' . ($tarGnuLongNameTerminatorRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarOwnerUtf8Policy=' . ($tarOwnerUtf8Rejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarPaxReviewMetadataUtf8Policy=' . ($tarPaxReviewMetadataUtf8Rejected ? 'rejected' : 'not-rejected') . "\n";
 $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
