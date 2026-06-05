@@ -16,7 +16,7 @@ final class CompoundFileBinary
     /** @var list<int> */
     private array $fat;
 
-    /** @var list<array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}> */
+    /** @var list<array<string,mixed>> */
     private array $entries;
 
     /** @var array<string, int> */
@@ -29,7 +29,7 @@ final class CompoundFileBinary
 
     /**
      * @param list<int> $fat
-     * @param list<array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}> $entries
+     * @param list<array<string,mixed>> $entries
      * @param array<string, int> $entriesByName
      */
     private function __construct(
@@ -169,7 +169,7 @@ final class CompoundFileBinary
     }
 
     /**
-     * @return list<array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}>
+     * @return list<array<string,mixed>>
      */
     public function entries(): array
     {
@@ -227,7 +227,7 @@ final class CompoundFileBinary
     }
 
     /**
-     * @return array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}|null
+     * @return array<string,mixed>|null
      */
     private function findEntry(string $name): ?array
     {
@@ -238,7 +238,7 @@ final class CompoundFileBinary
     }
 
     /**
-     * @return array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}
+     * @return array<string,mixed>
      */
     private function requireStreamEntry(string $name): array
     {
@@ -374,7 +374,7 @@ final class CompoundFileBinary
     }
 
     /**
-     * @return array{0:list<array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}>,1:array<string,int>}
+     * @return array{0:list<array<string,mixed>>,1:array<string,int>}
      */
     private static function parseDirectory(string $directoryBytes): array
     {
@@ -414,6 +414,8 @@ final class CompoundFileBinary
                 'leftSiblingId' => self::u32($entryBytes, 68),
                 'rightSiblingId' => self::u32($entryBytes, 72),
                 'childId' => self::u32($entryBytes, 76),
+                'createdAt' => self::readFiletime($entryBytes, 100),
+                'modifiedAt' => self::readFiletime($entryBytes, 108),
                 'directoryId' => $directoryId,
             ];
             $rawEntries[$directoryId] = $entry;
@@ -435,12 +437,12 @@ final class CompoundFileBinary
     }
 
     /**
-     * @param array<int,array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}|null> $rawEntries
-     * @param list<array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}> $entries
+     * @param array<int,array<string,mixed>|null> $rawEntries
+     * @param list<array<string,mixed>> $entries
      * @param array<string,int> $byName
      * @param array<int,bool> $visited
-     * @param array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}|null $minEntry
-     * @param array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}|null $maxEntry
+     * @param array<string,mixed>|null $minEntry
+     * @param array<string,mixed>|null $maxEntry
      */
     private static function collectDirectoryTree(
         int $nodeId,
@@ -614,5 +616,25 @@ final class CompoundFileBinary
         }
 
         return ($high * 4294967296) + $low;
+    }
+
+    private static function readFiletime(string $bytes, int $offset): ?string
+    {
+        $low = self::u32($bytes, $offset);
+        $high = self::u32($bytes, $offset + 4);
+        if ($low === 0 && $high === 0) {
+            return null;
+        }
+        if ($high > intdiv(PHP_INT_MAX - $low, 4294967296)) {
+            throw new \RuntimeException('CFB directory FILETIME exceeds PHP integer range');
+        }
+
+        $ticks = ($high * 4294967296) + $low;
+        $seconds = intdiv($ticks, 10000000) - 11644473600;
+        if ($seconds < 0) {
+            return null;
+        }
+
+        return gmdate('Y-m-d\TH:i:s\Z', $seconds);
     }
 }

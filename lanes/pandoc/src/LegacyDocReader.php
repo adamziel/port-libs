@@ -25,7 +25,7 @@ final class LegacyDocReader
     private const FIB_LCB_PLCFEND_TXT = 0x0216;
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, fib:array<string,mixed>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readBytes(string $bytes): array
     {
@@ -33,7 +33,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, fib:array<string,mixed>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -60,7 +60,21 @@ final class LegacyDocReader
         }
 
         $textResult = $this->extractText($wordDocument, $tableStream);
+        $streamDirectory = $this->streamDirectoryReport($compoundFile);
+        $directoryEntries = $this->directoryEntryReport($compoundFile);
         $metadata = $this->readMetadata($compoundFile);
+        if ($streamDirectory !== []) {
+            $metadata['cfbStreamCount'] = count($streamDirectory);
+        }
+        $timestampedDirectoryEntryCount = 0;
+        foreach ($directoryEntries as $directoryEntry) {
+            if (isset($directoryEntry['createdAt']) || isset($directoryEntry['modifiedAt'])) {
+                $timestampedDirectoryEntryCount++;
+            }
+        }
+        if ($timestampedDirectoryEntryCount > 0) {
+            $metadata['cfbTimestampedDirectoryEntryCount'] = $timestampedDirectoryEntryCount;
+        }
         $bookmarks = $this->standardBookmarkReport($wordDocument, $tableStream, $textResult['text']);
         if ($bookmarks !== []) {
             $metadata['bookmarkCount'] = count($bookmarks);
@@ -90,6 +104,8 @@ final class LegacyDocReader
         $attrs = [
             'sourceFormat' => 'doc',
             'cfbStreams' => $compoundFile->streamNames(),
+            'cfbStreamDirectory' => $streamDirectory,
+            'cfbDirectoryEntries' => $directoryEntries,
             'textSource' => $textResult['source'],
             'tableStream' => $tableStreamName,
             'meta' => $metadata,
@@ -108,6 +124,8 @@ final class LegacyDocReader
             )),
             'metadata' => $metadata,
             'streams' => $compoundFile->streamNames(),
+            'streamDirectory' => $streamDirectory,
+            'directoryEntries' => $directoryEntries,
             'fib' => $fib + ['textSource' => $textResult['source']],
             'bookmarks' => $bookmarks,
             'footnotes' => $footnotes,
@@ -852,6 +870,75 @@ final class LegacyDocReader
         }
 
         return $metadata;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function streamDirectoryReport(CompoundFileBinary $compoundFile): array
+    {
+        $streams = [];
+        foreach ($compoundFile->entries() as $entry) {
+            if (($entry['type'] ?? null) !== 2) {
+                continue;
+            }
+
+            $path = (string) ($entry['path'] ?? '');
+            $slash = strrpos($path, '/');
+            $stream = [
+                'path' => $path,
+                'name' => (string) ($entry['name'] ?? ''),
+                'storagePath' => $slash === false ? '' : substr($path, 0, $slash),
+                'bytes' => (int) ($entry['size'] ?? 0),
+                'directoryId' => (int) ($entry['directoryId'] ?? 0),
+            ];
+
+            if (($entry['createdAt'] ?? null) !== null) {
+                $stream['createdAt'] = (string) $entry['createdAt'];
+            }
+            if (($entry['modifiedAt'] ?? null) !== null) {
+                $stream['modifiedAt'] = (string) $entry['modifiedAt'];
+            }
+
+            $streams[] = $stream;
+        }
+
+        return $streams;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function directoryEntryReport(CompoundFileBinary $compoundFile): array
+    {
+        $entries = [];
+        foreach ($compoundFile->entries() as $entry) {
+            $path = (string) ($entry['path'] ?? '');
+            $typeId = (int) ($entry['type'] ?? 0);
+            $record = [
+                'path' => $path,
+                'name' => (string) ($entry['name'] ?? ''),
+                'type' => match ($typeId) {
+                    1 => 'storage',
+                    2 => 'stream',
+                    5 => 'root',
+                    default => 'unknown',
+                },
+                'bytes' => (int) ($entry['size'] ?? 0),
+                'directoryId' => (int) ($entry['directoryId'] ?? 0),
+            ];
+
+            if (($entry['createdAt'] ?? null) !== null) {
+                $record['createdAt'] = (string) $entry['createdAt'];
+            }
+            if (($entry['modifiedAt'] ?? null) !== null) {
+                $record['modifiedAt'] = (string) $entry['modifiedAt'];
+            }
+
+            $entries[] = $record;
+        }
+
+        return $entries;
     }
 
     /**

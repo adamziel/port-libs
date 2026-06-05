@@ -11,6 +11,18 @@ use PortLibs\Pandoc\WordPressBlockWriter;
 $u16 = static fn (int $value): string => pack('v', $value);
 $u32 = static fn (int $value): string => pack('V', $value);
 $u64 = static fn (int $value): string => pack('V2', $value & 0xffffffff, intdiv($value, 4294967296));
+$filetime = static function (?string $iso8601) use ($u64): string {
+    if ($iso8601 === null || $iso8601 === '') {
+        return str_repeat("\0", 8);
+    }
+
+    $seconds = strtotime($iso8601);
+    if ($seconds === false) {
+        throw new RuntimeException('Unable to encode CFB FILETIME fixture timestamp');
+    }
+
+    return $u64(((int) $seconds + 11644473600) * 10000000);
+};
 $utf16le = static function (string $text): string {
     $encoded = iconv('UTF-8', 'UTF-16LE', $text);
     if (!is_string($encoded)) {
@@ -60,8 +72,10 @@ $directoryEntry = static function (
     int $size,
     int $leftSibling,
     int $rightSibling,
-    int $child
-) use ($u16, $u32, $u64, $utf16le): string {
+    int $child,
+    ?string $createdAt = null,
+    ?string $modifiedAt = null
+) use ($u16, $u32, $u64, $filetime, $utf16le): string {
     $nameBytes = $utf16le($name . "\0");
     if (strlen($nameBytes) > 64) {
         throw new RuntimeException('CFB test directory name is too long');
@@ -76,22 +90,46 @@ $directoryEntry = static function (
         . $u32($child)
         . str_repeat("\0", 16)
         . $u32(0)
-        . $u64(0)
-        . $u64(0)
+        . $filetime($createdAt)
+        . $filetime($modifiedAt)
         . $u32($startSector)
         . $u64($size);
 };
 
-$buildCfb = static function (array $streams, bool $useMiniStreams = true) use ($u16, $u32, $directoryEntry, $padTo, $compareCfbDirectoryNames): string {
+$buildCfb = static function (array $streams, bool $useMiniStreams = true, array $directoryMetadata = []) use ($u16, $u32, $directoryEntry, $padTo, $compareCfbDirectoryNames): string {
     $sectorSize = 512;
     $miniSectorSize = 64;
     $free = 0xffffffff;
     $end = 0xfffffffe;
     $fatSector = 0xfffffffd;
+    $streamMetadata = [];
+    $streamData = [];
+    foreach ($streams as $name => $stream) {
+        if (is_array($stream) && array_key_exists('data', $stream)) {
+            $streamData[(string) $name] = (string) $stream['data'];
+            $streamMetadata[(string) $name] = [
+                'createdAt' => isset($stream['createdAt']) ? (string) $stream['createdAt'] : null,
+                'modifiedAt' => isset($stream['modifiedAt']) ? (string) $stream['modifiedAt'] : null,
+            ];
+            continue;
+        }
+
+        $streamData[(string) $name] = (string) $stream;
+        $streamMetadata[(string) $name] = [
+            'createdAt' => null,
+            'modifiedAt' => null,
+        ];
+    }
+    foreach ($directoryMetadata as $path => $metadata) {
+        $directoryMetadata[(string) $path] = [
+            'createdAt' => isset($metadata['createdAt']) ? (string) $metadata['createdAt'] : null,
+            'modifiedAt' => isset($metadata['modifiedAt']) ? (string) $metadata['modifiedAt'] : null,
+        ];
+    }
 
     $miniStreams = [];
     $regularStreams = [];
-    foreach ($streams as $name => $data) {
+    foreach ($streamData as $name => $data) {
         if ($useMiniStreams && strlen($data) < 4096) {
             $miniStreams[$name] = $data;
         } else {
@@ -163,7 +201,7 @@ $buildCfb = static function (array $streams, bool $useMiniStreams = true) use ($
         ],
     ];
     $nodeByPath = ['' => 0];
-    foreach ($streams as $name => $_data) {
+    foreach ($streamData as $name => $_data) {
         $path = trim(str_replace('\\', '/', (string) $name), '/');
         $segments = array_values(array_filter(explode('/', $path), static fn (string $segment): bool => $segment !== ''));
         if ($segments === []) {
@@ -226,6 +264,11 @@ $buildCfb = static function (array $streams, bool $useMiniStreams = true) use ($
 
     $directory = '';
     foreach ($nodes as $nodeIndex => $node) {
+        $entryPath = array_search($nodeIndex, $nodeByPath, true);
+        $entryPath = is_string($entryPath) ? $entryPath : '';
+        $metadata = $directoryMetadata[$entryPath]
+            ?? $streamMetadata[$entryPath]
+            ?? ['createdAt' => null, 'modifiedAt' => null];
         $directory .= $directoryEntry(
             (string) $node['name'],
             (int) $node['type'],
@@ -233,7 +276,9 @@ $buildCfb = static function (array $streams, bool $useMiniStreams = true) use ($
             (int) $node['size'],
             $leftSiblings[$nodeIndex] ?? $free,
             $rightSiblings[$nodeIndex] ?? $free,
-            $childIds[$nodeIndex] ?? $free
+            $childIds[$nodeIndex] ?? $free,
+            $metadata['createdAt'],
+            $metadata['modifiedAt']
         );
     }
     $directoryChunks = str_split($padTo($directory, $sectorSize), $sectorSize);
@@ -555,6 +600,58 @@ return [
         $t->same('small stream bytes', $compoundFile->readStream('WordDocument'));
         $t->same('summary bytes', $compoundFile->readStream("\x05SummaryInformation"));
         $t->same(str_repeat('L', 5000), $compoundFile->readStream('LargePreview'));
+    },
+    'preserves CFB directory storage timestamps for legacy DOC review provenance' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Timestamped review packet\r"),
+            'ObjectPool/_42/' . "\x01" . 'Ole10Native' => 'timestamped native attachment bytes',
+        ], true, [
+            '' => [
+                'modifiedAt' => '2024-04-06T07:08:09Z',
+            ],
+            'ObjectPool/_42' => [
+                'createdAt' => '2024-04-07T08:09:10Z',
+                'modifiedAt' => '2024-04-08T09:10:11Z',
+            ],
+        ]);
+
+        $compoundFile = CompoundFileBinary::fromBytes($docBytes);
+        $entriesByPath = [];
+        foreach ($compoundFile->entries() as $entry) {
+            $entriesByPath[(string) $entry['path']] = $entry;
+        }
+
+        $t->same(null, $entriesByPath['']['createdAt']);
+        $t->same('2024-04-06T07:08:09Z', $entriesByPath['']['modifiedAt']);
+        $t->same('2024-04-07T08:09:10Z', $entriesByPath['ObjectPool/_42']['createdAt']);
+        $t->same('2024-04-08T09:10:11Z', $entriesByPath['ObjectPool/_42']['modifiedAt']);
+        $t->same(null, $entriesByPath['WordDocument']['createdAt']);
+        $t->same(null, $entriesByPath["ObjectPool/_42/\x01Ole10Native"]['modifiedAt']);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $streamDirectory = $result['streamDirectory'];
+        $directoryEntries = $result['directoryEntries'];
+        $directoryByPath = [];
+        foreach ($directoryEntries as $entry) {
+            $directoryByPath[(string) $entry['path']] = $entry;
+        }
+
+        $t->same($streamDirectory, $result['document']->attr('cfbStreamDirectory'));
+        $t->same($directoryEntries, $result['document']->attr('cfbDirectoryEntries'));
+        $t->same(2, $result['metadata']['cfbStreamCount']);
+        $t->same(2, $result['metadata']['cfbTimestampedDirectoryEntryCount']);
+        $t->same('root', $directoryByPath['']['type']);
+        $t->same('2024-04-06T07:08:09Z', $directoryByPath['']['modifiedAt']);
+        $t->same('storage', $directoryByPath['ObjectPool/_42']['type']);
+        $t->same('2024-04-07T08:09:10Z', $directoryByPath['ObjectPool/_42']['createdAt']);
+        $t->same('2024-04-08T09:10:11Z', $directoryByPath['ObjectPool/_42']['modifiedAt']);
+        $t->same('WordDocument', $streamDirectory[1]['path']);
+        $t->same('', $streamDirectory[1]['storagePath']);
+        $t->true(!isset($streamDirectory[1]['createdAt']), 'CFB stream entries should not invent stream creation timestamps');
+        $t->true(!isset($streamDirectory[1]['modifiedAt']), 'CFB stream entries should not invent stream modification timestamps');
+        $t->same("ObjectPool/_42/\x01Ole10Native", $streamDirectory[0]['path']);
+        $t->same('ObjectPool/_42', $streamDirectory[0]['storagePath']);
+        $t->same(strlen('timestamped native attachment bytes'), $streamDirectory[0]['bytes']);
     },
     'traverses CFB storage child trees for nested legacy streams' => static function (TestRunner $t) use ($buildCfb): void {
         $bytes = $buildCfb([

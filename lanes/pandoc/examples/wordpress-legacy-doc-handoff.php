@@ -10,6 +10,18 @@ use PortLibs\Pandoc\WordPressBlockWriter;
 $u16 = static fn (int $value): string => pack('v', $value);
 $u32 = static fn (int $value): string => pack('V', $value);
 $u64 = static fn (int $value): string => pack('V2', $value & 0xffffffff, intdiv($value, 4294967296));
+$filetime = static function (?string $iso8601) use ($u64): string {
+    if ($iso8601 === null || $iso8601 === '') {
+        return str_repeat("\0", 8);
+    }
+
+    $seconds = strtotime($iso8601);
+    if ($seconds === false) {
+        throw new RuntimeException('Unable to encode CFB FILETIME fixture timestamp');
+    }
+
+    return $u64(((int) $seconds + 11644473600) * 10000000);
+};
 $utf16le = static function (string $text): string {
     $encoded = iconv('UTF-8', 'UTF-16LE', $text);
     if (!is_string($encoded)) {
@@ -67,8 +79,10 @@ $directoryEntry = static function (
     int $size,
     int $leftSibling,
     int $rightSibling,
-    int $child
-) use ($u16, $u32, $u64, $utf16le): string {
+    int $child,
+    ?string $createdAt = null,
+    ?string $modifiedAt = null
+) use ($u16, $u32, $u64, $filetime, $utf16le): string {
     $nameBytes = $utf16le($name . "\0");
 
     return str_pad($nameBytes, 64, "\0")
@@ -80,8 +94,8 @@ $directoryEntry = static function (
         . $u32($child)
         . str_repeat("\0", 16)
         . $u32(0)
-        . $u64(0)
-        . $u64(0)
+        . $filetime($createdAt)
+        . $filetime($modifiedAt)
         . $u32($startSector)
         . $u64($size);
 };
@@ -351,6 +365,15 @@ $streams = [
     'Macros/VBA/ThisDocument' => "Attribute VB_Name = \"ThisDocument\"\r\nPrivate Sub Document_Open()\r\nEnd Sub\r\n",
     'Macros/VBA/MigrationTools' => "Attribute VB_Name = \"MigrationTools\"\r\nSub ImportPacket()\r\nEnd Sub\r\n",
 ];
+$directoryTimestamps = [
+    '' => [
+        'modifiedAt' => '2024-04-06T07:08:09Z',
+    ],
+    'ObjectPool/_42' => [
+        'createdAt' => '2024-04-07T08:09:10Z',
+        'modifiedAt' => '2024-04-08T09:10:11Z',
+    ],
+];
 
 $miniSectorSize = 64;
 $sectorSize = 512;
@@ -465,7 +488,9 @@ $directory = $directoryEntry(
     $miniStreamSize,
     $free,
     $free,
-    $childIds[0] ?? $free
+    $childIds[0] ?? $free,
+    $directoryTimestamps['']['createdAt'] ?? null,
+    $directoryTimestamps['']['modifiedAt'] ?? null
 );
 foreach ($nodes as $nodeIndex => $node) {
     if ($nodeIndex === 0) {
@@ -475,6 +500,9 @@ foreach ($nodes as $nodeIndex => $node) {
     $type = (int) $node['type'];
     $streamPath = (string) ($node['streamPath'] ?? '');
     $location = $type === 2 ? $locations[$streamPath] : ['startSector' => $end, 'size' => 0];
+    $entryPath = $type === 2 ? $streamPath : array_search($nodeIndex, $nodeByPath, true);
+    $entryPath = is_string($entryPath) ? $entryPath : '';
+    $timestamps = $directoryTimestamps[$entryPath] ?? ['createdAt' => null, 'modifiedAt' => null];
     $directory .= $directoryEntry(
         (string) $node['name'],
         $type,
@@ -482,7 +510,9 @@ foreach ($nodes as $nodeIndex => $node) {
         $location['size'],
         $leftSiblings[$nodeIndex] ?? $free,
         $rightSiblings[$nodeIndex] ?? $free,
-        $childIds[$nodeIndex] ?? $free
+        $childIds[$nodeIndex] ?? $free,
+        $timestamps['createdAt'],
+        $timestamps['modifiedAt']
     );
 }
 $directoryChunks = str_split($padTo($directory, $sectorSize), $sectorSize);
@@ -540,6 +570,8 @@ $blocks = (new WordPressBlockWriter())->write($result['document']);
 $summary = [
     'metadata' => $result['metadata'],
     'streams' => $result['streams'],
+    'streamDirectory' => $result['streamDirectory'],
+    'directoryEntries' => $result['directoryEntries'],
     'textSource' => $result['document']->attr('textSource'),
     'fib' => $result['fib'],
     'bookmarks' => $result['bookmarks'],
@@ -566,6 +598,28 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['metadata']['documentSecurityFlags'] ?? []) !== ['readOnlyRecommended']) {
         throw new RuntimeException('Legacy DOC handoff self-test missing document security flags');
+    }
+    if (($summary['metadata']['cfbStreamCount'] ?? null) !== 13 || ($summary['metadata']['cfbTimestampedDirectoryEntryCount'] ?? null) !== 2) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing CFB directory counts');
+    }
+    $directoryByPath = [];
+    foreach ($summary['directoryEntries'] as $directoryEntry) {
+        $directoryByPath[(string) ($directoryEntry['path'] ?? '')] = $directoryEntry;
+    }
+    if (($directoryByPath['']['type'] ?? '') !== 'root' || ($directoryByPath['']['modifiedAt'] ?? '') !== '2024-04-06T07:08:09Z') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing root storage modified timestamp');
+    }
+    if (isset($directoryByPath['WordDocument']['createdAt']) || isset($directoryByPath['WordDocument']['modifiedAt'])) {
+        throw new RuntimeException('Legacy DOC handoff self-test assigned timestamps to a stream entry');
+    }
+    if (($directoryByPath['ObjectPool/_42']['type'] ?? '') !== 'storage') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing ObjectPool storage directory entry');
+    }
+    if (($directoryByPath['ObjectPool/_42']['createdAt'] ?? '') !== '2024-04-07T08:09:10Z') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing ObjectPool storage creation timestamp');
+    }
+    if (($directoryByPath['ObjectPool/_42']['modifiedAt'] ?? '') !== '2024-04-08T09:10:11Z') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing ObjectPool storage modified timestamp');
     }
     if (($summary['metadata']['lineCount'] ?? null) !== 2 || ($summary['metadata']['linksDirty'] ?? null) !== true) {
         throw new RuntimeException('Legacy DOC handoff self-test missing DocumentSummaryInformation review metadata');
