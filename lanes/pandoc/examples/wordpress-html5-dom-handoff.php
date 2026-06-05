@@ -17,6 +17,9 @@ $sourceHtml = <<<'HTML'
   <p><img src="https://example.test/preview.png" srcset="https://example.test/preview.png 1x, /uploads/preview@2x.png 02.00x, javascript:alert(1) 3x, /uploads/bad.png 0w" alt="Preview"></p>
   <p><a href="mailto:review@example.test">Mail reviewer</a><img src="mailto:review@example.test" alt="Unsafe media link"></p>
   <form action="/submit" onsubmit="alert(1)"><p>Reviewer choice <input name="status" value="draft"><button formaction="javascript:alert(1)">Keep visible label</button></p><p><select><option>Draft</option><option>Final</option></select></p><textarea>Visible reviewer note</textarea></form>
+  <iframe src="javascript:alert(1)">Iframe fallback <b>caption</b><script>drop()</script></iframe>
+  <object data="javascript:alert(1)" type="application/x-shockwave-flash"><param name="movie" value="legacy.swf"><p>Object fallback <a href="/review">review</a></p></object>
+  <applet code="Legacy.class"><span>Applet fallback</span></applet>
   <xmp data-source="legacy-raw">Reviewer <script>alert(1)</script> &amp; <b>source</b></xmp>
   <table class="legacy-table"><caption>Review rows</caption><p data-review="loose-table">Loose table note</p><tr><td>Cell A</td></tr>orphan table text<tr><td>Cell B</td></tr></table>
   <details open="open"><summary>Media review</summary><video controls="" muted playsinline loop poster="tel:+15550100"><source src="mailto:review@example.test" type="video/mp4"><source src="/uploads/preview.mp4" type="video/mp4"></video></details>
@@ -41,6 +44,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<img src="https://example.test/preview.png" srcset="https://example.test/preview.png 1x, /uploads/preview@2x.png 2x" alt="Preview">',
         '<a href="mailto:review@example.test">Mail reviewer</a><img alt="Unsafe media link">',
         '<p>Reviewer choice Keep visible label</p><p>DraftFinal</p>Visible reviewer note',
+        'Iframe fallback <b>caption</b>',
+        '<p>Object fallback <a href="/review">review</a></p>',
+        '<span>Applet fallback</span>',
         'Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; &lt;b&gt;source&lt;/b&gt;',
         '<p data-review="loose-table">Loose table note</p>orphan table text<table class="legacy-table"><caption>Review rows</caption><tr><td>Cell A</td></tr><tr><td>Cell B</td></tr></table>',
         '<details open><summary>Media review</summary><video controls muted playsinline loop><source type="video/mp4"><source src="/uploads/preview.mp4" type="video/mp4"></video></details>',
@@ -54,14 +60,14 @@ if (($argv[1] ?? '') === '--self-test') {
         }
     }
 
-    foreach (['onclick=', 'ping=', 'formaction=', 'background="mailto:', 'javascript:', 'src="mailto:', 'poster="tel:', '<form', '<input', '<button', '<select', '<textarea', '<xmp', '<plaintext', '<script>', '<p>suppressed tail</p>', 'open="open"', 'controls=""', 'viewBox="html attr"', '<textPath>HTML text</textPath>'] as $blocked) {
+    foreach (['onclick=', 'ping=', 'formaction=', 'background="mailto:', 'javascript:', 'src="mailto:', 'poster="tel:', '<form', '<input', '<button', '<select', '<textarea', '<iframe', '<object', '<applet', '<param', '<xmp', '<plaintext', '<script>', '<p>suppressed tail</p>', 'open="open"', 'controls=""', 'viewBox="html attr"', '<textPath>HTML text</textPath>'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM handoff self-test retained blocked content: ' . $blocked);
         }
     }
 
-    if ($fragment->summary()['blockedTags'] !== ['button', 'form', 'input', 'option', 'plaintext', 'script', 'select', 'textarea', 'xmp']) {
-        throw new RuntimeException('HTML5 DOM handoff self-test did not report blocked form/script/plaintext tags');
+    if ($fragment->summary()['blockedTags'] !== ['applet', 'button', 'form', 'iframe', 'input', 'object', 'option', 'param', 'plaintext', 'script', 'select', 'textarea', 'xmp']) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not report blocked form/embed/script/plaintext tags');
     }
     if (!in_array('srcset', $fragment->summary()['filteredAttributes'], true)) {
         throw new RuntimeException('HTML5 DOM handoff self-test did not report filtered srcset attribute');

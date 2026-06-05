@@ -136,6 +136,46 @@ return [
         $t->true(!str_contains($html, '<textarea'), 'Expected textarea wrapper to be stripped');
         $t->true(!str_contains($html, 'javascript:'), 'Expected form-side javascript URLs to be stripped');
     },
+    'unwraps active embed fallback content while dropping unsafe containers' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<iframe src="javascript:alert(1)">Fallback <b>caption</b><script>drop()</script></iframe>'
+            . '<object data="javascript:alert(1)" type="application/x-shockwave-flash"><param name="movie" value="legacy.swf"><p>Object fallback <a href="/review">review</a></p></object>'
+            . '<applet code="Legacy.class"><span>Applet fallback</span></applet><p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/embed-fallback-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = 'Fallback <b>caption</b><p>Object fallback <a href="/review">review</a></p><span>Applet fallback</span><p>after</p>';
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Fallback captionObject fallback reviewApplet fallbackafter', $fragment->textContent());
+        $t->same(['a', 'b', 'p', 'span'], $summary['elementNames']);
+        $t->same(['applet', 'iframe', 'object', 'param', 'script'], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same(5, $summary['diagnostics']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag'], $fragment->diagnosticCodes());
+        $t->same('text', $nodes[0]['type']);
+        $t->same('Fallback ', $nodes[0]['text']);
+        $t->same('b', $nodes[1]['name']);
+        $t->same('p', $nodes[2]['name']);
+        $t->same('span', $nodes[3]['name']);
+        $t->same('p', $nodes[4]['name']);
+        $t->same('/migration/embed-fallback-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, '<iframe'), 'Expected iframe wrapper to be stripped');
+        $t->true(!str_contains($html, '<object'), 'Expected object wrapper to be stripped');
+        $t->true(!str_contains($html, '<applet'), 'Expected applet wrapper to be stripped');
+        $t->true(!str_contains($html, '<param'), 'Expected object param metadata to be dropped');
+        $t->true(!str_contains($html, '<script'), 'Expected active fallback script to be dropped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe embed URLs to be stripped with their wrappers');
+        $t->true(!str_contains($blocks, '<iframe'), 'Expected WordPress blocks to omit iframe wrapper');
+        $t->true(!str_contains($blocks, '<object'), 'Expected WordPress blocks to omit object wrapper');
+        $t->true(!str_contains($blocks, '<applet'), 'Expected WordPress blocks to omit applet wrapper');
+    },
     'filters mixed unsafe srcset candidates before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<p>'
