@@ -26,6 +26,28 @@ final class ZipPackage
     private const UINT32_FACTOR = 4294967296;
     private const UNIX_FILE_TYPE_MASK = 0xf000;
     private const UNIX_SYMLINK_TYPE = 0xa000;
+    private const CREATOR_HOST_SYSTEM_NAMES = [
+        0 => 'ms-dos-fat',
+        1 => 'amiga',
+        2 => 'openvms',
+        3 => 'unix',
+        4 => 'vm-cms',
+        5 => 'atari-st',
+        6 => 'os2-hpfs',
+        7 => 'macintosh',
+        8 => 'z-system',
+        9 => 'cp-m',
+        10 => 'windows-ntfs',
+        11 => 'mvs',
+        12 => 'vse',
+        13 => 'acorn-risc',
+        14 => 'vfat',
+        15 => 'alternate-mvs',
+        16 => 'beos',
+        17 => 'tandem',
+        18 => 'os400',
+        19 => 'os-x',
+    ];
     private const CP437_EXTENDED_CHARS = [
         "\u{00c7}", "\u{00fc}", "\u{00e9}", "\u{00e2}", "\u{00e4}", "\u{00e0}", "\u{00e5}", "\u{00e7}",
         "\u{00ea}", "\u{00eb}", "\u{00e8}", "\u{00ef}", "\u{00ee}", "\u{00ec}", "\u{00c4}", "\u{00c5}",
@@ -1080,6 +1102,90 @@ final class ZipPackage
         return $summary;
     }
 
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     knownHostSystemEntryCount:int,
+     *     unknownHostSystemEntryCount:int,
+     *     hostSystems:list<array{id:int, name:string, isKnown:bool, entryCount:int}>,
+     *     unknownEntries:list<array{name:string, madeByHostSystem:int, madeByHostSystemName:string, madeByVersion:int, versionMadeBy:int, isKnown:bool}>,
+     *     entries:list<array{name:string, madeByHostSystem:int, madeByHostSystemName:string, madeByVersion:int, versionMadeBy:int, isKnown:bool}>
+     * }
+     */
+    public function creatorHostSystemPreflight(): array
+    {
+        $entries = [];
+        $unknownEntries = [];
+        $hostSystems = [];
+
+        foreach ($this->entries as $entry) {
+            $hostSystem = $entry->madeByHostSystem();
+            $hostSystemName = self::creatorHostSystemName($hostSystem);
+            $isKnown = self::isKnownCreatorHostSystem($hostSystem);
+            $summary = [
+                'name' => $entry->name,
+                'madeByHostSystem' => $hostSystem,
+                'madeByHostSystemName' => $hostSystemName,
+                'madeByVersion' => $entry->madeByVersion(),
+                'versionMadeBy' => $entry->versionMadeBy,
+                'isKnown' => $isKnown,
+            ];
+            $entries[] = $summary;
+            if (!$isKnown) {
+                $unknownEntries[] = $summary;
+            }
+
+            if (!isset($hostSystems[$hostSystem])) {
+                $hostSystems[$hostSystem] = [
+                    'id' => $hostSystem,
+                    'name' => $hostSystemName,
+                    'isKnown' => $isKnown,
+                    'entryCount' => 0,
+                ];
+            }
+            $hostSystems[$hostSystem]['entryCount']++;
+        }
+
+        return [
+            'entryCount' => count($this->entries),
+            'knownHostSystemEntryCount' => count($this->entries) - count($unknownEntries),
+            'unknownHostSystemEntryCount' => count($unknownEntries),
+            'hostSystems' => array_values($hostSystems),
+            'unknownEntries' => $unknownEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     knownHostSystemEntryCount:int,
+     *     unknownHostSystemEntryCount:int,
+     *     hostSystems:list<array{id:int, name:string, isKnown:bool, entryCount:int}>,
+     *     unknownEntries:list<array{name:string, madeByHostSystem:int, madeByHostSystemName:string, madeByVersion:int, versionMadeBy:int, isKnown:bool}>,
+     *     entries:list<array{name:string, madeByHostSystem:int, madeByHostSystemName:string, madeByVersion:int, versionMadeBy:int, isKnown:bool}>
+     * }
+     */
+    public function assertKnownCreatorHostSystems(): array
+    {
+        $summary = $this->creatorHostSystemPreflight();
+        if ($summary['unknownHostSystemEntryCount'] > 0) {
+            $entries = implode(
+                ', ',
+                array_map(
+                    static fn (array $entry): string => $entry['name'] . ' host ' . $entry['madeByHostSystem'],
+                    $summary['unknownEntries']
+                )
+            );
+
+            throw new \RuntimeException(
+                'ZIP package contains unknown creator host-system entries that require explicit import review: ' . $entries
+            );
+        }
+
+        return $summary;
+    }
+
     private static function assertDirectoryEntryMetadata(ZipPackageEntry $entry): void
     {
         if (!$entry->isDirectory()) {
@@ -1550,6 +1656,16 @@ final class ZipPackage
             8 => 'deflated',
             default => 'unsupported',
         };
+    }
+
+    private static function creatorHostSystemName(int $hostSystem): string
+    {
+        return self::CREATOR_HOST_SYSTEM_NAMES[$hostSystem] ?? 'unknown';
+    }
+
+    private static function isKnownCreatorHostSystem(int $hostSystem): bool
+    {
+        return isset(self::CREATOR_HOST_SYSTEM_NAMES[$hostSystem]);
     }
 
     private function normalizeLookupPartName(string $partName): string

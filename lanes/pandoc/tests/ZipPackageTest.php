@@ -750,6 +750,71 @@ return [
         $t->same([], $safeSummary['executableEntries']);
     },
 
+    'preflights zip creator host systems before package media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>creator host metadata</w:p></w:document>',
+                'method' => 8,
+                'versionMadeBy' => 0x0314,
+            ],
+            [
+                'name' => 'word/media/windows-review.bin',
+                'data' => 'windows-origin media bytes',
+                'method' => 0,
+                'versionMadeBy' => 0x0a14,
+            ],
+            [
+                'name' => 'word/media/unknown-review.bin',
+                'data' => 'unknown-origin media bytes',
+                'method' => 0,
+                'versionMadeBy' => 0x3f14,
+            ],
+        ]));
+        $summary = $package->creatorHostSystemPreflight();
+
+        $t->same(3, $summary['entryCount']);
+        $t->same(2, $summary['knownHostSystemEntryCount']);
+        $t->same(1, $summary['unknownHostSystemEntryCount']);
+        $t->same(3, count($summary['hostSystems']));
+        $t->same(3, $summary['hostSystems'][0]['id']);
+        $t->same('unix', $summary['hostSystems'][0]['name']);
+        $t->same(1, $summary['hostSystems'][0]['entryCount']);
+        $t->same(10, $summary['hostSystems'][1]['id']);
+        $t->same('windows-ntfs', $summary['hostSystems'][1]['name']);
+        $t->same(63, $summary['hostSystems'][2]['id']);
+        $t->same('unknown', $summary['hostSystems'][2]['name']);
+        $t->same(false, $summary['hostSystems'][2]['isKnown']);
+        $t->same('word/media/unknown-review.bin', $summary['unknownEntries'][0]['name']);
+        $t->same(63, $summary['unknownEntries'][0]['madeByHostSystem']);
+        $t->same('unknown', $summary['unknownEntries'][0]['madeByHostSystemName']);
+        $t->same(20, $summary['unknownEntries'][0]['madeByVersion']);
+        $t->same(0x3f14, $summary['unknownEntries'][0]['versionMadeBy']);
+        $t->same('windows-ntfs', $summary['entries'][1]['madeByHostSystemName']);
+        $t->same(true, $summary['entries'][1]['isKnown']);
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertKnownCreatorHostSystems());
+
+        $safePackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>known creator metadata</w:p></w:document>',
+                'method' => 8,
+                'versionMadeBy' => 0x0314,
+            ],
+            [
+                'name' => 'word/media/windows-review.bin',
+                'data' => 'known windows media bytes',
+                'method' => 0,
+                'versionMadeBy' => 0x0a14,
+            ],
+        ]));
+        $safeSummary = $safePackage->assertKnownCreatorHostSystems();
+
+        $t->same(2, $safeSummary['knownHostSystemEntryCount']);
+        $t->same(0, $safeSummary['unknownHostSystemEntryCount']);
+        $t->same([], $safeSummary['unknownEntries']);
+    },
+
     'rejects zip symlink entries before office package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [

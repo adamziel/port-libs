@@ -943,6 +943,53 @@ $buildUnsupportedCompressionMethodBackedPackage = static function () use ($crc32
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildUnknownCreatorHostBackedPackage = static function () use ($crc32): string {
+    $name = 'word/media/unknown-host-review.bin';
+    $data = "Unknown ZIP creator host metadata should stay reviewable\n";
+    $crc = $crc32($data);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x3f14,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildStoredDeflateOptionFlagBackedPackage = static function () use ($crc32): string {
     $name = 'word/media/stored-fast-flags.bin';
     $data = "Stored media bytes must not carry deflate option flags\n";
@@ -1263,6 +1310,7 @@ $packageArchivePreflight = $package->archivePreflight();
 $packageSizePreflight = $package->sizePreflight();
 $packageCompressionPreflight = $package->compressionMethodPreflight();
 $packagePermissionPreflight = $package->permissionPreflight();
+$packageCreatorHostPreflight = $package->creatorHostSystemPreflight();
 $packageCommentPreflight = $package->commentPreflight();
 $packageSizeRejected = false;
 try {
@@ -1283,6 +1331,14 @@ try {
     $unsupportedCompressionMethodPackage->assertSupportedCompressionMethods();
 } catch (RuntimeException $exception) {
     $unsupportedCompressionMethodRejected = str_contains($exception->getMessage(), 'unsupported compression methods');
+}
+$unknownCreatorHostPackage = ZipPackage::fromString($buildUnknownCreatorHostBackedPackage());
+$unknownCreatorHostPreflight = $unknownCreatorHostPackage->creatorHostSystemPreflight();
+$unknownCreatorHostRejected = false;
+try {
+    $unknownCreatorHostPackage->assertKnownCreatorHostSystems();
+} catch (RuntimeException $exception) {
+    $unknownCreatorHostRejected = str_contains($exception->getMessage(), 'unknown creator host-system entries');
 }
 $deflateOptionFlagsRejected = false;
 try {
@@ -1961,6 +2017,28 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP package permission preflight to return the accepted summary');
     }
 
+    if (
+        ($packageCreatorHostPreflight['entryCount'] ?? null) !== 3
+        || ($packageCreatorHostPreflight['knownHostSystemEntryCount'] ?? null) !== 3
+        || ($packageCreatorHostPreflight['unknownHostSystemEntryCount'] ?? null) !== 0
+        || ($packageCreatorHostPreflight['hostSystems'][0]['name'] ?? null) !== 'unix'
+    ) {
+        throw new RuntimeException('Expected ZIP creator host-system preflight to identify generated Unix package parts');
+    }
+
+    if ($package->assertKnownCreatorHostSystems() !== $packageCreatorHostPreflight) {
+        throw new RuntimeException('Expected known ZIP creator host systems to return the accepted summary');
+    }
+
+    if (
+        !$unknownCreatorHostRejected
+        || ($unknownCreatorHostPreflight['unknownHostSystemEntryCount'] ?? null) !== 1
+        || ($unknownCreatorHostPreflight['unknownEntries'][0]['madeByHostSystem'] ?? null) !== 63
+        || ($unknownCreatorHostPreflight['unknownEntries'][0]['name'] ?? null) !== 'word/media/unknown-host-review.bin'
+    ) {
+        throw new RuntimeException('Expected unknown ZIP creator host systems to stay blocked for reviewer import');
+    }
+
     if (!$packageSizeRejected) {
         throw new RuntimeException('Expected aggregate ZIP package size limits to reject oversized packages before import');
     }
@@ -2573,6 +2651,8 @@ echo 'packageCompression.supportedEntryCount=' . $packageCompressionPreflight['s
 echo 'packageCompression.unsupportedMethodCount=' . $packageCompressionPreflight['unsupportedCompressionMethodCount'] . "\n";
 echo 'packagePermissions.unixModeEntryCount=' . $packagePermissionPreflight['unixModeEntryCount'] . "\n";
 echo 'packagePermissions.executableFileCount=' . $packagePermissionPreflight['executableFileCount'] . "\n";
+echo 'packageCreatorHosts=' . implode(',', array_map(static fn (array $host): string => $host['name'], $packageCreatorHostPreflight['hostSystems'])) . "\n";
+echo 'packageCreatorUnknownEntries=' . $packageCreatorHostPreflight['unknownHostSystemEntryCount'] . "\n";
 echo 'packageArchive.eocdOffset=' . $packageArchivePreflight['eocdOffset'] . "\n";
 echo 'packageArchive.totalEntryCount=' . $packageArchivePreflight['totalEntryCount'] . "\n";
 echo 'packageArchive.centralDirectorySize=' . $packageArchivePreflight['centralDirectorySize'] . "\n";
@@ -2609,6 +2689,8 @@ echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected 
 echo 'compressedPatchedDataPolicy=' . ($compressedPatchedDataRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnsupportedCompressionMethodPolicy=' . ($unsupportedCompressionMethodRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnsupportedCompressionMethodEntry=' . ($unsupportedCompressionMethodPreflight['unsupportedEntries'][0]['name'] ?? 'none') . "\n";
+echo 'zipUnknownCreatorHostPolicy=' . ($unknownCreatorHostRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipUnknownCreatorHostEntry=' . ($unknownCreatorHostPreflight['unknownEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipDeflateOptionFlagPolicy=' . ($deflateOptionFlagsRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipStoredSizeMismatchPolicy=' . ($storedSizeMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipVersionNeededMismatchPolicy=' . ($versionNeededMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
