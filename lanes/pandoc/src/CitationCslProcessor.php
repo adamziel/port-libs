@@ -333,6 +333,10 @@ final class CitationCslProcessor
             $parts[] = $part;
         }
 
+        foreach ($this->nameMetadataBibliographyParts($item) as $part) {
+            $parts[] = $part;
+        }
+
         $translators = $this->bibliographyTranslators($item);
         if ($translators !== '') {
             $parts[] = 'Translated by ' . rtrim($translators, '.') . '.';
@@ -493,6 +497,7 @@ final class CitationCslProcessor
             'medium' => self::stringField($item, 'medium'),
             'note' => self::stringField($item, 'note'),
             'addendum' => self::stringField($item, 'addendum'),
+            'nameAddon' => self::firstStringField($item, ['name-addon', 'nameAddon']),
             'keywords' => self::stringListField($item, 'keyword'),
             'sourceFiles' => $sourceFilePolicy['files'],
             'sourceFileDiagnostics' => $sourceFileDiagnostics,
@@ -792,7 +797,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return list<array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}>
+     * @return list<array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool, annotations:list<array{part:string, value:string}>}>
      */
     private static function names(mixed $value, string $id, string $field): array
     {
@@ -830,6 +835,7 @@ final class CitationCslProcessor
                 'commaSuffix' => self::boolField($name, 'comma-suffix', false),
                 'staticOrdering' => self::boolField($name, 'static-ordering', false),
                 'parseNames' => self::boolField($name, 'parse-names', true),
+                'annotations' => self::nameAnnotations($name['annotations'] ?? [], $id, $field, $index),
             ];
         }
 
@@ -837,7 +843,42 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return list<array{field:string, type:string, label:string, names:list<array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}>}>
+     * @return list<array{part:string, value:string}>
+     */
+    private static function nameAnnotations(mixed $value, string $id, string $field, int $nameIndex): array
+    {
+        if ($value === null || $value === []) {
+            return [];
+        }
+
+        if (!is_array($value) || !array_is_list($value)) {
+            throw new \InvalidArgumentException('CSL item ' . $id . ' field ' . $field . '[' . $nameIndex . '].annotations must be a list');
+        }
+
+        $annotations = [];
+        foreach ($value as $index => $annotation) {
+            if (!is_array($annotation)) {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' field ' . $field . '[' . $nameIndex . '].annotations[' . $index . '] must be an object');
+            }
+
+            $part = self::nameString($annotation['part'] ?? 'name');
+            $part = strtolower(str_replace('_', '-', $part));
+            $text = self::nameString($annotation['value'] ?? '');
+            if ($text === '') {
+                continue;
+            }
+
+            $annotations[] = [
+                'part' => $part === '' ? 'name' : $part,
+                'value' => $text,
+            ];
+        }
+
+        return $annotations;
+    }
+
+    /**
+     * @return list<array{field:string, type:string, label:string, names:list<array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool, annotations:list<array{part:string, value:string}>}>}>
      */
     private static function editorialRoles(mixed $value, string $id): array
     {
@@ -1981,6 +2022,88 @@ final class CitationCslProcessor
         return $parts;
     }
 
+    /**
+     * @param array<string, mixed> $item
+     * @return list<string>
+     */
+    private function nameMetadataBibliographyParts(array $item): array
+    {
+        $parts = [];
+        $nameAddon = trim((string) ($item['nameAddon'] ?? ''));
+        if ($nameAddon !== '') {
+            $parts[] = 'Name addendum: ' . $this->withTerminalPunctuation($nameAddon);
+        }
+
+        $annotations = $this->nameAnnotationSummary($item);
+        if ($annotations !== '') {
+            $parts[] = 'Name annotations: ' . $this->withTerminalPunctuation($annotations);
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function nameAnnotationSummary(array $item): string
+    {
+        $entries = [];
+        foreach ($this->nameAnnotationSources() as [$key, $label]) {
+            $names = $item[$key] ?? [];
+            if (!is_array($names)) {
+                continue;
+            }
+
+            foreach ($names as $index => $name) {
+                if (!is_array($name) || !is_array($name['annotations'] ?? null)) {
+                    continue;
+                }
+
+                foreach ($name['annotations'] as $annotation) {
+                    if (!is_array($annotation)) {
+                        continue;
+                    }
+
+                    $value = trim((string) ($annotation['value'] ?? ''));
+                    if ($value === '') {
+                        continue;
+                    }
+
+                    $part = strtolower(trim((string) ($annotation['part'] ?? 'name')));
+                    $entries[] = $label . ' ' . ((int) $index + 1) . ($part !== '' && $part !== 'name' ? ' ' . $part : '') . ': ' . $value;
+                }
+            }
+        }
+
+        return implode('; ', $entries);
+    }
+
+    /**
+     * @return list<array{0:string, 1:string}>
+     */
+    private function nameAnnotationSources(): array
+    {
+        return [
+            ['authors', 'Author'],
+            ['editors', 'Editor'],
+            ['holders', 'Holder'],
+            ['translators', 'Translator'],
+            ['originalAuthors', 'Original author'],
+            ['compilers', 'Compiler'],
+            ['curators', 'Curator'],
+            ['directors', 'Director'],
+            ['editorialDirectors', 'Editorial director'],
+            ['illustrators', 'Illustrator'],
+            ['interviewers', 'Interviewer'],
+            ['reviewedAuthors', 'Reviewed author'],
+            ['commentators', 'Commentator'],
+            ['annotators', 'Annotator'],
+            ['introductionAuthors', 'Introduction'],
+            ['forewordAuthors', 'Foreword'],
+            ['afterwordAuthors', 'Afterword'],
+        ];
+    }
+
     private function withTerminalPunctuation(string $value): string
     {
         return preg_match('/[.!?]\z/u', $value) === 1 ? $value : $value . '.';
@@ -2885,6 +3008,8 @@ final class CitationCslProcessor
             'medium' => (string) $item['medium'],
             'note' => (string) $item['note'],
             'addendum' => (string) $item['addendum'],
+            'name-addon' => (string) $item['nameAddon'],
+            'name-annotation-summary' => $this->nameAnnotationSummary($item),
             'keyword' => implode(', ', is_array($item['keywords'] ?? null) ? $item['keywords'] : []),
             'issued', 'date' => $this->renderDateVariable($item['issuedDate'] ?? null, $scope, 'issued'),
             'event-date' => $this->renderDateVariable($item['eventDate'] ?? null, $scope, 'event-date'),

@@ -43,6 +43,8 @@ Role-rich source @role-review keeps editorial review names attached.
 
 Secondary editor source @secondary-editor-review preserves compiler, editorial director, and reviewer roles.
 
+Annotated name source @name-annotation-review keeps reviewer name annotations attached.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -323,6 +325,17 @@ $bibtex = <<<'BIB'
   date        = {2026},
   publisher   = {Review Press}
 }
+
+@book{name-annotation-review,
+  author     = {Smith, Ada and Ng, Nia},
+  author+an  = {1=primary source author; 2:family=family name verified},
+  editor     = {Curator, Eli},
+  editor+an  = {1=review editor},
+  title      = {Annotated Source Names},
+  date       = {2026},
+  publisher  = {Review Press},
+  nameaddon  = {Imported source names verified by review desk}
+}
 BIB;
 
 $processor = CitationCslProcessor::fromBibtex($bibtex);
@@ -500,6 +513,19 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($secondaryEditorReview['editorialRoles'][2]['names'][0]['nonDroppingParticle'] ?? null) !== 'de la') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve secondary reviewer name particles');
     }
+    $nameAnnotationReview = $processor->item('name-annotation-review');
+    if (($nameAnnotationReview['nameAddon'] ?? null) !== 'Imported source names verified by review desk') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve name annotation addendum metadata');
+    }
+    if (($nameAnnotationReview['authors'][0]['annotations'][0]['value'] ?? null) !== 'primary source author') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve first author name annotation metadata');
+    }
+    if (($nameAnnotationReview['authors'][1]['annotations'][0]['part'] ?? null) !== 'family') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve second author family annotation metadata');
+    }
+    if (($nameAnnotationReview['editors'][0]['annotations'][0]['value'] ?? null) !== 'review editor') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve editor name annotation metadata');
+    }
 
     foreach ([
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
@@ -539,6 +565,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<dt>Smith 2026</dt><dd>Smith, Ada. Annotated Migration Manual. Review Press, 2026. Commentary by Roe, Pat; Migration Desk. Annotated by Ng, Nia. Introduction by de la Cruz, Ana Maria. Foreword by Müller, Mia. Afterword by Curator, Eli. Original author: García, Gia.</dd>',
         '<p>Secondary editor source Smith (2026) preserves compiler, editorial director, and reviewer roles.</p>',
         '<dt>Smith 2026</dt><dd>Smith, Ada. Migration Source Dossier. Review Press, 2026. Compiled by Roe, Pat; Migration Desk. Editorial direction by Ng, Nia. Reviewer: de la Cruz, Ana Maria.</dd>',
+        '<p>Annotated name source Smith and Ng (2026) keeps reviewer name annotations attached.</p>',
+        '<dt>Smith and Ng 2026</dt><dd>Smith, Ada; Ng, Nia. Annotated Source Names. Review Press, 2026. Name addendum: Imported source names verified by review desk. Name annotations: Author 1: primary source author; Author 2 family: family name verified; Editor 1: review editor.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {

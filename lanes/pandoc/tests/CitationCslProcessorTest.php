@@ -1484,6 +1484,94 @@ XML);
             'editorial-roles' => 'compiler',
         ]]));
     },
+    'maps bounded biblatex name annotations and name addendum metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{name-annotation-review,
+  author     = {Smith, Ada and Ng, Nia},
+  author+an  = {1=primary source author; 2:family=family name verified},
+  editor     = {Curator, Eli},
+  editor+an  = {1=review editor},
+  title      = {Annotated Source Names},
+  date       = {2026},
+  publisher  = {Review Press},
+  nameaddon  = {Imported source names verified by review desk}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('name-annotation-review', $items[0]['id']);
+        $t->same('Imported source names verified by review desk', $items[0]['name-addon']);
+        $t->same([['part' => 'name', 'value' => 'primary source author']], $items[0]['author'][0]['annotations'] ?? null);
+        $t->same([['part' => 'family', 'value' => 'family name verified']], $items[0]['author'][1]['annotations'] ?? null);
+        $t->same([['part' => 'name', 'value' => 'review editor']], $items[0]['editor'][0]['annotations'] ?? null);
+        $t->same('1=primary source author; 2:family=family name verified', $items[0]['rawBibtex']['fields']['author+an'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('name-annotation-review');
+        $t->same('Imported source names verified by review desk', $item['nameAddon'] ?? null);
+        $t->same('primary source author', $item['authors'][0]['annotations'][0]['value'] ?? null);
+        $t->same('family', $item['authors'][1]['annotations'][0]['part'] ?? null);
+        $t->same('review editor', $item['editors'][0]['annotations'][0]['value'] ?? null);
+        $t->same('(Smith and Ng 2026)', $processor->renderCitationCluster([$citation('name-annotation-review', '[@name-annotation-review]')]));
+        $t->same(
+            'Smith, Ada; Ng, Nia. Annotated Source Names. Review Press, 2026. Name addendum: Imported source names verified by review desk. Name annotations: Author 1: primary source author; Author 2 family: family name verified; Editor 1: review editor.',
+            $processor->renderBibliographyEntry('name-annotation-review')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="name-addon"/>
+        <text variable="name-annotation-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="name-addon"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Smith and Ng | Imported source names verified by review desk | Author 1: primary source author; Author 2 family: family name verified; Editor 1: review editor]', $styled->renderCitationCluster([$citation('name-annotation-review', '[@name-annotation-review]')]));
+        $t->same('Annotated Source Names :: Imported source names verified by review desk :: Author 1: primary source author; Author 2 family: family name verified; Editor 1: review editor', $styled->renderBibliographyEntry('name-annotation-review'));
+
+        $document = (new MarkdownReader())->read('Annotated name source @name-annotation-review keeps review metadata.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Annotated name source Smith and Ng (2026) keeps review metadata.</p>', $blocks);
+        $t->contains('<dt>Smith and Ng 2026</dt><dd>Smith, Ada; Ng, Nia. Annotated Source Names. Review Press, 2026. Name addendum: Imported source names verified by review desk. Name annotations: Author 1: primary source author; Author 2 family: family name verified; Editor 1: review editor.</dd>', $blocks);
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-name-annotation',
+            'title' => 'Manual Name Annotation',
+            'name-addon' => 'Manual reviewer note',
+            'author' => [
+                [
+                    'family' => 'Smith',
+                    'given' => 'Ada',
+                    'annotations' => [
+                        ['part' => 'name', 'value' => 'manual annotation'],
+                    ],
+                ],
+            ],
+        ]])->item('manual-name-annotation');
+        $t->same('Manual reviewer note', $manual['nameAddon'] ?? null);
+        $t->same('manual annotation', $manual['authors'][0]['annotations'][0]['value'] ?? null);
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
+            'id' => 'bad-name-annotation',
+            'title' => 'Bad Name Annotation',
+            'author' => [
+                ['family' => 'Smith', 'annotations' => 'primary'],
+            ],
+        ]]));
+    },
     'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
         $document = (new MarkdownReader())->read(

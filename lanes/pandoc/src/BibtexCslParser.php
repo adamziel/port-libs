@@ -310,7 +310,7 @@ final class BibtexCslParser
         $identifier = '';
         while ($this->offset < $this->length) {
             $char = $this->input[$this->offset];
-            if (!preg_match('/[A-Za-z0-9_:\\.-]/', $char)) {
+            if (!preg_match('/[A-Za-z0-9_:\\.\\+-]/', $char)) {
                 break;
             }
 
@@ -604,6 +604,7 @@ final class BibtexCslParser
             'medium' => self::firstField($fields, ['howpublished', 'medium']),
             'note' => self::firstField($fields, ['note']),
             'addendum' => self::firstField($fields, ['addendum']),
+            'name-addon' => self::firstField($fields, ['nameaddon', 'name-addon']),
             'original-title' => self::firstField($fields, ['origtitle']),
             'original-publisher' => self::firstField($fields, ['origpublisher']),
             'original-publisher-place' => self::firstField($fields, ['origlocation', 'origaddress']),
@@ -630,52 +631,52 @@ final class BibtexCslParser
             $item['sourceFileDiagnostics'] = $sourceFileDiagnostics;
         }
 
-        $author = self::namesFromBibtex($fields['author'] ?? '');
+        $author = self::namesFromBibtexField($fields, 'author');
         if ($author !== []) {
             $item['author'] = $author;
         }
 
-        $editor = self::namesFromBibtex($fields['editor'] ?? '');
+        $editor = self::namesFromBibtexField($fields, 'editor');
         if ($editor !== []) {
             $item['editor'] = $editor;
         }
 
-        $holder = self::namesFromBibtex($fields['holder'] ?? '');
+        $holder = self::namesFromBibtexField($fields, 'holder');
         if ($holder !== []) {
             $item['holder'] = $holder;
         }
 
-        $translator = self::namesFromBibtex($fields['translator'] ?? '');
+        $translator = self::namesFromBibtexField($fields, 'translator');
         if ($translator !== []) {
             $item['translator'] = $translator;
         }
 
-        $originalAuthor = self::namesFromBibtex($fields['origauthor'] ?? ($fields['originalauthor'] ?? ''));
+        $originalAuthor = self::namesFromFirstBibtexField($fields, ['origauthor', 'originalauthor']);
         if ($originalAuthor !== []) {
             $item['original-author'] = $originalAuthor;
         }
 
-        $commentator = self::namesFromBibtex($fields['commentator'] ?? '');
+        $commentator = self::namesFromBibtexField($fields, 'commentator');
         if ($commentator !== []) {
             $item['commentator'] = $commentator;
         }
 
-        $annotator = self::namesFromBibtex($fields['annotator'] ?? '');
+        $annotator = self::namesFromBibtexField($fields, 'annotator');
         if ($annotator !== []) {
             $item['annotator'] = $annotator;
         }
 
-        $introduction = self::namesFromBibtex($fields['introduction'] ?? '');
+        $introduction = self::namesFromBibtexField($fields, 'introduction');
         if ($introduction !== []) {
             $item['introduction'] = $introduction;
         }
 
-        $foreword = self::namesFromBibtex($fields['foreword'] ?? '');
+        $foreword = self::namesFromBibtexField($fields, 'foreword');
         if ($foreword !== []) {
             $item['foreword'] = $foreword;
         }
 
-        $afterword = self::namesFromBibtex($fields['afterword'] ?? '');
+        $afterword = self::namesFromBibtexField($fields, 'afterword');
         if ($afterword !== []) {
             $item['afterword'] = $afterword;
         }
@@ -928,7 +929,7 @@ final class BibtexCslParser
             ['editorb', 'editorbtype'],
             ['editorc', 'editorctype'],
         ] as [$nameField, $typeField]) {
-            $names = self::namesFromBibtex($fields[$nameField] ?? '');
+            $names = self::namesFromBibtexField($fields, $nameField);
             if ($names === []) {
                 continue;
             }
@@ -1147,6 +1148,104 @@ final class BibtexCslParser
         }
 
         return ['path' => implode('/', $segments), 'reason' => ''];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function namesFromBibtexField(array $fields, string $field): array
+    {
+        $names = self::namesFromBibtex($fields[$field] ?? '');
+        if ($names === []) {
+            return [];
+        }
+
+        return self::withBiblatexNameAnnotations($names, $fields[$field . '+an'] ?? '');
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $fieldNames
+     * @return list<array<string, mixed>>
+     */
+    private static function namesFromFirstBibtexField(array $fields, array $fieldNames): array
+    {
+        foreach ($fieldNames as $field) {
+            if (!isset($fields[$field]) || trim($fields[$field]) === '') {
+                continue;
+            }
+
+            return self::namesFromBibtexField($fields, $field);
+        }
+
+        return [];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $names
+     * @return list<array<string, mixed>>
+     */
+    private static function withBiblatexNameAnnotations(array $names, string $value): array
+    {
+        foreach (self::biblatexNameAnnotations($value) as $annotation) {
+            $index = $annotation['index'] - 1;
+            if (!isset($names[$index])) {
+                continue;
+            }
+
+            $existing = $names[$index]['annotations'] ?? [];
+            $names[$index]['annotations'] = [
+                ...(is_array($existing) ? $existing : []),
+                [
+                    'part' => $annotation['part'],
+                    'value' => $annotation['value'],
+                ],
+            ];
+        }
+
+        return $names;
+    }
+
+    /**
+     * @return list<array{index:int, part:string, value:string}>
+     */
+    private static function biblatexNameAnnotations(string $value): array
+    {
+        if (trim($value) === '') {
+            return [];
+        }
+
+        $separator = str_contains($value, ';') ? ';' : ',';
+        $annotations = [];
+        foreach (self::splitTopLevel($value, $separator) as $entry) {
+            $entry = trim($entry);
+            if ($entry === '') {
+                continue;
+            }
+
+            if (preg_match('/^(\d+)\s*(?::\s*([A-Za-z][A-Za-z0-9_-]*))?\s*=\s*(.+)$/u', $entry, $matches) !== 1) {
+                throw new \InvalidArgumentException('BibLaTeX name annotation is malformed: ' . self::cleanBibtexText($entry));
+            }
+
+            $index = (int) $matches[1];
+            if ($index < 1) {
+                throw new \InvalidArgumentException('BibLaTeX name annotation index must be one-based');
+            }
+
+            $value = self::cleanBibtexText($matches[3]);
+            if ($value === '') {
+                continue;
+            }
+
+            $part = strtolower(str_replace('_', '-', trim((string) ($matches[2] ?? ''))));
+            $annotations[] = [
+                'index' => $index,
+                'part' => $part === '' ? 'name' : $part,
+                'value' => $value,
+            ];
+        }
+
+        return $annotations;
     }
 
     /**
