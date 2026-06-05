@@ -5,6 +5,27 @@ declare(strict_types=1);
 use PortLibs\MarkerPDF\PdfTextExtractor;
 use PortLibs\MarkerPDF\PdfImageRenderer;
 
+$ccittFaxFilterBoundaryZlibStored = static function (string $bytes): string {
+    $length = strlen($bytes);
+    if ($length > 65535) {
+        throw new RuntimeException('Focused CCITT Flate-prefix fixture must fit one deflate stored block.');
+    }
+
+    $s1 = 1;
+    $s2 = 0;
+    for ($index = 0; $index < $length; $index++) {
+        $s1 = ($s1 + ord($bytes[$index])) % 65521;
+        $s2 = ($s2 + $s1) % 65521;
+    }
+
+    return "\x78\x01"
+        . "\x01"
+        . pack('v', $length)
+        . pack('v', (~$length) & 0xffff)
+        . $bytes
+        . pack('N', ($s2 << 16) | $s1);
+};
+
 $ccittFaxFilterBoundaryPdf = static function (): array {
     $content = "BT /F1 12 Tf 72 720 Td (Before CCITT XObject) Tj ET\n"
         . "q 172.8 0 0 0.2 72 700 cm /Fax#20Scan Do Q\n"
@@ -307,5 +328,48 @@ return [
         $t->same(true, $plan['inline_image_payload_excluded_from_text']);
         $t->contains('inline_ccitt_fax_image_filter_review_only', implode(',', $plan['notes']));
         $t->true(!str_contains(json_encode($plan, JSON_UNESCAPED_SLASHES) ?: '', 'Inline invalid CCITT fax payload noise'));
+    },
+    'keeps Flate-wrapped CCITT Fax endstream decoys inside image payload boundaries' => static function (TestRunner $t) use ($ccittFaxFilterBoundaryZlibStored): void {
+        $extractor = new PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before Flate CCITT stream) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After Flate CCITT stream) Tj ET';
+        $fakeObject = 'BT /F1 12 Tf 72 700 Td (Fake Flate CCITT prefix leak) Tj ET';
+        $faxPayload = "\x00\x11\x22\x33\n"
+            . "endstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($fakeObject) . " >>\nstream\n{$fakeObject}\nendstream\nendobj\n"
+            . "\x44\x55\x66";
+        $compressedPayload = $ccittFaxFilterBoundaryZlibStored($faxPayload);
+        $fakeTerminatorOffset = strpos($compressedPayload, "\nendstream\n");
+        if ($fakeTerminatorOffset === false) {
+            throw new RuntimeException('Focused Flate-wrapped CCITT fixture must expose a raw fake endstream marker.');
+        }
+
+        $buildPdf = static function (?int $declaredLength) use ($before, $after, $compressedPayload): string {
+            $lengthOperand = $declaredLength === null ? '' : " /Length {$declaredLength}";
+
+            return "%PDF-1.4\n"
+                . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+                . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Fax#20Flate 5 0 R >> >> >>\nendobj\n"
+                . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+                . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+                . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter [/FlateDecode /CCITTFaxDecode] /DecodeParms [null << /K 0 /Columns 16 /Rows 1 /EndOfBlock false >>]{$lengthOperand} >>\nstream\n{$compressedPayload}\nendstream\nendobj\n"
+                . "6 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n%%EOF";
+        };
+
+        foreach ([$buildPdf(null), $buildPdf($fakeTerminatorOffset)] as $pdf) {
+            $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+            $plainText = $extractor->extractPlainText($pdf);
+            $entry = $review['entries'][0] ?? [];
+
+            $t->same(['Before Flate CCITT stream', 'After Flate CCITT stream'], $extractor->extractTextLines($pdf));
+            $t->same("Before Flate CCITT stream\nAfter Flate CCITT stream", $plainText);
+            $t->true(!str_contains($plainText, 'Fake Flate CCITT prefix leak'));
+            $t->true(!str_contains($plainText, 'endstream'));
+            $t->same(['FlateDecode', 'CCITTFaxDecode'], $entry['filters'] ?? null);
+            $t->same(['CCITTFaxDecode'], $entry['preview_only_filters'] ?? null);
+            $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+            $t->same(strlen($compressedPayload), $entry['raw_length'] ?? null);
+            $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        }
     },
 ];

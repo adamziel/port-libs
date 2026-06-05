@@ -6667,6 +6667,10 @@ final class PdfTextExtractor
                     if ($dctJpegTerminator !== null && $dctJpegTerminator >= $declaredTerminator) {
                         return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $dctJpegTerminator - $streamStart));
                     }
+                    $ccittFaxTerminator = $this->ccittFaxStreamEndstreamTerminatorOffset($value, $streamStart, $dict, $objects);
+                    if ($ccittFaxTerminator !== null && $ccittFaxTerminator >= $declaredTerminator) {
+                        return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $ccittFaxTerminator - $streamStart));
+                    }
 
                     $recoveredTerminator = $this->startxrefRecoveredStreamTerminatorOffset(
                         $value,
@@ -6697,6 +6701,10 @@ final class PdfTextExtractor
                 if ($dctJpegTerminator !== null) {
                     return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $dctJpegTerminator - $streamStart));
                 }
+                $ccittFaxTerminator = $this->ccittFaxStreamEndstreamTerminatorOffset($value, $streamStart, $dict, $objects);
+                if ($ccittFaxTerminator !== null) {
+                    return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $ccittFaxTerminator - $streamStart));
+                }
 
                 $end = $this->filteredEndstreamTerminatorOffset($value, $streamStart, $dict, $objects, $declaredEnd)
                     ?? $this->contentStreamEndstreamTerminatorOffset($value, $streamStart, $dict)
@@ -6712,6 +6720,10 @@ final class PdfTextExtractor
             if ($dctJpegTerminator !== null) {
                 return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $dctJpegTerminator - $streamStart));
             }
+            $ccittFaxTerminator = $this->ccittFaxStreamEndstreamTerminatorOffset($value, $streamStart, $dict, $objects);
+            if ($ccittFaxTerminator !== null) {
+                return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $ccittFaxTerminator - $streamStart));
+            }
 
             $end = $this->contentStreamEndstreamTerminatorOffset($value, $streamStart, $dict)
                 ?? $this->endstreamTerminatorOffset($value, $streamStart, null);
@@ -6725,6 +6737,7 @@ final class PdfTextExtractor
         $end = $this->contentStreamEndstreamTerminatorOffset($value, $streamStart, $dict)
             ?? $this->endstreamTerminatorOffset($value, $streamStart, null);
         $end = $this->dctStreamEndstreamTerminatorOffset($value, $streamStart, $dict, $objects) ?? $end;
+        $end = $this->ccittFaxStreamEndstreamTerminatorOffset($value, $streamStart, $dict, $objects) ?? $end;
         $end = $this->filteredEndstreamTerminatorOffset($value, $streamStart, $dict, $objects) ?? $end;
         if ($end === null) {
             return null;
@@ -7065,6 +7078,77 @@ final class PdfTextExtractor
             $payload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $candidate - $streamStart));
             $jpegBytes = $this->decodeStreamBeforeFilter($dict, $payload, $objects, $filters, $dctFilterIndex);
             if ($jpegBytes !== null && $this->dctPreviewBytesAreCompleteJpeg($jpegBytes)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * CCITTFaxDecode is preview-only here, but earlier filters in the stack are
+     * still native and can prove where the encoded fax payload ends.
+     *
+     * @param array<int, string> $objects
+     */
+    private function ccittFaxStreamEndstreamTerminatorOffset(string $value, int $streamStart, string $dict, array $objects): ?int
+    {
+        $filters = $this->streamFilters($dict, $objects);
+        if ($filters === null || $filters === []) {
+            return null;
+        }
+
+        $firstFilter = null;
+        $firstFilterIndex = null;
+        foreach ($filters as $index => $filter) {
+            if ($filter !== null) {
+                $firstFilter = $filter;
+                $firstFilterIndex = $index;
+                break;
+            }
+        }
+
+        if ($firstFilter === null || $firstFilterIndex === null) {
+            return null;
+        }
+
+        $ccittFilterIndex = null;
+        for ($index = $firstFilterIndex; $index < count($filters); $index++) {
+            $filter = $filters[$index];
+            if ($filter === 'CCITTFaxDecode' || $filter === 'CCF') {
+                $ccittFilterIndex = $index;
+                break;
+            }
+        }
+
+        if ($ccittFilterIndex === null || $ccittFilterIndex === $firstFilterIndex) {
+            return null;
+        }
+
+        $payloadEnd = match ($firstFilter) {
+            'ASCIIHexDecode', 'AHx' => $this->firstFilterEndMarkerOffset($value, $streamStart, '>'),
+            'ASCII85Decode', 'A85' => $this->firstFilterEndMarkerOffset($value, $streamStart, '~>'),
+            'RunLengthDecode', 'RL' => $this->firstFilterEndMarkerOffset($value, $streamStart, chr(128)),
+            default => null,
+        };
+
+        if ($payloadEnd !== null) {
+            $terminator = $this->skipPdfWhitespace($value, $payloadEnd);
+            if ($this->endstreamKeywordAt($value, $terminator)) {
+                return $terminator;
+            }
+        }
+
+        $offset = $streamStart;
+        while (($candidate = strpos($value, 'endstream', $offset)) !== false) {
+            $offset = $candidate + strlen('endstream');
+            if (!$this->endstreamTerminatorAt($value, $candidate, $streamStart)) {
+                continue;
+            }
+
+            $payload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $candidate - $streamStart));
+            $faxBytes = $this->decodeStreamBeforeFilter($dict, $payload, $objects, $filters, $ccittFilterIndex);
+            if ($faxBytes !== null && $faxBytes !== '') {
                 return $candidate;
             }
         }
@@ -11598,6 +11682,13 @@ final class PdfTextExtractor
                 ) {
                     $streamEnd = $dctJpegTerminator;
                 }
+                $ccittFaxTerminator = $this->ccittFaxStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict, $objects);
+                if (
+                    $ccittFaxTerminator !== null
+                    && ($streamEnd === null || $ccittFaxTerminator >= $streamEnd)
+                ) {
+                    $streamEnd = $ccittFaxTerminator;
+                }
                 if ($streamEnd !== null) {
                     $filterStackRecoveredTerminator = $this->filterStackRecoveredStreamTerminatorOffset(
                         $pdfBytes,
@@ -11615,6 +11706,7 @@ final class PdfTextExtractor
 
         $streamEnd ??= $this->filteredEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict, $objects);
         $streamEnd ??= $this->dctStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict, $objects);
+        $streamEnd ??= $this->ccittFaxStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict, $objects);
         if ($streamEnd === null) {
             return null;
         }
@@ -11932,6 +12024,15 @@ final class PdfTextExtractor
                         if ($dctJpegTerminator !== null && $dctJpegTerminator >= $streamEnd) {
                             $streamEnd = $dctJpegTerminator;
                         }
+                        $ccittFaxTerminator = $this->ccittFaxStreamEndstreamTerminatorOffset(
+                            $pdfBytes,
+                            $streamStart,
+                            $dict,
+                            $filterObjects
+                        );
+                        if ($ccittFaxTerminator !== null && $ccittFaxTerminator >= $streamEnd) {
+                            $streamEnd = $ccittFaxTerminator;
+                        }
 
                         $recoveredTerminator = $this->startxrefRecoveredStreamTerminatorOffset(
                             $pdfBytes,
@@ -11981,6 +12082,18 @@ final class PdfTextExtractor
                         ) {
                             $streamEnd = $dctJpegTerminator;
                         }
+                        $ccittFaxTerminator = $this->ccittFaxStreamEndstreamTerminatorOffset(
+                            $pdfBytes,
+                            $streamStart,
+                            $dict,
+                            $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart)
+                        );
+                        if (
+                            $ccittFaxTerminator !== null
+                            && ($streamEnd === null || $ccittFaxTerminator >= $streamEnd)
+                        ) {
+                            $streamEnd = $ccittFaxTerminator;
+                        }
                     }
                     if ($streamEnd !== null && $streamEnd >= $declaredEnd) {
                         $index = $streamEnd + strlen('endstream');
@@ -11997,6 +12110,12 @@ final class PdfTextExtractor
                         $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart)
                     );
                     $streamEnd ??= $this->dctStreamEndstreamTerminatorOffset(
+                        $pdfBytes,
+                        $streamStart,
+                        $dict,
+                        $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart)
+                    );
+                    $streamEnd ??= $this->ccittFaxStreamEndstreamTerminatorOffset(
                         $pdfBytes,
                         $streamStart,
                         $dict,
