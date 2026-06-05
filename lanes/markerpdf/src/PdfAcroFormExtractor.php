@@ -3512,7 +3512,7 @@ final class PdfAcroFormExtractor
         $childFieldRefs = [];
         $widgetRefs = [];
         foreach ($kidRefs as $kidRef) {
-            if (!isset($objects[$kidRef])) {
+            if (isset($seen[$kidRef]) || !isset($objects[$kidRef])) {
                 continue;
             }
 
