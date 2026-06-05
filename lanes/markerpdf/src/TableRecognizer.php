@@ -1061,21 +1061,24 @@ final class TableRecognizer
             'conflicts' => $this->tableGeometryCoordinateSpace($table, 'conflicts'),
         ];
         $needsTranslation = false;
+        $needsNormalization = false;
         foreach ($spaces as $space) {
             if ($this->isPageImageCoordinateSpace($space)) {
                 $needsTranslation = true;
-                break;
+            }
+            if ($this->isNormalizedTableCoordinateSpace($space)) {
+                $needsNormalization = true;
             }
         }
-        if (!$needsTranslation) {
+        if (!$needsTranslation && !$needsNormalization) {
             return [
                 'table' => $table,
                 'review' => null,
             ];
         }
 
-        $cropBbox = $this->tableCropBbox($table, $imageSize);
-        if ($cropBbox === null) {
+        $cropBbox = $needsTranslation ? $this->tableCropBbox($table, $imageSize) : null;
+        if ($needsTranslation && $cropBbox === null) {
             return [
                 'table' => $table,
                 'review' => [
@@ -1089,9 +1092,15 @@ final class TableRecognizer
         }
 
         $size = $this->imageSize($imageSize);
-        $dx = -$cropBbox[0];
-        $dy = -$cropBbox[1];
+        $dx = $cropBbox === null ? 0.0 : -$cropBbox[0];
+        $dy = $cropBbox === null ? 0.0 : -$cropBbox[1];
         $translatedCounts = [
+            'rows' => 0,
+            'cols' => 0,
+            'cells' => 0,
+            'conflicts' => 0,
+        ];
+        $normalizedCounts = [
             'rows' => 0,
             'cols' => 0,
             'cells' => 0,
@@ -1099,60 +1108,108 @@ final class TableRecognizer
         ];
 
         foreach (['rows', 'cols', 'cells'] as $field) {
-            if (!isset($table[$field]) || !is_array($table[$field]) || !$this->isPageImageCoordinateSpace($spaces[$field])) {
+            if (!isset($table[$field]) || !is_array($table[$field])) {
                 continue;
             }
 
+            $space = $spaces[$field];
             $translated = [];
             foreach (array_values($table[$field]) as $record) {
                 if (!is_array($record)) {
                     continue;
                 }
 
-                $translated[] = $this->translatedGeometryRecord($record, $dx, $dy, $spaces[$field]);
+                if ($this->isNormalizedTableCoordinateSpace($space)) {
+                    $translated[] = $this->unnormalizedGeometryRecord($record, $size, $space);
+                    continue;
+                }
+                if ($this->isPageImageCoordinateSpace($space)) {
+                    $translated[] = $this->translatedGeometryRecord($record, $dx, $dy, $space);
+                }
             }
-            $translatedCounts[$field] = count($translated);
+            if ($translated === []) {
+                continue;
+            }
+            if ($this->isNormalizedTableCoordinateSpace($space)) {
+                $normalizedCounts[$field] = count($translated);
+            } else {
+                $translatedCounts[$field] = count($translated);
+            }
             $table[$field] = $translated;
             $table[$field . '_coordinate_space'] = 'table_crop';
         }
 
-        if (
-            isset($table['ocr_grid_border_conflicts'])
-            && is_array($table['ocr_grid_border_conflicts'])
-            && $this->isPageImageCoordinateSpace($spaces['conflicts'])
-        ) {
-            $table['ocr_grid_border_conflicts'] = $this->translatedOcrGridBorderConflicts(
-                $table['ocr_grid_border_conflicts'],
-                $dx,
-                $dy,
-                $spaces['conflicts']
-            );
-            $translatedCounts['conflicts'] = count($table['ocr_grid_border_conflicts']);
+        if (isset($table['ocr_grid_border_conflicts']) && is_array($table['ocr_grid_border_conflicts'])) {
+            if ($this->isNormalizedTableCoordinateSpace($spaces['conflicts'])) {
+                $table['ocr_grid_border_conflicts'] = $this->unnormalizedOcrGridBorderConflicts(
+                    $table['ocr_grid_border_conflicts'],
+                    $size,
+                    $spaces['conflicts']
+                );
+                $normalizedCounts['conflicts'] = count($table['ocr_grid_border_conflicts']);
+            } elseif ($this->isPageImageCoordinateSpace($spaces['conflicts'])) {
+                $table['ocr_grid_border_conflicts'] = $this->translatedOcrGridBorderConflicts(
+                    $table['ocr_grid_border_conflicts'],
+                    $dx,
+                    $dy,
+                    $spaces['conflicts']
+                );
+                $translatedCounts['conflicts'] = count($table['ocr_grid_border_conflicts']);
+            }
             $table['conflicts_coordinate_space'] = 'table_crop';
         }
 
         $table['coordinate_space'] = 'table_crop';
-        $table['table_crop_bbox'] = $cropBbox;
+        if ($cropBbox !== null) {
+            $table['table_crop_bbox'] = $cropBbox;
+        }
+
+        $review = [
+            'review_target' => 'table_recognition_coordinate_space_boundary',
+            'upstream_boundary' => 'marker.tables.table.get_table_boxes crop + tabled.assignment.assign_rows_columns',
+            'status' => $this->coordinateSpaceReviewStatus($needsTranslation, $needsNormalization),
+            'source_coordinate_spaces' => $spaces,
+            'target_coordinate_space' => 'table_crop',
+            'table_crop_size' => $size,
+            'translated_row_band_count' => $translatedCounts['rows'],
+            'translated_col_band_count' => $translatedCounts['cols'],
+            'translated_cell_count' => $translatedCounts['cells'],
+            'translated_conflict_count' => $translatedCounts['conflicts'],
+            'normalized_row_band_count' => $normalizedCounts['rows'],
+            'normalized_col_band_count' => $normalizedCounts['cols'],
+            'normalized_cell_count' => $normalizedCounts['cells'],
+            'normalized_conflict_count' => $normalizedCounts['conflicts'],
+            'translated' => $needsTranslation,
+            'normalized' => $needsNormalization,
+            'table_local_default_preserved' => true,
+        ];
+        if ($cropBbox !== null) {
+            $review['table_bbox'] = $cropBbox;
+            $review['translation'] = ['x' => $dx, 'y' => $dy];
+        }
+        if ($needsNormalization) {
+            $review['normalization_scale'] = [
+                'x' => (float) $size['width'] / 1000.0,
+                'y' => (float) $size['height'] / 1000.0,
+            ];
+        }
 
         return [
             'table' => $table,
-            'review' => [
-                'review_target' => 'table_recognition_coordinate_space_boundary',
-                'upstream_boundary' => 'marker.tables.table.get_table_boxes crop + tabled.assignment.assign_rows_columns',
-                'status' => 'translated_to_table_crop',
-                'source_coordinate_spaces' => $spaces,
-                'target_coordinate_space' => 'table_crop',
-                'table_bbox' => $cropBbox,
-                'table_crop_size' => $size,
-                'translation' => ['x' => $dx, 'y' => $dy],
-                'translated_row_band_count' => $translatedCounts['rows'],
-                'translated_col_band_count' => $translatedCounts['cols'],
-                'translated_cell_count' => $translatedCounts['cells'],
-                'translated_conflict_count' => $translatedCounts['conflicts'],
-                'translated' => true,
-                'table_local_default_preserved' => true,
-            ],
+            'review' => $review,
         ];
+    }
+
+    private function coordinateSpaceReviewStatus(bool $translated, bool $normalized): string
+    {
+        if ($translated && $normalized) {
+            return 'translated_and_normalized_to_table_crop';
+        }
+        if ($translated) {
+            return 'translated_to_table_crop';
+        }
+
+        return 'normalized_to_table_crop';
     }
 
     /**
@@ -1201,6 +1258,19 @@ final class TableRecognizer
         ], true);
     }
 
+    private function isNormalizedTableCoordinateSpace(string $space): bool
+    {
+        return in_array($this->normalizeCoordinateSpace($space), [
+            'normalized',
+            'normalized_table',
+            'table_normalized',
+            'normalized_table_crop',
+            'table_crop_normalized',
+            'normalized_crop',
+            'crop_normalized',
+        ], true);
+    }
+
     /**
      * @param array<string, mixed> $table
      * @param array{width?: int|float, height?: int|float}|list<int|float> $imageSize
@@ -1236,6 +1306,22 @@ final class TableRecognizer
         $record['source_bbox'] = $sourceBbox;
         $record['source_coordinate_space'] = $sourceCoordinateSpace;
         $record['bbox'] = $this->translatedBbox($sourceBbox, $dx, $dy);
+        $record['coordinate_space'] = 'table_crop';
+
+        return $record;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @param array{width: int, height: int} $imageSize
+     * @return array<string, mixed>
+     */
+    private function unnormalizedGeometryRecord(array $record, array $imageSize, string $sourceCoordinateSpace): array
+    {
+        $sourceBbox = $this->bboxFromRecord($record);
+        $record['source_bbox'] = $sourceBbox;
+        $record['source_coordinate_space'] = $sourceCoordinateSpace;
+        $record['bbox'] = $this->unnormalizedTableBbox($sourceBbox, $imageSize);
         $record['coordinate_space'] = 'table_crop';
 
         return $record;
@@ -1281,6 +1367,46 @@ final class TableRecognizer
     }
 
     /**
+     * @param list<array<string, mixed>> $conflicts
+     * @param array{width: int, height: int} $imageSize
+     * @return list<array<string, mixed>>
+     */
+    private function unnormalizedOcrGridBorderConflicts(array $conflicts, array $imageSize, string $sourceCoordinateSpace): array
+    {
+        $normalized = [];
+        foreach (array_values($conflicts) as $conflict) {
+            if (!is_array($conflict)) {
+                continue;
+            }
+
+            if (isset($conflict['bbox'])) {
+                $bbox = $this->bboxFromValue($conflict['bbox']);
+                if ($bbox !== null) {
+                    $conflict['source_bbox'] = $bbox;
+                    $conflict['bbox'] = $this->unnormalizedTableBbox($bbox, $imageSize);
+                }
+            }
+            if (isset($conflict['candidate_cell_bboxes']) && is_array($conflict['candidate_cell_bboxes'])) {
+                $candidateBboxes = [];
+                foreach ($conflict['candidate_cell_bboxes'] as $bbox) {
+                    $normalizedBbox = $this->bboxFromValue($bbox);
+                    if ($normalizedBbox !== null) {
+                        $candidateBboxes[] = $this->unnormalizedTableBbox($normalizedBbox, $imageSize);
+                    }
+                }
+                $conflict['source_candidate_cell_bboxes'] = $conflict['candidate_cell_bboxes'];
+                $conflict['candidate_cell_bboxes'] = $candidateBboxes;
+            }
+
+            $conflict['source_coordinate_space'] = $sourceCoordinateSpace;
+            $conflict['coordinate_space'] = 'table_crop';
+            $normalized[] = $conflict;
+        }
+
+        return $normalized;
+    }
+
+    /**
      * @param list<float> $bbox
      * @return list<float>
      */
@@ -1291,6 +1417,21 @@ final class TableRecognizer
             $bbox[1] + $dy,
             $bbox[2] + $dx,
             $bbox[3] + $dy,
+        ];
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @param array{width: int, height: int} $imageSize
+     * @return list<float>
+     */
+    private function unnormalizedTableBbox(array $bbox, array $imageSize): array
+    {
+        return [
+            ((float) $imageSize['width']) * ($bbox[0] / 1000.0),
+            ((float) $imageSize['height']) * ($bbox[1] / 1000.0),
+            ((float) $imageSize['width']) * ($bbox[2] / 1000.0),
+            ((float) $imageSize['height']) * ($bbox[3] / 1000.0),
         ];
     }
 
