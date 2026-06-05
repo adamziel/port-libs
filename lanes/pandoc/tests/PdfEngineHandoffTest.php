@@ -2487,6 +2487,94 @@ MARKDOWN);
         $t->same($result['pdfFormFieldTypes'], $sequence['finalPdfFormFieldTypes']);
     },
 
+    'fake runner extracts bounded pdf acroform dictionary metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/acroform-dictionary.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /AcroForm 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [4 0 R 5 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Tx /T (reviewer.name) /V (Migration Desk) >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Sig /T (review.signature) >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Fields [4 0 R 5 0 R] /NeedAppearances true /SigFlags 3 /DR << /Font << /Helv 10 0 R >> >> /DA (/Helv 10 Tf 0 g) /Q 2 /CO [5 0 R] /XFA [(template) 11 0 R (datasets) 12 0 R] >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Length 18 >>',
+            'stream',
+            '<template />',
+            'endstream',
+            'endobj',
+            '12 0 obj',
+            '<< /Length 18 >>',
+            'stream',
+            '<datasets />',
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/acroform-dictionary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/acroform-dictionary.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            'fieldReferences' => ['4 0 R', '5 0 R'],
+            'fieldCount' => 2,
+            'needAppearances' => true,
+            'sigFlags' => 3,
+            'sigFlagNames' => ['signaturesExist', 'appendOnly'],
+            'defaultResourcesPresent' => true,
+            'defaultAppearance' => '/Helv 10 Tf 0 g',
+            'quadding' => 2,
+            'calculationOrder' => ['5 0 R'],
+            'xfaPresent' => true,
+            'xfaPacketNames' => ['template', 'datasets'],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfAcroFormMetadata']);
+        $t->contains('pdf-byte-acroform', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-acroform-fields:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-acroform-need-appearances', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-acroform-sigflags:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-acroform-sigflag-names:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-acroform-default-resources', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-acroform-default-appearance', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-acroform-quadding:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-acroform-calculation-order:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-acroform-xfa', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-acroform-xfa-packets:2', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfAcroFormMetadata']);
+    },
+
     'fake runner extracts bounded pdf digital signature metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/signed.pdf']);

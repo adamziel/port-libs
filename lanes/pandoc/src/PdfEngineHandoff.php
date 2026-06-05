@@ -288,6 +288,7 @@ final class PdfEngineHandoff
      *     pdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
      *     pdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{},
      *     pdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
+     *     pdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
      *     pdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     pdfSignatureSubFilters: array<string, int>,
      *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
@@ -689,6 +690,7 @@ final class PdfEngineHandoff
         $pdfOptionalContentGroups = [];
         $pdfOptionalContentConfig = [];
         $pdfCollectionMetadata = [];
+        $pdfAcroFormMetadata = [];
         $pdfSignatures = [];
         $pdfSignatureSubFilters = [];
         $pdfActiveActions = [];
@@ -748,6 +750,7 @@ final class PdfEngineHandoff
                 $pdfOptionalContentGroups = $pdfInspection['optionalContentGroups'];
                 $pdfOptionalContentConfig = $pdfInspection['optionalContentConfig'];
                 $pdfCollectionMetadata = $pdfInspection['collectionMetadata'];
+                $pdfAcroFormMetadata = $pdfInspection['acroFormMetadata'];
                 $pdfSignatures = $pdfInspection['signatures'];
                 $pdfSignatureSubFilters = $pdfInspection['signatureSubFilters'];
                 $pdfActiveActions = $pdfInspection['activeActions'];
@@ -1118,6 +1121,39 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-collection-sort-fields:' . count($pdfCollectionMetadata['sort']['fields']);
                     }
                 }
+                if ($pdfAcroFormMetadata !== []) {
+                    $diagnostics[] = 'pdf-byte-acroform';
+                    if (($pdfAcroFormMetadata['fieldCount'] ?? 0) > 0) {
+                        $diagnostics[] = 'pdf-byte-acroform-fields:' . $pdfAcroFormMetadata['fieldCount'];
+                    }
+                    if (($pdfAcroFormMetadata['needAppearances'] ?? null) === true) {
+                        $diagnostics[] = 'pdf-byte-acroform-need-appearances';
+                    }
+                    if (($pdfAcroFormMetadata['sigFlags'] ?? null) !== null) {
+                        $diagnostics[] = 'pdf-byte-acroform-sigflags:' . $pdfAcroFormMetadata['sigFlags'];
+                    }
+                    if (isset($pdfAcroFormMetadata['sigFlagNames']) && is_array($pdfAcroFormMetadata['sigFlagNames']) && $pdfAcroFormMetadata['sigFlagNames'] !== []) {
+                        $diagnostics[] = 'pdf-byte-acroform-sigflag-names:' . count($pdfAcroFormMetadata['sigFlagNames']);
+                    }
+                    if (($pdfAcroFormMetadata['defaultResourcesPresent'] ?? false) === true) {
+                        $diagnostics[] = 'pdf-byte-acroform-default-resources';
+                    }
+                    if (is_string($pdfAcroFormMetadata['defaultAppearance'] ?? null) && $pdfAcroFormMetadata['defaultAppearance'] !== '') {
+                        $diagnostics[] = 'pdf-byte-acroform-default-appearance';
+                    }
+                    if (($pdfAcroFormMetadata['quadding'] ?? null) !== null) {
+                        $diagnostics[] = 'pdf-byte-acroform-quadding:' . $pdfAcroFormMetadata['quadding'];
+                    }
+                    if (isset($pdfAcroFormMetadata['calculationOrder']) && is_array($pdfAcroFormMetadata['calculationOrder']) && $pdfAcroFormMetadata['calculationOrder'] !== []) {
+                        $diagnostics[] = 'pdf-byte-acroform-calculation-order:' . count($pdfAcroFormMetadata['calculationOrder']);
+                    }
+                    if (($pdfAcroFormMetadata['xfaPresent'] ?? false) === true) {
+                        $diagnostics[] = 'pdf-byte-acroform-xfa';
+                    }
+                    if (isset($pdfAcroFormMetadata['xfaPacketNames']) && is_array($pdfAcroFormMetadata['xfaPacketNames']) && $pdfAcroFormMetadata['xfaPacketNames'] !== []) {
+                        $diagnostics[] = 'pdf-byte-acroform-xfa-packets:' . count($pdfAcroFormMetadata['xfaPacketNames']);
+                    }
+                }
                 if ($pdfSignatures !== []) {
                     $diagnostics[] = 'pdf-byte-signatures:' . count($pdfSignatures);
                     $byteRangeCount = 0;
@@ -1374,6 +1410,7 @@ final class PdfEngineHandoff
             'pdfOptionalContentGroups' => $pdfOptionalContentGroups,
             'pdfOptionalContentConfig' => $pdfOptionalContentConfig,
             'pdfCollectionMetadata' => $pdfCollectionMetadata,
+            'pdfAcroFormMetadata' => $pdfAcroFormMetadata,
             'pdfSignatures' => $pdfSignatures,
             'pdfSignatureSubFilters' => $pdfSignatureSubFilters,
             'pdfActiveActions' => $pdfActiveActions,
@@ -1454,6 +1491,7 @@ final class PdfEngineHandoff
      *     finalPdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
      *     finalPdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{},
      *     finalPdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
+     *     finalPdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
      *     finalPdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     finalPdfSignatureSubFilters: array<string, int>,
      *     finalPdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
@@ -1648,6 +1686,7 @@ final class PdfEngineHandoff
             'finalPdfOptionalContentGroups' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentGroups'] ?? null) ? $finalRun['pdfOptionalContentGroups'] : [],
             'finalPdfOptionalContentConfig' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentConfig'] ?? null) ? $finalRun['pdfOptionalContentConfig'] : [],
             'finalPdfCollectionMetadata' => is_array($finalRun) && is_array($finalRun['pdfCollectionMetadata'] ?? null) ? $finalRun['pdfCollectionMetadata'] : [],
+            'finalPdfAcroFormMetadata' => is_array($finalRun) && is_array($finalRun['pdfAcroFormMetadata'] ?? null) ? $finalRun['pdfAcroFormMetadata'] : [],
             'finalPdfSignatures' => is_array($finalRun) && is_array($finalRun['pdfSignatures'] ?? null) ? $finalRun['pdfSignatures'] : [],
             'finalPdfSignatureSubFilters' => is_array($finalRun) && is_array($finalRun['pdfSignatureSubFilters'] ?? null) ? $finalRun['pdfSignatureSubFilters'] : [],
             'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
@@ -2819,6 +2858,7 @@ final class PdfEngineHandoff
             'optionalContentGroups' => $optionalContent['groups'],
             'optionalContentConfig' => $optionalContent['config'],
             'collectionMetadata' => $this->extractPdfCollectionMetadata($pdfBytes, $catalog),
+            'acroFormMetadata' => $this->extractPdfAcroFormMetadata($pdfBytes, $catalog),
             'signatures' => $signatures,
             'signatureSubFilters' => $this->summarizePdfSignatureSubFilters($signatures),
             'activeActions' => $activeActions,
@@ -8194,6 +8234,85 @@ final class PdfEngineHandoff
         }
 
         return null;
+    }
+
+    /**
+     * @return array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{}
+     */
+    private function extractPdfAcroFormMetadata(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $acroForm = $this->extractPdfAcroFormDictionary($pdfBytes, $catalog);
+        if ($acroForm === null) {
+            return [];
+        }
+
+        $fieldReferences = array_map(
+            static fn (string $reference): string => $reference . ' R',
+            $this->extractPdfReferenceArray($acroForm, 'Fields')
+        );
+        $calculationOrder = array_map(
+            static fn (string $reference): string => $reference . ' R',
+            $this->extractPdfReferenceArray($acroForm, 'CO')
+        );
+        $xfaValue = $this->extractPdfValueForName($acroForm, 'XFA');
+
+        return [
+            'fieldReferences' => $fieldReferences,
+            'fieldCount' => count($fieldReferences),
+            'needAppearances' => $this->extractPdfBooleanToken($acroForm, 'NeedAppearances'),
+            'sigFlags' => $this->extractPdfIntegerToken($acroForm, 'SigFlags'),
+            'sigFlagNames' => $this->pdfAcroFormSigFlagNames($this->extractPdfIntegerToken($acroForm, 'SigFlags') ?? 0),
+            'defaultResourcesPresent' => $this->extractPdfDictionaryOrReferenceValue($acroForm, 'DR', $objects) !== null,
+            'defaultAppearance' => $this->extractPdfStringOrNameValue($acroForm, 'DA'),
+            'quadding' => $this->extractPdfIntegerToken($acroForm, 'Q'),
+            'calculationOrder' => $calculationOrder,
+            'xfaPresent' => $xfaValue !== null,
+            'xfaPacketNames' => $xfaValue === null ? [] : $this->extractPdfXfaPacketNames($xfaValue, $objects),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pdfAcroFormSigFlagNames(int $flags): array
+    {
+        $names = [];
+        if (($flags & 1) !== 0) {
+            $names[] = 'signaturesExist';
+        }
+        if (($flags & 2) !== 0) {
+            $names[] = 'appendOnly';
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next?:int} $value
+     * @param array<string, string> $objects
+     * @return list<string>
+     */
+    private function extractPdfXfaPacketNames(array $value, array $objects, int $depth = 0): array
+    {
+        if ($depth > 8) {
+            return [];
+        }
+        if ($value['kind'] === 'array') {
+            return $this->collectPdfStringsFromArray($value['value']);
+        }
+        if ($value['kind'] !== 'reference') {
+            return [];
+        }
+
+        $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+        if ($body === null) {
+            return [];
+        }
+
+        $resolved = $this->parsePdfValueAt($body, 0);
+
+        return $resolved === null ? [] : $this->extractPdfXfaPacketNames($resolved, $objects, $depth + 1);
     }
 
     /**
