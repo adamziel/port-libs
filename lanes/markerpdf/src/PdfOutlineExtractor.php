@@ -1370,12 +1370,16 @@ final class PdfOutlineExtractor
      */
     private function outlineItemParentMatches(array $outline, array $objects, ?int $expectedParentObject): bool
     {
-        if ($expectedParentObject === null) {
-            return true;
+        if (!array_key_exists('Parent', $outline)) {
+            if ($expectedParentObject === null) {
+                return true;
+            }
+
+            return $this->isOutlineRootObject($expectedParentObject, $objects);
         }
 
-        if (!array_key_exists('Parent', $outline)) {
-            return $this->isOutlineRootObject($expectedParentObject, $objects);
+        if ($expectedParentObject === null) {
+            return false;
         }
 
         $parent = $this->validReferenceObjectNumber($outline['Parent'], $objects);

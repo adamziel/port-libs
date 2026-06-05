@@ -3260,11 +3260,11 @@ final class PdfMetadataExtractor
 
     private function documentOutlineItemParentMatches(string $dictionary, array $objects, ?int $expectedParentObject): bool
     {
+        $parentValue = $this->dictionaryTopLevelRawValue($dictionary, 'Parent');
         if ($expectedParentObject === null) {
-            return true;
+            return $parentValue === null;
         }
 
-        $parentValue = $this->dictionaryTopLevelRawValue($dictionary, 'Parent');
         if ($parentValue === null) {
             return $this->isDocumentOutlineRootObject($expectedParentObject, $objects);
         }

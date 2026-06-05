@@ -1617,16 +1617,30 @@ final class PdfTextExtractor
             return [];
         }
 
-        $outlineRootNumber = $this->topLevelObjectReferenceValueAfterName($catalog, 'Outlines');
-        if (
-            $outlineRootNumber === null
-            || !isset($objects[$outlineRootNumber])
-            || !$this->lightweightOutlineRootBodyIsValid($objects[$outlineRootNumber])
-        ) {
+        $outlineRootValue = $this->topLevelPdfValueAfterName($catalog, 'Outlines');
+        if ($outlineRootValue === null) {
             return [];
         }
 
-        $firstItemObject = $this->topLevelObjectReferenceValueAfterName($objects[$outlineRootNumber], 'First');
+        $outlineRootBody = null;
+        $outlineRootNumber = null;
+        $referenceOffset = 0;
+        $outlineRootReference = $this->readPdfIndirectReferenceToken($outlineRootValue, $referenceOffset);
+        if ($outlineRootReference !== null && isset($objects[$outlineRootReference['objectNumber']])) {
+            $outlineRootNumber = $outlineRootReference['objectNumber'];
+            $outlineRootBody = $objects[$outlineRootNumber];
+        } else {
+            $trimmedOutlineRoot = trim($outlineRootValue);
+            if (str_starts_with($trimmedOutlineRoot, '<<')) {
+                $outlineRootBody = $this->readPdfDictionaryAt($trimmedOutlineRoot, 0);
+            }
+        }
+
+        if ($outlineRootBody === null || !$this->lightweightOutlineRootBodyIsValid($outlineRootBody)) {
+            return [];
+        }
+
+        $firstItemObject = $this->topLevelObjectReferenceValueAfterName($outlineRootBody, 'First');
         if ($firstItemObject === null) {
             return [];
         }
@@ -1639,7 +1653,7 @@ final class PdfTextExtractor
             $objects,
             $pageIndexes,
             $outlineRootNumber,
-            $this->topLevelObjectReferenceValueAfterName($objects[$outlineRootNumber], 'Last')
+            $this->topLevelObjectReferenceValueAfterName($outlineRootBody, 'Last')
         );
     }
 
@@ -1752,11 +1766,11 @@ final class PdfTextExtractor
         array $objects,
         ?int $expectedParentObject
     ): bool {
+        $parent = $this->topLevelObjectReferenceValueAfterName($body, 'Parent');
         if ($expectedParentObject === null) {
-            return true;
+            return $parent === null;
         }
 
-        $parent = $this->topLevelObjectReferenceValueAfterName($body, 'Parent');
         if ($parent === null) {
             return $this->lightweightOutlineRootObjectIsValid($expectedParentObject, $objects);
         }
