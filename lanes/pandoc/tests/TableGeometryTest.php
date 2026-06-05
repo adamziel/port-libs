@@ -559,6 +559,36 @@ $buildSourceAttributedReviewPacketDocument = static function (): AstNode {
     ]);
 };
 
+$buildMalformedSpanNormalizationDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Malformed source span review',
+            'alignments' => ['left', 'right', 'center'],
+            'id' => 'malformed-source-span-grid',
+        ], [
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [
+                        'text' => 'Posts',
+                        'colspan' => '0',
+                        'rowspan' => 'many',
+                    ], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [
+                        'text' => 'Media',
+                        'rowspan' => -3,
+                    ], [new AstNode('text', ['text' => 'Media'])]),
+                    new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
+                    new AstNode('table_cell', ['text' => 'Review'], [new AstNode('text', ['text' => 'Review'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 return [
     'lays out pandoc table spans by visual columns for writer handoff' => static function (TestRunner $t) use ($buildSpannedTableDocument): void {
         $table = $buildSpannedTableDocument()->children[0];
@@ -846,6 +876,50 @@ return [
         $t->contains('<tbody><tr><td colspan="2" rowspan="2">Merged source</td></tr><tr><td>Unexpected source cell</td><td>Second conflict</td></tr></tbody>', $blocks);
         $t->contains('| Merged source |     |                        |                 |', $markdown);
         $t->contains('|               |     | Unexpected source cell | Second conflict |', $markdown);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'diagnoses malformed source span attributes while preserving normalized table output' => static function (TestRunner $t) use ($buildMalformedSpanNormalizationDocument): void {
+        $document = $buildMalformedSpanNormalizationDocument();
+        $table = $document->children[0];
+        $layout = TableGeometry::layoutRows($table->children[0]->children, TableGeometry::columnCount($table));
+        $diagnostics = TableGeometry::diagnostics($table);
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same(3, TableGeometry::columnCount($table));
+        $t->same([0, 1, 2], array_map(static fn (array $cell): int => $cell['column'], $layout[0]['cells']));
+        $t->same([1, 1, 1], array_map(static fn (array $cell): int => $cell['colspan'], $layout[0]['cells']));
+        $t->same([1, 1, 1], array_map(static fn (array $cell): int => $cell['rowspan'], $layout[0]['cells']));
+        $t->same([0, 1, 2], array_map(static fn (array $cell): int => $cell['sourceColumn'], $layout[1]['cells']));
+
+        $t->same(3, count($diagnostics));
+        $t->same(['cell-span-normalized'], array_values(array_unique(array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $diagnostics))));
+        $t->same(['colspan', 'rowspan', 'rowspan'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['attribute'], $diagnostics));
+        $t->same(['0', 'many', -3], array_map(static fn (array $diagnostic): mixed => $diagnostic['rawValue'] ?? null, $diagnostics));
+        $t->same(['string', 'string', 'int'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['rawType'], $diagnostics));
+        $t->same([1, 1, 1], array_map(static fn (array $diagnostic): int => (int) $diagnostic['normalizedValue'], $diagnostics));
+        $t->same([1, 0, 0], array_map(static fn (array $diagnostic): int => (int) $diagnostic['minimumValue'], $diagnostics));
+        $t->same([false, true, true], array_map(static fn (array $diagnostic): bool => (bool) $diagnostic['zeroMeansRowGroup'], $diagnostics));
+        $t->same([0, 0, 1], array_map(static fn (array $diagnostic): int => (int) $diagnostic['row'], $diagnostics));
+        $t->same([0, 0, 0], array_map(static fn (array $diagnostic): int => (int) $diagnostic['column'], $diagnostics));
+        $t->same([0, 0, 0], array_map(static fn (array $diagnostic): int => (int) $diagnostic['sourceCell'], $diagnostics));
+        $t->same([0, 0, 0], array_map(static fn (array $diagnostic): int => (int) $diagnostic['sourceColumn'], $diagnostics));
+
+        $t->same(['cell-span-normalized'], $packet['summary']['diagnosticCodes'] ?? null);
+        $t->same(3, $packet['summary']['diagnosticCount'] ?? null);
+        $t->same(true, $packet['summary']['hasNormalizedSpans'] ?? null);
+        $t->same(3, $packet['summary']['normalizedSpanCount'] ?? null);
+        $t->same($diagnostics, $packet['diagnostics'] ?? null);
+        $t->same(1, $packet['coverage'][0]['colspan'] ?? null);
+        $t->same(1, $packet['coverage'][0]['rowspan'] ?? null);
+        $t->same(1, $packet['coverage'][3]['rowspan'] ?? null);
+        $t->same(false, $packet['summary']['hasSpans'] ?? null);
+        $t->contains('<table id="malformed-source-span-grid"><tbody><tr><td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td></tr><tr><td style="text-align:left">Media</td><td style="text-align:right">7</td><td style="text-align:center">Review</td></tr></tbody></table>', $blocks);
+        $t->true(!str_contains($blocks, 'colspan="0"'), 'Malformed colspan must not leak into WordPress table output');
+        $t->true(!str_contains($blocks, 'rowspan="-3"'), 'Malformed rowspan must not leak into WordPress table output');
+        $t->contains('| Posts |  42 | Ready  |', $markdown);
+        $t->contains('| Media |   7 | Review |', $markdown);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'builds section grids with covered and missing visual slots for importer audits' => static function (TestRunner $t) use ($buildSectionGridDocument): void {

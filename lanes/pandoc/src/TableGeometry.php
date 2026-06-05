@@ -477,6 +477,7 @@ final class TableGeometry
     {
         $diagnostics = self::columnDiagnostics($table);
         array_push($diagnostics, ...self::widthDiagnostics($table));
+        array_push($diagnostics, ...self::spanNormalizationDiagnostics($table));
         $declaredColumnCount = self::declaredColumnCount($table);
         foreach (self::sectionRowGroups($table, null) as $group) {
             $rows = $group['rows'];
@@ -556,6 +557,123 @@ final class TableGeometry
             'normalizedWidths' => $summary['normalizedWidths'],
             'percentWidths' => $summary['percentWidths'],
         ]];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function spanNormalizationDiagnostics(AstNode $table): array
+    {
+        $diagnostics = [];
+        foreach (self::sectionRowGroups($table, null) as $group) {
+            $rows = $group['rows'];
+            $layoutColumnCount = max(1, self::columnCountForRows($rows));
+            foreach (self::layoutRows($rows, $layoutColumnCount) as $rowIndex => $layoutRow) {
+                foreach ($layoutRow['cells'] as $cell) {
+                    array_push(
+                        $diagnostics,
+                        ...self::cellSpanNormalizationDiagnostics((string) $group['section'], $rowIndex, $cell)
+                    );
+                }
+            }
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array{node:AstNode,column:int,colspan:int,rowspan:int,rowspanToEnd:bool,sourceCell:int,sourceColumn:int} $cell
+     * @return list<array<string, mixed>>
+     */
+    private static function cellSpanNormalizationDiagnostics(string $section, int $rowIndex, array $cell): array
+    {
+        $node = $cell['node'];
+        $diagnostics = [];
+        if (array_key_exists('colspan', $node->attrs) && !self::spanAttributeIsValid($node->attrs['colspan'], false)) {
+            $diagnostics[] = self::spanNormalizationDiagnostic(
+                $section,
+                $rowIndex,
+                $cell,
+                'colspan',
+                $node->attrs['colspan'],
+                self::cellColspan($node),
+                false
+            );
+        }
+
+        if (array_key_exists('rowspan', $node->attrs) && !self::spanAttributeIsValid($node->attrs['rowspan'], true)) {
+            $diagnostics[] = self::spanNormalizationDiagnostic(
+                $section,
+                $rowIndex,
+                $cell,
+                'rowspan',
+                $node->attrs['rowspan'],
+                self::cellRowspan($node),
+                true
+            );
+        }
+
+        return $diagnostics;
+    }
+
+    private static function spanAttributeIsValid(mixed $value, bool $allowZero): bool
+    {
+        if (is_string($value)) {
+            $value = trim($value);
+            if (preg_match('/^\d+$/', $value) !== 1) {
+                return false;
+            }
+
+            $value = (int) $value;
+
+            return $allowZero ? $value >= 0 : $value >= 1;
+        }
+
+        if (!is_int($value) && !is_float($value)) {
+            return false;
+        }
+
+        if ((float) $value !== (float) (int) $value) {
+            return false;
+        }
+
+        $value = (int) $value;
+
+        return $allowZero ? $value >= 0 : $value >= 1;
+    }
+
+    /**
+     * @param array{node:AstNode,column:int,colspan:int,rowspan:int,rowspanToEnd:bool,sourceCell:int,sourceColumn:int} $cell
+     * @return array<string, mixed>
+     */
+    private static function spanNormalizationDiagnostic(
+        string $section,
+        int $rowIndex,
+        array $cell,
+        string $attribute,
+        mixed $rawValue,
+        int $normalizedValue,
+        bool $allowZero
+    ): array {
+        $diagnostic = [
+            'code' => 'cell-span-normalized',
+            'section' => $section,
+            'row' => $rowIndex,
+            'column' => $cell['column'],
+            'sourceCell' => $cell['sourceCell'],
+            'sourceColumn' => $cell['sourceColumn'],
+            'attribute' => $attribute,
+            'rawType' => get_debug_type($rawValue),
+            'normalizedValue' => $normalizedValue,
+            'minimumValue' => $allowZero ? 0 : 1,
+            'zeroMeansRowGroup' => $attribute === 'rowspan',
+        ];
+
+        if (is_scalar($rawValue) || $rawValue === null) {
+            $diagnostic['rawValue'] = $rawValue;
+        }
+
+        return $diagnostic;
     }
 
     /**
@@ -1585,10 +1703,14 @@ final class TableGeometry
         }
 
         $diagnosticCodes = [];
+        $normalizedSpanCount = 0;
         foreach ($diagnostics as $diagnostic) {
             $code = (string) ($diagnostic['code'] ?? '');
             if ($code !== '') {
                 $diagnosticCodes[] = $code;
+            }
+            if ($code === 'cell-span-normalized') {
+                $normalizedSpanCount++;
             }
         }
 
@@ -1621,6 +1743,8 @@ final class TableGeometry
             'missingSlotCount' => $missingSlotCount,
             'diagnosticCount' => count($diagnostics),
             'diagnosticCodes' => array_values(array_unique($diagnosticCodes)),
+            'hasNormalizedSpans' => $normalizedSpanCount > 0,
+            'normalizedSpanCount' => $normalizedSpanCount,
             'hasCaption' => (string) ($captions['long']['text'] ?? '') !== '',
             'hasShortCaption' => (string) ($captions['short']['text'] ?? '') !== '',
             'captionInlineTypes' => array_values(array_map(

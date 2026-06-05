@@ -159,6 +159,32 @@ $overfullWidthTable = new AstNode('table', [
     ]),
 ]);
 
+$malformedSpanTable = new AstNode('table', [
+    'caption' => 'Malformed source span review',
+    'alignments' => ['left', 'right', 'center'],
+    'id' => 'malformed-source-span-grid',
+], [
+    new AstNode('table_body', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [
+                'text' => 'Posts',
+                'colspan' => '0',
+                'rowspan' => 'many',
+            ], [new AstNode('text', ['text' => 'Posts'])]),
+            new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+            new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [
+                'text' => 'Media',
+                'rowspan' => -3,
+            ], [new AstNode('text', ['text' => 'Media'])]),
+            new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
+            new AstNode('table_cell', ['text' => 'Review'], [new AstNode('text', ['text' => 'Review'])]),
+        ]),
+    ]),
+]);
+
 $document = new AstNode('document', [], [
     new AstNode('table', [
         'caption' => 'Migration review grid',
@@ -482,6 +508,7 @@ $document = new AstNode('document', [], [
     ...$readerHandoffTables,
     ...$captionMetadataTables,
     $blockCaptionTable,
+    $malformedSpanTable,
 ]);
 
 $blocks = (new WordPressBlockWriter())->write($document);
@@ -948,6 +975,31 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing WordPress output for block-level table caption');
     }
     json_encode($blockCaptionPacket, JSON_THROW_ON_ERROR);
+
+    $malformedSpanPacket = TableGeometry::reviewPacket($malformedSpanTable, ['accessibility' => false]);
+    if (
+        ($malformedSpanPacket['summary']['diagnosticCodes'] ?? null) !== ['cell-span-normalized']
+        || ($malformedSpanPacket['summary']['hasNormalizedSpans'] ?? null) !== true
+        || ($malformedSpanPacket['summary']['normalizedSpanCount'] ?? null) !== 3
+    ) {
+        throw new RuntimeException('Table geometry self-test missing malformed source span normalization diagnostics');
+    }
+    if (
+        array_map(static fn (array $diagnostic): string => (string) $diagnostic['attribute'], $malformedSpanPacket['diagnostics'] ?? []) !== ['colspan', 'rowspan', 'rowspan']
+        || array_map(static fn (array $diagnostic): mixed => $diagnostic['rawValue'] ?? null, $malformedSpanPacket['diagnostics'] ?? []) !== ['0', 'many', -3]
+    ) {
+        throw new RuntimeException('Table geometry self-test missing raw malformed source span values');
+    }
+    if (($malformedSpanPacket['coverage'][0]['colspan'] ?? null) !== 1 || ($malformedSpanPacket['coverage'][0]['rowspan'] ?? null) !== 1) {
+        throw new RuntimeException('Table geometry self-test missing normalized malformed source span coverage');
+    }
+    if (!str_contains($blocks, '<table id="malformed-source-span-grid"><tbody><tr><td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td></tr><tr><td style="text-align:left">Media</td><td style="text-align:right">7</td><td style="text-align:center">Review</td></tr></tbody></table>')) {
+        throw new RuntimeException('Table geometry self-test missing normalized WordPress output for malformed source spans');
+    }
+    if (str_contains($blocks, 'colspan="0"') || str_contains($blocks, 'rowspan="-3"')) {
+        throw new RuntimeException('Table geometry self-test leaked malformed span attributes into WordPress output');
+    }
+    json_encode($malformedSpanPacket, JSON_THROW_ON_ERROR);
 
     echo "table geometry handoff self-test ok\n";
     return;
