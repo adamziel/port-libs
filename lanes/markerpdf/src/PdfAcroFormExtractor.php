@@ -109,7 +109,7 @@ final class PdfAcroFormExtractor
     public function extractForm(string $pdfBytes): array
     {
         $objects = $this->pdfObjects($pdfBytes);
-        $catalog = $this->catalogObjectBody($objects);
+        $catalog = $this->catalogObjectBody($pdfBytes, $objects);
         $permissions = $catalog === null ? $this->emptyPermissions() : $this->documentPermissions($catalog, $objects);
         $acroForm = $catalog === null ? null : $this->acroFormDictionaryBody($catalog, $objects);
         if ($acroForm === null) {
@@ -126,7 +126,7 @@ final class PdfAcroFormExtractor
             ];
         }
 
-        $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
+        $pageObjectNumbers = $this->orderedPageObjectNumbers($objects, $catalog);
         $pageIndexes = array_flip($pageObjectNumbers);
         $pageWidgets = $this->pageWidgetMap($objects, $pageObjectNumbers);
         $formDefaults = $this->acroFormDefaults($acroForm);
@@ -9823,10 +9823,25 @@ final class PdfAcroFormExtractor
     }
 
     /**
+     * @param string $pdfBytes
      * @param array<int, string> $objects
      */
-    private function catalogObjectBody(array $objects): ?string
+    private function catalogObjectBody(string $pdfBytes, array $objects): ?string
     {
+        $rootReference = $this->currentTrailerRootReference($pdfBytes);
+        if ($rootReference !== null) {
+            $rootObject = $rootReference['object'];
+            if (
+                isset($objects[$rootObject])
+                && ($this->objectGenerations[$rootObject] ?? 0) === $rootReference['generation']
+            ) {
+                $body = $this->dictionaryObjectBody($objects[$rootObject]);
+                if ($body !== null && preg_match('/\/Type\s*\/Catalog\b/', $body) === 1) {
+                    return $body;
+                }
+            }
+        }
+
         foreach ($objects as $body) {
             if (preg_match('/\/Type\s*\/Catalog\b/', $body) === 1) {
                 return $this->dictionaryObjectBody($body);
@@ -9837,11 +9852,89 @@ final class PdfAcroFormExtractor
     }
 
     /**
+     * @return array{object: int, generation: int}|null
+     */
+    private function currentTrailerRootReference(string $pdfBytes): ?array
+    {
+        if (preg_match_all('/\bstartxref\s+(\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER) < 1) {
+            return null;
+        }
+
+        $latest = end($matches);
+        if (!is_array($latest)) {
+            return null;
+        }
+
+        $seenOffsets = [];
+        return $this->trailerRootReferenceFromClassicXrefOffset($pdfBytes, (int) $latest[1], $seenOffsets);
+    }
+
+    /**
+     * @param array<int, true> $seenOffsets
+     * @return array{object: int, generation: int}|null
+     */
+    private function trailerRootReferenceFromClassicXrefOffset(string $pdfBytes, int $offset, array &$seenOffsets): ?array
+    {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return null;
+        }
+
+        $seenOffsets[$offset] = true;
+        $this->skipWhitespace($pdfBytes, $offset);
+        if (substr($pdfBytes, $offset, 4) !== 'xref') {
+            return null;
+        }
+
+        $trailer = $this->classicXrefTrailerDictionaryBody($pdfBytes, $offset);
+        if ($trailer === null) {
+            return null;
+        }
+
+        $root = $this->objectReferenceFromValue($this->valueAfterName($trailer, 'Root'));
+        if ($root !== null) {
+            return $root;
+        }
+
+        $previousOffset = $this->numberValueAfterName($trailer, 'Prev');
+        if ($previousOffset === null) {
+            return null;
+        }
+
+        return $this->trailerRootReferenceFromClassicXrefOffset($pdfBytes, $previousOffset, $seenOffsets);
+    }
+
+    private function classicXrefTrailerDictionaryBody(string $pdfBytes, int $offset): ?string
+    {
+        $trailerOffset = strpos($pdfBytes, 'trailer', $offset + 4);
+        if ($trailerOffset === false) {
+            return null;
+        }
+
+        $dictionaryOffset = strpos($pdfBytes, '<<', $trailerOffset);
+        if ($dictionaryOffset === false) {
+            return null;
+        }
+
+        return $this->readPdfDictionaryAt($pdfBytes, $dictionaryOffset);
+    }
+
+    /**
      * @return list<int>
      * @param array<int, string> $objects
+     * @param string|null $catalog
      */
-    private function orderedPageObjectNumbers(array $objects): array
+    private function orderedPageObjectNumbers(array $objects, ?string $catalog = null): array
     {
+        if ($catalog !== null) {
+            $pagesObject = $this->validObjectReferenceValueAfterName($catalog, 'Pages', $objects);
+            if ($pagesObject !== null) {
+                $pages = $this->pageObjectNumbersFromTree($pagesObject, $objects);
+                if ($pages !== []) {
+                    return $pages;
+                }
+            }
+        }
+
         foreach ($objects as $body) {
             if (preg_match('/\/Type\s*\/Catalog\b/', $body) !== 1) {
                 continue;
