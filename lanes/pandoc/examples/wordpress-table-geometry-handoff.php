@@ -439,6 +439,14 @@ if (($argv[1] ?? '') === '--self-test') {
     if (array_map(static fn (array $diagnostic): string => $diagnostic['code'], $writerDowngrades) !== ['markdown-colspan-flattened', 'markdown-rowspan-flattened']) {
         throw new RuntimeException('Table geometry self-test missing Markdown writer downgrade diagnostics');
     }
+    $rstWriterRequirements = TableGeometry::writerDowngradeDiagnostics($document->children[0], 'rst-grid-table');
+    if (
+        array_map(static fn (array $diagnostic): string => $diagnostic['code'], $rstWriterRequirements) !== ['rst-grid-table-required']
+        || ($rstWriterRequirements[0]['requiredFeature'] ?? null) !== 'grid-table'
+        || ($rstWriterRequirements[0]['requiredSlots'] ?? null) !== [['row' => 1, 'column' => 0, 'covering' => 'rowspan']]
+    ) {
+        throw new RuntimeException('Table geometry self-test missing RST grid-table writer requirement diagnostics');
+    }
     $migrationPacket = TableGeometry::reviewPacket($document->children[0], ['idPrefix' => 'Migration Grid']);
     if (($migrationPacket['summary']['writerDowngradeCount'] ?? null) !== 2 || ($migrationPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-colspan-flattened', 'markdown-rowspan-flattened']) {
         throw new RuntimeException('Table geometry self-test missing review-packet writer downgrade summary');
@@ -446,6 +454,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($migrationPacket['writerDowngrades']['markdown'][0]['flattenedSlots'] ?? null) !== [['row' => 0, 'column' => 1, 'covering' => 'colspan']]) {
         throw new RuntimeException('Table geometry self-test missing flattened span slot report');
     }
+    $multiWriterPacket = TableGeometry::reviewPacket($document->children[0], [
+        'idPrefix' => 'Migration Grid',
+        'writers' => ['markdown', 'restructuredtext'],
+    ]);
+    if (
+        ($multiWriterPacket['summary']['writerDowngradeCount'] ?? null) !== 3
+        || ($multiWriterPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-colspan-flattened', 'markdown-rowspan-flattened', 'rst-grid-table-required']
+        || ($multiWriterPacket['summary']['writerDowngradeWriters'] ?? null) !== ['markdown', 'rst']
+    ) {
+        throw new RuntimeException('Table geometry self-test missing multi-writer downgrade summary');
+    }
+    if (($multiWriterPacket['writerDowngrades']['rst'][0]['requiredSlots'] ?? null) !== [['row' => 1, 'column' => 0, 'covering' => 'rowspan']]) {
+        throw new RuntimeException('Table geometry self-test missing RST grid-table required-slot report');
+    }
+    json_encode($multiWriterPacket, JSON_THROW_ON_ERROR);
 
     $sectionDiagnostics = TableGeometry::diagnostics($document->children[1]);
     if (!str_contains($blocks, '<colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:25%"/><col style="width:25%"/></colgroup>')) {

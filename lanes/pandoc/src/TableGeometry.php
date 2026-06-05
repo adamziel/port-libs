@@ -672,7 +672,7 @@ final class TableGeometry
     }
 
     /**
-     * @param array{accessibility?:bool,idPrefix?:string} $options
+     * @param array{accessibility?:bool,idPrefix?:string,writers?:list<string>} $options
      * @return array{
      *     caption:string,
      *     columnCount:int,
@@ -692,9 +692,10 @@ final class TableGeometry
         $coverageRecords = self::cellCoverage($table);
         $coverage = self::serializableCoverage($coverageRecords);
         $diagnostics = self::diagnostics($table);
-        $writerDowngrades = [
-            'markdown' => self::writerDowngradeDiagnosticsFromCoverage($coverageRecords, 'markdown'),
-        ];
+        $writerDowngrades = [];
+        foreach (self::reviewPacketWriters($options['writers'] ?? ['markdown']) as $writer) {
+            $writerDowngrades[$writer] = self::writerDowngradeDiagnosticsFromCoverage($coverageRecords, $writer);
+        }
         $includeAccessibility = ($options['accessibility'] ?? true) !== false;
         $accessibility = $includeAccessibility
             ? self::accessibilityAttributes($table, self::reviewPacketIdPrefix($table, $options))
@@ -1188,7 +1189,28 @@ final class TableGeometry
     {
         $writer = self::normalizeWriterName($writer);
         if ($writer !== 'markdown') {
-            return [];
+            if ($writer !== 'rst') {
+                return [];
+            }
+
+            $diagnostics = [];
+            foreach ($coverage as $record) {
+                $rawRowspan = max(1, (int) ($record['rawRowspan'] ?? 1));
+                if ($rawRowspan <= 1) {
+                    continue;
+                }
+
+                $diagnostics[] = self::writerRequirementRecord(
+                    'rst-grid-table-required',
+                    $writer,
+                    $record,
+                    'rowspan',
+                    'grid-table',
+                    self::flattenedSlotRecords($record, 'rowspan')
+                );
+            }
+
+            return $diagnostics;
         }
 
         $diagnostics = [];
@@ -1220,6 +1242,9 @@ final class TableGeometry
     private static function normalizeWriterName(string $writer): string
     {
         $writer = strtolower(trim(str_replace('_', '-', $writer)));
+        if (in_array($writer, ['rst', 'rst-grid-table', 'restructuredtext', 'restructured-text', 'restructured-text-grid-table'], true)) {
+            return 'rst';
+        }
 
         return in_array($writer, ['markdown', 'markdown-pipe-table', 'pipe-table'], true) ? 'markdown' : $writer;
     }
@@ -1247,6 +1272,28 @@ final class TableGeometry
             'rowspan' => max(1, (int) ($record['rowspan'] ?? 1)),
             'flattenedSlots' => $flattenedSlots,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @param list<array{row:int,column:int,covering:string}> $requiredSlots
+     * @return array<string, mixed>
+     */
+    private static function writerRequirementRecord(
+        string $code,
+        string $writer,
+        array $record,
+        string $reason,
+        string $requiredFeature,
+        array $requiredSlots
+    ): array {
+        $writerRecord = self::writerDowngradeRecord($code, $writer, $record, $requiredSlots);
+        unset($writerRecord['flattenedSlots']);
+        $writerRecord['reason'] = $reason;
+        $writerRecord['requiredFeature'] = $requiredFeature;
+        $writerRecord['requiredSlots'] = $requiredSlots;
+
+        return $writerRecord;
     }
 
     /**
@@ -1287,6 +1334,30 @@ final class TableGeometry
         }
 
         return $flattened;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function reviewPacketWriters(mixed $writers): array
+    {
+        if (!is_array($writers)) {
+            return ['markdown'];
+        }
+
+        $normalized = [];
+        foreach ($writers as $writer) {
+            if (!is_scalar($writer)) {
+                continue;
+            }
+
+            $writer = self::normalizeWriterName((string) $writer);
+            if ($writer !== '') {
+                $normalized[] = $writer;
+            }
+        }
+
+        return array_values(array_unique($normalized));
     }
 
     /**
