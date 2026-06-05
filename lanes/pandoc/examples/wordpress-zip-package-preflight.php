@@ -1052,11 +1052,17 @@ $splitGzipTarPacket = GzipStream::build(substr($tarPacketBytes, 0, $tarPacketSpl
     'modifiedAt' => $documentModifiedAt,
     'filename' => 'wordpress-import-packet.part-1.tar',
     'comment' => 'split gzip tar member one',
+    'extraFlags' => 4,
+    'operatingSystem' => 3,
+    'extraFieldData' => pack('CCv', ord('W'), ord('P'), strlen('split:1')) . 'split:1',
     'headerCrc' => true,
 ]) . GzipStream::build(substr($tarPacketBytes, $tarPacketSplitOffset), [
     'modifiedAt' => $documentModifiedAt,
     'filename' => 'wordpress-import-packet.part-2.tar',
     'comment' => 'split gzip tar member two',
+    'extraFlags' => 2,
+    'operatingSystem' => 255,
+    'extraFieldData' => pack('CCv', ord('P'), ord('D'), strlen('split:2')) . 'split:2',
     'headerCrc' => true,
 ]);
 $splitGzipTarInspection = ArchiveCompressionStream::inspectTarStreamAuto(
@@ -1539,6 +1545,41 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected split gzip tar packet member filenames to be inspectable');
     }
 
+    $splitGzipMemberExtraFlags = array_map(
+        static fn (array $member): int => $member['extraFlags'],
+        $splitGzipTarInspection['stream']['members'] ?? []
+    );
+    if ($splitGzipMemberExtraFlags !== [4, 2]) {
+        throw new RuntimeException('Expected split gzip tar packet member XFL values to be inspectable');
+    }
+
+    $splitGzipMemberOperatingSystems = array_map(
+        static fn (array $member): int => $member['operatingSystem'],
+        $splitGzipTarInspection['stream']['members'] ?? []
+    );
+    if ($splitGzipMemberOperatingSystems !== [3, 255]) {
+        throw new RuntimeException('Expected split gzip tar packet member OS values to be inspectable');
+    }
+
+    $splitGzipMemberExtraFields = array_map(
+        static fn (array $member): ?string => $member['extraFields'][0]['identifier'] ?? null,
+        $splitGzipTarInspection['stream']['members'] ?? []
+    );
+    if ($splitGzipMemberExtraFields !== ['WP', 'PD']) {
+        throw new RuntimeException('Expected split gzip tar packet extra subfields to be inspectable');
+    }
+
+    $splitGzipMemberCrc32 = array_map(
+        static fn (array $member): int => $member['crc32'],
+        $splitGzipTarInspection['stream']['members'] ?? []
+    );
+    if ($splitGzipMemberCrc32 !== [
+        (int) sprintf('%u', crc32(substr($tarPacketBytes, 0, $tarPacketSplitOffset))),
+        (int) sprintf('%u', crc32(substr($tarPacketBytes, $tarPacketSplitOffset))),
+    ]) {
+        throw new RuntimeException('Expected split gzip tar packet member CRC32 values to be inspectable');
+    }
+
     if ($splitGzipTarInspection['archive']->read('/packet/word/document.xml') !== '<w:document><w:body><w:p>Tar packet WordPress source</w:p></w:body></w:document>') {
         throw new RuntimeException('Expected split gzip tar packet document bytes to round-trip');
     }
@@ -1837,6 +1878,9 @@ echo 'tar.globalPaxComment=' . ($tarPacketRoundTrip->globalPaxHeaders()['comment
 echo 'tar.detectedFormat=' . $streamDetectedTarFormat . "\n";
 echo 'tar.splitGzipMembers=' . $splitGzipTarInspection['stream']['memberCount'] . "\n";
 echo 'tar.splitGzipMemberFiles=' . implode(',', array_map(static fn (array $member): ?string => $member['filename'], $splitGzipTarInspection['stream']['members'])) . "\n";
+echo 'tar.splitGzipMemberXfl=' . implode(',', array_map(static fn (array $member): int => $member['extraFlags'], $splitGzipTarInspection['stream']['members'])) . "\n";
+echo 'tar.splitGzipMemberOs=' . implode(',', array_map(static fn (array $member): int => $member['operatingSystem'], $splitGzipTarInspection['stream']['members'])) . "\n";
+echo 'tar.splitGzipMemberExtraFields=' . implode(',', array_map(static fn (array $member): ?string => $member['extraFields'][0]['identifier'] ?? null, $splitGzipTarInspection['stream']['members'])) . "\n";
 echo 'tar.splitLz4Frames=' . $splitLz4TarInspection['stream']['frameCount'] . "\n";
 echo 'tar.splitLz4DataFrames=' . $splitLz4TarInspection['stream']['dataFrameCount'] . "\n";
 echo 'tar.completeConcatenationPolicy=' . ($separateCompleteGzipTarRejected ? 'rejected' : 'not-rejected') . "\n";

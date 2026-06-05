@@ -599,6 +599,77 @@ return [
         ]));
     },
 
+    'inspects gzip member provenance for split tar package review streams' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"gzip-member-provenance","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# Split gzip provenance\n\nReady for archive review.\n",
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $splitOffset = 640;
+        $firstExtra = pack('CCv', ord('W'), ord('P'), strlen('review:v1')) . 'review:v1';
+        $secondExtra = pack('CCv', ord('P'), ord('D'), strlen('packet=tar')) . 'packet=tar';
+        $gzip = GzipStream::build(substr($tarBytes, 0, $splitOffset), [
+            'filename' => 'review-packet.part-1.tar',
+            'comment' => 'split member one',
+            'modifiedAt' => 1780479040,
+            'extraFlags' => 4,
+            'operatingSystem' => 3,
+            'extraFieldData' => $firstExtra,
+            'headerCrc' => true,
+        ]) . GzipStream::build(substr($tarBytes, $splitOffset), [
+            'filename' => 'review-packet.part-2.tar',
+            'comment' => 'split member two',
+            'modifiedAt' => 1780479041,
+            'extraFlags' => 2,
+            'operatingSystem' => 255,
+            'extraFieldData' => $secondExtra,
+            'headerCrc' => true,
+        ]);
+
+        $inspection = ArchiveCompressionStream::inspectTarStreamAuto($gzip, strlen($tarBytes));
+        $members = $inspection['stream']['members'];
+
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $inspection['format']);
+        $t->same('gzip', $inspection['stream']['type']);
+        $t->same(2, $inspection['stream']['memberCount']);
+        $t->same(['review-packet.part-1.tar', 'review-packet.part-2.tar'], array_map(static fn (array $member): ?string => $member['filename'], $members));
+        $t->same(['split member one', 'split member two'], array_map(static fn (array $member): ?string => $member['comment'], $members));
+        $t->same([1780479040, 1780479041], array_map(static fn (array $member): int => $member['modifiedAt'], $members));
+        $t->same([4, 2], array_map(static fn (array $member): int => $member['extraFlags'], $members));
+        $t->same([3, 255], array_map(static fn (array $member): int => $member['operatingSystem'], $members));
+        $t->same([$firstExtra, $secondExtra], array_map(static fn (array $member): ?string => $member['extraFieldData'], $members));
+        $t->same([1, 1], array_map(static fn (array $member): int => $member['extraFieldCount'], $members));
+        $t->same([
+            [
+                'identifier' => 'WP',
+                'id1' => ord('W'),
+                'id2' => ord('P'),
+                'length' => strlen('review:v1'),
+                'data' => 'review:v1',
+            ],
+            [
+                'identifier' => 'PD',
+                'id1' => ord('P'),
+                'id2' => ord('D'),
+                'length' => strlen('packet=tar'),
+                'data' => 'packet=tar',
+            ],
+        ], array_map(static fn (array $member): array => $member['extraFields'][0], $members));
+        $t->same([
+            (int) sprintf('%u', crc32(substr($tarBytes, 0, $splitOffset))),
+            (int) sprintf('%u', crc32(substr($tarBytes, $splitOffset))),
+        ], array_map(static fn (array $member): int => $member['crc32'], $members));
+        $t->true($members[0]['headerCrc16'] !== null);
+        $t->true($members[1]['headerCrc16'] !== null);
+        $t->same("# Split gzip provenance\n\nReady for archive review.\n", $inspection['archive']->read('/packet/content.md'));
+    },
+
     'opens tar package fixtures through explicit compression stream formats' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [
@@ -730,10 +801,16 @@ return [
         $gzipSplit = GzipStream::build(substr($tarBytes, 0, $splitOffset), [
             'filename' => 'wordpress-import-packet.part-1.tar',
             'comment' => 'split tar member one',
+            'extraFlags' => 4,
+            'operatingSystem' => 3,
+            'extraFieldData' => pack('CCv', ord('W'), ord('P'), strlen('split:1')) . 'split:1',
             'headerCrc' => true,
         ]) . GzipStream::build(substr($tarBytes, $splitOffset), [
             'filename' => 'wordpress-import-packet.part-2.tar',
             'comment' => 'split tar member two',
+            'extraFlags' => 2,
+            'operatingSystem' => 255,
+            'extraFieldData' => pack('CCv', ord('P'), ord('D'), strlen('split:2')) . 'split:2',
             'headerCrc' => true,
         ]);
         $gzipInspection = ArchiveCompressionStream::inspectTarStreamAuto(
@@ -758,6 +835,28 @@ return [
             $splitOffset,
             strlen($tarBytes) - $splitOffset,
         ], array_map(static fn (array $member): int => $member['uncompressedSize'], $gzipInspection['stream']['members']));
+        $t->same([4, 2], array_map(static fn (array $member): int => $member['extraFlags'], $gzipInspection['stream']['members']));
+        $t->same([3, 255], array_map(static fn (array $member): int => $member['operatingSystem'], $gzipInspection['stream']['members']));
+        $t->same([
+            [
+                'identifier' => 'WP',
+                'id1' => ord('W'),
+                'id2' => ord('P'),
+                'length' => strlen('split:1'),
+                'data' => 'split:1',
+            ],
+            [
+                'identifier' => 'PD',
+                'id1' => ord('P'),
+                'id2' => ord('D'),
+                'length' => strlen('split:2'),
+                'data' => 'split:2',
+            ],
+        ], array_map(static fn (array $member): array => $member['extraFields'][0], $gzipInspection['stream']['members']));
+        $t->same([
+            (int) sprintf('%u', crc32(substr($tarBytes, 0, $splitOffset))),
+            (int) sprintf('%u', crc32(substr($tarBytes, $splitOffset))),
+        ], array_map(static fn (array $member): int => $member['crc32'], $gzipInspection['stream']['members']));
         $t->same('<w:document><w:body><w:p>Split stream archive dispatch</w:p></w:body></w:document>', $gzipInspection['archive']->read('/packet/word/document.xml'));
 
         $lz4Split = Lz4Frame::skippableFrame('split tar reviewer metadata', 8)
