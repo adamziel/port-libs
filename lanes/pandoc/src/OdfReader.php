@@ -1000,8 +1000,84 @@ final class OdfReader
         if ($styleName !== '') {
             $attrs['styleName'] = $styleName;
         }
+        $metadata = $this->tableCellMetadata($cell);
+        if ($metadata !== []) {
+            $attrs['odfCellMetadata'] = $metadata;
+            $attrs['htmlAttributes'] = $this->tableCellMetadataHtmlAttributes($metadata);
+            $classes = [];
+            if ($this->tableCellMetadataHasTypedValue($metadata)) {
+                $classes[] = 'odf-table-cell-value';
+            }
+            if (isset($metadata['formula'])) {
+                $classes[] = 'odf-table-cell-formula';
+            }
+            if ($classes !== []) {
+                $attrs['classes'] = $classes;
+            }
+        }
 
         return new AstNode('table_cell', $attrs, $blocks);
+    }
+
+    /**
+     * @return array<string, bool|string>
+     */
+    private function tableCellMetadata(\DOMElement $cell): array
+    {
+        return self::withoutEmpty([
+            'formula' => self::nullable(self::attr($cell, self::TABLE_NS, 'formula')),
+            'valueType' => self::nullable(self::attr($cell, self::OFFICE_NS, 'value-type')),
+            'value' => self::nullable(self::attr($cell, self::OFFICE_NS, 'value')),
+            'currency' => self::nullable(self::attr($cell, self::OFFICE_NS, 'currency')),
+            'stringValue' => self::nullable(self::attr($cell, self::OFFICE_NS, 'string-value')),
+            'dateValue' => self::nullable(self::attr($cell, self::OFFICE_NS, 'date-value')),
+            'timeValue' => self::nullable(self::attr($cell, self::OFFICE_NS, 'time-value')),
+            'booleanValue' => self::nullableBool(self::attr($cell, self::OFFICE_NS, 'boolean-value')),
+        ]);
+    }
+
+    /**
+     * @param array<string, bool|string> $metadata
+     * @return array<string, string>
+     */
+    private function tableCellMetadataHtmlAttributes(array $metadata): array
+    {
+        $attributes = [];
+        $map = [
+            'formula' => 'data-odf-cell-formula',
+            'valueType' => 'data-odf-cell-value-type',
+            'value' => 'data-odf-cell-value',
+            'currency' => 'data-odf-cell-currency',
+            'stringValue' => 'data-odf-cell-string-value',
+            'dateValue' => 'data-odf-cell-date-value',
+            'timeValue' => 'data-odf-cell-time-value',
+            'booleanValue' => 'data-odf-cell-boolean-value',
+        ];
+
+        foreach ($map as $source => $target) {
+            if (!array_key_exists($source, $metadata)) {
+                continue;
+            }
+
+            $value = $metadata[$source];
+            $attributes[$target] = is_bool($value) ? ($value ? 'true' : 'false') : $value;
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @param array<string, bool|string> $metadata
+     */
+    private function tableCellMetadataHasTypedValue(array $metadata): bool
+    {
+        foreach (['valueType', 'value', 'currency', 'stringValue', 'dateValue', 'timeValue', 'booleanValue'] as $key) {
+            if (array_key_exists($key, $metadata)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

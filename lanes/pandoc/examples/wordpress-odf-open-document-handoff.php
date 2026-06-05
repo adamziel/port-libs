@@ -144,7 +144,7 @@ $contentXml = <<<'XML'
           <table:table-cell><text:p>Status</text:p></table:table-cell>
         </table:table-row>
         <table:table-row>
-          <table:table-cell table:number-columns-spanned="2"><text:p>Ready for block import review</text:p></table:table-cell>
+          <table:table-cell table:number-columns-spanned="2" table:formula="of:=COUNT([.A2:.B2])" office:value-type="float" office:value="2"><text:p>Ready for block import review</text:p></table:table-cell>
           <table:covered-table-cell/>
         </table:table-row>
       </table:table>
@@ -420,8 +420,8 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, 'ODT footnote reviewer context.')) {
         throw new RuntimeException('Expected ODT footnote body to render in WordPress footnotes');
     }
-    if (!str_contains($blocks, '<td colspan="2"><p>Ready for block import review</p></td>')) {
-        throw new RuntimeException('Expected ODT table colspan to survive WordPress table handoff');
+    if (!str_contains($blocks, '<td class="odf-table-cell-value odf-table-cell-formula" data-odf-cell-formula="of:=COUNT([.A2:.B2])" data-odf-cell-value-type="float" data-odf-cell-value="2" colspan="2"><p>Ready for block import review</p></td>')) {
+        throw new RuntimeException('Expected ODT calculated table colspan metadata to survive WordPress table handoff');
     }
     $reviewTable = null;
     foreach ($result['document']->children as $block) {
@@ -432,6 +432,11 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!$reviewTable instanceof \PortLibs\Pandoc\AstNode || ($reviewTable->attr('tableGeometry')['caption'] ?? '') !== 'Review') {
         throw new RuntimeException('Expected ODT table name to survive table geometry review packets');
+    }
+    $reviewCoverage = $reviewTable->attr('tableGeometry')['coverage'] ?? [];
+    $calculatedCellAttributes = $reviewCoverage[2]['sourceAttributes']['htmlAttributes'] ?? [];
+    if (($calculatedCellAttributes['data-odf-cell-formula'] ?? '') !== 'of:=COUNT([.A2:.B2])' || ($calculatedCellAttributes['data-odf-cell-value'] ?? '') !== '2') {
+        throw new RuntimeException('Expected ODT calculated cell metadata to survive table geometry review packets');
     }
     if (!str_contains($blocks, '<table data-odf-table-name="Review" data-odf-table-style-name="ReviewTable" data-odf-table-protected="true" data-odf-table-protection-key-present="true" data-odf-table-protection-key-digest-algorithm="urn:odf:sha1">')) {
         throw new RuntimeException('Expected ODT named protected table metadata to render in WordPress blocks');

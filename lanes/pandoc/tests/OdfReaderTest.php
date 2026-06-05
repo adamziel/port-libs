@@ -471,6 +471,80 @@ XML;
         $t->contains('<table data-odf-table-name="Protected Review Matrix" data-odf-table-style-name="ReviewTable" data-odf-table-protected="true" data-odf-table-protection-key-present="true" data-odf-table-protection-key-digest-algorithm="urn:odf:sha1">', $blocksHtml);
         $t->contains('<figcaption class="wp-element-caption">Protected Review Matrix</figcaption>', $blocksHtml);
     },
+    'maps ODT table cell formulas and typed values into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithTypedTableCells = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:table table:name="Calculated Review">
+        <table:table-row>
+          <table:table-cell><text:p>Metric</text:p></table:table-cell>
+          <table:table-cell><text:p>Value</text:p></table:table-cell>
+        </table:table-row>
+        <table:table-row>
+          <table:table-cell office:value-type="string" office:string-value="Source total"><text:p>Total</text:p></table:table-cell>
+          <table:table-cell table:formula="of:=SUM([.B2:.B3])" office:value-type="currency" office:value="42.5" office:currency="USD"><text:p>$42.50</text:p></table:table-cell>
+        </table:table-row>
+        <table:table-row>
+          <table:table-cell office:value-type="date" office:date-value="2026-06-05"><text:p>Review date</text:p></table:table-cell>
+          <table:table-cell office:value-type="boolean" office:boolean-value="true"><text:p>Ready</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithTypedTableCells));
+        $table = $result['document']->children[0];
+        $rows = $table->children[0]->children;
+        $stringCell = $rows[1]->children[0];
+        $formulaCell = $rows[1]->children[1];
+        $dateCell = $rows[2]->children[0];
+        $booleanCell = $rows[2]->children[1];
+        $geometry = $table->attr('tableGeometry');
+        $coverage = is_array($geometry) ? ($geometry['coverage'] ?? []) : [];
+
+        $t->same('table', $table->type);
+        $t->same('Calculated Review', $table->attr('caption'));
+        $t->same('Total', $stringCell->attr('text'));
+        $t->same(['odf-table-cell-value'], $stringCell->attr('classes'));
+        $t->same('string', $stringCell->attr('odfCellMetadata')['valueType']);
+        $t->same('Source total', $stringCell->attr('odfCellMetadata')['stringValue']);
+        $t->same('string', $stringCell->attr('htmlAttributes')['data-odf-cell-value-type']);
+        $t->same('Source total', $stringCell->attr('htmlAttributes')['data-odf-cell-string-value']);
+
+        $t->same('$42.50', $formulaCell->attr('text'));
+        $t->same(['odf-table-cell-value', 'odf-table-cell-formula'], $formulaCell->attr('classes'));
+        $t->same('of:=SUM([.B2:.B3])', $formulaCell->attr('odfCellMetadata')['formula']);
+        $t->same('currency', $formulaCell->attr('odfCellMetadata')['valueType']);
+        $t->same('42.5', $formulaCell->attr('odfCellMetadata')['value']);
+        $t->same('USD', $formulaCell->attr('odfCellMetadata')['currency']);
+        $t->same('of:=SUM([.B2:.B3])', $formulaCell->attr('htmlAttributes')['data-odf-cell-formula']);
+        $t->same('currency', $formulaCell->attr('htmlAttributes')['data-odf-cell-value-type']);
+        $t->same('42.5', $formulaCell->attr('htmlAttributes')['data-odf-cell-value']);
+        $t->same('USD', $formulaCell->attr('htmlAttributes')['data-odf-cell-currency']);
+
+        $t->same('date', $dateCell->attr('odfCellMetadata')['valueType']);
+        $t->same('2026-06-05', $dateCell->attr('odfCellMetadata')['dateValue']);
+        $t->same('boolean', $booleanCell->attr('odfCellMetadata')['valueType']);
+        $t->same(true, $booleanCell->attr('odfCellMetadata')['booleanValue']);
+        $t->same('true', $booleanCell->attr('htmlAttributes')['data-odf-cell-boolean-value']);
+        $t->same(4, count(array_filter(
+            $coverage,
+            static fn (array $record): bool => isset($record['sourceAttributes']['htmlAttributes']['data-odf-cell-value-type'])
+        )));
+        $t->same('of:=SUM([.B2:.B3])', $coverage[3]['sourceAttributes']['htmlAttributes']['data-odf-cell-formula'] ?? null);
+
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('<td class="odf-table-cell-value" data-odf-cell-value-type="string" data-odf-cell-string-value="Source total"><p>Total</p></td>', $blocksHtml);
+        $t->contains('<td class="odf-table-cell-value odf-table-cell-formula" data-odf-cell-formula="of:=SUM([.B2:.B3])" data-odf-cell-value-type="currency" data-odf-cell-value="42.5" data-odf-cell-currency="USD"><p>$42.50</p></td>', $blocksHtml);
+        $t->contains('<td class="odf-table-cell-value" data-odf-cell-value-type="date" data-odf-cell-date-value="2026-06-05"><p>Review date</p></td>', $blocksHtml);
+        $t->contains('<td class="odf-table-cell-value" data-odf-cell-value-type="boolean" data-odf-cell-boolean-value="true"><p>Ready</p></td>', $blocksHtml);
+    },
     'maps ODT text-position styles into superscript and subscript spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithVerticalText = <<<'XML'
 <office:document-styles
