@@ -3927,12 +3927,14 @@ final class PdfEmbeddedFileExtractor
             }
 
             if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
-                $end = $this->skipHexString($pdfBytes, $offset) ?? $length;
-                if ($tokenOffset > $offset && $tokenOffset < $end) {
-                    return true;
+                $end = $this->skipPdfHexStringToken($pdfBytes, $offset);
+                if ($end !== null) {
+                    if ($tokenOffset > $offset && $tokenOffset < $end) {
+                        return true;
+                    }
+                    $offset = $end;
+                    continue;
                 }
-                $offset = $end;
-                continue;
             }
 
             $offset++;
@@ -4066,7 +4068,7 @@ final class PdfEmbeddedFileExtractor
             }
 
             if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
-                $end = $this->skipHexString($pdfBytes, $offset);
+                $end = $this->skipPdfHexStringToken($pdfBytes, $offset);
                 if ($end !== null) {
                     $offset = $end;
                     continue;
@@ -4166,7 +4168,7 @@ final class PdfEmbeddedFileExtractor
             }
 
             if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
-                $end = $this->skipHexString($pdfBytes, $offset);
+                $end = $this->skipPdfHexStringToken($pdfBytes, $offset);
                 if ($end !== null) {
                     $offset = $end;
                     continue;
@@ -4874,6 +4876,28 @@ final class PdfEmbeddedFileExtractor
             if ($depth > 0) {
                 $body .= $char;
             }
+        }
+
+        return null;
+    }
+
+    private function skipPdfHexStringToken(string $value, int $offset): ?int
+    {
+        if (($value[$offset] ?? '') !== '<' || ($value[$offset + 1] ?? '') === '<') {
+            return null;
+        }
+
+        for ($index = $offset + 1, $length = strlen($value); $index < $length; $index++) {
+            $char = $value[$index];
+            if ($char === '>') {
+                return $index + 1;
+            }
+
+            if (ctype_xdigit($char) || ctype_space($char)) {
+                continue;
+            }
+
+            return null;
         }
 
         return null;

@@ -10207,9 +10207,11 @@ final class PdfMetadataExtractor
             }
 
             if ($char === '<' && ($pdfBytes[$index + 1] ?? '') !== '<') {
-                $end = strpos($pdfBytes, '>', $index + 1);
-                $index = $end === false ? $length : $end + 1;
-                continue;
+                $end = $this->skipPdfHexStringTokenAt($pdfBytes, $index);
+                if ($end !== null) {
+                    $index = $end;
+                    continue;
+                }
             }
 
             if ($this->pdfKeywordAt($pdfBytes, $index, 'trailer')) {
@@ -11266,13 +11268,14 @@ final class PdfMetadataExtractor
             }
 
             if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
-                $end = strpos($pdfBytes, '>', $offset + 1);
-                $end = $end === false ? $length : $end + 1;
-                if ($tokenOffset > $offset && $tokenOffset < $end) {
-                    return true;
+                $end = $this->skipPdfHexStringTokenAt($pdfBytes, $offset);
+                if ($end !== null) {
+                    if ($tokenOffset > $offset && $tokenOffset < $end) {
+                        return true;
+                    }
+                    $offset = $end;
+                    continue;
                 }
-                $offset = $end;
-                continue;
             }
 
             $offset++;
@@ -11400,9 +11403,11 @@ final class PdfMetadataExtractor
             }
 
             if ($char === '<' && ($pdfBytes[$index + 1] ?? '') !== '<') {
-                $end = strpos($pdfBytes, '>', $index + 1);
-                $index = $end === false ? $length : $end + 1;
-                continue;
+                $end = $this->skipPdfHexStringTokenAt($pdfBytes, $index);
+                if ($end !== null) {
+                    $index = $end;
+                    continue;
+                }
             }
 
             if ($this->pdfKeywordAt($pdfBytes, $index, 'xref')) {
@@ -11415,6 +11420,28 @@ final class PdfMetadataExtractor
         }
 
         return $offsets;
+    }
+
+    private function skipPdfHexStringTokenAt(string $pdfBytes, int $offset): ?int
+    {
+        if (($pdfBytes[$offset] ?? '') !== '<' || ($pdfBytes[$offset + 1] ?? '') === '<') {
+            return null;
+        }
+
+        for ($index = $offset + 1, $length = strlen($pdfBytes); $index < $length; $index++) {
+            $char = $pdfBytes[$index];
+            if ($char === '>') {
+                return $index + 1;
+            }
+
+            if (ctype_xdigit($char) || ctype_space($char)) {
+                continue;
+            }
+
+            return null;
+        }
+
+        return null;
     }
 
     private function skipPdfCompositeTokenAt(string $pdfBytes, int $offset): ?int

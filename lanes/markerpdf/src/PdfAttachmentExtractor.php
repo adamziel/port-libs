@@ -3320,12 +3320,14 @@ final class PdfAttachmentExtractor
             }
 
             if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
-                $end = $this->skipHexString($pdfBytes, $offset) ?? $length;
-                if ($tokenOffset > $offset && $tokenOffset < $end) {
-                    return true;
+                $end = $this->skipPdfHexStringToken($pdfBytes, $offset);
+                if ($end !== null) {
+                    if ($tokenOffset > $offset && $tokenOffset < $end) {
+                        return true;
+                    }
+                    $offset = $end;
+                    continue;
                 }
-                $offset = $end;
-                continue;
             }
 
             $offset++;
@@ -3729,7 +3731,7 @@ final class PdfAttachmentExtractor
             }
 
             if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
-                $end = $this->skipHexString($pdfBytes, $offset);
+                $end = $this->skipPdfHexStringToken($pdfBytes, $offset);
                 if ($end !== null) {
                     $offset = $end;
                     continue;
@@ -3791,7 +3793,7 @@ final class PdfAttachmentExtractor
             }
 
             if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
-                $end = $this->skipHexString($pdfBytes, $offset);
+                $end = $this->skipPdfHexStringToken($pdfBytes, $offset);
                 if ($end !== null) {
                     $offset = $end;
                     continue;
@@ -3854,6 +3856,28 @@ final class PdfAttachmentExtractor
         $this->parseLiteralStringBytes($pdfBytes, $probe);
 
         return $probe > $offset ? $probe : null;
+    }
+
+    private function skipPdfHexStringToken(string $pdfBytes, int $offset): ?int
+    {
+        if (($pdfBytes[$offset] ?? '') !== '<' || ($pdfBytes[$offset + 1] ?? '') === '<') {
+            return null;
+        }
+
+        for ($index = $offset + 1, $length = strlen($pdfBytes); $index < $length; $index++) {
+            $char = $pdfBytes[$index];
+            if ($char === '>') {
+                return $index + 1;
+            }
+
+            if (ctype_xdigit($char) || ctype_space($char)) {
+                continue;
+            }
+
+            return null;
+        }
+
+        return null;
     }
 
     private function skipHexString(string $pdfBytes, int $offset): ?int
