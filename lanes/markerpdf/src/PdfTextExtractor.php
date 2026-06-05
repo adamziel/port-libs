@@ -8195,7 +8195,9 @@ final class PdfTextExtractor
             $nextSeen = $seen;
             $nextSeen[$kidKey] = true;
             foreach ($this->pageLabelNumberTreeEntries($kidDictionary, $objects, $pageCount, $nextSeen, $limits) as $pageIndex => $section) {
-                $entries[$pageIndex] = $section;
+                if (!array_key_exists($pageIndex, $entries)) {
+                    $entries[$pageIndex] = $section;
+                }
             }
         }
 
@@ -8263,7 +8265,9 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $entries[$pageIndex] = $this->parsePageLabelDictionary($labelDictionary, $objects);
+            if (!array_key_exists($pageIndex, $entries)) {
+                $entries[$pageIndex] = $this->parsePageLabelDictionary($labelDictionary, $objects);
+            }
         }
 
         return $entries;

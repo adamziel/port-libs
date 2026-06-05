@@ -1600,7 +1600,14 @@ final class MarkerAppPreview
         $nums = $this->valueAfterName($value, 'Nums');
         if ($nums !== null) {
             $nums = trim($this->resolvePageLabelPdfValue($nums, $objects, $seen));
+            $seenPageIndexes = [];
             foreach ($this->pageLabelSectionsFromNums($nums, $objects, $seen, $limits) as $section) {
+                $pageIndex = $section['page_index'];
+                if (isset($seenPageIndexes[$pageIndex])) {
+                    continue;
+                }
+
+                $seenPageIndexes[$pageIndex] = true;
                 $sections[] = $section;
             }
 
@@ -1624,7 +1631,18 @@ final class MarkerAppPreview
                 }
 
                 $kidSeen = [...$seen, $this->objectReferenceKey($objectId, $generation)];
+                $seenPageIndexes = [];
+                foreach ($sections as $section) {
+                    $seenPageIndexes[$section['page_index']] = true;
+                }
+
                 foreach ($this->pageLabelSections($kidBody, $objects, $kidSeen, $limits) as $section) {
+                    $pageIndex = $section['page_index'];
+                    if (isset($seenPageIndexes[$pageIndex])) {
+                        continue;
+                    }
+
+                    $seenPageIndexes[$pageIndex] = true;
                     $sections[] = $section;
                 }
             }
@@ -1643,6 +1661,7 @@ final class MarkerAppPreview
     {
         $elements = $this->arrayElements($nums);
         $sections = [];
+        $seenPageIndexes = [];
         $count = count($elements);
         for ($index = 0; $index + 1 < $count; $index += 2) {
             $pageIndexValue = $this->pageLabelIndexOperand($elements[$index], $objects, $seen);
@@ -1659,6 +1678,11 @@ final class MarkerAppPreview
                 continue;
             }
 
+            if (isset($seenPageIndexes[$pageIndexValue])) {
+                continue;
+            }
+
+            $seenPageIndexes[$pageIndexValue] = true;
             $sections[] = [
                 'page_index' => $pageIndexValue,
                 'prefix' => $section['prefix'],
