@@ -1303,6 +1303,74 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $package->readBounded('/word/document.xml', -1));
     },
 
+    'preflights aggregate zip package expansion before exposing media bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>aggregate package preflight</w:p></w:body></w:document>';
+        $mediaBytes = str_repeat("review media bytes\n", 24);
+        $storedBytes = "stored reviewer note\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.bin',
+                'data' => $mediaBytes,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => $storedBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+        ]));
+        $documentCompressed = strlen(gzdeflate($documentXml));
+        $mediaCompressed = strlen(gzdeflate($mediaBytes));
+        $storedCompressed = strlen($storedBytes);
+        $totalCompressed = $documentCompressed + $mediaCompressed + $storedCompressed;
+        $totalUncompressed = strlen($documentXml) + strlen($mediaBytes) + strlen($storedBytes);
+        $summary = $package->sizePreflight();
+
+        $t->same(4, $summary['entryCount']);
+        $t->same(3, $summary['fileCount']);
+        $t->same(1, $summary['directoryCount']);
+        $t->same(2, $summary['deflatedEntryCount']);
+        $t->same(2, $summary['storedEntryCount']);
+        $t->same(0, $summary['unsupportedCompressionMethodCount']);
+        $t->same($totalCompressed, $summary['compressedBytes']);
+        $t->same($totalUncompressed, $summary['uncompressedBytes']);
+        $t->same($totalUncompressed / $totalCompressed, $summary['expansionRatio']);
+        $t->same('word/media/review.bin', $summary['largestEntry']['name']);
+        $t->same(strlen($mediaBytes), $summary['largestEntry']['uncompressedSize']);
+        $t->same($mediaCompressed, $summary['largestEntry']['compressedSize']);
+        $t->same($mediaCompressed === 0 ? null : strlen($mediaBytes) / $mediaCompressed, $summary['largestEntry']['expansionRatio']);
+        $t->same('word/media/review.bin', $summary['entries'][1]['name']);
+        $t->same(strlen($mediaBytes), $summary['entries'][1]['uncompressedSize']);
+        $t->same($summary, $package->assertSizePreflight($totalUncompressed, $summary['expansionRatio']));
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertSizePreflight($totalUncompressed - 1, null));
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertSizePreflight(null, $summary['expansionRatio'] - 0.01));
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $package->assertSizePreflight(-1, null));
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $package->assertSizePreflight(null, -0.01));
+
+        $zeroCompressed = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/zero-compressed.bin',
+                'data' => 'central metadata without compressed bytes',
+                'method' => 0,
+                'centralCompressedSize' => 0,
+                'localCompressedSize' => 0,
+            ],
+        ]));
+        $t->same(null, $zeroCompressed->sizePreflight()['expansionRatio']);
+        $t->throws(\RuntimeException::class, static fn (): array => $zeroCompressed->assertSizePreflight(null, 10.0));
+    },
+
     'builds and reads bounded gzip streams around package fixture bytes' => static function (TestRunner $t) use ($crc32): void {
         $package = ZipPackage::fromParts([
             [

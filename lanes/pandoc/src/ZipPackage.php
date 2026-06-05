@@ -552,6 +552,143 @@ final class ZipPackage
         return $this->centralDirectoryOffset;
     }
 
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     fileCount:int,
+     *     directoryCount:int,
+     *     compressedBytes:int,
+     *     uncompressedBytes:int,
+     *     storedEntryCount:int,
+     *     deflatedEntryCount:int,
+     *     unsupportedCompressionMethodCount:int,
+     *     expansionRatio:?float,
+     *     largestEntry:?array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float},
+     *     entries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float}>
+     * }
+     */
+    public function sizePreflight(): array
+    {
+        $compressedBytes = 0;
+        $uncompressedBytes = 0;
+        $fileCount = 0;
+        $directoryCount = 0;
+        $storedEntryCount = 0;
+        $deflatedEntryCount = 0;
+        $unsupportedCompressionMethodCount = 0;
+        $largestEntry = null;
+        $entrySummaries = [];
+
+        foreach ($this->entries as $entry) {
+            $isDirectory = $entry->isDirectory();
+            if ($isDirectory) {
+                $directoryCount++;
+            } else {
+                $fileCount++;
+            }
+
+            if ($entry->compressionMethod === 0) {
+                $storedEntryCount++;
+            } elseif ($entry->compressionMethod === 8) {
+                $deflatedEntryCount++;
+            } else {
+                $unsupportedCompressionMethodCount++;
+            }
+
+            $compressedBytes += $entry->compressedSize;
+            $uncompressedBytes += $entry->uncompressedSize;
+            $entrySummary = [
+                'name' => $entry->name,
+                'compressionMethod' => $entry->compressionMethod,
+                'isDirectory' => $isDirectory,
+                'compressedSize' => $entry->compressedSize,
+                'uncompressedSize' => $entry->uncompressedSize,
+                'expansionRatio' => self::expansionRatio($entry->uncompressedSize, $entry->compressedSize),
+            ];
+            $entrySummaries[] = $entrySummary;
+
+            if (
+                $largestEntry === null
+                || $entrySummary['uncompressedSize'] > $largestEntry['uncompressedSize']
+            ) {
+                $largestEntry = $entrySummary;
+            }
+        }
+
+        return [
+            'entryCount' => count($this->entries),
+            'fileCount' => $fileCount,
+            'directoryCount' => $directoryCount,
+            'compressedBytes' => $compressedBytes,
+            'uncompressedBytes' => $uncompressedBytes,
+            'storedEntryCount' => $storedEntryCount,
+            'deflatedEntryCount' => $deflatedEntryCount,
+            'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
+            'expansionRatio' => self::expansionRatio($uncompressedBytes, $compressedBytes),
+            'largestEntry' => $largestEntry,
+            'entries' => $entrySummaries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     fileCount:int,
+     *     directoryCount:int,
+     *     compressedBytes:int,
+     *     uncompressedBytes:int,
+     *     storedEntryCount:int,
+     *     deflatedEntryCount:int,
+     *     unsupportedCompressionMethodCount:int,
+     *     expansionRatio:?float,
+     *     largestEntry:?array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float},
+     *     entries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float}>
+     * }
+     */
+    public function assertSizePreflight(?int $maxTotalUncompressedBytes = null, ?float $maxExpansionRatio = null): array
+    {
+        if ($maxTotalUncompressedBytes !== null && $maxTotalUncompressedBytes < 0) {
+            throw new \InvalidArgumentException('ZIP package maximum total uncompressed size must be non-negative');
+        }
+
+        if ($maxExpansionRatio !== null && $maxExpansionRatio < 0.0) {
+            throw new \InvalidArgumentException('ZIP package maximum expansion ratio must be non-negative');
+        }
+
+        $summary = $this->sizePreflight();
+
+        if (
+            $maxTotalUncompressedBytes !== null
+            && $summary['uncompressedBytes'] > $maxTotalUncompressedBytes
+        ) {
+            throw new \RuntimeException(
+                "ZIP package expands to {$summary['uncompressedBytes']} bytes, exceeding maximum total uncompressed size {$maxTotalUncompressedBytes} bytes"
+            );
+        }
+
+        if (
+            $maxExpansionRatio !== null
+            && $summary['expansionRatio'] === null
+            && $summary['uncompressedBytes'] > 0
+        ) {
+            throw new \RuntimeException(
+                'ZIP package expansion ratio cannot be evaluated because compressed size is zero'
+            );
+        }
+
+        if (
+            $maxExpansionRatio !== null
+            && $summary['expansionRatio'] !== null
+            && $summary['expansionRatio'] > $maxExpansionRatio
+        ) {
+            throw new \RuntimeException(
+                "ZIP package expansion ratio {$summary['expansionRatio']} exceeds maximum {$maxExpansionRatio}"
+            );
+        }
+
+        return $summary;
+    }
+
     private static function assertDirectoryEntryMetadata(ZipPackageEntry $entry): void
     {
         if (!$entry->isDirectory()) {
@@ -861,6 +998,19 @@ final class ZipPackage
                 "ZIP entry {$entryName} maximum uncompressed read size must be non-negative"
             );
         }
+    }
+
+    private static function expansionRatio(int $uncompressedBytes, int $compressedBytes): ?float
+    {
+        if ($uncompressedBytes === 0) {
+            return 0.0;
+        }
+
+        if ($compressedBytes === 0) {
+            return null;
+        }
+
+        return $uncompressedBytes / $compressedBytes;
     }
 
     private function normalizeLookupPartName(string $partName): string

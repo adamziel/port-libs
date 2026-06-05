@@ -806,6 +806,19 @@ $package = ZipPackage::fromParts([
         'extraFieldData' => $documentReviewExtra,
     ],
 ], 'wordpress import package');
+$packageSizePreflight = $package->sizePreflight();
+$packageSizeRejected = false;
+try {
+    $package->assertSizePreflight($packageSizePreflight['uncompressedBytes'] - 1, null);
+} catch (RuntimeException $exception) {
+    $packageSizeRejected = str_contains($exception->getMessage(), 'maximum total uncompressed size');
+}
+$packageExpansionRejected = false;
+try {
+    $package->assertSizePreflight(null, max(0.0, ($packageSizePreflight['expansionRatio'] ?? 0.0) - 0.01));
+} catch (RuntimeException $exception) {
+    $packageExpansionRejected = str_contains($exception->getMessage(), 'expansion ratio');
+}
 $gzipReviewExtra = pack('CCv', ord('W'), ord('P'), strlen('review:v1')) . 'review:v1';
 $descriptorPackage = ZipPackage::fromString($buildDescriptorBackedPackage());
 $ntfsPackage = ZipPackage::fromString($buildNtfsBackedPackage());
@@ -1113,6 +1126,30 @@ if (in_array('--self-test', $argv, true)) {
 
     if (!$oversizedMediaRejected) {
         throw new RuntimeException('Expected oversized ZIP media reads to be rejected before import');
+    }
+
+    if (($packageSizePreflight['entryCount'] ?? null) !== 3 || ($packageSizePreflight['fileCount'] ?? null) !== 3) {
+        throw new RuntimeException('Expected ZIP package size preflight to count importable package files');
+    }
+
+    if (($packageSizePreflight['uncompressedBytes'] ?? 0) <= ($packageSizePreflight['compressedBytes'] ?? 0)) {
+        throw new RuntimeException('Expected ZIP package size preflight to report aggregate expansion');
+    }
+
+    if (($packageSizePreflight['largestEntry']['name'] ?? null) !== 'word/document.xml') {
+        throw new RuntimeException('Expected ZIP package size preflight to identify the largest import part');
+    }
+
+    if ($package->assertSizePreflight($packageSizePreflight['uncompressedBytes'], $packageSizePreflight['expansionRatio']) !== $packageSizePreflight) {
+        throw new RuntimeException('Expected ZIP package size preflight limits to return the accepted summary');
+    }
+
+    if (!$packageSizeRejected) {
+        throw new RuntimeException('Expected aggregate ZIP package size limits to reject oversized packages before import');
+    }
+
+    if (!$packageExpansionRejected) {
+        throw new RuntimeException('Expected aggregate ZIP package expansion ratio limits to reject compressed packages before import');
     }
 
     if ($package->packageComment() !== 'wordpress import package') {
@@ -1434,6 +1471,10 @@ foreach ($package->entries() as $entry) {
 echo 'document.xml=' . $package->read('/word/document.xml') . "\n";
 echo 'document.xml.reviewExtra=' . ($package->entry('/word/document.xml')->centralExtraField(0xcafe) ?? 'none') . "\n";
 echo 'document.xml.localReviewExtra=' . ($package->localExtraField('/word/document.xml', 0xcafe) ?? 'none') . "\n";
+echo 'packageSize.uncompressedBytes=' . $packageSizePreflight['uncompressedBytes'] . "\n";
+echo 'packageSize.compressedBytes=' . $packageSizePreflight['compressedBytes'] . "\n";
+echo 'packageSize.expansionRatio=' . ($packageSizePreflight['expansionRatio'] === null ? 'unknown' : (string) $packageSizePreflight['expansionRatio']) . "\n";
+echo 'packageSize.largestEntry=' . ($packageSizePreflight['largestEntry']['name'] ?? 'none') . "\n";
 echo 'descriptor.comments.xml=' . $descriptorPackage->read('/word/comments.xml') . "\n";
 $ntfsTimestamps = $ntfsPackage->entry('/word/media/review.png')->ntfsTimestamps();
 echo 'ntfs.review.png.modifiedAt=' . ($ntfsTimestamps['modifiedAt'] ?? 'none') . "\n";
