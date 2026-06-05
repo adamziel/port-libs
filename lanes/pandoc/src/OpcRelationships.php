@@ -28,7 +28,8 @@ final class OpcRelationships
             throw new \InvalidArgumentException('OPC relationships XML must use the package relationships namespace');
         }
 
-        self::assertRootShape($root);
+        $ignorableNamespaces = OpcMarkupCompatibility::ignorableNamespacesForElement($root, self::NAMESPACE_URI, 'OPC relationships XML root');
+        self::assertRootShape($root, $ignorableNamespaces);
 
         $relationships = new self($sourcePartName);
         foreach ($root->childNodes as $child) {
@@ -37,10 +38,14 @@ final class OpcRelationships
             }
 
             if ($child->namespaceURI !== self::NAMESPACE_URI || $child->localName !== 'Relationship') {
+                if (OpcMarkupCompatibility::isIgnorableExtensionElement($child, $ignorableNamespaces)) {
+                    continue;
+                }
+
                 throw new \InvalidArgumentException('OPC relationships XML may only contain Relationship children');
             }
 
-            self::assertRelationshipElementShape($child);
+            self::assertRelationshipElementShape($child, $ignorableNamespaces);
 
             $relationships->add(new OpcRelationship(
                 $child->getAttribute('Id'),
@@ -209,14 +214,21 @@ final class OpcRelationships
         return $xml;
     }
 
-    private static function assertRootShape(\DOMElement $root): void
+    /**
+     * @param array<string, true> $ignorableNamespaces
+     */
+    private static function assertRootShape(\DOMElement $root, array $ignorableNamespaces): void
     {
         foreach ($root->attributes as $attribute) {
             if (!$attribute instanceof \DOMAttr) {
                 continue;
             }
 
-            if ($attribute->namespaceURI === 'http://www.w3.org/2000/xmlns/') {
+            if (
+                OpcMarkupCompatibility::isNamespaceDeclaration($attribute)
+                || OpcMarkupCompatibility::isIgnorableDeclaration($attribute)
+                || OpcMarkupCompatibility::isIgnorableExtensionAttribute($attribute, $ignorableNamespaces)
+            ) {
                 continue;
             }
 
@@ -242,7 +254,10 @@ final class OpcRelationships
         }
     }
 
-    private static function assertRelationshipElementShape(\DOMElement $element): void
+    /**
+     * @param array<string, true> $ignorableNamespaces
+     */
+    private static function assertRelationshipElementShape(\DOMElement $element, array $ignorableNamespaces): void
     {
         $allowedAttributes = ['Id', 'Type', 'Target', 'TargetMode'];
         foreach ($element->attributes as $attribute) {
@@ -250,7 +265,10 @@ final class OpcRelationships
                 continue;
             }
 
-            if ($attribute->namespaceURI === 'http://www.w3.org/2000/xmlns/') {
+            if (
+                OpcMarkupCompatibility::isNamespaceDeclaration($attribute)
+                || OpcMarkupCompatibility::isIgnorableExtensionAttribute($attribute, $ignorableNamespaces)
+            ) {
                 continue;
             }
 
@@ -261,6 +279,10 @@ final class OpcRelationships
 
         foreach ($element->childNodes as $child) {
             if ($child instanceof \DOMElement) {
+                if (OpcMarkupCompatibility::isIgnorableExtensionElement($child, $ignorableNamespaces)) {
+                    continue;
+                }
+
                 throw new \InvalidArgumentException('OPC Relationship record must be an empty element');
             }
 

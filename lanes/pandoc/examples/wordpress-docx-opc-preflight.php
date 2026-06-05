@@ -10,8 +10,11 @@ use PortLibs\Pandoc\OpcRelationships;
 use PortLibs\Pandoc\ZipPackage;
 
 $contentTypesXml = <<<'XML'
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:review="urn:wordpress-review" mc:Ignorable="review" review:source="import-preflight">
+  <review:Audit packet="docx"/>
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" review:origin="fixture">
+    <review:Note value="ignored"/>
+  </Default>
   <Default Extension="xml" ContentType="application/xml"/>
   <Default Extension="png" ContentType="image/png"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
@@ -27,8 +30,11 @@ $contentTypesXml = <<<'XML'
 XML;
 
 $packageRelationshipsXml = <<<'XML'
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:review="urn:wordpress-review" mc:Ignorable="review" review:source="import-preflight">
+  <review:Audit packet="docx"/>
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml" review:label="main">
+    <review:Trace value="ignored"/>
+  </Relationship>
   <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
   <Relationship Id="rIdSignatureOrigin" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin" Target="_xmlsignatures/origin.sigs"/>
 </Relationships>
@@ -191,6 +197,13 @@ $strictXmlShapeGuards = [
     'relationshipChildContentRejected' => false,
     'relationshipRootTextRejected' => false,
 ];
+$markupCompatibilityGuards = [
+    'ignorableContentTypeExtensionAccepted' => $types->contentTypeForPart('/word/document.xml') === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+    'ignorableRelationshipExtensionAccepted' => $graph->firstTargetOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument') === '/word/document.xml',
+    'undeclaredContentTypeExtensionRejected' => false,
+    'undeclaredRelationshipExtensionRejected' => false,
+    'unsupportedMarkupCompatibilityAttributeRejected' => false,
+];
 try {
     OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension="xml" ContentType="application/xml" Extra="1"/></Types>');
 } catch (InvalidArgumentException) {
@@ -210,6 +223,21 @@ try {
     OpcRelationships::fromXml('<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '">text<Relationship Id="rIdBad" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>', '/word/document.xml');
 } catch (InvalidArgumentException) {
     $strictXmlShapeGuards['relationshipRootTextRejected'] = true;
+}
+try {
+    OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" xmlns:review="urn:wordpress-review" review:source="import-preflight"><Default Extension="xml" ContentType="application/xml"/></Types>');
+} catch (InvalidArgumentException) {
+    $markupCompatibilityGuards['undeclaredContentTypeExtensionRejected'] = true;
+}
+try {
+    OpcRelationships::fromXml('<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '" xmlns:review="urn:wordpress-review"><review:Audit/><Relationship Id="rIdBad" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>', '/word/document.xml');
+} catch (InvalidArgumentException) {
+    $markupCompatibilityGuards['undeclaredRelationshipExtensionRejected'] = true;
+}
+try {
+    OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:review="urn:wordpress-review" mc:Ignorable="review" mc:ProcessContent="review"><Default Extension="xml" ContentType="application/xml"/></Types>');
+} catch (InvalidArgumentException) {
+    $markupCompatibilityGuards['unsupportedMarkupCompatibilityAttributeRejected'] = true;
 }
 
 $summary = [
@@ -249,6 +277,7 @@ $summary = [
             static fn (array $target): bool => $target['issues'] !== []
         )),
         'strictXmlShapeGuards' => $strictXmlShapeGuards,
+        'markupCompatibilityGuards' => $markupCompatibilityGuards,
     ],
     'wordpressImport' => [
         'mediaParts' => array_values(array_unique(array_filter(
@@ -336,6 +365,11 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeRootAttributeRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['relationshipChildContentRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['relationshipRootTextRejected'] ?? null) !== true
+        || ($summary['integrity']['markupCompatibilityGuards']['ignorableContentTypeExtensionAccepted'] ?? null) !== true
+        || ($summary['integrity']['markupCompatibilityGuards']['ignorableRelationshipExtensionAccepted'] ?? null) !== true
+        || ($summary['integrity']['markupCompatibilityGuards']['undeclaredContentTypeExtensionRejected'] ?? null) !== true
+        || ($summary['integrity']['markupCompatibilityGuards']['undeclaredRelationshipExtensionRejected'] ?? null) !== true
+        || ($summary['integrity']['markupCompatibilityGuards']['unsupportedMarkupCompatibilityAttributeRejected'] ?? null) !== true
         || $summary['packageParts']['/_rels/.rels']['relationshipSource'] !== '/'
         || $summary['packageParts']['/_rels/.rels']['relationshipSourceIsRelationshipPart'] !== false
         || $summary['packageParts']['/word/_rels/document.xml.rels']['relationshipSource'] !== '/word/document.xml'

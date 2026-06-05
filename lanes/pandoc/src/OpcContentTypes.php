@@ -22,7 +22,8 @@ final class OpcContentTypes
             throw new \InvalidArgumentException('OPC content-types XML must use the package content-types namespace');
         }
 
-        self::assertRootShape($root);
+        $ignorableNamespaces = OpcMarkupCompatibility::ignorableNamespacesForElement($root, self::NAMESPACE_URI, 'OPC content-types XML root');
+        self::assertRootShape($root, $ignorableNamespaces);
 
         $types = new self();
         foreach ($root->childNodes as $child) {
@@ -31,17 +32,21 @@ final class OpcContentTypes
             }
 
             if ($child->namespaceURI !== self::NAMESPACE_URI) {
+                if (OpcMarkupCompatibility::isIgnorableExtensionElement($child, $ignorableNamespaces)) {
+                    continue;
+                }
+
                 throw new \InvalidArgumentException('OPC content-types children must use the package namespace');
             }
 
             if ($child->localName === 'Default') {
-                self::assertRecordShape($child, ['Extension', 'ContentType'], 'OPC Default content-type record');
+                self::assertRecordShape($child, ['Extension', 'ContentType'], 'OPC Default content-type record', $ignorableNamespaces);
                 $types->addDefault($child->getAttribute('Extension'), $child->getAttribute('ContentType'));
                 continue;
             }
 
             if ($child->localName === 'Override') {
-                self::assertRecordShape($child, ['PartName', 'ContentType'], 'OPC Override content-type record');
+                self::assertRecordShape($child, ['PartName', 'ContentType'], 'OPC Override content-type record', $ignorableNamespaces);
                 $types->addOverride($child->getAttribute('PartName'), $child->getAttribute('ContentType'));
                 continue;
             }
@@ -147,14 +152,21 @@ final class OpcContentTypes
         return $xml;
     }
 
-    private static function assertRootShape(\DOMElement $root): void
+    /**
+     * @param array<string, true> $ignorableNamespaces
+     */
+    private static function assertRootShape(\DOMElement $root, array $ignorableNamespaces): void
     {
         foreach ($root->attributes as $attribute) {
             if (!$attribute instanceof \DOMAttr) {
                 continue;
             }
 
-            if ($attribute->namespaceURI === 'http://www.w3.org/2000/xmlns/') {
+            if (
+                OpcMarkupCompatibility::isNamespaceDeclaration($attribute)
+                || OpcMarkupCompatibility::isIgnorableDeclaration($attribute)
+                || OpcMarkupCompatibility::isIgnorableExtensionAttribute($attribute, $ignorableNamespaces)
+            ) {
                 continue;
             }
 
@@ -201,15 +213,19 @@ final class OpcContentTypes
 
     /**
      * @param list<string> $allowedAttributes
+     * @param array<string, true> $ignorableNamespaces
      */
-    private static function assertRecordShape(\DOMElement $element, array $allowedAttributes, string $label): void
+    private static function assertRecordShape(\DOMElement $element, array $allowedAttributes, string $label, array $ignorableNamespaces): void
     {
         foreach ($element->attributes as $attribute) {
             if (!$attribute instanceof \DOMAttr) {
                 continue;
             }
 
-            if ($attribute->namespaceURI === 'http://www.w3.org/2000/xmlns/') {
+            if (
+                OpcMarkupCompatibility::isNamespaceDeclaration($attribute)
+                || OpcMarkupCompatibility::isIgnorableExtensionAttribute($attribute, $ignorableNamespaces)
+            ) {
                 continue;
             }
 
@@ -220,6 +236,10 @@ final class OpcContentTypes
 
         foreach ($element->childNodes as $child) {
             if ($child instanceof \DOMElement) {
+                if (OpcMarkupCompatibility::isIgnorableExtensionElement($child, $ignorableNamespaces)) {
+                    continue;
+                }
+
                 throw new \InvalidArgumentException($label . ' must be an empty element');
             }
 
