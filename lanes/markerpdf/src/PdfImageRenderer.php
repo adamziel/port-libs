@@ -858,6 +858,9 @@ final class PdfImageRenderer
         if (in_array('DCTDecode', $filters, true) || in_array('DCT', $filters, true)) {
             $plan['notes'][] = 'inline_dct_image_filter_review_only';
         }
+        if (in_array('CCITTFaxDecode', $filters, true) || in_array('CCF', $filters, true)) {
+            $plan['notes'][] = 'inline_ccitt_fax_image_filter_review_only';
+        }
         if (
             ($plan['inline_image']['soft_mask_present'] ?? false) === true
             && ($plan['inline_image']['soft_mask_uses_current_object_map'] ?? false) === true

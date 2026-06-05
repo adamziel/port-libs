@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\PdfTextExtractor;
+use PortLibs\MarkerPDF\PdfImageRenderer;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -22,10 +23,22 @@ $pdf = "%PDF-1.4\n"
     . "%%EOF";
 
 $lines = (new PdfTextExtractor())->extractTextLines($pdf);
+$inlineReview = (new PdfImageRenderer())->inlineImageReviewPlan(
+    '/W 16 /H 1 /IM true /F /CCF /DP << /K 0 /Columns 16 /Rows 1 /BlackIs1 false /EncodedByteAlign true /EndOfLine false /EndOfBlock true >> /D [1 0]',
+    "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline CCITT fax payload noise) Tj ET final"
+);
+$inlineNotes = $inlineReview['notes'] ?? [];
+if (!in_array('inline_ccitt_fax_image_filter_review_only', $inlineNotes, true)) {
+    throw new RuntimeException('Inline CCITT Fax review boundary smoke failed.');
+}
 
 echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'source' => 'native-pdf-stream-filter-boundary',
     'stream_filters' => ['CCITTFaxDecode', 'CCF'],
+    'inline_image_filters' => $inlineReview['image_filters'] ?? [],
+    'inline_review_only_filters' => $inlineReview['inline_image']['review_only_filters'] ?? [],
+    'inline_ccitt_review_only' => $inlineReview['inline_image_review_only'] ?? null,
+    'inline_ccitt_note' => 'inline_ccitt_fax_image_filter_review_only',
     'decode_parms' => [
         ['K' => -1, 'Columns' => 1728, 'Rows' => 1, 'BlackIs1' => true],
         ['K' => 0, 'Columns' => 8, 'Rows' => 1, 'EncodedByteAlign' => true],
