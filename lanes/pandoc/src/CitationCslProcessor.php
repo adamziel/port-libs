@@ -173,6 +173,7 @@ final class CitationCslProcessor
             }
         }
 
+        $citations = $this->ensureClusterCitationPositions($citations);
         $attrs = [
             ...$group->attrs,
             'rendered' => $this->renderCitationCluster($citations),
@@ -190,7 +191,9 @@ final class CitationCslProcessor
 
     public function apply(AstNode $document): AstNode
     {
-        return $this->mapNode($document);
+        $state = $this->emptyCitationPositionState();
+
+        return $this->mapNode($this->annotateCitationPositions($document, $state));
     }
 
     public function appendBibliography(AstNode $document, string $headingText = 'References'): AstNode
@@ -239,6 +242,7 @@ final class CitationCslProcessor
      */
     public function renderCitationCluster(array $citations): string
     {
+        $citations = $this->ensureClusterCitationPositions($citations);
         $citations = $this->sortCitationCluster($citations);
         $entries = [];
         foreach ($citations as $citation) {
@@ -897,6 +901,209 @@ final class CitationCslProcessor
         );
 
         return implode('/', $formatted);
+    }
+
+    /**
+     * @return array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}|null}|null}
+     */
+    private function emptyCitationPositionState(): array
+    {
+        return [
+            'seenIds' => [],
+            'previousUnit' => null,
+        ];
+    }
+
+    /**
+     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}|null}|null} $state
+     */
+    private function annotateCitationPositions(AstNode $node, array &$state): AstNode
+    {
+        if ($node->type === 'citation') {
+            [$annotated, $info] = $this->annotateCitationPosition($node, $state, null, true);
+            $this->recordCitationPositionUnit($state, [$info]);
+
+            return $annotated;
+        }
+
+        if ($node->type === 'citation_group') {
+            $children = [];
+            $unit = [];
+            $previousInUnit = null;
+            foreach ($node->children as $child) {
+                if ($child->type !== 'citation') {
+                    throw new \InvalidArgumentException('Citation group entries must be citation AST nodes');
+                }
+
+                [$annotated, $info] = $this->annotateCitationPosition($child, $state, $previousInUnit, $children === []);
+                $children[] = $annotated;
+                $unit[] = $info;
+                $previousInUnit = $info;
+            }
+
+            $this->recordCitationPositionUnit($state, $unit);
+
+            return new AstNode($node->type, $node->attrs, $children);
+        }
+
+        if ($node->children === []) {
+            return $node;
+        }
+
+        $children = [];
+        $changed = false;
+        foreach ($node->children as $child) {
+            $annotated = $this->annotateCitationPositions($child, $state);
+            $children[] = $annotated;
+            $changed = $changed || $annotated !== $child;
+        }
+
+        return $changed ? new AstNode($node->type, $node->attrs, $children) : $node;
+    }
+
+    /**
+     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}|null}|null} $state
+     * @param array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}|null $previousInUnit
+     * @return array{AstNode, array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}}
+     */
+    private function annotateCitationPosition(AstNode $citation, array &$state, ?array $previousInUnit, bool $firstInUnit): array
+    {
+        $info = $this->citationPositionInfo($citation);
+        $position = $this->citationPositionForInfo($info, $state, $previousInUnit, $firstInUnit);
+        $annotated = new AstNode('citation', [
+            ...$citation->attrs,
+            'cslPosition' => $position['position'],
+            'cslPositionTests' => $position['tests'],
+        ], $citation->children);
+
+        if ($info['id'] !== '') {
+            $state['seenIds'][$info['id']] = true;
+        }
+
+        return [$annotated, $info];
+    }
+
+    /**
+     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}|null}|null} $state
+     * @param list<array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}> $unit
+     */
+    private function recordCitationPositionUnit(array &$state, array $unit): void
+    {
+        $known = array_values(array_filter(
+            $unit,
+            static fn (array $info): bool => $info['id'] !== ''
+        ));
+        $state['previousUnit'] = [
+            'single' => count($known) === 1,
+            'first' => $known[0] ?? null,
+        ];
+    }
+
+    /**
+     * @return array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}
+     */
+    private function citationPositionInfo(AstNode $citation): array
+    {
+        $id = (string) $citation->attr('id', '');
+        if ($id !== '' && !isset($this->itemsById[$id])) {
+            $id = '';
+        }
+
+        $locator = $this->citationLocatorParts($citation);
+
+        return [
+            'id' => $id,
+            'locatorLabel' => $locator['label'],
+            'locatorValue' => $locator['value'],
+            'locatorKey' => $locator['label'] . "\n" . $locator['value'],
+        ];
+    }
+
+    /**
+     * @param array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string} $info
+     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}|null}|null} $state
+     * @param array{id:string, locatorLabel:string, locatorValue:string, locatorKey:string}|null $previousInUnit
+     * @return array{position:string, tests:list<string>}
+     */
+    private function citationPositionForInfo(array $info, array $state, ?array $previousInUnit, bool $firstInUnit): array
+    {
+        if ($info['id'] === '' || !isset($state['seenIds'][$info['id']])) {
+            return ['position' => 'first', 'tests' => ['first']];
+        }
+
+        $preceding = null;
+        if (is_array($previousInUnit) && $previousInUnit['id'] === $info['id']) {
+            $preceding = $previousInUnit;
+        } elseif ($firstInUnit) {
+            $previousUnit = $state['previousUnit'] ?? null;
+            if (
+                is_array($previousUnit)
+                && ($previousUnit['single'] ?? false) === true
+                && is_array($previousUnit['first'] ?? null)
+                && $previousUnit['first']['id'] === $info['id']
+            ) {
+                $preceding = $previousUnit['first'];
+            }
+        }
+
+        if ($preceding === null) {
+            return ['position' => 'subsequent', 'tests' => ['subsequent']];
+        }
+
+        $precedingHasLocator = $preceding['locatorValue'] !== '';
+        $currentHasLocator = $info['locatorValue'] !== '';
+        if (!$precedingHasLocator) {
+            return $currentHasLocator
+                ? ['position' => 'ibid-with-locator', 'tests' => ['subsequent', 'ibid', 'ibid-with-locator']]
+                : ['position' => 'ibid', 'tests' => ['subsequent', 'ibid']];
+        }
+
+        if (!$currentHasLocator) {
+            return ['position' => 'subsequent', 'tests' => ['subsequent']];
+        }
+
+        if ($preceding['locatorKey'] === $info['locatorKey']) {
+            return ['position' => 'ibid', 'tests' => ['subsequent', 'ibid']];
+        }
+
+        return ['position' => 'ibid-with-locator', 'tests' => ['subsequent', 'ibid', 'ibid-with-locator']];
+    }
+
+    /**
+     * @param list<AstNode> $citations
+     * @return list<AstNode>
+     */
+    private function ensureClusterCitationPositions(array $citations): array
+    {
+        if ($citations === []) {
+            return [];
+        }
+
+        $hasPositions = true;
+        foreach ($citations as $citation) {
+            if (!$citation instanceof AstNode || $citation->type !== 'citation') {
+                return $citations;
+            }
+
+            if ((string) $citation->attr('cslPosition', '') === '') {
+                $hasPositions = false;
+            }
+        }
+
+        if ($hasPositions) {
+            return $citations;
+        }
+
+        $state = $this->emptyCitationPositionState();
+        $annotated = [];
+        $previousInUnit = null;
+        foreach ($citations as $citation) {
+            [$node, $info] = $this->annotateCitationPosition($citation, $state, $previousInUnit, $annotated === []);
+            $annotated[] = $node;
+            $previousInUnit = $info;
+        }
+
+        return $annotated;
     }
 
     private function mapNode(AstNode $node): AstNode
@@ -1733,6 +1940,15 @@ final class CitationCslProcessor
             $conditions[] = in_array(strtolower((string) ($item['type'] ?? '')), $normalizedTypes, true);
         }
 
+        $positions = $branch['positions'] ?? [];
+        if (is_array($positions)) {
+            foreach ($positions as $position) {
+                if (is_scalar($position)) {
+                    $conditions[] = $this->citationPositionMatches((string) $position, $scope, $citation);
+                }
+            }
+        }
+
         if ($conditions === []) {
             return false;
         }
@@ -1742,6 +1958,36 @@ final class CitationCslProcessor
             'none' => !in_array(true, $conditions, true),
             default => !in_array(false, $conditions, true),
         };
+    }
+
+    private function citationPositionMatches(string $position, string $scope, ?AstNode $citation): bool
+    {
+        if ($scope !== 'citation' || !$citation instanceof AstNode) {
+            return false;
+        }
+
+        $position = strtolower(trim($position));
+        $tests = $citation->attr('cslPositionTests', []);
+        if (is_array($tests)) {
+            $normalized = array_map(static fn (mixed $test): string => strtolower(trim((string) $test)), $tests);
+
+            return in_array($position, $normalized, true);
+        }
+
+        $actual = strtolower(trim((string) $citation->attr('cslPosition', '')));
+        if ($actual === '') {
+            return false;
+        }
+
+        if ($position === 'subsequent' && in_array($actual, ['subsequent', 'ibid', 'ibid-with-locator'], true)) {
+            return true;
+        }
+
+        if ($position === 'ibid' && $actual === 'ibid-with-locator') {
+            return true;
+        }
+
+        return $actual === $position;
     }
 
     /**

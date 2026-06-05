@@ -867,7 +867,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{type:string, branches:list<array{match:string, variables:list<string>, types:list<string>, children:list<array<string, mixed>>}>, else:list<array<string, mixed>>}
+     * @return array{type:string, branches:list<array{match:string, variables:list<string>, types:list<string>, positions:list<string>, children:list<array<string, mixed>>}>, else:list<array<string, mixed>>}
      */
     private static function chooseRenderingElement(\DOMElement $choose, string $scope): array
     {
@@ -926,7 +926,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{match:string, variables:list<string>, types:list<string>, children:list<array<string, mixed>>}
+     * @return array{match:string, variables:list<string>, types:list<string>, positions:list<string>, children:list<array<string, mixed>>}
      */
     private static function conditionalRenderingBranch(\DOMElement $branch, string $scope): array
     {
@@ -940,14 +940,22 @@ final class CslStyle
 
         $variables = self::spaceSeparatedAttribute($branch, 'variable');
         $types = self::spaceSeparatedAttribute($branch, 'type');
-        if ($variables === [] && $types === []) {
-            throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch must declare variable or type');
+        $positions = self::spaceSeparatedAttribute($branch, 'position');
+        foreach ($positions as $position) {
+            if (!in_array($position, ['first', 'subsequent', 'ibid', 'ibid-with-locator', 'near-note'], true)) {
+                throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch position is not supported: ' . $position);
+            }
+        }
+
+        if ($variables === [] && $types === [] && $positions === []) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch must declare variable, type, or position');
         }
 
         return [
             'match' => $match,
             'variables' => $variables,
             'types' => $types,
+            'positions' => $positions,
             'children' => self::renderingElements($branch, $scope),
         ];
     }

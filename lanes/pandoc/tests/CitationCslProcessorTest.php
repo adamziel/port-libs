@@ -1926,6 +1926,175 @@ XML
 <?xml version="1.0" encoding="UTF-8"?>
 <style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
   <citation><layout><label variable="locator" plural="sometimes"/></layout></citation>
+            </style>
+XML
+        ));
+    },
+    'applies bounded csl citation position conditionals for repeated cites' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'source-a',
+                'type' => 'article-journal',
+                'title' => 'Position Source A',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'source-b',
+                'type' => 'report',
+                'title' => 'Position Source B',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Position Review Style</title>
+    <id>https://example.test/styles/bounded-position-review</id>
+    <updated>2026-06-05T03:45:00+00:00</updated>
+  </info>
+  <macro name="citation-key">
+    <group delimiter=" ">
+      <names variable="author editor"/>
+      <date variable="issued">
+        <date-part name="year"/>
+      </date>
+    </group>
+  </macro>
+  <macro name="pinpoint">
+    <choose>
+      <if variable="locator" match="any">
+        <group delimiter=" ">
+          <label variable="locator" form="short"/>
+          <text variable="locator"/>
+        </group>
+      </if>
+    </choose>
+  </macro>
+  <macro name="normal-cite">
+    <group delimiter=", ">
+      <text macro="citation-key"/>
+      <text macro="pinpoint"/>
+    </group>
+  </macro>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <choose>
+        <if position="ibid-with-locator" match="any">
+          <group delimiter=", ">
+            <text value="ibid"/>
+            <text macro="pinpoint"/>
+          </group>
+        </if>
+        <else-if position="ibid" match="any">
+          <text value="ibid"/>
+        </else-if>
+        <else-if position="subsequent" match="any">
+          <group delimiter=", ">
+            <text value="subsequent"/>
+            <text macro="normal-cite"/>
+          </group>
+        </else-if>
+        <else>
+          <text macro="normal-cite"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout>
+      <choose>
+        <if position="first" match="any">
+          <text value="position leaked into bibliography"/>
+        </if>
+        <else>
+          <group delimiter=". " suffix=".">
+            <names variable="author editor"/>
+            <text variable="title"/>
+          </group>
+        </else>
+      </choose>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Position Review Style', $summary['title'] ?? null);
+        $t->same(['ibid-with-locator'], $summary['citationRendering'][0]['branches'][0]['positions'] ?? null);
+        $t->same(['ibid'], $summary['citationRendering'][0]['branches'][1]['positions'] ?? null);
+        $t->same(['subsequent'], $summary['citationRendering'][0]['branches'][2]['positions'] ?? null);
+        $t->same(['first'], $summary['bibliographyRendering'][0]['branches'][0]['positions'] ?? null);
+
+        $document = (new MarkdownReader())->read(
+            'First [@source-a, p. 1].'
+            . "\n\n" . 'Same locator [@source-a, p. 1].'
+            . "\n\n" . 'Different locator [@source-a, p. 2].'
+            . "\n\n" . 'No locator [@source-a].'
+            . "\n\n" . 'Within cluster [@source-b; @source-b, p. 5].'
+            . "\n\n" . 'After multi [@source-b].'
+            . "\n\n" . 'After single [@source-b].'
+        );
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $first = $processed->children[0]->children[1];
+        $sameLocator = $processed->children[1]->children[1];
+        $differentLocator = $processed->children[2]->children[1];
+        $noLocator = $processed->children[3]->children[1];
+        $withinCluster = $processed->children[4]->children[1];
+        $afterMulti = $processed->children[5]->children[1];
+        $afterSingle = $processed->children[6]->children[1];
+
+        $t->same('first', $first->attr('cslPosition'));
+        $t->same(['first'], $first->attr('cslPositionTests'));
+        $t->same('ibid', $sameLocator->attr('cslPosition'));
+        $t->same(['subsequent', 'ibid'], $sameLocator->attr('cslPositionTests'));
+        $t->same('ibid-with-locator', $differentLocator->attr('cslPosition'));
+        $t->same(['subsequent', 'ibid', 'ibid-with-locator'], $differentLocator->attr('cslPositionTests'));
+        $t->same('subsequent', $noLocator->attr('cslPosition'));
+        $t->same('first', $withinCluster->children[0]->attr('cslPosition'));
+        $t->same('ibid-with-locator', $withinCluster->children[1]->attr('cslPosition'));
+        $t->same('subsequent', $afterMulti->attr('cslPosition'));
+        $t->same('ibid', $afterSingle->attr('cslPosition'));
+
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('First (de la Cruz 2026, p. 1).', $markdown);
+        $t->contains('Same locator (ibid).', $markdown);
+        $t->contains('Different locator (ibid, p. 2).', $markdown);
+        $t->contains('No locator (subsequent, de la Cruz 2026).', $markdown);
+        $t->contains('Within cluster (Ng 2025; ibid, p. 5).', $markdown);
+        $t->contains('After multi (subsequent, Ng 2025).', $markdown);
+        $t->contains('After single (ibid).', $markdown);
+        $t->contains('de la Cruz 2026' . "\n" . ':   de la Cruz, Ana Maria. Position Source A.', $markdown);
+        $t->contains('Ng 2025' . "\n" . ':   Ng, Nia. Position Source B.', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Different locator (ibid, p. 2).</p>', $blocks);
+        $t->contains('<p>Within cluster (Ng 2025; ibid, p. 5).</p>', $blocks);
+        $t->contains('<p>After multi (subsequent, Ng 2025).</p>', $blocks);
+        $t->contains('<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria. Position Source A.</dd>', $blocks);
+
+        $t->same('(de la Cruz 2026, p. 1; ibid, p. 2)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'source-a', 'text' => '[@source-a]', 'locator' => 'p. 1']),
+            new AstNode('citation', ['id' => 'source-a', 'text' => '[@source-a]', 'locator' => 'p. 2']),
+        ]));
+        $t->same('de la Cruz, Ana Maria. Position Source A.', $processor->renderBibliographyEntry('source-a'));
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <choose><if position="later"><text value="bad"/></if></choose>
+    </layout>
+  </citation>
 </style>
 XML
         ));

@@ -15,6 +15,8 @@ Smith says @smith1899 while the import queue cites [see @wp-team, sec. 2; -@smit
 
 The reviewer packet cites @particle-source for imported source access dates.
 
+The position style cites [@particle-source, p. 2], then [@particle-source, p. 3], and then [@particle-source, p. 3].
+
 The local style renders @committee-source when source dates are missing.
 
 The source archive keeps [see @missing-source; @{https://example.com/bib?name=foobar&date=2000}, p. 33] visible for reviewer follow-up.
@@ -109,6 +111,12 @@ $cslStyleXml = <<<'XML'
       </if>
     </choose>
   </macro>
+  <macro name="review-normal-citation">
+    <group delimiter=", ">
+      <text macro="review-citation"/>
+      <text macro="review-locator"/>
+    </group>
+  </macro>
   <macro name="review-publication">
     <group delimiter=", ">
       <text variable="publisher"/>
@@ -149,10 +157,20 @@ $cslStyleXml = <<<'XML'
   </macro>
   <citation>
     <layout prefix="(" suffix=")" delimiter="; ">
-      <group delimiter=", ">
-        <text macro="review-citation"/>
-        <text macro="review-locator"/>
-      </group>
+      <choose>
+        <if position="ibid-with-locator" match="any">
+          <group delimiter=", ">
+            <text value="ibid"/>
+            <text macro="review-locator"/>
+          </group>
+        </if>
+        <else-if position="ibid" match="any">
+          <text value="ibid"/>
+        </else-if>
+        <else>
+          <text macro="review-normal-citation"/>
+        </else>
+      </choose>
     </layout>
   </citation>
   <bibliography hanging-indent="true" entry-spacing="0" line-spacing="1">
@@ -174,10 +192,16 @@ $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
     $summary = $processor->cslStyleSummary();
-    if (($summary['citationRendering'][0]['children'][0]['macro'] ?? null) !== 'review-citation') {
+    if (($summary['citationRendering'][0]['branches'][0]['positions'][0] ?? null) !== 'ibid-with-locator') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve the ibid-with-locator position branch');
+    }
+    if (($summary['citationRendering'][0]['else'][0]['macro'] ?? null) !== 'review-normal-citation') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve the normal citation macro branch');
+    }
+    if (($summary['macros']['review-normal-citation'][0]['children'][0]['macro'] ?? null) !== 'review-citation') {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve the citation macro reference');
     }
-    if (($summary['citationRendering'][0]['children'][1]['macro'] ?? null) !== 'review-locator') {
+    if (($summary['macros']['review-normal-citation'][0]['children'][1]['macro'] ?? null) !== 'review-locator') {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve the locator macro reference');
     }
     if (($summary['bibliographyRendering'][0]['macro'] ?? null) !== 'review-bibliography-entry') {
@@ -191,6 +215,7 @@ if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         '<p>Smith says Smith (1899) while the import queue cites (see WordPress Migration Team 2024, sec. 2; 1899, pp. 8-9).</p>',
         '<p>The reviewer packet cites de la Cruz (2026) for imported source access dates.</p>',
+        '<p>The position style cites (ibid, p. 2), then (ibid, p. 3), and then (ibid).</p>',
         '<p>The local style renders Adams, Baker, and others (undated) when source dates are missing.</p>',
         '<dt>de la Cruz 2026</dt><dd>[de la Cruz, A. M., Jr. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.]</dd>',
         '<dt>Adams, Baker, and others undated</dt><dd>[Adams, A.; Baker, B.; Clark, C. Undated Committee Packet. No stable source locator.]</dd>',
