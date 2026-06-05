@@ -427,6 +427,9 @@ final class PdfTextDocumentExtractor
         if (!array_key_exists('name', $font) || ($font['name'] !== null && !is_string($font['name']))) {
             throw new InvalidArgumentException("pdftext {$field}.name must be a string or null.");
         }
+        if (!array_key_exists('flags', $font)) {
+            throw new InvalidArgumentException("pdftext {$field}.flags is required.");
+        }
 
         foreach (['weight', 'size'] as $fontKey) {
             $this->assertNumeric($font[$fontKey] ?? null, "{$field}.{$fontKey}");

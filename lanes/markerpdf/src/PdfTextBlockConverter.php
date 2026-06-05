@@ -197,6 +197,9 @@ final class PdfTextBlockConverter
                     if (!array_key_exists('name', $span['font']) || ($span['font']['name'] !== null && !is_string($span['font']['name']))) {
                         throw new InvalidArgumentException("pdftext span {$blockIndex}.{$lineIndex}.{$spanIndex} font.name must be a string or null.");
                     }
+                    if (!array_key_exists('flags', $span['font'])) {
+                        throw new InvalidArgumentException("pdftext span {$blockIndex}.{$lineIndex}.{$spanIndex} font.flags is required.");
+                    }
                     foreach (['weight', 'size'] as $fontKey) {
                         $this->assertNumeric($span['font'][$fontKey] ?? null, "blocks[{$blockIndex}].lines[{$lineIndex}].spans[{$spanIndex}].font.{$fontKey}");
                     }

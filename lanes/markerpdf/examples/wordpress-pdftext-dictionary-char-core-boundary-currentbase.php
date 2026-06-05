@@ -76,6 +76,24 @@ try {
     $missingCharsRejected = true;
 }
 
+$missingSpanFlagsPage = $page;
+unset($missingSpanFlagsPage['blocks'][0]['lines'][0]['spans'][0]['font']['flags']);
+$missingSpanFlagsRejected = false;
+try {
+    (new PdfTextDocumentExtractor())->getTextBlocks([$missingSpanFlagsPage], maxPages: 1, keepChars: true);
+} catch (InvalidArgumentException) {
+    $missingSpanFlagsRejected = true;
+}
+
+$missingCharFlagsPage = $page;
+unset($missingCharFlagsPage['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['font']['flags']);
+$missingCharFlagsRejected = false;
+try {
+    (new PdfTextDocumentExtractor())->getTextBlocks([$missingCharFlagsPage], maxPages: 1, keepChars: true);
+} catch (InvalidArgumentException) {
+    $missingCharFlagsRejected = true;
+}
+
 if (array_key_exists('c', $span['chars'][0] ?? [])
     || str_contains($encoded, 'legacy alias should not cross the boundary')
     || str_contains($encoded, 'embedded_font_program')
@@ -83,6 +101,8 @@ if (array_key_exists('c', $span['chars'][0] ?? [])
     || str_contains($encoded, 'debug_payload')
     || !$malformedCharRejected
     || !$missingCharsRejected
+    || !$missingSpanFlagsRejected
+    || !$missingCharFlagsRejected
 ) {
     throw new RuntimeException('Expected pdftext keep_chars character dictionaries to keep only upstream-shaped keys.');
 }
@@ -105,6 +125,8 @@ echo '<!-- markerpdf-pdftext-dictionary-char-core-boundary-currentbase ' . htmls
         && !str_contains($encoded, 'debug_payload'),
     'malformed_keep_chars_row_rejected' => $malformedCharRejected,
     'missing_keep_chars_array_rejected' => $missingCharsRejected,
+    'missing_span_font_flags_rejected' => $missingSpanFlagsRejected,
+    'missing_char_font_flags_rejected' => $missingCharFlagsRejected,
     'executes_python_pdftext' => false,
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,

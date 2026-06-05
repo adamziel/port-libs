@@ -286,6 +286,15 @@ return [
         $badIndex['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char_idx'] = '7';
         $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$badIndex], maxPages: 1, keepChars: true));
     },
+    'rejects missing pdftext font flags at the dictionary core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage, $pdftextCharsPage): void {
+        $missingSpanFlags = $pdftextLinkedPage();
+        unset($missingSpanFlags['blocks'][0]['lines'][0]['spans'][0]['font']['flags']);
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$missingSpanFlags], maxPages: 1));
+
+        $missingCharFlags = $pdftextCharsPage();
+        unset($missingCharFlags['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['font']['flags']);
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$missingCharFlags], maxPages: 1, keepChars: true));
+    },
     'preserves pdftext superscript and subscript flags at the core boundary' => static function (TestRunner $t) use ($pdftextScriptPage): void {
         $document = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextScriptPage()], maxPages: 1);
         $spans = $document['pages'][0]['blocks'][0]['lines'][0]['spans'];
