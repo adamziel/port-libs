@@ -832,6 +832,92 @@ return [
         $t->true(str_contains($encoded, hash('sha256', $currentSoftMaskPayload)));
         $t->true(!str_contains($encoded, hash('sha256', $staleSoftMaskPayload)));
     },
+    'resolves image XObject auxiliary streams by exact object generation' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before auxiliary generation image) Tj ET\n"
+            . "q 28 0 0 14 72 690 cm /Aux#20Image Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After auxiliary generation image) Tj ET';
+        $imagePayload = 'BT /F1 12 Tf 72 720 Td (Auxiliary Generation Image Payload Noise) Tj ET';
+        $maskCurrentPayload = 'BT /F1 12 Tf 72 720 Td (Current Generation Mask Payload Noise) Tj ET';
+        $maskStalePayload = 'BT /F1 12 Tf 72 720 Td (Stale Generation Mask Payload Noise) Tj ET';
+        $metadataCurrentPayload = '<x:xmpmeta>Current Generation Image Metadata</x:xmpmeta>';
+        $metadataStalePayload = '<x:xmpmeta>Stale Generation Image Metadata</x:xmpmeta>';
+        $alternateCurrentPayload = 'BT /F1 12 Tf 72 720 Td (Current Generation Alternate Image Noise) Tj ET';
+        $alternateStalePayload = 'BT /F1 12 Tf 72 720 Td (Stale Generation Alternate Image Noise) Tj ET';
+        $imageCompressed = gzcompress($imagePayload);
+        $maskCurrentCompressed = gzcompress($maskCurrentPayload);
+        $maskStaleCompressed = gzcompress($maskStalePayload);
+        $metadataCurrentCompressed = gzcompress($metadataCurrentPayload);
+        $metadataStaleCompressed = gzcompress($metadataStalePayload);
+        $alternateCurrentCompressed = gzcompress($alternateCurrentPayload);
+        $alternateStaleCompressed = gzcompress($alternateStalePayload);
+        if (
+            !is_string($imageCompressed)
+            || !is_string($maskCurrentCompressed)
+            || !is_string($maskStaleCompressed)
+            || !is_string($metadataCurrentCompressed)
+            || !is_string($metadataStaleCompressed)
+            || !is_string($alternateCurrentCompressed)
+            || !is_string($alternateStaleCompressed)
+        ) {
+            throw new RuntimeException('Unable to compress auxiliary generation image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Metadata 9 1 R /Names << /AuxDecoys [6 1 R 12 1 R] >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Aux#20Image 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 4 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Mask 6 0 R /Metadata 9 0 R /Alternates [<< /Image 12 0 R /DefaultForPrinting true >>] /Length " . strlen($imageCompressed) . " >>\nstream\n{$imageCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 4 /Height 2 /ImageMask true /BitsPerComponent 1 /Filter /FlateDecode /Decode [1 0] /Length " . strlen($maskCurrentCompressed) . " >>\nstream\n{$maskCurrentCompressed}\nendstream\nendobj\n"
+            . "6 1 obj\n<< /Type /XObject /Subtype /Image /Width 9 /Height 9 /ImageMask true /BitsPerComponent 1 /Filter /FlateDecode /Decode [0 1] /Length " . strlen($maskStaleCompressed) . " >>\nstream\n{$maskStaleCompressed}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($metadataCurrentCompressed) . " >>\nstream\n{$metadataCurrentCompressed}\nendstream\nendobj\n"
+            . "9 1 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($metadataStaleCompressed) . " >>\nstream\n{$metadataStaleCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "12 0 obj\n<< /Type /XObject /Subtype /Image /Width 8 /Height 4 /ColorSpace /DeviceCMYK /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($alternateCurrentCompressed) . " >>\nstream\n{$alternateCurrentCompressed}\nendstream\nendobj\n"
+            . "12 1 obj\n<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($alternateStaleCompressed) . " >>\nstream\n{$alternateStaleCompressed}\nendstream\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+        $entry = $review['entries'][0];
+
+        $t->same(1, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same('Aux Image', $entry['resource_name']);
+        $t->same(5, $entry['object_number']);
+        $t->same(0, $entry['object_generation']);
+        $t->same(6, $entry['mask_object']);
+        $t->same(4, $entry['mask_review']['width']);
+        $t->same(2, $entry['mask_review']['height']);
+        $t->same(hash('sha256', $maskCurrentPayload), $entry['mask_review']['decoded_sha256']);
+        $t->true(!str_contains(json_encode($entry['mask_review'], JSON_UNESCAPED_SLASHES) ?: '', hash('sha256', $maskStalePayload)));
+        $t->same(9, $entry['metadata_stream']['object_number']);
+        $t->same(strlen($metadataCurrentPayload), $entry['metadata_stream']['decoded_length']);
+        $t->same(hash('sha256', $metadataCurrentPayload), $entry['metadata_stream']['decoded_sha256']);
+        $t->same(1, $entry['alternate_image_count']);
+        $t->same(12, $entry['alternate_images'][0]['object_number']);
+        $t->same(8, $entry['alternate_images'][0]['width']);
+        $t->same(4, $entry['alternate_images'][0]['height']);
+        $t->same('DeviceCMYK', $entry['alternate_images'][0]['color_space']);
+        $t->same(hash('sha256', $alternateCurrentPayload), $entry['alternate_images'][0]['decoded_sha256']);
+        $t->same(['Before auxiliary generation image', 'After auxiliary generation image'], $extractor->extractTextLines($pdf));
+        $t->same("Before auxiliary generation image\nAfter auxiliary generation image", $plainText);
+        $t->true(!str_contains($plainText, 'Auxiliary Generation Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Current Generation Mask Payload Noise'));
+        $t->true(!str_contains($plainText, 'Stale Generation Mask Payload Noise'));
+        $t->true(!str_contains($plainText, 'Current Generation Image Metadata'));
+        $t->true(!str_contains($plainText, 'Stale Generation Image Metadata'));
+        $t->true(!str_contains($plainText, 'Current Generation Alternate Image Noise'));
+        $t->true(!str_contains($plainText, 'Stale Generation Alternate Image Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(str_contains($encoded, hash('sha256', $maskCurrentPayload)));
+        $t->true(!str_contains($encoded, hash('sha256', $maskStalePayload)));
+        $t->true(str_contains($encoded, hash('sha256', $metadataCurrentPayload)));
+        $t->true(!str_contains($encoded, hash('sha256', $metadataStalePayload)));
+        $t->true(str_contains($encoded, hash('sha256', $alternateCurrentPayload)));
+        $t->true(!str_contains($encoded, hash('sha256', $alternateStalePayload)));
+    },
     'resolves image XObject resource references by exact object generation' => static function (TestRunner $t): void {
         $pageContent = "BT /F1 12 Tf 72 720 Td (Before exact generation image) Tj ET\n"
             . "q 30 0 0 10 72 690 cm /Exact#20Image Do Q\n"

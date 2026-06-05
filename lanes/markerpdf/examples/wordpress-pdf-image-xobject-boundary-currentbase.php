@@ -15,29 +15,47 @@ $contentClose = "/Logo#20Form Do Q\n"
 $formContent = 'q 4 2 8 4 re W n 16 0 0 8 2 2 cm /Hero#20Image Do Q';
 $imagePayload = 'BT /F1 12 Tf 72 720 Td (WordPress Image XObject Payload Noise) Tj ET';
 $maskPayload = 'BT /F1 12 Tf 72 720 Td (WordPress Image Mask Payload Noise) Tj ET';
+$staleMaskPayload = 'BT /F1 12 Tf 72 720 Td (WordPress Stale Mask Generation Noise) Tj ET';
 $staleSoftMaskPayload = 'BT /F1 12 Tf 72 720 Td (WordPress Stale Soft Mask Payload Noise) Tj ET';
 $softMaskPayload = 'BT /F1 12 Tf 72 720 Td (WordPress Soft Mask Payload Noise) Tj ET';
 $metadataPayload = '<x:xmpmeta>WordPress Image XObject Metadata Noise</x:xmpmeta>';
+$staleMetadataPayload = '<x:xmpmeta>WordPress Stale Image Metadata Generation Noise</x:xmpmeta>';
 $printAlternatePayload = 'BT /F1 12 Tf 72 720 Td (WordPress Print Alternate Image Noise) Tj ET';
+$stalePrintAlternatePayload = 'BT /F1 12 Tf 72 720 Td (WordPress Stale Print Alternate Image Noise) Tj ET';
 $screenAlternatePayload = "\xff\x4fBT /F1 12 Tf 72 720 Td (WordPress Screen Alternate Image Noise) Tj ET\xff\xd9";
 $hiddenMarkedPayload = 'BT /F1 12 Tf 72 720 Td (WordPress Hidden Marked Image Noise) Tj ET';
 $hiddenObjectPayload = 'BT /F1 12 Tf 72 720 Td (WordPress Hidden Object Image Noise) Tj ET';
 $compressedImagePayload = gzcompress($imagePayload);
 $compressedMaskPayload = gzcompress($maskPayload);
+$compressedStaleMaskPayload = gzcompress($staleMaskPayload);
 $compressedStaleSoftMaskPayload = gzcompress($staleSoftMaskPayload);
 $compressedSoftMaskPayload = gzcompress($softMaskPayload);
 $compressedMetadataPayload = gzcompress($metadataPayload);
+$compressedStaleMetadataPayload = gzcompress($staleMetadataPayload);
 $compressedPrintAlternatePayload = gzcompress($printAlternatePayload);
+$compressedStalePrintAlternatePayload = gzcompress($stalePrintAlternatePayload);
 $compressedHiddenMarkedPayload = gzcompress($hiddenMarkedPayload);
 $compressedHiddenObjectPayload = gzcompress($hiddenObjectPayload);
-if (!is_string($compressedImagePayload) || !is_string($compressedMaskPayload) || !is_string($compressedStaleSoftMaskPayload) || !is_string($compressedSoftMaskPayload) || !is_string($compressedMetadataPayload) || !is_string($compressedPrintAlternatePayload) || !is_string($compressedHiddenMarkedPayload) || !is_string($compressedHiddenObjectPayload)) {
+if (
+    !is_string($compressedImagePayload)
+    || !is_string($compressedMaskPayload)
+    || !is_string($compressedStaleMaskPayload)
+    || !is_string($compressedStaleSoftMaskPayload)
+    || !is_string($compressedSoftMaskPayload)
+    || !is_string($compressedMetadataPayload)
+    || !is_string($compressedStaleMetadataPayload)
+    || !is_string($compressedPrintAlternatePayload)
+    || !is_string($compressedStalePrintAlternatePayload)
+    || !is_string($compressedHiddenMarkedPayload)
+    || !is_string($compressedHiddenObjectPayload)
+) {
     throw new RuntimeException('Unable to compress image XObject smoke payload.');
 }
 $encodedImagePayload = strtoupper(bin2hex($compressedImagePayload)) . '>';
 $encodedSoftMaskPayload = strtoupper(bin2hex($compressedSoftMaskPayload)) . '>';
 
 $pdf = "%PDF-1.4\n"
-    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [20 0 R 21 0 R] /D << /BaseState /OFF /ON [20 0 R] /Order [20 0 R 21 0 R] >> >> >>\nendobj\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Metadata 11 1 R /AuxGenerationDecoys [12 1 R 15 1 R] /OCProperties << /OCGs [20 0 R 21 0 R] /D << /BaseState /OFF /ON [20 0 R] /Order [20 0 R 21 0 R] >> >> >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /Properties << /LayerOn 20 0 R /LayerOff 21 0 R >> /XObject << /Logo#20Form 5 0 R /Hero#20Image 6 0 R /HiddenMarked 7 0 R /HiddenObject 8 0 R >> >> >>\nendobj\n"
     . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 14 0 R] >>\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($contentOpen) . " >>\nstream\n{$contentOpen}\nendstream\nendobj\n"
@@ -47,10 +65,13 @@ $pdf = "%PDF-1.4\n"
     . "8 0 obj\n<< /Type /XObject /Subtype /Image /OC 21 0 R /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($compressedHiddenObjectPayload) . " >>\nstream\n{$compressedHiddenObjectPayload}\nendstream\nendobj\n"
     . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
     . "11 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($compressedMetadataPayload) . " >>\nstream\n{$compressedMetadataPayload}\nendstream\nendobj\n"
+    . "11 1 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($compressedStaleMetadataPayload) . " >>\nstream\n{$compressedStaleMetadataPayload}\nendstream\nendobj\n"
     . "12 0 obj\n<< /Type /XObject /Subtype /Image /Width 4 /Height 2 /ColorSpace /DeviceCMYK /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($compressedPrintAlternatePayload) . " >>\nstream\n{$compressedPrintAlternatePayload}\nendstream\nendobj\n"
+    . "12 1 obj\n<< /Type /XObject /Subtype /Image /Width 7 /Height 3 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($compressedStalePrintAlternatePayload) . " >>\nstream\n{$compressedStalePrintAlternatePayload}\nendstream\nendobj\n"
     . "13 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /JPXDecode /Length " . strlen($screenAlternatePayload) . " >>\nstream\n{$screenAlternatePayload}\nendstream\nendobj\n"
     . "14 0 obj\n<< /Length " . strlen($contentClose) . " >>\nstream\n{$contentClose}\nendstream\nendobj\n"
     . "15 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /FlateDecode /Decode [1 0] /Length " . strlen($compressedMaskPayload) . " >>\nstream\n{$compressedMaskPayload}\nendstream\nendobj\n"
+    . "15 1 obj\n<< /Type /XObject /Subtype /Image /Width 9 /Height 9 /ImageMask true /BitsPerComponent 1 /Filter /FlateDecode /Decode [0 1] /Length " . strlen($compressedStaleMaskPayload) . " >>\nstream\n{$compressedStaleMaskPayload}\nendstream\nendobj\n"
     . "16 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Decode [0 1] /Length " . strlen($compressedStaleSoftMaskPayload) . " >>\nstream\n{$compressedStaleSoftMaskPayload}\nendstream\nendobj\n"
     . "16 1 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter [/ASCIIHexDecode /FlateDecode] /Decode [1 0] /Length " . strlen($encodedSoftMaskPayload) . " >>\nstream\n{$encodedSoftMaskPayload}\nendstream\nendobj\n"
     . "20 0 obj\n<< /Type /OCG /Name (Visible WordPress Image Layer) >>\nendobj\n"
@@ -78,16 +99,22 @@ if (
     || ($review['entries'][0]['mask_object'] ?? null) !== 15
     || ($review['entries'][0]['mask_review']['type'] ?? null) !== 'image_mask_stream'
     || ($review['entries'][0]['mask_review']['decoded_sha256'] ?? null) !== hash('sha256', $maskPayload)
+    || ($review['entries'][0]['mask_review']['decoded_sha256'] ?? null) === hash('sha256', $staleMaskPayload)
     || ($review['entries'][0]['metadata_stream']['decoded_sha256'] ?? null) !== hash('sha256', $metadataPayload)
+    || ($review['entries'][0]['metadata_stream']['decoded_sha256'] ?? null) === hash('sha256', $staleMetadataPayload)
     || ($review['entries'][0]['alternate_image_count'] ?? 0) !== 2
     || ($review['entries'][0]['alternate_images'][0]['decoded_sha256'] ?? null) !== hash('sha256', $printAlternatePayload)
+    || ($review['entries'][0]['alternate_images'][0]['decoded_sha256'] ?? null) === hash('sha256', $stalePrintAlternatePayload)
     || ($review['entries'][0]['alternate_images'][1]['preview_only_filters'] ?? null) !== ['JPXDecode']
     || str_contains($plainText, 'WordPress Image XObject Payload Noise')
     || str_contains($plainText, 'WordPress Image Mask Payload Noise')
+    || str_contains($plainText, 'WordPress Stale Mask Generation Noise')
     || str_contains($plainText, 'WordPress Stale Soft Mask Payload Noise')
     || str_contains($plainText, 'WordPress Soft Mask Payload Noise')
     || str_contains($plainText, 'WordPress Image XObject Metadata Noise')
+    || str_contains($plainText, 'WordPress Stale Image Metadata Generation Noise')
     || str_contains($plainText, 'WordPress Print Alternate Image Noise')
+    || str_contains($plainText, 'WordPress Stale Print Alternate Image Noise')
     || str_contains($plainText, 'WordPress Screen Alternate Image Noise')
     || str_contains($plainText, 'WordPress Hidden Marked Image Noise')
     || str_contains($plainText, 'WordPress Hidden Object Image Noise')
@@ -139,16 +166,19 @@ $metadata = [
     'first_mask_type' => $review['entries'][0]['mask_review']['type'] ?? null,
     'first_mask_decoded_with_current_filters' => $review['entries'][0]['mask_review']['decoded_with_current_filters'] ?? false,
     'first_mask_decode_inverted' => ($review['entries'][0]['mask_review']['decode']['inverted_components'] ?? []) === [0],
+    'stale_mask_generation_rejected' => ($review['entries'][0]['mask_review']['decoded_sha256'] ?? null) !== hash('sha256', $staleMaskPayload),
     'first_metadata_object' => $review['entries'][0]['metadata_stream']['object_number'] ?? null,
     'first_metadata_subtype' => $review['entries'][0]['metadata_stream']['subtype'] ?? null,
     'first_metadata_filters' => $review['entries'][0]['metadata_stream']['filters'] ?? [],
     'first_metadata_decoded_with_current_filters' => $review['entries'][0]['metadata_stream']['decoded_with_current_filters'] ?? false,
     'first_metadata_decoded_length' => $review['entries'][0]['metadata_stream']['decoded_length'] ?? null,
+    'stale_metadata_generation_rejected' => ($review['entries'][0]['metadata_stream']['decoded_sha256'] ?? null) !== hash('sha256', $staleMetadataPayload),
     'first_alternate_image_count' => $review['entries'][0]['alternate_image_count'] ?? null,
     'first_alternate_images_review_only' => $review['entries'][0]['alternates_review_only'] ?? false,
     'first_print_alternate_object' => $review['entries'][0]['alternate_images'][0]['object_number'] ?? null,
     'first_print_alternate_default_for_printing' => $review['entries'][0]['alternate_images'][0]['default_for_printing'] ?? null,
     'first_print_alternate_decoded_with_current_filters' => $review['entries'][0]['alternate_images'][0]['decoded_with_current_filters'] ?? false,
+    'stale_print_alternate_generation_rejected' => ($review['entries'][0]['alternate_images'][0]['decoded_sha256'] ?? null) !== hash('sha256', $stalePrintAlternatePayload),
     'first_screen_alternate_object' => $review['entries'][0]['alternate_images'][1]['object_number'] ?? null,
     'first_screen_alternate_preview_only_filters' => $review['entries'][0]['alternate_images'][1]['preview_only_filters'] ?? [],
     'first_image_filters' => $review['entries'][0]['filters'] ?? [],

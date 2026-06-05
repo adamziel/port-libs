@@ -4299,12 +4299,21 @@ final class PdfTextExtractor
             return $this->imageXObjectColorKeyMaskReview($arrayBody, $parentColorSpace, $softMaskPresent);
         }
 
-        $objectNumber = $this->firstObjectReference($value);
-        if ($objectNumber === null) {
+        $reference = $this->objectReferencePairs($value)[0] ?? null;
+        if ($reference === null) {
             return null;
         }
 
-        return $this->imageXObjectMaskStreamReview($objectNumber, $objects);
+        $objectBody = $this->objectBodyForExactReference(
+            $objects,
+            $reference['objectNumber'],
+            $reference['generation']
+        );
+        if ($objectBody === null) {
+            return null;
+        }
+
+        return $this->imageXObjectMaskStreamReview($reference['objectNumber'], $objectBody, $objects);
     }
 
     /**
@@ -4341,13 +4350,9 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @return array<string, mixed>|null
      */
-    private function imageXObjectMaskStreamReview(int $objectNumber, array $objects): ?array
+    private function imageXObjectMaskStreamReview(int $objectNumber, string $objectBody, array $objects): ?array
     {
-        if (!isset($objects[$objectNumber])) {
-            return null;
-        }
-
-        $stream = $this->streamDictionaryAndPayload($objects[$objectNumber], $objects);
+        $stream = $this->streamDictionaryAndPayload($objectBody, $objects);
         if ($stream === null || !$this->isImageStreamDictionary($stream['dict'], $objects)) {
             return null;
         }
@@ -4492,7 +4497,7 @@ final class PdfTextExtractor
         foreach ($this->pdfArrayItems($arrayBody) as $item) {
             $item = trim($item);
             $defaultForPrinting = null;
-            $objectNumber = null;
+            $reference = null;
 
             if (str_starts_with($item, '<<')) {
                 $dictionary = $this->readPdfDictionaryAt($item, 0);
@@ -4500,17 +4505,31 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                $objectNumber = $this->objectReferenceValueAfterName($dictionary, 'Image');
+                $reference = $this->objectReferenceAfterName($dictionary, 'Image');
                 $defaultForPrinting = $this->pdfBooleanValueAfterName($dictionary, 'DefaultForPrinting');
             } else {
-                $objectNumber = $this->firstObjectReference($item);
+                $reference = $this->objectReferencePairs($item)[0] ?? null;
             }
 
-            if ($objectNumber === null) {
+            if ($reference === null) {
                 continue;
             }
 
-            $review = $this->imageXObjectAlternateStreamReview($objectNumber, $defaultForPrinting, $objects);
+            $objectBody = $this->objectBodyForExactReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            );
+            if ($objectBody === null) {
+                continue;
+            }
+
+            $review = $this->imageXObjectAlternateStreamReview(
+                $reference['objectNumber'],
+                $defaultForPrinting,
+                $objectBody,
+                $objects
+            );
             if ($review !== null) {
                 $reviews[] = $review;
             }
@@ -4523,13 +4542,14 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @return array<string, mixed>|null
      */
-    private function imageXObjectAlternateStreamReview(int $objectNumber, ?bool $defaultForPrinting, array $objects): ?array
+    private function imageXObjectAlternateStreamReview(
+        int $objectNumber,
+        ?bool $defaultForPrinting,
+        string $objectBody,
+        array $objects
+    ): ?array
     {
-        if (!isset($objects[$objectNumber])) {
-            return null;
-        }
-
-        $stream = $this->streamDictionaryAndPayload($objects[$objectNumber], $objects);
+        $stream = $this->streamDictionaryAndPayload($objectBody, $objects);
         if ($stream === null || !$this->isImageStreamDictionary($stream['dict'], $objects)) {
             return null;
         }
@@ -4585,12 +4605,21 @@ final class PdfTextExtractor
      */
     private function imageXObjectMetadataStreamReview(string $imageDictionary, array $objects): ?array
     {
-        $metadataObjectNumber = $this->objectReferenceValueAfterName($imageDictionary, 'Metadata');
-        if ($metadataObjectNumber === null || !isset($objects[$metadataObjectNumber])) {
+        $reference = $this->objectReferenceAfterName($imageDictionary, 'Metadata');
+        if ($reference === null) {
             return null;
         }
 
-        $stream = $this->streamDictionaryAndPayload($objects[$metadataObjectNumber], $objects);
+        $objectBody = $this->objectBodyForExactReference(
+            $objects,
+            $reference['objectNumber'],
+            $reference['generation']
+        );
+        if ($objectBody === null) {
+            return null;
+        }
+
+        $stream = $this->streamDictionaryAndPayload($objectBody, $objects);
         if ($stream === null) {
             return null;
         }
@@ -4602,7 +4631,7 @@ final class PdfTextExtractor
         $decoded = $filters === null ? null : $this->decodeStream($stream['dict'], $stream['stream'], $objects);
 
         return [
-            'object_number' => $metadataObjectNumber,
+            'object_number' => $reference['objectNumber'],
             'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects),
             'filters' => $resolvedFilters,
             'preview_only_filters' => $this->previewOnlyImageXObjectFilters($resolvedFilters),
