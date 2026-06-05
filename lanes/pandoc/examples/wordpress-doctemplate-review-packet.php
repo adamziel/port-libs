@@ -49,7 +49,7 @@ $context = [
     'body' => implode("\n", [
         '<!-- wp:paragraph --><p>Imported body is already escaped.</p><!-- /wp:paragraph -->',
         '<!-- wp:paragraph --><p>Second reviewer packet line stays nested.</p><!-- /wp:paragraph -->',
-    ]),
+    ]) . "\n",
 ];
 
 $output = (new DocTemplate())->renderResource($templatePath, $resources, $context, 'wp-data');
@@ -68,6 +68,11 @@ if (in_array('--self-test', $argv, true)) {
             fwrite(STDERR, "Missing expected doctemplate output: {$needle}\n");
             exit(1);
         }
+    }
+
+    if (str_contains($output, "\n\n</section>")) {
+        fwrite(STDERR, "Unexpected blank line before doctemplate review body close\n");
+        exit(1);
     }
 
     $loopGuard = (new DocTemplate())->render('${ loop() }', [], [

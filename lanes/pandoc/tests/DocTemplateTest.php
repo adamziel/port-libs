@@ -145,6 +145,47 @@ TPL;
         ]), $output);
     },
 
+    'omits a single final newline from interpolated pandoc doctemplate variables' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $output = $renderer->render(<<<'TPL'
+Body:<$body$>
+Chomp:<$body/chomp$>
+Crlf:<$crlf$>
+List:$for(items)$[$it$]$endfor$
+TPL, [
+            'body' => "Imported paragraph\nNeeds review\n\n",
+            'crlf' => "Windows line\r\n",
+            'items' => ["first\n", "second\n\n"],
+        ]);
+
+        $t->same(implode("\n", [
+            'Body:<Imported paragraph',
+            'Needs review',
+            '>',
+            'Chomp:<Imported paragraph',
+            'Needs review>',
+            'Crlf:<Windows line>',
+            'List:[first][second',
+            ']',
+        ]), $output);
+
+        $output = $renderer->render(<<<'TPL'
+<section class="wp-import-body">
+  $body$
+</section>
+TPL, [
+            'body' => "<!-- wp:paragraph --><p>Imported body.</p><!-- /wp:paragraph -->\n<!-- wp:paragraph --><p>Needs review.</p><!-- /wp:paragraph -->\n",
+        ]);
+
+        $t->same(implode("\n", [
+            '<section class="wp-import-body">',
+            '  <!-- wp:paragraph --><p>Imported body.</p><!-- /wp:paragraph -->',
+            '  <!-- wp:paragraph --><p>Needs review.</p><!-- /wp:paragraph -->',
+            '</section>',
+        ]), $output);
+    },
+
     'renders pandoc doctemplate breakable space markers without leaking markers' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 Summary: $~$$warnings/length$ warnings queued for $title$$~$

@@ -1189,11 +1189,28 @@ final class DocTemplate
             return $value ? 'true' : 'false';
         }
 
-        if (is_string($value) || is_int($value) || is_float($value)) {
+        if (is_string($value)) {
+            return $this->stripSingleFinalNewline($value);
+        }
+
+        if (is_int($value) || is_float($value)) {
             return (string) $value;
         }
 
         return '';
+    }
+
+    private function stripSingleFinalNewline(string $value): string
+    {
+        if (str_ends_with($value, "\r\n")) {
+            return substr($value, 0, -2);
+        }
+
+        if (str_ends_with($value, "\n") || str_ends_with($value, "\r")) {
+            return substr($value, 0, -1);
+        }
+
+        return $value;
     }
 
     private function isTruthy(mixed $value): bool
