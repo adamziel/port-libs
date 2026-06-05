@@ -180,4 +180,52 @@ return [
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'infers missing order positions from bbox dictionary row order before pdftext layout assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(1500, [
+                    ['text' => 'Positionless dictionary row cover skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(1501, [
+                    ['text' => 'Second positionless row supplied first', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First positionless row supplied second', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'page' => 1501,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['bbox' => [318.0, 96.0, 570.0, 144.0], 'raw_payload' => 'positionless right column payload must stay review-only'],
+                        ['bbox' => [60.0, 96.0, 290.0, 144.0], 'raw_payload' => 'positionless left column payload must stay review-only'],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['page' => 1501, 'image' => 'positionless-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([1], $result['page_range']);
+        $t->same(1501, $result['pages'][0]['pnum']);
+        $t->same(['Second positionless row supplied first', 'First positionless row supplied second'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('Second positionless row supplied first First positionless row supplied second', $blocks[0]['text']);
+        $t->same([
+            ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+            ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+        ], $result['pages'][0]['order']['bboxes']);
+        $t->true(!str_contains($encoded, 'positionless right column payload'));
+        $t->true(!str_contains($encoded, 'positionless left column payload'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
 ];

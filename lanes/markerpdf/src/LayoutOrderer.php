@@ -183,7 +183,7 @@ final class LayoutOrderer
                 continue;
             }
 
-            $position = $isBareBbox ? $index + 1 : 0;
+            $position = $index + 1;
             if (array_key_exists('position', $box)) {
                 $positionValue = $this->integerValue($box['position']);
                 if ($positionValue === null) {
