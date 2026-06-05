@@ -276,6 +276,86 @@ return [
         $t->contains('mismatched cabal.project package flags: pandoc:http expected +, found -', $blocked);
         $t->contains('missing cabal.project solver constraints', $blocked);
     },
+    'blocks source repository package type or location drift with matching tags' => static function (TestRunner $t) use ($makeTree, $removeTree, $requiredFiles, $pandocCabal, $luaCabal): void {
+        $project = implode("\n", [
+            'packages: . pandoc-lua-engine pandoc-server pandoc-cli',
+            'constraints: skylighting-format-blaze-html >= 0.1.2, skylighting-format-context >= 0.1.0.2, auto-update >= 0.2.6, crypton >= 1.1.1',
+            '',
+            'package pandoc',
+            '  flags: +embed_data_files +http',
+            '',
+            'source-repository-package',
+            '  type: svn',
+            '  location: https://github.com/jgm/doclayout.git',
+            '  tag: ef7f18308a61787244a80885d907fcd2c16604d4',
+            '',
+            'source-repository-package',
+            '  type: git',
+            '  location: https://mirror.example.invalid/jgm/typst-symbols.git',
+            '  tag: 6e97668c9f2ffea09f3187c34b7641038370fd21',
+            '',
+            'source-repository-package',
+            '  type: git',
+            '  location: https://github.com/jgm/typst-hs.git',
+            '  tag: 19e835d40663a92df5bed4e8a0fca5465cacdd6b',
+            '',
+            'source-repository-package',
+            '  type: git',
+            '  location: https://github.com/jgm/texmath.git',
+            '  tag: 0a3fbebc5d0e21769f01b048eb63e1451ccf0e1a',
+            '',
+            'source-repository-package',
+            '  type: git',
+            '  location: https://github.com/jgm/citeproc.git',
+            '  tag: 1b684f1e06fc1093d20c1a2d474f4c3fdf2f65bd',
+        ]);
+        $root = $makeTree($requiredFiles(
+            $project,
+            $pandocCabal(),
+            $luaCabal()
+        ));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['projectSourceRepositoryPins']['missing']);
+        $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([
+            'expected' => [
+                'type' => 'git',
+                'location' => 'https://github.com/jgm/doclayout.git',
+            ],
+            'actual' => [
+                'type' => 'svn',
+                'location' => 'https://github.com/jgm/doclayout.git',
+            ],
+        ], $audit['projectSourceRepositoryClosure']['mismatched']['doclayout']);
+        $t->same([
+            'expected' => [
+                'type' => 'git',
+                'location' => 'https://github.com/jgm/typst-symbols.git',
+            ],
+            'actual' => [
+                'type' => 'git',
+                'location' => 'https://mirror.example.invalid/jgm/typst-symbols.git',
+            ],
+        ], $audit['projectSourceRepositoryClosure']['mismatched']['typst-symbols']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('mismatched cabal.project source-repository package locations/types: doclayout, typst-symbols', $blocked);
+        $t->contains('exact cabal.project source-repository Git types and locations', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
     'rejects hydrated checkout with incomplete runner package closure' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $pandocCabal, $luaCabal): void {
         $root = $makeTree($requiredFiles(
             $pinnedProject(),

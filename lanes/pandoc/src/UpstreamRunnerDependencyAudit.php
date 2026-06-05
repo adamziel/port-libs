@@ -29,6 +29,29 @@ final class UpstreamRunnerDependencyAudit
         'citeproc' => '1b684f1e06fc1093d20c1a2d474f4c3fdf2f65bd',
     ];
 
+    private const PROJECT_SOURCE_REPOSITORIES = [
+        'doclayout' => [
+            'type' => 'git',
+            'location' => 'https://github.com/jgm/doclayout.git',
+        ],
+        'typst-symbols' => [
+            'type' => 'git',
+            'location' => 'https://github.com/jgm/typst-symbols.git',
+        ],
+        'typst-hs' => [
+            'type' => 'git',
+            'location' => 'https://github.com/jgm/typst-hs.git',
+        ],
+        'texmath' => [
+            'type' => 'git',
+            'location' => 'https://github.com/jgm/texmath.git',
+        ],
+        'citeproc' => [
+            'type' => 'git',
+            'location' => 'https://github.com/jgm/citeproc.git',
+        ],
+    ];
+
     private const PROJECT_PACKAGES = [
         '.',
         'pandoc-lua-engine',
@@ -130,6 +153,7 @@ final class UpstreamRunnerDependencyAudit
      *   runnerTargets:list<string>,
      *   runnerEntryPoints:array<string, array{packageFile:string, type:string, mainIs:string, sourceDirectory:string}>,
      *   projectSourceRepositoryPins:array{expected:array<string, string>, present:array<string, string>, missing:list<string>, mismatched:array<string, array{expected:string, actual:string}>},
+     *   projectSourceRepositoryClosure:array{expected:array<string, array{type:string, location:string}>, present:array<string, array{type:string|null, location:string, tag:string|null}>, missing:list<string>, mismatched:array<string, array{expected:array{type:string, location:string}, actual:array{type:string|null, location:string}>>},
      *   projectPackageClosure:array{expectedPackages:list<string>, presentPackages:list<string>, missingPackages:list<string>, expectedFlags:array<string, array<string, bool>>, presentFlags:array<string, array<string, bool>>, missingFlags:array<string, list<string>>, mismatchedFlags:array<string, array<string, array{expected:bool, actual:bool|null}>>},
      *   projectConstraintClosure:array{expectedConstraints:array<string, string>, presentConstraints:array<string, string>, missingConstraints:list<string>, mismatchedConstraints:array<string, array{expected:string, actual:string}>},
      *   runnerDependencyClosure:array{expectedDependencies:array<string, list<string>>, expectedExecutableOptions:array<string, list<string>>, present:array<string, array{packageFile:string, type:string|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, ghcOptions:list<string>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, missingExecutableOptions:array<string, list<string>>},
@@ -167,6 +191,7 @@ final class UpstreamRunnerDependencyAudit
         $projectFile = $root . DIRECTORY_SEPARATOR . 'cabal.project';
         $projectContents = is_file($projectFile) ? (string) file_get_contents($projectFile) : null;
         $projectPins = self::auditProjectPins($projectContents);
+        $projectSourceRepositoryClosure = self::auditProjectSourceRepositoryClosure($projectContents);
         $projectPackageClosure = self::auditProjectPackageClosure($projectContents);
         $projectConstraintClosure = self::auditProjectConstraintClosure($projectContents);
         $runnerDependencyClosure = self::auditRunnerDependencyClosure($root);
@@ -183,6 +208,12 @@ final class UpstreamRunnerDependencyAudit
         }
         if ($projectPins['mismatched'] !== []) {
             $blockedReasons[] = 'mismatched cabal.project source-repository pins: ' . implode(', ', array_keys($projectPins['mismatched']));
+        }
+        if ($projectSourceRepositoryClosure['missing'] !== []) {
+            $blockedReasons[] = 'missing cabal.project source-repository package locations/types: ' . implode(', ', $projectSourceRepositoryClosure['missing']);
+        }
+        if ($projectSourceRepositoryClosure['mismatched'] !== []) {
+            $blockedReasons[] = 'mismatched cabal.project source-repository package locations/types: ' . implode(', ', array_keys($projectSourceRepositoryClosure['mismatched']));
         }
         if ($projectPackageClosure['missingPackages'] !== []) {
             $blockedReasons[] = 'missing cabal.project package entries: ' . implode(', ', $projectPackageClosure['missingPackages']);
@@ -225,19 +256,20 @@ final class UpstreamRunnerDependencyAudit
             'runnerTargets' => array_keys(self::RUNNER_ENTRY_POINTS),
             'runnerEntryPoints' => self::RUNNER_ENTRY_POINTS,
             'projectSourceRepositoryPins' => $projectPins,
+            'projectSourceRepositoryClosure' => $projectSourceRepositoryClosure,
             'projectPackageClosure' => $projectPackageClosure,
             'projectConstraintClosure' => $projectConstraintClosure,
             'runnerDependencyClosure' => $runnerDependencyClosure,
             'readyForNonMutatingCabalPlan' => $ready,
             'blockedReasons' => $blockedReasons,
             'nonMutatingPlan' => $ready ? [
-                'record cabal.project package/flag closure and package-file hashes before any solver/build command',
+                'record cabal.project package/flag closure plus source-repository type/location/tag closure and package-file hashes before any solver/build command',
                 'record cabal.project solver constraints and runner executable options before any solver/build command',
                 'record test-suite type, entry point, and direct build-depends closure for test:test-pandoc and test:test-pandoc-lua-engine',
                 'prepare a bounded Cabal solver plan for test:test-pandoc and test:test-pandoc-lua-engine',
                 'only after the plan is reviewed, run a separate bounded runner slice with explicit artifact output paths',
             ] : [],
-            'activationGate' => self::activationGate($missingFiles, $missingTools, $projectPins, $projectPackageClosure, $projectConstraintClosure, $runnerDependencyClosure),
+            'activationGate' => self::activationGate($missingFiles, $missingTools, $projectPins, $projectSourceRepositoryClosure, $projectPackageClosure, $projectConstraintClosure, $runnerDependencyClosure),
         ];
     }
 
@@ -247,6 +279,14 @@ final class UpstreamRunnerDependencyAudit
     public static function expectedProjectPins(): array
     {
         return self::PROJECT_SOURCE_REPOSITORY_PINS;
+    }
+
+    /**
+     * @return array<string, array{type:string, location:string}>
+     */
+    public static function expectedProjectSourceRepositories(): array
+    {
+        return self::PROJECT_SOURCE_REPOSITORIES;
     }
 
     /**
@@ -469,6 +509,65 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
+     * @return array<string, array{type:string|null, location:string, tag:string|null}>
+     */
+    public static function parseCabalProjectSourceRepositories(string $contents): array
+    {
+        $repositories = [];
+        $current = [];
+        $finish = static function (array $block) use (&$repositories): void {
+            $location = trim((string) ($block['location'] ?? ''));
+            if ($location === '') {
+                return;
+            }
+
+            $path = parse_url($location, PHP_URL_PATH);
+            if (!is_string($path) || $path === '') {
+                $path = $location;
+            }
+
+            $repo = strtolower((string) preg_replace('/\.git$/', '', basename($path)));
+            if ($repo === '') {
+                return;
+            }
+
+            $type = trim((string) ($block['type'] ?? ''));
+            $tag = trim((string) ($block['tag'] ?? ''));
+            $repositories[$repo] = [
+                'type' => $type === '' ? null : strtolower($type),
+                'location' => $location,
+                'tag' => $tag === '' ? null : $tag,
+            ];
+        };
+
+        foreach (preg_split('/\R/', $contents) ?: [] as $line) {
+            if (preg_match('/^\s*source-repository-package\s*$/', $line) === 1) {
+                if ($current !== []) {
+                    $finish($current);
+                    $current = [];
+                }
+                $current['source-repository-package'] = 'true';
+                continue;
+            }
+
+            if ($current === []) {
+                continue;
+            }
+
+            if (preg_match('/^\s*([A-Za-z0-9_-]+)\s*:\s*(.*?)\s*$/', $line, $match) === 1) {
+                $current[strtolower($match[1])] = $match[2];
+            }
+        }
+
+        if ($current !== []) {
+            $finish($current);
+        }
+
+        ksort($repositories);
+        return $repositories;
+    }
+
+    /**
      * @return array<string, array{type:string|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, ghcOptions:list<string>}>
      */
     public static function parseCabalTestSuites(string $contents): array
@@ -550,6 +649,41 @@ final class UpstreamRunnerDependencyAudit
 
         return [
             'expected' => self::PROJECT_SOURCE_REPOSITORY_PINS,
+            'present' => $present,
+            'missing' => $missing,
+            'mismatched' => $mismatched,
+        ];
+    }
+
+    /**
+     * @return array{expected:array<string, array{type:string, location:string}>, present:array<string, array{type:string|null, location:string, tag:string|null}>, missing:list<string>, mismatched:array<string, array{expected:array{type:string, location:string}, actual:array{type:string|null, location:string}>>}
+     */
+    private static function auditProjectSourceRepositoryClosure(?string $contents): array
+    {
+        $present = $contents === null ? [] : self::parseCabalProjectSourceRepositories($contents);
+        $missing = [];
+        $mismatched = [];
+
+        foreach (self::PROJECT_SOURCE_REPOSITORIES as $name => $expected) {
+            if (!array_key_exists($name, $present)) {
+                $missing[] = $name;
+                continue;
+            }
+
+            $actual = [
+                'type' => $present[$name]['type'],
+                'location' => $present[$name]['location'],
+            ];
+            if ($actual['type'] !== $expected['type'] || $actual['location'] !== $expected['location']) {
+                $mismatched[$name] = [
+                    'expected' => $expected,
+                    'actual' => $actual,
+                ];
+            }
+        }
+
+        return [
+            'expected' => self::PROJECT_SOURCE_REPOSITORIES,
             'present' => $present,
             'missing' => $missing,
             'mismatched' => $mismatched,
@@ -921,17 +1055,20 @@ final class UpstreamRunnerDependencyAudit
      * @param list<string> $missingFiles
      * @param list<string> $missingTools
      * @param array{missing:list<string>, mismatched:array<string, array{expected:string, actual:string}>} $projectPins
+     * @param array{missing:list<string>, mismatched:array<string, array{expected:array{type:string, location:string}, actual:array{type:string|null, location:string}>>} $projectSourceRepositoryClosure
      * @param array{missingPackages:list<string>, missingFlags:array<string, list<string>>, mismatchedFlags:array<string, array<string, array{expected:bool, actual:bool|null}>>} $projectPackageClosure
      * @param array{missingConstraints:list<string>, mismatchedConstraints:array<string, array{expected:string, actual:string}>} $projectConstraintClosure
      * @param array{missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, missingExecutableOptions:array<string, list<string>>} $runnerDependencyClosure
      */
-    private static function activationGate(array $missingFiles, array $missingTools, array $projectPins, array $projectPackageClosure, array $projectConstraintClosure, array $runnerDependencyClosure): string
+    private static function activationGate(array $missingFiles, array $missingTools, array $projectPins, array $projectSourceRepositoryClosure, array $projectPackageClosure, array $projectConstraintClosure, array $runnerDependencyClosure): string
     {
         if (
             $missingFiles === []
             && $missingTools === []
             && $projectPins['missing'] === []
             && $projectPins['mismatched'] === []
+            && $projectSourceRepositoryClosure['missing'] === []
+            && $projectSourceRepositoryClosure['mismatched'] === []
             && $projectPackageClosure['missingPackages'] === []
             && $projectPackageClosure['missingFlags'] === []
             && $projectPackageClosure['mismatchedFlags'] === []
@@ -942,10 +1079,10 @@ final class UpstreamRunnerDependencyAudit
             && $runnerDependencyClosure['missingDependencies'] === []
             && $runnerDependencyClosure['missingExecutableOptions'] === []
         ) {
-            return 'Hydrated Pandoc checkout, required Cabal toolchain, cabal.project package/flag/constraint closure, runner test-suite stanzas, exitcode-stdio runner types, direct build-depends, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner execution.';
+            return 'Hydrated Pandoc checkout, required Cabal toolchain, cabal.project package/flag/constraint closure, exact cabal.project source-repository Git types and locations, runner test-suite stanzas, exitcode-stdio runner types, direct build-depends, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner execution.';
         }
 
         return 'Hydrate Pandoc upstream commit ' . self::UPSTREAM_COMMIT
-            . ' with cabal.project package entries/flags/constraints, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, exitcode-stdio test-suite types, test entry points, direct runner build-depends, runner executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
+            . ' with cabal.project package entries/flags/constraints, exact cabal.project source-repository Git types and locations, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, exitcode-stdio test-suite types, test entry points, direct runner build-depends, runner executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
     }
 }
