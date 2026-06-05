@@ -207,6 +207,20 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "BT /F1 12 Tf 72 597 Td (Visible Dash Pattern Before Stray) Tj ET\n"
     . "EI\n"
     . "BT /F1 12 Tf 72 596 Td (Visible After Dash Pattern Stray) Tj ET\n"
+    . "BT /F1 12 Tf 72 595 Td (Before Text State Stray) Tj ET\n"
+    . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
+    . "\x00\x01\x02 EI BT /F1 12 Tf 72 594 Td (Text State Payload Noise) Tj ET rawtail\n"
+    . "EI\n"
+    . "/F1 10 Tf\n"
+    . "14 TL\n"
+    . "1.5 Tc\n"
+    . "2 Tw\n"
+    . "95 Tz\n"
+    . "0 Tr\n"
+    . "1 Ts\n"
+    . "BT 72 593 Td (Visible Text State Before Stray) Tj ET\n"
+    . "EI\n"
+    . "BT /F1 12 Tf 72 592 Td (Visible After Text State Stray) Tj ET\n"
     . "BT /F1 12 Tf 72 595 Td (Before Compatibility Stray) Tj ET\n"
     . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
     . "\x00\x01\x02 EI BT /F1 12 Tf 72 594 Td (Compatibility Payload Noise) Tj ET rawtail\n"
@@ -275,7 +289,7 @@ $multipleCcittPlainText = $extractor->extractPlainText($multipleCcittPdf);
 echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, immediate PDF comments after ID, PDF NUL whitespace around BI/ID/EI, tight EI sample terminators, tight DCT/JPX preview-filter terminators, nested modifier-dictionary decoys, text-object BI decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, named marked-content property ActualText, sample-floor marked-content ActualText, post-terminator comment EI, later stray EI operator, same-line text before stray EI operator, graphics-state wrapped stray EI, clipping-path wrapped stray EI, XObject Do wrapped stray EI, numeric color graphics-state wrapped stray EI, pattern color graphics-state wrapped stray EI, shading-paint wrapped stray EI, dash-pattern graphics-state wrapped stray EI, and BX/EX compatibility-section wrapped stray EI inline image boundaries before Gutenberg paragraphs',
+    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, immediate PDF comments after ID, PDF NUL whitespace around BI/ID/EI, tight EI sample terminators, tight DCT/JPX preview-filter terminators, nested modifier-dictionary decoys, text-object BI decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, named marked-content property ActualText, sample-floor marked-content ActualText, post-terminator comment EI, later stray EI operator, same-line text before stray EI operator, graphics-state wrapped stray EI, clipping-path wrapped stray EI, XObject Do wrapped stray EI, numeric color graphics-state wrapped stray EI, pattern color graphics-state wrapped stray EI, shading-paint wrapped stray EI, dash-pattern graphics-state wrapped stray EI, text-state operator wrapped stray EI, and BX/EX compatibility-section wrapped stray EI inline image boundaries before Gutenberg paragraphs',
     'stray_bi_text_preserved' => str_contains($plainText, 'Stray BI Text Survives')
         && str_contains($plainText, 'After Tokenizer Boundary'),
     'real_inline_image_payload_excluded' => !str_contains($plainText, 'Inline Image Payload Noise'),
@@ -406,6 +420,12 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
         && str_contains($plainText, 'Visible After Dash Pattern Stray')
         && !str_contains($plainText, 'Dash Pattern Payload Noise')
         && !str_contains($plainText, '[3 1] 0 d')
+        && !str_contains($plainText, 'rawtail'),
+    'preview_only_text_state_stray_ei_text_preserved_after_safe_boundary' => str_contains($plainText, 'Before Text State Stray')
+        && str_contains($plainText, 'Visible Text State Before Stray')
+        && str_contains($plainText, 'Visible After Text State Stray')
+        && !str_contains($plainText, 'Text State Payload Noise')
+        && !str_contains($plainText, '/F1 10 Tf')
         && !str_contains($plainText, 'rawtail'),
     'preview_only_compatibility_section_stray_ei_text_preserved_after_safe_boundary' => str_contains($plainText, 'Before Compatibility Stray')
         && str_contains($plainText, 'Visible Compatibility Before Stray')

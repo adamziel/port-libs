@@ -30748,6 +30748,11 @@ final class PdfTextExtractor
                     continue;
                 }
 
+                if ($this->contentSegmentTextStateOperatorOperands($token, $outsideTextOperands)) {
+                    $outsideTextOperands = [];
+                    continue;
+                }
+
                 if ($this->numericOperand($token) !== null) {
                     if (count($outsideTextOperands) >= 6) {
                         return false;
@@ -31081,6 +31086,24 @@ final class PdfTextExtractor
         }
 
         return true;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function contentSegmentTextStateOperatorOperands(string $operator, array $operands): bool
+    {
+        if ($operator === 'Tf') {
+            return count($operands) === 2
+                && $this->markedContentTagOperand($operands[0])
+                && $this->numericOperand($operands[1]) !== null;
+        }
+
+        if (!in_array($operator, ['TL', 'Tc', 'Tw', 'Tz', 'Tr', 'Ts'], true)) {
+            return false;
+        }
+
+        return count($operands) === 1 && $this->numericOperand($operands[0]) !== null;
     }
 
     private function contentSegmentPathStateOperator(string $operator): bool
