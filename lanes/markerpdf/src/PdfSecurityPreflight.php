@@ -229,6 +229,17 @@ final class PdfSecurityPreflight
             $source = 'standard_security_handler_permissions';
         }
 
+        $cryptFilterTextPolicy = is_string($cryptFilterContentReview['text_content_policy'] ?? null)
+            ? $cryptFilterContentReview['text_content_policy']
+            : null;
+        $cryptFilterTextBoundary = $this->cryptFilterContentExtractionBoundary($cryptFilterTextPolicy);
+        $cryptFilterTextFailClosed = $cryptFilterTextBoundary !== null;
+        if ($policy === 'copy_extract_allowed_after_decryption' && $cryptFilterTextFailClosed) {
+            $policy = 'copy_extract_allowed_but_crypt_filter_preflight_blocked';
+            $boundary = $cryptFilterTextBoundary;
+            $source = 'standard_security_handler_crypt_filter_preflight';
+        }
+
         return [
             'source' => $source,
             'encrypted' => true,
@@ -273,6 +284,15 @@ final class PdfSecurityPreflight
                 ? $publicKeyRecipientReview['crypt_filter_selection']
                 : [],
             'crypt_filter_content_review' => $cryptFilterContentReview,
+            'crypt_filter_text_policy' => $cryptFilterTextPolicy,
+            'crypt_filter_text_fail_closed' => $cryptFilterTextFailClosed,
+            'crypt_filter_content_extraction_boundary' => $cryptFilterTextBoundary,
+            'crypt_filter_fail_closed_role_names' => is_array($cryptFilterContentReview['fail_closed_role_names'] ?? null)
+                ? $cryptFilterContentReview['fail_closed_role_names']
+                : [],
+            'crypt_filter_fail_closed_filter_names' => is_array($cryptFilterContentReview['fail_closed_filter_names'] ?? null)
+                ? $cryptFilterContentReview['fail_closed_filter_names']
+                : [],
             'requires_password_for_content_extraction' => (bool) ($encryption['requires_password_for_content_extraction'] ?? true),
             'decryption_performed' => false,
             'native_text_extraction_allowed_now' => false,
@@ -463,6 +483,9 @@ final class PdfSecurityPreflight
                 'unknown_crypt_filter_method_fail_closed',
                 'undeclared_crypt_filter_fail_closed',
             ]),
+            'fail_closed_role_names' => $this->cryptFilterFailClosedRoleNames($roles),
+            'fail_closed_filter_names' => $this->cryptFilterFailClosedFilterNames($roles),
+            'fail_closed_role_count' => $this->cryptFilterFailClosedRoleCount($roles),
             'identity_filter_names' => $this->cryptFilterNamesByStatus($roles, 'identity_crypt_filter'),
             'encrypted_filter_names' => $this->cryptFilterNamesByStatus($roles, 'encrypted_crypt_filter'),
             'missing_filter_names' => $this->cryptFilterNamesByStatus($roles, 'missing_declared_crypt_filter'),
@@ -618,8 +641,8 @@ final class PdfSecurityPreflight
             return 'encrypted_document_fail_closed';
         }
         foreach ($rows as $row) {
-            if (($row['status'] ?? null) === 'missing_declared_crypt_filter') {
-                return 'missing_declared_filter_fail_closed';
+            if ($this->cryptFilterRoleFailsClosed($row)) {
+                return $this->cryptFilterFailClosedPolicy($row);
             }
             if (($row['identity_crypt_filter'] ?? false) !== true) {
                 return 'review_only_encrypted_document_boundary';
@@ -639,14 +662,106 @@ final class PdfSecurityPreflight
         }
 
         $row = $rows[0];
-        if (($row['status'] ?? null) === 'missing_declared_crypt_filter') {
-            return 'missing_declared_filter_fail_closed';
+        if ($this->cryptFilterRoleFailsClosed($row)) {
+            return $this->cryptFilterFailClosedPolicy($row);
         }
         if (($row['identity_crypt_filter'] ?? false) === true) {
             return 'identity_filter_review_only_payload_boundary';
         }
 
         return 'encrypted_filter_requires_decryption';
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function cryptFilterRoleFailsClosed(array $row): bool
+    {
+        return in_array($row['status'] ?? null, [
+            'undeclared_crypt_filter_fail_closed',
+            'missing_declared_crypt_filter',
+            'unknown_crypt_filter_method_fail_closed',
+            'unsupported_crypt_filter_method_fail_closed',
+        ], true);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function cryptFilterFailClosedPolicy(array $row): string
+    {
+        $status = is_string($row['status'] ?? null) ? $row['status'] : null;
+
+        return match ($status) {
+            'missing_declared_crypt_filter' => 'missing_declared_filter_fail_closed',
+            'undeclared_crypt_filter_fail_closed' => 'undeclared_crypt_filter_fail_closed',
+            'unknown_crypt_filter_method_fail_closed' => 'unknown_crypt_filter_method_fail_closed',
+            'unsupported_crypt_filter_method_fail_closed' => 'unsupported_crypt_filter_method_fail_closed',
+            default => 'encrypted_document_fail_closed',
+        };
+    }
+
+    private function cryptFilterContentExtractionBoundary(?string $textPolicy): ?string
+    {
+        return match ($textPolicy) {
+            'missing_declared_filter_fail_closed' => 'blocked_by_missing_document_crypt_filter',
+            'undeclared_crypt_filter_fail_closed' => 'blocked_by_undeclared_document_crypt_filter',
+            'unknown_crypt_filter_method_fail_closed' => 'blocked_by_unknown_document_crypt_filter_method',
+            'unsupported_crypt_filter_method_fail_closed' => 'blocked_by_unsupported_document_crypt_filter_method',
+            'encrypted_document_fail_closed' => 'blocked_by_unresolved_document_crypt_filter',
+            default => null,
+        };
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     */
+    private function cryptFilterFailClosedRoleCount(array $roles): int
+    {
+        return count(array_filter(
+            $roles,
+            fn (array $row): bool => $this->cryptFilterRoleFailsClosed($row)
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterFailClosedRoleNames(array $roles): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            if (
+                $this->cryptFilterRoleFailsClosed($role)
+                && is_string($role['role'] ?? null)
+                && !in_array($role['role'], $names, true)
+            ) {
+                $names[] = $role['role'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterFailClosedFilterNames(array $roles): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            if (
+                $this->cryptFilterRoleFailsClosed($role)
+                && is_string($role['filter_name'] ?? null)
+                && !in_array($role['filter_name'], $names, true)
+            ) {
+                $names[] = $role['filter_name'];
+            }
+        }
+
+        return $names;
     }
 
     /**
@@ -4411,6 +4526,8 @@ final class PdfSecurityPreflight
             }
             if ($permissionPolicy === 'copy_extract_allowed_after_decryption') {
                 $reasons[] = 'copy_or_extract_allowed_but_decryption_required';
+            } elseif ($permissionPolicy === 'copy_extract_allowed_but_crypt_filter_preflight_blocked') {
+                $reasons[] = 'copy_or_extract_allowed_but_crypt_filter_fail_closed';
             } elseif ($permissionPolicy === 'public_key_recipient_permissions_blocked_without_private_key') {
                 $reasons[] = 'public_key_recipient_permissions_undecoded';
             } elseif ($permissionPolicy === 'permissions_unknown_blocked_without_decryption') {
@@ -4422,6 +4539,9 @@ final class PdfSecurityPreflight
             }
             if ($signatureByteRangeCount > 0) {
                 $reasons[] = 'encrypted_signature_byte_range_present';
+            }
+            if (($permissionPreflight['crypt_filter_text_fail_closed'] ?? false) === true) {
+                $reasons[] = 'crypt_filter_text_fail_closed';
             }
         }
         if ($signedSignatureCount > 0 && !$encrypted) {
