@@ -31853,15 +31853,30 @@ final class PdfTextExtractor
         array $toUnicodeMap = []
     ): int {
         $mappedLength = null;
+        $directMappedLength = null;
         foreach ($keyLengths as $keyLength) {
             if ($keyLength <= 0 || $keyLength > $remainingHexLength) {
                 continue;
             }
 
-            if ($this->toUnicodeSourceKeyIsMapped(substr($normalized, $offset, $keyLength), $toUnicodeMap, $mappings)) {
-                $mappedLength = $keyLength;
-                break;
+            $sourceKey = substr($normalized, $offset, $keyLength);
+            if ($directMappedLength === null && array_key_exists($sourceKey, $mappings)) {
+                $directMappedLength = $keyLength;
             }
+
+            if ($mappedLength === null && $this->toUnicodeSourceKeyIsMapped($sourceKey, $toUnicodeMap, $mappings)) {
+                $mappedLength = $keyLength;
+            }
+        }
+
+        if (
+            $directMappedLength !== null
+            && $mappedLength !== null
+            && $directMappedLength < $mappedLength
+            && !array_key_exists(substr($normalized, $offset, $mappedLength), $mappings)
+            && $this->directMappedSourceRemainderCanCover($normalized, $offset, $mappings)
+        ) {
+            return $directMappedLength;
         }
 
         if ($preferMappedLength && $mappedLength !== null) {
@@ -31913,6 +31928,40 @@ final class PdfTextExtractor
         rsort($usableLengths, SORT_NUMERIC);
 
         return $usableLengths[0] ?? min(2, max(1, $remainingHexLength));
+    }
+
+    /**
+     * @param array<string, string> $mappings
+     */
+    private function directMappedSourceRemainderCanCover(string $normalized, int $offset, array $mappings): bool
+    {
+        $keyLengths = array_values(array_unique(array_map('strlen', array_keys($mappings))));
+        rsort($keyLengths, SORT_NUMERIC);
+        if ($keyLengths === []) {
+            return false;
+        }
+
+        $length = strlen($normalized);
+        while ($offset < $length) {
+            $matched = false;
+            foreach ($keyLengths as $keyLength) {
+                if ($keyLength <= 0 || $offset + $keyLength > $length) {
+                    continue;
+                }
+
+                if (array_key_exists(substr($normalized, $offset, $keyLength), $mappings)) {
+                    $offset += $keyLength;
+                    $matched = true;
+                    break;
+                }
+            }
+
+            if (!$matched) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
