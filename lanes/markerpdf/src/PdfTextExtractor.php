@@ -10335,7 +10335,18 @@ final class PdfTextExtractor
     private function pageTreeKidReferencesFromArray(string $arrayBody, array $objects): array
     {
         $references = [];
-        foreach ($this->objectReferencePairs($arrayBody) as $reference) {
+        foreach ($this->pdfArrayItems($arrayBody) as $item) {
+            $offset = 0;
+            $reference = $this->pdfIndirectReferenceTokenAt($item, $offset);
+            if ($reference === null) {
+                continue;
+            }
+
+            $endOffset = $this->skipPdfWhitespace($item, $reference['endOffset']);
+            if ($endOffset < strlen($item)) {
+                continue;
+            }
+
             if ($this->objectBodyForPageTreeReference($objects, $reference['objectNumber'], $reference['generation']) === null) {
                 continue;
             }
