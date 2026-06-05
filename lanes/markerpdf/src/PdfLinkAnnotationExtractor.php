@@ -106,6 +106,13 @@ final class PdfLinkAnnotationExtractor
                         if (array_key_exists('pdftext_rect', $link)) {
                             $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_pdftext_rect'] = $link['pdftext_rect'];
                         }
+                        if (array_key_exists('quad_index', $candidate)) {
+                            $quadIndex = $candidate['quad_index'];
+                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_quad_index'] = $quadIndex;
+                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_quad_rect'] = $candidate['rect'];
+                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_page_quad_rect'] = $link['quad_rects'][$quadIndex] ?? null;
+                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_pdftext_quad_rect'] = $link['pdftext_quad_rects'][$quadIndex] ?? null;
+                        }
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_annotation_object'] = $link['annotation_object'];
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_annotation_subtype'] = $link['annotation_subtype'];
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_widget_annotation'] = $link['widget_annotation'];
@@ -178,7 +185,7 @@ final class PdfLinkAnnotationExtractor
      * @param array<string, mixed> $span
      * @param list<array<string, mixed>> $links
      * @param array<string, mixed> $page
-     * @return array{link: array<string, mixed>, rect: list<float>, coordinate_space: string}|null
+     * @return array{link: array<string, mixed>, rect: list<float>, coordinate_space: string, quad_index?: int}|null
      */
     private function linkForSpan(array $span, array $links, array $page): ?array
     {
@@ -194,7 +201,7 @@ final class PdfLinkAnnotationExtractor
                         'link' => $link,
                         'rect' => $candidate['rect'],
                         'coordinate_space' => $candidate['coordinate_space'],
-                    ];
+                    ] + (array_key_exists('quad_index', $candidate) ? ['quad_index' => $candidate['quad_index']] : []);
                 }
             }
         }
@@ -402,6 +409,9 @@ final class PdfLinkAnnotationExtractor
             return null;
         }
         $pdftextRect = $this->pageRectToPdftextRect($rect, $pageGeometry);
+        $quadPoints = $this->quadPointsFromAnnotation($annotationBody, $objects);
+        $quadRects = array_map(fn (array $quad): array => $this->rectFromQuad($quad), $quadPoints);
+        $pdftextQuadRects = array_map(fn (array $quadRect): array => $this->pageRectToPdftextRect($quadRect, $pageGeometry), $quadRects);
 
         $review = $actionReviewer->reviewAnnotationActions($effectiveAnnotation['body']);
         $review['actions'] = $this->withLinkTargetContextRows($review['actions'], $context);
@@ -425,6 +435,11 @@ final class PdfLinkAnnotationExtractor
             'additional_actions' => $review['additional_actions'],
             'executes_on_import' => false,
         ];
+        if ($quadPoints !== []) {
+            $link['quad_points'] = $quadPoints;
+            $link['quad_rects'] = $quadRects;
+            $link['pdftext_quad_rects'] = $pdftextQuadRects;
+        }
 
         if ($effectiveAnnotation['inherited_keys'] !== []) {
             $fieldChain = $effectiveAnnotation['field_chain'];
@@ -824,6 +839,57 @@ final class PdfLinkAnnotationExtractor
     }
 
     /**
+     * Link annotations may use /QuadPoints to constrain the clickable text
+     * area inside a larger /Rect. The native importer uses those quads for
+     * span matching while retaining /Rect for page-level review metadata.
+     *
+     * @param array<int, string> $objects
+     * @return list<list<float>>
+     */
+    private function quadPointsFromAnnotation(string $annotationBody, array $objects = []): array
+    {
+        $value = $this->valueAfterName($annotationBody, 'QuadPoints');
+        if ($value === null) {
+            return [];
+        }
+
+        $value = $this->resolveIndirectObjectValue($value, $objects);
+        if (!str_starts_with(trim($value), '[')) {
+            return [];
+        }
+
+        $arrayBody = $this->arrayBodyFromValue($value);
+        if ($arrayBody === null) {
+            return [];
+        }
+
+        $numbers = $this->numbersFromPdfArray($arrayBody);
+        $quads = [];
+        for ($offset = 0, $count = count($numbers); $offset + 7 < $count; $offset += 8) {
+            $quads[] = array_slice($numbers, $offset, 8);
+        }
+
+        return $quads;
+    }
+
+    /**
+     * @param list<float> $quad
+     * @return list<float>
+     */
+    private function rectFromQuad(array $quad): array
+    {
+        $xs = [$quad[0], $quad[2], $quad[4], $quad[6]];
+        $ys = [$quad[1], $quad[3], $quad[5], $quad[7]];
+
+        return [
+            min($xs),
+            min($ys),
+            max($xs),
+            max($ys),
+        ];
+    }
+
+    /**
      * @param list<float> $rect
      * @return list<float>
      */
@@ -840,11 +906,35 @@ final class PdfLinkAnnotationExtractor
     /**
      * @param array<string, mixed> $link
      * @param array<string, mixed> $page
-     * @return list<array{rect: list<float>, coordinate_space: string}>
+     * @return list<array{rect: list<float>, coordinate_space: string, quad_index?: int}>
      */
     private function linkRectCandidatesForPage(array $link, array $page): array
     {
-        if ($this->pageLooksLikePdftextGeometry($link, $page)) {
+        $usesPdftextGeometry = $this->pageLooksLikePdftextGeometry($link, $page);
+        $quadRects = $usesPdftextGeometry
+            ? ($link['pdftext_quad_rects'] ?? [])
+            : ($link['quad_rects'] ?? []);
+        if (is_array($quadRects) && $quadRects !== []) {
+            $candidates = [];
+            foreach ($quadRects as $quadIndex => $quadRect) {
+                $rect = $this->bbox($quadRect);
+                if ($rect === null) {
+                    continue;
+                }
+
+                $candidates[] = [
+                    'rect' => $rect,
+                    'coordinate_space' => $usesPdftextGeometry ? 'marker_pdftext_display' : 'pdf_page_user_space',
+                    'quad_index' => (int) $quadIndex,
+                ];
+            }
+
+            if ($candidates !== []) {
+                return $candidates;
+            }
+        }
+
+        if ($usesPdftextGeometry) {
             $rect = $this->bbox($link['pdftext_rect'] ?? null);
             return $rect === null ? [] : [[
                 'rect' => $rect,
