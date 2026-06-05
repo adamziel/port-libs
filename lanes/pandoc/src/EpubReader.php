@@ -30,6 +30,7 @@ final class EpubReader
      *     package:array<string, mixed>,
      *     manifest:list<array<string, mixed>>,
      *     spine:list<array<string, mixed>>,
+     *     spineProperties:array<string, mixed>,
      *     nav:?array<string, mixed>,
      *     ncx:?array<string, mixed>,
      *     guide:array<string, mixed>,
@@ -57,6 +58,7 @@ final class EpubReader
             $opf['metadata'],
             $opfPart,
             $opf['spine'],
+            $opf['spineProperties'],
             $opf['xhtmlAssets'],
             $opf['guide'],
             $opf['collections'],
@@ -73,6 +75,7 @@ final class EpubReader
             'package' => $opf['package'],
             'manifest' => $opf['manifest'],
             'spine' => $opf['spine'],
+            'spineProperties' => $opf['spineProperties'],
             'nav' => $opf['nav'],
             'ncx' => $opf['ncx'],
             'guide' => $opf['guide'],
@@ -105,6 +108,7 @@ final class EpubReader
                 'spine' => [
                     'count' => count($opf['spine']),
                     'items' => $opf['spine'],
+                    'properties' => $opf['spineProperties'],
                 ],
                 'nav' => $opf['nav'],
                 'ncx' => $opf['ncx'],
@@ -231,6 +235,7 @@ final class EpubReader
      *     package:array<string, mixed>,
      *     manifest:list<array<string, mixed>>,
      *     spine:list<array<string, mixed>>,
+     *     spineProperties:array<string, mixed>,
      *     nav:?array<string, mixed>,
      *     ncx:?array<string, mixed>,
      *     guide:array<string, mixed>,
@@ -274,7 +279,9 @@ final class EpubReader
         $guide = $this->readGuide($package, $opfPart, self::firstChildElement($root, 'guide', self::OPF_NS), $manifestById);
         $collections = $this->readCollections($package, $opfPart, $root, $manifestById);
         $bindings = $this->readBindings($package, self::firstChildElement($root, 'bindings', self::OPF_NS), $manifestById);
+        $spineProperties = self::readSpineProperties($spineElement);
         $spine = $this->readSpine($spineElement, $manifestById, $bindings);
+        $spineProperties = self::spinePropertiesWithItemDiagnostics($spineProperties, $spine);
         $mediaOverlays = $this->readMediaOverlays($package, $manifestById);
         $manifest = array_values($manifestById);
         $resourceProperties = self::resourcePropertyReport($manifest);
@@ -293,6 +300,7 @@ final class EpubReader
             ],
             'manifest' => $manifest,
             'spine' => $spine,
+            'spineProperties' => $spineProperties,
             'nav' => $navItem === null ? null : $this->readNavDocument($package, $navItem),
             'ncx' => $ncxItem === null ? null : $this->readNcxDocument($package, $ncxItem),
             'guide' => $guide,
@@ -1218,6 +1226,8 @@ final class EpubReader
             $content = $this->resolveSpineContentItem($manifestItem, $manifestById);
             $contentItem = $content['item'];
             $binding = self::bindingForMediaType($bindings, (string) $manifestItem['mediaType']);
+            $properties = self::spaceDelimited($itemref->getAttribute('properties'));
+            $itemProperties = self::spineItemPropertyReport($properties);
             $spine[] = [
                 'index' => $index,
                 'idref' => $idref,
@@ -1226,7 +1236,11 @@ final class EpubReader
                 'href' => $manifestItem['href'],
                 'mediaType' => $manifestItem['mediaType'],
                 'linear' => strtolower(trim($itemref->getAttribute('linear'))) !== 'no',
-                'properties' => self::spaceDelimited($itemref->getAttribute('properties')),
+                'properties' => $properties,
+                'spineItemProperties' => $itemProperties,
+                'spineItemDiagnostics' => $itemProperties['diagnostics'],
+                'pageSpread' => $itemProperties['pageSpread']['placement'],
+                'pageSpreadProperties' => $itemProperties['pageSpread']['properties'],
                 'mediaOverlay' => $manifestItem['mediaOverlay'],
                 'encrypted' => self::isEncryptedManifestItem($manifestItem),
                 'canExposeBytes' => (bool) ($manifestItem['canExposeBytes'] ?? true),
@@ -1247,6 +1261,138 @@ final class EpubReader
         }
 
         return $spine;
+    }
+
+    /**
+     * @return array{
+     *     toc:?string,
+     *     pageProgressionDirection:string,
+     *     pageProgressionDirectionRaw:?string,
+     *     pageProgressionDirectionSpecified:bool,
+     *     pageProgressionDirectionValid:bool,
+     *     rightToLeft:bool,
+     *     itemDiagnostics:list<array<string, mixed>>,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function readSpineProperties(\DOMElement $spineElement): array
+    {
+        $rawDirection = trim($spineElement->getAttribute('page-progression-direction'));
+        $specified = $rawDirection !== '';
+        $normalized = strtolower($rawDirection);
+        $direction = 'default';
+        $valid = true;
+        $diagnostics = [];
+
+        if ($specified) {
+            if (in_array($normalized, ['ltr', 'rtl', 'default'], true)) {
+                $direction = $normalized;
+            } else {
+                $valid = false;
+                $diagnostics[] = [
+                    'type' => 'invalid-spine-page-progression-direction',
+                    'value' => $rawDirection,
+                    'message' => 'EPUB spine page-progression-direction must be ltr, rtl, or default',
+                ];
+            }
+        }
+
+        return [
+            'toc' => self::nullableAttribute($spineElement, 'toc'),
+            'pageProgressionDirection' => $direction,
+            'pageProgressionDirectionRaw' => $specified ? $rawDirection : null,
+            'pageProgressionDirectionSpecified' => $specified,
+            'pageProgressionDirectionValid' => $valid,
+            'rightToLeft' => $direction === 'rtl',
+            'itemDiagnostics' => [],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $spine
+     *
+     * @return array<string, mixed>
+     */
+    private static function spinePropertiesWithItemDiagnostics(array $spineProperties, array $spine): array
+    {
+        $itemDiagnostics = [];
+        foreach ($spine as $item) {
+            foreach (($item['spineItemDiagnostics'] ?? []) as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $itemDiagnostics[] = [
+                    'index' => (int) ($item['index'] ?? 0),
+                    'idref' => (string) ($item['idref'] ?? ''),
+                ] + $diagnostic;
+            }
+        }
+
+        $spineProperties['itemDiagnostics'] = $itemDiagnostics;
+        $spineProperties['diagnostics'] = array_merge(
+            is_array($spineProperties['diagnostics'] ?? null) ? $spineProperties['diagnostics'] : [],
+            $itemDiagnostics
+        );
+
+        return $spineProperties;
+    }
+
+    /**
+     * @param list<string> $properties
+     *
+     * @return array{pageSpread:array<string, mixed>, diagnostics:list<array<string, mixed>>}
+     */
+    private static function spineItemPropertyReport(array $properties): array
+    {
+        $matches = [];
+        $placements = [];
+        foreach ($properties as $property) {
+            $placement = match ($property) {
+                'page-spread-left', 'rendition:page-spread-left' => 'left',
+                'page-spread-right', 'rendition:page-spread-right' => 'right',
+                'spread-none', 'rendition:page-spread-center' => 'center',
+                default => null,
+            };
+
+            if ($placement === null) {
+                continue;
+            }
+
+            $matches[] = [
+                'property' => $property,
+                'placement' => $placement,
+            ];
+            $placements[$placement] = true;
+        }
+
+        $spreadProperties = array_map(
+            static fn (array $match): string => (string) $match['property'],
+            $matches
+        );
+        $spreadPlacements = array_keys($placements);
+        $conflicting = count($spreadPlacements) > 1;
+        $diagnostics = [];
+
+        if ($conflicting) {
+            $diagnostics[] = [
+                'type' => 'conflicting-spine-page-spread-properties',
+                'properties' => $spreadProperties,
+                'placements' => $spreadPlacements,
+                'message' => 'EPUB spine itemref declares more than one page-spread placement',
+            ];
+        }
+
+        return [
+            'pageSpread' => [
+                'placement' => $matches[0]['placement'] ?? null,
+                'properties' => $spreadProperties,
+                'matches' => $matches,
+                'conflicting' => $conflicting,
+            ],
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     /**
@@ -2633,6 +2779,7 @@ final class EpubReader
     /**
      * @param array<string, mixed> $metadata
      * @param list<array<string, mixed>> $spine
+     * @param array<string, mixed> $spineProperties
      * @param list<array<string, mixed>> $xhtmlAssets
      * @param array<string, mixed> $guide
      * @param list<array<string, mixed>> $collections
@@ -2644,6 +2791,7 @@ final class EpubReader
         array $metadata,
         string $opfPart,
         array $spine,
+        array $spineProperties,
         array $xhtmlAssets,
         array $guide,
         array $collections,
@@ -2676,6 +2824,10 @@ final class EpubReader
                 'part' => $asset['part'],
                 'id' => $item['idref'],
                 'linear' => $item['linear'],
+                'pageProgressionDirection' => $spineProperties['pageProgressionDirection'] ?? 'default',
+                'pageSpread' => $item['pageSpread'] ?? null,
+                'pageSpreadProperties' => $item['pageSpreadProperties'] ?? [],
+                'spineItemProperties' => $item['spineItemProperties'] ?? [],
                 'mediaOverlay' => $item['mediaOverlay'],
                 'resourceFlags' => $asset['resourceFlags'] ?? [],
                 'resourceReviewFlags' => $asset['resourceReviewFlags'] ?? [],
@@ -2703,6 +2855,7 @@ final class EpubReader
             'guide' => $guide,
             'collections' => $collections,
             'bindings' => $bindings,
+            'spineProperties' => $spineProperties,
             'resourceProperties' => $resourceProperties,
             'renditions' => $renditions,
             'title' => $metadata['title'] ?? '',

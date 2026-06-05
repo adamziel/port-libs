@@ -359,6 +359,86 @@ return [
         $t->contains('Chapter XHTML stays available', $markdown);
         $t->contains('<!-- wp:html -->', $blocks);
     },
+    'reports OPF spine page progression direction and itemref spread properties' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithReadingOrder = str_replace(
+            '<spine toc="toc">',
+            '<spine toc="toc" page-progression-direction="rtl">',
+            $opfXml
+        );
+        $opfWithReadingOrder = str_replace(
+            '<itemref idref="chapter-1"/>',
+            '<itemref idref="chapter-1" properties="rendition:page-spread-right page-spread-right"/>',
+            $opfWithReadingOrder
+        );
+        $opfWithReadingOrder = str_replace(
+            '<itemref idref="chapter-2" linear="no"/>',
+            '<itemref idref="chapter-2" linear="no" properties="rendition:page-spread-center spread-none"/>',
+            $opfWithReadingOrder
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithReadingOrder));
+        $spineProperties = $result['spineProperties'];
+
+        $t->same('toc', $spineProperties['toc']);
+        $t->same('rtl', $spineProperties['pageProgressionDirection']);
+        $t->same('rtl', $spineProperties['pageProgressionDirectionRaw']);
+        $t->same(true, $spineProperties['pageProgressionDirectionSpecified']);
+        $t->same(true, $spineProperties['pageProgressionDirectionValid']);
+        $t->same(true, $spineProperties['rightToLeft']);
+        $t->same([], $spineProperties['itemDiagnostics']);
+        $t->same([], $spineProperties['diagnostics']);
+        $t->same($spineProperties, $result['importReport']['spine']['properties']);
+        $t->same($spineProperties, $result['document']->attr('spineProperties'));
+
+        $t->same('right', $result['spine'][0]['pageSpread']);
+        $t->same(['rendition:page-spread-right', 'page-spread-right'], $result['spine'][0]['pageSpreadProperties']);
+        $t->same('right', $result['spine'][0]['spineItemProperties']['pageSpread']['placement']);
+        $t->same(false, $result['spine'][0]['spineItemProperties']['pageSpread']['conflicting']);
+        $t->same([], $result['spine'][0]['spineItemDiagnostics']);
+        $t->same('center', $result['spine'][1]['pageSpread']);
+        $t->same(['rendition:page-spread-center', 'spread-none'], $result['spine'][1]['pageSpreadProperties']);
+
+        $t->same('rtl', $result['document']->children[0]->attr('pageProgressionDirection'));
+        $t->same('right', $result['document']->children[0]->attr('pageSpread'));
+        $t->same($result['spine'][0]['spineItemProperties'], $result['document']->children[0]->attr('spineItemProperties'));
+        $t->same('center', $result['document']->children[1]->attr('pageSpread'));
+    },
+    'reports invalid OPF spine progression and conflicting spread diagnostics' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithInvalidSpineProperties = str_replace(
+            '<spine toc="toc">',
+            '<spine toc="toc" page-progression-direction="sideways">',
+            $opfXml
+        );
+        $opfWithInvalidSpineProperties = str_replace(
+            '<itemref idref="chapter-1"/>',
+            '<itemref idref="chapter-1" properties="page-spread-left page-spread-right"/>',
+            $opfWithInvalidSpineProperties
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithInvalidSpineProperties));
+        $spineProperties = $result['spineProperties'];
+
+        $t->same('default', $spineProperties['pageProgressionDirection']);
+        $t->same('sideways', $spineProperties['pageProgressionDirectionRaw']);
+        $t->same(true, $spineProperties['pageProgressionDirectionSpecified']);
+        $t->same(false, $spineProperties['pageProgressionDirectionValid']);
+        $t->same(false, $spineProperties['rightToLeft']);
+        $t->same('invalid-spine-page-progression-direction', $spineProperties['diagnostics'][0]['type']);
+        $t->same('sideways', $spineProperties['diagnostics'][0]['value']);
+        $t->same('conflicting-spine-page-spread-properties', $spineProperties['itemDiagnostics'][0]['type']);
+        $t->same(0, $spineProperties['itemDiagnostics'][0]['index']);
+        $t->same('chapter-1', $spineProperties['itemDiagnostics'][0]['idref']);
+        $t->same(['page-spread-left', 'page-spread-right'], $spineProperties['itemDiagnostics'][0]['properties']);
+        $t->same(['left', 'right'], $spineProperties['itemDiagnostics'][0]['placements']);
+        $t->same(2, count($spineProperties['diagnostics']));
+        $t->same($spineProperties, $result['importReport']['spine']['properties']);
+        $t->same(true, $result['spine'][0]['spineItemProperties']['pageSpread']['conflicting']);
+        $t->same('left', $result['spine'][0]['pageSpread']);
+        $t->same($result['spine'][0]['spineItemDiagnostics'][0], array_slice($spineProperties['itemDiagnostics'][0], 2));
+        $t->same('default', $result['document']->children[0]->attr('pageProgressionDirection'));
+        $t->same('left', $result['document']->children[0]->attr('pageSpread'));
+        $t->same($spineProperties, $result['document']->attr('spineProperties'));
+    },
     'summarizes alternate EPUB rootfile renditions without changing selected spine' => static function (TestRunner $t) use ($buildEpubPackage, $containerXml, $alternateOpfXml): void {
         $multiRootContainer = str_replace(
             '</rootfiles>',

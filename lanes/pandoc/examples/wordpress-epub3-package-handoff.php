@@ -47,9 +47,9 @@ $opfXml = <<<'XML'
     <item id="cover-image" href="images/cover.png" media-type="image/png" properties="cover-image"/>
     <item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
   </manifest>
-  <spine toc="toc">
-    <itemref idref="chapter"/>
-    <itemref idref="slideshow" linear="no"/>
+  <spine toc="toc" page-progression-direction="rtl">
+    <itemref idref="chapter" properties="rendition:page-spread-right page-spread-right"/>
+    <itemref idref="slideshow" linear="no" properties="page-spread-left"/>
   </spine>
   <guide>
     <reference type="text" title="Begin source" href="text/chapter.xhtml#source"/>
@@ -215,6 +215,21 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if ($result['spine'][0]['part'] !== '/EPUB/text/chapter.xhtml') {
         throw new RuntimeException('Expected spine chapter part to resolve relative to the OPF');
+    }
+    if (($result['spineProperties']['pageProgressionDirection'] ?? null) !== 'rtl' || ($result['spineProperties']['rightToLeft'] ?? null) !== true) {
+        throw new RuntimeException('Expected EPUB OPF spine reading order to preserve right-to-left page progression');
+    }
+    if (($result['importReport']['spine']['properties']['pageProgressionDirection'] ?? null) !== 'rtl') {
+        throw new RuntimeException('Expected EPUB import report to expose spine page progression direction');
+    }
+    if (($result['spine'][0]['pageSpread'] ?? null) !== 'right' || ($result['spine'][1]['pageSpread'] ?? null) !== 'left') {
+        throw new RuntimeException('Expected EPUB spine itemrefs to preserve package-declared page-spread placement');
+    }
+    if (($result['document']->children[0]->attr('pageProgressionDirection') ?? null) !== 'rtl' || ($result['document']->children[0]->attr('pageSpread') ?? null) !== 'right') {
+        throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB reading-order metadata');
+    }
+    if (($result['document']->children[1]->attr('pageSpread') ?? null) !== 'left') {
+        throw new RuntimeException('Expected WordPress fallback handoff block to expose EPUB page-spread metadata');
     }
     if (($result['spine'][1]['contentId'] ?? null) !== 'slideshow-handler' || ($result['spine'][1]['contentPart'] ?? null) !== '/EPUB/text/slideshow-fallback.xhtml') {
         throw new RuntimeException('Expected EPUB foreign spine item to resolve to its XHTML fallback handler');
@@ -412,6 +427,10 @@ echo 'title=' . $result['metadata']['title'] . "\n";
 echo 'identifier=' . $result['metadata']['identifier'] . "\n";
 echo 'opfPart=' . $result['opfPart'] . "\n";
 echo 'spineItems=' . count($result['spine']) . "\n";
+echo 'pageProgressionDirection=' . ($result['spineProperties']['pageProgressionDirection'] ?? '') . "\n";
+echo 'rightToLeft=' . (($result['spineProperties']['rightToLeft'] ?? false) ? 'yes' : 'no') . "\n";
+echo 'firstPageSpread=' . ($result['spine'][0]['pageSpread'] ?? '') . "\n";
+echo 'fallbackPageSpread=' . ($result['spine'][1]['pageSpread'] ?? '') . "\n";
 echo 'fallbackSpineContent=' . ($result['spine'][1]['contentPart'] ?? '') . "\n";
 echo 'navTarget=' . ($result['nav']['items'][0]['target'] ?? '') . "\n";
 echo 'remoteNavExternal=' . (($result['nav']['items'][1]['external'] ?? false) ? 'yes' : 'no') . "\n";
