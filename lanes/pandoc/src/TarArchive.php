@@ -514,6 +514,10 @@ final class TarArchive
         if ($magic !== self::USTAR_MAGIC && self::trimNullField($magic) !== '') {
             throw new \RuntimeException('Unsupported TAR header magic');
         }
+
+        if ($magic === self::USTAR_MAGIC && substr($header, 263, 2) !== self::USTAR_VERSION) {
+            throw new \RuntimeException('Unsupported TAR header ustar version');
+        }
     }
 
     private static function checksum(string $header): int

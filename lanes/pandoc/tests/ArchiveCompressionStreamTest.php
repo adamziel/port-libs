@@ -341,6 +341,17 @@ return [
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($singleZeroBlockEndMarker));
     },
 
+    'rejects unsupported ustar version bytes before package bytes are exposed' => static function (TestRunner $t) use ($rawTarHeader, $rewriteTarHeaderFields): void {
+        $unsupportedVersion = $rewriteTarHeaderFields(
+            $rawTarHeader('packet/bad-ustar-version.xml', '0', '<w:document/>'),
+            [
+                263 => '99',
+            ]
+        );
+
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($unsupportedVersion));
+    },
+
     'rejects dangling local pax metadata before package bytes are exposed' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
         $danglingPax = $rawTarHeader('PaxHeaders/dangling', 'x', $paxPayload([
             'path' => 'packet/dangling/document.xml',

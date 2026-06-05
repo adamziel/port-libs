@@ -935,6 +935,19 @@ try {
 } catch (RuntimeException $exception) {
     $tarSparseRejected = str_contains($exception->getMessage(), 'sparse file entries');
 }
+$tarUstarVersionRejected = false;
+try {
+    TarArchive::fromString(
+        $rewriteTarHeaderFields(
+            $buildRawTarRecord('packet/bad-ustar-version.xml', '0', '<w:document/>', $documentModifiedAt),
+            [
+                263 => '99',
+            ]
+        ) . str_repeat("\0", 1024)
+    );
+} catch (RuntimeException $exception) {
+    $tarUstarVersionRejected = str_contains($exception->getMessage(), 'ustar version');
+}
 
 if (in_array('--self-test', $argv, true)) {
     if (!$package->has('/word/document.xml')) {
@@ -1202,6 +1215,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected TAR sparse review packets to be rejected before import');
     }
 
+    if (!$tarUstarVersionRejected) {
+        throw new RuntimeException('Expected TAR packets with unsupported ustar version bytes to be rejected before import');
+    }
+
     $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
     if ($unicodePathEntry->rawName !== $unicodePathRawName) {
         throw new RuntimeException('Expected ZIP Unicode path extra field to preserve raw legacy path bytes');
@@ -1260,6 +1277,7 @@ echo 'tarEndMarkerPolicy=' . ($missingTarEndMarkerRejected ? 'rejected' : 'not-r
 echo 'tarDanglingPaxPolicy=' . ($danglingPaxMetadataRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarDriveLetterPolicy=' . ($tarDriveLetterRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarSparsePolicy=' . ($tarSparseRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'tarUstarVersionPolicy=' . ($tarUstarVersionRejected ? 'rejected' : 'not-rejected') . "\n";
 $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
 echo 'unicodePath.name=' . $unicodePathEntry->name . "\n";
 echo 'unicodePath.rawName=' . $unicodePathEntry->rawName . "\n";
