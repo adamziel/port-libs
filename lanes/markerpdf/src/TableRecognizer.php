@@ -285,12 +285,17 @@ final class TableRecognizer
         $rows = $this->normalizeRowsOrCols($detectionResult['rows'] ?? [], 'row_id');
         $cols = $this->normalizeRowsOrCols($detectionResult['cols'] ?? [], 'col_id');
         $cells = $this->normalizeCells($detectionResult['cells'] ?? []);
+        $assignmentImageSize = $this->imageSize($imageSize);
+        $geometryBands = $this->tableGridGeometryBoundary($rows, $cols, $assignmentImageSize);
+        $rows = $geometryBands['rows'];
+        $cols = $geometryBands['cols'];
+        $cells = $this->boundedAssignmentCells($cells, $assignmentImageSize);
 
         if ($cells === []) {
             return [];
         }
         if ($rows === [] || $cols === []) {
-            return $this->heuristicLayout($cells, $this->imageSize($imageSize));
+            return $this->heuristicLayout($cells, $assignmentImageSize);
         }
 
         $initialAssigned = $this->initialAssignment(['cells' => $cells, 'rows' => $rows, 'cols' => $cols]);
@@ -313,6 +318,31 @@ final class TableRecognizer
         $this->handleRowColSpans($assigned, $rows, $cols);
 
         return $assigned;
+    }
+
+    /**
+     * Upstream tabled assigns cells inside a cropped table image. Drop supplied
+     * cells that have no positive area inside that crop while preserving
+     * partially crossing cell bboxes for accepted table-local review metadata.
+     *
+     * @param list<array<string, mixed>> $cells
+     * @param array{width: int, height: int} $imageSize
+     * @return list<array<string, mixed>>
+     */
+    private function boundedAssignmentCells(array $cells, array $imageSize): array
+    {
+        $bounded = [];
+        foreach ($cells as $cell) {
+            $bbox = $cell['bbox'];
+            $clipped = $this->clipBboxToImage($bbox, $imageSize);
+            if ($this->positiveArea($bbox) <= 0.0 || $this->positiveArea($clipped) <= 0.0) {
+                continue;
+            }
+
+            $bounded[] = $cell;
+        }
+
+        return $bounded;
     }
 
     /**

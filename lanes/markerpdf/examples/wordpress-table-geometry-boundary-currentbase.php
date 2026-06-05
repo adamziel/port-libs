@@ -71,6 +71,8 @@ try {
                     ['bbox' => [5.0, 4.0, 295.0, 20.0], 'text' => 'Header'],
                     ['bbox' => [5.0, 44.0, 90.0, 62.0], 'text' => 'Images'],
                     ['bbox' => [120.0, 44.0, 290.0, 62.0], 'text' => 'Ready'],
+                    ['bbox' => [306.0, 44.0, 350.0, 62.0], 'text' => 'Stale right edge'],
+                    ['bbox' => [5.0, 124.0, 90.0, 142.0], 'text' => 'Stale below crop'],
                 ],
             ]],
             'table_text_lines' => [['blocks' => []]],
@@ -84,10 +86,11 @@ try {
 
 $gridReview = $result['metadata']['table_spanning_grid_review'][0] ?? [];
 $boundary = $gridReview['geometry_boundary_review'] ?? [];
+$assignedTexts = array_column($result['metadata']['table_assigned_cells'][0] ?? [], 'text');
 
 echo json_encode([
     'scenario' => 'wordpress-table-geometry-boundary-currentbase',
-    'native_boundary' => 'supplied table row and column bands are clipped to the cropped table image before WordPress grid review metadata',
+    'native_boundary' => 'supplied table row and column bands plus fully off-crop cells are bounded to the cropped table image before WordPress grid review metadata',
     'gutenberg_blocks' => [
         ['blockName' => 'core/heading', 'innerHTML' => '<h1>Table Geometry Boundary Review</h1>'],
         ['blockName' => 'core/table', 'innerHTML' => '<figure class="wp-block-table"><table><tbody><tr><td>Header</td><td></td></tr><tr><td>Images</td><td>Ready</td></tr></tbody></table></figure>'],
@@ -106,7 +109,12 @@ echo json_encode([
         $boundary['row_bands'][2]['status'] ?? null,
         $boundary['col_bands'][2]['status'] ?? null,
     ],
+    'assigned_table_texts' => $assignedTexts,
+    'offcrop_cells_filtered_from_assignment' => !in_array('Stale right edge', $assignedTexts, true)
+        && !in_array('Stale below crop', $assignedTexts, true),
     'excluded_stale_pdftext_table_line' => !str_contains($result['text'], 'Stale clipped table text should be replaced.'),
+    'excluded_offcrop_supplied_cell_text' => !str_contains($result['text'], 'Stale right edge')
+        && !str_contains($result['text'], 'Stale below crop'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
     'markdown' => $result['text'],

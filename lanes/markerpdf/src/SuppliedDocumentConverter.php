@@ -258,9 +258,9 @@ final class SuppliedDocumentConverter
                 }
                 $metadata['supplied_boundaries'][] = 'table-cell-routing';
             }
-            $recognition = $this->tableRecognizer->formatRecognizedTables($recognizedTables, $tablePlan['image_sizes']);
-            $markdownTables = $recognition['markdown_tables'];
             $tableCropImageSizes = $this->tableCropImageSizes($tablePlan);
+            $recognition = $this->tableRecognizer->formatRecognizedTables($recognizedTables, $tableCropImageSizes);
+            $markdownTables = $recognition['markdown_tables'];
             $metadata['table_plan'] = $this->tablePlanMetadata($tablePlan);
             $metadata['table_assigned_cells'] = $recognition['assigned_cells'];
             $metadata['table_merged_cell_geometry'] = $this->mergedCellGeometryForTables(
