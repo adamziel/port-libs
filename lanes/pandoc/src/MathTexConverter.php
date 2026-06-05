@@ -644,6 +644,10 @@ final class MathTexConverter
             return $this->parseMathVariantCommand($source, $offset, $command);
         }
 
+        if ($command === 'hspace' || $command === 'mspace') {
+            return $this->parseExplicitSpaceCommand($source, $offset, $command);
+        }
+
         if (isset(self::SPACING_COMMANDS[$command])) {
             return '<mspace width="' . self::SPACING_COMMANDS[$command] . '"></mspace>';
         }
@@ -966,6 +970,33 @@ final class MathTexConverter
         return '<mstyle mathvariant="' . self::MATH_VARIANT_COMMANDS[$command] . '">'
             . $this->parseMathVariantArgument($source, $offset, $command)
             . '</mstyle>';
+    }
+
+    private function parseExplicitSpaceCommand(string $source, int &$offset, string $command): string
+    {
+        $attributes = '';
+        if ($command === 'hspace' && ($source[$offset] ?? '') === '*') {
+            $attributes = ' linebreak="nobreak"';
+            $offset++;
+        }
+
+        $width = $this->normalizeMathSpaceDimension($this->readRequiredGroupText($source, $offset), $command);
+
+        return '<mspace width="' . $this->esc($width) . '"' . $attributes . '></mspace>';
+    }
+
+    private function normalizeMathSpaceDimension(string $dimension, string $command): string
+    {
+        $dimension = trim($dimension);
+        if ($dimension === '') {
+            throw new \InvalidArgumentException('Expected TeX \\' . $command . ' dimension');
+        }
+
+        if (preg_match('/^[+\\-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:em|ex|px|pt|pc|in|cm|mm|mu)$/', $dimension) !== 1) {
+            throw new \InvalidArgumentException('Unsupported TeX \\' . $command . ' dimension ' . $dimension);
+        }
+
+        return str_starts_with($dimension, '+') ? substr($dimension, 1) : $dimension;
     }
 
     private function parseSubstackCommand(string $source, int &$offset): string

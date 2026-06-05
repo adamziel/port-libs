@@ -201,6 +201,17 @@ return [
         $t->contains('<mi>x</mi><mspace width="0.2222em"></mspace><mi>y</mi><mspace width="0.2778em"></mspace><mi>z</mi>', $namedSpacingMathml);
         $t->contains('<mi>a</mi><mspace width="0.2222em"></mspace><mi>b</mi><mspace width="0.2222em"></mspace><mi>c</mi><mspace width="0.5em"></mspace><mi>d</mi><mspace width="-0.2222em"></mspace><mi>e</mi><mspace width="-0.2778em"></mspace><mi>f</mi>', $mediumSpacingMathml);
     },
+    'converts bounded tex explicit hspace and mspace dimensions to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $explicitMathml = $converter->texToMathMl('p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b', true);
+        $metricMathml = $converter->texToMathMl('x\\hspace{12pt}y\\mspace{0em}z');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $explicitMathml);
+        $t->contains('<msub><mi>p</mi><mi>i</mi></msub><mspace width="1.5em"></mspace><msub><mi>m</mi><mi>i</mi></msub><mspace width="-2mu"></mspace><msub><mi>q</mi><mi>i</mi></msub>', $explicitMathml);
+        $t->contains('<mi>a</mi><mspace width=".25in" linebreak="nobreak"></mspace><mi>b</mi>', $explicitMathml);
+        $t->contains('<annotation encoding="application/x-tex">p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b</annotation>', $explicitMathml);
+        $t->contains('<mi>x</mi><mspace width="12pt"></mspace><mi>y</mi><mspace width="0em"></mspace><mi>z</mi>', $metricMathml);
+    },
     'converts bounded tex relation set logic and arrow commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $setMathml = $converter->texToMathMl('\\forall p_i \\in P \\land m_i \\notin M \\Rightarrow p_i \\subseteq Q \\cup R', true);
@@ -407,6 +418,12 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\big'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\big\\unknown{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\Bigg a'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hspace'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hspace{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hspace{1}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hspace{calc(1em)}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mspace{bad}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mspace*{1em}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hat'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\vec_1'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underline^2'));
