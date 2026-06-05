@@ -8274,7 +8274,7 @@ final class PdfTextExtractor
         if ($payloadMarker !== null) {
             foreach ($this->firstFilterEndstreamTerminatorOffsets($value, $streamStart, $payloadMarker) as $terminator) {
                 $payload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $terminator - $streamStart));
-                $jpegBytes = $this->decodeStreamBeforeFilter($dict, $payload, $objects, $filters, $dctFilterIndex);
+                $jpegBytes = $this->decodeStreamBeforeFilter($dict, $payload, $objects, $filters, $dctFilterIndex, true);
                 if ($jpegBytes !== null && $this->dctPreviewBytesAreCompleteJpeg($jpegBytes)) {
                     return $terminator;
                 }
@@ -8291,7 +8291,7 @@ final class PdfTextExtractor
             }
 
             $payload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $candidate - $streamStart));
-            $jpegBytes = $this->decodeStreamBeforeFilter($dict, $payload, $objects, $filters, $dctFilterIndex);
+            $jpegBytes = $this->decodeStreamBeforeFilter($dict, $payload, $objects, $filters, $dctFilterIndex, true);
             if ($jpegBytes !== null && $this->dctPreviewBytesAreCompleteJpeg($jpegBytes)) {
                 return $candidate;
             }
@@ -8503,9 +8503,12 @@ final class PdfTextExtractor
         string $stream,
         array $objects,
         array $filters,
-        int $stopBeforeIndex
+        int $stopBeforeIndex,
+        bool $ignoreNullFilterDecodeParms = false
     ): ?string {
-        $decodeParms = $this->streamDecodeParms($dict, $objects);
+        $decodeParms = $ignoreNullFilterDecodeParms
+            ? $this->streamDecodeParmsForFilters($dict, $objects, $filters)
+            : $this->streamDecodeParms($dict, $objects);
         if ($decodeParms === null) {
             return null;
         }
