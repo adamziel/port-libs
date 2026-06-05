@@ -188,6 +188,23 @@ return [
         $t->contains('<mo fence="true" stretchy="true">{</mo><mi>a</mi><mo fence="true" stretchy="true">}</mo>', $fencedMathml);
         $t->contains('<mi>x</mi><msubsup><mo fence="true" stretchy="true">|</mo><mn>0</mn><mn>1</mn></msubsup>', $invisibleFenceMathml);
     },
+    'converts bounded tex ceiling floor bracket and norm delimiters to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $plainMathml = $converter->texToMathMl('\\lceil x/y \\rceil + \\lfloor n/2 \\rfloor + \\lbrack p_i \\rbrack', true);
+        $fencedMathml = $converter->texToMathMl('\\left\\lVert p_i + m_i \\right\\rVert + \\left\\lceil \\frac{x}{y} \\right\\rfloor');
+        $sizedMathml = $converter->texToMathMl('\\Bigl\\lVert v \\Bigr\\rVert + \\bigl\\lbrack x \\bigr\\rbrack');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\lceil x \\rceil + \\lfloor y \\rfloor');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $plainMathml);
+        $t->contains('<mo>⌈</mo><mi>x</mi><mo>/</mo><mi>y</mi><mo>⌉</mo><mo>+</mo><mo>⌊</mo><mi>n</mi><mo>/</mo><mn>2</mn><mo>⌋</mo>', $plainMathml);
+        $t->contains('<mo>[</mo><msub><mi>p</mi><mi>i</mi></msub><mo>]</mo>', $plainMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\lceil x/y \\rceil + \\lfloor n/2 \\rfloor + \\lbrack p_i \\rbrack</annotation>', $plainMathml);
+        $t->contains('<mo fence="true" stretchy="true">‖</mo><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo fence="true" stretchy="true">‖</mo>', $fencedMathml);
+        $t->contains('<mo fence="true" stretchy="true">⌈</mo><mfrac><mi>x</mi><mi>y</mi></mfrac><mo fence="true" stretchy="true">⌋</mo>', $fencedMathml);
+        $t->contains('<mo fence="true" stretchy="true" minsize="1.8em" maxsize="1.8em">‖</mo><mi>v</mi><mo fence="true" stretchy="true" minsize="1.8em" maxsize="1.8em">‖</mo>', $sizedMathml);
+        $t->contains('<mo fence="true" stretchy="true" minsize="1.2em" maxsize="1.2em">[</mo><mi>x</mi><mo fence="true" stretchy="true" minsize="1.2em" maxsize="1.2em">]</mo>', $sizedMathml);
+        $t->contains('alttext="left ceiling x right ceiling plus left floor y right floor"', $accessibleMathml);
+    },
     'converts bounded tex sized delimiter commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $sizedMathml = $converter->texToMathMl('\\bigl( p_i \\bigr) + \\Bigl\\langle m_i \\Bigr\\rangle + \\big|x\\big|', true);
