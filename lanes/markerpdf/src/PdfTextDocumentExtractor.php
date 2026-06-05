@@ -296,6 +296,11 @@ final class PdfTextDocumentExtractor
                         throw new InvalidArgumentException("pdftext span {$scriptKey} must be boolean when supplied.");
                     }
                 }
+                foreach (['char_start_idx', 'char_end_idx'] as $indexKey) {
+                    if (array_key_exists($indexKey, $sanitizedSpan)) {
+                        $sanitizedSpan[$indexKey] = $this->dictionaryOutputIntegerMetadata($sanitizedSpan[$indexKey], "span.{$indexKey}");
+                    }
+                }
                 if (array_key_exists('bbox', $sanitizedSpan)) {
                     $sanitizedSpan['bbox'] = $this->unnormalizeDictionaryOutputBbox($sanitizedSpan['bbox'], $bboxScale);
                 }
@@ -408,13 +413,22 @@ final class PdfTextDocumentExtractor
             if (!array_key_exists('char_start_idx', $span)) {
                 throw new InvalidArgumentException("pdftext char {$index}.char_idx is required when keep_chars=true.");
             }
-            $this->assertNumeric($span['char_start_idx'], 'span.char_start_idx');
-            $char['char_idx'] = (int) $span['char_start_idx'] + $index;
+            $char['char_idx'] = $this->dictionaryOutputIntegerMetadata($span['char_start_idx'], 'span.char_start_idx') + $index;
         }
-        $this->assertNumeric($char['char_idx'], "char {$index}.char_idx");
-        $char['char_idx'] = (int) $char['char_idx'];
+        $char['char_idx'] = $this->dictionaryOutputIntegerMetadata($char['char_idx'], "char {$index}.char_idx");
 
         return $char;
+    }
+
+    private function dictionaryOutputIntegerMetadata(mixed $value, string $field): int
+    {
+        $this->assertNumeric($value, $field);
+        $floatValue = (float) $value;
+        if (!is_finite($floatValue) || floor($floatValue) !== $floatValue) {
+            throw new InvalidArgumentException("pdftext {$field} must be an integer.");
+        }
+
+        return (int) $value;
     }
 
     /**

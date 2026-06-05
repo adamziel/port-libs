@@ -148,6 +148,35 @@ return [
         $t->same([['c' => 'D', 'bbox' => [20.0, 30.0, 26.0, 44.0]]], $span['chars']);
         $t->same($page['char_blocks'][0]['lines'][0]['spans'][0]['chars'], $span['chars']);
     },
+    'rejects fractional span character indexes at the converter boundary' => static function (TestRunner $t): void {
+        $converter = new PdfTextBlockConverter();
+        $page = [
+            'page' => 4,
+            'bbox' => [0.0, 0.0, 200.0, 300.0],
+            'rotation' => 0,
+            'blocks' => [[
+                'lines' => [[
+                    'bbox' => [20.0, 30.0, 180.0, 44.0],
+                    'spans' => [[
+                        'text' => 'Indexed text',
+                        'bbox' => [20.0, 30.0, 180.0, 44.0],
+                        'font' => ['name' => 'Helvetica', 'flags' => 0, 'weight' => 400, 'size' => 11.0],
+                        'char_start_idx' => 3.5,
+                        'char_end_idx' => 14,
+                    ]],
+                ]],
+            ]],
+        ];
+
+        $t->throws(InvalidArgumentException::class, static fn () => $converter->pdftextFormatToPage($page, 0));
+
+        $page['blocks'][0]['lines'][0]['spans'][0]['char_start_idx'] = 3.0;
+        $page['blocks'][0]['lines'][0]['spans'][0]['char_end_idx'] = 14.0;
+        $span = $converter->pdftextFormatToPage($page, 0)['blocks'][0]['lines'][0]['spans'][0];
+
+        $t->same(3, $span['char_start_idx']);
+        $t->same(14, $span['char_end_idx']);
+    },
     'requires pdftext span text strings at the core dictionary boundary' => static function (TestRunner $t) use ($pdftextPage): void {
         $converter = new PdfTextBlockConverter();
 

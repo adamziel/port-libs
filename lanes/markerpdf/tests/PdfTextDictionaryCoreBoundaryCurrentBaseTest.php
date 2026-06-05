@@ -424,6 +424,34 @@ return [
         $badIndex['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char_idx'] = '7';
         $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$badIndex], maxPages: 1, keepChars: true));
     },
+    'rejects fractional pdftext character indexes before WordPress rendering' => static function (TestRunner $t) use ($pdftextCharsPage): void {
+        $fractionalStart = $pdftextCharsPage();
+        $fractionalStart['blocks'][0]['lines'][0]['spans'][0]['char_start_idx'] = 7.5;
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$fractionalStart], maxPages: 1, keepChars: true));
+
+        $fractionalEnd = $pdftextCharsPage();
+        $fractionalEnd['blocks'][0]['lines'][0]['spans'][0]['char_end_idx'] = 8.25;
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$fractionalEnd], maxPages: 1));
+
+        $fractionalChar = $pdftextCharsPage();
+        $fractionalChar['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char_idx'] = 7.25;
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$fractionalChar], maxPages: 1, keepChars: true));
+
+        $integralFloats = $pdftextCharsPage();
+        $integralFloats['blocks'][0]['lines'][0]['spans'][0]['char_start_idx'] = 7.0;
+        $integralFloats['blocks'][0]['lines'][0]['spans'][0]['char_end_idx'] = 8.0;
+        $integralFloats['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char_idx'] = 7.0;
+        $integralFloats['blocks'][0]['lines'][0]['spans'][0]['chars'][1]['char_idx'] = 8.0;
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$integralFloats], maxPages: 1, keepChars: true);
+        $span = $document['pages'][0]['blocks'][0]['lines'][0]['spans'][0];
+        $charSpan = $document['pages'][0]['char_blocks'][0]['lines'][0]['spans'][0];
+
+        $t->same(7, $span['char_start_idx']);
+        $t->same(8, $span['char_end_idx']);
+        $t->same(7, $span['chars'][0]['char_idx']);
+        $t->same(8, $charSpan['chars'][1]['char_idx']);
+    },
     'rejects missing pdftext font flags at the dictionary core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage, $pdftextCharsPage): void {
         $missingSpanFlags = $pdftextLinkedPage();
         unset($missingSpanFlags['blocks'][0]['lines'][0]['spans'][0]['font']['flags']);

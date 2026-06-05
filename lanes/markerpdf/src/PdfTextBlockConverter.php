@@ -52,9 +52,12 @@ final class PdfTextBlockConverter
                             $spanObj['url'] = $span['url'];
                         }
                     }
-                    foreach (['rotation', 'char_start_idx', 'char_end_idx'] as $metadataKey) {
-                        if (array_key_exists($metadataKey, $span) && (is_int($span[$metadataKey]) || is_float($span[$metadataKey]))) {
-                            $spanObj[$metadataKey] = (int) $span[$metadataKey];
+                    if (array_key_exists('rotation', $span) && (is_int($span['rotation']) || is_float($span['rotation']))) {
+                        $spanObj['rotation'] = (int) $span['rotation'];
+                    }
+                    foreach (['char_start_idx', 'char_end_idx'] as $metadataKey) {
+                        if (array_key_exists($metadataKey, $span)) {
+                            $spanObj[$metadataKey] = $this->integerMetadata($span[$metadataKey], "span {$metadataKey}");
                         }
                     }
                     if (array_key_exists('chars', $span) && is_array($span['chars'])) {
@@ -206,9 +209,12 @@ final class PdfTextBlockConverter
                     if (array_key_exists('flags', $span['font']) && $span['font']['flags'] !== null) {
                         $this->assertNumeric($span['font']['flags'], "blocks[{$blockIndex}].lines[{$lineIndex}].spans[{$spanIndex}].font.flags");
                     }
-                    foreach (['rotation', 'char_start_idx', 'char_end_idx'] as $metadataKey) {
-                        if (array_key_exists($metadataKey, $span) && !is_int($span[$metadataKey]) && !is_float($span[$metadataKey])) {
-                            throw new InvalidArgumentException("pdftext span {$metadataKey} must be numeric when supplied.");
+                    if (array_key_exists('rotation', $span) && !is_int($span['rotation']) && !is_float($span['rotation'])) {
+                        throw new InvalidArgumentException('pdftext span rotation must be numeric when supplied.');
+                    }
+                    foreach (['char_start_idx', 'char_end_idx'] as $metadataKey) {
+                        if (array_key_exists($metadataKey, $span)) {
+                            $this->integerMetadata($span[$metadataKey], "span {$metadataKey}");
                         }
                     }
                     foreach (['superscript', 'subscript'] as $scriptKey) {
