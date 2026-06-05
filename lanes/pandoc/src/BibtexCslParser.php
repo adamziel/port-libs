@@ -568,6 +568,7 @@ final class BibtexCslParser
         $item = [
             'id' => $key,
             'type' => self::cslType($type),
+            'citation-aliases' => self::biblatexKeyList($fields['ids'] ?? ''),
             'title' => self::composedTitle($fields, ['title'], ['subtitle']),
             'short-title' => self::firstField($fields, ['shorttitle']),
             'title-addon' => self::firstField($fields, ['titleaddon']),

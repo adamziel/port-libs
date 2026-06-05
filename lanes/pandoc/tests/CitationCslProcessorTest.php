@@ -1876,6 +1876,86 @@ XML);
         ]])->item('manual-organizer');
         $t->same('Manual Review Desk', $manual['eventOrganizers'][0]['literal'] ?? null);
     },
+    'maps bounded biblatex ids aliases into canonical csl citations' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{canonical-manual,
+  author    = {Smith, Ada},
+  title     = {Alias Import Manual},
+  date      = {2026},
+  publisher = {Review Press},
+  ids       = {legacy-manual, source-packet-manual}
+}
+
+@book{separate-source,
+  author = {Curator, Eli},
+  title  = {Separate Source},
+  date   = {2025}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('canonical-manual', $items[0]['id']);
+        $t->same(['legacy-manual', 'source-packet-manual'], $items[0]['citation-aliases']);
+        $t->same('legacy-manual, source-packet-manual', $items[0]['rawBibtex']['fields']['ids'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $canonical = $processor->item('canonical-manual');
+        $alias = $processor->item('legacy-manual');
+        $t->same(['legacy-manual', 'source-packet-manual'], $canonical['citationAliases'] ?? null);
+        $t->same('canonical-manual', $alias['id'] ?? null);
+        $t->same('legacy-manual', $alias['citationAlias'] ?? null);
+        $t->same('Alias Import Manual', $alias['title'] ?? null);
+        $t->same('(Smith 2026)', $processor->renderCitationCluster([$citation('legacy-manual', '[@legacy-manual]')]));
+        $t->same('Smith, Ada. Alias Import Manual. Review Press, 2026.', $processor->renderBibliographyEntry('source-packet-manual'));
+
+        $document = (new MarkdownReader())->read('Alias source @legacy-manual and primary [@canonical-manual] stay one bibliography item. Missing [@missing-source] remains visible.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $t->same(['legacy-manual', 'canonical-manual', 'missing-source'], $processor->citationIds($document));
+        $t->same(['missing-source'], $processor->missingCitationIds($document));
+        $bibliography = $processed->children[2] ?? null;
+        $t->same('definition_list', $bibliography?->type);
+        $t->same(1, count($bibliography?->children ?? []));
+        $t->same('Smith 2026', $bibliography?->children[0]->children[0]->attr('text'));
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Alias source Smith (2026) and primary (Smith 2026) stay one bibliography item. Missing [@missing-source] remains visible.</p>', $blocks);
+        $t->same(1, substr_count($blocks, '<dt>Smith 2026</dt><dd>Smith, Ada. Alias Import Manual. Review Press, 2026.</dd>'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="citation-aliases"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="citation-key"/>
+      <text variable="title"/>
+      <text variable="citation-aliases"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Alias Import Manual | legacy-manual, source-packet-manual]', $styled->renderCitationCluster([$citation('legacy-manual', '[@legacy-manual]')]));
+        $t->same('canonical-manual :: Alias Import Manual :: legacy-manual, source-packet-manual', $styled->renderBibliographyEntry('canonical-manual'));
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-primary',
+            'title' => 'Manual Alias Source',
+            'citation-aliases' => ['manual-alias'],
+        ]])->item('manual-alias');
+        $t->same('manual-primary', $manual['id'] ?? null);
+        $t->same('manual-alias', $manual['citationAlias'] ?? null);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@book{a,title={A},ids={b}} @book{b,title={B}}'));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@book{a,title={A},ids={alias}} @book{b,title={B},ids={alias}}'));
+    },
     'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
         $document = (new MarkdownReader())->read(

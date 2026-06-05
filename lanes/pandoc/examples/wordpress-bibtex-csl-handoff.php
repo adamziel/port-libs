@@ -51,6 +51,8 @@ Event paper @event-paper and proceedings [@event-proceedings] preserve conferenc
 
 Organizer paper @organized-paper and webinar [@organizer-webinar] keep event review owners visible.
 
+Alias source @legacy-alias-source resolves to one canonical bibliography item.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -406,6 +408,14 @@ $bibtex = <<<'BIB'
   date           = {2025},
   url            = {https://example.test/organizer-webinar}
 }
+
+@book{canonical-alias-source,
+  author    = {{Alias Review Desk}},
+  title     = {Canonical Alias Packet},
+  date      = {2026},
+  publisher = {Review Press},
+  ids       = {legacy-alias-source, source-packet-alias}
+}
 BIB;
 
 $processor = CitationCslProcessor::fromBibtex($bibtex);
@@ -647,6 +657,20 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($organizerWebinar['eventOrganizers'][1]['family'] ?? null) !== 'Curator') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not parse explicit webinar event organizer names');
     }
+    $canonicalAliasSource = $processor->item('canonical-alias-source');
+    if (($canonicalAliasSource['citationAliases'] ?? null) !== ['legacy-alias-source', 'source-packet-alias']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve canonical alias source ids metadata');
+    }
+    $legacyAliasSource = $processor->item('legacy-alias-source');
+    if (($legacyAliasSource['id'] ?? null) !== 'canonical-alias-source') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not resolve legacy alias source to canonical id');
+    }
+    if (($legacyAliasSource['citationAlias'] ?? null) !== 'legacy-alias-source') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve legacy alias source key');
+    }
+    if ($processor->missingCitationIds((new MarkdownReader())->read('Alias [@legacy-alias-source] should resolve.')) !== []) {
+        throw new RuntimeException('BibTeX CSL handoff self-test treated legacy alias source as missing');
+    }
 
     foreach ([
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
@@ -697,11 +721,17 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Organizer paper Ng (2026) and webinar (Smith 2025) keep event review owners visible.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Source Packet Organizer Review. WordPress Import Organizer Proceedings. Event: WordCamp Migration Summit. Event organizer: WordCamp Foundation; Migration Desk. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk Publications, 2026. 52-56.</dd>',
         '<dt>Smith 2025</dt><dd>Smith, Ada. Remote Review Webinar. Event: Remote Import Clinic. Event organizer: Review Team; Curator, Eli. 2025. https://example.test/organizer-webinar.</dd>',
+        '<p>Alias source Alias Review Desk (2026) resolves to one canonical bibliography item.</p>',
+        '<dt>Alias Review Desk 2026</dt><dd>Alias Review Desk. Canonical Alias Packet. Review Press, 2026.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {
             throw new RuntimeException('BibTeX CSL handoff self-test missing expected snippet: ' . $snippet);
         }
+    }
+
+    if (substr_count($blocks, '<dt>Alias Review Desk 2026</dt><dd>Alias Review Desk. Canonical Alias Packet. Review Press, 2026.</dd>') !== 1) {
+        throw new RuntimeException('BibTeX CSL handoff self-test rendered duplicate alias bibliography entries');
     }
 
     echo "wordpress-bibtex-csl-handoff self-test passed\n";

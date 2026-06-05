@@ -9,14 +9,27 @@ final class CitationCslProcessor
     /** @var array<string, array<string, mixed>> */
     private array $itemsById;
 
+    /** @var list<string> */
+    private array $primaryIds;
+
+    /** @var array<string, string> */
+    private array $canonicalIdsById;
+
     private CslStyle $style;
 
     /**
      * @param array<string, array<string, mixed>> $itemsById
+     * @param list<string> $primaryIds
+     * @param array<string, string> $canonicalIdsById
      */
-    private function __construct(array $itemsById, ?CslStyle $style = null)
+    private function __construct(array $itemsById, ?CslStyle $style = null, array $primaryIds = [], array $canonicalIdsById = [])
     {
         $this->itemsById = $itemsById;
+        $this->primaryIds = $primaryIds === [] ? array_keys($itemsById) : $primaryIds;
+        $this->canonicalIdsById = $canonicalIdsById;
+        foreach ($this->primaryIds as $id) {
+            $this->canonicalIdsById[$id] = $this->canonicalIdsById[$id] ?? $id;
+        }
         $this->style = $style ?? CslStyle::default();
     }
 
@@ -53,6 +66,9 @@ final class CitationCslProcessor
     public static function fromItems(array $items): self
     {
         $itemsById = [];
+        $primaryIds = [];
+        $canonicalIdsById = [];
+        $normalizedItems = [];
         foreach ($items as $index => $item) {
             if (!is_array($item)) {
                 throw new \InvalidArgumentException('CSL item at index ' . $index . ' must be an object');
@@ -65,9 +81,41 @@ final class CitationCslProcessor
             }
 
             $itemsById[$id] = $normalized;
+            $primaryIds[] = $id;
+            $canonicalIdsById[$id] = $id;
+            $normalizedItems[] = $normalized;
         }
 
-        return new self($itemsById);
+        foreach ($normalizedItems as $normalized) {
+            $id = (string) $normalized['id'];
+            $aliases = $normalized['citationAliases'] ?? [];
+            if (!is_array($aliases)) {
+                continue;
+            }
+
+            foreach ($aliases as $alias) {
+                if (!is_scalar($alias)) {
+                    continue;
+                }
+
+                $alias = trim((string) $alias);
+                if ($alias === '' || $alias === $id) {
+                    continue;
+                }
+
+                if (isset($itemsById[$alias]) || isset($canonicalIdsById[$alias])) {
+                    throw new \InvalidArgumentException('Duplicate CSL citation alias: ' . $alias);
+                }
+
+                $itemsById[$alias] = [
+                    ...$normalized,
+                    'citationAlias' => $alias,
+                ];
+                $canonicalIdsById[$alias] = $id;
+            }
+        }
+
+        return new self($itemsById, null, $primaryIds, $canonicalIdsById);
     }
 
     /**
@@ -75,7 +123,7 @@ final class CitationCslProcessor
      */
     public function withCslStyle(string $styleXml, array $localeXmls = []): self
     {
-        return new self($this->itemsById, CslStyle::fromXml($styleXml, $localeXmls));
+        return new self($this->itemsById, CslStyle::fromXml($styleXml, $localeXmls), $this->primaryIds, $this->canonicalIdsById);
     }
 
     /**
@@ -284,8 +332,9 @@ final class CitationCslProcessor
             throw new \InvalidArgumentException('Unknown CSL item id: ' . $id);
         }
 
-        $yearSuffixes = $this->yearSuffixesForIds(array_keys($this->itemsById));
-        $item = $this->itemWithYearSuffix($item, $yearSuffixes[$id] ?? '');
+        $canonicalId = $this->canonicalCitationId($id);
+        $yearSuffixes = $this->yearSuffixesForIds($this->primaryIds);
+        $item = $this->itemWithYearSuffix($item, $yearSuffixes[$canonicalId] ?? '');
 
         return $this->renderBibliographyEntryForItem($item);
     }
@@ -499,6 +548,7 @@ final class CitationCslProcessor
         return [
             'id' => $id,
             'type' => self::stringField($item, 'type'),
+            'citationAliases' => self::stringListFromFirstField($item, ['citation-aliases', 'citationAliases', 'ids']),
             'title' => self::stringField($item, 'title'),
             'shortTitle' => self::stringField($item, 'short-title'),
             'titleAddon' => self::stringField($item, 'title-addon'),
@@ -623,7 +673,33 @@ final class CitationCslProcessor
      */
     private static function stringListField(array $item, string $key): array
     {
-        $value = $item[$key] ?? [];
+        return self::stringListValue($item[$key] ?? [], $key);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param list<string> $keys
+     * @return list<string>
+     */
+    private static function stringListFromFirstField(array $item, array $keys): array
+    {
+        foreach ($keys as $key) {
+            $value = $item[$key] ?? null;
+            if ($value === null || $value === '' || $value === []) {
+                continue;
+            }
+
+            return self::stringListValue($value, $key);
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function stringListValue(mixed $value, string $key): array
+    {
         if ($value === null || $value === '') {
             return [];
         }
@@ -1213,6 +1289,8 @@ final class CitationCslProcessor
         $id = (string) $citation->attr('id', '');
         if ($id !== '' && !isset($this->itemsById[$id])) {
             $id = '';
+        } elseif ($id !== '') {
+            $id = $this->canonicalCitationId($id);
         }
 
         $locator = $this->citationLocatorParts($citation);
@@ -1329,8 +1407,11 @@ final class CitationCslProcessor
             }
 
             $id = (string) $citation->attr('id', '');
-            if ($id !== '' && isset($this->itemsById[$id]) && !in_array($id, $ids, true)) {
-                $ids[] = $id;
+            if ($id !== '' && isset($this->itemsById[$id])) {
+                $canonicalId = $this->canonicalCitationId($id);
+                if (!in_array($canonicalId, $ids, true)) {
+                    $ids[] = $canonicalId;
+                }
             }
         }
 
@@ -1343,9 +1424,10 @@ final class CitationCslProcessor
             }
 
             $id = (string) $citation->attr('id', '');
+            $canonicalId = $this->canonicalCitationId($id);
             $annotated[] = new AstNode($citation->type, [
                 ...$citation->attrs,
-                'cslYearSuffix' => $yearSuffixes[$id] ?? '',
+                'cslYearSuffix' => $yearSuffixes[$canonicalId] ?? '',
             ], $citation->children);
         }
 
@@ -1367,9 +1449,11 @@ final class CitationCslProcessor
                 return $node;
             }
 
+            $canonicalId = $this->canonicalCitationId($id);
+
             return new AstNode($node->type, [
                 ...$node->attrs,
-                'cslYearSuffix' => $yearSuffixes[$id] ?? '',
+                'cslYearSuffix' => $yearSuffixes[$canonicalId] ?? '',
             ], $node->children);
         }
 
@@ -1437,12 +1521,22 @@ final class CitationCslProcessor
     {
         $ids = [];
         foreach ($this->citationIds($document) as $id) {
-            if (isset($this->itemsById[$id]) && !in_array($id, $ids, true)) {
-                $ids[] = $id;
+            if (!isset($this->itemsById[$id])) {
+                continue;
+            }
+
+            $canonicalId = $this->canonicalCitationId($id);
+            if (!in_array($canonicalId, $ids, true)) {
+                $ids[] = $canonicalId;
             }
         }
 
         return $ids;
+    }
+
+    private function canonicalCitationId(string $id): string
+    {
+        return $this->canonicalIdsById[$id] ?? $id;
     }
 
     /**
@@ -1458,6 +1552,7 @@ final class CitationCslProcessor
         $suffixes = [];
         $groups = [];
         foreach ($ids as $id) {
+            $id = $this->canonicalCitationId($id);
             if (!isset($this->itemsById[$id]) || array_key_exists($id, $suffixes)) {
                 continue;
             }
@@ -3613,6 +3708,7 @@ final class CitationCslProcessor
             'locator' => $this->citationLocatorParts($citation)['value'],
             'id', 'citation-key' => (string) $item['id'],
             'type' => (string) $item['type'],
+            'citation-aliases', 'citation-alias' => implode(', ', is_array($item['citationAliases'] ?? null) ? $item['citationAliases'] : []),
             'title' => (string) $item['title'],
             'short-title' => (string) $item['shortTitle'],
             'title-addon' => (string) $item['titleAddon'],
