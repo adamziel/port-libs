@@ -588,7 +588,9 @@ final class PdfSecurityPreflight
         }
 
         $cryptFilters = is_array($encryption['crypt_filters'] ?? null) ? $encryption['crypt_filters'] : [];
+        $handler = is_string($encryption['filter'] ?? null) ? $encryption['filter'] : null;
         $version = is_int($encryption['version'] ?? null) ? $encryption['version'] : null;
+        $revision = is_int($encryption['revision'] ?? null) ? $encryption['revision'] : null;
         $usesCryptFilterRoles = in_array($version, [4, 5], true)
             || $cryptFilters !== []
             || is_string($encryption['stream_filter'] ?? null)
@@ -650,7 +652,10 @@ final class PdfSecurityPreflight
                 $definition['pdf_name'],
                 $filterName,
                 $cryptFilters,
-                $roleDeclarations[$role] ?? []
+                $roleDeclarations[$role] ?? [],
+                $handler,
+                $version,
+                $revision
             );
         }
 
@@ -667,7 +672,7 @@ final class PdfSecurityPreflight
             'source' => 'encryption_crypt_filter_content_review',
             'present' => true,
             'encrypted_document' => true,
-            'handler' => is_string($encryption['filter'] ?? null) ? $encryption['filter'] : null,
+            'handler' => $handler,
             'subfilter' => is_string($encryption['subfilter'] ?? null) ? $encryption['subfilter'] : null,
             'declared_crypt_filter_count' => count($cryptFilters),
             'role_count' => count($roles),
@@ -698,6 +703,9 @@ final class PdfSecurityPreflight
             'key_length_statuses' => $this->uniqueStringColumn($roles, 'key_length_status'),
             'key_length_invalid_role_names' => $this->cryptFilterKeyLengthInvalidRoleNames($roles),
             'key_length_invalid_filter_names' => $this->cryptFilterKeyLengthInvalidFilterNames($roles),
+            'method_generation_statuses' => $this->uniqueStringColumn($roles, 'method_generation_status'),
+            'method_generation_fail_closed_role_names' => $this->cryptFilterMethodGenerationFailClosedRoleNames($roles),
+            'method_generation_fail_closed_filter_names' => $this->cryptFilterMethodGenerationFailClosedFilterNames($roles),
             'role_declaration_statuses' => $this->uniqueStringColumn($roles, 'role_declaration_status'),
             'role_declaration_duplicate_role_names' => $this->cryptFilterRoleDeclarationNames($roles, 'role', true),
             'role_declaration_duplicate_pdf_names' => $this->cryptFilterRoleDeclarationNames($roles, 'pdf_name', true),
@@ -724,7 +732,10 @@ final class PdfSecurityPreflight
         string $pdfName,
         ?string $filterName,
         array $cryptFilters,
-        array $roleDeclaration = []
+        array $roleDeclaration = [],
+        ?string $handler = null,
+        ?int $version = null,
+        ?int $revision = null
     ): array {
         $row = [
             'source' => 'crypt_filter_content_role_review',
@@ -738,6 +749,11 @@ final class PdfSecurityPreflight
             'content_encrypted' => true,
             'identity_crypt_filter' => false,
             'missing_declared_crypt_filter' => false,
+            'standard_handler_version' => $version,
+            'standard_handler_revision' => $revision,
+            'method_compatible_with_standard_handler' => null,
+            'method_generation_status' => null,
+            'method_generation_fail_closed' => false,
             'review_only' => true,
             'native_import_allowed_now' => false,
             'executes_decryption' => false,
@@ -753,13 +769,14 @@ final class PdfSecurityPreflight
         }
 
         if ($filterName === 'Identity') {
+            $generationReview = $this->cryptFilterMethodGenerationReview($handler, $version, $revision, 'Identity');
             return array_merge($row, [
                 'crypt_filter_present' => true,
                 'method' => 'Identity',
                 'content_encrypted' => false,
                 'identity_crypt_filter' => true,
                 'status' => 'identity_crypt_filter',
-            ]);
+            ], $generationReview);
         }
 
         $filter = is_array($cryptFilters[$filterName] ?? null) ? $cryptFilters[$filterName] : null;
@@ -777,6 +794,7 @@ final class PdfSecurityPreflight
         $authEventStatus = $this->cryptFilterAuthEventStatus($authEvent, $role, $identity);
         $keyLengthBytes = is_int($filter['key_length_bytes'] ?? null) ? $filter['key_length_bytes'] : null;
         $keyLengthReview = $this->cryptFilterKeyLengthReview($method, $keyLengthBytes);
+        $generationReview = $this->cryptFilterMethodGenerationReview($handler, $version, $revision, $method);
 
         return array_merge($row, [
             'crypt_filter_present' => true,
@@ -797,7 +815,7 @@ final class PdfSecurityPreflight
             'content_encrypted' => !$identity,
             'identity_crypt_filter' => $identity,
             'status' => $status,
-        ]);
+        ], $generationReview);
     }
 
     private function cryptFilterMethodStatus(?string $method): string
@@ -951,6 +969,68 @@ final class PdfSecurityPreflight
     }
 
     /**
+     * @return array{method_compatible_with_standard_handler: bool|null, method_generation_status: string, method_generation_fail_closed: bool}
+     */
+    private function cryptFilterMethodGenerationReview(?string $handler, ?int $version, ?int $revision, ?string $method): array
+    {
+        if ($handler !== 'Standard') {
+            return [
+                'method_compatible_with_standard_handler' => null,
+                'method_generation_status' => 'standard_handler_method_generation_not_applicable',
+                'method_generation_fail_closed' => false,
+            ];
+        }
+
+        if ($method === null || $method === '') {
+            return [
+                'method_compatible_with_standard_handler' => null,
+                'method_generation_status' => 'crypt_filter_method_generation_unavailable_review',
+                'method_generation_fail_closed' => false,
+            ];
+        }
+
+        if (in_array($method, ['Identity', 'None'], true)) {
+            return [
+                'method_compatible_with_standard_handler' => true,
+                'method_generation_status' => 'identity_crypt_filter_method_generation_compatible',
+                'method_generation_fail_closed' => false,
+            ];
+        }
+
+        if ($version === 5 || ($revision !== null && $revision >= 5)) {
+            $compatible = $method === 'AESV3';
+            return [
+                'method_compatible_with_standard_handler' => in_array($method, ['V2', 'AESV2', 'AESV3'], true) ? $compatible : null,
+                'method_generation_status' => $compatible
+                    ? 'standard_aes256_crypt_filter_method_compatible'
+                    : (in_array($method, ['V2', 'AESV2'], true)
+                        ? 'standard_aes256_requires_aesv3_crypt_filter_review'
+                        : 'standard_aes256_crypt_filter_method_not_reviewed'),
+                'method_generation_fail_closed' => in_array($method, ['V2', 'AESV2'], true),
+            ];
+        }
+
+        if ($version === 4 || $revision === 4) {
+            $compatible = in_array($method, ['V2', 'AESV2'], true);
+            return [
+                'method_compatible_with_standard_handler' => in_array($method, ['V2', 'AESV2', 'AESV3'], true) ? $compatible : null,
+                'method_generation_status' => $compatible
+                    ? 'standard_revision4_crypt_filter_method_compatible'
+                    : ($method === 'AESV3'
+                        ? 'standard_revision4_disallows_aesv3_crypt_filter_review'
+                        : 'standard_revision4_crypt_filter_method_not_reviewed'),
+                'method_generation_fail_closed' => $method === 'AESV3',
+            ];
+        }
+
+        return [
+            'method_compatible_with_standard_handler' => null,
+            'method_generation_status' => 'standard_crypt_filter_method_generation_not_reviewed',
+            'method_generation_fail_closed' => false,
+        ];
+    }
+
+    /**
      * @param list<array<string, mixed>> $roles
      * @return list<string>
      */
@@ -1081,6 +1161,9 @@ final class PdfSecurityPreflight
         if (($row['key_length_fail_closed'] ?? false) === true) {
             return true;
         }
+        if (($row['method_generation_fail_closed'] ?? false) === true) {
+            return true;
+        }
 
         return ($row['auth_event_applies_to_role'] ?? null) === false;
     }
@@ -1117,6 +1200,9 @@ final class PdfSecurityPreflight
         if (($row['key_length_fail_closed'] ?? false) === true) {
             return 'invalid_crypt_filter_key_length_fail_closed';
         }
+        if (($row['method_generation_fail_closed'] ?? false) === true) {
+            return 'crypt_filter_method_generation_mismatch_fail_closed';
+        }
 
         return match ($authEventStatus) {
             'embedded_file_auth_event_on_document_content_review' => 'authorization_event_role_mismatch_fail_closed',
@@ -1134,6 +1220,7 @@ final class PdfSecurityPreflight
             'unknown_crypt_filter_method_fail_closed' => 'blocked_by_unknown_document_crypt_filter_method',
             'unsupported_crypt_filter_method_fail_closed' => 'blocked_by_unsupported_document_crypt_filter_method',
             'invalid_crypt_filter_key_length_fail_closed' => 'blocked_by_invalid_document_crypt_filter_key_length',
+            'crypt_filter_method_generation_mismatch_fail_closed' => 'blocked_by_incompatible_document_crypt_filter_method',
             'duplicate_crypt_filter_role_entries_fail_closed' => 'blocked_by_duplicate_document_crypt_filter_roles',
             'malformed_crypt_filter_role_entry_fail_closed' => 'blocked_by_malformed_document_crypt_filter_role',
             'authorization_event_role_mismatch_fail_closed' => 'blocked_by_document_crypt_filter_auth_event_mismatch',
@@ -1345,6 +1432,46 @@ final class PdfSecurityPreflight
         foreach ($roles as $role) {
             if (
                 ($role['key_length_fail_closed'] ?? false) === true
+                && is_string($role['filter_name'] ?? null)
+                && !in_array($role['filter_name'], $names, true)
+            ) {
+                $names[] = $role['filter_name'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterMethodGenerationFailClosedRoleNames(array $roles): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            if (
+                ($role['method_generation_fail_closed'] ?? false) === true
+                && is_string($role['role'] ?? null)
+                && !in_array($role['role'], $names, true)
+            ) {
+                $names[] = $role['role'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterMethodGenerationFailClosedFilterNames(array $roles): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            if (
+                ($role['method_generation_fail_closed'] ?? false) === true
                 && is_string($role['filter_name'] ?? null)
                 && !in_array($role['filter_name'], $names, true)
             ) {
