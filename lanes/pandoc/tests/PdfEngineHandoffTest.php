@@ -226,6 +226,80 @@ MARKDOWN);
         $t->contains('pdf-engine-artifacts:6', implode(',', $plan['diagnostics']));
     },
 
+    'plans and validates latex recorder file dependencies without executing engines' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'xelatex',
+            'outputPath' => 'handoff/dependency.pdf',
+            'engineOptions' => ['-file-line-error', '-recorder'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake bounded handoff with recorder file\n%%EOF\n";
+        $fls = implode("\n", [
+            'PWD /tmp/pandoc-pdf-work',
+            'INPUT handoff/dependency.tex',
+            'INPUT ./styles/review-header.tex',
+            'INPUT refs/migration-log.bib',
+            'INPUT /usr/share/texlive/texmf-dist/tex/latex/base/article.cls',
+            'OUTPUT handoff/dependency.aux',
+            'OUTPUT handoff/dependency.log',
+            'OUTPUT handoff/dependency.pdf',
+            '',
+        ]);
+
+        $missing = $handoff->fakeRun($plan, [
+            'files' => [
+                'handoff/dependency.fls' => $fls,
+                'handoff/dependency.pdf' => $pdfBytes,
+            ],
+        ]);
+        $ok = $handoff->fakeRun($plan, [
+            'files' => [
+                'styles/review-header.tex' => '\usepackage{fontspec}',
+                'refs/migration-log.bib' => '@book{migration-log,title={Migration Log}}',
+                'handoff/dependency.fls' => $fls,
+                'handoff/dependency.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'styles/review-header.tex' => '\usepackage{fontspec}',
+                    'refs/migration-log.bib' => '@book{migration-log,title={Migration Log}}',
+                    'handoff/dependency.fls' => $fls,
+                    'handoff/dependency.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->contains('handoff/dependency.fls', implode(',', $plan['expectedEngineArtifacts']));
+        $t->contains('pdf-engine-recorder:handoff/dependency.fls', implode(',', $plan['diagnostics']));
+        $t->same(false, $missing['ok']);
+        $t->same('missing-engine-input-file', $missing['reason']);
+        $t->same(['refs/migration-log.bib', 'styles/review-header.tex'], $missing['missingEngineInputFiles']);
+        $t->contains('missing-engine-input-file:styles/review-header.tex', implode(',', $missing['diagnostics']));
+        $t->same(true, $ok['ok']);
+        $t->same(['handoff/dependency.fls' => hash('sha256', $fls)], $ok['engineDependencyArtifactsSha256']);
+        $t->same([
+            'handoff/dependency.tex',
+            'refs/migration-log.bib',
+            'styles/review-header.tex',
+        ], $ok['engineInputFiles']);
+        $t->same(['article.cls'], $ok['engineExternalInputFiles']);
+        $t->same([
+            'handoff/dependency.aux',
+            'handoff/dependency.log',
+            'handoff/dependency.pdf',
+        ], $ok['engineOutputFiles']);
+        $t->same([], $ok['missingEngineInputFiles']);
+        $t->contains('engine-dependency-files:3', implode(',', $ok['diagnostics']));
+        $t->contains('engine-external-input-files:1', implode(',', $ok['diagnostics']));
+        $t->contains('engine-output-files:3', implode(',', $ok['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($ok['engineDependencyArtifactsSha256'], $sequence['finalEngineDependencyArtifactsSha256']);
+        $t->same($ok['engineInputFiles'], $sequence['finalEngineInputFiles']);
+        $t->same($ok['engineOutputFiles'], $sequence['finalEngineOutputFiles']);
+    },
+
     'plans and parses synctex source map sidecars without executing engines' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
