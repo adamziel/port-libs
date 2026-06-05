@@ -142,12 +142,13 @@ final class PdfAcroFormExtractor
         $signatureFlags = $this->acroFormSignatureFlags($acroForm);
 
         foreach ($fieldRefs as $fieldRef) {
+            $context = $this->fieldReferenceAncestorContext($fieldRef, $objects, $formDefaults);
             foreach ($this->fieldsFromObject(
                 $fieldRef,
                 $objects,
-                $formDefaults,
-                [],
-                [],
+                $context['inherited'],
+                $context['name_parts'],
+                $context['hierarchy_path'],
                 [],
                 $pageIndexes,
                 $pageWidgets,
@@ -3404,6 +3405,64 @@ final class PdfAcroFormExtractor
     }
 
     /**
+     * @param array<int, string> $objects
+     * @param array<string, array{value: string, source: string, source_object: int|null}> $formDefaults
+     * @return array{inherited: array<string, array{value: string, source: string, source_object: int|null}>, name_parts: list<string>, hierarchy_path: list<array{object: int, partial_name: string|null, full_name: string, alternate_name: string|null, mapping_name: string|null}>}
+     */
+    private function fieldReferenceAncestorContext(int $objectNumber, array $objects, array $formDefaults): array
+    {
+        $ancestors = [];
+        $candidate = $objectNumber;
+        $seen = [];
+
+        while (isset($objects[$candidate]) && !isset($seen[$candidate])) {
+            $seen[$candidate] = true;
+            $body = $this->dictionaryObjectBody($objects[$candidate]) ?? trim($objects[$candidate]);
+            $parentObject = $this->validObjectReferenceValueAfterName($body, 'Parent', $objects);
+            if ($parentObject === null || !isset($objects[$parentObject]) || isset($seen[$parentObject])) {
+                break;
+            }
+
+            $parentBody = $this->dictionaryObjectBody($objects[$parentObject]) ?? trim($objects[$parentObject]);
+            if (!$this->isFieldDictionaryCandidate($parentBody)) {
+                break;
+            }
+
+            array_unshift($ancestors, $parentObject);
+            $candidate = $parentObject;
+        }
+
+        $inherited = $formDefaults;
+        $nameParts = [];
+        $hierarchyPath = [];
+        foreach ($ancestors as $ancestorObject) {
+            $body = $this->dictionaryObjectBody($objects[$ancestorObject] ?? '') ?? trim($objects[$ancestorObject] ?? '');
+            $inherited = $this->mergeFieldAttributes($body, $inherited, $ancestorObject);
+
+            $partialName = $this->pdfStringValueAfterName($body, 'T', $objects);
+            $alternateName = $this->pdfStringValueAfterName($body, 'TU', $objects);
+            $mappingName = $this->pdfStringValueAfterName($body, 'TM', $objects);
+            if ($partialName !== null && $partialName !== '') {
+                $nameParts[] = $partialName;
+            }
+
+            $hierarchyPath[] = [
+                'object' => $ancestorObject,
+                'partial_name' => $partialName,
+                'full_name' => $nameParts === [] ? '#' . $ancestorObject : implode('.', $nameParts),
+                'alternate_name' => $alternateName,
+                'mapping_name' => $mappingName,
+            ];
+        }
+
+        return [
+            'inherited' => $inherited,
+            'name_parts' => $nameParts,
+            'hierarchy_path' => $hierarchyPath,
+        ];
+    }
+
+    /**
      * @return list<array<string, mixed>>
      * @param array<int, string> $objects
      * @param array<string, array{value: string, source: string, source_object: int|null}> $inherited
@@ -6034,7 +6093,8 @@ final class PdfAcroFormExtractor
     {
         $names = [];
         foreach ($fieldRefs as $fieldRef) {
-            $this->collectFieldNamesByObject($fieldRef, $objects, [], $names, []);
+            $context = $this->fieldReferenceAncestorContext($fieldRef, $objects, []);
+            $this->collectFieldNamesByObject($fieldRef, $objects, $context['name_parts'], $names, []);
         }
 
         return $names;
@@ -8900,12 +8960,6 @@ final class PdfAcroFormExtractor
             if (isset($objects[$fieldRef])) {
                 $body = $this->dictionaryObjectBody($objects[$fieldRef]) ?? trim($objects[$fieldRef]);
                 if ($this->isPureWidget($body)) {
-                    $parentObject = $this->validObjectReferenceValueAfterName($body, 'Parent', $objects);
-                    $rootField = $parentObject === null ? null : $this->pageWidgetRootFieldCandidate($parentObject, $objects, []);
-                    if ($rootField !== null) {
-                        $candidate = $rootField;
-                    }
-                } else {
                     $parentObject = $this->validObjectReferenceValueAfterName($body, 'Parent', $objects);
                     $rootField = $parentObject === null ? null : $this->pageWidgetRootFieldCandidate($parentObject, $objects, []);
                     if ($rootField !== null) {
