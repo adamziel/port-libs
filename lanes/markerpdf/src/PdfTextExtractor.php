@@ -17095,6 +17095,10 @@ final class PdfTextExtractor
             return true;
         }
 
+        if ($decoded[$absoluteOffset] === '%') {
+            return false;
+        }
+
         $index = $memberTable['first'];
         $length = strlen($decoded);
         while ($index < $absoluteOffset && $index < $length) {
