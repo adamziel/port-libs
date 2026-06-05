@@ -163,6 +163,8 @@ final class OdfReader
                     'annotationRangeCount' => $contentStats['annotationRangeCount'],
                     'trackedChangeCount' => $contentStats['trackedChangeCount'],
                     'mathCount' => $contentStats['mathCount'],
+                    'embeddedObjectCount' => $contentStats['embeddedObjectCount'],
+                    'missingEmbeddedObjectCount' => $contentStats['missingEmbeddedObjectCount'],
                     'sectionCount' => $contentStats['sectionCount'],
                     'linkedSectionCount' => $contentStats['linkedSectionCount'],
                     'protectedSectionCount' => $contentStats['protectedSectionCount'],
@@ -1027,6 +1029,11 @@ final class OdfReader
             return new AstNode('div', $attrs, $this->blockNodes($textBox, $package, $catalog));
         }
 
+        $objectOle = $this->frameObjectOleNode($frame, $package, false);
+        if ($objectOle instanceof AstNode) {
+            return $objectOle;
+        }
+
         $math = $this->frameObjectMathNode($frame, $package);
         if ($math instanceof AstNode) {
             return new AstNode('paragraph', [
@@ -1168,6 +1175,11 @@ final class OdfReader
                 $math = $this->frameObjectMathNode($child, $package);
                 if ($math instanceof AstNode) {
                     $nodes[] = $math;
+                    continue;
+                }
+                $objectOle = $this->frameObjectOleNode($child, $package, true);
+                if ($objectOle instanceof AstNode) {
+                    $nodes[] = $objectOle;
                 }
                 continue;
             }
@@ -1980,6 +1992,175 @@ final class OdfReader
         ]);
     }
 
+    private function frameObjectOleNode(\DOMElement $frame, ?ZipPackage $package, bool $inline): ?AstNode
+    {
+        $object = self::firstChildElement($frame, 'object-ole', self::DRAW_NS);
+        if (!$object instanceof \DOMElement) {
+            return null;
+        }
+
+        $href = self::attr($object, self::XLINK_NS, 'href');
+        if ($href === '') {
+            return null;
+        }
+
+        $part = $this->manifestPackagePart($href);
+        $objectPath = rtrim($part, '/');
+        if ($objectPath === '') {
+            return null;
+        }
+
+        $manifestItem = $this->objectManifestItem($part, $objectPath);
+        $sourcePart = is_array($manifestItem) && is_string($manifestItem['part'] ?? null)
+            ? (string) $manifestItem['part']
+            : $part;
+        $containedParts = $package instanceof ZipPackage ? $this->objectContainedParts($package, $objectPath) : [];
+        $encrypted = is_array($manifestItem) && ($manifestItem['encrypted'] ?? false) === true;
+        $mediaType = is_array($manifestItem) ? (string) ($manifestItem['mediaType'] ?? '') : '';
+        $containedByteLength = $encrypted ? null : $this->containedPartsByteLength($package, $containedParts);
+        $exists = $containedParts !== [] || ($package instanceof ZipPackage && $package->has($sourcePart) && !str_ends_with($sourcePart, '/'));
+        $label = $this->objectLabel($frame, $object, $objectPath);
+
+        $attributes = [
+            'data-odf-object-type' => 'ole',
+            'data-odf-object-href' => $href,
+            'data-odf-object-path' => $objectPath,
+            'data-odf-object-source-part' => $sourcePart,
+        ];
+        if ($mediaType !== '') {
+            $attributes['data-odf-object-media-type'] = $mediaType;
+        }
+        $attributes['data-odf-object-exists'] = $exists ? 'true' : 'false';
+        $attributes['data-odf-object-contained-part-count'] = (string) count($containedParts);
+        if ($containedByteLength !== null && $containedByteLength > 0) {
+            $attributes['data-odf-object-contained-byte-length'] = (string) $containedByteLength;
+        }
+        $attributes['data-odf-object-can-expose-bytes'] = 'false';
+        if ($encrypted) {
+            $attributes['data-odf-object-encrypted'] = 'true';
+        }
+
+        $attrs = [
+            'sourceFormat' => 'odt-object-ole',
+            'objectType' => 'ole',
+            'href' => $href,
+            'objectPath' => $objectPath,
+            'sourcePart' => $sourcePart,
+            'mediaType' => $mediaType === '' ? null : $mediaType,
+            'exists' => $exists,
+            'encrypted' => $encrypted,
+            'canExposeBytes' => false,
+            'containedParts' => $containedParts,
+            'containedPartCount' => count($containedParts),
+            'containedByteLength' => $containedByteLength,
+            'classes' => ['odf-embedded-object', 'odf-object-ole'],
+            'attributes' => $attributes,
+        ];
+        if (is_array($manifestItem)) {
+            $attrs['manifestFullPath'] = $manifestItem['fullPath'] ?? null;
+            $attrs['declaredSize'] = $manifestItem['declaredSize'] ?? null;
+            $attrs['manifestExists'] = $manifestItem['exists'] ?? null;
+            $attrs['encryption'] = $manifestItem['encryption'] ?? null;
+        }
+
+        $text = new AstNode('text', ['text' => $label]);
+        if ($inline) {
+            return new AstNode('span', $attrs, [$text]);
+        }
+
+        return new AstNode('div', $attrs, [
+            new AstNode('paragraph', [
+                'sourceFormat' => 'odt',
+                'text' => $label,
+            ], [$text]),
+        ]);
+    }
+
+    /**
+     * @return ?array<string, mixed>
+     */
+    private function objectManifestItem(string $part, string $objectPath): ?array
+    {
+        $candidates = [$part];
+        if (!str_ends_with($part, '/')) {
+            $candidates[] = $part . '/';
+        }
+        $candidates[] = $objectPath;
+        $candidates[] = $objectPath . '/';
+
+        foreach (array_unique($candidates) as $candidate) {
+            if (isset($this->manifestByPart[$candidate])) {
+                return $this->manifestByPart[$candidate];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function objectContainedParts(ZipPackage $package, string $objectPath): array
+    {
+        $prefix = rtrim($objectPath, '/') . '/';
+        $parts = [];
+        foreach ($package->names() as $name) {
+            if ($name === $objectPath || str_starts_with($name, $prefix)) {
+                if (!str_ends_with($name, '/')) {
+                    $parts[] = $name;
+                }
+            }
+        }
+
+        sort($parts);
+
+        return $parts;
+    }
+
+    /**
+     * @param list<string> $parts
+     */
+    private function containedPartsByteLength(?ZipPackage $package, array $parts): ?int
+    {
+        if (!$package instanceof ZipPackage || $parts === []) {
+            return null;
+        }
+
+        $bytes = 0;
+        foreach ($parts as $part) {
+            if (!$package->has($part)) {
+                continue;
+            }
+            $bytes += $package->entry($part)->uncompressedSize;
+        }
+
+        return $bytes;
+    }
+
+    private function objectLabel(\DOMElement $frame, \DOMElement $object, string $objectPath): string
+    {
+        $desc = self::firstChildElement($frame, 'desc', self::SVG_NS)
+            ?? self::firstChildElement($object, 'desc', self::SVG_NS);
+        if ($desc instanceof \DOMElement && self::normalizedText($desc) !== '') {
+            return self::normalizedText($desc);
+        }
+
+        $title = self::firstChildElement($frame, 'title', self::SVG_NS)
+            ?? self::firstChildElement($object, 'title', self::SVG_NS);
+        if ($title instanceof \DOMElement && self::normalizedText($title) !== '') {
+            return self::normalizedText($title);
+        }
+
+        $name = self::attr($frame, self::DRAW_NS, 'name');
+        if ($name !== '') {
+            return $name;
+        }
+
+        $basename = basename($objectPath);
+
+        return $basename === '' ? 'Embedded ODF object' : $basename;
+    }
+
     /**
      * @return array{0:string,1:string}
      */
@@ -2435,7 +2616,7 @@ final class OdfReader
             if (in_array($part, ['content.xml', 'styles.xml', 'meta.xml', 'settings.xml'], true)) {
                 continue;
             }
-            if ($mediaType === '' || str_contains($mediaType, 'xml')) {
+            if ($mediaType === '' || $this->isXmlMediaType($mediaType)) {
                 continue;
             }
 
@@ -2458,6 +2639,15 @@ final class OdfReader
         }
 
         return $media;
+    }
+
+    private function isXmlMediaType(string $mediaType): bool
+    {
+        $base = strtolower(trim(explode(';', $mediaType, 2)[0]));
+
+        return $base === 'text/xml'
+            || $base === 'application/xml'
+            || str_ends_with($base, '+xml');
     }
 
     /**
@@ -2491,7 +2681,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, continuedListCount:int, listHeaderCount:int}
+     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, continuedListCount:int, listHeaderCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -2507,6 +2697,8 @@ final class OdfReader
             'annotationRangeCount' => 0,
             'trackedChangeCount' => 0,
             'mathCount' => 0,
+            'embeddedObjectCount' => 0,
+            'missingEmbeddedObjectCount' => 0,
             'sectionCount' => 0,
             'linkedSectionCount' => 0,
             'protectedSectionCount' => 0,
@@ -2555,6 +2747,12 @@ final class OdfReader
             }
             if ($node->type === 'math') {
                 $stats['mathCount']++;
+            }
+            if (($node->type === 'span' || $node->type === 'div') && $this->nodeHasClass($node, 'odf-embedded-object')) {
+                $stats['embeddedObjectCount']++;
+                if ($node->attr('exists') !== true) {
+                    $stats['missingEmbeddedObjectCount']++;
+                }
             }
             if (($node->type === 'ordered_list' || $node->type === 'bullet_list') && $node->attr('continued') === true) {
                 $stats['continuedListCount']++;

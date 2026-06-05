@@ -23,6 +23,8 @@ $manifestXml = <<<'XML'
       <manifest:start-key-generation manifest:start-key-generation-name="SHA1" manifest:key-size="20"/>
     </manifest:encryption-data>
   </manifest:file-entry>
+  <manifest:file-entry manifest:full-path="Object%202/" manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/>
+  <manifest:file-entry manifest:full-path="Object%202/oleObject.bin" manifest:media-type="application/vnd.openxmlformats-officedocument.oleObject" manifest:size="10"/>
 </manifest:manifest>
 XML;
 
@@ -98,7 +100,7 @@ $contentXml = <<<'XML'
         <text:section-source xlink:href="Sections/policy-appendix.odt" xlink:type="simple" text:section-name="Policy Appendix" text:filter-name="writer8"/>
         <text:p>Linked appendix fallback text.</text:p>
       </text:section>
-      <text:p>Reviewer <text:span text:style-name="StrongSource">summary</text:span> keeps source mark<text:span text:style-name="SourceSuperscript">TM</text:span> and H<text:span text:style-name="SourceSubscript">2</text:span>O, <office:annotation office:name="ann-source-range"><dc:creator>Migration Reviewer</dc:creator><dc:date>2026-06-05T05:58:00Z</dc:date><text:p>Range comment for the annotated source claim.</text:p></office:annotation>annotated source claim<office:annotation-end office:name="ann-source-range"/>, <text:change-start text:change-id="chg-add-source-note"/>tracked source note<text:change-end text:change-id="chg-add-source-note"/> and <text:change text:change-id="chg-delete-draft-claim"/>, <text:bookmark-start text:name="Review Anchor"/>review anchor<text:bookmark-end text:name="Review Anchor"/>, <text:bookmark-ref text:ref-name="Review Anchor" text:reference-format="text">internal reference</text:bookmark-ref>, <text:reference-mark-start text:name="Source Claim"/>source claim<text:reference-mark-end text:name="Source Claim"/> with <text:reference-ref text:ref-name="Source Claim" text:reference-format="text">source claim reference</text:reference-ref>, caption <text:sequence text:name="Illustration" text:formula="ooow:Illustration+1" text:ref-name="source-hero-seq">Figure 1</text:sequence>, review field <text:variable-set text:name="ReviewStatus" office:value-type="string" office:string-value="Ready">Ready</text:variable-set> by <text:user-field-get text:name="Reviewer">Migration Desk</text:user-field-get> on page <text:page-number text:select-page="current">2</text:page-number>, <text:a xlink:href="https://example.test/odt-source" xlink:type="simple" xlink:show="new" xlink:actuate="onRequest" office:name="Source Packet Link" office:title="ODT source package" office:target-frame-name="_blank" text:style-name="SourceLink" text:visited-style-name="VisitedSourceLink">source URL</text:a>, citation <text:bibliography-mark text:identifier="source-review" text:number="2">source review packet</text:bibliography-mark>, formula <draw:frame draw:name="Migration formula"><draw:object xlink:href="./Object%201"/></draw:frame>, and annotations<text:note text:id="ftn-review" text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>ODT footnote reviewer context.</text:p></text:note-body></text:note><office:annotation><dc:creator>Migration Desk</dc:creator><dc:date>2026-06-04T23:20:00Z</dc:date><text:p>Check imported captions before publishing.</text:p></office:annotation>.</text:p>
+      <text:p>Reviewer <text:span text:style-name="StrongSource">summary</text:span> keeps source mark<text:span text:style-name="SourceSuperscript">TM</text:span> and H<text:span text:style-name="SourceSubscript">2</text:span>O, <office:annotation office:name="ann-source-range"><dc:creator>Migration Reviewer</dc:creator><dc:date>2026-06-05T05:58:00Z</dc:date><text:p>Range comment for the annotated source claim.</text:p></office:annotation>annotated source claim<office:annotation-end office:name="ann-source-range"/>, <text:change-start text:change-id="chg-add-source-note"/>tracked source note<text:change-end text:change-id="chg-add-source-note"/> and <text:change text:change-id="chg-delete-draft-claim"/>, <text:bookmark-start text:name="Review Anchor"/>review anchor<text:bookmark-end text:name="Review Anchor"/>, <text:bookmark-ref text:ref-name="Review Anchor" text:reference-format="text">internal reference</text:bookmark-ref>, <text:reference-mark-start text:name="Source Claim"/>source claim<text:reference-mark-end text:name="Source Claim"/> with <text:reference-ref text:ref-name="Source Claim" text:reference-format="text">source claim reference</text:reference-ref>, caption <text:sequence text:name="Illustration" text:formula="ooow:Illustration+1" text:ref-name="source-hero-seq">Figure 1</text:sequence>, review field <text:variable-set text:name="ReviewStatus" office:value-type="string" office:string-value="Ready">Ready</text:variable-set> by <text:user-field-get text:name="Reviewer">Migration Desk</text:user-field-get> on page <text:page-number text:select-page="current">2</text:page-number>, <text:a xlink:href="https://example.test/odt-source" xlink:type="simple" xlink:show="new" xlink:actuate="onRequest" office:name="Source Packet Link" office:title="ODT source package" office:target-frame-name="_blank" text:style-name="SourceLink" text:visited-style-name="VisitedSourceLink">source URL</text:a>, citation <text:bibliography-mark text:identifier="source-review" text:number="2">source review packet</text:bibliography-mark>, formula <draw:frame draw:name="Migration formula"><draw:object xlink:href="./Object%201"/></draw:frame>, spreadsheet <draw:frame draw:name="Source spreadsheet"><draw:object-ole xlink:href="./Object%202"/></draw:frame>, and annotations<text:note text:id="ftn-review" text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>ODT footnote reviewer context.</text:p></text:note-body></text:note><office:annotation><dc:creator>Migration Desk</dc:creator><dc:date>2026-06-04T23:20:00Z</dc:date><text:p>Check imported captions before publishing.</text:p></office:annotation>.</text:p>
       <text:list text:style-name="ReviewSteps">
         <text:list-header><text:p>Review packet checklist</text:p></text:list-header>
         <text:list-item>
@@ -171,6 +173,7 @@ $package = ZipPackage::fromParts([
     ['name' => 'styles.xml', 'data' => $stylesXml],
     ['name' => 'meta.xml', 'data' => $metaXml],
     ['name' => 'Object 1/content.xml', 'data' => $mathObjectXml],
+    ['name' => 'Object 2/oleObject.bin', 'data' => 'OLEPAYLOAD'],
     ['name' => 'Pictures/source hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
 ]);
 
@@ -319,6 +322,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<span class="math display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block">')) {
         throw new RuntimeException('Expected ODT MathML object to render in WordPress blocks');
+    }
+    if (($result['importReport']['content']['embeddedObjectCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT embedded object to be counted in the import report');
+    }
+    if (($result['importReport']['content']['missingEmbeddedObjectCount'] ?? 0) !== 0) {
+        throw new RuntimeException('Expected ODT embedded object package parts to be present');
+    }
+    if (!str_contains($blocks, '<span class="odf-embedded-object odf-object-ole" data-odf-object-type="ole" data-odf-object-href="./Object%202" data-odf-object-path="Object 2" data-odf-object-source-part="Object 2/" data-odf-object-media-type="application/vnd.oasis.opendocument.spreadsheet" data-odf-object-exists="true" data-odf-object-contained-part-count="1" data-odf-object-contained-byte-length="10" data-odf-object-can-expose-bytes="false">Source spreadsheet</span>')) {
+        throw new RuntimeException('Expected ODT object-ole frame to render as a WordPress review placeholder');
+    }
+    if (str_contains($blocks, 'OLEPAYLOAD')) {
+        throw new RuntimeException('Expected ODT object-ole payload bytes to stay out of WordPress output');
     }
     if (!str_contains($blocks, '<img src="Pictures/source%20hero.png" alt="ODT source hero alt" title="Source hero" width="6cm" height="3.5cm"/>')) {
         throw new RuntimeException('Expected ODT image dimensions to render in WordPress blocks');

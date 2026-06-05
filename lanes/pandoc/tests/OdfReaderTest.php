@@ -1332,6 +1332,92 @@ XML;
         $t->contains('<annotation encoding="application/x-tex">x=1</annotation>', $blocksHtml);
         $t->contains('<span class="math display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $blocksHtml);
     },
+    'maps ODT object-ole frames into embedded object review placeholders' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $manifestWithOleObjects = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Object%20OLE/" manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/>
+  <manifest:file-entry manifest:full-path="Object%20OLE/oleObject.bin" manifest:media-type="application/vnd.openxmlformats-officedocument.oleObject" manifest:size="9"/>
+  <manifest:file-entry manifest:full-path="Object%20Missing/" manifest:media-type="application/vnd.oasis.opendocument.chart"/>
+</manifest:manifest>
+XML;
+        $contentWithOleObjects = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Inline object <draw:frame draw:name="Inline spreadsheet"><draw:object-ole xlink:href="./Object%20OLE"/></draw:frame> queued.</text:p>
+      <draw:frame draw:name="Missing object">
+        <svg:title>Linked chart</svg:title>
+        <draw:object-ole xlink:href="Object%20Missing"/>
+      </draw:frame>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(
+            $contentWithOleObjects,
+            $manifestWithOleObjects,
+            null,
+            null,
+            [
+                ['name' => 'Object OLE/oleObject.bin', 'data' => 'OLEBYTES!'],
+            ]
+        ));
+
+        $blocks = $result['document']->children;
+        $paragraph = $blocks[0];
+        $inlineObject = $paragraph->children[1];
+        $blockObject = $blocks[1];
+
+        $t->same(2, count($blocks));
+        $t->same('Inline object Inline spreadsheet queued.', $paragraph->attr('text'));
+        $t->same('span', $inlineObject->type);
+        $t->same(['odf-embedded-object', 'odf-object-ole'], $inlineObject->attr('classes'));
+        $t->same('ole', $inlineObject->attr('objectType'));
+        $t->same('./Object%20OLE', $inlineObject->attr('href'));
+        $t->same('Object OLE', $inlineObject->attr('objectPath'));
+        $t->same('Object OLE/', $inlineObject->attr('sourcePart'));
+        $t->same('application/vnd.oasis.opendocument.spreadsheet', $inlineObject->attr('mediaType'));
+        $t->same(true, $inlineObject->attr('exists'));
+        $t->same(false, $inlineObject->attr('canExposeBytes'));
+        $t->same(['Object OLE/oleObject.bin'], $inlineObject->attr('containedParts'));
+        $t->same(1, $inlineObject->attr('containedPartCount'));
+        $t->same(9, $inlineObject->attr('containedByteLength'));
+        $t->same('Inline spreadsheet', $inlineObject->children[0]->attr('text'));
+
+        $t->same('div', $blockObject->type);
+        $t->same(['odf-embedded-object', 'odf-object-ole'], $blockObject->attr('classes'));
+        $t->same('Object Missing', $blockObject->attr('objectPath'));
+        $t->same('Object Missing/', $blockObject->attr('sourcePart'));
+        $t->same(false, $blockObject->attr('exists'));
+        $t->same('Linked chart', $blockObject->children[0]->children[0]->attr('text'));
+
+        $mediaByPart = [];
+        foreach ($result['media'] as $media) {
+            $mediaByPart[$media['part']] = $media;
+        }
+        $t->same(2, $result['importReport']['content']['embeddedObjectCount']);
+        $t->same(1, $result['importReport']['content']['missingEmbeddedObjectCount']);
+        $t->same('application/vnd.openxmlformats-officedocument.oleObject', $mediaByPart['Object OLE/oleObject.bin']['mediaType']);
+        $t->same(9, $mediaByPart['Object OLE/oleObject.bin']['byteLength']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Inline spreadsheet]{.odf-embedded-object .odf-object-ole data-odf-object-type="ole" data-odf-object-href="./Object%20OLE" data-odf-object-path="Object OLE" data-odf-object-source-part="Object OLE/" data-odf-object-media-type="application/vnd.oasis.opendocument.spreadsheet" data-odf-object-exists="true" data-odf-object-contained-part-count="1" data-odf-object-contained-byte-length="9" data-odf-object-can-expose-bytes="false"}', $markdown);
+        $t->contains('::: {.odf-embedded-object .odf-object-ole data-odf-object-type="ole" data-odf-object-href="Object%20Missing" data-odf-object-path="Object Missing" data-odf-object-source-part="Object Missing/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="false" data-odf-object-contained-part-count="0" data-odf-object-can-expose-bytes="false"}', $markdown);
+        $t->contains('<span class="odf-embedded-object odf-object-ole" data-odf-object-type="ole" data-odf-object-href="./Object%20OLE" data-odf-object-path="Object OLE" data-odf-object-source-part="Object OLE/" data-odf-object-media-type="application/vnd.oasis.opendocument.spreadsheet" data-odf-object-exists="true" data-odf-object-contained-part-count="1" data-odf-object-contained-byte-length="9" data-odf-object-can-expose-bytes="false">Inline spreadsheet</span>', $blocksHtml);
+        $t->contains('<div class="odf-embedded-object odf-object-ole" data-odf-object-type="ole" data-odf-object-href="Object%20Missing" data-odf-object-path="Object Missing" data-odf-object-source-part="Object Missing/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="false" data-odf-object-contained-part-count="0" data-odf-object-can-expose-bytes="false"><p>Linked chart</p></div>', $blocksHtml);
+        $t->true(!str_contains($blocksHtml, 'OLEBYTES!'), 'Opaque OLE bytes must not render in WordPress output');
+    },
     'normalizes ODT URI encoded package part references for media and objects' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $manifestWithEncodedParts = <<<'XML'
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
