@@ -8301,12 +8301,12 @@ final class PdfTextExtractor
 
         $hasBitsPerComponent = $this->hasPdfNumberishName($dict, 'BitsPerComponent')
             || $this->hasPdfNumberishName($dict, 'BPC');
-        if (!$hasBitsPerComponent && preg_match('/\/ImageMask\s+true\b/', $dict) !== 1) {
+        $imageMask = $this->topLevelPdfBooleanValueAfterName($dict, 'ImageMask') === true;
+        if (!$hasBitsPerComponent && !$imageMask) {
             return false;
         }
 
-        return $this->imageColorSpaceFamily($dict, $objects) !== null
-            || preg_match('/\/ImageMask\s+true\b/', $dict) === 1;
+        return $this->imageColorSpaceFamily($dict, $objects) !== null || $imageMask;
     }
 
     private function hasPdfNumberishName(string $dict, string $name): bool
@@ -8317,6 +8317,25 @@ final class PdfTextExtractor
         }
 
         return preg_match('/\G(?:[+-]?(?:\d+(?:\.\d*)?|\.\d+)|\d+\s+\d+\s+R\b)/s', $dict, $match, 0, $offset) === 1;
+    }
+
+    private function topLevelPdfBooleanValueAfterName(string $dict, string $name): ?bool
+    {
+        $offset = $this->topLevelNameValueOffset($dict, $name);
+        if ($offset === null) {
+            return null;
+        }
+
+        $offset = $this->skipPdfWhitespace($dict, $offset);
+        if (preg_match('/\Gtrue\b/s', $dict, $match, 0, $offset) === 1) {
+            return true;
+        }
+
+        if (preg_match('/\Gfalse\b/s', $dict, $match, 0, $offset) === 1) {
+            return false;
+        }
+
+        return null;
     }
 
     /**
