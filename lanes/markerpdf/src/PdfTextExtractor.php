@@ -12110,7 +12110,7 @@ final class PdfTextExtractor
                 $fontObjectNumber = (int) $resourceMatch[2];
                 $fontGeneration = (int) $resourceMatch[3];
                 $fontBody = $this->objectBodyForResourceReference($objects, $fontObjectNumber, $fontGeneration);
-                if ($fontBody === null) {
+                if ($fontBody === null || $this->objectBodyIsStreamObject($fontBody)) {
                     continue;
                 }
 
@@ -12225,7 +12225,9 @@ final class PdfTextExtractor
                     $objectNumber = (int) $match[2][0];
                     $generation = (int) ($match[3][0] ?? '0');
                     $objectBody = $this->objectBodyForResourceReference($objects, $objectNumber, $generation);
-                    $dictionary = $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
+                    $dictionary = $objectBody === null || $this->objectBodyIsStreamObject($objectBody)
+                        ? null
+                        : $this->dictionaryObjectBody($objectBody);
                 } else {
                     $offset = strpos($propertiesDictionary, '<<', $match[0][1]);
                     $dictionary = $offset === false ? null : $this->readPdfDictionaryAt($propertiesDictionary, $offset);

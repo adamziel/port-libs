@@ -1484,8 +1484,24 @@ final class PdfPagePropertyExtractor
                 && $this->readPdfDictionaryAt($trimmed, 0) !== null;
         }
 
+        if (!$this->resourceCategoryAllowsStreamEntries($category)) {
+            $objectNumber = $reference['objectNumber'];
+            if (
+                isset($objects[$objectNumber])
+                && ($this->currentObjectGenerations[$objectNumber] ?? null) === $reference['generation']
+                && $this->objectBodyIsStreamObject($objects[$objectNumber])
+            ) {
+                return false;
+            }
+        }
+
         $resolved = $this->resolveRawValue($trimmed, $objects);
         return $resolved !== null && $this->dictionaryObjectBody($resolved) !== null;
+    }
+
+    private function resourceCategoryAllowsStreamEntries(string $category): bool
+    {
+        return in_array($category, ['XObject', 'Pattern'], true);
     }
 
     /**
