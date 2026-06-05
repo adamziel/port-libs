@@ -4531,6 +4531,11 @@ final class PdfMetadataExtractor
         }
         $this->applyCryptFilterDefaults($metadata, $version);
 
+        $cryptFilterRoleReview = $this->cryptFilterRoleDeclarationReview($dictionary, $objects, $metadata);
+        if ($cryptFilterRoleReview !== []) {
+            $metadata['crypt_filter_role_declaration_review'] = $cryptFilterRoleReview;
+        }
+
         $cryptFilters = $this->cryptFilterMetadata($dictionary, $objects);
         if ($cryptFilters !== []) {
             $metadata['crypt_filters'] = $cryptFilters;
@@ -4599,6 +4604,266 @@ final class PdfMetadataExtractor
             $metadata['embedded_file_filter_defaulted_from_stream_filter'] = true;
             $metadata['embedded_file_filter_source'] = 'pdf_default_stream_filter';
         }
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, mixed> $metadata
+     * @return array<string, mixed>
+     */
+    private function cryptFilterRoleDeclarationReview(string $dictionary, array $objects, array $metadata): array
+    {
+        $definitions = [
+            [
+                'role' => 'document_streams',
+                'pdf_name' => 'StmF',
+                'metadata_key' => 'stream_filter',
+                'defaulted_key' => 'stream_filter_defaulted',
+                'source_key' => 'stream_filter_source',
+            ],
+            [
+                'role' => 'document_strings',
+                'pdf_name' => 'StrF',
+                'metadata_key' => 'string_filter',
+                'defaulted_key' => 'string_filter_defaulted',
+                'source_key' => 'string_filter_source',
+            ],
+            [
+                'role' => 'embedded_file_streams',
+                'pdf_name' => 'EFF',
+                'metadata_key' => 'embedded_file_filter',
+                'defaulted_key' => 'embedded_file_filter_defaulted_from_stream_filter',
+                'source_key' => 'embedded_file_filter_source',
+            ],
+        ];
+
+        $roles = [];
+        foreach ($definitions as $definition) {
+            $rawValues = $this->dictionaryTopLevelRawValues($dictionary, $definition['pdf_name']);
+            $entries = [];
+            foreach ($rawValues as $index => $rawValue) {
+                $entries[] = $this->cryptFilterRoleDeclarationEntryReview(
+                    $rawValue,
+                    $objects,
+                    $definition['role'],
+                    $definition['pdf_name'],
+                    $definition['metadata_key'],
+                    $index
+                );
+            }
+
+            $entryStatuses = $this->uniqueStrings(array_values(array_filter(
+                array_map(
+                    static fn (array $entry): mixed => $entry['status'] ?? null,
+                    $entries
+                ),
+                static fn (mixed $status): bool => is_string($status)
+            )));
+            $entryFilterNames = $this->uniqueStrings(array_values(array_filter(
+                array_map(
+                    static fn (array $entry): mixed => $entry['filter_name'] ?? null,
+                    $entries
+                ),
+                static fn (mixed $filterName): bool => is_string($filterName) && $filterName !== ''
+            )));
+            $declaredEntryCount = count($rawValues);
+            $duplicateEntries = $declaredEntryCount > 1;
+            $malformedEntries = array_values(array_filter(
+                $entries,
+                static fn (array $entry): bool => ($entry['status'] ?? null) !== 'crypt_filter_role_entry_name'
+            ));
+            $defaulted = $declaredEntryCount === 0 && ($metadata[$definition['defaulted_key']] ?? false) === true;
+            $selectedFilterName = is_string($metadata[$definition['metadata_key']] ?? null)
+                ? $metadata[$definition['metadata_key']]
+                : null;
+            $sourcePolicy = is_string($metadata[$definition['source_key']] ?? null)
+                ? $metadata[$definition['source_key']]
+                : ($declaredEntryCount > 0 ? 'pdf_dictionary' : 'not_declared');
+
+            $status = 'single_crypt_filter_role_entry';
+            if ($duplicateEntries) {
+                $status = 'duplicate_crypt_filter_role_entries_review';
+            } elseif ($malformedEntries !== []) {
+                $status = 'malformed_crypt_filter_role_entry_review';
+            } elseif ($defaulted) {
+                $status = 'defaulted_crypt_filter_role';
+            } elseif ($declaredEntryCount === 0) {
+                $status = 'missing_crypt_filter_role_review';
+            }
+
+            $roles[] = [
+                'source' => 'crypt_filter_role_declaration_row',
+                'role' => $definition['role'],
+                'pdf_name' => $definition['pdf_name'],
+                'metadata_key' => $definition['metadata_key'],
+                'declared' => $declaredEntryCount > 0,
+                'declared_entry_count' => $declaredEntryCount,
+                'duplicate_entries' => $duplicateEntries,
+                'malformed_entry_count' => count($malformedEntries),
+                'defaulted' => $defaulted,
+                'source_policy' => $sourcePolicy,
+                'selected_filter_name' => $selectedFilterName,
+                'entry_filter_names' => $entryFilterNames,
+                'entry_statuses' => $entryStatuses,
+                'status' => $status,
+                'fail_closed' => $duplicateEntries || $malformedEntries !== [],
+                'entries' => $entries,
+                'review_only' => true,
+                'executes_decryption' => false,
+                'executes_permission_enforcement' => false,
+            ];
+        }
+
+        $duplicateRoleNames = $this->cryptFilterDeclarationRoleNamesByStatus(
+            $roles,
+            'duplicate_crypt_filter_role_entries_review',
+            'role'
+        );
+        $duplicatePdfNames = $this->cryptFilterDeclarationRoleNamesByStatus(
+            $roles,
+            'duplicate_crypt_filter_role_entries_review',
+            'pdf_name'
+        );
+        $malformedRoleNames = $this->cryptFilterDeclarationRoleNamesByStatus(
+            $roles,
+            'malformed_crypt_filter_role_entry_review',
+            'role'
+        );
+        $malformedPdfNames = $this->cryptFilterDeclarationRoleNamesByStatus(
+            $roles,
+            'malformed_crypt_filter_role_entry_review',
+            'pdf_name'
+        );
+        if ($duplicateRoleNames === [] && $malformedRoleNames === []) {
+            return [];
+        }
+
+        return [
+            'source' => 'encryption_crypt_filter_role_declaration_review',
+            'role_count' => count($roles),
+            'duplicate_role_names' => $duplicateRoleNames,
+            'duplicate_pdf_names' => $duplicatePdfNames,
+            'malformed_role_names' => $malformedRoleNames,
+            'malformed_pdf_names' => $malformedPdfNames,
+            'role_statuses' => $this->uniqueStrings(array_values(array_filter(
+                array_map(
+                    static fn (array $role): mixed => $role['status'] ?? null,
+                    $roles
+                ),
+                static fn (mixed $status): bool => is_string($status)
+            ))),
+            'fail_closed_role_names' => $this->cryptFilterDeclarationFailClosedNames($roles, 'role'),
+            'fail_closed_pdf_names' => $this->cryptFilterDeclarationFailClosedNames($roles, 'pdf_name'),
+            'roles' => $roles,
+            'review_only' => true,
+            'executes_decryption' => false,
+            'executes_permission_enforcement' => false,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function cryptFilterRoleDeclarationEntryReview(
+        string $rawValue,
+        array $objects,
+        string $role,
+        string $pdfName,
+        string $metadataKey,
+        int $index
+    ): array {
+        $resolved = $this->resolvePdfValue($rawValue, $objects);
+        $value = $this->trimPdfWhitespaceAndComments($resolved ?? $rawValue);
+        $entry = [
+            'source' => 'crypt_filter_role_declaration_entry_review',
+            'role' => $role,
+            'pdf_name' => $pdfName,
+            'metadata_key' => $metadataKey,
+            'index' => $index,
+            'resolved' => $resolved !== null,
+            'operand_shape' => $this->cryptFilterRoleOperandShape($value),
+            'review_only' => true,
+        ];
+
+        if ($value !== '' && $value[0] === '/' && preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $value, $match) === 1) {
+            return $entry + [
+                'filter_name' => $this->decodePdfName($match[1]),
+                'status' => 'crypt_filter_role_entry_name',
+            ];
+        }
+
+        return $entry + [
+            'status' => $resolved === null && $this->objectReferenceFromValue($rawValue) !== null
+                ? 'crypt_filter_role_entry_unresolved_reference'
+                : 'crypt_filter_role_entry_non_name_review',
+        ];
+    }
+
+    private function cryptFilterRoleOperandShape(string $value): string
+    {
+        $trimmed = $this->trimPdfWhitespaceAndComments($value);
+        if ($trimmed === '') {
+            return 'empty';
+        }
+        if (str_starts_with($trimmed, '[')) {
+            return 'array';
+        }
+        if (str_starts_with($trimmed, '<<')) {
+            return 'dictionary';
+        }
+        if (str_starts_with($trimmed, '(')) {
+            return 'literal_string';
+        }
+        if (str_starts_with($trimmed, '<')) {
+            return 'hex_string';
+        }
+        if (str_starts_with($trimmed, '/')) {
+            return 'name';
+        }
+        if ($this->objectReferenceFromValue($trimmed) !== null) {
+            return 'indirect_reference';
+        }
+
+        return 'token';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterDeclarationRoleNamesByStatus(array $roles, string $status, string $key): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            if (($role['status'] ?? null) !== $status || !is_string($role[$key] ?? null)) {
+                continue;
+            }
+            if (!in_array($role[$key], $names, true)) {
+                $names[] = $role[$key];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterDeclarationFailClosedNames(array $roles, string $key): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            if (($role['fail_closed'] ?? false) !== true || !is_string($role[$key] ?? null)) {
+                continue;
+            }
+            if (!in_array($role[$key], $names, true)) {
+                $names[] = $role[$key];
+            }
+        }
+
+        return $names;
     }
 
     /**

@@ -617,6 +617,10 @@ final class PdfSecurityPreflight
             ];
         }
         $roles = [];
+        $roleDeclarationReview = is_array($encryption['crypt_filter_role_declaration_review'] ?? null)
+            ? $encryption['crypt_filter_role_declaration_review']
+            : [];
+        $roleDeclarations = $this->cryptFilterRoleDeclarationsByRole($roleDeclarationReview);
         foreach ([
             'document_streams' => ['key' => 'stream_filter', 'pdf_name' => 'StmF'],
             'document_strings' => ['key' => 'string_filter', 'pdf_name' => 'StrF'],
@@ -625,7 +629,13 @@ final class PdfSecurityPreflight
             $filterName = is_string($encryption[$definition['key']] ?? null)
                 ? $encryption[$definition['key']]
                 : null;
-            $roles[] = $this->cryptFilterContentRoleReview($role, $definition['pdf_name'], $filterName, $cryptFilters);
+            $roles[] = $this->cryptFilterContentRoleReview(
+                $role,
+                $definition['pdf_name'],
+                $filterName,
+                $cryptFilters,
+                $roleDeclarations[$role] ?? []
+            );
         }
 
         $documentTextRows = array_values(array_filter(
@@ -672,6 +682,11 @@ final class PdfSecurityPreflight
             'key_length_statuses' => $this->uniqueStringColumn($roles, 'key_length_status'),
             'key_length_invalid_role_names' => $this->cryptFilterKeyLengthInvalidRoleNames($roles),
             'key_length_invalid_filter_names' => $this->cryptFilterKeyLengthInvalidFilterNames($roles),
+            'role_declaration_statuses' => $this->uniqueStringColumn($roles, 'role_declaration_status'),
+            'role_declaration_duplicate_role_names' => $this->cryptFilterRoleDeclarationNames($roles, 'role', true),
+            'role_declaration_duplicate_pdf_names' => $this->cryptFilterRoleDeclarationNames($roles, 'pdf_name', true),
+            'role_declaration_fail_closed_role_names' => $this->cryptFilterRoleDeclarationNames($roles, 'role', false),
+            'role_declaration_fail_closed_pdf_names' => $this->cryptFilterRoleDeclarationNames($roles, 'pdf_name', false),
             'text_content_policy' => $this->cryptFilterTextContentPolicy($documentTextRows),
             'embedded_file_payload_policy' => $this->cryptFilterEmbeddedFilePolicy($embeddedFileRows),
             'roles' => $roles,
@@ -692,7 +707,8 @@ final class PdfSecurityPreflight
         string $role,
         string $pdfName,
         ?string $filterName,
-        array $cryptFilters
+        array $cryptFilters,
+        array $roleDeclaration = []
     ): array {
         $row = [
             'source' => 'crypt_filter_content_role_review',
@@ -710,6 +726,9 @@ final class PdfSecurityPreflight
             'native_import_allowed_now' => false,
             'executes_decryption' => false,
         ];
+        if ($roleDeclaration !== []) {
+            $row = array_merge($row, $this->cryptFilterRoleDeclarationContentFields($roleDeclaration));
+        }
 
         if ($filterName === null || $filterName === '') {
             return array_merge($row, [
@@ -778,6 +797,53 @@ final class PdfSecurityPreflight
         }
 
         return 'unsupported_crypt_filter_method_fail_closed';
+    }
+
+    /**
+     * @param array<string, mixed> $roleDeclarationReview
+     * @return array<string, array<string, mixed>>
+     */
+    private function cryptFilterRoleDeclarationsByRole(array $roleDeclarationReview): array
+    {
+        $declarations = [];
+        $roles = is_array($roleDeclarationReview['roles'] ?? null) ? $roleDeclarationReview['roles'] : [];
+        foreach ($roles as $role) {
+            if (!is_array($role) || !is_string($role['role'] ?? null)) {
+                continue;
+            }
+            $declarations[$role['role']] = $role;
+        }
+
+        return $declarations;
+    }
+
+    /**
+     * @param array<string, mixed> $declaration
+     * @return array<string, mixed>
+     */
+    private function cryptFilterRoleDeclarationContentFields(array $declaration): array
+    {
+        return [
+            'role_declaration_status' => is_string($declaration['status'] ?? null) ? $declaration['status'] : null,
+            'role_declaration_declared' => (bool) ($declaration['declared'] ?? false),
+            'role_declaration_declared_entry_count' => (int) ($declaration['declared_entry_count'] ?? 0),
+            'role_declaration_duplicate_entries' => (bool) ($declaration['duplicate_entries'] ?? false),
+            'role_declaration_malformed_entry_count' => (int) ($declaration['malformed_entry_count'] ?? 0),
+            'role_declaration_defaulted' => (bool) ($declaration['defaulted'] ?? false),
+            'role_declaration_source_policy' => is_string($declaration['source_policy'] ?? null)
+                ? $declaration['source_policy']
+                : null,
+            'role_declaration_selected_filter_name' => is_string($declaration['selected_filter_name'] ?? null)
+                ? $declaration['selected_filter_name']
+                : null,
+            'role_declaration_entry_filter_names' => is_array($declaration['entry_filter_names'] ?? null)
+                ? $declaration['entry_filter_names']
+                : [],
+            'role_declaration_entry_statuses' => is_array($declaration['entry_statuses'] ?? null)
+                ? $declaration['entry_statuses']
+                : [],
+            'role_declaration_fail_closed' => (bool) ($declaration['fail_closed'] ?? false),
+        ];
     }
 
     private function cryptFilterAuthEventStatus(?string $authEvent, string $role, bool $identity): string
@@ -919,6 +985,26 @@ final class PdfSecurityPreflight
     }
 
     /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterRoleDeclarationNames(array $roles, string $key, bool $duplicatesOnly): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            $flag = $duplicatesOnly ? 'role_declaration_duplicate_entries' : 'role_declaration_fail_closed';
+            if (($role[$flag] ?? false) !== true || !is_string($role[$key] ?? null)) {
+                continue;
+            }
+            if (!in_array($role[$key], $names, true)) {
+                $names[] = $role[$key];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
      * @param list<array<string, mixed>> $rows
      */
     private function cryptFilterTextContentPolicy(array $rows): string
@@ -965,6 +1051,9 @@ final class PdfSecurityPreflight
      */
     private function cryptFilterRoleFailsClosed(array $row): bool
     {
+        if (($row['role_declaration_fail_closed'] ?? false) === true) {
+            return true;
+        }
         if (in_array($row['status'] ?? null, [
             'undeclared_crypt_filter_fail_closed',
             'missing_declared_crypt_filter',
@@ -987,6 +1076,17 @@ final class PdfSecurityPreflight
     {
         $status = is_string($row['status'] ?? null) ? $row['status'] : null;
         $authEventStatus = is_string($row['auth_event_status'] ?? null) ? $row['auth_event_status'] : null;
+        $roleDeclarationStatus = is_string($row['role_declaration_status'] ?? null)
+            ? $row['role_declaration_status']
+            : null;
+
+        if (($row['role_declaration_fail_closed'] ?? false) === true) {
+            return match ($roleDeclarationStatus) {
+                'duplicate_crypt_filter_role_entries_review' => 'duplicate_crypt_filter_role_entries_fail_closed',
+                'malformed_crypt_filter_role_entry_review' => 'malformed_crypt_filter_role_entry_fail_closed',
+                default => 'malformed_crypt_filter_role_entry_fail_closed',
+            };
+        }
 
         $statusPolicy = match ($status) {
             'missing_declared_crypt_filter' => 'missing_declared_filter_fail_closed',
@@ -1018,6 +1118,8 @@ final class PdfSecurityPreflight
             'unknown_crypt_filter_method_fail_closed' => 'blocked_by_unknown_document_crypt_filter_method',
             'unsupported_crypt_filter_method_fail_closed' => 'blocked_by_unsupported_document_crypt_filter_method',
             'invalid_crypt_filter_key_length_fail_closed' => 'blocked_by_invalid_document_crypt_filter_key_length',
+            'duplicate_crypt_filter_role_entries_fail_closed' => 'blocked_by_duplicate_document_crypt_filter_roles',
+            'malformed_crypt_filter_role_entry_fail_closed' => 'blocked_by_malformed_document_crypt_filter_role',
             'authorization_event_role_mismatch_fail_closed' => 'blocked_by_document_crypt_filter_auth_event_mismatch',
             'unknown_authorization_event_fail_closed' => 'blocked_by_unknown_document_crypt_filter_auth_event',
             'authorization_event_unavailable_fail_closed' => 'blocked_by_unavailable_document_crypt_filter_auth_event',
@@ -4942,6 +5044,9 @@ final class PdfSecurityPreflight
             $standardHandler
         );
         $cryptFilterContentReview = $this->cryptFilterContentReview(true, $encryption);
+        $cryptFilterRoleDeclarationReview = is_array($encryption['crypt_filter_role_declaration_review'] ?? null)
+            ? $encryption['crypt_filter_role_declaration_review']
+            : [];
         $permissionBitsReliable = $standardHandler
             && $permissions !== []
             && !$standardParametersMalformed
@@ -5036,6 +5141,16 @@ final class PdfSecurityPreflight
             'public_key_recipient_review' => $publicKeyRecipientReview,
             'public_key_crypt_filter_selection' => is_array($publicKeyRecipientReview['crypt_filter_selection'] ?? null)
                 ? $publicKeyRecipientReview['crypt_filter_selection']
+                : [],
+            'crypt_filter_role_declaration_review' => $cryptFilterRoleDeclarationReview,
+            'crypt_filter_role_declaration_statuses' => is_array($cryptFilterRoleDeclarationReview['role_statuses'] ?? null)
+                ? $cryptFilterRoleDeclarationReview['role_statuses']
+                : [],
+            'crypt_filter_role_declaration_duplicate_role_names' => is_array($cryptFilterRoleDeclarationReview['duplicate_role_names'] ?? null)
+                ? $cryptFilterRoleDeclarationReview['duplicate_role_names']
+                : [],
+            'crypt_filter_role_declaration_duplicate_pdf_names' => is_array($cryptFilterRoleDeclarationReview['duplicate_pdf_names'] ?? null)
+                ? $cryptFilterRoleDeclarationReview['duplicate_pdf_names']
                 : [],
             'crypt_filter_content_review' => $cryptFilterContentReview,
             'requires_password_for_content_extraction' => (bool) ($encryption['requires_password_for_content_extraction'] ?? true),
