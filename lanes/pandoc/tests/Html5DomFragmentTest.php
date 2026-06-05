@@ -310,6 +310,45 @@ return [
         $t->true(!str_contains($fragment->serialize(), '<script>'), 'Expected textarea-like source tags to remain escaped text');
         $t->true(!str_contains($fragment->serialize(), '<b>note</b>'), 'Expected textarea-like inline tags to remain escaped text');
     },
+    'unwraps obsolete raw text fallback containers as escaped reviewer text' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<xmp data-source="legacy">Reviewer <script>alert(1)</script> &amp; <textarea><b>note</b></textarea></xmp>'
+                . '<noembed>Fallback <img src=x> & source</noembed>'
+                . '<noframes>Frame fallback <a href="/edit">edit</a></noframes><p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/raw-text-fallback-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = 'Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; &lt;textarea&gt;&lt;b&gt;note&lt;/b&gt;&lt;/textarea&gt;'
+            . 'Fallback &lt;img src=x&gt; &amp; source'
+            . 'Frame fallback &lt;a href="/edit"&gt;edit&lt;/a&gt;<p>after</p>';
+        $t->same($expected, $fragment->serialize());
+        $t->same('Reviewer <script>alert(1)</script> &amp; <textarea><b>note</b></textarea>Fallback <img src=x> & sourceFrame fallback <a href="/edit">edit</a>after', $fragment->textContent());
+        $t->same(['p'], $summary['elementNames']);
+        $t->same(['noembed', 'noframes', 'xmp'], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag'], $policyDiagnostics);
+        $t->same('text', $nodes[0]['type']);
+        $t->same('Reviewer <script>alert(1)</script> &amp; <textarea><b>note</b></textarea>', $nodes[0]['text']);
+        $t->same('text', $nodes[1]['type']);
+        $t->same('Fallback <img src=x> & source', $nodes[1]['text']);
+        $t->same('/migration/raw-text-fallback-review.html', $document->children[0]->attr('part'));
+        $t->contains('Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; &lt;textarea&gt;&lt;b&gt;note&lt;/b&gt;&lt;/textarea&gt;', $blocks);
+        $t->true(!str_contains($fragment->serialize(), '<xmp'), 'Expected obsolete raw text xmp wrapper to be stripped');
+        $t->true(!str_contains($fragment->serialize(), '<noembed'), 'Expected noembed wrapper to be stripped');
+        $t->true(!str_contains($fragment->serialize(), '<noframes'), 'Expected noframes wrapper to be stripped');
+        $t->true(!str_contains($fragment->serialize(), '<textarea>'), 'Expected raw text textarea-looking source to stay escaped');
+        $t->true(!str_contains($fragment->serialize(), '<script>alert(1)</script>'), 'Expected raw text script-looking source to stay escaped');
+        $t->true(!str_contains($fragment->serialize(), '<img src=x>'), 'Expected fallback image-looking source to stay escaped');
+    },
     'rejects unsafe fragment declarations before libxml can repair them away' => static function (TestRunner $t): void {
         $safe = Html5DomFragment::fromHtml('<p data-source="review">Safe &amp; bounded</p>');
 

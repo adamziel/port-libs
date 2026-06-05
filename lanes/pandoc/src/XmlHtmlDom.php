@@ -313,9 +313,19 @@ final class XmlHtmlDom
 
     public static function protectHtmlRcdataElements(string $html): string
     {
-        $pattern = '~(<(?P<name>title|textarea)\b(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>)(?P<content>.*?)(</\s*(?P=name)\s*>)~is';
         $protected = preg_replace_callback(
-            $pattern,
+            '~(<(?P<name>xmp|noembed|noframes)\b(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>)(?P<content>.*?)(</\s*(?P=name)\s*>)~is',
+            static function (array $matches): string {
+                return $matches[1]
+                    . strtr((string) $matches['content'], ['&' => '&amp;', '<' => '&lt;', '>' => '&gt;'])
+                    . $matches[4];
+            },
+            $html
+        );
+
+        $html = is_string($protected) ? $protected : $html;
+        $protected = preg_replace_callback(
+            '~(<(?P<name>title|textarea)\b(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>)(?P<content>.*?)(</\s*(?P=name)\s*>)~is',
             static function (array $matches): string {
                 return $matches[1]
                     . strtr((string) $matches['content'], ['<' => '&lt;', '>' => '&gt;'])

@@ -426,10 +426,13 @@ final class Html5DomFragment
         return in_array(strtolower($name), [
             'button',
             'form',
+            'noembed',
+            'noframes',
             'optgroup',
             'option',
             'select',
             'textarea',
+            'xmp',
         ], true);
     }
 

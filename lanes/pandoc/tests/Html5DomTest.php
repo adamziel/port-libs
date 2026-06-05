@@ -125,6 +125,34 @@ return [
             $serialized
         );
     },
+    'treats obsolete html raw text fallback bodies as literal source text' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment(
+            '<xmp data-source="legacy">Reviewer <script>alert(1)</script> &amp; <textarea><b>note</b></textarea></xmp>'
+                . '<noembed>Fallback <img src=x> & source</noembed>'
+                . '<noframes>Frame fallback <a href="/edit">edit</a></noframes><p>after</p>'
+        );
+        $xmp = Html5Dom::firstChildElement($body, 'xmp');
+        $noembed = Html5Dom::firstChildElement($body, 'noembed');
+        $noframes = Html5Dom::firstChildElement($body, 'noframes');
+        $serialized = Html5Dom::serializeHtmlChildren($body);
+
+        $t->true($xmp instanceof DOMElement, 'Expected xmp fallback container to survive DOM parsing');
+        $t->true($noembed instanceof DOMElement, 'Expected noembed fallback container to survive DOM parsing');
+        $t->true($noframes instanceof DOMElement, 'Expected noframes fallback container to survive DOM parsing');
+        $t->same('Reviewer <script>alert(1)</script> &amp; <textarea><b>note</b></textarea>', $xmp instanceof DOMElement ? $xmp->textContent : null);
+        $t->same('Fallback <img src=x> & source', $noembed instanceof DOMElement ? $noembed->textContent : null);
+        $t->same('Frame fallback <a href="/edit">edit</a>', $noframes instanceof DOMElement ? $noframes->textContent : null);
+        $t->same([], $xmp instanceof DOMElement ? Html5Dom::childElements($xmp) : []);
+        $t->same([], $noembed instanceof DOMElement ? Html5Dom::childElements($noembed) : []);
+        $t->same([], $noframes instanceof DOMElement ? Html5Dom::childElements($noframes) : []);
+        $t->same(
+            '<xmp data-source="legacy">Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; &lt;textarea&gt;&lt;b&gt;note&lt;/b&gt;&lt;/textarea&gt;</xmp><noembed>Fallback &lt;img src=x&gt; &amp; source</noembed><noframes>Frame fallback &lt;a href="/edit"&gt;edit&lt;/a&gt;</noframes><p>after</p>',
+            $serialized
+        );
+        $t->true(!str_contains($serialized, '<textarea>'), 'Expected raw text textarea-looking source to serialize as escaped text');
+        $t->true(!str_contains($serialized, '<script>alert(1)</script>'), 'Expected tag-looking raw text to serialize as escaped text');
+        $t->true(!str_contains($serialized, '<img src=x>'), 'Expected fallback image-looking source text to serialize as escaped text');
+    },
     'parses XML fragments with namespaces and serializes multiple root children' => static function (TestRunner $t): void {
         $fragment = Html5Dom::parseXmlFragment(
             '<m:math xmlns:m="urn:math"><m:mi>x</m:mi></m:math><w:t xmlns:w="urn:word" xml:space="preserve"> reviewer text </w:t>'
