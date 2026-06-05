@@ -1847,6 +1847,38 @@ return [
         $t->same('map-key-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="map-key-yaml-body">Map key YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml explicit keys inside flow metadata maps' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Flow explicit key **Packet**',
+            'flow-explicit-review: {? [source, uri]: https://example.test/import#flow-key, ? {owner: desk, ticket: 7}: queued, ? "source:key": "metadata: value", status: approved}',
+            'references:',
+            '  - id: flow-explicit-key-ref',
+            '    metadata: {? [source, key]: metadata value, ? {type: review}: kept}',
+            '...',
+            '',
+            '# Flow explicit key YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Flow explicit key **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same('https://example.test/import#flow-key', $meta['flow-explicit-review']['[source, uri]']);
+        $t->same('queued', $meta['flow-explicit-review']['{owner: desk, ticket: 7}']);
+        $t->same('metadata: value', $meta['flow-explicit-review']['source:key']);
+        $t->same('approved', $meta['flow-explicit-review']['status']);
+        $t->same(false, array_key_exists('? [source, uri]', $meta['flow-explicit-review']));
+        $t->same(false, array_key_exists('? {owner: desk, ticket: 7}', $meta['flow-explicit-review']));
+        $t->same('flow-explicit-key-ref', $meta['references'][0]['id']);
+        $t->same('metadata value', $meta['references'][0]['metadata']['[source, key]']);
+        $t->same('kept', $meta['references'][0]['metadata']['{type: review}']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('flow-explicit-key-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="flow-explicit-key-yaml-body">Flow explicit key YAML body</h1>', $blocks);
+    },
     'keeps blank-led yaml-looking fences as markdown body' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

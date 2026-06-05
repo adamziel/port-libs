@@ -165,6 +165,10 @@ map-key-review:
 map-key-label-set: !!set
   ? {source: uri}
   ? {qa: true}
+flow-explicit-review: {? [source, uri]: https://example.test/exports/packet#flow-explicit-key, ? {owner: desk, ticket: 7}: queued, ? "source:key": "metadata: value"}
+flow-explicit-reference:
+  id: flow-explicit-key-ref
+  metadata: {? [source, key]: metadata value, ? {type: review}: kept}
 source-uri: /exports/packet#front-matter
 escaped-source-title: "Escaped \u201cmetadata\u201d \U0001F4DD"
 escaped-source-uri: "https:\/\/example.test\/exports\/packet\x23front-matter"
@@ -402,6 +406,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!array_key_exists('{qa: true}', $meta['map-key-label-set'] ?? []) || $meta['map-key-label-set']['{qa: true}'] !== null) {
         throw new RuntimeException('YAML metadata self-test missing explicit map key in set metadata');
     }
+    if (($meta['flow-explicit-review']['[source, uri]'] ?? '') !== 'https://example.test/exports/packet#flow-explicit-key') {
+        throw new RuntimeException('YAML metadata self-test missing flow explicit sequence key metadata');
+    }
+    if (($meta['flow-explicit-review']['{owner: desk, ticket: 7}'] ?? '') !== 'queued') {
+        throw new RuntimeException('YAML metadata self-test missing flow explicit map key metadata');
+    }
+    if (($meta['flow-explicit-review']['source:key'] ?? '') !== 'metadata: value') {
+        throw new RuntimeException('YAML metadata self-test missing flow explicit quoted key metadata');
+    }
+    if (($meta['flow-explicit-reference']['metadata']['[source, key]'] ?? '') !== 'metadata value') {
+        throw new RuntimeException('YAML metadata self-test missing nested flow explicit sequence key metadata');
+    }
+    if (($meta['flow-explicit-reference']['metadata']['{type: review}'] ?? '') !== 'kept') {
+        throw new RuntimeException('YAML metadata self-test missing nested flow explicit map key metadata');
+    }
     if (($meta['references'][0]['issued']['date-parts'][0] ?? []) !== [2026, 6, 3]) {
         throw new RuntimeException('YAML metadata self-test missing block-style date-parts');
     }
@@ -462,6 +481,7 @@ echo 'Merge sequence review: ' . ($meta['merge-sequence-review']['status'] ?? ''
 echo 'Explicit key review: ' . ($meta['explicit-review']['status'] ?? '') . ' / ' . ($meta['explicit-review']['source:key'] ?? '') . "\n";
 echo 'Sequence key review: ' . ($meta['sequence-key-review']['[owner, desk]'] ?? '') . ' / ' . ($meta['[sequence, source-uri]'] ?? '') . "\n";
 echo 'Map key review: ' . ($meta['map-key-review']['{owner: desk, ticket: 7}'] ?? '') . ' / ' . ($meta['{source: uri, type: review}'] ?? '') . "\n";
+echo 'Flow explicit key review: ' . ($meta['flow-explicit-review']['[source, uri]'] ?? '') . ' / ' . ($meta['flow-explicit-review']['{owner: desk, ticket: 7}'] ?? '') . "\n";
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
 echo 'Typed review revision: ' . ($meta['typed-review']['typed-revision'] ?? '') . ' / confidence ' . ($meta['typed-review']['confidence'] ?? '') . "\n";

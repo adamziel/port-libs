@@ -1673,6 +1673,12 @@ final class MarkdownReader
             return '';
         }
 
+        if (preg_match('/^\?[ \t]+(.+)$/s', $key, $m) === 1) {
+            $normalized = $this->normalizeYamlExplicitMappingKey($this->parseYamlScalarValue(trim($m[1])));
+
+            return $normalized ?? '';
+        }
+
         if (($key[0] === '"' && str_ends_with($key, '"')) || ($key[0] === "'" && str_ends_with($key, "'"))) {
             return $this->unquoteYamlScalar($key);
         }
