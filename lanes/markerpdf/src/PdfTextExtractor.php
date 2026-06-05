@@ -24201,6 +24201,11 @@ final class PdfTextExtractor
         }
 
         $sourceKeys = $this->textOperandSourceKeys($hex, $widthMap);
+        $cidMappedFallbackKeys = $this->cidMappedSourceKeysForFontWidthsWhenCodeSpaceMiss($sourceKeys, $hex, $toUnicodeMap);
+        if ($cidMappedFallbackKeys !== []) {
+            return $cidMappedFallbackKeys;
+        }
+
         $toUnicodeFallbackKeys = $this->toUnicodeSourceKeysForFontWidthsWhenCidMetricsMiss($sourceKeys, $hex, $toUnicodeMap);
 
         return $toUnicodeFallbackKeys === [] ? $sourceKeys : $toUnicodeFallbackKeys;
@@ -24239,6 +24244,42 @@ final class PdfTextExtractor
         }
 
         return $this->toUnicodeSourceKeysForPartialCidMetricMiss($sourceKeys, $hex, $toUnicodeMap);
+    }
+
+    /**
+     * @param list<string> $sourceKeys
+     * @return list<string>
+     */
+    private function cidMappedSourceKeysForFontWidthsWhenCodeSpaceMiss(array $sourceKeys, string $hex, array $toUnicodeMap): array
+    {
+        $cidCodeSpaceRanges = $toUnicodeMap['cidCodeSpaceRanges'] ?? [];
+        $cidMap = $toUnicodeMap['cidMap'] ?? [];
+        if (
+            !is_array($cidCodeSpaceRanges)
+            || $cidCodeSpaceRanges === []
+            || !is_array($cidMap)
+            || $cidMap === []
+            || $sourceKeys === []
+        ) {
+            return [];
+        }
+
+        $fallbackKeys = $this->textOperandSourceKeys($hex, [
+            'map' => $cidMap,
+            'codeSpaceRanges' => [],
+        ]);
+        if ($fallbackKeys === [] || $fallbackKeys === $sourceKeys || count($fallbackKeys) <= count($sourceKeys)) {
+            return [];
+        }
+
+        if (
+            !$this->sourceKeysAreCidMapped($fallbackKeys, $toUnicodeMap)
+            || $this->sourceKeysHaveAnyDirectFontMetric($sourceKeys, $toUnicodeMap)
+        ) {
+            return [];
+        }
+
+        return $this->sourceKeysHaveAllFontWidthEvidence($fallbackKeys, $toUnicodeMap) ? $fallbackKeys : [];
     }
 
     /**
@@ -24406,6 +24447,25 @@ final class PdfTextExtractor
 
         foreach ($sourceKeys as $sourceKey) {
             if (!array_key_exists($sourceKey, $mappings)) {
+                return false;
+            }
+        }
+
+        return $sourceKeys !== [];
+    }
+
+    /**
+     * @param list<string> $sourceKeys
+     */
+    private function sourceKeysAreCidMapped(array $sourceKeys, array $toUnicodeMap): bool
+    {
+        $cidMap = $toUnicodeMap['cidMap'] ?? [];
+        if (!is_array($cidMap) || $cidMap === []) {
+            return false;
+        }
+
+        foreach ($sourceKeys as $sourceKey) {
+            if (!array_key_exists($sourceKey, $cidMap) || !is_int($cidMap[$sourceKey])) {
                 return false;
             }
         }
