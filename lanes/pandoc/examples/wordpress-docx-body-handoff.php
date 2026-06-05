@@ -75,6 +75,21 @@ XML],
       <w:r><w:t xml:space="preserve"> remains clickable.</w:t></w:r>
     </w:p>
     <w:p>
+      <w:r><w:t xml:space="preserve">Reviewer status </w:t></w:r>
+      <w:sdt>
+        <w:sdtPr>
+          <w:id w:val="42"/>
+          <w:alias w:val="Import Status"/>
+          <w:tag w:val="import_status"/>
+          <w:text/>
+        </w:sdtPr>
+        <w:sdtContent>
+          <w:r><w:t>Ready for import</w:t></w:r>
+        </w:sdtContent>
+      </w:sdt>
+      <w:r><w:t xml:space="preserve"> remains auditable.</w:t></w:r>
+    </w:p>
+    <w:p>
       <w:bookmarkStart w:id="14" w:name="source_packet_anchor"/>
       <w:bookmarkStart w:id="15" w:name="_GoBack"/>
       <w:bookmarkEnd w:id="15"/>
@@ -112,6 +127,18 @@ XML],
       </m:oMath>
       <w:r><w:t xml:space="preserve"> stays native.</w:t></w:r>
     </w:p>
+    <w:sdt>
+      <w:sdtPr>
+        <w:id w:val="99"/>
+        <w:alias w:val="Review Checklist"/>
+        <w:tag w:val="review_checklist"/>
+        <w:richText/>
+        <w:dataBinding w:xpath="/packet/review/checklist" w:storeItemID="{11111111-2222-3333-4444-555555555555}"/>
+      </w:sdtPr>
+      <w:sdtContent>
+        <w:p><w:r><w:t>Content-control checklist for reviewer handoff.</w:t></w:r></w:p>
+      </w:sdtContent>
+    </w:sdt>
     <w:p><w:r><w:drawing><wp:inline><wp:docPr id="9" name="Hero" descr="Source hero alt" title="Source hero"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdHero"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>
     <w:tbl>
       <w:tr>
@@ -285,12 +312,16 @@ if (($argv[1] ?? '') === '--self-test') {
         '<ol start="3" type="a"><li>Confirm source URL</li><li>Publish packet</li></ol>',
         '<a href="#source_packet_anchor">source packet anchor</a>',
         '<a href="https://example.test/field-link?post=42" title="Field link title">field-coded source</a>',
+        '<span class="docx-content-control docx-content-control-text" data-docx-sdt-id="42" data-docx-sdt-alias="Import Status" data-docx-sdt-tag="import_status" data-docx-sdt-type="text">Ready for import</span>',
         '<span id="source_packet_anchor" class="anchor"></span>Import reviewer keeps',
         '<a href="https://example.test/source-packet?post=42">the source link</a>',
         '<span class="docx-insertion" data-docx-change="insertion" data-docx-change-id="8" data-docx-author="Migration Editor" data-docx-date="2026-06-04T17:50:00Z"> Approved tracked wording.</span>',
         '<span class="docx-comment-range" data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-04T09:55:00Z"> and reviewer comment</span>',
         '<aside data-review="docx-alt"><p>Alternative HTML chunk from source packet.</p></aside>',
         '<span class="math inline">\(x_{i} + \frac{1}{\sqrt{n}}\)</span>',
+        '<div class="docx-content-control docx-content-control-rich-text" data-docx-sdt-id="99" data-docx-sdt-alias="Review Checklist" data-docx-sdt-tag="review_checklist"',
+        'data-docx-sdt-xpath="/packet/review/checklist"',
+        '<p>Content-control checklist for reviewer handoff.</p>',
         '<img src="word/media/hero.png" alt="Source hero alt" title="Source hero"/>',
         '<td colspan="2" rowspan="2"><p>Review scope</p></td><td><p>Status</p></td>',
         '<td><p>Owner</p></td><td colspan="2"><p>Migration desk</p></td>',

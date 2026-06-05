@@ -410,6 +410,49 @@ $fieldMetadataDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$structuredDocumentTagXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Reviewer status </w:t></w:r>
+      <w:sdt>
+        <w:sdtPr>
+          <w:id w:val="42"/>
+          <w:alias w:val="Import Status"/>
+          <w:tag w:val="import_status"/>
+          <w:text/>
+        </w:sdtPr>
+        <w:sdtContent>
+          <w:r><w:t>Ready for import</w:t></w:r>
+        </w:sdtContent>
+      </w:sdt>
+      <w:r><w:t xml:space="preserve"> is visible.</w:t></w:r>
+    </w:p>
+    <w:sdt>
+      <w:sdtPr>
+        <w:id w:val="99"/>
+        <w:alias w:val="Review Checklist"/>
+        <w:tag w:val="review_checklist"/>
+        <w:richText/>
+        <w:lock w:val="sdtContentLocked"/>
+        <w:placeholder><w:docPart w:val="DefaultPlaceholder_22675703"/></w:placeholder>
+        <w:dataBinding w:xpath="/packet/review/checklist" w:storeItemID="{11111111-2222-3333-4444-555555555555}"/>
+      </w:sdtPr>
+      <w:sdtContent>
+        <w:p><w:r><w:t>Checklist intro.</w:t></w:r></w:p>
+        <w:tbl>
+          <w:tr>
+            <w:tc><w:p><w:r><w:t>Owner</w:t></w:r></w:p></w:tc>
+            <w:tc><w:p><w:r><w:t>Migration desk</w:t></w:r></w:p></w:tc>
+          </w:tr>
+        </w:tbl>
+      </w:sdtContent>
+    </w:sdt>
+    <w:p><w:r><w:t>After content controls.</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML;
+
 $sectionPropertiesDocumentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
@@ -575,6 +618,14 @@ $buildFieldMetadataPackage = static function () use ($contentTypesXml, $packageR
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $fieldMetadataDocumentXml],
+    ]);
+};
+
+$buildStructuredDocumentTagPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $structuredDocumentTagXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $structuredDocumentTagXml],
     ]);
 };
 
@@ -1073,6 +1124,57 @@ return [
         $t->contains('<span class="docx-field docx-field-page" data-docx-field="page" data-docx-field-instruction="PAGE \* Arabic" data-docx-field-format="Arabic">7</span>', $blocks);
         $t->contains('<span class="docx-field docx-field-numpages" data-docx-field="numpages" data-docx-field-instruction="NUMPAGES \* Arabic" data-docx-field-format="Arabic">12</span>', $blocks);
         $t->contains('<span class="docx-field docx-field-date" data-docx-field="date" data-docx-field-instruction="DATE \@ &quot;MMMM d, yyyy&quot;" data-docx-field-format="MMMM d, yyyy">June 5, 2026</span>', $blocks);
+    },
+    'preserves DOCX structured document tag content controls with reviewer metadata' => static function (TestRunner $t) use ($buildStructuredDocumentTagPackage): void {
+        $document = (new DocxReader())->readDocument($buildStructuredDocumentTagPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Reviewer status ', $paragraph->children[0]->attr('text'));
+        $inlineControl = $paragraph->children[1];
+        $t->same('span', $inlineControl->type);
+        $t->same(['docx-content-control', 'docx-content-control-text'], $inlineControl->attr('classes'));
+        $t->same('42', $inlineControl->attr('attributes')['data-docx-sdt-id']);
+        $t->same('Import Status', $inlineControl->attr('attributes')['data-docx-sdt-alias']);
+        $t->same('import_status', $inlineControl->attr('attributes')['data-docx-sdt-tag']);
+        $t->same('text', $inlineControl->attr('attributes')['data-docx-sdt-type']);
+        $t->same('Ready for import', $inlineControl->children[0]->attr('text'));
+        $t->same(' is visible.', $paragraph->children[2]->attr('text'));
+
+        $blockControl = $document->children[1];
+        $t->same('div', $blockControl->type);
+        $t->same(['docx-content-control', 'docx-content-control-rich-text'], $blockControl->attr('classes'));
+        $t->same('99', $blockControl->attr('attributes')['data-docx-sdt-id']);
+        $t->same('Review Checklist', $blockControl->attr('attributes')['data-docx-sdt-alias']);
+        $t->same('review_checklist', $blockControl->attr('attributes')['data-docx-sdt-tag']);
+        $t->same('rich-text', $blockControl->attr('attributes')['data-docx-sdt-type']);
+        $t->same('sdtContentLocked', $blockControl->attr('attributes')['data-docx-sdt-lock']);
+        $t->same('DefaultPlaceholder_22675703', $blockControl->attr('attributes')['data-docx-sdt-placeholder']);
+        $t->same('/packet/review/checklist', $blockControl->attr('attributes')['data-docx-sdt-xpath']);
+        $t->same('{11111111-2222-3333-4444-555555555555}', $blockControl->attr('attributes')['data-docx-sdt-store-item-id']);
+        $t->same(2, count($blockControl->children));
+        $t->same('Checklist intro.', $blockControl->children[0]->children[0]->attr('text'));
+        $t->same('table', $blockControl->children[1]->type);
+        $t->same('Owner', $blockControl->children[1]->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('Migration desk', $blockControl->children[1]->children[0]->children[0]->children[1]->attr('text'));
+
+        $t->same('After content controls.', $document->children[2]->children[0]->attr('text'));
+
+        $t->contains('Reviewer status [Ready for import]{.docx-content-control .docx-content-control-text data-docx-sdt-id="42" data-docx-sdt-alias="Import Status" data-docx-sdt-tag="import_status" data-docx-sdt-type="text"} is visible.', $markdown);
+        $t->contains('::: {.docx-content-control .docx-content-control-rich-text data-docx-sdt-id="99" data-docx-sdt-alias="Review Checklist" data-docx-sdt-tag="review_checklist"', $markdown);
+        $t->contains('data-docx-sdt-type="rich-text"', $markdown);
+        $t->contains('data-docx-sdt-xpath="/packet/review/checklist"', $markdown);
+        $t->contains('| Owner | Migration desk |', $markdown);
+
+        $t->contains('<span class="docx-content-control docx-content-control-text" data-docx-sdt-id="42" data-docx-sdt-alias="Import Status" data-docx-sdt-tag="import_status" data-docx-sdt-type="text">Ready for import</span>', $blocks);
+        $t->contains('<div class="docx-content-control docx-content-control-rich-text" data-docx-sdt-id="99" data-docx-sdt-alias="Review Checklist" data-docx-sdt-tag="review_checklist"', $blocks);
+        $t->contains('data-docx-sdt-type="rich-text"', $blocks);
+        $t->contains('data-docx-sdt-xpath="/packet/review/checklist"', $blocks);
+        $t->contains('<table><tbody><tr><td><p>Owner</p></td><td><p>Migration desk</p></td></tr></tbody></table>', $blocks);
     },
     'reports DOCX section page geometry margins columns and header footer relationships' => static function (TestRunner $t) use ($buildSectionPropertiesPackage): void {
         $reader = new DocxReader();

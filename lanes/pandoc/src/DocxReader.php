@@ -791,7 +791,16 @@ final class DocxReader
 
             if ($this->isWordElement($child, 'tbl')) {
                 $currentList = null;
-                $blocks[] = $this->tableNode($child, $package, $relationships, $referencedNotes, $styles);
+                $blocks[] = $this->tableNode($child, $package, $relationships, $referencedNotes, $styles, $numbering);
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'sdt')) {
+                $currentList = null;
+                array_push(
+                    $blocks,
+                    ...$this->structuredDocumentTagBlocks($child, $package, $relationships, $referencedNotes, $styles, $numbering)
+                );
                 continue;
             }
 
@@ -805,6 +814,38 @@ final class DocxReader
         }
 
         return $blocks;
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
+     * @return list<AstNode>
+     */
+    private function structuredDocumentTagBlocks(
+        \DOMElement $sdt,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes,
+        array $styles,
+        array $numbering
+    ): array {
+        $content = $this->structuredDocumentTagContent($sdt);
+        if (!$content instanceof \DOMElement) {
+            return [];
+        }
+
+        $blocks = $this->blockContainerChildren($content, $package, $relationships, $referencedNotes, $styles, $numbering);
+        if ($blocks !== []) {
+            return [new AstNode('div', $this->structuredDocumentTagAttrs($sdt), $blocks)];
+        }
+
+        $inlines = $this->inlineContainerNodes($content, $package, $relationships, $referencedNotes);
+        if ($inlines === []) {
+            return [];
+        }
+
+        return [new AstNode('paragraph', [], [new AstNode('span', $this->structuredDocumentTagAttrs($sdt), $inlines)])];
     }
 
     /**
@@ -1102,8 +1143,7 @@ final class DocxReader
         }
 
         if ($this->isWordElement($element, 'sdt')) {
-            $content = $this->firstChildElement($element, self::WORDPROCESSINGML_NS, 'sdtContent');
-            return $content instanceof \DOMElement ? $this->inlineContainerNodes($content, $package, $relationships, $referencedNotes) : [];
+            return $this->structuredDocumentTagInlineNodes($element, $package, $relationships, $referencedNotes);
         }
 
         if ($this->isWordElement($element, 'ins')) {
@@ -1119,6 +1159,140 @@ final class DocxReader
         }
 
         return [];
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @return list<AstNode>
+     */
+    private function structuredDocumentTagInlineNodes(
+        \DOMElement $sdt,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes
+    ): array {
+        $content = $this->structuredDocumentTagContent($sdt);
+        if (!$content instanceof \DOMElement) {
+            return [];
+        }
+
+        $children = $this->coalesceTextNodes($this->inlineContainerNodes($content, $package, $relationships, $referencedNotes));
+        if ($children === []) {
+            return [];
+        }
+
+        return [new AstNode('span', $this->structuredDocumentTagAttrs($sdt), $children)];
+    }
+
+    private function structuredDocumentTagContent(\DOMElement $sdt): ?\DOMElement
+    {
+        return $this->firstChildElement($sdt, self::WORDPROCESSINGML_NS, 'sdtContent');
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function structuredDocumentTagAttrs(\DOMElement $sdt): array
+    {
+        $properties = $this->firstChildElement($sdt, self::WORDPROCESSINGML_NS, 'sdtPr');
+        $attributes = [];
+        $type = null;
+
+        if ($properties instanceof \DOMElement) {
+            foreach ([
+                'id' => 'data-docx-sdt-id',
+                'alias' => 'data-docx-sdt-alias',
+                'tag' => 'data-docx-sdt-tag',
+                'lock' => 'data-docx-sdt-lock',
+            ] as $localName => $attributeName) {
+                $value = $this->structuredDocumentTagPropertyValue($properties, $localName);
+                if ($value !== null && $value !== '') {
+                    $attributes[$attributeName] = $value;
+                }
+            }
+
+            $type = $this->structuredDocumentTagType($properties);
+            if ($type !== null) {
+                $attributes['data-docx-sdt-type'] = $type;
+            }
+
+            $placeholder = $this->structuredDocumentTagPlaceholder($properties);
+            if ($placeholder !== null && $placeholder !== '') {
+                $attributes['data-docx-sdt-placeholder'] = $placeholder;
+            }
+
+            $dataBinding = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'dataBinding');
+            if ($dataBinding instanceof \DOMElement) {
+                foreach ([
+                    'xpath' => 'data-docx-sdt-xpath',
+                    'storeItemID' => 'data-docx-sdt-store-item-id',
+                ] as $localName => $attributeName) {
+                    $value = $this->wordAttr($dataBinding, $localName);
+                    if ($value !== null && $value !== '') {
+                        $attributes[$attributeName] = $value;
+                    }
+                }
+            }
+        }
+
+        $classes = ['docx-content-control'];
+        if ($type !== null && $type !== '') {
+            $classes[] = 'docx-content-control-' . $type;
+        }
+
+        return [
+            'classes' => $classes,
+            'attributes' => $attributes,
+        ];
+    }
+
+    private function structuredDocumentTagPropertyValue(\DOMElement $properties, string $localName): ?string
+    {
+        $child = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = $this->wordAttr($child, 'val');
+
+        return $value === null || $value === '' ? null : $value;
+    }
+
+    private function structuredDocumentTagType(\DOMElement $properties): ?string
+    {
+        foreach ([
+            'richText' => 'rich-text',
+            'text' => 'text',
+            'comboBox' => 'combo-box',
+            'dropDownList' => 'drop-down-list',
+            'date' => 'date',
+            'checkbox' => 'checkbox',
+            'picture' => 'picture',
+            'repeatingSection' => 'repeating-section',
+            'repeatingSectionItem' => 'repeating-section-item',
+            'group' => 'group',
+            'docPartObj' => 'doc-part',
+            'docPartList' => 'doc-part-list',
+            'citation' => 'citation',
+            'bibliography' => 'bibliography',
+            'equation' => 'equation',
+        ] as $localName => $type) {
+            if ($this->firstChildElement($properties, self::WORDPROCESSINGML_NS, $localName) instanceof \DOMElement) {
+                return $type;
+            }
+        }
+
+        return null;
+    }
+
+    private function structuredDocumentTagPlaceholder(\DOMElement $properties): ?string
+    {
+        $placeholder = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'placeholder');
+        if (!$placeholder instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->structuredDocumentTagPropertyValue($placeholder, 'docPart');
     }
 
     /**
@@ -1704,13 +1878,15 @@ final class DocxReader
     /**
      * @param array<string, AstNode> $referencedNotes
      * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
      */
     private function tableNode(
         \DOMElement $table,
         ZipPackage $package,
         ?OpcRelationships $relationships,
         array $referencedNotes,
-        array $styles = []
+        array $styles = [],
+        array $numbering = []
     ): AstNode
     {
         $rows = [];
@@ -1740,7 +1916,7 @@ final class DocxReader
                 if ($colspan > 1) {
                     $attrs['colspan'] = $colspan;
                 }
-                $cellBlocks = $this->tableCellBlocks($cellElement, $package, $relationships, $referencedNotes, $styles);
+                $cellBlocks = $this->tableCellBlocks($cellElement, $package, $relationships, $referencedNotes, $styles, $numbering);
                 $attrs['text'] = $this->plainBlockText($cellBlocks);
 
                 $cells[] = new AstNode('table_cell', $attrs, $cellBlocks);
@@ -1768,6 +1944,7 @@ final class DocxReader
     /**
      * @param array<string, AstNode> $referencedNotes
      * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
      * @return list<AstNode>
      */
     private function tableCellBlocks(
@@ -1775,20 +1952,11 @@ final class DocxReader
         ZipPackage $package,
         ?OpcRelationships $relationships,
         array $referencedNotes,
-        array $styles = []
+        array $styles = [],
+        array $numbering = []
     ): array
     {
-        $blocks = [];
-        foreach ($cell->childNodes as $child) {
-            if ($child instanceof \DOMElement && $this->isWordElement($child, 'p')) {
-                $paragraph = $this->paragraphNode($child, $package, $relationships, $referencedNotes, $styles);
-                if ($paragraph instanceof AstNode) {
-                    $blocks[] = $paragraph;
-                }
-            }
-        }
-
-        return $blocks;
+        return $this->blockContainerChildren($cell, $package, $relationships, $referencedNotes, $styles, $numbering);
     }
 
     private function tableCellGridSpan(\DOMElement $cell): int
@@ -1980,26 +2148,7 @@ final class DocxReader
      */
     private function noteBlocks(\DOMElement $note, ZipPackage $package, ?OpcRelationships $relationships): array
     {
-        $blocks = [];
-        foreach ($note->childNodes as $child) {
-            if (!$child instanceof \DOMElement) {
-                continue;
-            }
-
-            if ($this->isWordElement($child, 'p')) {
-                $paragraph = $this->paragraphNode($child, $package, $relationships, []);
-                if ($paragraph instanceof AstNode) {
-                    $blocks[] = $paragraph;
-                }
-                continue;
-            }
-
-            if ($this->isWordElement($child, 'tbl')) {
-                $blocks[] = $this->tableNode($child, $package, $relationships, []);
-            }
-        }
-
-        return $blocks;
+        return $this->blockContainerChildren($note, $package, $relationships, [], [], []);
     }
 
     /**

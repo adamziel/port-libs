@@ -842,7 +842,7 @@ final class WordPressBlockWriter
     private function renderDivBlock(AstNode $node): string
     {
         return '<!-- wp:html -->'
-            . "\n" . '<div>' . $this->renderBlocksAsHtml($node->children) . '</div>'
+            . "\n" . '<div' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderBlocksAsHtml($node->children) . '</div>'
             . "\n" . '<!-- /wp:html -->';
     }
 
@@ -967,7 +967,7 @@ final class WordPressBlockWriter
                 continue;
             }
             if ($block->type === 'div') {
-                $html .= '<div>' . $this->renderBlocksAsHtml($block->children) . '</div>';
+                $html .= '<div' . $this->renderInlineSpanAttrs($block) . '>' . $this->renderBlocksAsHtml($block->children) . '</div>';
             }
         }
 
