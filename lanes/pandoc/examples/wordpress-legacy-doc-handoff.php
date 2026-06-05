@@ -143,20 +143,20 @@ $typedFiletime = static function (string $iso8601) use ($u64): string {
 $typedClsid = static function (string $clsid) use ($clsidBytes): string {
     return pack('v', 0x0048) . "\0\0" . $clsidBytes($clsid);
 };
-$typedVectorLpstr = static function (array $values): string {
+$typedVectorLpstr = static function (array $values) use ($padTo): string {
     $payload = pack('V', count($values));
     foreach ($values as $value) {
         $bytes = (string) $value . "\0";
-        $payload .= pack('V', strlen($bytes)) . $bytes;
+        $payload .= $padTo(pack('V', strlen($bytes)) . $bytes, 4);
     }
     $raw = pack('v', 0x101e) . "\0\0" . $payload;
 
     return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
 };
-$typedVariantLpstr = static function (string $value): string {
+$typedVariantLpstr = static function (string $value) use ($padTo): string {
     $bytes = $value . "\0";
 
-    return pack('v', 0x001e) . "\0\0" . pack('V', strlen($bytes)) . $bytes;
+    return $padTo(pack('v', 0x001e) . "\0\0" . pack('V', strlen($bytes)) . $bytes, 4);
 };
 $typedVariantI4 = static fn (int $value): string => pack('v', 0x0003) . "\0\0" . pack('V', $value);
 $typedVectorVariant = static function (array $variants): string {

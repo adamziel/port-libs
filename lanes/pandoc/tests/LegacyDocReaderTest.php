@@ -394,20 +394,20 @@ $typedFiletime = static function (string $iso8601) use ($u64): string {
 $typedClsid = static function (string $clsid) use ($clsidBytes): string {
     return pack('v', 0x0048) . "\0\0" . $clsidBytes($clsid);
 };
-$typedVectorLpstr = static function (array $values): string {
+$typedVectorLpstr = static function (array $values) use ($padTo): string {
     $payload = pack('V', count($values));
     foreach ($values as $value) {
         $bytes = (string) $value . "\0";
-        $payload .= pack('V', strlen($bytes)) . $bytes;
+        $payload .= $padTo(pack('V', strlen($bytes)) . $bytes, 4);
     }
     $raw = pack('v', 0x101e) . "\0\0" . $payload;
 
     return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
 };
-$typedVariantLpstr = static function (string $value): string {
+$typedVariantLpstr = static function (string $value) use ($padTo): string {
     $bytes = $value . "\0";
 
-    return pack('v', 0x001e) . "\0\0" . pack('V', strlen($bytes)) . $bytes;
+    return $padTo(pack('v', 0x001e) . "\0\0" . pack('V', strlen($bytes)) . $bytes, 4);
 };
 $typedVariantI4 = static fn (int $value): string => pack('v', 0x0003) . "\0\0" . pack('V', $value);
 $typedVectorVariant = static function (array $variants): string {
@@ -1607,6 +1607,62 @@ return [
                 'parts' => ['Review appendix'],
             ],
         ], $metadata['headingPairs']);
+        $t->same($metadata['headingPairs'], $result['document']->attr('meta')['headingPairs']);
+    },
+    'extracts padded legacy DOC vector property-set values for document headings' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedVariantI4, $utf16le): void {
+        $padDword = static fn (string $bytes): string => str_pad($bytes, (int) (ceil(strlen($bytes) / 4) * 4), "\0");
+        $typedPaddedVariantLpstr = static function (string $value) use ($padDword): string {
+            $bytes = $value . "\0";
+
+            return $padDword(pack('v', 0x001e) . "\0\0" . pack('V', strlen($bytes)) . $bytes);
+        };
+        $typedPaddedVectorVariant = static function (array $variants) use ($padDword): string {
+            return $padDword(pack('v', 0x100c) . "\0\0" . pack('V', count($variants)) . implode('', $variants));
+        };
+        $typedPaddedVectorLpwstr = static function (array $values) use ($padDword, $utf16le): string {
+            $payload = pack('V', count($values));
+            foreach ($values as $value) {
+                $bytes = $utf16le((string) $value . "\0");
+                $payload .= $padDword(pack('V', intdiv(strlen($bytes), 2)) . $bytes);
+            }
+
+            return $padDword(pack('v', 0x101f) . "\0\0" . $payload);
+        };
+
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Padded document part inventory\r"),
+            "\x05DocumentSummaryInformation" => $typedPropertySet([
+                12 => $typedPaddedVectorVariant([
+                    $typedPaddedVariantLpstr('Sections'),
+                    $typedVariantI4(2),
+                    $typedPaddedVariantLpstr('Appendix'),
+                    $typedVariantI4(1),
+                ]),
+                13 => $typedPaddedVectorLpwstr([
+                    'Intro',
+                    'QA',
+                    'Appendix',
+                ]),
+            ]),
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $metadata = $result['metadata'];
+
+        $t->same(['Intro', 'QA', 'Appendix'], $metadata['documentParts']);
+        $t->same([
+            [
+                'heading' => 'Sections',
+                'count' => 2,
+                'parts' => ['Intro', 'QA'],
+            ],
+            [
+                'heading' => 'Appendix',
+                'count' => 1,
+                'parts' => ['Appendix'],
+            ],
+        ], $metadata['headingPairs']);
+        $t->same($metadata['documentParts'], $result['document']->attr('meta')['documentParts']);
         $t->same($metadata['headingPairs'], $result['document']->attr('meta')['headingPairs']);
     },
     'extracts legacy DOC user-defined custom document properties from OLE dictionaries' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySetStream, $typedDictionary, $typedLpstr, $typedI2, $typedI4, $typedBool, $typedFiletime): void {

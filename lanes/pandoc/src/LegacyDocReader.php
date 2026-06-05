@@ -2738,9 +2738,10 @@ final class LegacyDocReader
             return null;
         }
 
+        $payloadBytes = 4 + $length;
         return [
             'value' => $this->decodeCodePageString(substr($bytes, $offset + 4, $length), $codepage),
-            'bytes' => 4 + $length,
+            'bytes' => $this->consumeDwordPadding($bytes, $offset, $payloadBytes),
         ];
     }
 
@@ -2765,10 +2766,28 @@ final class LegacyDocReader
             return null;
         }
 
+        $payloadBytes = 4 + $byteLength;
         return [
             'value' => rtrim($this->decodeUtf16Le(substr($bytes, $offset + 4, $byteLength)), "\0"),
-            'bytes' => 4 + $byteLength,
+            'bytes' => $this->consumeDwordPadding($bytes, $offset, $payloadBytes),
         ];
+    }
+
+    private function consumeDwordPadding(string $bytes, int $offset, int $payloadBytes): int
+    {
+        $padding = (4 - ($payloadBytes % 4)) % 4;
+        if ($padding === 0) {
+            return $payloadBytes;
+        }
+
+        $paddingOffset = $offset + $payloadBytes;
+        if ($paddingOffset + $padding > strlen($bytes)) {
+            return $payloadBytes;
+        }
+
+        return substr($bytes, $paddingOffset, $padding) === str_repeat("\0", $padding)
+            ? $payloadBytes + $padding
+            : $payloadBytes;
     }
 
     /**
