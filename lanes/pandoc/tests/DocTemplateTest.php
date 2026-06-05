@@ -497,6 +497,17 @@ TPL;
         ]), $output);
     },
 
+    'throws on unclosed pandoc doctemplate breakable-space regions' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('Summary: $~$alpha beta', []));
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('Summary: ${~}alpha beta', []));
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->renderWrapped('Summary: $~$alpha beta', [], 20));
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('${ broken() }', [], [
+            'broken' => '$~$alpha beta',
+        ]));
+    },
+
     'renders parameter-free pandoc doctemplate pipes for text arrays and maps' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 Title: $title/uppercase$ / $title/uppercase/lowercase$

@@ -293,6 +293,14 @@ if (in_array('--self-test', $argv, true)) {
         // Expected: literal dollar signs must be escaped as $$.
     }
 
+    try {
+        (new DocTemplate())->render('Broken wrap: $~$review packet', []);
+        fwrite(STDERR, "Expected unclosed doctemplate breakable-space rejection\n");
+        exit(1);
+    } catch (\UnexpectedValueException) {
+        // Expected: breakable-space regions must be closed.
+    }
+
     fwrite(STDOUT, "OK wordpress doctemplate review packet\n");
     exit(0);
 }

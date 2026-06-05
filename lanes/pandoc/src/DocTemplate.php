@@ -792,6 +792,10 @@ CSS;
             $index = $closing;
         }
 
+        if ($breakableSpaces) {
+            throw new \UnexpectedValueException('Unclosed doctemplate breakable-space region');
+        }
+
         $this->appendTextToken($tokens, $buffer, $breakableSpaces);
 
         return $tokens;
