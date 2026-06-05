@@ -7,6 +7,14 @@ namespace PortLibs\MarkerPDF;
 final class PdfPageArtifactSelector
 {
     private const MISSING_PAGE_ARTIFACT = '__markerpdf_missing_page_artifact';
+    private const PAGE_MARKER_WRAPPERS = [
+        'metadata',
+        'page_metadata',
+        'page_meta',
+        'page_info',
+        'source',
+        'pdftext',
+    ];
 
     /**
      * @param list<mixed> $artifacts
@@ -130,22 +138,45 @@ final class PdfPageArtifactSelector
     private function pageMarkers(array $artifact): array
     {
         $markers = [];
-        $sourceIndexes = $this->integerFields($artifact, ['page_index', 'doc_page_index', 'document_page_index', 'source_page_index']);
+        $sources = $this->pageMarkerSources($artifact);
+
+        $sourceIndexes = $this->integerFieldsFromSources($sources, ['page_index', 'doc_page_index', 'document_page_index', 'source_page_index']);
         if ($sourceIndexes !== []) {
             $markers['source_indexes'] = $sourceIndexes;
         }
 
-        $pages = $this->integerFields($artifact, ['pnum', 'page', 'pdftext_page']);
+        $pages = $this->integerFieldsFromSources($sources, ['pnum', 'page', 'pdftext_page']);
         if ($pages !== []) {
             $markers['pages'] = $pages;
         }
 
-        $pageNumbers = $this->integerFields($artifact, ['page_number']);
+        $pageNumbers = $this->integerFieldsFromSources($sources, ['page_number']);
         if ($pageNumbers !== []) {
             $markers['page_numbers'] = $pageNumbers;
         }
 
         return $markers;
+    }
+
+    /**
+     * Some supplied-layout adapters wrap upstream page identity in a shallow
+     * metadata dictionary while leaving the model payload at the top level.
+     *
+     * @param array<string, mixed> $artifact
+     * @return list<array<string, mixed>>
+     */
+    private function pageMarkerSources(array $artifact): array
+    {
+        $sources = [$artifact];
+        foreach (self::PAGE_MARKER_WRAPPERS as $key) {
+            $value = $artifact[$key] ?? null;
+            if (!is_array($value) || array_is_list($value)) {
+                continue;
+            }
+            $sources[] = $value;
+        }
+
+        return $sources;
     }
 
     /**
@@ -191,6 +222,21 @@ final class PdfPageArtifactSelector
             if ($value !== null) {
                 $values[] = $value;
             }
+        }
+
+        return array_values(array_unique($values, SORT_REGULAR));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sources
+     * @param list<string> $fields
+     * @return list<int>
+     */
+    private function integerFieldsFromSources(array $sources, array $fields): array
+    {
+        $values = [];
+        foreach ($sources as $source) {
+            array_push($values, ...$this->integerFields($source, $fields));
         }
 
         return array_values(array_unique($values, SORT_REGULAR));
