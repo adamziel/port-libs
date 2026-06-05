@@ -33153,6 +33153,16 @@ final class PdfTextExtractor
             return null;
         }
 
+        $rankedOffset = $this->singleCodeSpaceSequenceOffsetInCidRange(
+            $rangeStart,
+            $source,
+            $sourceWidth,
+            $codeSpaceRanges
+        );
+        if ($rankedOffset !== null) {
+            return $rankedOffset;
+        }
+
         $offset = 0;
         $scanned = 0;
         $maxScan = self::MAX_CMAP_RANGE_ENTRIES * 256;
@@ -33170,6 +33180,98 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array{start: int, end: int, width: int}> $codeSpaceRanges
+     */
+    private function singleCodeSpaceSequenceOffsetInCidRange(
+        int $rangeStart,
+        int $source,
+        int $sourceWidth,
+        array $codeSpaceRanges
+    ): ?int {
+        if (count($codeSpaceRanges) !== 1 || $sourceWidth % 2 !== 0) {
+            return null;
+        }
+
+        $range = $codeSpaceRanges[0];
+        if (($range['width'] ?? null) !== $sourceWidth) {
+            return null;
+        }
+
+        $startKey = str_pad(strtolower(dechex($rangeStart)), $sourceWidth, '0', STR_PAD_LEFT);
+        $sourceKey = str_pad(strtolower(dechex($source)), $sourceWidth, '0', STR_PAD_LEFT);
+        if (
+            !$this->sourceKeyMatchesCodeSpaceRange($startKey, $range)
+            || !$this->sourceKeyMatchesCodeSpaceRange($sourceKey, $range)
+        ) {
+            return null;
+        }
+
+        $startRank = $this->codeSpaceRangeSourceRank($startKey, $range);
+        $sourceRank = $this->codeSpaceRangeSourceRank($sourceKey, $range);
+        if ($startRank === null || $sourceRank === null || $sourceRank < $startRank) {
+            return null;
+        }
+
+        return $sourceRank - $startRank;
+    }
+
+    /**
+     * @param array{start: int, end: int, width: int} $range
+     */
+    private function codeSpaceRangeSourceRank(string $sourceKey, array $range): ?int
+    {
+        $sourceKey = $this->normalizeHexKey($sourceKey);
+        $width = $range['width'] ?? null;
+        if (!is_int($width) || $width <= 0 || strlen($sourceKey) !== $width || $width % 2 !== 0) {
+            return null;
+        }
+
+        $startKey = str_pad(strtolower(dechex($range['start'])), $width, '0', STR_PAD_LEFT);
+        $endKey = str_pad(strtolower(dechex($range['end'])), $width, '0', STR_PAD_LEFT);
+        $sourceBytes = array_map('hexdec', str_split($sourceKey, 2));
+        $startBytes = array_map('hexdec', str_split($startKey, 2));
+        $endBytes = array_map('hexdec', str_split($endKey, 2));
+        $byteCount = count($sourceBytes);
+        if ($byteCount === 0 || count($startBytes) !== $byteCount || count($endBytes) !== $byteCount) {
+            return null;
+        }
+
+        $rank = 0;
+        for ($index = 0; $index < $byteCount; $index++) {
+            $value = $sourceBytes[$index];
+            $minimum = $startBytes[$index];
+            $maximum = $endBytes[$index];
+            if ($value < $minimum || $value > $maximum) {
+                return null;
+            }
+
+            if ($value > $minimum) {
+                $rank += ($value - $minimum) * $this->codeSpaceRangeSuffixCardinality($startBytes, $endBytes, $index + 1);
+            }
+        }
+
+        return $rank;
+    }
+
+    /**
+     * @param list<int> $startBytes
+     * @param list<int> $endBytes
+     */
+    private function codeSpaceRangeSuffixCardinality(array $startBytes, array $endBytes, int $offset): int
+    {
+        $product = 1;
+        for ($index = $offset, $count = count($startBytes); $index < $count; $index++) {
+            $span = ($endBytes[$index] ?? -1) - ($startBytes[$index] ?? 0) + 1;
+            if ($span <= 0) {
+                return 0;
+            }
+            $product *= $span;
+        }
+
+        return $product;
     }
 
     private function textOperandSourceHex(string $operand): string
