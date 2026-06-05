@@ -9007,7 +9007,13 @@ final class PdfAcroFormExtractor
                 if ($this->isPureWidget($body)) {
                     $parentObject = $this->validObjectReferenceValueAfterName($body, 'Parent', $objects);
                     $parentField = $parentObject === null ? null : $this->pageWidgetParentFieldCandidate($parentObject, $objects);
-                    if ($parentField !== null && $this->fieldTreeContainsObject($parentField, $fieldRef, $objects)) {
+                    if (
+                        $parentField !== null
+                        && (
+                            !$this->fieldHasKids($parentField, $objects)
+                            || $this->fieldTreeContainsObject($parentField, $fieldRef, $objects)
+                        )
+                    ) {
                         $candidate = $parentField;
                     }
                 }
