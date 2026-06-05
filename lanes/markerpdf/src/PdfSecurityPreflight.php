@@ -221,6 +221,13 @@ final class PdfSecurityPreflight
         $permissionBits = $handlerSupported && !$standardParametersMalformed && $permissionWordRangeValid !== false && is_array($permissions['permission_bits'] ?? null)
             ? $permissions['permission_bits']
             : [];
+        $permissionAuthenticationTrustReview = $this->standardPermissionAuthenticationTrustReview(
+            $encryption,
+            $standardHandler,
+            $permissionsDecoded,
+            $permissionBitsReliable,
+            $standardAuthenticationMaterialReview
+        );
 
         if (!$declared && $recipientPermissionsDeclared) {
             $policy = 'public_key_recipient_permissions_blocked_without_private_key';
@@ -309,6 +316,11 @@ final class PdfSecurityPreflight
             'accessibility_extract_allowed' => $accessibilityAllowed,
             'print_quality' => $handlerSupported && !$standardParametersMalformed ? ($permissions['print_quality'] ?? null) : null,
             'permission_bits_reliable' => $permissionBitsReliable,
+            'permission_authentication_trust_review' => $permissionAuthenticationTrustReview,
+            'permission_bits_authentication_required' => (bool) ($permissionAuthenticationTrustReview['authentication_required'] ?? false),
+            'permission_bits_authenticated' => (bool) ($permissionAuthenticationTrustReview['permissions_authenticated'] ?? false),
+            'authenticated_permission_bits_reliable' => (bool) ($permissionAuthenticationTrustReview['authenticated_permission_bits_reliable'] ?? false),
+            'permission_authentication_status' => $permissionAuthenticationTrustReview['status'] ?? null,
             'permission_word_well_formed' => $standardParametersMalformed ? false : ($handlerSupported ? $permissionWellFormed : null),
             'permission_handler_review' => $handlerReview,
             'standard_authentication_review' => $standardAuthenticationReview,
@@ -451,6 +463,86 @@ final class PdfSecurityPreflight
                 ? 'standard_authentication_material_ready_for_password_attempt'
                 : 'standard_authentication_material_incomplete_or_malformed_review',
         ]);
+    }
+
+    /**
+     * @param array<string, mixed> $encryption
+     * @param array<string, mixed> $standardAuthenticationMaterialReview
+     * @return array<string, mixed>
+     */
+    private function standardPermissionAuthenticationTrustReview(
+        array $encryption,
+        bool $standardHandler,
+        bool $permissionWordDecoded,
+        bool $syntacticPermissionBitsReliable,
+        array $standardAuthenticationMaterialReview
+    ): array {
+        $revision = is_int($encryption['revision'] ?? null) ? $encryption['revision'] : null;
+        $permissionDigestRequired = (bool) ($standardAuthenticationMaterialReview['permission_digest_required'] ?? false);
+        $permissionDigestPresent = (bool) ($standardAuthenticationMaterialReview['permission_digest_present'] ?? false);
+        $permissionDigestLengthValid = $standardAuthenticationMaterialReview['permission_digest_length_valid'] ?? null;
+        $permissionDigestStatus = is_string($standardAuthenticationMaterialReview['permission_digest_status'] ?? null)
+            ? $standardAuthenticationMaterialReview['permission_digest_status']
+            : null;
+        $authenticationMaterialReady = (bool) ($standardAuthenticationMaterialReview['ready_for_password_attempt'] ?? false);
+        $authenticationRequired = $standardHandler && $permissionWordDecoded;
+        $trustBoundary = $authenticationRequired
+            ? 'blocked_until_password_validation_and_permission_authentication'
+            : null;
+
+        if (!$standardHandler) {
+            $status = 'not_standard_security_handler';
+            $trustBoundary = null;
+        } elseif (!$permissionWordDecoded) {
+            $status = 'no_decoded_standard_permission_bits';
+            $trustBoundary = null;
+        } elseif (!$syntacticPermissionBitsReliable) {
+            $status = 'decoded_permission_bits_not_syntactically_reliable';
+            $trustBoundary = 'blocked_by_malformed_permission_bits';
+        } elseif (($standardAuthenticationMaterialReview['present'] ?? false) !== true) {
+            $status = 'standard_authentication_material_unavailable_before_permission_authentication';
+        } elseif ($permissionDigestRequired && !$permissionDigestPresent) {
+            $status = 'required_permission_digest_missing_before_permission_authentication';
+        } elseif (
+            $permissionDigestRequired
+            && ($permissionDigestLengthValid !== true || $permissionDigestStatus !== 'permission_digest_ciphertext_review')
+        ) {
+            $status = 'permission_digest_malformed_before_permission_authentication';
+        } elseif ($permissionDigestRequired && $authenticationMaterialReady) {
+            $status = 'permission_bits_decoded_but_unauthenticated_ready_for_password_attempt';
+        } elseif (!$permissionDigestRequired && $authenticationMaterialReady) {
+            $status = 'permission_bits_decoded_but_password_not_validated';
+        } else {
+            $status = 'permission_bits_decoded_but_authentication_material_incomplete';
+        }
+
+        return [
+            'source' => 'standard_permission_authentication_trust_review',
+            'present' => $standardHandler && ($permissionWordDecoded || $syntacticPermissionBitsReliable),
+            'handler' => $encryption['filter'] ?? null,
+            'revision' => $revision,
+            'revision_label' => $encryption['revision_label'] ?? null,
+            'permission_word_decoded' => $permissionWordDecoded,
+            'syntactic_permission_bits_reliable' => $syntacticPermissionBitsReliable,
+            'authentication_required' => $authenticationRequired,
+            'permission_digest_required' => $permissionDigestRequired,
+            'permission_digest_present' => $permissionDigestPresent,
+            'permission_digest_bytes' => $standardAuthenticationMaterialReview['permission_digest_bytes'] ?? null,
+            'permission_digest_expected_bytes' => $standardAuthenticationMaterialReview['permission_digest_expected_bytes'] ?? null,
+            'permission_digest_length_valid' => $permissionDigestLengthValid,
+            'permission_digest_status' => $permissionDigestStatus,
+            'authentication_material_ready_for_password_attempt' => $authenticationMaterialReady,
+            'password_validation_performed' => false,
+            'permissions_authenticated' => false,
+            'decryption_performed' => false,
+            'executes_permission_enforcement' => false,
+            'raw_owner_user_keys_exposed' => false,
+            'raw_file_encryption_keys_exposed' => false,
+            'authenticated_permission_bits_reliable' => false,
+            'trust_boundary' => $trustBoundary,
+            'status' => $status,
+            'review_only' => true,
+        ];
     }
 
     /**
@@ -4806,6 +4898,18 @@ final class PdfSecurityPreflight
             $standardHandler
         );
         $cryptFilterContentReview = $this->cryptFilterContentReview(true, $encryption);
+        $permissionBitsReliable = $standardHandler
+            && $permissions !== []
+            && !$standardParametersMalformed
+            && $permissionWellFormed === true
+            && $permissionWordRangeValid !== false;
+        $permissionAuthenticationTrustReview = $this->standardPermissionAuthenticationTrustReview(
+            $encryption,
+            $standardHandler,
+            $permissions !== [],
+            $permissionBitsReliable,
+            $standardAuthenticationMaterialReview
+        );
 
         return [
             'is_encrypted' => true,
@@ -4869,7 +4973,12 @@ final class PdfSecurityPreflight
                         ? $permissionWellFormed
                         : ($standardHandler && $permissionWordAmbiguous ? false : null)
                 ),
-            'permission_bits_reliable' => $standardHandler && $permissions !== [] && !$standardParametersMalformed && $permissionWellFormed === true && $permissionWordRangeValid !== false,
+            'permission_bits_reliable' => $permissionBitsReliable,
+            'permission_authentication_trust_review' => $permissionAuthenticationTrustReview,
+            'permission_bits_authentication_required' => (bool) ($permissionAuthenticationTrustReview['authentication_required'] ?? false),
+            'permission_bits_authenticated' => (bool) ($permissionAuthenticationTrustReview['permissions_authenticated'] ?? false),
+            'authenticated_permission_bits_reliable' => (bool) ($permissionAuthenticationTrustReview['authenticated_permission_bits_reliable'] ?? false),
+            'permission_authentication_status' => $permissionAuthenticationTrustReview['status'] ?? null,
             'reserved_bit_violations' => $reservedViolations,
             'perms_hash_present' => isset($encryption['perms']['sha256']),
             'standard_authentication_review' => $standardAuthenticationReview,
