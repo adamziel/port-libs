@@ -35,6 +35,10 @@ final class LegacyDocReader
     private const FIB_LCB_PLCFEND_REF = 0x020e;
     private const FIB_FC_PLCFEND_TXT = 0x0212;
     private const FIB_LCB_PLCFEND_TXT = 0x0216;
+    private const FIB_FC_PLF_LST = 0x02e2;
+    private const FIB_LCB_PLF_LST = 0x02e6;
+    private const FIB_FC_PLF_LFO = 0x02ea;
+    private const FIB_LCB_PLF_LFO = 0x02ee;
     private const FIB_RGLW97_CB_MAC = 0x0040;
     private const FIB_RGLW97_RESERVED3 = 0x0058;
     private const FIB_RGLW97_CCP_FIELDS = [
@@ -56,7 +60,7 @@ final class LegacyDocReader
     ];
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readBytes(string $bytes): array
     {
@@ -64,7 +68,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -151,6 +155,21 @@ final class LegacyDocReader
             ));
             $metadata['formattingRuns'] = $formattingRuns;
         }
+        $listTable = $this->listTableReport($wordDocument, $tableStream);
+        $listFormats = $listTable['formats'];
+        $listOverrides = $listTable['overrides'];
+        if ($listFormats !== []) {
+            $metadata['listFormatCount'] = count($listFormats);
+            $metadata['listLevelCount'] = array_sum(array_map(
+                static fn (array $format): int => count(is_array($format['levels'] ?? null) ? $format['levels'] : []),
+                $listFormats
+            ));
+            $metadata['listFormats'] = $listFormats;
+        }
+        if ($listOverrides !== []) {
+            $metadata['listOverrideCount'] = count($listOverrides);
+            $metadata['listOverrides'] = $listOverrides;
+        }
         $sections = $this->sectionReport($wordDocument, $tableStream, $textResult['text']);
         if ($sections !== []) {
             $metadata['sectionCount'] = count($sections);
@@ -198,6 +217,8 @@ final class LegacyDocReader
             'subdocuments' => $subdocuments,
             'styles' => $styles,
             'formattingRuns' => $formattingRuns,
+            'listFormats' => $listFormats,
+            'listOverrides' => $listOverrides,
             'sections' => $sections,
             'bookmarks' => $bookmarks,
             'footnotes' => $footnotes,
@@ -221,6 +242,8 @@ final class LegacyDocReader
             'subdocuments' => $subdocuments,
             'styles' => $styles,
             'formattingRuns' => $formattingRuns,
+            'listFormats' => $listFormats,
+            'listOverrides' => $listOverrides,
             'sections' => $sections,
             'bookmarks' => $bookmarks,
             'footnotes' => $footnotes,
@@ -3621,6 +3644,406 @@ final class LegacyDocReader
         }
 
         return $runs;
+    }
+
+    /**
+     * @return array{formats:list<array<string,mixed>>,overrides:list<array<string,mixed>>}
+     */
+    private function listTableReport(string $wordDocument, ?string $tableStream): array
+    {
+        if ($tableStream === null || strlen($wordDocument) < self::FIB_LCB_PLF_LFO + 4) {
+            return [
+                'formats' => [],
+                'overrides' => [],
+            ];
+        }
+
+        $fcPlfLst = self::u32($wordDocument, self::FIB_FC_PLF_LST);
+        $lcbPlfLst = self::u32($wordDocument, self::FIB_LCB_PLF_LST);
+        $fcPlfLfo = self::u32($wordDocument, self::FIB_FC_PLF_LFO);
+        $lcbPlfLfo = self::u32($wordDocument, self::FIB_LCB_PLF_LFO);
+        if ($lcbPlfLst === 0 && $lcbPlfLfo === 0) {
+            return [
+                'formats' => [],
+                'overrides' => [],
+            ];
+        }
+        if ($lcbPlfLst === 0 && $lcbPlfLfo !== 0) {
+            throw new \RuntimeException('Legacy DOC list-format overrides are present without list formats');
+        }
+
+        $formats = $this->parsePlfLst($tableStream, $fcPlfLst, $lcbPlfLst);
+        $overrides = $lcbPlfLfo === 0
+            ? []
+            : $this->parsePlfLfo(
+                $this->tableStreamSlice($tableStream, $fcPlfLfo, $lcbPlfLfo, 'PlfLfo list override table'),
+                $formats
+            );
+
+        return [
+            'formats' => $formats,
+            'overrides' => $overrides,
+        ];
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function parsePlfLst(string $tableStream, int $offset, int $length): array
+    {
+        $bytes = $this->tableStreamSlice($tableStream, $offset, $length, 'PlfLst list format table');
+        if (strlen($bytes) < 2) {
+            throw new \RuntimeException('Legacy DOC list format table is too short to contain cLst');
+        }
+
+        $listCount = self::signed16(self::u16($bytes, 0));
+        if ($listCount < 0 || $listCount > 2048) {
+            throw new \RuntimeException('Legacy DOC list format table contains an invalid list count');
+        }
+        $lstfByteCount = $listCount * 28;
+        if (2 + $lstfByteCount !== $length) {
+            throw new \RuntimeException('Legacy DOC list format table length does not match its LSTF count');
+        }
+
+        $formats = [];
+        $seenLsids = [];
+        $levelCursor = $offset + $length;
+        for ($index = 0; $index < $listCount; $index++) {
+            $lstfOffset = 2 + ($index * 28);
+            $lsid = self::signed32(self::u32($bytes, $lstfOffset));
+            if ($lsid === -1) {
+                throw new \RuntimeException('Legacy DOC list format contains the reserved LSTF lsid value');
+            }
+            if (isset($seenLsids[$lsid])) {
+                throw new \RuntimeException('Legacy DOC list format table contains duplicate LSTF identifiers');
+            }
+            $seenLsids[$lsid] = true;
+
+            $styleLinks = [];
+            for ($level = 0; $level < 9; $level++) {
+                $istd = self::signed16(self::u16($bytes, $lstfOffset + 8 + ($level * 2)));
+                if ($istd !== 0x0fff) {
+                    $styleLinks[] = [
+                        'level' => $level,
+                        'istd' => $istd,
+                    ];
+                }
+            }
+
+            $flags = ord($bytes[$lstfOffset + 26]);
+            if (($flags & 0xe0) !== 0) {
+                throw new \RuntimeException('Legacy DOC list format table contains nonzero reserved LSTF flags');
+            }
+
+            $simple = ($flags & 0x01) !== 0;
+            $levelCount = $simple ? 1 : 9;
+            $levels = [];
+            for ($level = 0; $level < $levelCount; $level++) {
+                [$levelRecord, $levelCursor] = $this->parseLvl($tableStream, $levelCursor, $level, 'PlfLst');
+                $levels[] = $levelRecord;
+            }
+
+            $format = [
+                'index' => $index + 1,
+                'lsid' => $lsid,
+                'templateCode' => self::signed32(self::u32($bytes, $lstfOffset + 4)),
+                'simple' => $simple,
+                'autoNumber' => ($flags & 0x04) !== 0,
+                'hybrid' => ($flags & 0x10) !== 0,
+                'htmlCompatibilityFlags' => ord($bytes[$lstfOffset + 27]),
+                'levelCount' => $levelCount,
+                'canApplyNumbering' => false,
+                'levels' => $levels,
+            ];
+            if ($styleLinks !== []) {
+                $format['linkedStyleIstds'] = $styleLinks;
+            }
+
+            $formats[] = $format;
+        }
+
+        return $formats;
+    }
+
+    /**
+     * @return array{0:array<string,mixed>,1:int}
+     */
+    private function parseLvl(string $bytes, int $offset, int $levelIndex, string $context): array
+    {
+        if ($offset + 30 > strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC list level record is truncated in ' . $context);
+        }
+
+        $startAt = self::signed32(self::u32($bytes, $offset));
+        $nfc = ord($bytes[$offset + 4]);
+        if (in_array($nfc, [0x08, 0x09, 0x0f, 0x13], true)) {
+            throw new \RuntimeException('Legacy DOC list level uses a reserved number-format code');
+        }
+        $hasNumberSequence = !in_array($nfc, [0xff, 0x17], true);
+        if ($hasNumberSequence && ($startAt < 0 || $startAt > 0x7fff)) {
+            throw new \RuntimeException('Legacy DOC list level start-at value is outside the supported range');
+        }
+
+        $bits = ord($bytes[$offset + 5]);
+        $jc = $bits & 0x03;
+        if ($jc > 2) {
+            throw new \RuntimeException('Legacy DOC list level uses an invalid justification value');
+        }
+
+        $placeholderOffsets = [];
+        $previousPlaceholderOffset = 0;
+        for ($index = 0; $index < 9; $index++) {
+            $placeholderOffset = ord($bytes[$offset + 6 + $index]);
+            if ($placeholderOffset === 0) {
+                break;
+            }
+            if ($placeholderOffset <= $previousPlaceholderOffset) {
+                throw new \RuntimeException('Legacy DOC list level placeholder offsets are duplicate or unsorted');
+            }
+            $previousPlaceholderOffset = $placeholderOffset;
+            $placeholderOffsets[] = $placeholderOffset;
+        }
+        if (count($placeholderOffsets) > $levelIndex + 1) {
+            throw new \RuntimeException('Legacy DOC list level declares too many placeholder offsets');
+        }
+
+        $follow = ord($bytes[$offset + 15]);
+        if ($follow > 2) {
+            throw new \RuntimeException('Legacy DOC list level uses an invalid follow-character value');
+        }
+        $fNoRestart = ($bits & 0x08) !== 0;
+        $ilvlRestartLim = ord($bytes[$offset + 26]);
+        if ($fNoRestart && $hasNumberSequence && $ilvlRestartLim > $levelIndex) {
+            throw new \RuntimeException('Legacy DOC list level restart limit exceeds the current level');
+        }
+
+        $chpxBytes = ord($bytes[$offset + 24]);
+        $papxBytes = ord($bytes[$offset + 25]);
+        $cursor = $offset + 28;
+        if ($cursor + $papxBytes + $chpxBytes + 2 > strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC list level property groups point outside the table stream');
+        }
+        $cursor += $papxBytes + $chpxBytes;
+        $numberTextCharacters = self::u16($bytes, $cursor);
+        $cursor += 2;
+        if ($numberTextCharacters > 255 || $cursor + ($numberTextCharacters * 2) > strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC list level number text is invalid or truncated');
+        }
+
+        $numberTextCodes = [];
+        for ($index = 0; $index < $numberTextCharacters; $index++) {
+            $numberTextCodes[] = self::u16($bytes, $cursor + ($index * 2));
+        }
+        $cursor += $numberTextCharacters * 2;
+        if ($nfc === 0x17 && ($numberTextCharacters !== 1 || $placeholderOffsets !== [])) {
+            throw new \RuntimeException('Legacy DOC bullet list level must contain exactly one non-placeholder number-text character');
+        }
+
+        $placeholderLevels = [];
+        foreach ($placeholderOffsets as $placeholderOffset) {
+            if ($placeholderOffset < 1 || $placeholderOffset > $numberTextCharacters) {
+                throw new \RuntimeException('Legacy DOC list level placeholder offset points outside the number text');
+            }
+
+            $placeholderLevel = $numberTextCodes[$placeholderOffset - 1] ?? 0;
+            if ($placeholderLevel > $levelIndex) {
+                throw new \RuntimeException('Legacy DOC list level placeholder references a deeper level');
+            }
+            $placeholderLevels[] = $placeholderLevel;
+        }
+
+        $record = [
+            'level' => $levelIndex,
+            'startAt' => $startAt,
+            'numberFormatCode' => $nfc,
+            'numberFormat' => $this->listNumberFormatName($nfc),
+            'justification' => match ($jc) {
+                0 => 'left',
+                1 => 'center',
+                2 => 'right',
+            },
+            'legalNumbering' => ($bits & 0x04) !== 0,
+            'noRestart' => $fNoRestart,
+            'indentSaved' => ($bits & 0x10) !== 0,
+            'converted' => ($bits & 0x20) !== 0,
+            'tentative' => ($bits & 0x80) !== 0,
+            'follow' => match ($follow) {
+                0 => 'tab',
+                1 => 'space',
+                2 => 'nothing',
+            },
+            'placeholderOffsets' => $placeholderOffsets,
+            'placeholderLevels' => $placeholderLevels,
+            'numberText' => $this->listNumberTextTemplate($numberTextCodes, $placeholderOffsets),
+            'numberTextCharacterCount' => $numberTextCharacters,
+            'paragraphPropertyBytes' => $papxBytes,
+            'characterPropertyBytes' => $chpxBytes,
+            'restartLimitLevel' => $ilvlRestartLim,
+            'htmlCompatibilityFlags' => ord($bytes[$offset + 27]),
+            'canApplyNumbering' => false,
+        ];
+        if (($bits & 0x10) !== 0) {
+            $record['savedIndentTwips'] = self::signed32(self::u32($bytes, $offset + 16));
+        }
+
+        return [$record, $cursor];
+    }
+
+    /**
+     * @param list<int> $numberTextCodes
+     * @param list<int> $placeholderOffsets
+     */
+    private function listNumberTextTemplate(array $numberTextCodes, array $placeholderOffsets): string
+    {
+        $placeholders = array_fill_keys($placeholderOffsets, true);
+        $text = '';
+        foreach ($numberTextCodes as $index => $code) {
+            $position = $index + 1;
+            if (isset($placeholders[$position])) {
+                $text .= '%' . (string) ($code + 1);
+                continue;
+            }
+
+            $text .= self::codepointToUtf8($code);
+        }
+
+        return $text;
+    }
+
+    private function listNumberFormatName(int $nfc): string
+    {
+        return match ($nfc) {
+            0x00 => 'decimal',
+            0x01 => 'upper-roman',
+            0x02 => 'lower-roman',
+            0x03 => 'upper-letter',
+            0x04 => 'lower-letter',
+            0x16 => 'leading-zero-decimal',
+            0x17 => 'bullet',
+            0xff => 'none',
+            default => 'msonfc:' . (string) $nfc,
+        };
+    }
+
+    /**
+     * @param list<array<string,mixed>> $formats
+     * @return list<array<string,mixed>>
+     */
+    private function parsePlfLfo(string $bytes, array $formats): array
+    {
+        if (strlen($bytes) < 4) {
+            throw new \RuntimeException('Legacy DOC list override table is too short to contain lfoMac');
+        }
+
+        $formatByLsid = [];
+        foreach ($formats as $format) {
+            $formatByLsid[(int) ($format['lsid'] ?? 0)] = true;
+        }
+
+        $lfoMac = self::u32($bytes, 0);
+        if ($lfoMac > 4096 || 4 + ($lfoMac * 16) > strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC list override table contains an invalid LFO count');
+        }
+
+        $overrides = [];
+        for ($index = 0; $index < $lfoMac; $index++) {
+            $lfoOffset = 4 + ($index * 16);
+            $lsid = self::signed32(self::u32($bytes, $lfoOffset));
+            if (!isset($formatByLsid[$lsid])) {
+                throw new \RuntimeException('Legacy DOC list override references an unknown list identifier');
+            }
+            $field = ord($bytes[$lfoOffset + 13]);
+            if (!in_array($field, [0x00, 0xfc, 0xfd, 0xfe, 0xff], true)) {
+                throw new \RuntimeException('Legacy DOC list override contains an invalid auto-number field code');
+            }
+
+            $overrides[] = [
+                'ilfo' => $index + 1,
+                'lsid' => $lsid,
+                'overrideLevelCount' => ord($bytes[$lfoOffset + 12]),
+                'autoNumberField' => match ($field) {
+                    0xfc => 'AUTONUMLGL',
+                    0xfd => 'AUTONUMOUT',
+                    0xfe => 'AUTONUM',
+                    default => null,
+                },
+                'htmlCompatibilityFlags' => ord($bytes[$lfoOffset + 14]),
+                'levels' => [],
+            ];
+        }
+
+        $cursor = 4 + ($lfoMac * 16);
+        for ($index = 0; $index < $lfoMac; $index++) {
+            if ($cursor + 4 > strlen($bytes)) {
+                throw new \RuntimeException('Legacy DOC list override table is truncated before LFOData');
+            }
+
+            $cp = self::u32($bytes, $cursor);
+            $cursor += 4;
+            if ($cp !== 0xffffffff) {
+                $overrides[$index]['firstParagraphCp'] = $cp;
+            }
+
+            $seenLevels = [];
+            $levelCount = (int) $overrides[$index]['overrideLevelCount'];
+            if ($levelCount > 9) {
+                throw new \RuntimeException('Legacy DOC list override declares too many level overrides');
+            }
+            for ($levelIndex = 0; $levelIndex < $levelCount; $levelIndex++) {
+                [$levelOverride, $cursor] = $this->parseLfoLevelOverride($bytes, $cursor);
+                $level = (int) $levelOverride['level'];
+                if (isset($seenLevels[$level])) {
+                    throw new \RuntimeException('Legacy DOC list override contains duplicate level overrides');
+                }
+                $seenLevels[$level] = true;
+                $overrides[$index]['levels'][] = $levelOverride;
+            }
+        }
+
+        if ($cursor !== strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC list override table contains trailing bytes');
+        }
+
+        return $overrides;
+    }
+
+    /**
+     * @return array{0:array<string,mixed>,1:int}
+     */
+    private function parseLfoLevelOverride(string $bytes, int $offset): array
+    {
+        if ($offset + 8 > strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC list level override is truncated');
+        }
+
+        $startAt = self::signed32(self::u32($bytes, $offset));
+        $bits = self::u32($bytes, $offset + 4);
+        $level = $bits & 0x0f;
+        $startAtOverride = ($bits & 0x10) !== 0;
+        $formattingOverride = ($bits & 0x20) !== 0;
+        if ($level > 8) {
+            throw new \RuntimeException('Legacy DOC list level override references an invalid level');
+        }
+        if ($startAtOverride && !$formattingOverride && ($startAt < 0 || $startAt > 0x7fff)) {
+            throw new \RuntimeException('Legacy DOC list level override start-at value is outside the supported range');
+        }
+
+        $record = [
+            'level' => $level,
+            'startAtOverride' => $startAtOverride,
+            'formattingOverride' => $formattingOverride,
+            'htmlCompatibilityFlags' => ($bits >> 6) & 0xff,
+        ];
+        if ($startAtOverride && !$formattingOverride) {
+            $record['startAt'] = $startAt;
+        }
+
+        $cursor = $offset + 8;
+        if ($formattingOverride) {
+            [$record['levelFormat'], $cursor] = $this->parseLvl($bytes, $cursor, $level, 'LFOLVL');
+        }
+
+        return [$record, $cursor];
     }
 
     /**

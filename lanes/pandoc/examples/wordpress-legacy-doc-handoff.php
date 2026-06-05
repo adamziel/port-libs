@@ -312,6 +312,53 @@ $styleSheet = static function (array $styleRecords) use ($u16): string {
 
     return $u16(strlen($stshif)) . $stshif . $styles;
 };
+$listLevel = static function (
+    int $startAt,
+    int $numberFormat,
+    string $numberText,
+    array $placeholderOffsets = [],
+    int $follow = 0,
+    string $papx = '',
+    string $chpx = ''
+) use ($u16, $u32, $utf16le): string {
+    $numberTextBytes = '';
+    $characters = preg_split('//u', $numberText, -1, PREG_SPLIT_NO_EMPTY);
+    if (!is_array($characters)) {
+        $characters = str_split($numberText);
+    }
+    foreach ($characters as $character) {
+        if (strlen($character) === 1 && ord($character) < 0x20) {
+            $numberTextBytes .= $u16(ord($character));
+            continue;
+        }
+
+        $encoded = $utf16le($character);
+        if (strlen($encoded) !== 2) {
+            throw new RuntimeException('Legacy DOC list-level fixture supports BMP characters only');
+        }
+        $numberTextBytes .= $encoded;
+    }
+
+    $rgbxchNums = '';
+    for ($index = 0; $index < 9; $index++) {
+        $rgbxchNums .= chr($placeholderOffsets[$index] ?? 0);
+    }
+
+    return $u32($startAt)
+        . chr($numberFormat)
+        . "\0"
+        . $rgbxchNums
+        . chr($follow)
+        . $u32(0)
+        . $u32(0)
+        . chr(strlen($chpx))
+        . chr(strlen($papx))
+        . "\0\0"
+        . $papx
+        . $chpx
+        . $u16(intdiv(strlen($numberTextBytes), 2))
+        . $numberTextBytes;
+};
 
 $fieldBegin = "\x13";
 $fieldSeparator = "\x14";
@@ -479,6 +526,24 @@ $stsh = $styleSheet([
     16 => $styleDefinition('Reviewer Body', 1, 15, 16, 2),
     17 => $styleDefinition('Migration Emphasis', 2, 0x0fff, 16, 1),
 ]);
+$lstf = static function (int $lsid, int $tplc, array $styles, int $flags, int $grfhic = 0) use ($u16, $u32): string {
+    $styleBytes = '';
+    for ($level = 0; $level < 9; $level++) {
+        $styleBytes .= $u16($styles[$level] ?? 0x0fff);
+    }
+
+    return $u32($lsid) . $u32($tplc) . $styleBytes . chr($flags) . chr($grfhic);
+};
+$listOrderedLevel = $listLevel(3, 0x00, "\0.", [1], 1, "\x11\x22", "\x33");
+$listBulletLevel = $listLevel(1, 0x17, "•");
+$plfLst = $u16(2)
+    . $lstf(1001, 2001, [0 => 15], 0x01)
+    . $lstf(2002, 3002, [0 => 16], 0x01, 2);
+$plfLfo = $u32(2)
+    . $u32(1001) . $u32(0) . $u32(0) . chr(1) . chr(0xfe) . chr(0) . "\0"
+    . $u32(2002) . $u32(0) . $u32(0) . chr(0) . chr(0) . chr(0) . "\0"
+    . $u32(0) . $u32(7) . $u32(0x10)
+    . $u32($firstPieceCharacters);
 $fcSttbfBkmk = strlen($clx);
 $fcPlcfBkf = $fcSttbfBkmk + strlen($sttbfBkmk);
 $fcPlcfBkl = $fcPlcfBkf + strlen($plcfBkf);
@@ -492,7 +557,9 @@ $fcPlcfSed = $fcPlcfandTxt + strlen($plcfandTxt);
 $fcPlcBtePapx = $fcPlcfSed + strlen($plcfSed);
 $fcPlcBteChpx = $fcPlcBtePapx + strlen($plcBtePapx);
 $fcStshf = $fcPlcBteChpx + strlen($plcBteChpx);
-$tableStream = $clx . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh;
+$fcPlfLst = $fcStshf + strlen($stsh);
+$fcPlfLfo = $fcPlfLst + strlen($plfLst) + strlen($listOrderedLevel) + strlen($listBulletLevel);
+$tableStream = $clx . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
 $wordDocument = substr_replace($wordDocument, $u32($fcStshf), 0x00a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($stsh)), 0x00a6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcBteChpx), 0x00fa, 4);
@@ -521,6 +588,10 @@ $wordDocument = substr_replace($wordDocument, $u32($fcPlcfandRef), 0x00ba, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfandRef)), 0x00be, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfandTxt), 0x00c2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfandTxt)), 0x00c6, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcPlfLst), 0x02e2, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($plfLst)), 0x02e6, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcPlfLfo), 0x02ea, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($plfLfo)), 0x02ee, 4);
 $docSummaryFmtid = hex2bin('02d5cdd59c2e1b10939708002b2cf9ae');
 $userDefinedFmtid = hex2bin('05d5cdd59c2e1b10939708002b2cf9ae');
 if (!is_string($docSummaryFmtid) || !is_string($userDefinedFmtid)) {
@@ -831,6 +902,8 @@ $summary = [
     'subdocuments' => $result['subdocuments'],
     'styles' => $result['styles'],
     'formattingRuns' => $result['formattingRuns'],
+    'listFormats' => $result['listFormats'],
+    'listOverrides' => $result['listOverrides'],
     'sections' => $result['sections'],
     'bookmarks' => $result['bookmarks'],
     'footnotes' => $result['footnotes'],
@@ -955,6 +1028,30 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['formattingRuns'][0]['canApplyFormatting'] ?? null) !== false) {
         throw new RuntimeException('Legacy DOC handoff self-test should keep full SPRM formatting expansion disabled');
+    }
+    if (($summary['metadata']['listFormatCount'] ?? null) !== 2 || ($summary['metadata']['listLevelCount'] ?? null) !== 2) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing list format/level counts');
+    }
+    if (($summary['metadata']['listOverrideCount'] ?? null) !== 2 || count($summary['listOverrides'] ?? []) !== 2) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing list override counts');
+    }
+    if (($summary['listFormats'][0]['lsid'] ?? null) !== 1001 || ($summary['listFormats'][0]['linkedStyleIstds'][0]['istd'] ?? null) !== 15) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing ordered list LSTF metadata');
+    }
+    if (($summary['listFormats'][0]['levels'][0]['numberText'] ?? '') !== '%1.' || ($summary['listFormats'][0]['levels'][0]['follow'] ?? '') !== 'space') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing ordered list level metadata');
+    }
+    if (($summary['listFormats'][1]['levels'][0]['numberFormat'] ?? '') !== 'bullet' || ($summary['listFormats'][1]['levels'][0]['numberText'] ?? '') !== '•') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing bullet list level metadata');
+    }
+    if (($summary['listOverrides'][0]['autoNumberField'] ?? '') !== 'AUTONUM' || ($summary['listOverrides'][0]['levels'][0]['startAt'] ?? null) !== 7) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing list override start-at metadata');
+    }
+    if (($summary['listOverrides'][1]['firstParagraphCp'] ?? null) !== $firstPieceCharacters || ($summary['listOverrides'][0]['levels'][0]['formattingOverride'] ?? null) !== false) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing list override paragraph/start metadata');
+    }
+    if (($summary['listFormats'][0]['levels'][0]['canApplyNumbering'] ?? null) !== false) {
+        throw new RuntimeException('Legacy DOC handoff self-test should keep legacy numbering application disabled');
     }
     if (($summary['metadata']['cfbStreamCount'] ?? null) !== 14 || ($summary['metadata']['cfbTimestampedDirectoryEntryCount'] ?? null) !== 2) {
         throw new RuntimeException('Legacy DOC handoff self-test missing CFB directory counts');

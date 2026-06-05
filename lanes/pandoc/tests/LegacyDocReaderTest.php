@@ -1005,6 +1005,99 @@ $buildFormattingTableDocStreams = static function () use ($buildSimpleWordDocume
     ];
 };
 
+$listLevel = static function (
+    int $level,
+    int $startAt,
+    int $numberFormat,
+    string $numberText,
+    array $placeholderOffsets = [],
+    int $follow = 0,
+    string $papx = '',
+    string $chpx = '',
+    int $flags = 0,
+    int $restartLimit = 0
+) use ($u16, $u32, $utf16le): string {
+    $numberTextBytes = '';
+    $characters = preg_split('//u', $numberText, -1, PREG_SPLIT_NO_EMPTY);
+    if (!is_array($characters)) {
+        $characters = str_split($numberText);
+    }
+    foreach ($characters as $character) {
+        if (strlen($character) === 1 && ord($character) < 0x20) {
+            $numberTextBytes .= $u16(ord($character));
+            continue;
+        }
+
+        $encoded = $utf16le($character);
+        if (strlen($encoded) !== 2) {
+            throw new RuntimeException('Legacy DOC list-level fixture supports BMP characters only');
+        }
+        $numberTextBytes .= $encoded;
+    }
+
+    $rgbxchNums = '';
+    for ($index = 0; $index < 9; $index++) {
+        $rgbxchNums .= chr($placeholderOffsets[$index] ?? 0);
+    }
+
+    return $u32($startAt)
+        . chr($numberFormat)
+        . chr($flags)
+        . $rgbxchNums
+        . chr($follow)
+        . $u32(0)
+        . $u32(0)
+        . chr(strlen($chpx))
+        . chr(strlen($papx))
+        . chr($restartLimit)
+        . "\0"
+        . $papx
+        . $chpx
+        . $u16(intdiv(strlen($numberTextBytes), 2))
+        . $numberTextBytes;
+};
+
+$buildListTableDocStreams = static function () use ($u16, $u32, $listLevel): array {
+    $text = "First numbered item\rSecond bullet item\r";
+    $wordDocument = str_repeat("\0", 1024) . $text;
+    $wordDocument = substr_replace($wordDocument, $u16(0xa5ec), 0, 2);
+    $wordDocument = substr_replace($wordDocument, $u16(0x00c1), 2, 2);
+    $wordDocument = substr_replace($wordDocument, $u32(1024), 24, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(1024 + strlen($text)), 28, 4);
+
+    $lstf = static function (int $lsid, int $tplc, array $styles, int $flags, int $grfhic = 0) use ($u16, $u32): string {
+        $styleBytes = '';
+        for ($level = 0; $level < 9; $level++) {
+            $styleBytes .= $u16($styles[$level] ?? 0x0fff);
+        }
+
+        return $u32($lsid) . $u32($tplc) . $styleBytes . chr($flags) . chr($grfhic);
+    };
+
+    $orderedLevel = $listLevel(0, 3, 0x00, "\0.", [1], 1, "\x11\x22\x33", "\x44\x55");
+    $bulletLevel = $listLevel(0, 1, 0x17, "•");
+    $plfLst = $u16(2)
+        . $lstf(1001, 2001, [0 => 15], 0x01)
+        . $lstf(2002, 3002, [], 0x01, 2);
+    $lfo1 = $u32(1001) . $u32(0) . $u32(0) . chr(1) . chr(0xfe) . chr(0) . "\0";
+    $lfo2 = $u32(2002) . $u32(0) . $u32(0) . chr(0) . chr(0) . chr(0) . "\0";
+    $lfoData1 = $u32(0) . $u32(7) . $u32(0x10);
+    $lfoData2 = $u32(strlen("First numbered item\r"));
+    $plfLfo = $u32(2) . $lfo1 . $lfo2 . $lfoData1 . $lfoData2;
+    $tableStream = $plfLst . $orderedLevel . $bulletLevel . $plfLfo;
+    $fcPlfLfo = strlen($plfLst) + strlen($orderedLevel) + strlen($bulletLevel);
+
+    $wordDocument = substr_replace($wordDocument, $u32(0), 0x02e2, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plfLst)), 0x02e6, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlfLfo), 0x02ea, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plfLfo)), 0x02ee, 4);
+
+    return [
+        'WordDocument' => $wordDocument,
+        '0Table' => $tableStream,
+    ];
+};
+
 return [
     'reads CFB directory streams including MiniFAT-backed legacy streams' => static function (TestRunner $t) use ($buildCfb): void {
         $bytes = $buildCfb([
@@ -2235,6 +2328,85 @@ return [
         $badFkpPage = $buildFormattingTableDocStreams();
         $badFkpPage['0Table'] = substr_replace($badFkpPage['0Table'], $u32(9999), 8, 4);
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badFkpPage, false)));
+    },
+    'extracts legacy DOC list table formats and overrides as numbering review metadata' => static function (TestRunner $t) use ($buildCfb, $buildListTableDocStreams): void {
+        $result = (new LegacyDocReader())->readBytes($buildCfb($buildListTableDocStreams(), false));
+        $document = $result['document'];
+        $formats = $result['listFormats'];
+        $overrides = $result['listOverrides'];
+        $metadata = $result['metadata'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same($formats, $document->attr('listFormats'));
+        $t->same($overrides, $document->attr('listOverrides'));
+        $t->same($formats, $metadata['listFormats']);
+        $t->same($overrides, $metadata['listOverrides']);
+        $t->same(2, $metadata['listFormatCount']);
+        $t->same(2, $metadata['listLevelCount']);
+        $t->same(2, $metadata['listOverrideCount']);
+
+        $t->same(1001, $formats[0]['lsid']);
+        $t->same(2001, $formats[0]['templateCode']);
+        $t->same(true, $formats[0]['simple']);
+        $t->same(false, $formats[0]['autoNumber']);
+        $t->same(false, $formats[0]['hybrid']);
+        $t->same([['level' => 0, 'istd' => 15]], $formats[0]['linkedStyleIstds']);
+        $orderedLevel = $formats[0]['levels'][0];
+        $t->same(0, $orderedLevel['level']);
+        $t->same(3, $orderedLevel['startAt']);
+        $t->same('decimal', $orderedLevel['numberFormat']);
+        $t->same('%1.', $orderedLevel['numberText']);
+        $t->same([1], $orderedLevel['placeholderOffsets']);
+        $t->same([0], $orderedLevel['placeholderLevels']);
+        $t->same('space', $orderedLevel['follow']);
+        $t->same(3, $orderedLevel['paragraphPropertyBytes']);
+        $t->same(2, $orderedLevel['characterPropertyBytes']);
+        $t->same(false, $orderedLevel['canApplyNumbering']);
+
+        $t->same(2002, $formats[1]['lsid']);
+        $bulletLevel = $formats[1]['levels'][0];
+        $t->same('bullet', $bulletLevel['numberFormat']);
+        $t->same('•', $bulletLevel['numberText']);
+        $t->same('tab', $bulletLevel['follow']);
+        $t->same([], $bulletLevel['placeholderOffsets']);
+        $t->same(2, $formats[1]['htmlCompatibilityFlags']);
+
+        $t->same(1, $overrides[0]['ilfo']);
+        $t->same(1001, $overrides[0]['lsid']);
+        $t->same('AUTONUM', $overrides[0]['autoNumberField']);
+        $t->same(0, $overrides[0]['firstParagraphCp']);
+        $t->same(1, $overrides[0]['overrideLevelCount']);
+        $t->same(0, $overrides[0]['levels'][0]['level']);
+        $t->same(true, $overrides[0]['levels'][0]['startAtOverride']);
+        $t->same(false, $overrides[0]['levels'][0]['formattingOverride']);
+        $t->same(7, $overrides[0]['levels'][0]['startAt']);
+        $t->same(2, $overrides[1]['ilfo']);
+        $t->same(2002, $overrides[1]['lsid']);
+        $t->same(strlen("First numbered item\r"), $overrides[1]['firstParagraphCp']);
+        $t->same([], $overrides[1]['levels']);
+        $t->contains('<p>First numbered item</p>', $blocks);
+        $t->contains('<p>Second bullet item</p>', $blocks);
+    },
+    'rejects malformed legacy DOC list tables before exposing numbering metadata' => static function (TestRunner $t) use ($buildCfb, $buildListTableDocStreams, $u32): void {
+        $reader = new LegacyDocReader();
+
+        $badLength = $buildListTableDocStreams();
+        $badLength['WordDocument'] = substr_replace($badLength['WordDocument'], $u32(3), 0x02e6, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badLength, false)));
+
+        $duplicateLsid = $buildListTableDocStreams();
+        $duplicateLsid['0Table'] = substr_replace($duplicateLsid['0Table'], $u32(1001), 2 + 28, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($duplicateLsid, false)));
+
+        $unknownOverride = $buildListTableDocStreams();
+        $fcPlfLfo = unpack('Vvalue', substr($unknownOverride['WordDocument'], 0x02ea, 4))['value'];
+        $unknownOverride['0Table'] = substr_replace($unknownOverride['0Table'], $u32(9999), (int) $fcPlfLfo + 4, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($unknownOverride, false)));
+
+        $badPlaceholder = $buildListTableDocStreams();
+        $levelOffset = 2 + (2 * 28);
+        $badPlaceholder['0Table'] = substr_replace($badPlaceholder['0Table'], "\x02", $levelOffset + 6, 1);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badPlaceholder, false)));
     },
     'rejects malformed legacy DOC stylesheet records before exposing style metadata' => static function (TestRunner $t) use ($buildCfb, $buildStyleSheetDocStreams, $styleDefinition, $u16, $u32): void {
         $reader = new LegacyDocReader();
