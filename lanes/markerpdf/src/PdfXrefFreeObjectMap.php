@@ -202,7 +202,7 @@ final class PdfXrefFreeObjectMap
             return null;
         }
 
-        $entries = self::xrefStreamRows($dictionary, $decoded);
+        $entries = self::xrefStreamRows($dictionary, $decoded, $pdfBytes, $offset);
         if ($entries === null) {
             return null;
         }
@@ -273,9 +273,9 @@ final class PdfXrefFreeObjectMap
     /**
      * @return array<int, array{state: string, generation: int, offset: int}>|null
      */
-    private static function xrefStreamRows(string $dictionary, string $decoded): ?array
+    private static function xrefStreamRows(string $dictionary, string $decoded, string $pdfBytes, int $beforeOffset): ?array
     {
-        $widths = self::integerArrayValueAfterName($dictionary, 'W');
+        $widths = self::integerArrayValueAfterName($dictionary, 'W', $pdfBytes, $beforeOffset);
         if ($widths === null || count($widths) < 3) {
             return null;
         }
@@ -287,7 +287,7 @@ final class PdfXrefFreeObjectMap
         }
 
         $decodedEntryCount = strlen($decoded) % $entryWidth === 0 ? intdiv(strlen($decoded), $entryWidth) : null;
-        $ranges = self::xrefIndexRanges($dictionary, $decodedEntryCount);
+        $ranges = self::xrefIndexRanges($dictionary, $decodedEntryCount, $pdfBytes, $beforeOffset);
         if ($ranges === []) {
             return null;
         }
@@ -322,9 +322,14 @@ final class PdfXrefFreeObjectMap
     /**
      * @return list<array{0: int, 1: int}>
      */
-    private static function xrefIndexRanges(string $dictionary, ?int $decodedEntryCount): array
+    private static function xrefIndexRanges(
+        string $dictionary,
+        ?int $decodedEntryCount,
+        string $pdfBytes,
+        int $beforeOffset
+    ): array
     {
-        $indexValues = self::integerArrayValueAfterName($dictionary, 'Index');
+        $indexValues = self::integerArrayValueAfterName($dictionary, 'Index', $pdfBytes, $beforeOffset);
         if ($indexValues !== null && count($indexValues) >= 2) {
             $ranges = [];
             for ($index = 0; $index + 1 < count($indexValues); $index += 2) {
@@ -357,10 +362,32 @@ final class PdfXrefFreeObjectMap
     /**
      * @return list<int>|null
      */
-    private static function integerArrayValueAfterName(string $dictionary, string $name): ?array
+    private static function integerArrayValueAfterName(
+        string $dictionary,
+        string $name,
+        ?string $pdfBytes = null,
+        ?int $beforeOffset = null
+    ): ?array
     {
         if (preg_match('/\/' . preg_quote($name, '/') . '\s*\[([^\]]*)\]/s', $dictionary, $match) !== 1) {
-            return null;
+            if ($pdfBytes === null || $beforeOffset === null) {
+                return null;
+            }
+
+            $reference = self::objectReferenceAfterName($dictionary, $name);
+            if ($reference === null) {
+                return null;
+            }
+
+            $body = self::directObjectBodyForReferenceBeforeOffset(
+                $pdfBytes,
+                $reference['object'],
+                $reference['generation'],
+                $beforeOffset
+            );
+            if ($body === null || preg_match('/^\s*\[([^\]]*)\]\s*\z/s', $body, $match) !== 1) {
+                return null;
+            }
         }
 
         if (preg_match_all('/[+-]?\d+/', $match[1], $numbers) < 1) {
@@ -368,6 +395,56 @@ final class PdfXrefFreeObjectMap
         }
 
         return array_map('intval', $numbers[0]);
+    }
+
+    /**
+     * @return array{object: int, generation: int}|null
+     */
+    private static function objectReferenceAfterName(string $dictionary, string $name): ?array
+    {
+        if (preg_match('/\/' . preg_quote($name, '/') . '\s+(\d+)\s+(\d+)\s+R\b/s', $dictionary, $match) !== 1) {
+            return null;
+        }
+
+        return [
+            'object' => (int) $match[1],
+            'generation' => (int) $match[2],
+        ];
+    }
+
+    private static function directObjectBodyForReferenceBeforeOffset(
+        string $pdfBytes,
+        int $objectNumber,
+        int $generation,
+        int $beforeOffset
+    ): ?string
+    {
+        if ($objectNumber <= 0 || $generation < 0 || $beforeOffset <= 0) {
+            return null;
+        }
+
+        $selected = null;
+        $offset = 0;
+        while (preg_match('/(\d+)\s+(\d+)\s+obj\b/s', $pdfBytes, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $objectOffset = $match[0][1];
+            if ($objectOffset >= $beforeOffset) {
+                break;
+            }
+
+            $bodyStart = $objectOffset + strlen($match[0][0]);
+            $bodyEnd = strpos($pdfBytes, 'endobj', $bodyStart);
+            if ($bodyEnd === false) {
+                break;
+            }
+
+            if ((int) $match[1][0] === $objectNumber && (int) $match[2][0] === $generation) {
+                $selected = substr($pdfBytes, $bodyStart, $bodyEnd - $bodyStart);
+            }
+
+            $offset = $bodyEnd + strlen('endobj');
+        }
+
+        return $selected;
     }
 
     private static function integerValueAfterName(string $dictionary, string $name): ?int
