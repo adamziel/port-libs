@@ -3487,7 +3487,7 @@ final class PdfOutlineExtractor
     private function outlineColorRgb(mixed $value, array $objects): ?array
     {
         $array = $this->resolveArray($value, $objects);
-        if ($array === null || count($array) < 3) {
+        if ($array === null || count($array) !== 3) {
             return null;
         }
 

@@ -3870,7 +3870,7 @@ final class PdfMetadataExtractor
         }
 
         $items = $this->arrayItemsFromValue($value, $objects);
-        if (count($items) < 3) {
+        if (count($items) !== 3) {
             return null;
         }
 
