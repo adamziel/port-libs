@@ -136,6 +136,13 @@ try {
         numChunks: 2,
         workers: 8
     );
+    $negativeNumChunksPlan = $batch->runtimeMainPreflightPlan(
+        $input,
+        $output,
+        chunkIndex: 0,
+        numChunks: -2,
+        workers: 8
+    );
     $zeroWorkerPlan = $batch->runtimeMainPreflightPlan(
         $input,
         $output,
@@ -622,6 +629,19 @@ try {
         throw new RuntimeException('Expected negative --chunk_idx to follow upstream Python slice normalization before task tuples are built.');
     }
     if (
+        $negativeNumChunksPlan['chunking']['negative_num_chunks_active'] !== true
+        || $negativeNumChunksPlan['chunking']['chunk_size'] !== -2
+        || $negativeNumChunksPlan['chunking']['start_index'] !== 0
+        || $negativeNumChunksPlan['chunking']['end_index'] !== -2
+        || $negativeNumChunksPlan['chunking']['python_slice_start_index'] !== 0
+        || $negativeNumChunksPlan['chunking']['python_slice_end_index'] !== 3
+        || $negativeNumChunksPlan['chunking']['selected_filenames'] !== array_slice($runtimeFileOrder, 0, -2)
+        || $negativeNumChunksPlan['worker_pool']['task_args_count'] !== 3
+        || $negativeNumChunksPlan['console_summary']['message_line'] !== 'Converting 3 pdfs in chunk 1/-2 with 3 processes, and storing in ' . $output
+    ) {
+        throw new RuntimeException('Expected negative --num_chunks to use upstream negative chunk-size slicing before metadata, summary, task args, or pool review.');
+    }
+    if (
         $zeroWorkerPlan['worker_pool']['pool_creation']['pool_creation_success'] !== false
         || $zeroWorkerPlan['worker_pool']['pool_creation']['error_boundary'] !== 'pool-process-count-failed'
         || $zeroWorkerPlan['worker_pool']['pool_creation']['error_class'] !== 'ValueError'
@@ -847,6 +867,18 @@ try {
             $negativeChunkPlan['chunking']['python_slice_start_index'],
             $negativeChunkPlan['chunking']['python_slice_end_index'],
         ],
+        'negative_num_chunks_selected_filenames' => $negativeNumChunksPlan['chunking']['selected_filenames'],
+        'negative_num_chunks_raw_slice' => [
+            $negativeNumChunksPlan['chunking']['start_index'],
+            $negativeNumChunksPlan['chunking']['end_index'],
+        ],
+        'negative_num_chunks_python_slice' => [
+            $negativeNumChunksPlan['chunking']['python_slice_start_index'],
+            $negativeNumChunksPlan['chunking']['python_slice_end_index'],
+        ],
+        'negative_num_chunks_chunk_size' => $negativeNumChunksPlan['chunking']['chunk_size'],
+        'negative_num_chunks_summary_line' => $negativeNumChunksPlan['console_summary']['message_line'],
+        'negative_num_chunks_task_args_count' => $negativeNumChunksPlan['worker_pool']['task_args_count'],
         'zero_worker_total_processes' => $zeroWorkerPlan['worker_pool']['total_processes'],
         'zero_worker_pool_creation_success' => $zeroWorkerPlan['worker_pool']['pool_creation']['pool_creation_success'],
         'zero_worker_pool_creation_error_boundary' => $zeroWorkerPlan['worker_pool']['pool_creation']['error_boundary'],

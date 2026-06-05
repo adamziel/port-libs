@@ -763,6 +763,90 @@ return [
             $removeTree($output);
         }
     },
+    'matches convert.py negative num_chunks slicing before metadata and worker launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'archive.pdf', 'beta.pdf', 'gamma.pdf', 'omega.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $expectedHead = array_slice($fileOrder, 0, -2);
+            $metadataByFilename = [
+                'alpha.pdf' => ['title' => 'Alpha Import'],
+                'beta.pdf' => ['title' => 'Beta Import'],
+                'omega.pdf' => ['title' => 'Tail Decoy'],
+            ];
+            $expectedSelectedMetadata = array_values(array_filter(
+                $expectedHead,
+                static fn (string $filename): bool => array_key_exists($filename, $metadataByFilename)
+            ));
+            $expectedMissingMetadata = array_values(array_filter(
+                $expectedHead,
+                static fn (string $filename): bool => !array_key_exists($filename, $metadataByFilename)
+            ));
+            $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata.json';
+            file_put_contents($metadataFile, json_encode($metadataByFilename, JSON_THROW_ON_ERROR));
+
+            $batch = new BatchConverter();
+            $negativeHead = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                chunkIndex: 0,
+                numChunks: -2,
+                workers: 5,
+                metadataFile: $metadataFile
+            );
+            $negativeEmpty = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                chunkIndex: 1,
+                numChunks: -2,
+                workers: 5,
+                metadataFile: $metadataFile
+            );
+
+            $t->same($expectedHead, $negativeHead['chunking']['selected_filenames']);
+            $t->same(true, $negativeHead['chunking']['negative_num_chunks_active']);
+            $t->same(-2, $negativeHead['chunking']['num_chunks']);
+            $t->same(-2, $negativeHead['chunking']['chunk_size']);
+            $t->same(0, $negativeHead['chunking']['start_index']);
+            $t->same(-2, $negativeHead['chunking']['end_index']);
+            $t->same(0, $negativeHead['chunking']['python_slice_start_index']);
+            $t->same(3, $negativeHead['chunking']['python_slice_end_index']);
+            $t->same(3, $negativeHead['worker_pool']['task_args_count']);
+            $t->same(3, $negativeHead['worker_pool']['total_processes']);
+            $t->same(true, $negativeHead['worker_pool']['pool_launchable']);
+            $t->same($expectedSelectedMetadata, $negativeHead['metadata']['selected_metadata_filenames']);
+            $t->same($expectedMissingMetadata, $negativeHead['metadata']['missing_metadata_filenames']);
+            $t->same(
+                'Converting 3 pdfs in chunk 1/-2 with 3 processes, and storing in ' . $output,
+                $negativeHead['console_summary']['message_line']
+            );
+            $t->same(false, $negativeHead['executes_python_or_models']);
+
+            $t->same([], $negativeEmpty['chunking']['selected_filenames']);
+            $t->same(true, $negativeEmpty['chunking']['negative_num_chunks_active']);
+            $t->same(-2, $negativeEmpty['chunking']['chunk_size']);
+            $t->same(-2, $negativeEmpty['chunking']['start_index']);
+            $t->same(-4, $negativeEmpty['chunking']['end_index']);
+            $t->same(3, $negativeEmpty['chunking']['python_slice_start_index']);
+            $t->same(1, $negativeEmpty['chunking']['python_slice_end_index']);
+            $t->same(0, $negativeEmpty['worker_pool']['task_args_count']);
+            $t->same(0, $negativeEmpty['worker_pool']['total_processes']);
+            $t->same(false, $negativeEmpty['worker_pool']['pool_launchable']);
+            $t->same('empty-task-queue', $negativeEmpty['worker_pool']['pool_error_boundary']);
+            $t->same(
+                'Converting 0 pdfs in chunk 2/-2 with 0 processes, and storing in ' . $output,
+                $negativeEmpty['console_summary']['message_line']
+            );
+            $t->same(false, $negativeEmpty['executes_multiprocessing']);
+            $t->same(false, $negativeEmpty['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'flags empty convert.py chunks and invalid workers before pool launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         try {

@@ -71,6 +71,49 @@ final class BatchConverter
     }
 
     /**
+     * Runtime mirror of convert.py's chunk math after argparse admission.
+     *
+     * argparse accepts negative --num_chunks values. Python then computes a
+     * negative chunk size and applies normal slice bounds; only zero raises at
+     * this stage. Keep the stricter public chunkFiles() helper unchanged for
+     * native callers that are not mirroring convert.py::main exactly.
+     *
+     * @param list<string> $files
+     * @return array{selected_files: list<string>, chunk_size: int, start_index: int, end_index: int, python_slice_start_index: int, python_slice_end_index: int}
+     */
+    private function runtimeChunkSelectionPlan(array $files, int $chunkIndex, int $numChunks, ?int $maxFiles): array
+    {
+        if ($numChunks === 0) {
+            throw new InvalidArgumentException('Batch chunk count must be at least one.');
+        }
+
+        $chunkSize = (int) ceil(count($files) / $numChunks);
+        $startIndex = $chunkIndex * $chunkSize;
+        $endIndex = $startIndex + $chunkSize;
+        [$pythonSliceStartIndex, $pythonSliceEndIndex] = $this->pythonSliceBounds(
+            $startIndex,
+            $endIndex,
+            count($files)
+        );
+
+        $selected = $chunkSize === 0
+            ? []
+            : $this->pythonSlice($files, $startIndex, $endIndex);
+        if ($this->pythonTruthyInteger($maxFiles)) {
+            $selected = array_slice($selected, 0, (int) $maxFiles);
+        }
+
+        return [
+            'selected_files' => array_values($selected),
+            'chunk_size' => $chunkSize,
+            'start_index' => $startIndex,
+            'end_index' => $endIndex,
+            'python_slice_start_index' => $pythonSliceStartIndex,
+            'python_slice_end_index' => $pythonSliceEndIndex,
+        ];
+    }
+
+    /**
      * @param array{filepath: string, out_folder: string, metadata?: array<string, mixed>|null, min_length?: int|null} $task
      * @return array<string, mixed>
      */
@@ -497,6 +540,8 @@ final class BatchConverter
                     'python_slice_start_index' => 0,
                     'python_slice_end_index' => 0,
                     'negative_chunk_index_active' => $chunkIndex < 0,
+                    'negative_num_chunks_active' => $numChunks < 0,
+                    'num_chunks_less_than_one_active' => $numChunks < 1,
                     'max_files' => $maxFiles,
                     'max_files_limit_active' => $this->pythonTruthyInteger($maxFiles),
                     'input_file_count' => count($inputFiles),
@@ -556,16 +601,14 @@ final class BatchConverter
             ];
         }
 
-        $selectedFiles = $this->chunkFiles($inputFiles, $chunkIndex, $numChunks, $maxFiles);
+        $chunkPlan = $this->runtimeChunkSelectionPlan($inputFiles, $chunkIndex, $numChunks, $maxFiles);
+        $selectedFiles = $chunkPlan['selected_files'];
         $selectedFilenames = array_map(static fn (string $filepath): string => basename($filepath), $selectedFiles);
-        $chunkSize = $numChunks < 1 ? 0 : (int) ceil(count($inputFiles) / $numChunks);
-        $startIndex = $chunkIndex * $chunkSize;
-        $endIndex = $startIndex + $chunkSize;
-        [$pythonSliceStartIndex, $pythonSliceEndIndex] = $this->pythonSliceBounds(
-            $startIndex,
-            $endIndex,
-            count($inputFiles)
-        );
+        $chunkSize = $chunkPlan['chunk_size'];
+        $startIndex = $chunkPlan['start_index'];
+        $endIndex = $chunkPlan['end_index'];
+        $pythonSliceStartIndex = $chunkPlan['python_slice_start_index'];
+        $pythonSliceEndIndex = $chunkPlan['python_slice_end_index'];
 
         try {
             $runtimeMetadataPlan = $absoluteMetadataFile === null
@@ -636,6 +679,8 @@ final class BatchConverter
                     'python_slice_start_index' => $pythonSliceStartIndex,
                     'python_slice_end_index' => $pythonSliceEndIndex,
                     'negative_chunk_index_active' => $chunkIndex < 0,
+                    'negative_num_chunks_active' => $numChunks < 0,
+                    'num_chunks_less_than_one_active' => $numChunks < 1,
                     'max_files' => $maxFiles,
                     'max_files_limit_active' => $this->pythonTruthyInteger($maxFiles),
                     'input_file_count' => count($inputFiles),
@@ -718,14 +763,6 @@ final class BatchConverter
             static fn (string $filename): bool => !array_key_exists($filename, $runtimeMetadata)
         ));
 
-        $chunkSize = $numChunks < 1 ? 0 : (int) ceil(count($inputFiles) / $numChunks);
-        $startIndex = $chunkIndex * $chunkSize;
-        $endIndex = $startIndex + $chunkSize;
-        [$pythonSliceStartIndex, $pythonSliceEndIndex] = $this->pythonSliceBounds(
-            $startIndex,
-            $endIndex,
-            count($inputFiles)
-        );
         $totalProcesses = min(count($selectedFiles), $workers);
         $spawnStartMethod = $this->convertMainSpawnStartMethodPlan(null, $spawnStartMethodAlreadySet, $totalProcesses);
         if (!$spawnStartMethod['start_method_success']) {
@@ -781,6 +818,8 @@ final class BatchConverter
                     'python_slice_start_index' => $pythonSliceStartIndex,
                     'python_slice_end_index' => $pythonSliceEndIndex,
                     'negative_chunk_index_active' => $chunkIndex < 0,
+                    'negative_num_chunks_active' => $numChunks < 0,
+                    'num_chunks_less_than_one_active' => $numChunks < 1,
                     'max_files' => $maxFiles,
                     'max_files_limit_active' => $this->pythonTruthyInteger($maxFiles),
                     'input_file_count' => count($inputFiles),
@@ -906,6 +945,8 @@ final class BatchConverter
                     'python_slice_start_index' => $pythonSliceStartIndex,
                     'python_slice_end_index' => $pythonSliceEndIndex,
                     'negative_chunk_index_active' => $chunkIndex < 0,
+                    'negative_num_chunks_active' => $numChunks < 0,
+                    'num_chunks_less_than_one_active' => $numChunks < 1,
                     'max_files' => $maxFiles,
                     'max_files_limit_active' => $this->pythonTruthyInteger($maxFiles),
                     'input_file_count' => count($inputFiles),
@@ -1054,6 +1095,8 @@ final class BatchConverter
                 'python_slice_start_index' => $pythonSliceStartIndex,
                 'python_slice_end_index' => $pythonSliceEndIndex,
                 'negative_chunk_index_active' => $chunkIndex < 0,
+                'negative_num_chunks_active' => $numChunks < 0,
+                'num_chunks_less_than_one_active' => $numChunks < 1,
                 'max_files' => $maxFiles,
                 'max_files_limit_active' => $this->pythonTruthyInteger($maxFiles),
                 'input_file_count' => count($inputFiles),
