@@ -11843,9 +11843,9 @@ final class PdfTextExtractor
         }
 
         if ($dict[$offset] === '/') {
-            $end = $offset + 1;
-            while ($end < strlen($dict) && !str_contains(" \t\r\n\f[]()<>{}/%", $dict[$end])) {
-                $end++;
+            $end = $this->pdfNameTokenEndOffset($dict, $offset);
+            if ($this->directScalarFilterExtraNameOperand($dict, $offset) !== null) {
+                return null;
             }
 
             return [$this->decodePdfName(substr($dict, $offset + 1, $end - $offset - 1))];
@@ -11867,6 +11867,61 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    private function pdfNameTokenEndOffset(string $body, int $offset): int
+    {
+        $end = $offset + 1;
+        while ($end < strlen($body) && !str_contains(" \t\r\n\f[]()<>{}/%", $body[$end])) {
+            $end++;
+        }
+
+        return $end;
+    }
+
+    private function directScalarFilterExtraNameOperand(string $dict, int $offset): ?string
+    {
+        $offset = $this->skipPdfWhitespace($dict, $offset);
+        if ($offset >= strlen($dict) || $dict[$offset] !== '/') {
+            return null;
+        }
+
+        $end = $this->pdfNameTokenEndOffset($dict, $offset);
+        $next = $this->skipPdfWhitespace($dict, $end);
+        if ($next >= strlen($dict) || $dict[$next] !== '/') {
+            return null;
+        }
+
+        $nextEnd = $this->pdfNameTokenEndOffset($dict, $next);
+        if ($nextEnd <= $next + 1) {
+            return null;
+        }
+
+        $name = $this->decodePdfName(substr($dict, $next + 1, $nextEnd - $next - 1));
+        return $this->streamFilterNameLooksLikeDecoder($name) ? $name : null;
+    }
+
+    private function streamFilterNameLooksLikeDecoder(string $name): bool
+    {
+        return in_array($name, [
+            'ASCIIHexDecode',
+            'AHx',
+            'ASCII85Decode',
+            'A85',
+            'RunLengthDecode',
+            'RL',
+            'LZWDecode',
+            'LZW',
+            'FlateDecode',
+            'Fl',
+            'Crypt',
+            'DCTDecode',
+            'DCT',
+            'CCITTFaxDecode',
+            'CCF',
+            'JPXDecode',
+            'JBIG2Decode',
+        ], true);
     }
 
     /**
@@ -13947,8 +14002,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $rawDecoded = $this->decodedCMapBody($encodingObject, $objects);
-        $currentName = is_string($rawDecoded) ? $this->cMapName($rawDecoded) : $this->cMapName($decoded);
+        $currentName = $this->cMapName($decoded);
 
         return $this->parseCidCMap($decoded, $namedCMapBodies, $currentName === null ? [] : [$currentName]);
     }
@@ -22093,10 +22147,18 @@ final class PdfTextExtractor
                 'owner_policy' => 'direct_operand',
             ];
             if ($name === 'Filter') {
-                $review['valid_filter_operand'] = $this->directFilterOperandTokenTypeIsValid($tokenType);
+                $extraFilterName = $tokenType === 'name'
+                    ? $this->directScalarFilterExtraNameOperand($dict, $offset)
+                    : null;
+                $review['valid_filter_operand'] = $this->directFilterOperandTokenTypeIsValid($tokenType)
+                    && $extraFilterName === null;
                 $review['dictionary_filter_operand'] = $this->filterOperandBodyContainsDictionary($item);
                 if ($tokenType === 'name') {
                     $review['escaped_name_operand'] = $this->pdfNameTokenContainsHexEscape($item);
+                }
+                if ($extraFilterName !== null) {
+                    $review['extra_filter_name_operand'] = true;
+                    $review['extra_filter_name'] = $extraFilterName;
                 }
             }
             if ($name === 'DecodeParms') {
@@ -23743,10 +23805,7 @@ final class PdfTextExtractor
         $named = [];
         foreach ($objects as $body) {
             $cmap = $this->decodedCMapBodyForParsing($body, $objects);
-            $rawCMap = $this->decodedCMapBody($body, $objects);
-            $name = is_string($rawCMap)
-                ? $this->cMapName($rawCMap)
-                : (is_string($cmap) ? $this->cMapName($cmap) : null);
+            $name = is_string($cmap) ? $this->cMapName($cmap) : null;
             if ($cmap === null || $name === null) {
                 continue;
             }
